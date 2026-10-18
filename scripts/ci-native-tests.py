@@ -1395,7 +1395,8 @@ def qualify_shard_vm(mode, deadline):
     reader = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(reader)
     try:
-        return reader.qualify_runtime(reader.Budget(deadline, COMMAND_SECONDS), ROOT, docker=docker_mode(mode))
+        runtime = reader.qualify_runtime(reader.Budget(deadline, COMMAND_SECONDS), ROOT, docker=docker_mode(mode))
+        return {**runtime, 'imageOS': os.environ['ImageOS'], 'imageVersion': os.environ['ImageVersion']}
     except reader.Refusal as failure:
         raise Refusal(failure.reason) from None
 

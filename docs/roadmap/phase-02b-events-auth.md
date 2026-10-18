@@ -9773,6 +9773,42 @@ broad extension exemption changes. All 48 shard/result controls and 37 launcher
 controls pass after these corrections. These local results do not qualify the
 initial hosted execution or the final two assignments.
 
+**Step 3 review round 2 and final control corrections.** A fresh `gpt-6-astra`
+reviewer at `xhigh` reviews `83be42d6..98ae41a8` and approves the source with no
+new Blocker/Major. Independent checks pass 48 shard/result, 18 provisioning,
+seven ADR parser, five CorpusConsistency and 19 targeted frontend cases. The
+37-launcher suite first exposes an existing 200 ms fixture-start race; an
+unchanged rerun passes, and a fixture-only 250 ms startup delay reproduces the
+race. Root replaces that proof's timing assumption with actual first-result
+and partial-next-event admission before deterministic cancellation, under a
+separate five-second test guard. A delayed real child still runs, is actually
+joined, preserves the exact completed ID and leaves incomplete JSON/no TRX.
+Production execution and cleanup budgets remain unchanged.
+
+The second verified Minor is that non-native preflight checks but discards the
+weekly image release. Receipts now retain its already validated OS/release,
+CPU/kernel/virtualization values; aggregates validate and retain each producer's
+observed identity independently, without inferring equal images from equal
+labels or SDKs. Controls reject missing/invalid image evidence. The suites now
+pass 49 shard/result and 37 launcher cases.
+
+The initial hosted run also exposes one stale environment-control assertion
+that expects test filters directly in the former backend execution job. It is
+adapted to the actual complete topology owner and verifies that the read-only
+collector/Docker observer runs only before native execution. Non-Docker paths
+gain no observation authority. All five environment controls pass. The other
+four read-only observer controls remain intact.
+
+Initial source `10e1b164` supplies a real passing base receipt: 2,633 cases,
+393 seconds whole job, actual SDK 10.0.402/console 18.7.0-release-26505-111,
+43.811 seconds discovery/selection and 113.792 seconds non-test gates.
+Immutable artifact 12152067468 and its API ZIP digest, exact results, natural
+ownership and raw merge-parent relation are independently verified. This is
+pre-correction base evidence only, not final-source/global fit. Initial
+ordinary-10 reports two failed facade cases; their related three rows pass
+locally in isolation and exact-shard diagnosis continues. A fresh focused
+correction review and full final-source hosted qualification remain required.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

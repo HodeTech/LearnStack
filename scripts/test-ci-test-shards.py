@@ -9,6 +9,7 @@ import io
 from pathlib import Path
 import tempfile
 import time
+import types
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
@@ -631,6 +632,23 @@ class ShardControls(unittest.TestCase):
             for reason in ('PRIVATE-CANARY provider text', ['resource_controllers_unavailable']):
                 LAUNCHER.write_json(private / 'startup-failure.json', {'protocol': 1, 'reason': reason})
                 self.assertEqual('unit_startup_failed', LAUNCHER.startup_failure(private))
+
+    def test_shard_qualification_retains_actual_validated_image_release(self):
+        runtime = {'cpus': 4, 'kernelRelease': '6.17.0-1022-azure', 'virtualization': 'microsoft'}
+        reader = types.SimpleNamespace(Budget=mock.Mock(), qualify_runtime=mock.Mock(return_value=runtime))
+        spec = types.SimpleNamespace(loader=types.SimpleNamespace(exec_module=mock.Mock()))
+        with mock.patch.dict(LAUNCHER.os.environ, {'RUNNER_ENVIRONMENT': 'github-hosted',
+                'ImageOS': 'ubuntu24', 'ImageVersion': '20261012.334.1'}), \
+                mock.patch.object(LAUNCHER.importlib.util, 'spec_from_file_location', return_value=spec), \
+                mock.patch.object(LAUNCHER.importlib.util, 'module_from_spec', return_value=reader):
+            for mode in ('base', 'architecture-0', 'ordinary-0'):
+                result = LAUNCHER.qualify_shard_vm(mode, time.monotonic() + 5)
+                self.assertEqual({**runtime, 'imageOS': 'ubuntu24', 'imageVersion': '20261012.334.1'}, result)
+                self.assertEqual(mode.startswith('ordinary-'), reader.qualify_runtime.call_args.kwargs['docker'])
+            LAUNCHER.os.environ['ImageVersion'] = 'unvalidated-provider-text'
+            with self.assertRaises(LAUNCHER.Refusal) as failure:
+                LAUNCHER.qualify_shard_vm('base', time.monotonic() + 5)
+            self.assertEqual('unsupported_image', failure.exception.reason)
 
     def test_live_unready_startup_has_its_own_finite_budget(self):
         with tempfile.TemporaryDirectory() as tmp, \

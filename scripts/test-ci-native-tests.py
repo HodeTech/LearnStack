@@ -74,6 +74,7 @@ elif name == 'stat':
     for path in sys.argv[3:]:
         print(config.get('kinds', {}).get(path, 'directory'))
 elif name == 'dotnet':
+    time.sleep(config.get('startup_delay', 0))
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     os.setsid()
     proc = base / 'proc' / str(os.getpid())
@@ -363,13 +364,22 @@ except launcher.Refusal as failure:
         output.mkdir()
         diagnostic = self.root / 'interrupted.diag'
         partial = self.execution_event(cases[1:])[:100]
-        self.configure(diagnostic_chunks=[self.execution_event(cases[:1]), partial], delay=1)
+        self.configure(diagnostic_chunks=[self.execution_event(cases[:1]), partial], delay=10, startup_delay=0.25)
         console = io.StringIO()
         with (output / 'completed-cases.jsonl').open('w') as stream:
             progress = self.progress(diagnostic, 'LearnStack.Tests.Integration', cases, stream)
-            with contextlib.redirect_stdout(console):
-                self.refuses('deadline_exhausted', self.owner.dotnet, ['test', '--diag', str(diagnostic)],
-                             time.monotonic() + 0.2, '/owned/work', lambda _line: None, progress)
+            observe = progress.poll
+            def interrupt_after_actual_admission(*args, **kwargs):
+                observe(*args, **kwargs)
+                if progress.seen and progress.pending:
+                    self.owner.CANCELLED = True
+            try:
+                with contextlib.redirect_stdout(console), mock.patch.object(progress, 'poll', side_effect=interrupt_after_actual_admission):
+                    self.refuses('cancelled', self.owner.dotnet, ['test', '--diag', str(diagnostic)],
+                                 time.monotonic() + 5, '/owned/work', lambda _line: None, progress)
+            finally:
+                self.owner.CANCELLED = False
+            self.assertTrue(progress.pending, 'Interruption follows actual partial-event observation')
         rows = [json.loads(line) for line in (output / 'completed-cases.jsonl').read_text().splitlines()]
         self.assertEqual([{**cases[0], 'outcome': 'Passed', 'duration': '00:00:00.0010000'}], rows)
         self.assertEqual(cases[0]['name'], cases[1]['name'])

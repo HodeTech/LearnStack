@@ -68,19 +68,22 @@ class NativeEnvironmentTests(unittest.TestCase):
         with patch.object(probe.subprocess, 'run', side_effect=subprocess.TimeoutExpired('private-canary', 3)):
             self.assertEqual((None, ''), probe.command(['/usr/bin/docker', 'ps']))
 
-    def test_workflow_preserves_backend_and_observes_both_docker_partitions(self):
-        source = (ROOT / '.github/workflows/ci.yml').read_text()
-        block = source.split('  backend:\n', 1)[1].split('\n  # ───', 1)[0]
-        self.assertIn('--filter "Requires!=Docker"', block)
-        self.assertIn('--logger "console;verbosity=normal"', block)
-        self.assertIn('--logger trx', block)
-        for name, mode in [('backend-integration-tests', 'ordinary'), ('backend-native', 'native')]:
-            block = source.split('  ' + name + ':\n', 1)[1].split('\n  # ───', 1)[0]
-            self.assertIn('timeout-minutes: 20', block)
-            self.assertIn('LEARNSTACK_RUNNER_CONTEXT: ${{ runner.environment }}', block)
-            self.assertLess(block.index('python3 scripts/ci-native-environment.py'),
-                            block.index('python3 scripts/ci-native-tests.py ' + mode))
-        self.assertIn('python3 scripts/test-ci-native-environment.py', source)
+    def test_workflow_preserves_complete_owners_and_native_only_environment_observation(self):
+        spec = importlib.util.spec_from_file_location('ci_environment_topology', ROOT / 'scripts/ci-test-shard-results.py')
+        result = importlib.util.module_from_spec(spec); spec.loader.exec_module(result)
+        jobs = result.source_topology(result.PLAN.load_plan())
+        observations = [(name, index, step) for name, job in jobs.items()
+                        for index, step in enumerate(job.get('steps', []))
+                        if 'scripts/ci-native-environment.py' in step.get('run', '')]
+        self.assertEqual(1, len(observations))
+        name, index, step = observations[0]
+        self.assertEqual('backend-native', name)
+        self.assertEqual('${{ runner.environment }}', step['env']['LEARNSTACK_RUNNER_CONTEXT'])
+        execution = next(i for i, item in enumerate(jobs[name]['steps'])
+                         if item.get('name') == result.EXECUTE_STEP)
+        self.assertLess(index, execution)
+        self.assertTrue(any(step.get('run') == 'python3 scripts/test-ci-native-environment.py'
+                            for step in jobs['meta']['steps']))
 
 
 if __name__ == '__main__':

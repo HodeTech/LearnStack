@@ -120,10 +120,12 @@ class AggregateControls(unittest.TestCase):
                 self.write(path, 'distribution.json', {'baseline': 'control'})
                 self.write(path, 'replacementControls.json', {'baseline': 'control'})
             native = owner == 'native'; docker = native or owner.startswith('ordinary-')
+            image = {'imageOS': 'ubuntu24', 'imageVersion': '20261012.334.1',
+                     'cpus': 4, 'kernelRelease': '6.17.0-1022-azure', 'virtualization': 'microsoft'}
             if native:
                 self.write(path, 'provisioning.json', {'protocol': 1, 'scope': 'native_ci_setup_not_child_qualification',
                     'collectorAfter': 'supported_file', 'softCore': 'zero', 'hardCore': 'zero',
-                    'sourceSha': context['sourceSha'], 'runId': '123', 'runAttempt': attempt, 'job': 'backend-native'})
+                    'sourceSha': context['sourceSha'], 'runId': '123', 'runAttempt': attempt, 'job': 'backend-native', **image})
                 (path / 'native-refusals.jsonl').write_bytes(b'')
             receipt = {'protocol': 1, 'identity': context, 'partition': 'native-shard' if native else owner,
                 'job': RESULTS.JOB_IDS[owner.split('-')[0]], 'success': True, 'complete': True,
@@ -132,6 +134,8 @@ class AggregateControls(unittest.TestCase):
                     'docker': docker, 'collector': native}, 'cases': len(cases),
                 'preOwnerSeconds': 100, 'setupSeconds': 3, 'executionSeconds': 20, 'cleanupSeconds': 2,
                 'observedVmMemoryPeakBytes': 100000, 'vmMemorySamples': 10}
+            if not native:
+                receipt['runtime'] = image
             if native:
                 receipt.update({key: {'verifiedImageDirectories': 0} for key in ('crashInventoryBefore', 'crashInventoryAfter')})
             receipt['artifacts'] = RESULTS.OWNER.export_hashes(path)
@@ -311,10 +315,13 @@ class AggregateControls(unittest.TestCase):
             self.refuses('native_evidence_incomplete', RESULTS.validate_outputs, paths, self.context(), self.plan, 'integration')
 
     def test_toolchain_gate_and_resource_evidence_cannot_be_replaced_by_worker_hash_consensus(self):
-        for mode in ('adapter', 'gates', 'resource', 'sdk'):
+        for mode in ('adapter', 'gates', 'resource', 'sdk', 'image'):
             with tempfile.TemporaryDirectory() as temporary:
                 paths = self.outputs(temporary, 'backend'); base = paths['base']; reason = None
-                if mode == 'resource':
+                if mode == 'image':
+                    data = RESULTS.read_json(base / 'result.json'); data['runtime'].pop('imageVersion')
+                    self.write(base, 'result.json', data); reason = 'image_evidence_invalid'
+                elif mode == 'resource':
                     data = RESULTS.read_json(base / 'resources.json'); data['dockerPeakMemoryBytes'] = 0
                     self.write(base, 'resources.json', data); reason = 'resource_evidence_invalid'
                 else:

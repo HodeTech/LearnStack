@@ -392,6 +392,14 @@ def verify_receipt(output, context, owner, plan, assignment):
                         for key in ('crashInventoryBefore', 'crashInventoryAfter')), 'native_evidence_incomplete')
     if owner == 'base':
         expected_files.update(('distribution.json', 'replacementControls.json'))
+    image = provisioning if owner == 'native' else result.get('runtime')
+    require(isinstance(image, dict) and image.get('imageOS') == 'ubuntu24'
+            and isinstance(image.get('imageVersion'), str)
+            and re.fullmatch(r'[0-9]{8}\.[0-9]+\.[0-9]+', image['imageVersion'])
+            and type(image.get('cpus')) is int and image['cpus'] > 1
+            and isinstance(image.get('kernelRelease'), str)
+            and re.fullmatch(r'[A-Za-z0-9._+-]{1,128}', image['kernelRelease'])
+            and image.get('virtualization') in ('microsoft', 'kvm', 'qemu'), 'image_evidence_invalid')
     hashes = result.get('artifacts')
     require(isinstance(hashes, dict) and expected_files <= set(hashes)
             and hashes == OWNER.export_hashes(output), 'artifact_hash_mismatch')
@@ -436,7 +444,8 @@ def verify_receipt(output, context, owner, plan, assignment):
     gates = measured.get('nonTestGates')
     require(gates == ({'format': True, 'distribution': True, 'replacementControls': True} if owner == 'base' else {}),
             'base_gates_incomplete')
-    return manifest, selected, {'toolchain': measured['toolchain'], 'adapters': adapters}
+    return manifest, selected, {'toolchain': measured['toolchain'], 'adapters': adapters,
+        'image': {key: image[key] for key in ('imageOS', 'imageVersion', 'cpus', 'kernelRelease', 'virtualization')}}
 
 
 def validate_outputs(outputs, context, plan, scope):
@@ -447,13 +456,16 @@ def validate_outputs(outputs, context, plan, scope):
     manifest = read_json(outputs['base'] / 'discovery.json')['population']
     assignment = PLAN.assign(manifest, plan, context['runAttempt'])
     PLAN.different_layouts(manifest, plan)
-    provided, identities = {}, {}
+    provided, identities, images = {}, {}, {}
     for owner, output in outputs.items():
         _, selected, identity = verify_receipt(output, context, owner, plan, assignment)
         if scope == 'backend' or owner != 'base':
             provided[owner] = selected
         require(not identities or identities['toolchain'] == identity['toolchain'], 'cross_job_toolchain_mismatch')
         identities['toolchain'] = identity['toolchain']
+        # Each actual release is retained independently: equal labels or SDK
+        # binaries do not attest equal weekly runner images.
+        images[owner] = identity['image']
         for assembly, adapter in identity['adapters'].items():
             require(assembly not in identities or identities[assembly] == adapter, 'cross_job_adapter_mismatch')
             identities[assembly] = adapter
@@ -461,7 +473,7 @@ def validate_outputs(outputs, context, plan, scope):
     return {'protocol': 1, 'identity': context, 'success': True, 'scope': scope,
             'variant': PLAN.variant(context['runAttempt']), 'planDigest': PLAN.digest(plan),
             'manifestDigest': assignment['manifestDigest'],
-            'toolchain': identities, 'cases': sum(len(cases) for cases in provided.values())}
+            'toolchain': identities, 'images': images, 'cases': sum(len(cases) for cases in provided.values())}
 
 
 def aggregate(scope):
