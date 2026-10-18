@@ -82,7 +82,8 @@ The unchanged native fixture independently enforces every existing prerequisite.
   and test failure. Reserve 150 seconds from the twenty-minute job before
   checkout: the full test command has an absolute deadline at job start plus
   seventeen minutes thirty seconds, up to 35 seconds for owned termination,
-  sixty seconds for cleanup and the remaining 55 seconds for artifact upload.
+  sixty seconds for cleanup, 35 seconds for artifact upload and twenty seconds
+  for runner transitions/finalization before the whole-job ceiling.
   Setup is bounded within the test-phase allocation. Deadline exhaustion fails;
   it never reduces the full filter or counts incomplete results as passing.
   Failed setup never launches tests. Actual fit remains to be qualified.
