@@ -412,7 +412,7 @@ except launcher.Refusal as failure:
         rows = [json.loads(line) for line in stream.getvalue().splitlines()]
         self.assertTrue(all(set(row) == {'assembly', 'id', 'name', 'outcome', 'duration'}
                             and row['outcome'] == 'Failed' for row in rows))
-        self.assertEqual(5, len(self.owner.FAILURE_SOURCES))
+        self.assertEqual(6, len(self.owner.FAILURE_SOURCES))
         for filename, code in self.owner.FAILURE_SOURCES.items():
             self.assertTrue((ROOT / 'backend/tests/LearnStack.Tests.Integration/Database' / filename).is_file())
             progress.failure_locations.clear()
@@ -422,6 +422,60 @@ except launcher.Refusal as failure:
             with contextlib.redirect_stdout(io.StringIO()):
                 progress.results({'NewTestResults': [item]})
             self.assertEqual([{'source': code, 'line': 123}], progress.failure_locations[0]['locations'])
+
+    def test_public_failure_details_export_only_registered_test_owned_stages(self):
+        case = self.case(1)
+        case['name'] = ('LearnStack.Tests.Integration.Database.PublicAdmissionRenderingTests.'
+                        'Native_admission_preserves_wire_failures_request_lifetimes_and_browser_fallback')
+        parse = self.owner.closed_failure_details
+        for stage in self.owner.PUBLIC_FAILURE_STAGES:
+            text = 'PRIVATE-CANARY Public admission fixture failed during ' + stage + '.'
+            self.assertEqual({'stage': stage}, parse(case, {'ErrorMessage': text}))
+        for detail in self.owner.PUBLIC_FAILURE_DETAILS:
+            text = 'Public admission fixture failed during browser 429 ' + detail + '.'
+            self.assertEqual({'stage': 'browser 429', 'detail': detail}, parse(case, {'ErrorMessage': text}))
+        for text in (None, {}, 'Public admission fixture failed during PRIVATE-CANARY.',
+                     'Public admission fixture failed during browser 429 PRIVATE-CANARY.',
+                     'x' * 65536 + 'Public admission fixture failed during production build.'):
+            self.assertIsNone(parse(case, {'ErrorMessage': text}))
+        self.assertIsNone(parse(self.case(2), {'ErrorMessage': 'Public admission fixture failed during production build.'}))
+        for outcome in (1, 2):
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('public-' + str(outcome) + '.diag'), 'LearnStack.Tests.Integration', [case], stream)
+            item = self.execution_result(case); item['Outcome'] = outcome
+            item['ErrorMessage'] = 'Public admission fixture failed during production build.'
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual(bool(progress.failure_locations), outcome == 2)
+            self.assertNotIn('production build', stream.getvalue())
+
+    def test_outage_failure_details_keep_only_consistent_bounded_timing_and_closed_pool_facts(self):
+        case = self.case(1)
+        case['name'] = ('LearnStack.Tests.Integration.Database.BackgroundJobRuntimeFacadeTests.'
+            'Actual_common_database_outage_drains_all_pools_and_recovery_keeps_the_old_held_pool_closed_despite_its_spare_slot')
+        parse = self.owner.closed_failure_details
+        prefix = ('Native post-pause heartbeat premise failed;elapsed=00:01:30.1234500;'
+                  'pauseAt=00:00:05;sincePause=00:01:25.1234500;runtime=PRIVATE-CANARY;pools=')
+        snapshot = ('HangfireGenerationSnapshot { HandlePublished = True, Captured = True, '
+            'WaitEntered = True, NormalChildrenJoined = False, OuterJoined = False, CleanupComplete = False, '
+            'Draining = False, HeartbeatFault = False, Reason = None, MetadataHeartbeatTimestamp = 0 }')
+        message = prefix + ';'.join(pool + ':generation=' + snapshot + ';work=PRIVATE-CANARY;owner=PRIVATE-CANARY'
+                                   for pool in ('control', 'external', 'transactional'))
+        value = parse(case, {'ErrorMessage': message})
+        self.assertEqual(90123, value['elapsedMilliseconds'])
+        self.assertEqual(5000, value['pauseMilliseconds'])
+        self.assertEqual(85123, value['sincePauseMilliseconds'])
+        self.assertEqual(['control', 'external', 'transactional'], [item['pool'] for item in value['pools']])
+        self.assertTrue(all(item['Captured'] is True and item['HeartbeatFault'] is False
+                            and item['reason'] == 'None' for item in value['pools']))
+        self.assertNotIn('PRIVATE-CANARY', json.dumps(value))
+        for changed in (message.replace('00:01:30.1234500', '00:03:30.1234500'),
+                        message.replace('sincePause=00:01:25.1234500', 'sincePause=00:01:20.1234500'),
+                        message.replace('elapsed=00:01:30.1234500', 'elapsed=-00:01:30.1234500')):
+            self.assertIsNone(parse(case, {'ErrorMessage': changed}))
+        unknown = parse(case, {'ErrorMessage': message.replace('Reason = None', 'Reason = PRIVATE-CANARY')})
+        self.assertEqual([], unknown['pools'])
+        self.assertIsNone(parse(self.case(2), {'ErrorMessage': message}))
 
     def test_execution_protocol_requires_unique_expected_ids_and_finite_non_skip_outcomes(self):
         case = self.case(1)

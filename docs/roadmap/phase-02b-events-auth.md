@@ -1,6 +1,6 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Current status — 2026-10-18.** P02b-0 through P02b-3 are complete.
+**Current status — 2026-10-19.** P02b-0 through P02b-3 are complete.
 P02b-2 is merged through [PR #30](https://github.com/HodeTech/LearnStack/pull/30);
 its [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
 P02b-3 is merged through [PR #31](https://github.com/HodeTech/LearnStack/pull/31);
@@ -9854,6 +9854,29 @@ and eight rehashed measurement mutations. Passing cases export no diagnostic;
 missing or nonempty failure-location evidence cannot qualify a successful
 producer. The next hosted source incorporates both full review corrections
 and this independently verified diagnostic. Five failed facade rows and
+complete final-source A/B qualification remain open.
+
+**Candidate `ec5b045a` hosted diagnosis.** Run 39172490912 incorporates both
+verified full-review corrections and the focused diagnostic. Frontend and meta
+now pass. Its native artifact 12153083206 independently verifies 31 passing
+cases, exact results/hashes and natural ownership/cleanup in a 497-second job.
+The five affected facade methods also pass all eight exact IDs in a task-owned
+local Linux ARM64 / SDK 10.0.400 focus; this is not the hosted x64 toolchain.
+
+The hosted outage failure repeats. Its finite source locations identify the
+post-pause all-heartbeat-fault premise, not a proven runtime cause. The
+90-second case deadline includes startup and pre-pause work; stock heartbeats
+wait thirty real seconds, and a failed transient attempt remains faulted while
+the manual pacing clock is frozen. A new public admission rendering failure
+has no retained source location under the original five-file diagnostic.
+
+The next narrow diagnostic adds that verified test basename and decodes only
+its existing closed helper stage/detail, or the outage's existing bounded
+elapsed/pause/since-pause durations and finite per-pool generation facts.
+Extraction is limited to the two exact failed test identities, with unknown
+values left unknown. No raw error text, path, provider value or free-form
+state crosses the diagnostic boundary. These facts neither change test
+outcomes nor satisfy ownership/containment. Root causes, focused review and
 complete final-source A/B qualification remain open.
 
 ### Durable outbox dispatch

@@ -84,7 +84,75 @@ FAILURE_SOURCES = {'BackgroundJobRuntimeFacadeTests.ControlFailures.cs': 'facade
                    'BackgroundJobRuntimeFacadeTests.CapacityNoStart.cs': 'facade_capacity_no_start',
                    'BackgroundJobRuntimeFacadeTests.CapacityAdmission.cs': 'facade_capacity_admission',
                    'BackgroundJobRuntimeFacadeTests.CapacityCleanup.cs': 'facade_capacity_cleanup',
-                   'BackgroundJobRuntimeFacadeTests.HeartbeatCutoff.cs': 'facade_heartbeat_cutoff'}
+                   'BackgroundJobRuntimeFacadeTests.HeartbeatCutoff.cs': 'facade_heartbeat_cutoff',
+                   'PublicAdmissionRenderingTests.cs': 'public_admission'}
+PUBLIC_FAILURE_STAGES = {
+    'configuration', 'wire mutant', 'wire positive request', 'wire positive safety',
+    'wire positive status', 'wire positive site', 'wire positive release', 'wire positive accounting',
+    'context missing', 'context mismatch', 'context duplicate', 'context configuration',
+    'html overlap', 'rsc overlap', 'prefetch overlap', 'mixed overlap', 'scaffold overlap',
+    'keep-alive', 'valid HEAD', 'late HEAD', 'bootstrap client abort', 'content client abort',
+    'active shutdown', 'production build', 'isolated TLS', 'browser 429', 'browser 503',
+    'development HMR', 'private containment',
+} | {'wire ' + name for name in (
+    'missing-get missing-head rate-zero rate-head unavailable-zero unavailable-head audit-retry '
+    'retry-over retry-negative retry-fraction retry-date retry-malformed retry-unknown retry-other-status '
+    'malformed-json malformed-rate-problem malformed-unavailable-problem wrong-content-type empty-body '
+    'invalid-shape invalid-site invalid-membership oversized decoded-oversized transport header-deadline body-deadline'
+).split()}
+PUBLIC_FAILURE_DETAILS = {'browser-' + name for name in (
+    'launch devtools discovery protocol navigation hydration arm click fallback wire completion private-carrier shutdown'
+).split()} | {'hmr-' + name for name in (
+    'setup initial-request initial-status initial-source initial-site initial-release watch-connect change '
+    'source-barrier refresh-request refresh-status refresh-type refresh-source refresh-site refresh-release after'
+).split()}
+
+
+def closed_failure_details(case, raw):
+    """Decode only existing test-owned finite facts; raw error text never leaves this function."""
+    message = raw.get('ErrorMessage')
+    if not isinstance(message, str):
+        return None
+    message = message[:65536]
+    prefix = 'LearnStack.Tests.Integration.Database.'
+    if case['name'] == prefix + 'PublicAdmissionRenderingTests.Native_admission_preserves_wire_failures_request_lifetimes_and_browser_fallback':
+        match = re.search(r'Public admission fixture failed during ([A-Za-z0-9 -]{1,160})\.', message)
+        if match:
+            stage = match[1]
+            if stage in PUBLIC_FAILURE_STAGES:
+                return {'stage': stage}
+            stage, _, detail = stage.rpartition(' ')
+            if stage in PUBLIC_FAILURE_STAGES and detail in PUBLIC_FAILURE_DETAILS:
+                return {'stage': stage, 'detail': detail}
+    if case['name'] != prefix + 'BackgroundJobRuntimeFacadeTests.Actual_common_database_outage_drains_all_pools_and_recovery_keeps_the_old_held_pool_closed_despite_its_spare_slot':
+        return None
+    timing = re.search(r'Native post-pause heartbeat premise failed;elapsed=([0-9:.]{8,18});'
+                       r'pauseAt=([0-9:.]{8,18});sincePause=([0-9:.]{8,18});', message)
+    if timing is None:
+        return None
+    def milliseconds(value):
+        match = re.fullmatch(r'([0-9]{2}):([0-5][0-9]):([0-5][0-9])(?:\.([0-9]{1,7}))?', value)
+        if match is None:
+            return None
+        result = ((int(match[1]) * 3600 + int(match[2]) * 60 + int(match[3])) * 1000
+                  + int((match[4] or '').ljust(7, '0')) // 10000)
+        return result if 0 <= result <= 120000 else None
+    elapsed, pause, since = map(milliseconds, timing.groups())
+    if None in (elapsed, pause, since) or pause > elapsed or abs(elapsed - pause - since) > 1:
+        return None
+    result = {'stage': 'post_pause_heartbeat', 'elapsedMilliseconds': elapsed,
+              'pauseMilliseconds': pause, 'sincePauseMilliseconds': since, 'pools': []}
+    fields = ('HandlePublished', 'Captured', 'WaitEntered', 'NormalChildrenJoined', 'OuterJoined',
+              'CleanupComplete', 'Draining', 'HeartbeatFault')
+    reasons = 'None|HostStop|Announcement|HeartbeatMissing|HeartbeatTransient|HeartbeatConfiguration|StartupStalled|BuilderFailure|Removed|CleanupFault'
+    pattern = ', '.join(name + r' = (True|False)' for name in fields)
+    for pool in ('control', 'external', 'transactional'):
+        match = re.search(r'(?:pools=|;)' + pool + r':generation=HangfireGenerationSnapshot \{ '
+                          + pattern + r', Reason = (' + reasons + r'), MetadataHeartbeatTimestamp = (?:[0-9]{1,19})? \}', message)
+        if match:
+            result['pools'].append({'pool': pool, 'reason': match[9],
+                                   **{name: match[index + 1] == 'True' for index, name in enumerate(fields)}})
+    return result
 
 
 def shard_owner():
@@ -591,8 +659,12 @@ class ExecutionProgress:
                             line = int(match[1])
                             if line <= 10000:
                                 locations.add((code, line))
-                self.failure_locations.append({'assembly': case['assembly'], 'id': case['id'],
-                    'locations': [{'source': code, 'line': line} for code, line in sorted(locations)[:8]]})
+                diagnostic = {'assembly': case['assembly'], 'id': case['id'],
+                    'locations': [{'source': code, 'line': line} for code, line in sorted(locations)[:8]]}
+                details = closed_failure_details(case, raw)
+                if details is not None:
+                    diagnostic['details'] = details
+                self.failure_locations.append(diagnostic)
             if self.first_result_at is None:
                 self.first_result_at = time.monotonic()
             item = {**case, 'outcome': outcome, 'duration': duration}
