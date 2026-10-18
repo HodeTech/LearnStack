@@ -9387,6 +9387,23 @@ This small append/protocol receipt does not qualify actual rotation, Docker,
 hosted cgroups or whole-job fit. Fresh review rounds and final-source hosted
 qualification remain pending for this independent reader correction.
 
+Reader implementation `9aad3c57` completes the first fresh review without
+findings; the reviewer independently passes all 38 controls and verifies both
+private append/protocol receipts. A further controlled local experiment fills
+only its private pre-owned generation zero above 10 MiB, triggering the
+unmodified SDK writer's actual normal rotation. The reader follows one handoff
+across 10,613,523 bytes; both real predicate cases pass with exact discovered IDs
+and all five result fields equal TRX. This is deliberate local feasibility, not
+a reproduction of a hosted fault. The new reader still owes final-source hosted
+qualification and its second fresh review.
+
+Run 39146395561's ordinary artifact is independently verified: 517 unique passing
+case IDs belong to the 2,401-case expected set; 1,884 cases remain censored and
+no final Integration TRX exists. Its error is `deadline_exhausted`, distinct from
+the earlier internal fault. The 0.777-second cleanup positively witnesses owned
+join but is forced and supplies no natural Docker-disposal success. The
+integration aggregate correctly fails despite the separate native success.
+
 ADR-0062's reopen condition is met. Proposed
 [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) describes one
 backend-base VM retaining non-test gates and cheap non-Docker suites, four
