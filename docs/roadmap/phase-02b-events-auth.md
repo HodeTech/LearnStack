@@ -9201,6 +9201,25 @@ ordinary-workload or whole-job timing qualification. Both full independent
 follow-up rounds are complete; verified corrections and final-source hosted
 qualification still precede PR closure. PR #32 remains open and unmerged.
 
+###### First hosted split qualification and meta control correction
+
+Source `6daa9a1c` is pushed normally on `development`; PR #32 remains open.
+[Run 39140874785](https://github.com/HodeTech/LearnStack/actions/runs/39140874785)
+starts actual hosted qualification. Independent API readback confirms all main
+protection settings, including seven required contexts and strict mode, are
+unchanged.
+
+The meta job passes all 17 provisioning controls, then exposes a synthetic-file
+race in the launcher suite: a forked fixture child truncates its fake
+`cgroup.events` before writing `populated 0`, while the owner reads concurrently.
+The strict production parser correctly refuses the impossible empty snapshot.
+The fixture now publishes the complete snapshot through same-directory atomic
+replacement; production checks are unchanged, and missing/malformed-event dirty
+controls remain. All 25 launcher controls pass after correction. An independent
+focused review confirms the race and correction without broadening the owner.
+This correction does not make the failed meta receipt pass; final-source hosted
+qualification remains required. Other jobs continue to measure their actual paths.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

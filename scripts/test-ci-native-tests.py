@@ -440,7 +440,10 @@ except launcher.Refusal as failure:
                 end = time.monotonic() + 2
                 while not (group / 'cgroup.kill').read_text() and time.monotonic() < end:
                     time.sleep(0.01)
-                (group / 'cgroup.events').write_text('populated 0\n')
+                # Model the kernel's complete event snapshot. In-place truncation
+                # exposes an impossible empty file to the concurrent owner read.
+                (group / 'next.events').write_text('populated 0\n')
+                (group / 'next.events').replace(group / 'cgroup.events')
                 os._exit(0)
             worker = os.fork()
             if worker == 0:
