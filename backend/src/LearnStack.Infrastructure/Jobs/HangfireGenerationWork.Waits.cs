@@ -15,6 +15,8 @@ internal sealed partial class HangfireGenerationWork
         private ITimer? _stageTimer;
         private long _stageWaitUntil;
         private BackgroundJobInvocationStage? _stageWaitStage;
+        private BackgroundJobInvocationStage? _elapsedStage;
+        private bool _elapsedStageConsumed;
         private bool _reconcileWaitExpired;
         private bool _stageWaitClosed;
         private bool _stageTimerInitializing, _stageTimerFaulted;
@@ -154,6 +156,7 @@ internal sealed partial class HangfireGenerationWork
         // lease loss and timer faults do not create it.
         private void RecordStageClockClosure()
         {
+            _elapsedStage = _stageWaitStage;
             if (_stageWaitStage == BackgroundJobInvocationStage.Reconcile) _reconcileWaitExpired = true;
             _stageWaitClosed = true;
         }

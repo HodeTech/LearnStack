@@ -14,7 +14,7 @@ using Xunit;
 
 namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 
-public sealed class BackgroundJobExecutionControlTests
+public sealed partial class BackgroundJobExecutionControlTests
 {
     private static readonly TimeSpan TestWait = TimeSpan.FromSeconds(10);
 

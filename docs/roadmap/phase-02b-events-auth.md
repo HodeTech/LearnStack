@@ -8363,6 +8363,51 @@ Late settlement, nineteen-rule enforcement, full regression, unchanged CI-budget
 qualification and both full Step 9 reviews remain open. All nineteen obligations
 remain Registered.
 
+#### Actual late-settlement qualification
+
+Seventeen fixed `late_<stage>_settled` process totals distinguish an elapsed
+stage from eventual positive cleanup of its actual invocation. Only the stage
+clock records the effective elapsed-stage marker; host stop, lease loss, timer
+fault and a returned wrapper wait cannot invent it. Consumption happens once,
+after actual framework/execution, timer, cancellation-callback and private-resource
+cleanup. The existing bound invocation forwards only a fixed Interlocked update.
+No task, data source, grant, execution admission or new metric family is added.
+
+Each stage requires its actual typed task and positive cleanup. Recovery
+confirmation follows the current NoPlan/retry/acquisition branch and never
+substitutes an older clean probe. Whole-framework completion covers history and
+NoPlan loops beyond their final SQL slot. These are settlement observations,
+not durable ACKs, successful business outcomes, rollback or provider-quiescence
+certificates. Permanently retained cleanup contributes no settled count.
+
+Five new classifier cases cover absent tasks, observer join, exact business
+stage, current confirmation branch and positive disposition. A live Meter unit
+case checks all seventeen fixed projections, zeros and repeated scrapes. Wait
+controls preserve predecessor/prospective-stage semantics and zero markers for
+host stop or timer fault. All 525 selected Jobs unit cases pass with zero skips.
+Four real stock-worker/PostgreSQL cases pass: two held framework-scope paths and
+two provider-recovery paths distinguish actual clock expiry from host stop.
+The latter holds private cancellation cleanup after provider return and confirms
+zero until release, then one elapsed settlement or zero for host stop. This is
+not positive native coverage of all seventeen stage kinds.
+
+The initial five-case Architecture run passes both orchestration censuses and
+singleton registration; two metric companions expose exact emitted `call`
+opcodes where the new guard expected `callvirt`. After guard-only corrections,
+all three metric cases pass. Additional framework-task/cleanup-field ownership
+and a planted extra-cleanup-writer control also pass those three cases. No
+production, unit or PostgreSQL source changes between these receipts. The
+CI-mode Release build has zero warnings/errors; scoped eighteen-file formatting
+reports no changes. Initial missing namespace imports are corrected before that
+qualified build. Focused independent source inspections leave no open finding
+and provide neither full Step 9 review round.
+
+The final 375-source receipt is
+`7cd762f4870900a03420ed4e14b416d89d15eeddae890a98fb6b2d391f62c1cf`.
+Nineteen-rule enforcement, shared workflow guidance, full regression, unchanged
+CI-budget qualification and both full Step 9 reviews remain open. All nineteen
+obligations remain Registered.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

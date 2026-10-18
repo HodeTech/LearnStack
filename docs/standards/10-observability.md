@@ -419,6 +419,28 @@ The first-cause cell prevents relabelling; persistent parent totals survive actu
 execution removal. Recording performs only fixed-memory atomics and grants no
 renewal, execution or cleanup authority.
 
+Late settlement uses seventeen literal `late_<stage>_settled` control operations
+for the existing finite invocation-stage set, all with `pool=none`. Only actual
+stage-clock closure records the effective stage. An elapsed predecessor keeps its
+name; a prospective shorter rearm that has not accepted its stage stays unnamed.
+Host stop, lease loss, timer faults and wrapper return do not create this cause.
+
+Record once after the actual published framework flight and its positive cleanup,
+execution joins, stage-timer/wake joins and private cancellation cleanup finish.
+Non-framework stages additionally require their exact concrete typed task and
+positive cleanup; missing tasks, wrong checkpoint/business kinds and older probes
+cannot substitute. History and NoPlan flights include their enclosing loop, not
+only an intermediate SQL result. The current retry/NoPlan confirmation takes
+precedence over an older acquisition probe. Unresolved status work remains under
+its existing Execute/Reconcile wait; observation adds no stage rearm.
+
+These process totals survive owner removal and repeat collection. Settlement is
+local flight/cleanup completion, not successful business work, provider quiescence,
+physical ACK, rollback or a unique-job count. A clean refusal/unknown report can
+settle its local flight. A permanently retained cleanup cannot. A clean parent
+status result that issued no SQL supplies no durable-ACK claim. Existing stage
+duration/outcome measurements retain their earlier executor-owned boundary.
+
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
 `tenancy:feature-flags`, `tenancy:settings`, `audit:config`, or

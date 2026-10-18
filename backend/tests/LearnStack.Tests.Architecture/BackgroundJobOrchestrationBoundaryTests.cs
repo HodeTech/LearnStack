@@ -197,9 +197,9 @@ public sealed partial class OutboxDispatchConventionTests
         Field(OrchestrationExecution, "_publicationObservation", true, [".ctor", "JoinBusinessObserversCoreAsync", "WaitForPublicationAsync"]);
         Field(OrchestrationExecution, "_publication", true, [".ctor#normal", "get_Publication"]);
         Field(OrchestrationExecution, "_admissionGate", true, [".ctor#normal", "get_AdmissionGate"]);
-        Field(OrchestrationExecution, "_claim", true, [".ctor#normal", "get_Claim", "ExecuteExternalRecoveryAsync", "JoinAsync"]);
+        Field(OrchestrationExecution, "_claim", true, [".ctor#normal", "get_Claim", "ExecuteExternalRecoveryAsync", "JoinAsync", "HasSettledStage"]);
         Field(OrchestrationExecution, "_admission", false, ["ExecuteExternalNormalAsync", "FinishUnresolvedExternalAsync", "HoldAdmission", "JoinAsync", "RequestNoPlanTerminalAfterPrepareAsync"]);
-        Field(OrchestrationExecution, "_business", false, ["FinishExternalFinalizeAsync", "HoldBusiness", "JoinAsync", "RequestNoPlanTerminalAfterPrepareAsync", "get_ExternalLeaseWorkSettled"]);
+        Field(OrchestrationExecution, "_business", false, ["FinishExternalFinalizeAsync", "HoldBusiness", "JoinAsync", "RequestNoPlanTerminalAfterPrepareAsync", "get_ExternalLeaseWorkSettled", "HasSettledStage"]);
         Field(OrchestrationExecution, "_identity", false, ["ObservePublicationAsync", "StartRecoveryLease", "get_Identity"]);
         Field(OrchestrationExecution, "_deadlineObservation", false, ["JoinBusinessObserversCoreAsync", "ObservePublicationAsync"]);
         Field(OrchestrationExecution, "_deadlineCancellation", false, ["JoinBusinessObserversCoreAsync"]);
@@ -229,8 +229,8 @@ public sealed partial class OutboxDispatchConventionTests
         Field(OrchestrationInvocation, "_admission", false, ["HoldAdmission", "PrepareCapacityCleanupCoreAsync", "CompleteAsync"]);
         Field(OrchestrationInvocation, "_business", false, ["HoldBusiness", "PrepareCapacityCleanupCoreAsync", "CompleteAsync"]);
         Field(OrchestrationInvocation, "_execution", false,
-            ["HoldExecution", "PrepareCapacityCleanupAsync", "RequestCancellation", "CompleteAsync", "JoinReconcileTimeoutCancellationAsync"]);
-        Field(OrchestrationInvocation, "_framework", false, ["HoldInvocation", "CompleteAsync"]);
+            ["HoldExecution", "PrepareCapacityCleanupAsync", "RequestCancellation", "CompleteAsync", "JoinReconcileTimeoutCancellationAsync", "ObserveLateSettlement"]);
+        Field(OrchestrationInvocation, "_framework", false, ["HoldInvocation", "CompleteAsync", "ObserveLateSettlement"]);
         Field(OrchestrationInvocation, "_routing", false, ["HoldRouting", "CompleteAsync"]);
         Field(OrchestrationControl, "_executor", true, [".ctor", "AdvanceTerminalNoStartAsync", "ExecuteExternalNormalAsync", "ExecuteExternalRecoveryAsync", "ProcessCapacityRequestAsync", "RunTerminalAsync"]);
         Field(OrchestrationRenewal, "_published", true, [".ctor", "Schedule"]);

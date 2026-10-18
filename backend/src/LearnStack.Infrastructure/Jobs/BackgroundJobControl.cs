@@ -22,6 +22,7 @@ public sealed record BackgroundJobControlHealth(int Executions, int PendingOutco
     public long RenewalsConfirmed { get; init; }
     public long LeaseLossRenewalRefused { get; init; }
     public long LeaseLossElapsed { get; init; }
+    public BackgroundJobLateSettlementSnapshot? LateSettlements { get; init; }
     public long? RecoveryTimestamp { get; init; }
     public long? TerminalTimestamp { get; init; }
     public BackgroundJobRecurrenceHealth? Recurrence { get; init; }
@@ -111,6 +112,7 @@ internal sealed partial class BackgroundJobControl
                     RenewalsConfirmed = _renewalsConfirmed,
                     LeaseLossRenewalRefused = Interlocked.Read(ref _leaseLossRenewalRefused),
                     LeaseLossElapsed = Interlocked.Read(ref _leaseLossElapsed),
+                    LateSettlements = CaptureLateSettlements(),
                     RecoveryTimestamp = _controlProgress,
                     TerminalTimestamp = _terminalProgress,
                     Recurrence = _recurrence.Snapshot,

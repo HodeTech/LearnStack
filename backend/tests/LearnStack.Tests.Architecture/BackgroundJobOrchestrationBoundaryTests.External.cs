@@ -9,6 +9,18 @@ public sealed partial class OutboxDispatchConventionTests
         bool Private, (string Type, string Method)[] Callers);
     private static readonly OrchestrationSeam[] ExternalOrchestrationSeams =
     [
+        new(OrchestrationInvocation, "ObserveLateSettlement", [],
+            "System.Void", true, [(OrchestrationInvocation, "CompleteAsync")]),
+        new(OrchestrationBound, "HasSettledStage", ["LearnStack.Infrastructure.Jobs.BackgroundJobInvocationStage", OrchestrationExecution],
+            "System.Boolean", false, [(OrchestrationInvocation, "ObserveLateSettlement")]),
+        new(OrchestrationBound, "ObserveLateSettlement", ["LearnStack.Infrastructure.Jobs.BackgroundJobInvocationStage"],
+            "System.Void", false, [(OrchestrationInvocation, "ObserveLateSettlement")]),
+        new(OrchestrationExecution, "HasSettledStage", ["LearnStack.Infrastructure.Jobs.BackgroundJobInvocationStage"],
+            "System.Boolean", false, [(OrchestrationBound, "HasSettledStage")]),
+        new(OrchestrationControl, "ObserveLateSettlement", ["LearnStack.Infrastructure.Jobs.BackgroundJobInvocationStage"],
+            "System.Void", false, [(OrchestrationBound, "ObserveLateSettlement")]),
+        new(OrchestrationControl, "CaptureLateSettlements", [],
+            "LearnStack.Infrastructure.Jobs.BackgroundJobLateSettlementSnapshot", true, [(OrchestrationControl, "get_Snapshot")]),
         new(OrchestrationExecution, ".ctor#normal", ["LearnStack.Infrastructure.Jobs.BackgroundJobControl", "LearnStack.Infrastructure.Jobs.HangfireGenerationWork/Invocation", "LearnStack.Application.Jobs.BackgroundJobRoutingClaim", "LearnStack.Application.Jobs.BackgroundJobRunGate/RuntimeStop", "System.TimeProvider"],
             "System.Void", false, [(OrchestrationControl, "TryBegin")]),
         new(OrchestrationExecution, ".ctor#recovery", ["LearnStack.Infrastructure.Jobs.BackgroundJobControl", "LearnStack.Infrastructure.Jobs.HangfireGenerationWork/Invocation", "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64", "System.String", "LearnStack.Application.Jobs.BackgroundJobRunGate/RuntimeStop", "System.TimeProvider"],

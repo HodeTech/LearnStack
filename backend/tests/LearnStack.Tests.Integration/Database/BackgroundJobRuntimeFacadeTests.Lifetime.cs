@@ -63,6 +63,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var time = new HangfirePoolOwnerTests.ManualTimeProvider();
         var runtime = Runtime(host.Services, source, bounds, physical, time);
         var disposal = SourceDisposalObserver(source);
+        using var lateMetrics = new BackgroundJobMetricProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         LearnStack.SharedKernel.Jobs.BackgroundJobId job;
         try
         {
@@ -103,6 +104,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             runtime.Snapshot.IsHealthy.Should().BeFalse();
             await EventuallyAsync(async () => await StateAsync(source, heldVendor) == "Succeeded");
             cleanup.Joined.Task.IsCompleted.Should().BeFalse();
+            runtime.Snapshot.Control!.LateSettlements!.Framework.Should().Be(0);
+            BackgroundJobMetricProbe.One(lateMetrics.Read(), "learnstack_job_control_total", ("operation", "late_framework_settled"), ("pool", "none")).Should().Be(0);
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(0);
 
             // The one native transactional slot is usable while fewer than four
@@ -132,6 +135,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 .Should().ThrowAsync<OperationCanceledException>();
 
             cleanup.Joined.Task.IsCompleted.Should().BeFalse();
+            runtime.Snapshot.Control!.LateSettlements!.Framework.Should().Be(0);
+            BackgroundJobMetricProbe.One(lateMetrics.Read(), "learnstack_job_control_total", ("operation", "late_framework_settled"), ("pool", "none")).Should().Be(0);
             runtime.Completion.IsCompleted.Should().BeFalse();
             runtime.Snapshot.CleanupConfirmed.Should().BeFalse();
             source.IsDisposalComplete.Should().BeFalse();
@@ -157,6 +162,9 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         }
 
         cleanup.Joined.Task.IsCompletedSuccessfully.Should().BeTrue();
+        runtime.Snapshot.Control!.LateSettlements!.Framework.Should().Be(1);
+        for (var scrape = 0; scrape < 2; scrape++)
+            BackgroundJobMetricProbe.One(lateMetrics.Read(), "learnstack_job_control_total", ("operation", "late_framework_settled"), ("pool", "none")).Should().Be(1);
         observation.ReadScopeDisposed.Should().BeTrue();
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(0,
             "late actual cleanup cannot reopen admission after the wrapper deadline");

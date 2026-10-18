@@ -280,6 +280,7 @@ internal sealed partial class HangfireGenerationWork
                 if (cancellation is { IsCompleted: false }) owner.MarkRetained(this);
                 if (cancellation is not null && !await cancellation.ConfigureAwait(false)) return;
                 _private.Dispose();
+                ObserveLateSettlement();
                 _execution?.ReleaseAfterPrivateCleanup();
                 lock (_sync) { _routing = null; _admission = null; _business = null; _execution = null; _framework = null; }
                 owner.Release(this);
@@ -289,6 +290,29 @@ internal sealed partial class HangfireGenerationWork
                 // A returned wrapper is not positive callback/source cleanup.
                 owner.MarkRetained(this);
             }
+        }
+
+        // The finite wait only supplies provenance. Actual framework, execution,
+        // timer and private callback cleanup must all precede this process fact.
+        private void ObserveLateSettlement()
+        {
+            BackgroundJobInvocationStage stage;
+            HangfireInvocationContract.BoundInvocation? framework;
+            BackgroundJobExecutionControl? execution;
+            lock (_sync)
+            {
+                if (_elapsedStageConsumed || _elapsedStage is not { } elapsed) return;
+                stage = elapsed;
+                framework = _framework;
+                execution = _execution;
+            }
+            if (framework?.HasSettledStage(stage, execution) != true) return;
+            lock (_sync)
+            {
+                if (_elapsedStageConsumed) return;
+                _elapsedStageConsumed = true;
+            }
+            framework.ObserveLateSettlement(stage);
         }
 
         private void StartCancellationObservation()

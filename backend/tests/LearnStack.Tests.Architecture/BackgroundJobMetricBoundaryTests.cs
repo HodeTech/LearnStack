@@ -256,6 +256,7 @@ public sealed partial class OutboxDispatchConventionTests
         }
         else offenders.Add("Missing actual bridge repair observation owners");
         roots.AddRange(LeaseObservationRoots(census, offenders));
+        roots.AddRange(LateObservationRoots(census, offenders));
         return roots;
     }
 
@@ -304,11 +305,12 @@ public sealed partial class OutboxDispatchConventionTests
     public void Background_job_metric_callbacks_follow_the_actual_transitive_memory_graph_and_refuse_persistence_helpers()
     {
         using var census = ProductionCensus.Read();
-        EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
+        var baselineOffenders = EvaluateDetector(census, RuntimeLifetimeOffenders);
+        baselineOffenders.Should().BeEmpty("complete baseline offenders: {0}", string.Join("\n", baselineOffenders));
         var ignored = new SortedSet<string>(StringComparer.Ordinal);
         var roots = JobMetricRoots(census, ignored);
         ignored.Should().BeEmpty();
-        roots.Should().HaveCount(12, "five actual collectors and seven fixed-memory control/execution/recurrence recorders or predicates are independently reached");
+        roots.Should().HaveCount(18, "five actual collectors and thirteen fixed-memory control/execution/recurrence recorders or predicates are independently reached");
         foreach (var recorder in roots.Where(method => method.Name == "ObserveLeaseLoss"))
         {
             var asynchronous = new CustomAttribute(recorder.Module.ImportReference(
@@ -320,6 +322,21 @@ public sealed partial class OutboxDispatchConventionTests
                 EvaluateDetector(census, RuntimeLifetimeOffenders).Should().Contain(value =>
                     value.Contains("two concrete synchronous instance helpers", StringComparison.Ordinal),
                     "an async-void recorder cannot retain its synchronous fixed-memory claim");
+            }
+            finally { recorder.CustomAttributes.Remove(asynchronous); }
+            EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
+        }
+        foreach (var recorder in roots.Where(method => method.Name is "ObserveLateSettlement" or "HasSettledStage" or "CaptureLateSettlements"))
+        {
+            var asynchronous = new CustomAttribute(recorder.Module.ImportReference(
+                typeof(System.Runtime.CompilerServices.AsyncStateMachineAttribute).GetConstructor([typeof(Type)])!));
+            asynchronous.ConstructorArguments.Add(new(recorder.Module.ImportReference(typeof(Type)), recorder.DeclaringType));
+            recorder.CustomAttributes.Add(asynchronous);
+            try
+            {
+                EvaluateDetector(census, RuntimeLifetimeOffenders).Should().Contain(value =>
+                    value.Contains("concrete synchronous helper", StringComparison.Ordinal),
+                    "every late classifier/forwarder/recorder remains synchronous memory observation");
             }
             finally { recorder.CustomAttributes.Remove(asynchronous); }
             EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
@@ -348,7 +365,7 @@ public sealed partial class OutboxDispatchConventionTests
             }
             finally { memory.Body.Instructions.Remove(indirect); }
             EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
-            foreach (var recorder in roots.Where(method => method.DeclaringType.FullName is OrchestrationControl or OrchestrationExecution or RcControl))
+            foreach (var recorder in roots.Where(method => method.DeclaringType.FullName != JobObservation))
             {
                 var recorderCall = Instruction.Create(OpCodes.Call, recorder.Module.ImportReference(sql));
                 recorder.Body.Instructions.Insert(0, recorderCall);
@@ -374,6 +391,40 @@ public sealed partial class OutboxDispatchConventionTests
             var invokeDelay = Instruction.Create(OpCodes.Call, recorder.Module.ImportReference(delay));
             recorder.Body.Instructions.Insert(0, invokeDelay);
             return () => { recorder.Body.Instructions.Remove(invokeDelay); application.Types.Remove(delayOwner); };
+        }, RuntimeLifetimeOffenders);
+        AssertMutation(census, "an extra persistent late-settlement recorder caller", () =>
+        {
+            var owner = census.Types[(InfrastructureAssembly, OrchestrationControl)];
+            var extra = new MethodDefinition("InventLateSettlement", MethodAttributes.Private, owner.Module.TypeSystem.Void);
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_0));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Call, owner.Methods.Single(method => method.Name == "ObserveLateSettlement")));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            owner.Methods.Add(extra);
+            return () => owner.Methods.Remove(extra);
+        }, RuntimeLifetimeOffenders);
+        AssertMutation(census, "an extra writer that could manufacture framework cleanup", () =>
+        {
+            var owner = census.Types[(InfrastructureAssembly, OrchestrationBound)];
+            var extra = new MethodDefinition("InventFrameworkCleanup", MethodAttributes.Private, owner.Module.TypeSystem.Void);
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_1));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Stfld, owner.Fields.Single(field => field.Name == "_cleanupConfirmed")));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            owner.Methods.Add(extra);
+            return () => owner.Methods.Remove(extra);
+        }, RuntimeLifetimeOffenders);
+        AssertMutation(census, "an extra elapsed-stage writer that could turn stop into clock provenance", () =>
+        {
+            var owner = census.Types[(InfrastructureAssembly, OrchestrationInvocation)];
+            var extra = new MethodDefinition("InventElapsedStage", MethodAttributes.Private, owner.Module.TypeSystem.Void);
+            var marker = owner.Fields.Single(field => field.Name == "_elapsedStage");
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldflda, marker));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Initobj, marker.FieldType));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            owner.Methods.Add(extra);
+            return () => owner.Methods.Remove(extra);
         }, RuntimeLifetimeOffenders);
         AssertMutation(census, "an unlisted recurrence progress caller outside the actual awaited SQL observation", () =>
         {
@@ -508,7 +559,8 @@ public sealed partial class OutboxDispatchConventionTests
     public void Background_job_metric_census_rejects_bait_callbacks_hidden_registration_and_skipped_binding()
     {
         using var census = ProductionCensus.Read();
-        EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
+        var baselineOffenders = EvaluateDetector(census, RuntimeLifetimeOffenders);
+        baselineOffenders.Should().BeEmpty("complete baseline offenders: {0}", string.Join("\n", baselineOffenders));
         var observation = census.Types[(InfrastructureAssembly, JobObservation)];
         var ctor = observation.Methods.Single(method => method.IsConstructor && !method.IsStatic);
         var gauge = ctor.Body.Instructions.First(instruction => instruction.Operand is MethodReference method

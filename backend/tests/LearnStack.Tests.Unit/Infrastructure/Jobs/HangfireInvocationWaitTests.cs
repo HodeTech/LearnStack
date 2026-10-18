@@ -129,6 +129,8 @@ public sealed class HangfireInvocationWaitTests
         }
         await invocation.ReturnRequested.WaitAsync(TimeSpan.FromSeconds(10));
         invocation.ReconcileWaitExpired.Should().Be(mode == "reconcile_expiry");
+        ElapsedStage(invocation).Should().Be(mode == "host_stop" ? null
+            : mode == "ordinary_expiry" ? BackgroundJobInvocationStage.Prepare : BackgroundJobInvocationStage.Reconcile);
         invocation.Token.IsCancellationRequested.Should().BeTrue();
         await invocation.CompleteAsync(true);
         work.CloseStarts();
@@ -150,6 +152,7 @@ public sealed class HangfireInvocationWaitTests
             .Should().BeFalse();
         invocation.ReconcileWaitExpired.Should().Be(reconcileFirst,
             "a rejected Reconcile start cannot borrow another stage's elapsed clock");
+        ElapsedStage(invocation).Should().Be(reconcileFirst ? BackgroundJobInvocationStage.Reconcile : BackgroundJobInvocationStage.Prepare);
         await invocation.CompleteAsync(true);
         work.CloseStarts();
         await work.Completion;
@@ -363,12 +366,17 @@ public sealed class HangfireInvocationWaitTests
             .GetValue(invocation)!;
         (await observer.WaitAsync(TimeSpan.FromSeconds(10))).Should().BeFalse();
         invocation.ReconcileWaitExpired.Should().BeFalse();
+        ElapsedStage(invocation).Should().BeNull();
         await invocation.CompleteAsync(true);
         work.CloseStarts();
         work.Completion.IsCompleted.Should().BeFalse();
         work.Snapshot.Retained.Should().Be(1);
         invocation.Token.WaitHandle.Should().NotBeNull("failed actual cleanup cannot release the private source");
     }
+
+    private static BackgroundJobInvocationStage? ElapsedStage(HangfireGenerationWork.Invocation invocation) =>
+        (BackgroundJobInvocationStage?)typeof(HangfireGenerationWork.Invocation)
+            .GetField("_elapsedStage", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(invocation);
 
     private static HangfireGenerationWork Work(TimeProvider time) =>
         new(new("test", BackgroundJobWorkerPoolKind.External, 2, ["test"]),
@@ -397,6 +405,7 @@ public sealed class HangfireInvocationWaitTests
         (await change.WaitAsync(TimeSpan.FromSeconds(10))).Should().BeFalse();
         invocation.ReconcileWaitExpired.Should().Be(longerSuccessor,
             "the prospective shorter Outcome deadline cannot become the previous Reconcile's timeout");
+        ElapsedStage(invocation).Should().Be(longerSuccessor ? BackgroundJobInvocationStage.Reconcile : null);
         await invocation.CompleteAsync(true);
         work.CloseStarts();
         await work.Completion;

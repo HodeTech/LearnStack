@@ -78,6 +78,23 @@ public sealed partial class BackgroundJobObservationTests
                 "uncertainty_observation",
                 "bridge_repair_prior_ack_hint_acknowledged", "bridge_repair_expired_token_acknowledged",
                 "lease_loss_renewal_refused", "lease_loss_elapsed",
+                "late_framework_settled",
+                "late_transactional_settled",
+                "late_prepare_settled",
+                "late_external_read_settled",
+                "late_arm_settled",
+                "late_execute_settled",
+                "late_outcome_settled",
+                "late_finalize_settled",
+                "late_prepare_history_settled",
+                "late_arm_history_settled",
+                "late_outcome_history_settled",
+                "late_finalize_history_settled",
+                "late_recovery_acquire_settled",
+                "late_recovery_confirmation_settled",
+                "late_reconcile_settled",
+                "late_no_start_settled",
+                "late_recovery_disposition_settled",
                 "occurrence_acknowledged", "skipped_slot_acknowledged", "fanout_page_acknowledged",
                 "fanout_route_examined_acknowledged", "fanout_recipient_inserted_acknowledged", "fanout_completed_acknowledged",
             ]);
@@ -112,6 +129,45 @@ public sealed partial class BackgroundJobObservationTests
         var empty = probe.Collect();
         One(empty, "learnstack_job_state_count", ("kind", "deferred"), ("artifact", "job"), ("reason", "unknown")).Should().Be(0);
         One(empty, "learnstack_job_oldest_eligible_age_seconds", ("profile", "external")).Should().Be(0);
+        fixture.Source.IsValueCreated.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Late_settlement_cells_are_distinct_persistent_process_totals_with_only_fixed_operation_labels()
+    {
+        await using var fixture = new Fixture();
+        using var probe = new Probe(fixture.Observer);
+        var operations = new[]
+        {
+            "late_framework_settled",
+            "late_transactional_settled",
+            "late_prepare_settled",
+            "late_external_read_settled",
+            "late_arm_settled",
+            "late_execute_settled",
+            "late_outcome_settled",
+            "late_finalize_settled",
+            "late_prepare_history_settled",
+            "late_arm_history_settled",
+            "late_outcome_history_settled",
+            "late_finalize_history_settled",
+            "late_recovery_acquire_settled",
+            "late_recovery_confirmation_settled",
+            "late_reconcile_settled",
+            "late_no_start_settled",
+            "late_recovery_disposition_settled",
+        };
+        var initial = probe.Collect();
+        foreach (var operation in operations)
+            One(initial, "learnstack_job_control_total", ("operation", operation), ("pool", "none")).Should().Be(0);
+        fixture.ObserveLateSettlements();
+        for (var scrape = 0; scrape < 2; scrape++)
+        {
+            var points = probe.Collect();
+            for (var index = 0; index < operations.Length; index++)
+                One(points, "learnstack_job_control_total", ("operation", operations[index]), ("pool", "none")).Should().Be(index + 1);
+            points.Where(point => point.Instrument == "learnstack_job_control_total").Should().OnlyContain(point => point.Tags.Count == 2);
+        }
         fixture.Source.IsValueCreated.Should().BeFalse();
     }
 
@@ -246,6 +302,14 @@ public sealed partial class BackgroundJobObservationTests
             Set("_renewals", acknowledged);
             Set("_renewalsConfirmed", historyConfirmed);
         }
+        // Projection-only distinct values. Native tests qualify actual producers.
+        internal void ObserveLateSettlements()
+        {
+            foreach (var stage in Enum.GetValues<BackgroundJobInvocationStage>())
+                for (var count = 0; count <= (int)stage; count++) _control.ObserveLateSettlement(stage);
+            _control.ObserveLateSettlement((BackgroundJobInvocationStage)99);
+        }
+
         internal void ObserveLeaseLosses(long refused, long elapsed)
         {
             Set("_leaseLossRenewalRefused", refused);

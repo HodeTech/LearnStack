@@ -171,6 +171,26 @@ public sealed partial class BackgroundJobObservation : IDisposable
             Add(control.UnknownOutcomes, "uncertainty_observation");
             Add(control.LeaseLossRenewalRefused, "lease_loss_renewal_refused");
             Add(control.LeaseLossElapsed, "lease_loss_elapsed");
+            if (control.LateSettlements is { } late)
+            {
+                Add(late.Framework, "late_framework_settled");
+                Add(late.Transactional, "late_transactional_settled");
+                Add(late.Prepare, "late_prepare_settled");
+                Add(late.ExternalRead, "late_external_read_settled");
+                Add(late.Arm, "late_arm_settled");
+                Add(late.Execute, "late_execute_settled");
+                Add(late.Outcome, "late_outcome_settled");
+                Add(late.Finalize, "late_finalize_settled");
+                Add(late.PrepareHistory, "late_prepare_history_settled");
+                Add(late.ArmHistory, "late_arm_history_settled");
+                Add(late.OutcomeHistory, "late_outcome_history_settled");
+                Add(late.FinalizeHistory, "late_finalize_history_settled");
+                Add(late.RecoveryAcquire, "late_recovery_acquire_settled");
+                Add(late.RecoveryConfirmation, "late_recovery_confirmation_settled");
+                Add(late.Reconcile, "late_reconcile_settled");
+                Add(late.NoStart, "late_no_start_settled");
+                Add(late.RecoveryDisposition, "late_recovery_disposition_settled");
+            }
             if (control.Recurrence is { } recurrence)
             {
                 Add(recurrence.OccurrencesAcknowledged, "occurrence_acknowledged");

@@ -290,6 +290,17 @@ public static class HangfireInvocationContract
         private static bool Catchable(Exception failure) => failure.GetType() != typeof(OutOfMemoryException)
             && failure.GetType() != typeof(StackOverflowException);
 
+        internal bool HasSettledStage(BackgroundJobInvocationStage stage, BackgroundJobExecutionControl? execution)
+        {
+            // The observer itself is running CompleteAsync. Its wrapper may
+            // have returned long ago; only the published actual flight counts.
+            if (jobs is null || !_cleanupConfirmed
+                || _operationPublished.Task is not { IsCompletedSuccessfully: true, Result.IsCompleted: true }) return false;
+            return stage == BackgroundJobInvocationStage.Framework || execution?.HasSettledStage(stage) == true;
+        }
+
+        internal void ObserveLateSettlement(BackgroundJobInvocationStage stage) => jobs!.ObserveLateSettlement(stage);
+
         internal Task RunTickAsync(string key, long revision)
         {
             if (Volatile.Read(ref _closed) != 0 || Type != typeof(HangfireRecurrenceTick) || job.Args[0] is not string bound || bound != key
