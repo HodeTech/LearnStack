@@ -211,9 +211,14 @@ public sealed class AuditingTenantAssertionRecorderTests
     }
 
     [Theory]
-    [MemberData(nameof(UntranslatedFailures))]
-    public async Task A_store_failure_of_any_kind_leaves_the_refusal_alone(Exception failure)
+    [InlineData("no credential", false)]
+    [InlineData("the role bypasses row level security", false)]
+    [InlineData("the pool was exhausted", true)]
+    public async Task A_store_failure_of_any_kind_leaves_the_refusal_alone(string message, bool timeout)
     {
+        // Primitive inputs give all three rows stable discovery IDs. Exception
+        // instances are not xUnit-serializable and collapse to one discovered case.
+        Exception failure = timeout ? new TimeoutException(message) : new InvalidOperationException(message);
         // The catch used to name AuditWriteFailedException alone, and its test threw
         // exactly that type — so the two agreed and neither constrained anything.
         // Measured on the shipped code: a host with no application credential answered an
@@ -320,22 +325,6 @@ public sealed class AuditingTenantAssertionRecorderTests
         await act.Should().NotThrowAsync("a failed record does not change a response that is already a refusal");
         logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Critical)
             .Which.Message.Should().Contain(AuditingTenantAssertionRecorder.RejectOperation);
-    }
-
-    public static TheoryData<Exception> UntranslatedFailures()
-    {
-        var failures = new TheoryData<Exception>();
-
-        // The measured one: a Lazy data source with no credential behind it.
-        failures.Add(new InvalidOperationException("no credential"));
-
-        // The physical-connection initializer refusing a role that can bypass RLS.
-        failures.Add(new InvalidOperationException("the role bypasses row level security"));
-
-        // And a shape nobody predicted, which is the point of catching by width.
-        failures.Add(new TimeoutException("the pool was exhausted"));
-
-        return failures;
     }
 
     [Fact]

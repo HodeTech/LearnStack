@@ -850,6 +850,9 @@ jobs:
           python3 scripts/test-ci-native-provisioning.py
           python3 scripts/test-ci-native-tests.py
 
+      - name: Complete bounded CI plan controls
+        run: timeout --signal=TERM --kill-after=3s 27s python3 scripts/test-ci-test-shards.py
+
       - name: Accepted ADR disclosure
         env:
           EVENT_NAME: ${{ github.event_name }}

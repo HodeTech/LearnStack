@@ -9524,6 +9524,57 @@ plan, each with commit and two fresh independent review rounds. Verified owner
 faults remain corrections under ADR-0062, not presumed consequences of sharding.
 Work stays on `development`; PR #32 stays open and the maintainer owns merge.
 
+###### ADR-0063 Step 1 — complete selector plan (2026-10-19)
+
+Implementation follows acceptance commit `94f201ab`. The tracked JSON plan starts
+with six Architecture and twelve ordinary owners, bounded by the Accepted manual
+range. Its method weights retain artifact hashes, partial/local provenance and
+unknown fixed costs; estimates never select membership. The actual discovery
+protocol supplies assembly, case ID, display name and `FullyQualifiedName`.
+The owner builds whole-selector A/B assignments, bounded direct filters and exact
+per-owner/complete-union checks. Shared-fixture class observations support the
+independence witness; they do not define the test population. The general
+catalogue rule remains Registered until execution and aggregate enforcement ship.
+
+Fresh Release discovery identifies 5,475 cases: 3,043 non-Docker and 2,432 Docker,
+the latter exactly 31 native plus 2,401 ordinary. Both A/B plans independently
+rediscover all 44 generated project filters and match every assigned case field;
+their Architecture, ordinary and shared-fixture co-memberships differ. This
+local selection proof took 38.429 seconds after complete discovery, using SDK
+10.0.302. It does not execute the assignments or establish hosted fit. The
+assignment digests are
+`8c4459848fae3279b4bc60b7c4614945a282db4862042ca6565c331e9e56f4ad`
+and `8a113fac9c26a7595d930effcc1c307f030cd7ede1b8d38592c55cac7d55099c`.
+
+Real discovery/result reconciliation also exposed two existing identity edges:
+
+- An Exception-valued Unit theory advertised one discovered ID for three executed
+  rows. Primitive inline inputs now construct the same three exceptions inside
+  the test, preserving all assertions and producing three distinct IDs.
+- VSTest's TRX logger escapes supplementary Unicode as UTF-16 code units. Result
+  validation binds assembly/ID first and accepts only the exact discovered name
+  or its exact forward XML representation. It does not decode arbitrary names or
+  relax the raw completed protocol. Unicode test inputs remain unchanged. The
+  [resolved VSTest source](https://github.com/microsoft/vstest/blob/e2f248338b5756f82d38c0d9551ff08bea0947de/src/Microsoft.TestPlatform.Extensions.TrxLogger/XML/XmlPersistence.cs#L652-L689)
+  supplies this transformation.
+
+Local validation: normal solution Release build passes with zero warnings/errors;
+the corrected Unit suite passes 2,452 cases with zero skips and unique discovered
+IDs. All those TRX identities reconcile: 2,450 names directly and two through the
+expected-bound XML representation. This Unit run did not capture the completed
+protocol, so it is not claimed as a complete new launcher receipt. The actual
+TRX SHA-256 is
+`0597c5be316aab7ddb50ca1754e3b7cd29f2d3e689ae8862fea4fddc1375b395`.
+Five focused corpus checks pass. Twenty new offline controls pass in 0.183 seconds
+and all 38 existing launcher controls pass in 17.340 seconds. The changed C# file
+passes project format verification; the solution-format invocation reported a
+workspace-load warning, so it is not a clean full-solution format claim.
+
+The new controls run in meta inside a finite 30-second allowance. Workflow test
+matrices, new execution authority, aggregate/API enforcement and actual two-attempt
+hosted qualification remain Steps 2–3. Step 1's commit and both fresh independent
+review rounds must complete before Step 2 starts; their receipts follow here.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

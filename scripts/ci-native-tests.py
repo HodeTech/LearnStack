@@ -334,7 +334,7 @@ def test_projects():
                 if 'obj' not in path.parts and 'bin' not in path.parts), 'test_project_missing_from_solution')
 
 
-def case_identity(raw, assembly):
+def case_identity(raw, assembly, *, selectors=False):
     require(isinstance(raw, dict), 'discovery_case_invalid')
     name, test_id = raw.get('DisplayName'), raw.get('Id')
     require(isinstance(name, str) and 0 < len(name) <= 8192
@@ -343,10 +343,16 @@ def case_identity(raw, assembly):
         r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', test_id),
         'discovery_case_invalid')
     require(Path(raw.get('Source', '')).name == assembly + '.dll', 'discovery_source_invalid')
-    return {'assembly': assembly.casefold(), 'id': test_id, 'name': name}
+    result = {'assembly': assembly.casefold(), 'id': test_id, 'name': name}
+    if selectors:
+        method = raw.get('FullyQualifiedName')
+        require(isinstance(method, str) and 0 < len(method) <= 2048
+                and not any(ord(character) < 32 for character in method), 'discovery_method_invalid')
+        result['method'] = method
+    return result
 
 
-def discovery_log(path, assembly):
+def discovery_log(path, assembly, *, selectors=False):
     marker = 'TestRequestSender.OnDiscoveryMessageReceived: Received message: '
     cases, completed = [], None
     for line in read_bytes(path).decode('utf-8').splitlines():
@@ -356,11 +362,11 @@ def discovery_log(path, assembly):
         kind, payload = message.get('MessageType'), message.get('Payload')
         if kind == 'TestDiscovery.TestFound':
             require(completed is None and isinstance(payload, list), 'discovery_protocol_invalid')
-            cases.extend(case_identity(case, assembly) for case in payload)
+            cases.extend(case_identity(case, assembly, selectors=selectors) for case in payload)
         elif kind == 'TestDiscovery.Completed':
             require(completed is None and isinstance(payload, dict), 'discovery_protocol_invalid')
             completed = payload
-            cases.extend(case_identity(case, assembly) for case in payload.get('LastDiscoveredTests') or [])
+            cases.extend(case_identity(case, assembly, selectors=selectors) for case in payload.get('LastDiscoveredTests') or [])
     require(completed is not None and completed.get('IsAborted') is False
             and completed.get('TotalTests') == len(cases) and len(cases) <= MAX_CASES,
             'discovery_incomplete')
@@ -581,6 +587,18 @@ class ExecutionProgress:
             require(not self.pending and self.completed, 'execution_incomplete')
 
 
+def trx_xml_name(value):
+    """VSTest XmlPersistence.RemoveInvalidXmlChar operates on UTF-16 units.
+
+    This produces only the expected logger representation, never unescapes an
+    untrusted actual name. Supplementary scalars become two lowercase escapes.
+    """
+    encoded = value.encode('utf-16-le', errors='surrogatepass')
+    units = [int.from_bytes(encoded[i:i + 2], 'little') for i in range(0, len(encoded), 2)]
+    return ''.join(chr(unit) if unit in (9, 10, 13) or 0x20 <= unit <= 0xD7FF
+                   or 0xE000 <= unit <= 0xFFFD else '\\u' + format(unit, '04x') for unit in units)
+
+
 def trx_cases(path, *, sanitize=False):
     root = ET.fromstring(read_bytes(path))
     summary = root.find('t:ResultSummary', NS)
@@ -634,6 +652,8 @@ def trx_cases(path, *, sanitize=False):
 
 
 def validate_results(output, expected):
+    known = {(case['assembly'], case['id']): case['name'] for case in expected}
+    require(len(known) == len(expected), 'duplicate_discovery_identity')
     rows = []
     files = sorted((output / 'results').glob('*.trx'))
     require(files, 'trx_missing')
@@ -641,6 +661,13 @@ def validate_results(output, expected):
         summary = ET.fromstring(read_bytes(path)).find('t:ResultSummary', NS)
         require(summary is not None and summary.get('outcome') in ('Completed', 'Passed'), 'trx_run_failed')
         rows.extend(trx_cases(path))
+    for row in rows:
+        identity = row['assembly'], row['id']
+        require(identity in known and row['name'] in (known[identity], trx_xml_name(known[identity])),
+                'trx_case_name_mismatch')
+        # Canonicalize only this expected-bound validation projection. Exported
+        # TRX spelling and the raw completed protocol retain their actual names.
+        row['name'] = known[identity]
     require(rows and all(case['outcome'] == 'Passed' for case in rows)
             and Counter(key(case) for case in rows) == Counter(key(case) for case in expected), 'results_incomplete')
     lines = [json.loads(line) for line in read_bytes(output / 'completed-cases.jsonl').splitlines()]
@@ -1089,7 +1116,7 @@ def workload_failure(private):
                'execution_case_invalid', 'execution_outcome_invalid', 'execution_duration_invalid',
                'execution_incomplete', 'completed_case_unexpected', 'actual_testhost_not_observed',
                'preexisting_testhost', 'testhost_outside_owned_subtree', 'tests_failed', 'deadline_exhausted',
-               'workload_internal_refusal', 'console_bound', 'launcher_join_failed'}
+               'workload_internal_refusal', 'console_bound', 'launcher_join_failed', 'trx_case_name_mismatch'}
     allowed.update('workload_internal_' + stage + '_' + kind
                    for stage in {*WORKLOAD_FAULT_STAGES.values(), 'other'}
                    for kind in {label for _, label in WORKLOAD_FAULT_KINDS} | {'other'})
