@@ -190,8 +190,23 @@ internal static class HangfireGenerationPhaseHarness
             var actualProbe = await docker.Containers.InspectContainerAsync(probe.Id, deadline.Token);
             var actualNetwork = await docker.Networks.InspectNetworkAsync(networkId, deadline.Token);
             stage = "supervisor_topology_membership";
-            Require(actualNetwork.Internal && actualNetwork.Containers.Keys.ToHashSet(StringComparer.Ordinal)
-                .SetEquals([postgres.Id, probe.Id]));
+            var expectedMembership = actualNetwork.Internal && actualNetwork.Containers.Keys.ToHashSet(StringComparer.Ordinal)
+                .SetEquals([postgres.Id, probe.Id]);
+            if (!expectedMembership)
+            {
+                // This is still before private stdin. A failed membership check
+                // is never retried into success, and diagnostics cannot replace
+                // its failure or export endpoint identities/provider text.
+                stage += "_" + TopologySummary(actualNetwork, actualProbe, postgres.Id, probe.Id);
+                try
+                {
+                    using var diagnosticBudget = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    var startupLogs = await probe.GetLogsAsync(timestampsEnabled: false, ct: diagnosticBudget.Token);
+                    stage += "_preflight_" + StartupRefusal(startupLogs.Stdout);
+                }
+                catch (Exception) { }
+                Require(false);
+            }
             stage = "supervisor_configuration";
             QualifyProbeConfiguration(actualProbe, networkId);
             stage = "supervisor_running_state";
@@ -412,7 +427,7 @@ internal static class HangfireGenerationPhaseHarness
         catch (Exception failure) when (failure is JsonException or InvalidOperationException) { return "invalid"; }
     }
 
-    private static string NativeExitCategory(int? code) => code switch
+    private static string NativeExitCategory(long? code) => code switch
     {
         null => "absent",
         0 => "zero",
@@ -421,6 +436,20 @@ internal static class HangfireGenerationPhaseHarness
         79 => "failed",
         _ => "other",
     };
+
+    internal static string TopologySummary(NetworkResponse network, ContainerInspectResponse probe,
+        string postgresId, string probeId)
+    {
+        var members = network.Containers;
+        var state = probe.State;
+        return "internal_" + (network.Internal ? "yes" : "no")
+            + "_members_" + Math.Min(members?.Count ?? 0, 3).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + "_database_" + (members?.ContainsKey(postgresId) == true ? "yes" : "no")
+            + "_supervisor_" + (members?.ContainsKey(probeId) == true ? "yes" : "no")
+            + "_running_" + (state?.Running == true ? "yes" : "no")
+            + "_oom_" + (state?.OOMKilled == true ? "yes" : "no")
+            + "_exit_" + NativeExitCategory(state?.ExitCode);
+    }
 
     private enum InspectionReason { User, Stdin, Root, Capabilities, Privileges, Network, Input, Scratch, Ports, Core }
     private sealed class InspectionRefusal(InspectionReason reason) : Exception

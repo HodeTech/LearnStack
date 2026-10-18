@@ -114,7 +114,7 @@ steps, both independent review rounds per step and verified corrections. Its
 owns exact local qualification and remaining PR/CI/merge work.
 Accepted ADR-0062 (2026-10-18) authorizes the bounded native CI follow-up; its
 [acceptance record](docs/roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
-owns pending implementation and exact-head hosted qualification.
+owns implementation, follow-up reviews and exact-head hosted qualification.
 Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
 composition qualification under Accepted ADR-0060; business execution stays Step 5.

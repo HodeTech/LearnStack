@@ -1666,8 +1666,13 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   needs a container — one under `Database/`, or one anywhere that names `SchemaFixture`,
   `PostgresFixture` or the `SharedSchema` collection — carries
   `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`.
-- **Why it matters:** CI splits the integration assembly by that trait, and the two jobs'
-  filters are exact complements, so a class that forgets it does not fail — it runs in the
+  ADR-0062's shared native trait belongs to exactly the two complete native proof
+  classes, including all predicate/theory/mutant rows. A nonempty source closure
+  rejects an unclassified direct or delegated sidecar/preflight test caller;
+  qualified identities, aliases and legitimate partial declarations retain
+  ownership. This bounded source census is not arbitrary dynamic-call analysis.
+- **Why it matters:** CI separates Docker from the remaining tests by complementary
+  filters, so a class that forgets the trait does not fail — it runs in the
   `backend` job, whose runner also has a Docker socket, starts its container and passes.
   Nothing goes red, and the Docker suite quietly stops being where the Docker tests live.
 - **Source:** [06-testing.md](06-testing.md).
@@ -1675,7 +1680,9 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 - **Status:** **Implemented** (`PersistenceConventionTests`), widened from `Database/` to
   the whole project in Packet 9's fifth review. Its companion,
   `The_Docker_Trait_Sweep_Can_Actually_Fail`, feeds the predicate the shapes it must and
-  must not flag.
+  must not flag, including the added native ownership/closure controls in P02b-4's
+  ADR-0062 follow-up. Actual discovered case IDs and complete partition results
+  are additionally checked by `scripts/ci-native-tests.py`.
 - **Phase:** 02a (Packet 6; widened in Packet 9).
 
 #### `SoftDelete_Advances_The_Row_Version`
@@ -5250,10 +5257,21 @@ and fixture definitions make the implemented controls non-vacuous.
   Fatal diagnostics use a finite pool/stage set without exception objects; isolated
   child environment/resource/collector prerequisites, absent dump artifacts and
   finally/exit markers distinguish fatal from normal exit with a dirty gate control.
+  ADR-0062 confines CI collector setup to the named exclusive hosted-VM owner,
+  fixed literal write/readback and no restoration. Complete disjoint Docker
+  partitions, owned process completion and fail-closed aggregate evidence retain
+  all cases and the existing required check. Offline copied-owner controls verify
+  the actual fixed seams without changing local host policy; hosted qualification
+  remains a separate obligation in the owning CI record.
 - **Type:** invocation census, real worker fallback and stored/logged canary controls.
   **Kind:** structural + startup + behavioural.
 - **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,
   `HangfireStorageTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Integration/Database/HangfireStorageTests.cs)).
+  The CI-only extension is owned by
+  [`ci-native-provisioning.py`](../../scripts/ci-native-provisioning.py) and
+  [`ci-native-tests.py`](../../scripts/ci-native-tests.py), with their matching
+  [`provisioning`](../../scripts/test-ci-native-provisioning.py) and
+  [`launcher`](../../scripts/test-ci-native-tests.py) subprocess controls in `meta`.
 
 ### `Hangfire_Bootstrap_Uses_Pinned_Schema_And_Confined_Role`
 

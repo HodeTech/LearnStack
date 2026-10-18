@@ -753,9 +753,12 @@ named CI-only owner to verify or set the fixed file collector on an exclusive
 disposable hosted native-proof VM, without restoration. Native/ordinary Docker
 execution stays complete behind the existing required integration result. This
 is not developer/shared/production host authority or a weaker child precondition.
-The [CI acceptance](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
-owns pending implementation and actual hosted qualification; acceptance promotes
-no additive catalogue assertions before their controls ship.
+The closed owners are `scripts/ci-native-provisioning.py` and
+`scripts/ci-native-tests.py`; their offline subprocess/partition controls run in
+`meta`. Exact discovery/result identities and both execution outcomes gate the
+aggregate. The [CI record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+owns reviews and actual hosted qualification. Local controls do not qualify the
+hosted process boundary, complete partitions or their budget fit.
 
 - Step 4's API composition registers one `BackgroundJobHostedService` over
   [`BackgroundJobRuntime`](../glossary.md#background-jobs), with singleton hosted

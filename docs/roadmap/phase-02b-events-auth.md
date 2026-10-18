@@ -9066,6 +9066,59 @@ No passing hosted result, new catalogue enforcement or completed implementation
 is claimed by this acceptance. The earlier failed and source-specific local
 receipts remain historical evidence; native separation alone is no budget proof.
 
+
+###### Native CI implementation and local qualification
+
+Acceptance commit `c4e64b52` precedes this implementation. The closed provisioning
+owner validates copied scalar workflow identity, actual platform/checkout,
+container/VM evidence, empty all-state Docker baseline and eligible collector
+before privilege. It independently compares actual reads and verifies either
+no-change or the one fixed literal write. Sixteen offline copied-owner subprocess
+controls pass; no developer host setting is changed by those controls.
+
+The native launcher owns finite execution/cleanup/export allocations, a delegated
+non-root systemd unit and separate supervisor/work cgroups. The live supervisor
+retains the work subtree until actual child join and an existing populated-zero
+witness; unit disappearance is not proof. Ordinary Docker receives equivalent
+process ownership on its separate VM, with no collector provisioning. The same
+required integration name is an always-running fail-closed aggregate of both
+successful, complete matching artifacts. The launcher's 203-second reserved tail is an allocation, not measured fit.
+Twenty offline launcher/result controls pass, including actual subprocess,
+setsid, live/missing cgroup, precise discovery IDs, sanitized TRX, incomplete
+aggregate, bounded export and composed pre-privilege collector controls. Actual
+hosted ownership, failure-tail
+measurements and whole-job fit remain pending.
+
+The CI-mode Release build passes with zero warnings/errors. Nine selected source,
+corpus and native predicate cases pass with zero skips; no canonical rule or test
+method count is added. The source census covers qualified/partial identities,
+shared traits, actual launch markers and transitive declared helper dependencies,
+with planted dirty and clean controls. It does not prove arbitrary dynamic-call
+analysis. The unchanged all-source snapshot covers 1,209 C# files; its snapshot-file
+hash is `91e9be8b8c7fb77954ed70638168ace4dabd761283526d8b0b19a8eaa7120b27`.
+
+Fresh actual Release discovery selects 2,432 Docker case IDs: 31 native and 2,401
+ordinary, disjoint and complete; the other three test assemblies select none.
+Twenty display-name collisions make a name-only set insufficient. The launcher
+parses only bounded identities from private VSTest protocol diagnostics; raw
+serialized theory inputs are not export artifacts.
+
+The complete local native partition passes all 31 cases with zero skips and exact
+fresh-discovery IDs, including benign twins and actual same-child mutants over
+real PostgreSQL. Its test interval is 166.889 seconds. The source snapshot stays
+unchanged; no new container remains and all 22 pre-existing container states are
+unchanged. Its TRX hash is
+`1cc3004dd5d67f18a577088bc52a06cd80e91e7ed984037dca63eb20750e63f7`.
+This qualifies the existing local native fixture, not hosted provisioning,
+systemd delegation or either twenty-minute whole-job path.
+
+Guarded frontend validation passes all 1,625 cases with zero skips/todos;
+typecheck and lint pass. Only the four new CI Python paths gain exact non-runtime
+classification; unknown paths and runtime import coverage remain guarded. Seven
+ADR-parser and five read-only observer controls, actionlint and changed-document
+links/fragments pass. Two fresh follow-up review rounds and actual final-source
+hosted qualification remain pending; PR #32 stays open and no merge is claimed.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

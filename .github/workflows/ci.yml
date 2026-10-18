@@ -19,8 +19,8 @@
 #     provisioning suite — and is therefore the packet that has to split them.
 #     The HTTP tests in LearnStack.Tests.Integration stay in the `backend` job:
 #     they use WebApplicationFactory and need no Docker. The split is by
-#     [Trait("Requires","Docker")] and the two jobs' filters are exact
-#     complements, so every test runs in exactly one of them. Making it a
+#     [Trait("Requires","Docker")]. ADR-0062 partitions that complement into
+#     ordinary/native execution jobs behind the same required aggregate. Making it a
 #     REQUIRED check is a repository setting — see .github/CONTRIBUTING.md
 #     § Branch protection.
 #
@@ -175,25 +175,19 @@ jobs:
           if-no-files-found: warn
 
   # ─── Backend integration (Testcontainers — active since Phase 02a Packet 6) ────
-  backend-integration:
-    name: backend integration (Testcontainers)
+  backend-integration-tests:
+    name: backend ordinary Docker tests
     runs-on: ubuntu-latest
-    # ubuntu-latest carries a real Docker socket natively, which is why this job
-    # exists separately rather than the `backend` job growing a service container:
-    # Testcontainers manages its own lifecycle and needs the daemon, not a
-    # pre-declared service.
-    #
-    # The filter is the exact complement of the `backend` job's, so every test in
-    # the solution runs in exactly one of the two — including a test whose trait
-    # value is mistyped, which `Requires!=Docker` matches and which therefore runs
-    # in `backend`. That is NOT a loud failure: this runner and that one both carry
-    # a Docker socket, so the mis-traited test starts its container, passes, and
-    # the Docker suite quietly stops being where the Docker tests live. The value
-    # is a constant (LearnStack.Tests.Integration.Database.RequiresDocker) to make
-    # the typo impossible, and `Every_Database_Test_Carries_The_Docker_Trait`
-    # catches a class that forgets the attribute altogether.
+    # ADR-0062: the aggregate below requires this complete ordinary partition
+    # and the independently qualified native proof VM. No required name changes.
     timeout-minutes: 20
+    env:
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
+      MSBUILDDISABLENODEREUSE: "1"
     steps:
+      - name: Start the whole-job clock before checkout
+        run: echo "LEARNSTACK_CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -251,37 +245,186 @@ jobs:
         # already; it is written down because the gate depends on it.
         env:
           CI: "true"
-        run: dotnet restore LearnStack.slnx
+        run: dotnet restore LearnStack.slnx --disable-build-servers
 
       - name: Build
         working-directory: backend
         env:
           CI: "true"
-        run: dotnet build LearnStack.slnx --no-restore --configuration Release
+        run: dotnet build LearnStack.slnx --no-restore --configuration Release --disable-build-servers
 
-      - name: Test (Testcontainers)
-        working-directory: backend
-        run: |
-          dotnet test LearnStack.slnx \
-            --no-restore --no-build --configuration Release \
-            --filter "Requires=Docker" \
-            --logger "console;verbosity=normal" \
-            --logger trx \
-            --results-directory ../artifacts/backend-integration
+      - name: Prove the complete ordinary Docker partition
+        env:
+          LEARNSTACK_NATIVE_RUNNER_CONTEXT: ${{ runner.environment }}
+          LEARNSTACK_NATIVE_RUNNER_OS: ${{ runner.os }}
+          LEARNSTACK_NATIVE_RUNNER_ARCH: ${{ runner.arch }}
+          LEARNSTACK_NATIVE_RUNNER_LABEL: ubuntu-latest
+          LEARNSTACK_NATIVE_JOB_CONTAINER: ${{ toJSON(job.container) }}
+          LEARNSTACK_NATIVE_JOB_SERVICES: ${{ toJSON(job.services) }}
+          LEARNSTACK_NATIVE_RUN_ID: ${{ github.run_id }}
+          LEARNSTACK_NATIVE_ATTEMPT: ${{ github.run_attempt }}
+          LEARNSTACK_NATIVE_JOB: ${{ github.job }}
+          LEARNSTACK_NATIVE_SHA: ${{ github.sha }}
+          LEARNSTACK_NATIVE_REPOSITORY: ${{ github.repository }}
+          LEARNSTACK_NATIVE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          LEARNSTACK_NATIVE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          LEARNSTACK_NATIVE_WORKSPACE: ${{ github.workspace }}
+        run: python3 scripts/ci-native-tests.py ordinary
 
-      # The job this matters most for: `Requires=Docker` matching nothing — the trait
-      # constant renamed, the filter mistyped — exits 0 and leaves the whole Docker suite
-      # unrun behind a green check. Only the integration assembly carries the trait.
-      - name: Refuse a test run that executed nothing
-        run: python3 scripts/assert-tests-ran.py artifacts/backend-integration LearnStack.Tests.Integration
-
-      - name: Upload test results
+      - name: Read the single owner's artifact deadline
+        id: artifact-budget
         if: always()
+        run: python3 scripts/ci-native-tests.py upload-budget >> "$GITHUB_OUTPUT"
+
+      - name: Upload named ordinary results and completion evidence
+        if: always()
+        timeout-minutes: ${{ fromJSON(steps.artifact-budget.outputs.minutes) }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-integration-results
-          path: artifacts/backend-integration
-          if-no-files-found: warn
+          path: |
+            artifacts/backend-integration/environment.json
+            artifacts/backend-integration/discovery.json
+            artifacts/backend-integration/completed-cases.jsonl
+            artifacts/backend-integration/result.json
+            artifacts/backend-integration/results/*.trx
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─── Native crash proof (exclusive disposable VM — ADR-0062) ────────────
+  backend-native:
+    name: backend native crash proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
+      MSBUILDDISABLENODEREUSE: "1"
+    steps:
+      - name: Start the whole-job clock before checkout
+        run: echo "LEARNSTACK_CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Observe native proof environment without provisioning
+        env:
+          LEARNSTACK_RUNNER_CONTEXT: ${{ runner.environment }}
+        run: |
+          mkdir -p artifacts/backend-native
+          python3 scripts/ci-native-environment.py > artifacts/backend-native/environment.json
+          cat artifacts/backend-native/environment.json
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        working-directory: backend
+        env:
+          CI: "true"
+        run: dotnet restore LearnStack.slnx --disable-build-servers
+
+      - name: Build
+        working-directory: backend
+        env:
+          CI: "true"
+        run: dotnet build LearnStack.slnx --no-restore --configuration Release --disable-build-servers
+
+      # Scalar context copies contain no github.token or complete context object.
+      # The launcher calls the closed provisioning owner immediately before its
+      # owned test processes. The fixture independently qualifies every native fact.
+      - name: Qualify and prove the complete native partition
+        env:
+          LEARNSTACK_NATIVE_RUNNER_CONTEXT: ${{ runner.environment }}
+          LEARNSTACK_NATIVE_RUNNER_OS: ${{ runner.os }}
+          LEARNSTACK_NATIVE_RUNNER_ARCH: ${{ runner.arch }}
+          LEARNSTACK_NATIVE_RUNNER_LABEL: ubuntu-24.04
+          LEARNSTACK_NATIVE_JOB_CONTAINER: ${{ toJSON(job.container) }}
+          LEARNSTACK_NATIVE_JOB_SERVICES: ${{ toJSON(job.services) }}
+          LEARNSTACK_NATIVE_RUN_ID: ${{ github.run_id }}
+          LEARNSTACK_NATIVE_ATTEMPT: ${{ github.run_attempt }}
+          LEARNSTACK_NATIVE_JOB: ${{ github.job }}
+          LEARNSTACK_NATIVE_SHA: ${{ github.sha }}
+          LEARNSTACK_NATIVE_REPOSITORY: ${{ github.repository }}
+          LEARNSTACK_NATIVE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          LEARNSTACK_NATIVE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          LEARNSTACK_NATIVE_WORKSPACE: ${{ github.workspace }}
+        run: python3 scripts/ci-native-tests.py native
+
+      - name: Read the single owner's artifact deadline
+        id: artifact-budget
+        if: always()
+        run: python3 scripts/ci-native-tests.py upload-budget >> "$GITHUB_OUTPUT"
+
+      - name: Upload named native results and sanitized evidence
+        if: always()
+        timeout-minutes: ${{ fromJSON(steps.artifact-budget.outputs.minutes) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-native-results
+          path: |
+            artifacts/backend-native/environment.json
+            artifacts/backend-native/provisioning.json
+            artifacts/backend-native/discovery.json
+            artifacts/backend-native/completed-cases.jsonl
+            artifacts/backend-native/native-refusals.jsonl
+            artifacts/backend-native/result.json
+            artifacts/backend-native/results/*.trx
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─── Required integration result: both complete partitions ──────────────
+  backend-integration:
+    name: backend integration (Testcontainers)
+    if: always()
+    needs: [backend-integration-tests, backend-native]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download native evidence
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-native-results
+          path: artifacts/ci-aggregate/native
+
+      - name: Download ordinary evidence
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-integration-results
+          path: artifacts/ci-aggregate/ordinary
+
+      - name: Require successful jobs and complete matching case evidence
+        if: always()
+        env:
+          LEARNSTACK_NATIVE_RESULT: ${{ needs.backend-native.result }}
+          LEARNSTACK_ORDINARY_RESULT: ${{ needs.backend-integration-tests.result }}
+          LEARNSTACK_NATIVE_RUN_ID: ${{ github.run_id }}
+          LEARNSTACK_NATIVE_ATTEMPT: ${{ github.run_attempt }}
+          LEARNSTACK_NATIVE_JOB: ${{ github.job }}
+          LEARNSTACK_NATIVE_SHA: ${{ github.sha }}
+          LEARNSTACK_NATIVE_REPOSITORY: ${{ github.repository }}
+          LEARNSTACK_NATIVE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          LEARNSTACK_NATIVE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          LEARNSTACK_NATIVE_WORKSPACE: ${{ github.workspace }}
+        run: python3 scripts/ci-native-tests.py aggregate
 
   # ─── Frontend ───────────────────────────────────────────────────────────
   frontend:
@@ -701,6 +844,11 @@ jobs:
 
       - name: Read-only native environment and duration logging controls
         run: python3 scripts/test-ci-native-environment.py
+
+      - name: Native CI provisioning and complete partition controls
+        run: |
+          python3 scripts/test-ci-native-provisioning.py
+          python3 scripts/test-ci-native-tests.py
 
       - name: Accepted ADR disclosure
         env:

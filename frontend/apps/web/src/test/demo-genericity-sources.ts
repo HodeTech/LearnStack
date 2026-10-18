@@ -60,6 +60,8 @@ const nonRuntimeFiles = new Set([
   'scripts/adr-status.py',
   'scripts/assert-tests-ran.py',
   'scripts/ci-native-environment.py',
+  'scripts/ci-native-provisioning.py',
+  'scripts/ci-native-tests.py',
   'scripts/connection-string.awk',
   'scripts/install-oasdiff.py',
   'scripts/openapi-ci.py',
@@ -67,6 +69,8 @@ const nonRuntimeFiles = new Set([
   'scripts/seed.sh',
   'scripts/test-adr-status.py',
   'scripts/test-ci-native-environment.py',
+  'scripts/test-ci-native-provisioning.py',
+  'scripts/test-ci-native-tests.py',
   'scripts/test-openapi-ci.py',
   // Offline vendor distribution materials and isolated lifecycle experiments.
   'scripts/probe-hangfire-lifecycle.py',

@@ -68,17 +68,18 @@ class NativeEnvironmentTests(unittest.TestCase):
         with patch.object(probe.subprocess, 'run', side_effect=subprocess.TimeoutExpired('private-canary', 3)):
             self.assertEqual((None, ''), probe.command(['/usr/bin/docker', 'ps']))
 
-    def test_workflow_preserves_full_filters_and_enables_the_builtin_console_logger(self):
+    def test_workflow_preserves_backend_and_observes_both_docker_partitions(self):
         source = (ROOT / '.github/workflows/ci.yml').read_text()
-        for name, trait in [('backend', 'Requires!=Docker'), ('backend-integration', 'Requires=Docker')]:
+        block = source.split('  backend:\n', 1)[1].split('\n  # ───', 1)[0]
+        self.assertIn('--filter "Requires!=Docker"', block)
+        self.assertIn('--logger "console;verbosity=normal"', block)
+        self.assertIn('--logger trx', block)
+        for name, mode in [('backend-integration-tests', 'ordinary'), ('backend-native', 'native')]:
             block = source.split('  ' + name + ':\n', 1)[1].split('\n  # ───', 1)[0]
             self.assertIn('timeout-minutes: 20', block)
-            self.assertIn('--filter "' + trait + '"', block)
-            self.assertIn('--logger "console;verbosity=normal"', block)
-            self.assertIn('--logger trx', block)
-        block = source.split('  backend-integration:\n', 1)[1].split('\n  # ───', 1)[0]
-        self.assertIn('LEARNSTACK_RUNNER_CONTEXT: ${{ runner.environment }}', block)
-        self.assertLess(block.index('python3 scripts/ci-native-environment.py'), block.index('- name: Test (Testcontainers)'))
+            self.assertIn('LEARNSTACK_RUNNER_CONTEXT: ${{ runner.environment }}', block)
+            self.assertLess(block.index('python3 scripts/ci-native-environment.py'),
+                            block.index('python3 scripts/ci-native-tests.py ' + mode))
         self.assertIn('python3 scripts/test-ci-native-environment.py', source)
 
 

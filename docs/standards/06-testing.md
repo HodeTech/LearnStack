@@ -78,8 +78,9 @@ belongs to is decided by what it needs, not by what it is about:
   migration chains, the policies, a two-tenant seed and the schema-level isolation
   suite; **Packet 7** re-runs those cases one layer up — the third population below.
   All of them connect as `learnstack_app`, because a test run as the owner or as a
-  `BYPASSRLS` role passes against inert policies. They run in the separate `backend-integration`
-  job, split from the Docker-free tests by `[Trait("Requires","Docker")]`.
+  `BYPASSRLS` role passes against inert policies. They run in the ordinary/native
+  Docker execution jobs behind the required `backend integration (Testcontainers)`
+  aggregate, split from Docker-free tests by `[Trait("Requires","Docker")]`.
 - **Request-level isolation tests** — a `WebApplicationFactory<Program>` pointed at
   a Testcontainers PostgreSQL. **Packet 7** introduces the population, because it is
   the only shape in which the real middleware chain, the real EF query filters and
@@ -98,23 +99,36 @@ belongs to is decided by what it needs, not by what it is about:
 `SchemaFixture`, `PostgresFixture` or the `SharedSchema` collection, as
 `ApiHandlerCompositionTests` does. It scanned `Database/` alone until Packet 9's fifth
 review, which left a class beside the HTTP suites unchecked. A missing trait does not fail
-the class, it runs it in the `backend` job: both CI runners are `ubuntu-latest` and both
+the class, it runs it in the `backend` job: the hosted runners also
 carry a Docker socket, so the container starts and the test passes — nothing goes red,
 and the Docker suite stops being where the Docker tests live. Its companion,
 `The_Docker_Trait_Sweep_Can_Actually_Fail`, feeds the predicate the shapes it must and must
-not flag. And neither backend job can pass having run nothing: each ends with
-`scripts/assert-tests-ran.py`, because a filter that matches no test exits `0`.
+not flag. Backend's `scripts/assert-tests-ran.py` rejects an empty assembly run.
+The two Docker executions and their aggregate additionally require their exact
+discovered case identities, complete results and zero skips: a filter matching
+nothing exits `0` without those guards.
 
 All three: real module configuration, no mocked repositories, and coverage of the
 happy path and the edges.
 
-Accepted [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md)
-authorizes a complete native/ordinary Docker partition and named disposable-VM
-provisioning without changing native child assertions. Its
-[CI acceptance](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
-owns implementation and hosted qualification. The current two-filter execution
-above remains the implemented baseline until that follow-up ships; acceptance
-alone supplies no new passing partition or no-dump proof.
+Under [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md),
+`scripts/ci-native-tests.py` owns both complementary Docker executions:
+`Requires=Docker&NativeCrashProof=true` and
+`Requires=Docker&NativeCrashProof!=true`. The existing source-trait rule also
+restricts the shared native trait to the two complete native proof classes and
+rejects an unclassified proof caller. Actual VSTest discovery and final TRX IDs
+prove the disjoint complete population; display names alone can collide across
+theory rows. Private discovery diagnostics are not exported.
+
+Native alone uses the exclusive disposable Ubuntu 24.04 VM and closed
+`scripts/ci-native-provisioning.py` owner. Setup verifies a supported collector or
+writes only literal `core`; it never restores a pipe. The unchanged child fixture
+still qualifies its own preconditions and actual native exits. The required
+aggregate checks both job outcomes and matching complete artifacts. Offline
+provisioning/launcher controls run in `meta`. The
+[CI acceptance and implementation record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+owns actual review and hosted qualification; local controls do not establish VM
+ownership, no-dump proof or either execution's whole-job budget fit.
 
 **An isolation test connects as `learnstack_app`.** One that runs as
 `learnstack_migration`, `learnstack_platform` or `learnstack_outbox_admin`
@@ -372,7 +386,8 @@ Real LiveKit is **not** required in CI; a fake provider satisfies the contract.
    `frontend` job.
 3. Unit, architecture and contract tests, and the Docker-free integration tests — the
    `backend` job.
-4. The Docker-bound integration tests — the `backend-integration` job.
+4. Complete ordinary and native Docker executions — required together by the
+   `backend-integration` aggregate, with its existing check name unchanged.
 5. Frontend unit and component tests — the `frontend` job.
 6. Narrow seeded browser/Lighthouse proof — the `public demo + lighthouse` job
    invokes the shared `make demo DEMO_MODE=ci` lifecycle, per § End-to-End Tests.

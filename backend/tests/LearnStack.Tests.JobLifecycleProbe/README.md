@@ -26,9 +26,13 @@ host-wide crash/collector setting is changed **by this fixture**.
 
 Accepted [ADR-0062](../../../docs/decisions/0062-native-crash-proof-ci-provisioning.md)
 authorizes separate, named CI provisioning on an exclusive disposable native VM.
-That implementation remains pending at acceptance. It does not change this
-fixture's independent collector/resource checks or authorize host changes on
-local, shared, self-hosted or production machines.
+`scripts/ci-native-provisioning.py` verifies or sets the fixed file collector;
+`scripts/ci-native-tests.py` owns the complete native/ordinary partition and
+fail-closed required aggregate. Their offline controls run in `meta`; actual
+hosted qualification is recorded in the
+[CI implementation record](../../../docs/roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18).
+This does not change the fixture's independent collector/resource checks or
+authorize host changes on local, shared, self-hosted or production machines.
 
 ## Actual generation phase controls
 

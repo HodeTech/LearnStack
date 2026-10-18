@@ -15,6 +15,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// synthetic input, not evidence of HangfireGeneration phase dominance.
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
+[Trait(NativeCrashProof.Key, NativeCrashProof.Value)]
 public sealed class HangfireFatalProcessTests(ITestOutputHelper output)
 {
     private const string Image = "mcr.microsoft.com/dotnet/aspnet:10.0.10";

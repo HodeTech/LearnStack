@@ -13,13 +13,14 @@ namespace LearnStack.Tests.Integration.Database;
 /// <c>LearnStack.Tests.Integration</c> holds two kinds of test. The
 /// <c>WebApplicationFactory</c> HTTP tests need no Docker and run in the
 /// <c>backend</c> job with everything else. Anything carrying this trait needs a
-/// real Docker socket and runs in <c>backend-integration</c>.
+/// real Docker socket and runs in one of the two Docker execution jobs.
 /// </para>
 /// <para>
 /// <b>The two filters are exact complements.</b> `backend` runs
-/// <c>--filter "Requires!=Docker"</c> and `backend-integration` runs
-/// <c>--filter "Requires=Docker"</c>, so every test in the assembly runs in
-/// exactly one of them. No count is written here on purpose: one was, and it
+/// <c>--filter "Requires!=Docker"</c>. The integration aggregate requires both
+/// Docker partitions: <c>NativeCrashProof=true</c> and its complement. Together
+/// they cover <c>Requires=Docker</c>, so every test runs exactly once.
+/// No count is written here on purpose: one was, and it
 /// went stale in the same commit that added a test.
 /// </para>
 /// <para>
@@ -37,6 +38,16 @@ internal static class RequiresDocker
 {
     public const string Key = "Requires";
     public const string Value = "Docker";
+}
+
+/// <summary>
+/// ADR-0062's native proof partition. The architecture census restricts this
+/// trait to the two complete proof classes; CI checks actual discovered case IDs.
+/// </summary>
+internal static class NativeCrashProof
+{
+    public const string Key = "NativeCrashProof";
+    public const string Value = "true";
 }
 
 /// <summary>

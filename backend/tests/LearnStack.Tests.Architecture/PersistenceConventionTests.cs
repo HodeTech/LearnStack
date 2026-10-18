@@ -895,6 +895,10 @@ public sealed partial class PersistenceConventionTests
             "every test class under Database/, and every one that takes a database fixture, "
             + "needs a real Docker socket, and the trait is how CI routes it to the job that "
             + "declares one");
+
+        NativePartitionOffenders(files).Should().BeEmpty(
+            "ADR-0062 assigns both complete native proof classes, including their predicate and mutant rows, "
+            + "to the native VM; a new direct or delegated proof cannot silently enter ordinary Docker");
     }
 
     [Fact]
@@ -928,7 +932,241 @@ public sealed partial class PersistenceConventionTests
             ("Database/NonPartialCase.cs", "namespace Unmerged; public class UnmergedTests { [Fact] public void A() { } }"),
         ]).Should().Equal("Database/CommentOnly.cs", "Database/ForeignTrait.cs", "Database/ForgotTests.cs", "Database/MissingPartialCase.cs",
             "Database/NonPartialCase.cs", "Database/SameFile.cs", "RootForgotTests.cs");
+
+        const string Native = "[Trait(NativeCrashProof.Key, NativeCrashProof.Value)]";
+        const string Namespace = "namespace LearnStack.Tests.Integration.Database; ";
+        var nativeFiles = new (string Path, string Source)[]
+        {
+            ("Database/Fatal.cs", Namespace + Trait + Native
+                + " public class HangfireFatalProcessTests { [Fact] public void A() { Probe.Run(); } }"),
+            ("Database/Phase.cs", Namespace + Qualified
+                + "[global::Xunit.TraitAttribute(Database.NativeCrashProof.Key, Database.NativeCrashProof.Value)]"
+                + " public partial class HangfireGenerationPhaseTests { }"),
+            ("Database/Phase.Cases.cs", Namespace
+                + "public partial class HangfireGenerationPhaseTests { [Theory] [InlineData(1)] public void A(int value) { HangfireGenerationPhaseHarness.Run(); } }"),
+            ("Database/Harness.cs", Namespace
+                + "internal static class HangfireGenerationPhaseHarness { public static void Run() { Probe.Run(); } }"
+                + " internal static class Probe { public static void Run() { _ = \"preflight.sh\"; } }"),
+        };
+        NativePartitionOffenders(nativeFiles).Should().BeEmpty();
+
+        void RejectNative(string diagnostic, params (string Path, string Source)[] added) =>
+            NativePartitionOffenders(nativeFiles.Concat(added)).Should().Contain(diagnostic);
+
+        void RejectChangedNative(string before, string after, string diagnostic) =>
+            NativePartitionOffenders(nativeFiles.Select(file =>
+                (file.Path, file.Source.Replace(before, after, StringComparison.Ordinal))))
+                .Should().Contain(diagnostic);
+
+        const string Fatal = "LearnStack.Tests.Integration.Database.HangfireFatalProcessTests`0";
+        const string Phase = "LearnStack.Tests.Integration.Database.HangfireGenerationPhaseTests`0";
+        RejectChangedNative(Native, "", "Native trait missing: " + Fatal);
+        RejectChangedNative(Native, "[Trait(NativeCrashProof.Key, \"false\")]", "Native trait missing: " + Fatal);
+        RejectChangedNative(Native, "[Other.Trait(NativeCrashProof.Key, NativeCrashProof.Value)]", "Native trait missing: " + Fatal);
+        RejectChangedNative(Native, "/* " + Native + " */", "Native trait missing: " + Fatal);
+        RejectChangedNative(Trait, "", "Native Docker trait missing: " + Fatal);
+        RejectChangedNative(Native, "[Trait(\"NativeCrashProof\", \"true\")]", "Native trait missing: " + Fatal);
+        RejectChangedNative(Native, Native + "[Trait(NativeCrashProof.Key, \"false\")]",
+            "Native trait must use shared constants: " + Fatal);
+        RejectChangedNative("public partial class HangfireGenerationPhaseTests", "public class HangfireGenerationPhaseTests",
+            "Native trait missing: " + Phase);
+        RejectChangedNative("[Fact] public void A()", Native + "[Fact] public void A()",
+            "Method native trait: " + Fatal);
+        RejectChangedNative("namespace LearnStack.Tests.Integration.Database; [Trait(Database.RequiresDocker.Key",
+            "namespace Other; [Trait(Database.RequiresDocker.Key", "Native trait missing: " + Phase);
+        RejectChangedNative("_ = \"preflight.sh\";", "", "Native launch census is empty");
+        NativePartitionOffenders([]).Should().Contain("Native source census is empty");
+        NativePartitionOffenders(nativeFiles.Where(file => file.Path != "Database/Fatal.cs"))
+            .Should().Contain("Native test class missing or duplicated: " + Fatal);
+        NativePartitionOffenders(nativeFiles.Where(file => file.Path is not ("Database/Fatal.cs" or "Database/Phase.Cases.cs")))
+            .Should().Contain("Native test census is empty");
+
+        RejectNative("Unexpected native trait: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; " + Native + " public class ThirdTests { [Fact] public void A() { } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { First.Run(); } }"),
+            ("First.cs", "namespace Other; internal static class First { public static void Run() { Second.Run(); } }"),
+            ("Second.cs", "namespace Other; internal static class Second { public static void Run() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public partial class ThirdTests { [Fact] public void A() { Run(); } }"),
+            ("Third.Helpers.cs", "namespace Other; public partial class ThirdTests { private static void Run() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "using Harness = LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness; namespace Other; public class ThirdTests { [Fact] public void A() { Harness.Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "using static LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness; namespace Other; public class ThirdTests { [Fact] public void A() { Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { Copied.Run(); } }"),
+            ("Copied.cs", "namespace Other; internal static class Copied { public static void Run() { _ = \"pre\" + \"flight.sh\"; } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { Copied.Run(); } }"),
+            ("Copied.cs", "namespace Other; internal static class Copied { public static void Run() { _ = Paths.Script; } } internal static class Paths { public const string Script = \"job-lifecycle-probe\"; }"));
+        RejectNative("Unclassified native test: Other.Outer`0.ThirdTests`1",
+            ("Third.cs", "namespace Other; public class Outer { public class ThirdTests<T> { [Fact] public void A() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } } }"));
+        RejectNative("Unexpected native trait: Other.HangfireFatalProcessTests`0",
+            ("Third.cs", "namespace Other; " + Native + " public class HangfireFatalProcessTests { [Fact] public void A() { } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "using First; using Second; namespace Other; public class ThirdTests { [Fact] public void A() { Ambiguous.Run(); } }"),
+            ("First.cs", "namespace First; internal static class Ambiguous { public static void Run() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"),
+            ("Second.cs", "namespace Second; internal static class Ambiguous { public static void Run() { } }"));
+
+        // Binding must distinguish a same-named unrelated type and a local variable
+        // from the real harness. Neither spelling alone grants native ownership.
+        NativePartitionOffenders(nativeFiles.Concat(new (string Path, string Source)[]
+        {
+            ("Other.cs", "namespace Other; internal static class HangfireGenerationPhaseHarness { public static void Run() { } } public class ThirdTests { [Fact] public void A() { HangfireGenerationPhaseHarness.Run(); } }"),
+            ("Shadow.cs", "namespace Shadow; public class ThirdTests { [Fact] public void A() { var HangfireGenerationPhaseHarness = 1; _ = HangfireGenerationPhaseHarness; } }"),
+        })).Should().BeEmpty();
     }
+
+    private static readonly string[] NativeProofClasses =
+    [
+        "LearnStack.Tests.Integration.Database.HangfireFatalProcessTests`0",
+        "LearnStack.Tests.Integration.Database.HangfireGenerationPhaseTests`0",
+    ];
+
+    private static List<string> NativePartitionOffenders(IEnumerable<(string Path, string Source)> files)
+    {
+        // One bounded source compilation per population, without emission, test-project
+        // references or loading the fatal sidecar. Only declared type dependencies are
+        // consumed; this is not a claim that arbitrary test bodies compile in isolation.
+        var trees = files.Select(file => CSharpSyntaxTree.ParseText(file.Source,
+            new CSharpParseOptions(LanguageVersion.Latest), file.Path)).ToArray();
+        if (trees.Length == 0) return ["Native source census is empty"];
+        var compilation = CSharpCompilation.Create("NativePartition", trees,
+            new[] { typeof(object).Assembly.Location, typeof(FactAttribute).Assembly.Location }
+                .Distinct(StringComparer.Ordinal).Select(path => MetadataReference.CreateFromFile(path)),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var declarations = trees.SelectMany(tree =>
+        {
+            var model = compilation.GetSemanticModel(tree);
+            return tree.GetRoot().DescendantNodes().OfType<TypeDeclarationSyntax>()
+                .Select(type => new NativeTestDeclaration(TypeIdentity(type), type, model));
+        }).ToArray();
+        var byName = declarations.GroupBy(part => part.Syntax.Identifier.ValueText, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Select(part => part.Identity)
+                .ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
+        var aliases = trees.SelectMany(tree => tree.GetRoot().DescendantNodes().OfType<UsingDirectiveSyntax>())
+            .Where(import => import.Alias is not null).Select(import => import.Alias!.Name.Identifier.ValueText)
+            .ToHashSet(StringComparer.Ordinal);
+        var parts = declarations.GroupBy(part => part.Identity, StringComparer.Ordinal)
+            .SelectMany(group => group.Count() == 1 || group.All(part => part.Syntax.Modifiers.Any(SyntaxKind.PartialKeyword))
+                ? new[] { group.ToArray() } : group.Select(part => new[] { part }))
+            .ToArray();
+        var dependencies = parts.ToLookup(group => group[0].Identity,
+            group => group.SelectMany(part => NativeTypeDependencies(part, byName, aliases))
+                .ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
+        var launchParts = declarations.Where(part => part.Syntax.DescendantNodes().OfType<ExpressionSyntax>()
+            .Select(NativeConstantString).Any(value => value is not null
+                && (value.Contains("preflight.sh", StringComparison.Ordinal)
+                    || value.Contains("job-lifecycle-probe", StringComparison.Ordinal)
+                    || value.Contains("LearnStack.Tests.JobLifecycleProbe", StringComparison.Ordinal))))
+            .ToArray();
+        var native = launchParts.Select(part => part.Identity).Concat(declarations
+            .Where(part => part.Identity is "LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness`0"
+                or "LearnStack.Tests.Integration.Database.HangfireGenerationPhaseMutation`0")
+            .Select(part => part.Identity)).ToHashSet(StringComparer.Ordinal);
+        bool changed;
+        do
+        {
+            changed = false;
+            foreach (var group in dependencies)
+                if (!native.Contains(group.Key) && group.Any(edges => edges.Overlaps(native)))
+                    changed |= native.Add(group.Key);
+        } while (changed);
+
+        var offenders = new SortedSet<string>(StringComparer.Ordinal);
+        if (launchParts.Length == 0) offenders.Add("Native launch census is empty");
+        var testParts = parts.Where(group => group.Any(part => part.Syntax.Members.OfType<MethodDeclarationSyntax>()
+            .Any(method => method.AttributeLists.SelectMany(list => list.Attributes)
+                .Any(attribute => AttributeName(attribute) is "Fact" or "Theory")))).ToArray();
+        if (testParts.Length == 0) offenders.Add("Native test census is empty");
+        foreach (var expected in NativeProofClasses)
+            if (testParts.Count(group => group[0].Identity == expected) != 1)
+                offenders.Add("Native test class missing or duplicated: " + expected);
+        foreach (var group in parts)
+        {
+            var identity = group[0].Identity;
+            var attributes = group.SelectMany(part => part.Syntax.AttributeLists.SelectMany(list => list.Attributes)).ToArray();
+            var approved = NativeProofClasses.Contains(identity, StringComparer.Ordinal);
+            if (!approved && attributes.Any(IsNativeTraitKey)) offenders.Add("Unexpected native trait: " + identity);
+            if (group.SelectMany(part => part.Syntax.Members.OfType<MethodDeclarationSyntax>())
+                .SelectMany(method => method.AttributeLists.SelectMany(list => list.Attributes)).Any(IsNativeTraitKey))
+                offenders.Add("Method native trait: " + identity);
+            if (!testParts.Contains(group)) continue;
+            if (native.Contains(identity) && !approved) offenders.Add("Unclassified native test: " + identity);
+            if (!approved) continue;
+            if (!attributes.Any(IsNativeTrait)) offenders.Add("Native trait missing: " + identity);
+            if (attributes.Any(attribute => IsNativeTraitKey(attribute) && !IsNativeTrait(attribute)))
+                offenders.Add("Native trait must use shared constants: " + identity);
+            if (!attributes.Any(IsDockerTrait)) offenders.Add("Native Docker trait missing: " + identity);
+        }
+        return offenders.ToList();
+    }
+
+    private sealed record NativeTestDeclaration(string Identity, TypeDeclarationSyntax Syntax, SemanticModel Model);
+
+    private static IEnumerable<string> NativeTypeDependencies(NativeTestDeclaration part,
+        Dictionary<string, HashSet<string>> byName, HashSet<string> aliases)
+    {
+        var imports = part.Syntax.SyntaxTree.GetCompilationUnitRoot().Usings.Concat(part.Syntax.Ancestors()
+            .OfType<BaseNamespaceDeclarationSyntax>().SelectMany(scope => scope.Usings));
+        var names = part.Syntax.DescendantNodes().OfType<SimpleNameSyntax>()
+            .Where(name => byName.ContainsKey(name.Identifier.ValueText) || aliases.Contains(name.Identifier.ValueText))
+            .Cast<SyntaxNode>().Concat(imports.Where(import => import.StaticKeyword.IsKind(SyntaxKind.StaticKeyword))
+                .Select(import => import.Name).OfType<SyntaxNode>());
+        foreach (var name in names)
+        {
+            var symbol = part.Model.GetSymbolInfo(name).Symbol;
+            if (name is IdentifierNameSyntax identifier)
+                symbol = part.Model.GetAliasInfo(identifier)?.Target ?? symbol;
+            var type = symbol as INamedTypeSymbol ?? symbol?.ContainingType;
+            if (type is not null)
+            {
+                foreach (var reference in type.OriginalDefinition.DeclaringSyntaxReferences)
+                    if (reference.GetSyntax() is TypeDeclarationSyntax declared) yield return TypeIdentity(declared);
+            }
+            else if (symbol is null && name is SimpleNameSyntax unresolved
+                && byName.TryGetValue(unresolved.Identifier.ValueText, out var candidates))
+            {
+                // Missing external references do not authorize silently dropping a
+                // possible source helper. Ambiguity conservatively taints all candidates.
+                foreach (var candidate in candidates) yield return candidate;
+            }
+        }
+    }
+
+    private static string? NativeConstantString(ExpressionSyntax expression) => expression switch
+    {
+        LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.StringLiteralExpression) => literal.Token.ValueText,
+        ParenthesizedExpressionSyntax parenthesized => NativeConstantString(parenthesized.Expression),
+        BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.AddExpression)
+            && NativeConstantString(binary.Left) is { } left && NativeConstantString(binary.Right) is { } right => left + right,
+        _ => null,
+    };
+
+    private static bool IsNativeTraitKey(AttributeSyntax attribute) => IsXunitTrait(attribute)
+        && attribute.ArgumentList is { Arguments.Count: 2 } arguments
+        && (NativeConstantString(arguments.Arguments[0].Expression) == "NativeCrashProof"
+            || arguments.Arguments[0].Expression.DescendantTokens().Any(token => token.ValueText == "NativeCrashProof"));
+
+    private static bool IsNativeTrait(AttributeSyntax attribute)
+    {
+        if (!IsXunitTrait(attribute) || attribute.ArgumentList is not { Arguments.Count: 2 } arguments) return false;
+        var key = string.Concat(arguments.Arguments[0].Expression.DescendantTokens().Select(token => token.Text))
+            .Replace("global::", "", StringComparison.Ordinal);
+        var value = string.Concat(arguments.Arguments[1].Expression.DescendantTokens().Select(token => token.Text))
+            .Replace("global::", "", StringComparison.Ordinal);
+        return (key, value) is ("NativeCrashProof.Key", "NativeCrashProof.Value")
+            or ("Database.NativeCrashProof.Key", "Database.NativeCrashProof.Value")
+            or ("LearnStack.Tests.Integration.Database.NativeCrashProof.Key", "LearnStack.Tests.Integration.Database.NativeCrashProof.Value");
+    }
+
+    private static bool IsXunitTrait(AttributeSyntax attribute) =>
+        string.Concat(attribute.Name.DescendantTokens().Select(token => token.Text))
+            is "Trait" or "TraitAttribute" or "Xunit.Trait" or "Xunit.TraitAttribute"
+            or "global::Xunit.Trait" or "global::Xunit.TraitAttribute";
 
     /// <summary>
     /// The test files that need Docker and do not say so: under <c>Database/</c>, or naming

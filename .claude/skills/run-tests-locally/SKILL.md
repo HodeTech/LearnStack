@@ -128,7 +128,8 @@ Docker; everything under `Database/` does, and **a running Docker daemon is
 required** for it — Postgres only, no Valkey and no Kafka, because nothing the
 backend runs calls either
 ([ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)). The two
-are split by `[Trait("Requires","Docker")]`, and CI runs them as two jobs; locally
+are split by `[Trait("Requires","Docker")]`; CI further partitions Docker tests
+into native/ordinary execution jobs behind the required integration aggregate. Locally
 `--filter "Requires!=Docker"` gives you the Docker-free half.
 
 ```bash
@@ -261,7 +262,7 @@ dotnet test --filter "FullyQualifiedName~EnrollmentCreateTests"
 # Method
 dotnet test --filter "FullyQualifiedName~EnrollmentCreateTests.Create_succeeds"
 
-# Trait — the only one this repository sets, and the one CI routes on
+# Docker trait — native CI additionally uses NativeCrashProof=true and its complement
 dotnet test --filter "Requires=Docker"
 ```
 
@@ -320,7 +321,7 @@ make install
   --no-restore --no-build --configuration Release \
   --filter "Requires!=Docker" --logger trx)
 
-# The `backend-integration` job — the exact complement, so every test runs once
+# The complete Docker complement; CI requires both native/ordinary partitions
 (cd backend && dotnet test LearnStack.slnx \
   --no-restore --no-build --configuration Release \
   --filter "Requires=Docker" --logger trx)
@@ -329,6 +330,16 @@ make install
 `--logger trx` carries no `LogFileName` on purpose: a fixed name makes all four
 projects write the same path in the same results directory, and three assemblies'
 outcomes are silently overwritten.
+
+ADR-0062's `scripts/ci-native-tests.py` is a closed hosted-CI owner, not a local
+launcher. Its separate native VM may verify/set the fixed collector through the
+named provisioning owner; no local/shared/self-hosted/production authority is
+implied. Both jobs require exact discovery/result case IDs, zero skips and owned
+completion; the unchanged required aggregate verifies both complete artifacts.
+Run the offline `scripts/test-ci-native-provisioning.py` and
+`scripts/test-ci-native-tests.py` controls locally without changing host policy.
+Their source/fixture checks do not qualify actual hosted cgroups, native exits or
+twenty-minute whole-job fit; the owning P02b-4 CI record carries those results.
 
 For flaky tests, run with `--blame-hang` and `--blame-hang-timeout`:
 

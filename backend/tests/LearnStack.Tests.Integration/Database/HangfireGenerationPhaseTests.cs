@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Docker.DotNet.Models;
 using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
@@ -11,6 +12,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// These cases do not reproduce genuine resource exhaustion.
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
+[Trait(NativeCrashProof.Key, NativeCrashProof.Value)]
 public sealed class HangfireGenerationPhaseTests(ITestOutputHelper output)
 {
     [Theory]
@@ -127,6 +129,27 @@ public sealed class HangfireGenerationPhaseTests(ITestOutputHelper output)
     [Fact]
     public void The_phase_predicate_rejects_missing_fault_sites_and_wrong_observation_branches()
     {
+        var topology = new NetworkResponse
+        {
+            Internal = true,
+            Containers = new Dictionary<string, EndpointResource>
+            {
+                ["private-database-canary"] = new(),
+                ["private-supervisor-canary"] = new(),
+                ["private-unexpected-canary"] = new(),
+                ["private-extra-canary"] = new(),
+            },
+        };
+        var inspectedProbe = new ContainerInspectResponse
+        {
+            State = new() { Running = false, OOMKilled = true, ExitCode = 78 },
+        };
+        HangfireGenerationPhaseHarness.TopologySummary(topology, inspectedProbe,
+                "private-database-canary", "private-supervisor-canary")
+            .Should().Be("internal_yes_members_3_database_yes_supervisor_yes_running_no_oom_yes_exit_refused");
+        HangfireGenerationPhaseHarness.TopologySummary(new NetworkResponse(), new ContainerInspectResponse(),
+                "private-database-canary", "private-supervisor-canary")
+            .Should().Be("internal_no_members_0_database_no_supervisor_no_running_no_oom_no_exit_absent");
         HangfireGenerationPhaseHarness.StartupRefusal("LearnStackLifecycleReceipt:{\"Protocol\":1,\"Error\":\"collector_pipe\"}")
             .Should().Be("collector_pipe");
         HangfireGenerationPhaseHarness.StartupRefusal("LearnStackLifecycleReceipt:{\"Protocol\":1,\"Error\":\"phase_envelope_json\"}")
