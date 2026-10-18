@@ -9906,6 +9906,39 @@ The next source publishes the twice-reviewed diagnostic without changing any
 test, assignment, runtime behavior or bound. The live PR owns subsequent
 source/run receipts until packet closeout.
 
+
+The next full run, 39174286516 at `e0124baf`, finishes with 24 successful
+jobs and three failures: ordinary-9, ordinary-11 and their integration
+aggregate. The actual outage record now exposes all three original pools:
+control reports a heartbeat fault, while external and transactional do not;
+none is draining. The pause completes at 503 milliseconds and the failed
+observation follows 89,497 milliseconds later. This rules out insufficient
+post-pause allowance and prior drain for that observation, but does not
+locate the two unfinished heartbeats. The independently hashed ordinary-11
+artifact instead identifies the capacity-control lost-checkpoint test; the
+public-rendering case passes in this run. Its missing source location is
+not evidence of any particular failed stage.
+
+Pinned source inspection confirms three separate native heartbeat threads.
+A narrow owned Linux/Npgsql pause experiment returns every open, UPDATE and
+disposal within 15.029 seconds; it does not reproduce the hosted stall or
+qualify a total hosted provider deadline. The next diagnostic records only
+heartbeat entries, attempt count and the closed lifecycle-wrapper phases
+Created/Acquiring/Invoking/Disposing/Returned. These are non-atomic observations
+of progress, not successful-cleanup, join or admission authority. Invoking
+includes the stock provider's own connection acquisition, SQL and release.
+No timeout, scheduler policy, retry, ownership or assignment changes.
+The verified capacity-control basename joins the closed source-location map.
+
+Local validation of this observation includes the warnings-as-errors Release
+build, 2,452 unit cases and three actual PostgreSQL heartbeat/capacity-control
+cases, all without skips. The actual compiled diagnostic record is passed
+through two deliberately failed pinned-xUnit wire cases: three pool details
+retain their bounded phase/count facts, both cases stay Failed, and the
+private canary is absent. Forty launcher and 49 shard/result controls are required alongside focused
+independent reviews before publication. Actual hosted root causes and
+complete final-source A/B remain open.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

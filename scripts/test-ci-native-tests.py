@@ -412,7 +412,7 @@ except launcher.Refusal as failure:
         rows = [json.loads(line) for line in stream.getvalue().splitlines()]
         self.assertTrue(all(set(row) == {'assembly', 'id', 'name', 'outcome', 'duration'}
                             and row['outcome'] == 'Failed' for row in rows))
-        self.assertEqual(6, len(self.owner.FAILURE_SOURCES))
+        self.assertEqual(7, len(self.owner.FAILURE_SOURCES))
         for filename, code in self.owner.FAILURE_SOURCES.items():
             self.assertTrue((ROOT / 'backend/tests/LearnStack.Tests.Integration/Database' / filename).is_file())
             progress.failure_locations.clear()
@@ -459,7 +459,8 @@ except launcher.Refusal as failure:
         snapshot = ('HangfireGenerationSnapshot { HandlePublished = True, Captured = True, '
             'WaitEntered = True, NormalChildrenJoined = False, OuterJoined = False, CleanupComplete = False, '
             'Draining = False, HeartbeatFault = False, Reason = None }')
-        message = prefix + ';'.join(pool + ':generation=' + snapshot + ';work=PRIVATE-CANARY;owner=PRIVATE-CANARY'
+        heartbeat = ';heartbeat=HangfireHeartbeatDiagnostic { Entries = 1, Attempts = 2, Phase = Invoking }'
+        message = prefix + ';'.join(pool + ':generation=' + snapshot + heartbeat + ';work=PRIVATE-CANARY;owner=PRIVATE-CANARY'
                                    for pool in ('control', 'external', 'transactional'))
         value = parse(case, {'ErrorMessage': message})
         self.assertEqual(90123, value['elapsedMilliseconds'])
@@ -468,6 +469,18 @@ except launcher.Refusal as failure:
         self.assertEqual(['control', 'external', 'transactional'], [item['pool'] for item in value['pools']])
         self.assertTrue(all(item['Captured'] is True and item['HeartbeatFault'] is False
                             and item['reason'] == 'None' for item in value['pools']))
+        self.assertTrue(all(item['heartbeat'] == {'entries': 1, 'attempts': 2, 'phase': 'Invoking'}
+                            for item in value['pools']))
+        for phase in ('Created', 'Acquiring', 'Disposing', 'Returned'):
+            changed = parse(case, {'ErrorMessage': message.replace('Phase = Invoking', 'Phase = ' + phase)})
+            self.assertTrue(all(item['heartbeat']['phase'] == phase for item in changed['pools']))
+        for changed in (message.replace(heartbeat, ''), message.replace('Entries = 1', 'Entries = -1'),
+                        message.replace('Attempts = 2', 'Attempts = 10001'),
+                        message.replace('Entries = 1', 'Entries = 100000'),
+                        message.replace('Phase = Invoking', 'Phase = PRIVATE-CANARY')):
+            unknown = parse(case, {'ErrorMessage': changed})
+            self.assertEqual(3, len(unknown['pools']))
+            self.assertTrue(all('heartbeat' not in item for item in unknown['pools']))
         self.assertNotIn('PRIVATE-CANARY', json.dumps(value))
         for changed in (message.replace('00:01:30.1234500', '00:03:30.1234500'),
                         message.replace('sincePause=00:01:25.1234500', 'sincePause=00:01:20.1234500'),

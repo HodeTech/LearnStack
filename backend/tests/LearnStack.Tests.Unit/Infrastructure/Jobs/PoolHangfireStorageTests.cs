@@ -180,7 +180,11 @@ public sealed class PoolHangfireStorageTests
         var wrapper = new PoolHangfireConnection(provider, lifecycle, readOnly: true);
         wrapper.Heartbeat("server");
         provider.DidNotReceive().GetReadOnlyConnection();
+        lifecycle.Operation!.Phase.Should().Be(PoolHangfireLifecyclePhase.Created);
+        lifecycle.Operation.Attempts.Should().Be(0);
         lifecycle.Operation!.ExecuteAttempt().Succeeded.Should().BeTrue();
+        lifecycle.Operation.Phase.Should().Be(PoolHangfireLifecyclePhase.Returned);
+        lifecycle.Operation.Attempts.Should().Be(1);
         provider.Received(1).GetReadOnlyConnection();
         provider.DidNotReceive().GetConnection();
         inner.Received(1).Heartbeat("server");
@@ -204,15 +208,25 @@ public sealed class PoolHangfireStorageTests
         var provider = Substitute.For<JobStorage>();
         var inner = Substitute.For<JobStorageConnection>();
         var failure = new InvalidOperationException("fixture fault");
-        provider.GetConnection().Returns(_ => fault == "acquire" ? throw failure : inner);
-        if (fault == "invoke")
-        {
-            inner.When(connection => connection.AnnounceServer(Arg.Any<string>(), Arg.Any<ServerContext>())).Do(_ => throw failure);
-            inner.When(connection => connection.Heartbeat(Arg.Any<string>())).Do(_ => throw failure);
-            inner.When(connection => connection.RemoveServer(Arg.Any<string>())).Do(_ => throw failure);
-        }
-        if (fault == "dispose") inner.When(connection => connection.Dispose()).Do(_ => throw failure);
         var lifecycle = new RecordingLifecycle();
+        provider.GetConnection().Returns(_ =>
+        {
+            lifecycle.Operation!.Phase.Should().Be(PoolHangfireLifecyclePhase.Acquiring);
+            return fault == "acquire" ? throw failure : inner;
+        });
+        void InvokeProvider()
+        {
+            lifecycle.Operation!.Phase.Should().Be(PoolHangfireLifecyclePhase.Invoking);
+            if (fault == "invoke") throw failure;
+        }
+        inner.When(connection => connection.AnnounceServer(Arg.Any<string>(), Arg.Any<ServerContext>())).Do(_ => InvokeProvider());
+        inner.When(connection => connection.Heartbeat(Arg.Any<string>())).Do(_ => InvokeProvider());
+        inner.When(connection => connection.RemoveServer(Arg.Any<string>())).Do(_ => InvokeProvider());
+        inner.When(connection => connection.Dispose()).Do(_ =>
+        {
+            lifecycle.Operation!.Phase.Should().Be(PoolHangfireLifecyclePhase.Disposing);
+            if (fault == "dispose") throw failure;
+        });
         var wrapper = new PoolHangfireConnection(provider, lifecycle, readOnly: false);
         provider.DidNotReceive().GetConnection();
         Invoke(wrapper, method);
@@ -220,6 +234,8 @@ public sealed class PoolHangfireStorageTests
         lifecycle.Result!.Succeeded.Should().BeFalse();
         (fault == "dispose" ? lifecycle.Result.DisposalFailure : lifecycle.Result.Failure).Should().BeSameAs(failure);
         lifecycle.Operation!.RetainsConnection.Should().Be(fault == "dispose");
+        lifecycle.Operation.Phase.Should().Be(PoolHangfireLifecyclePhase.Returned);
+        lifecycle.Operation.Attempts.Should().Be(1);
         wrapper.Dispose();
         wrapper.Dispose();
         inner.Received(fault == "acquire" ? 0 : 1).Dispose();
@@ -243,7 +259,11 @@ public sealed class PoolHangfireStorageTests
         using var wrapper = new PoolHangfireConnection(provider, lifecycle, readOnly: false);
         wrapper.Heartbeat("server");
         first.Received(1).Dispose();
+        lifecycle.Operation!.Attempts.Should().Be(1);
+        lifecycle.Operation.Phase.Should().Be(PoolHangfireLifecyclePhase.Returned);
         lifecycle.Operation!.ExecuteAttempt().Succeeded.Should().BeTrue();
+        lifecycle.Operation.Attempts.Should().Be(2);
+        lifecycle.Operation.Phase.Should().Be(PoolHangfireLifecyclePhase.Returned);
         second.Received(1).Heartbeat("server");
         second.Received(1).Dispose();
         var repeat = () => lifecycle.Operation!.ExecuteAttempt();

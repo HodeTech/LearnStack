@@ -213,7 +213,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                     // Observe before unpause/stop changes the original evidence.
                     // Only finite in-memory facts; no SQL or provider diagnostics.
                     var pools = string.Join(";", original.Select(pair =>
-                        $"{pair.Key}:generation={pair.Value.Snapshot};work={pair.Value.WorkSnapshot};owner={owners[pair.Key].Snapshot}"));
+                        $"{pair.Key}:generation={pair.Value.Snapshot};heartbeat={pair.Value.HeartbeatDiagnostic};work={pair.Value.WorkSnapshot};owner={owners[pair.Key].Snapshot}"));
                     throw new InvalidOperationException(
                         $"Native post-pause heartbeat premise failed;elapsed={elapsed.Elapsed};pauseAt={pauseCompletedAt};"
                         + $"sincePause={elapsed.Elapsed - pauseCompletedAt};logical={time.GetTimestamp()};"
@@ -222,6 +222,9 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 }
                 testOutput.WriteLine($"All original native heartbeat faults observed at {elapsed.Elapsed}.");
                 original.Values.Should().OnlyContain(generation => !generation.Snapshot.Draining);
+                original.Values.Should().OnlyContain(generation => generation.HeartbeatDiagnostic.Entries > 0
+                    && generation.HeartbeatDiagnostic.Attempts > 0
+                    && generation.HeartbeatDiagnostic.Phase == PoolHangfireLifecyclePhase.Returned);
                 time.Advance(TimeSpan.FromMinutes(4));
                 // Shared failure backoff also uses one second, so a global timer
                 // count cannot witness every heartbeat's pacing registration.

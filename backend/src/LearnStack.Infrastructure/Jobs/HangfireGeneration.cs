@@ -23,6 +23,8 @@ internal sealed record HangfireGenerationSnapshot(bool HandlePublished, bool Cap
     internal long? MetadataHeartbeatTimestamp { get; init; }
 }
 
+internal sealed record HangfireHeartbeatDiagnostic(long Entries, int Attempts, PoolHangfireLifecyclePhase Phase);
+
 /// <summary>Owns one actual Core generation; caller deadlines never dispose its work.</summary>
 internal sealed class HangfireGeneration : PoolHangfireLifecycle
 {
@@ -53,12 +55,14 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
     private readonly Task _stopRelay;
     private CancellationTokenRegistration _shutdownRegistration;
     private PoolHangfireLifecycleOperation? _retainedAnnounce, _retainedHeartbeat, _retainedRemove;
+    private PoolHangfireLifecycleOperation? _observedHeartbeat;
     private Task? _startupObserver;
     private Task? _startInvocation;
     private Task? _actualJoin;
     private Task? _ownerCompletion;
     private BackgroundServerContext? _context;
     private long _lastHeartbeat;
+    private long _heartbeatEntries;
     private int _started, _announced, _confirmed, _preChildRefusal, _draining;
     private int _childrenJoined, _outerJoined, _cleanupComplete, _heartbeatFault, _cleanupFault, _removed;
     private int _reason;
@@ -116,6 +120,16 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
     internal Task<bool> Ready => _ready.Task;
     internal Task Completion => _completion.Task;
     internal HangfireGenerationWorkSnapshot WorkSnapshot => _work.Snapshot;
+    // No provider access and no lifecycle authority: this may observe an in-flight attempt.
+    internal HangfireHeartbeatDiagnostic HeartbeatDiagnostic
+    {
+        get
+        {
+            var entries = Interlocked.Read(ref _heartbeatEntries);
+            var operation = Volatile.Read(ref _observedHeartbeat);
+            return new(entries, operation?.Attempts ?? 0, operation?.Phase ?? PoolHangfireLifecyclePhase.Created);
+        }
+    }
     internal bool TryAdmitInvocation() => _ready.Task.IsCompletedSuccessfully && _ready.Task.Result && _work.CanStart && _gate.TryAdmit()
         && Interlocked.CompareExchange(ref _draining, 0, 0) == 0;
     internal HangfireGenerationWork.Invocation? TryBeginWork() => TryAdmitInvocation() ? _work.TryBegin() : null;
@@ -237,6 +251,8 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
 
     internal override void Heartbeat(PoolHangfireLifecycleOperation operation)
     {
+        Volatile.Write(ref _observedHeartbeat, operation);
+        Interlocked.Increment(ref _heartbeatEntries);
         try
         {
             if (TryHeartbeat(operation)) return;

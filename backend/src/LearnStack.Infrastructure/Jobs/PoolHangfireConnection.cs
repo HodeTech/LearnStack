@@ -114,6 +114,7 @@ internal abstract class PoolHangfireLifecycle
 }
 
 internal enum PoolHangfireLifecycleMethod { Announce, Heartbeat, Remove }
+internal enum PoolHangfireLifecyclePhase { Created, Acquiring, Invoking, Disposing, Returned }
 
 internal sealed record PoolHangfireLifecycleResult(Exception? Failure, Exception? DisposalFailure)
 {
@@ -129,8 +130,13 @@ internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool r
     private bool _executing;
     private bool _attempted;
     private bool _succeeded;
+    private int _phase;
+    private int _attempts;
 
     internal PoolHangfireLifecycleMethod Method => method;
+    // Observation only: Returned does not attest successful disposal or child join.
+    internal PoolHangfireLifecyclePhase Phase => (PoolHangfireLifecyclePhase)Volatile.Read(ref _phase);
+    internal int Attempts => Volatile.Read(ref _attempts);
 
     internal bool RetainsConnection
     {
@@ -146,6 +152,7 @@ internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool r
                 throw new InvalidOperationException("The lifecycle operation cannot start another attempt.");
             _executing = true;
             _attempted = true;
+            Interlocked.Increment(ref _attempts);
         }
 
         IStorageConnection? connection = null;
@@ -154,8 +161,10 @@ internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool r
         var invoked = false;
         try
         {
+            Volatile.Write(ref _phase, (int)PoolHangfireLifecyclePhase.Acquiring);
             contract?.ValidateContract();
             connection = readOnly ? provider.GetReadOnlyConnection() : provider.GetConnection();
+            Volatile.Write(ref _phase, (int)PoolHangfireLifecyclePhase.Invoking);
             switch (method)
             {
                 case PoolHangfireLifecycleMethod.Announce: connection.AnnounceServer(serverId, context!); break;
@@ -173,6 +182,7 @@ internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool r
         {
             try
             {
+                Volatile.Write(ref _phase, (int)PoolHangfireLifecyclePhase.Disposing);
                 connection?.Dispose();
             }
             catch (Exception exception) when (IsCatchable(exception))
@@ -186,6 +196,7 @@ internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool r
                 {
                     _succeeded = invoked && failure is null && disposalFailure is null;
                     _executing = false;
+                    Volatile.Write(ref _phase, (int)PoolHangfireLifecyclePhase.Returned);
                 }
             }
         }

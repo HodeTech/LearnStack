@@ -84,6 +84,7 @@ FAILURE_SOURCES = {'BackgroundJobRuntimeFacadeTests.ControlFailures.cs': 'facade
                    'BackgroundJobRuntimeFacadeTests.CapacityNoStart.cs': 'facade_capacity_no_start',
                    'BackgroundJobRuntimeFacadeTests.CapacityAdmission.cs': 'facade_capacity_admission',
                    'BackgroundJobRuntimeFacadeTests.CapacityCleanup.cs': 'facade_capacity_cleanup',
+                   'BackgroundJobRuntimeFacadeTests.CapacityControl.cs': 'facade_capacity_control',
                    'BackgroundJobRuntimeFacadeTests.HeartbeatCutoff.cs': 'facade_heartbeat_cutoff',
                    'PublicAdmissionRenderingTests.cs': 'public_admission'}
 PUBLIC_FAILURE_STAGES = {
@@ -150,8 +151,15 @@ def closed_failure_details(case, raw):
         match = re.search(r'(?:pools=|;)' + pool + r':generation=HangfireGenerationSnapshot \{ '
                           + pattern + r', Reason = (' + reasons + r') \}', message)
         if match:
-            result['pools'].append({'pool': pool, 'reason': match[9],
-                                   **{name: match[index + 1] == 'True' for index, name in enumerate(fields)}})
+            observed = {'pool': pool, 'reason': match[9],
+                        **{name: match[index + 1] == 'True' for index, name in enumerate(fields)}}
+            heartbeat = re.match(r';heartbeat=HangfireHeartbeatDiagnostic \{ Entries = ([0-9]{1,5}), '
+                                 r'Attempts = ([0-9]{1,5}), Phase = (Created|Acquiring|Invoking|Disposing|Returned) \}',
+                                 message[match.end():])
+            if heartbeat and int(heartbeat[1]) <= 10000 and int(heartbeat[2]) <= 10000:
+                observed['heartbeat'] = {'entries': int(heartbeat[1]), 'attempts': int(heartbeat[2]),
+                                         'phase': heartbeat[3]}
+            result['pools'].append(observed)
     return result
 
 
