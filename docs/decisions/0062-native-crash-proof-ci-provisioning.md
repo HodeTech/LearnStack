@@ -6,185 +6,311 @@ Proposed — approval pending.
 
 **Date:** 2026-10-18 **Deciders:** @cemil
 
-This proposes one bounded exception to [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md#diagnostics-dumps-and-durable-consequences):
-explicit provisioning of the disposable integration-job VM's core collector.
-Approval precedes implementation. No host setting or dependent workflow is changed
-by this draft. ADR-0060's Accepted body remains intact.
+The revised proposal selects a dedicated disposable native-proof VM with one
+fixed collector write and no restoration. It separates native and ordinary Docker
+execution behind the existing required check. Both choices need maintainer
+approval; neither is implemented. Read-only observation is independent of this
+authority. ADR-0060 remains Accepted and its body remains intact.
 
 ## Decision Drivers
 
 - [Run 39120501520](https://github.com/HodeTech/LearnStack/actions/runs/39120501520)
-  reports exact `collector_pipe` refusals from the actual Linux container
-  preflight. The collector command/service is not identified by this evidence.
-- Linux piped collectors can bypass `RLIMIT_CORE=0`. Accepting that prerequisite
-  would weaken the existing no-dump proof; another container shares the kernel.
-- ADR-0060 explicitly withholds authority to change host-wide crash settings.
-  A test failure cannot silently authorize a VM-global change.
-- The existing full integration filter, seven required checks and twenty-minute
-  ceilings remain binding. Native qualification cannot become a passing skip.
+  proves a pipe-collector refusal, not permission to bypass it. Linux pipes can
+  ignore `RLIMIT_CORE=0` and execute in the host's initial namespaces. Containers
+  share that host kernel; they are not separate VMs.
+- Both backend jobs reached their twenty-minute ceilings. Native refusals do not
+  explain the unfinished ordinary suite. Full coverage, completed-case evidence,
+  zero skips and all seven required check names remain mandatory.
+- A qualified file collector protects the existing pre-managed-entry boundary.
+  Managed-entry `PR_SET_DUMPABLE=0` is narrower authority, but leaves an earlier
+  loader/CLR interval and must be reapplied after every exec.
+- Restoring a pipe over potentially live work needs stronger ownership than an
+  empty running-container snapshot. A disposable native-only VM avoids that
+  second write, at the cost of a longer altered-policy window.
 
 ## Considered Options
 
-1. **Provision the exclusive disposable hosted VM** (proposed selection). Save
-   the original privately, configure fixed `core`, independently qualify the
-   unchanged fixture, and restore only after positive container exit.
-2. **Supply an already-qualified separate VM/kernel** (valid alternative). Avoid
-   mutation, but require an actually verified compatible runner. A different
-   drifting Ubuntu label is not evidence that its collector qualifies.
-3. **Keep qualification blocked** (safe fallback). Preserve refusal and fail the
-   required check. No native safety assertion is weakened, but delivery waits.
-4. **Accept pipes, fake proc contents or remove cases** (rejected). None proves
-   that the actual host collector cannot receive a fatal child's memory.
-5. **Design a new native no-dump launcher** (not selected). This needs separate
-   pre-runtime/exec-inheritance proofs and changes more than CI provisioning.
+1. **Separate native VM; set once and discard** (proposed selection). Keep the
+   fixture unchanged, isolate its workload and collector policy from ordinary
+   integration, and retain the file pattern until GitHub decommissions the VM.
+2. **Save, set and restore on the full integration VM** (not selected). Shorten
+   the policy window after successful cleanup, but add private original state,
+   competing-value detection, positive closure of every start authority and a
+   second privileged write/readback. The previous running-only census and fixed
+   reserve do not establish those properties.
+3. **Set once on the full integration VM** (valid simpler alternative). Avoid
+   restoration without partitioning, but expose more job activity to the changed
+   policy and retain the combined suite's unqualified time budget.
+4. **Managed-entry nondumpability** (credible alternative, not selected). Source
+   inspection and an isolated file-collector spike support the deliberate fatal
+   phase. Exec resets dumpability; a setter in `Main` cannot protect startup
+   before `Main`. Accepting that secret-free interval needs a different bounded
+   safety decision and private-input handshake. A wrapper followed by exec does
+   not close the gap. No actual pipe experiment qualifies this route.
+5. **Already-qualified separate VM/kernel** (valid alternative). Avoid a host
+   writer if an available environment satisfies every prerequisite. A drifting
+   OS label is not evidence. Nested virtualization is experimental/unsupported
+   on hosted runners and has no measured fit for this workload.
+6. **Keep qualification blocked** (safe fallback). Preserve the failing check.
+   The P02b-4 maintainer/implementer owns the next route decision after the
+   observations below; packet/PR closeout cannot bypass this gate or count skips.
+7. **Accept pipes, fake proc contents or remove cases** (rejected). These erase
+   the actual no-dump prerequisite rather than qualify it.
 
 ## Decision
 
-If accepted, LearnStack permits a closed provisioning helper in the existing
-`backend integration (Testcontainers)` job to set only
-`/proc/sys/kernel/core_pattern` to `core` on that job's exclusive, disposable
-GitHub-hosted Linux VM. It privately saves and verifies the original first,
-restores it after positive absence of running containers, and verifies the
-restoration. Developer, production, shared and self-hosted machines are excluded.
-The unchanged native fixture independently enforces every existing prerequisite.
+The proposal uses a standard GitHub-hosted `ubuntu-24.04` x64 VM exclusively for
+the complete native crash-proof partition. A closed CI owner verifies an already
+supported file pattern unchanged, or writes only fixed `core` to the actual
+`/proc/sys/kernel/core_pattern` and verifies readback. That value remains until VM
+destruction; it never restores a pipe. The unchanged fixture
+independently qualifies real collector/resource/topology/native-exit evidence.
+Ordinary Docker tests run on a separate VM; a fail-closed aggregate retains the
+existing required integration check name. Approval authorizes this bounded CI
+arrangement, not developer/shared/self-hosted/production changes or weaker proofs.
 
-### Authority and private state
+### Trust and platform boundary
 
-- Require the workflow's actual `runner.environment == 'github-hosted'` context,
-  Linux, `GITHUB_ACTIONS=true`, `RUNNER_ENVIRONMENT=github-hosted` and valid
-  run/attempt/job identity. Refuse container-hosted/single-CPU runners; only the
-  existing standard `ubuntu-latest` VM job is authorized. These checks must fail
-  the job on mismatch, rather than skip the setup and continue tests.
-- Require no running containers before mutation. Never stop an unrelated
-  container or infer that it belongs to this job.
-- Use a fresh identity-bound directory under canonical `RUNNER_TEMP`, owned by
-  the current runner user with mode 0700. Original bytes and versioned
-  ownership/phase files are regular, single-link, private 0600 files. Reject
-  foreign, pre-existing, symlink, malformed or missing required state.
-- Bound the original to one kernel setting; reject NUL or unexpected line
-  structure. Save it durably and compare a second actual read before mutation.
-  Do not print/upload the collector command or private state.
-- Record mutation-pending before the fixed write; mark applied only after exact
-  actual `core` readback. A partial or failed write remains uncertain and needs
-  cleanup. An already compatible `core` or `core.%p` original must take a
-  verified no-change path, retaining its owned state and independent readbacks.
-- Pass bytes through stdin to a fixed privileged writer and fixed proc target.
-  No shell evaluation, arbitrary sysctl key, environment-selected command or
-  production CLI path override is allowed. Test injection cannot widen the CLI.
+- Trust reviewed workflow/actions/test code and GitHub's standard hosted-VM
+  lifecycle. Hosted Linux has passwordless sudo. This is accident containment,
+  not isolation from malicious PR code, another same-user/root-capable process,
+  compromised actions or a compromised platform. Modes and fixed writers cannot
+  supply that missing security boundary.
+- Authority comes from the trusted workflow's literal standard VM selection and
+  GitHub's exclusive-job contract. Require actual step-level workflow context
+  for hosted/Linux/x64, no job container/services, matched run/attempt/job/source
+  identity and runtime consistency checks before privilege. Environment strings,
+  CPU count and virtualization hints are not cryptographic VM attestation.
+- Refuse a single CPU, container markers or container virtualization, missing or
+  contradictory evidence, self-hosted/shared/reusable machines and unexpected
+  runner contracts.
+  The OS label does not pin weekly images; retain actual image/runtime identity
+  and independently requalify prerequisites every run.
+- Require an empty **all-state** Docker baseline before setup. Created, running,
+  paused, restarting, removing, exited, dead, unknown and failed inspections are
+  not an empty baseline. Never stop an unrelated container to obtain one.
 
-### Execution and cleanup
+### One-way setup and independent proof
 
-- Setup gates the existing full Docker command. Shell/managed preflight still
-  reads the real setting and inherited soft/hard zero limits before fatal entry.
-  CLR dump aliases, environment, mounts, exact topology, native exit, benign
-  twins, sentinels and artifact assertions remain unchanged.
-- An `always()` cleanup step precedes artifact upload and covers partial setup
-  and test failure. Reserve 150 seconds from the twenty-minute job before
-  checkout: the full test command has an absolute deadline at job start plus
-  seventeen minutes thirty seconds, up to 35 seconds for owned termination,
-  sixty seconds for cleanup, 35 seconds for artifact upload and twenty seconds
-  for runner transitions/finalization before the whole-job ceiling.
-  Setup is bounded within the test-phase allocation. Deadline exhaustion fails;
-  it never reduces the full filter or counts incomplete results as passing.
-  Failed setup never launches tests. Actual fit remains to be qualified.
-- Before restoring a potentially piped original, require no running containers
-  after a bounded wait for ordinary owned disposal. First positively finish/join
-  the owned test launcher and any remaining container-start authority; seal new
-  starts before the final census. A timeout is not exit evidence. Do not
-  force-stop containers and relabel the test as successful.
-- Restore the exact original through stdin and independently verify readback.
-  Any failed write/readback, invalid state or unresolved running container fails
-  cleanup and the job. Keep private evidence until verified restoration; publish
-  only fixed categories and booleans.
-- If child absence is unconfirmed, retain the safer `core` state and fail the
-  job; do not restore a pipe over potentially live fatal work. VM destruction is
-  the backstop. Hard runner termination can prevent `always()`; unconditional
-  restoration under OS/agent loss is not promised. Reusable runners are excluded.
-- The helper and host test launcher lower their own inherited soft/hard core
-  limits to zero. This does not alter unrelated process limits. The child proof
-  is not a VM-wide no-dump claim: existing host services can have different
-  limits/destinations while the VM-global pattern is applied. Inspect applicable
-  host/container destinations and workspace/runner-temp artifact roots; unexpected
-  core artifacts fail qualification and are never uploaded. Export only named
-  sanitized receipts and TRX files. Residual host-service exposure lasts until
-  restoration or VM destruction; no absence claim covers every host daemon.
-- Remove only the helper's owned state after verified restoration. No other
-  sysctl, service, Docker privilege or production policy changes.
+- Read the bounded actual setting without printing its command/arguments. Only
+  known Apport/systemd pipe classes or supported `core`/`core.%p` file patterns
+  are eligible. Unknown/unreadable/malformed settings refuse setup. A read-only
+  sudo probe is a capability observation, not proof that the write will succeed.
+- Supported original file patterns take a verified no-change path. Otherwise
+  compare a second actual read, issue the fixed literal write and independently
+  require exact `core` readback before tests. Failed or uncertain setup fails the
+  job and never authorizes launch. Provision after build immediately before the
+  native command to shorten the policy window.
+- Use fixed privileged executable/target arguments and literal stdin, without
+  shell evaluation, arbitrary sysctl keys, environment-selected commands or a
+  production CLI override. Keep no original collector command on disk. No
+  restoration state machine or second privileged collector write exists. No
+  other sysctl, daemon configuration, mount or production policy is changed.
+- The owner and test launcher lower their own inherited soft/hard core limits
+  to zero. Native children still independently enforce actual limits, dump
+  aliases, secret-free environment, mounts, topology, benign twins, native exit,
+  sentinels and artifact assertions. No fixture accepts a pipe or substitutes
+  the setup receipt for its own qualification.
+- Host limits do not constrain Docker-daemon-created PostgreSQL/Ryuk containers
+  or unrelated runner actions. This unchanged-fixture choice does not certify
+  those processes' memory against unexpected crashes; PostgreSQL carries
+  ephemeral fixture credentials. Their exposure is part of the cost below.
+- Do not restore on success, failure, cancellation or uncertainty. GitHub's
+  later VM destruction is a lifecycle dependency, not a teardown event guest
+  code can itself witness or promise within a finite interval.
+
+### Complete partition and required result
+
+- Mark exactly `HangfireFatalProcessTests` and `HangfireGenerationPhaseTests`,
+  including every theory/mutant row, with a shared native-proof trait. An enforced
+  nonempty source/discovery census owns that designation and rejects an
+  unclassified fatal proof class.
+- Native uses `Requires=Docker & NativeCrashProof=true`; ordinary Docker uses
+  `Requires=Docker & NativeCrashProof!=true`. Prove their disjoint union equals
+  the original Docker population. Keep backend's `Requires!=Docker` filter.
+  All existing/future cases retain an explicit owner; omit no assembly/case.
+- Both execution jobs keep twenty-minute whole-job ceilings, nonempty/zero-skip
+  guards, complete TRX and completed-case console evidence. Native success alone
+  cannot make the old required integration check pass.
+- Retain exact `backend integration (Testcontainers)` on an `if: always()`
+  aggregate that explicitly requires **both** jobs to succeed and their complete
+  expected result artifacts to validate. Missing, skipped, canceled, timed-out,
+  failed or incomplete work fails it. Keep the other six required names and
+  strict protection settings. Add execution jobs, not a nonrequired native proof.
+
+### Bounded execution, diagnostics and completion
+
+- Measure current setup, native/ordinary execution and failure cleanup/upload
+  separately. Withdraw the unqualified 17:30 deadline and 150-second reserve.
+  Timing constants belong to the implementing owner, not this Decision. Derive
+  a finite reserve inside each existing ceiling from actual paths, including a
+  full-sized completed artifact and interrupted tests. If a partition does not
+  fit, fail qualification and reopen; do not extend ceilings or reduce filters.
+- The planned native launcher owns one root-managed non-root cgroup v2 subtree
+  through a transient systemd unit before any test process starts. Qualify fixed
+  unit ownership on the hosted image; refuse tests if unavailable. Descendants
+  calling `setsid` remain accounted for. Join the launcher and require its owned
+  subtree's `cgroup.events` to report no live descendants. A PID/PGID, stop request
+  or timeout is not positive exit evidence. Preserve completion evidence before
+  unit/cgroup collection; absence after auto-removal is not that witness. Disable
+  persistent build-server reuse and inspect actual testhost membership so a
+  pre-existing build process cannot create test children outside the subtree.
+- Docker daemon-created containers/Ryuk are outside that process subtree.
+  Require actual native supervisors/children to finish under existing assertions,
+  await owned disposal and bounded all-state container absence. Unknown/changing/
+  unreadable state or unresolved starts fail completion. Forced termination is
+  failure cleanup, never a passing native exit. No census authorizes restoration.
+- An absolute deadline leaves owned termination/inspection/export time; exhausted
+  setup never launches tests. Retain completed-case identity/outcome/duration in
+  console output even without final TRX. An in-flight case remains censored,
+  not a measured pass. Hard runner termination may prevent cleanup; it stays red.
+- Preserve finite topology failure facts before private stdin: internal-network
+  boolean, capped endpoint counts, expected-member booleans, running/OOM/closed
+  exit class and existing allowlisted refusal. Keep exact membership equality;
+  do not retry a failed check into success, export IDs/IPs/provider logs, or let
+  a diagnostic fault replace the original failure.
+- Inspect applicable child scratch, host collector/file destinations, workspace
+  and runner-temp roots. Unexpected crash/core artifacts fail qualification and
+  are never uploaded. Export only named sanitized receipts and TRX. Child proof
+  does not certify absence across every VM process or destination.
 
 ## Context
 
-The completed hosted run fails the existing prerequisite correctly. Its direct
-probes observe refusal exit 78; phase probes preserve exact pipe refusals. Some
-earlier topology failures may race supervisor exit, but their endpoint states
-were not retained and no independent topology regression is established.
+Run 39120501520 has six direct exit-78 failures, sixteen exact phase pipe refusals
+and seven membership-stage failures. Endpoint states were not retained; early
+supervisor exit is a hypothesis for the seven, not an established cause. Its
+artifact has three zero-selection TRXs, no completed Integration TRX. Backend has
+2,452 Unit, 177 HTTP and four Contract passes, no completed Architecture TRX.
+Both jobs hit their ceilings; silence after the last failure is not completion.
+Integration setup took 2:13, leaving only 15:17 under the old proposed deadline.
 
-This is a new authority decision, not an ADR-0041 factual correction or permission
-inferred from failed CI. Acceptance adds a dated bounded-supersession disclosure
-to ADR-0060; its original no-host-change rule continues everywhere outside this
-named provisioning owner. The fixture itself never changes the host.
+Three older green Docker test steps took 12:20, 12:52 and 16:52 before this native
+workload. They warn against the old reserve; they do not measure current source.
+The owning [CI follow-up](../roadmap/phase-02b-events-auth.md#hosted-ci-qualification-follow-up-2026-10-18)
+records the fresh read-only baseline and local corrections separately. Neither
+establishes fit for an unimplemented split or a qualified native workload.
 
-GitHub documents a fresh VM for each standard hosted job, with a single-CPU
-exception. That lifecycle is an explicit dependency of this choice. Reopen it if
-the runner becomes reusable, shared or container-hosted, if provisioning cannot
-qualify, or if an already-qualified separate kernel becomes the preferable route.
-Phase 11 retains production dump/supervision ownership.
+The nondumpability investigation inspected pinned Linux and .NET 10.0.10 fatal
+paths and ran an isolated unprivileged file-collector spike. Each exec child
+started dumpable, set/read zero, and the actual fatal child exited by SIGABRT
+without finally/ProcessExit markers or a core artifact. The benign twin retained
+both markers. No pipe was installed or exercised. Zero file-core limits alone
+would also suppress a file artifact: this cannot prove absence of a late reset
+or host helper on a pipe. It is feasibility, not replacement proof or production
+qualification. Managed-entry startup coverage remains the deciding difference.
+
+### Exact bounded supersession and acceptance vehicle
+
+From [ADR-0060 Diagnostics, dumps and durable consequences](0060-fatal-hangfire-startup-and-unsafe-unwind.md#diagnostics-dumps-and-durable-consequences):
+
+> Use an isolated qualified
+> proof environment, inspect applicable crash/core destinations and export only
+> allowlisted artifacts.
+
+> An unsupported collector/dump precondition fails qualification
+> before launch; it is not a skipped passing test or permission to change host-wide
+> crash settings.
+
+Retain isolated qualification, pre-launch refusal and all child assertions.
+Replace only the lack of host-change authority for this named CI owner and its
+exclusive disposable native VM's one setting. This is a new bounded decision,
+not an ADR-0041 correction of a statement false when accepted. After approval,
+append a dated disclosure to ADR-0060, preserving its body/acceptance metadata.
+Every excluded machine keeps the original rule. Phase 11 keeps production
+dump/supervision ownership.
+
+Reopen if platform exclusivity/lifecycle changes, known collector setup cannot
+qualify, owned completion cannot be observed, either partition cannot fit, or a
+qualified lower-authority environment becomes preferable. P02b-4 remains blocked
+for final CI/PR closure until these gates pass.
 
 ## Consequences
 
 ### Positive
 
-- Actual native proofs can run without accepting unsafe collector prerequisites.
-- Setup and restoration become explicit, falsifiable CI operations.
-- Local/shared-host refusal, test scope and required-check limits remain intact.
+- Preserve pre-managed native proof without accepting pipes or dropping cases.
+- Isolate collector policy/workload from ordinary integration.
+- Eliminate original-command storage and restoration over possibly live work.
+- Keep seven required names while making both complete partitions mandatory.
 
 ### Negative
 
-- A privileged VM-global setting affects the exclusive job while applied.
-- Unrelated host processes can retain different dump limits; container-child
-  no-dump evidence does not certify all host processes or destinations.
-- Restoration can fail or be interrupted; unconfirmed cleanup fails qualification.
-- The helper needs ownership/partial-write controls and actual hosted evidence.
+- A privileged VM-global change remains. Unrelated services, runner actions and
+  PostgreSQL/Ryuk may have nonzero limits and produce file cores until VM
+  destruction; their original crash collection can be suppressed. That longer
+  policy window and ephemeral-credential exposure require explicit acceptance.
+- VM discard is a platform dependency, not guest-observed finite teardown.
+- Two execution jobs repeat setup/build work and consume extra runner minutes.
+  The aggregate and exact partition add maintenance obligations.
+- Cgroup/container ownership, failure paths and budgets still need real hosted
+  qualification. Naming a mechanism does not prove it works.
 
 ### Neutral
 
-- No product runtime, role, grant, schema, fatal policy or reservation rule changes.
-- A separately qualified VM remains a valid alternative.
+- No product runtime, role, grant, schema, fatal policy or reservation changes.
+- No protection-setting change or eighth required check is proposed.
+- Local/shared machines continue to refuse unsupported collectors.
 
 ## Implementation Notes
 
-Only after approval, commit acceptance and ADR-0060's dated disclosure before
-dependent implementation. Update the decision index, P02b-4 CI follow-up,
-[Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire),
-probe README and shared test guidance. Preserve historical failed/local receipts.
+Approval precedes acceptance/disclosure and dependent implementation. Then update
+the decision index, P02b-4 record, Infrastructure/Testing Standards, probe README
+and shared guidance together; retain historical failed/local receipts. Probe
+README must distinguish unchanged fixture behavior from named CI provisioning.
 
-Extend the existing `Hangfire_Invocations_And_Diagnostics_Are_Closed` assertion
-inventory in the [catalogue](../standards/21-architecture-tests-catalogue.md),
-with the helper/workflow control suite's actual owner path. Add no new canonical
-rule or implied status/count promotion. Execute the real helper with temporary
-state and stubbed proc/privileged commands, preserving the actual subprocess and
-stdin path. Require clean/dirty controls for:
+Planned owners: `scripts/ci-native-provisioning.py` and
+`scripts/ci-native-tests.py`; their `scripts/test-ci-native-provisioning.py` and
+`scripts/test-ci-native-tests.py` controls also own workflow/partition results.
+The native launcher owns the single timing-constant source. Production CLI
+exposes no path/command/key override.
+Offline tests verify original bytes, execute a temporary copy with only fixed
+proc/executable constants replaced by fixtures, and verify every other byte
+unchanged. Exercise real subprocess/stdin/exit semantics, not a parallel model.
+Cheap controls run in `meta`, outside execution budgets. Classify new CI-only
+source paths with their files.
 
-- platform/identity/baseline refusals before privilege; ownership/mode/symlink
-  rejection; save-before-write ordering and changed original;
-- partial write, failed readback, no-change original and setup-error cleanup;
-- exact literal stdin containing shell metacharacters, without execution/logging;
-- successful/failed test cleanup; failed restore, foreign state and live
-  containers or surviving start authorities failing without unsafe restoration;
-- owned host limits, unexpected core artifacts and explicit export allowlist;
-- actual YAML setup/test/always-cleanup order, absolute test deadline/reserved
-  cleanup, and unchanged name/filter/whole-job ceiling.
+`Hangfire_Invocations_And_Diagnostics_Are_Closed` is Implemented for its shipped
+scope. These **additive provisioning/partition/launcher obligations remain pending**.
+Acceptance names planned owners without promoting undelivered Asserts or counts.
+Extend the Implemented assertion inventory with actual owner paths in the **same
+change** that delivers and runs those controls.
 
-Qualify actual hosted setup, all native cases/mutants, full Docker execution and
-verified restoration, then all seven checks at the final source. Offline controls
-alone do not establish hosted success or fit within the job limit.
+Required clean/dirty controls cover:
+
+- platform/context/container/single-CPU/unknown-collector/nonempty-baseline refusal
+  before privilege; exact known classes; no-change and drift between actual reads;
+- fixed literal stdin/target without evaluation; partial write, failed readback,
+  no launch after uncertainty and no raw collector/environment output;
+- actual cgroup membership including `setsid`, positive join/exit, live descendant/
+  Ryuk/container states, deadlines and failed cleanup remaining red;
+- unchanged native phases/mutants, benign twins, limits and artifact proof;
+- source/discovery partition, complete nonempty/zero-skip results and fail-closed
+  aggregate for failed/skipped/canceled/missing-artifact execution jobs;
+- YAML identity/order/target, finite deadline/reserve, explicit exports, seven
+  required names and unchanged whole-job ceilings.
+
+Qualify actual hosted setup, both complete populations, failure cleanup and all
+seven final-source checks. Source controls, local spikes and passing subsets do
+not establish those outcomes. If fit/ownership fails, report the exact boundary
+and obtain a revised decision; do not silently split again or weaken assertions.
 
 ## References
 
 - [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md#diagnostics-dumps-and-durable-consequences).
-- [P02b-4 local closeout](../roadmap/phase-02b-events-auth.md#p02b-4-local-closeout-2026-10-18).
+- [P02b-4 CI follow-up](../roadmap/phase-02b-events-auth.md#hosted-ci-qualification-follow-up-2026-10-18).
 - [Documentation governance](../standards/13-documentation.md#correcting-and-amending-adrs).
+- [Infrastructure](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire),
+  [Testing](../standards/06-testing.md),
+  [architecture catalogue](../standards/21-architecture-tests-catalogue.md).
 - [Probe README](../../backend/tests/LearnStack.Tests.JobLifecycleProbe/README.md).
-- [Linux pipe collectors](https://man7.org/linux/man-pages/man5/core.5.html),
-  [kernel core_pattern](https://docs.kernel.org/admin-guide/sysctl/kernel.html#core-pattern).
-- [GitHub-hosted runner lifecycle](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners).
-- [GitHub-hosted VM decommissioning](https://docs.github.com/en/actions/how-tos/manage-runners/github-hosted-runners/use-github-hosted-runners).
+- [Linux core collectors](https://man7.org/linux/man-pages/man5/core.5.html),
+  [dumpability](https://man7.org/linux/man-pages/man2/PR_SET_DUMPABLE.2const.html),
+  [exec reset](https://man7.org/linux/man-pages/man2/execve.2.html).
+- [Linux v6.17 coredump order](https://github.com/torvalds/linux/blob/e5f0a698b34ed76002dc5cff3804a61c80233a7a/fs/coredump.c#L1077-L1134),
+  [pinned .NET fatal path](https://github.com/dotnet/runtime/blob/8f030f80c0dd2722eb2f618984e9db6784765963/src/coreclr/pal/src/thread/process.cpp#L2613).
+- [Cgroup v2](https://docs.kernel.org/admin-guide/cgroup-v2.html),
+  [transient systemd execution](https://www.freedesktop.org/software/systemd/man/latest/systemd-run.html).
+- [Hosted VM/nesting contract](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners),
+  [decommissioning](https://docs.github.com/en/actions/how-tos/manage-runners/github-hosted-runners/use-github-hosted-runners),
+  [administrative privileges](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#administrative-privileges).
+- [Required dependent checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks).

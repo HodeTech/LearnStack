@@ -8926,6 +8926,70 @@ PostgreSQL qualification overlaps Architecture CPU work; these subset timings
 are not causal speedup measurements. Final hosted full-filter results remain
 pending; no complete current Docker run or seven-check success is inferred.
 
+
+##### ADR-0062 revision and read-only baseline (2026-10-18)
+
+The maintainer's review requests changes; it is **not approval** of ADR-0062.
+The revised [proposal](../decisions/0062-native-crash-proof-ci-provisioning.md)
+selects a dedicated native-proof VM, verified fixed-pattern setup without
+restoration, and complete native/ordinary Docker partitions behind the existing
+fail-closed required result. It preserves seven required names and each existing
+twenty-minute execution ceiling. Host changes, the partition and its launcher
+remain unimplemented pending approval. The unmeasured 17:30/150-second allocation
+is withdrawn; actual fit remains a qualification gate. No Accepted ADR body or
+protection setting changes in this proposal pass.
+
+Two fresh independent targeted proposal reviews cover governance/authority and
+CI/process/coverage ownership. Both find no Blocker/Major; the first review's
+container-versus-VM wording is corrected. The final CI review has no remaining
+finding. These are proposal reviews, not a third full Step 9 round or hosted
+qualification. Private research also executes an isolated unprivileged
+.NET 10.0.10 nondumpability spike against the existing file collector: every exec
+resets the flag, per-child set/readback succeeds, actual FailFast gives SIGABRT
+without cleanup markers, and the benign twin keeps both. No pipe is installed or
+exercised; the pre-managed startup interval is not qualified by this experiment.
+The ADR records that narrower alternative and its boundary rather than claiming
+host mutation is technically unavoidable.
+
+[Run 39131069558](https://github.com/HodeTech/LearnStack/actions/runs/39131069558)
+measures source `0fe0db2b5b584d141fc2c37aeeaf102f8ba0781c` with read-only observation
+and the unchanged complete filters. Its PR merge checkout is
+`c705ea2eaa39df1c1ccafc0ee67b615b573383a1`; artifact metadata ties it to that source.
+There is no provisioning, changed collector, new partition or shortened deadline.
+The actual observation classifies `systemd_coredump`, four CPUs, VM present,
+container markers absent, noninteractive sudo available, writable proc mount but
+no caller write access, inherited host soft core zero/hard unlimited, and an
+empty readable all-state Docker baseline. These are closed observations, not
+exclusive-VM attestation, successful-write evidence or child-limit qualification.
+
+The full Docker command is canceled at the twenty-minute job ceiling. Console
+retains 629 completed rows: 600 passes and 29 failures. Six direct failures report
+native supervisor refusal; 23 phase failures comprise fifteen exact pipe refusals
+and eight membership failures. The latter's endpoint states are still unknown;
+do not relabel them. Ordinary completed rows continue until cancellation, but no
+complete Integration TRX exists; three zero-selection assembly TRXs do not supply
+that missing evidence. The full non-Docker command also reaches its ceiling after
+16:21 in tests and 3:52 setup/format/build. Its final TRXs confirm 2,452 Unit,
+177 HTTP and four Contract passes with zero skips; Architecture retains 346
+completed passing console rows but no final TRX. No complete Architecture/job
+result or budget fit is inferred from those partial rows.
+
+Meta, secret scan, OpenAPI and demo pass. The actual demo retains all 27 accepted
+report pairs, nine screenshots, maximum normalized gzip JavaScript 106,551 bytes,
+CLS zero and all 27 accessibility scores one. Setup is 173.023 seconds, inner
+proof 653.561 seconds and confirmed cleanup 12.742 seconds; whole job is 15:04.
+This supersedes no historical failed demo receipt and supplies no new manual
+accessibility claim.
+
+Frontend's hosted run has 1,564 passes and one source-census failure: the two new
+CI-only Python files lacked explicit non-runtime classification. All nine new
+Makefile cases pass on actual hosted Ubuntu. Commit `641ba365` adds only those two
+exact paths; the unknown-Python rejection and runtime import graph remain intact.
+The corrected local guarded frontend runs all 1,625 cases with zero skips/todos;
+typecheck/lint pass. This local correction is not a passing hosted frontend result.
+Final full-source CI remains red; native authority approval and independently
+measured backend/Docker budget corrections still block PR closure.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
