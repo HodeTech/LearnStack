@@ -9008,6 +9008,41 @@ budget result. Other completed hosted cost evidence and repeated fresh-database
 migration work remain assigned to P02b-4's active CI qualification; no case,
 required check, timeout or production behavior is removed to obtain a pass.
 
+The complete unchanged non-Docker filter at `82d5307c` subsequently passes all
+3,043 cases: 2,452 Unit, 410 Architecture, 177 HTTP and four Contract, with zero
+skips and the exact previous case-identity multiset. The closed unchanged
+385-file C# receipt is
+`6ee75c41c60c1f4f48d7e096834b43f5e7c54574d2a90cc10d4e56acab0fdfe0`.
+Local test-command duration is 1,221.712 seconds, excluding hosted setup and
+artifact work; this does **not** qualify the twenty-minute whole-job budget.
+
+A separate local setup measurement invokes the existing fresh database CREATE,
+all five real migration chains and DROP six times on one owned fixture. The cold
+migration observation is 0.770250 seconds; five subsequent observations have a
+0.296865-second migration median and a 0.317290-second CREATE/migrate/DROP median.
+The first scratch run's empty receipt is rejected; after correcting only its
+writer initialization, all fixed numeric stage rows and successful disposal are
+verified, with no new container remaining. The CSV receipt hash is
+`15cb39f977c200bb5374819dfa7b21610ba071f5899edfdea4b1feadb8b29c1a`.
+This private measurement is not a committed regression, per-test seed/host/body
+measurement, template-equivalence proof or hosted fit claim. No template path is
+adopted from it. A collection-only parallelization is also rejected: distinct
+databases leave shared mutable dynamic hooks and Hangfire filter restoration
+exposed to races. The original serial proof semantics remain intact.
+
+A further narrow source-cost correction selects the three concrete completion
+owner writes from the existing fresh field-name instruction index. Exact full
+constructor identity, attached type, opcode, multiplicity, task constructor and
+live instruction adjacency checks remain unchanged. Two independent targeted
+source reviews find no issue. The CI-mode Release build has zero warnings/errors;
+all twelve selected pool, metric, tracing, credential, raw/index-parity and corpus
+cases pass with zero skips and unchanged identities in 106.375 seconds. Their
+closed 385-file C# receipt is
+`1da1475eb0d13b473007d10bbc69047903b7140c6a3a3081b8d814e9a115351e`.
+This correction has focused validation; the complete 3,043-case receipt above
+belongs to the preceding `82d5307c` source. No new full-run or hosted budget result
+is inferred, and ADR-0062 remains Proposed pending maintainer approval.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

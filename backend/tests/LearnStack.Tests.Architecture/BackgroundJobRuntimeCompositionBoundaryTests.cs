@@ -232,9 +232,11 @@ public sealed partial class OutboxDispatchConventionTests
 
         void CheckTaskOwnerState(TypeDefinition type, string name, string constructorId)
         {
-            var writes = ownedBodies.Where(item => MethodId(item.Owner) == constructorId).SelectMany(item => item.Body.Body.Instructions)
-                .Where(instruction => instruction.OpCode == OpCodes.Stfld && instruction.Operand is FieldReference field
-                    && TargetsDeclaredType(field, type) && field.Name == name).ToArray();
+            var writes = census.FieldInstructions(name)
+                .Where(item => item.Instruction.OpCode == OpCodes.Stfld && TargetsDeclaredType(item.Target, type)
+                    && item.Owner.Name == ".ctor" && TargetsDeclaredType(item.Owner, type)
+                    && MethodId(item.Owner) == constructorId)
+                .Select(item => item.Instruction).ToArray();
             if (writes.Length != 1 || writes[0].Previous?.Operand is not MethodReference taskConstructor
                 || taskConstructor.DeclaringType?.FullName != CompletionSource || taskConstructor.Name != ".ctor"
                 || !ParametersMatch(taskConstructor, ["System.Object", "System.Threading.Tasks.TaskCreationOptions"])
