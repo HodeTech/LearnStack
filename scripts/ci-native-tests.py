@@ -54,6 +54,7 @@ SCAN_SECONDS = 20
 EXPORT_SECONDS = 20
 MARGIN_SECONDS = 20
 COMMAND_SECONDS = 5
+STARTUP_SECONDS = 30
 POLL_SECONDS = 0.1
 UNIT_POLL_SECONDS = 0.5
 TAIL_SECONDS = (UNIT_STOP_SECONDS + JOIN_SECONDS + PROCESS_JOIN_SECONDS + DOCKER_SECONDS
@@ -79,6 +80,8 @@ CONTEXT_NAMES = ('RUN_ID', 'RUN_ATTEMPT', 'JOB', 'SHA', 'REPOSITORY',
 NS = {'t': 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010'}
 CANCELLED = False
 SHARDS = None
+STARTUP_FAILURES = {'resource_controllers_unavailable', 'work_cgroup_not_empty',
+                    'cgroup_kill_unavailable', 'startup_io_refused', 'startup_internal_refusal'}
 
 
 def shard_owner():
@@ -1069,12 +1072,18 @@ def leaf(mode):
     require(cgroup_path('self') == base + '/supervisor', 'leaf_requires_owned_unit')
     require(stat.S_IMODE(private.stat().st_mode) == 0o700 and private.stat().st_uid == os.getuid(), 'private_directory_invalid')
     group = Path(CGROUP) / base.lstrip('/')
-    if mode in SHARD_JOBS:
-        enable_work_accounting(group)
     work = group / 'work'
-    work.mkdir()
-    require(not populated(work), 'work_cgroup_not_empty')
-    require((work / 'cgroup.kill').is_file(), 'cgroup_kill_unavailable')
+    try:
+        if mode in SHARD_JOBS:
+            enable_work_accounting(group)
+        work.mkdir()
+        require(not populated(work), 'work_cgroup_not_empty')
+        require((work / 'cgroup.kill').is_file(), 'cgroup_kill_unavailable')
+    except (Refusal, OSError, ValueError) as failure:
+        reason = (failure.reason if isinstance(failure, Refusal) and failure.reason in STARTUP_FAILURES
+                  else 'startup_io_refused' if isinstance(failure, OSError) else 'startup_internal_refusal')
+        write_json(private / 'startup-failure.json', {'protocol': PROTOCOL, 'reason': reason})
+        raise
     write_json(private / 'ready.json', {'protocol': PROTOCOL, 'ready': True})
     while not (private / 'launch').exists():
         remaining(execution)
@@ -1124,6 +1133,7 @@ def unit_properties(unit, deadline):
 
 
 def launch_unit(mode, context, private, unit, deadline):
+    startup_deadline = min(deadline, time.monotonic() + STARTUP_SECONDS)
     forwarded = {'PATH', 'HOME', 'RUNNER_TEMP', 'DOTNET_ROOT', 'PNPM_HOME', 'GITHUB_ACTIONS',
                  'RUNNER_OS', 'RUNNER_ARCH', 'RUNNER_ENVIRONMENT', 'ImageOS', 'ImageVersion',
                  'LEARNSTACK_CI_STARTED_AT'}
@@ -1145,17 +1155,38 @@ def launch_unit(mode, context, private, unit, deadline):
              '--property=StandardInput=null', '--property=StandardOutput=append:' + str(log),
              '--property=StandardError=append:' + str(log),
              ENV, '-i', *env, PYTHON, '-I', str(Path(__file__).resolve()), '_' + mode + '-leaf'],
-            deadline, 'unit_launch_failed')
-    while not (private / 'ready.json').exists():
-        remaining(deadline)
-        time.sleep(POLL_SECONDS)
-    actual = unit_properties(unit, deadline)
+            startup_deadline, 'unit_launch_failed')
+    try:
+        while not (private / 'ready.json').exists():
+            remaining(startup_deadline)
+            actual = unit_properties(unit, startup_deadline)
+            require(actual['ActiveState'] not in ('failed', 'inactive') and actual['SubState'] != 'exited',
+                    startup_failure(private))
+            time.sleep(POLL_SECONDS)
+        require(read_json(private / 'ready.json') == {'protocol': PROTOCOL, 'ready': True},
+                'unit_readiness_invalid')
+        actual = unit_properties(unit, startup_deadline)
+    except Refusal as failure:
+        if failure.reason == 'deadline_exhausted' and startup_deadline < deadline:
+            raise Refusal('unit_startup_timeout') from None
+        raise
     require(actual['LoadState'] == 'loaded' and actual['ActiveState'] == 'active'
             and actual['SubState'] == 'running' and actual['User'] == str(os.getuid())
             and actual['Group'] == str(os.getgid()) and actual['Delegate'] == 'yes'
             and actual['DelegateSubgroup'] == 'supervisor' and actual['Type'] == 'exec'
             and actual['RemainAfterExit'] == 'yes'
             and actual['ControlGroup'] == '/system.slice/' + unit, 'unit_ownership_invalid')
+
+
+def startup_failure(private):
+    try:
+        value = json.loads(read_bytes(private / 'startup-failure.json', 4096))
+        if (isinstance(value, dict) and set(value) == {'protocol', 'reason'}
+                and value['protocol'] == PROTOCOL and value['reason'] in STARTUP_FAILURES):
+            return 'unit_startup_' + value['reason']
+    except (Refusal, TypeError, ValueError, UnicodeError):
+        pass
+    return 'unit_startup_failed'
 
 
 def docker_census(deadline):

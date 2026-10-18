@@ -9666,6 +9666,24 @@ the Accepted decisions and primary Linux/systemd sources. This unprivileged
 review does not supply actual hosted containment or fit. The second fresh review
 is required before Step 3 begins.
 
+**Step 2 review round 2.** A new `gpt-6-sol` reviewer at `xhigh` reviews
+`357b97fd..9d3c7b4f`. All 31/38/18 controls pass independently, but one Major
+startup fault is verified: accounting can refuse before publishing readiness,
+while the parent waits for that file without observing an already failed unit.
+The original path can consume the execution allocation and hide the prerequisite
+failure behind `deadline_exhausted`. Root independently reproduces zero terminal
+unit observations on that path.
+
+The correction publishes a bounded closed startup-failure record before any
+workload fork, observes terminal unit state during readiness and caps the entire
+startup handshake at thirty seconds inside the existing execution budget. A
+live but unready unit times out; a terminal unit refuses immediately with the
+allowlisted cause. Failed startup still stops only its owned unit, starts no
+business workload and cannot become successful ownership/cleanup evidence.
+All 34 shard controls pass, including real leaf refusal before fork, prompt
+parent detection, finite live-start timeout and retained failed-start cleanup.
+The fix commit and fresh focused verification follow before Step 3 starts.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

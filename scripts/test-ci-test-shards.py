@@ -421,6 +421,7 @@ class ShardControls(unittest.TestCase):
                 fake_cgroup = root / 'cgroup'; fake_cgroup.mkdir(); (fake_cgroup / 'cgroup.controllers').touch()
                 manifest = self.manifest()
                 selected = OWNER.assign(manifest, self.plan, '1')['owners'][mode]
+                commands = mock.Mock(return_value=b'')
                 def launch(*_):
                     LAUNCHER.write_json(private / 'ownership.json', {'protocol': 1, 'workloadJoined': True,
                         'workPopulated': False, 'witnessBeforeUnitExit': True, 'workloadStatus': 0,
@@ -433,7 +434,7 @@ class ShardControls(unittest.TestCase):
                     'CGROUP': str(fake_cgroup), 'DOTNET': '/usr/bin/true', 'SHARDS': OWNER,
                     'qualify_shard_vm': lambda *_: {'cpus': 4}, 'launch_unit': launch,
                     'observe_vm_memory': lambda: 1024,
-                    'command': lambda *_args, **_kwargs: b'',
+                    'command': commands,
                     'unit_properties': lambda *_: {'SubState': 'exited', 'ExecMainCode': '1',
                         'ExecMainStatus': '0', 'ExecMainExitTimestampMonotonic': '123', 'Result': 'success'},
                     'validate_results': lambda _out, cases: len(cases), 'export_hashes': lambda *_: {},
@@ -450,6 +451,19 @@ class ShardControls(unittest.TestCase):
                 self.assertIsNone(result['dockerAbsent'])
                 self.assertFalse(result['authority']['docker'])
                 self.assertEqual(len(selected), result['cases'])
+                failed_private, failed_output = root / 'failed', root / 'failed-output'
+                commands.reset_mock()
+                with mock.patch.object(LAUNCHER, 'launch_unit', side_effect=LAUNCHER.Refusal(
+                        'unit_startup_resource_controllers_unavailable')), \
+                        mock.patch.object(LAUNCHER, 'locations', return_value=(
+                            'failed.service', failed_private, failed_output)):
+                    self.assertEqual(1, LAUNCHER.execute(mode))
+                failed = LAUNCHER.read_json(failed_output / 'result.json')
+                self.assertEqual('unit_startup_resource_controllers_unavailable', failed['error'])
+                self.assertFalse(failed['ownershipComplete'])
+                self.assertFalse((failed_private / 'launch').exists())
+                self.assertTrue(any(call.args[0][:4] == [LAUNCHER.SUDO, '-n', LAUNCHER.SYSTEMCTL, 'stop']
+                                    and call.args[0][4] == 'failed.service' for call in commands.call_args_list))
                 # Making only the Docker classification blind must break this
                 # same parent path before any fixture workload can rescue it.
                 with mock.patch.object(LAUNCHER, 'docker_mode', return_value=True), \
@@ -578,6 +592,56 @@ class ShardControls(unittest.TestCase):
                 path.write_text(text)
                 with self.assertRaises(LAUNCHER.Refusal):
                     LAUNCHER.observe_vm_memory()
+
+    def test_leaf_accounting_refusal_publishes_closed_startup_failure_before_fork(self):
+        with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+            root = Path(tmp); private = root / 'private'; private.mkdir(mode=0o700)
+            group = root / 'cgroup/system.slice/owned.service'; group.mkdir(parents=True)
+            (group / 'cgroup.controllers').write_text('pids\n')
+            fork = mock.Mock(side_effect=AssertionError('No workload may start'))
+            for name, value in {'identity': lambda _: {}, 'lower_core': lambda: None,
+                'deadlines': lambda: (time.monotonic() + 60, time.monotonic() + 90),
+                'locations': lambda *_: ('owned.service', private, root / 'output'),
+                'cgroup_path': lambda _: '/system.slice/owned.service/supervisor',
+                'CGROUP': str(root / 'cgroup')}.items():
+                stack.enter_context(mock.patch.object(LAUNCHER, name, value))
+            stack.enter_context(mock.patch.object(LAUNCHER.os, 'fork', fork))
+            with self.assertRaises(LAUNCHER.Refusal) as caught:
+                LAUNCHER.leaf('base')
+            self.assertEqual('resource_controllers_unavailable', caught.exception.reason)
+            self.assertEqual({'protocol': 1, 'reason': 'resource_controllers_unavailable'},
+                             LAUNCHER.read_json(private / 'startup-failure.json'))
+            self.assertFalse((private / 'ready.json').exists())
+            fork.assert_not_called()
+
+    def test_parent_detects_terminal_startup_without_consuming_execution_deadline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            private = Path(tmp)
+            LAUNCHER.write_json(private / 'startup-failure.json', {'protocol': 1,
+                                'reason': 'resource_controllers_unavailable'})
+            with mock.patch.object(LAUNCHER, 'command', return_value=b''), \
+                    mock.patch.object(LAUNCHER, 'unit_properties', return_value={
+                        'ActiveState': 'failed', 'SubState': 'failed'}) as observed, \
+                    mock.patch.object(LAUNCHER.time, 'sleep', side_effect=AssertionError('Must refuse before sleeping')):
+                with self.assertRaises(LAUNCHER.Refusal) as caught:
+                    LAUNCHER.launch_unit('base', {}, private, 'owned.service', time.monotonic() + 1000)
+                self.assertEqual('unit_startup_resource_controllers_unavailable', caught.exception.reason)
+                self.assertEqual(1, observed.call_count)
+                self.assertFalse((private / 'launch').exists())
+            for reason in ('PRIVATE-CANARY provider text', ['resource_controllers_unavailable']):
+                LAUNCHER.write_json(private / 'startup-failure.json', {'protocol': 1, 'reason': reason})
+                self.assertEqual('unit_startup_failed', LAUNCHER.startup_failure(private))
+
+    def test_live_unready_startup_has_its_own_finite_budget(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(LAUNCHER, 'command', return_value=b''), \
+                mock.patch.object(LAUNCHER, 'unit_properties', return_value={
+                    'ActiveState': 'active', 'SubState': 'running'}), \
+                mock.patch.object(LAUNCHER.time, 'sleep', return_value=None), \
+                mock.patch.object(LAUNCHER.time, 'monotonic', side_effect=[0, 10, 20, 30]):
+            with self.assertRaises(LAUNCHER.Refusal) as caught:
+                LAUNCHER.launch_unit('base', {}, Path(tmp), 'owned.service', 1000)
+            self.assertEqual('unit_startup_timeout', caught.exception.reason)
 
 
 if __name__ == '__main__':
