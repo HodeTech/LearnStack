@@ -148,7 +148,7 @@ def closed_failure_details(case, raw):
     pattern = ', '.join(name + r' = (True|False)' for name in fields)
     for pool in ('control', 'external', 'transactional'):
         match = re.search(r'(?:pools=|;)' + pool + r':generation=HangfireGenerationSnapshot \{ '
-                          + pattern + r', Reason = (' + reasons + r'), MetadataHeartbeatTimestamp = (?:[0-9]{1,19})? \}', message)
+                          + pattern + r', Reason = (' + reasons + r') \}', message)
         if match:
             result['pools'].append({'pool': pool, 'reason': match[9],
                                    **{name: match[index + 1] == 'True' for index, name in enumerate(fields)}})

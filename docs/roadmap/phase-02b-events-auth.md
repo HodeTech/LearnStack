@@ -9879,6 +9879,16 @@ state crosses the diagnostic boundary. These facts neither change test
 outcomes nor satisfy ownership/containment. Root causes, focused review and
 complete final-source A/B qualification remain open.
 
+The first fresh diagnostic review (`gpt-6.1-sol`, `high`) verifies one Major
+in `ec5b045a..2b8d6cbe`: the pool parser expects an internal metadata property
+that the actual record's generated text omits. All forty synthetic controls
+pass, but reflection over the real Release record reproduces absent pool
+details. Root verifies that actual output, removes the nonexistent suffix and
+aligns the control with the real shape; an extra-field mutation remains
+unknown. The corrected parser consumes all three actual record strings, and
+all forty launcher controls pass again. No application record or runtime
+policy changes. A new second focused review follows before publication.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

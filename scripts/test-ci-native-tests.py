@@ -458,7 +458,7 @@ except launcher.Refusal as failure:
                   'pauseAt=00:00:05;sincePause=00:01:25.1234500;runtime=PRIVATE-CANARY;pools=')
         snapshot = ('HangfireGenerationSnapshot { HandlePublished = True, Captured = True, '
             'WaitEntered = True, NormalChildrenJoined = False, OuterJoined = False, CleanupComplete = False, '
-            'Draining = False, HeartbeatFault = False, Reason = None, MetadataHeartbeatTimestamp = 0 }')
+            'Draining = False, HeartbeatFault = False, Reason = None }')
         message = prefix + ';'.join(pool + ':generation=' + snapshot + ';work=PRIVATE-CANARY;owner=PRIVATE-CANARY'
                                    for pool in ('control', 'external', 'transactional'))
         value = parse(case, {'ErrorMessage': message})
@@ -475,6 +475,9 @@ except launcher.Refusal as failure:
             self.assertIsNone(parse(case, {'ErrorMessage': changed}))
         unknown = parse(case, {'ErrorMessage': message.replace('Reason = None', 'Reason = PRIVATE-CANARY')})
         self.assertEqual([], unknown['pools'])
+        nonwire = parse(case, {'ErrorMessage': message.replace('Reason = None }',
+            'Reason = None, MetadataHeartbeatTimestamp = 0 }')})
+        self.assertEqual([], nonwire['pools'], 'Internal record members are not part of the actual ToString wire shape')
         self.assertIsNone(parse(self.case(2), {'ErrorMessage': message}))
 
     def test_execution_protocol_requires_unique_expected_ids_and_finite_non_skip_outcomes(self):
