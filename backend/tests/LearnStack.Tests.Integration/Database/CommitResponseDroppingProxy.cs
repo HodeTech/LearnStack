@@ -39,6 +39,10 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     private int _holdCapacityRecoveryCommit;
     private readonly TaskCompletionSource _capacityRecoveryCommitHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _releaseCapacityRecoveryCommit = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _holdRenewalCommit;
+    private bool _loseRenewalCommitResponse;
+    private readonly TaskCompletionSource _renewalCommitHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseRenewalCommit = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _quarantineRollbackHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _releaseQuarantineRollback = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _holdQuarantineRollback, _quarantineReads;
@@ -110,6 +114,13 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     public Task CapacityRecoveryCommitHeld => _capacityRecoveryCommitHeld.Task;
     public void HoldNextCapacityRecoveryCommitResponse() => Interlocked.CompareExchange(ref _holdCapacityRecoveryCommit, 1, 0);
     public void ReleaseCapacityRecoveryCommitResponse() => _releaseCapacityRecoveryCommit.TrySetResult();
+    public Task RenewalCommitHeld => _renewalCommitHeld.Task;
+    public void HoldNextRenewalCommitResponse(bool loseResponse)
+    {
+        _loseRenewalCommitResponse = loseResponse;
+        Interlocked.CompareExchange(ref _holdRenewalCommit, 1, 0);
+    }
+    public void ReleaseRenewalCommitResponse() => _releaseRenewalCommit.TrySetResult();
     public Task EmptyCheckpointLockRead => _emptyCheckpointLockRead.Task;
     public int CheckpointLockReads => Volatile.Read(ref _checkpointLockReads);
     public void ObserveNextEmptyCheckpointLockRead() => Interlocked.CompareExchange(ref _observeCheckpointLock, 1, 0);
@@ -249,6 +260,7 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
         var capacityFactsRead = false;
         var capacityRollbackResponse = false;
         var capacityRecoveryRead = false;
+        var renewalRead = false;
         var checkpointHistoryRead = false;
         var externalRecoveryRead = false;
         var quarantineRead = false;
@@ -275,6 +287,12 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
                 quarantineRead = true;
                 Interlocked.Increment(ref _quarantineReads);
             }
+            if (header[0] == (byte)'T' && BinaryPrimitives.ReadInt16BigEndian(body.AsSpan()) == 18
+                && body.AsSpan().IndexOf("admitted\0"u8) >= 0
+                && body.AsSpan().IndexOf("admission_token\0"u8) >= 0
+                && body.AsSpan().IndexOf("ownership_until\0"u8) >= 0
+                && body.AsSpan().IndexOf("stage\0"u8) >= 0)
+                renewalRead = true;
             if (header[0] == (byte)'T' && body.AsSpan().IndexOf("transactional_cleanup_at\0"u8) >= 0
                 && body.AsSpan().IndexOf("release_reason\0"u8) >= 0)
                 capacityFactsRead = true;
@@ -321,6 +339,13 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
                 await _releaseCapacityRecoveryCommit.Task.WaitAsync(cancellationToken);
                 return; // The acquisition committed; its client never receives acknowledgement.
             }
+            if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("COMMIT\0"u8)
+                && renewalRead && Interlocked.CompareExchange(ref _holdRenewalCommit, 2, 1) == 1)
+            {
+                _renewalCommitHeld.TrySetResult();
+                await _releaseRenewalCommit.Task.WaitAsync(cancellationToken);
+                if (_loseRenewalCommitResponse) return;
+            }
             if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("ROLLBACK\0"u8) && capacityFactsRead)
             {
                 capacityRollbackResponse = true;
@@ -337,6 +362,7 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
             {
                 capacityFactsRead = false;
                 capacityRecoveryRead = false;
+                renewalRead = false;
                 checkpointHistoryRead = false;
                 externalRecoveryRead = false;
                 quarantineRead = false;

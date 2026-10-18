@@ -1,9 +1,11 @@
 using FluentAssertions;
+using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Xunit;
 
@@ -12,10 +14,11 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed partial class BackgroundJobControlTests
 {
     [Theory]
-    [InlineData("ack")]
-    [InlineData("confirmed")]
-    [InlineData("changed_owner")]
-    public async Task Actual_retry_owner_counts_ACK_or_locked_confirmation_once_but_never_a_later_owner(string outcome)
+    [InlineData("ack", false)]
+    [InlineData("confirmed", false)]
+    [InlineData("changed_owner", false)]
+    [InlineData("ack", true)]
+    public async Task Actual_retry_owner_counts_ACK_or_locked_confirmation_once_but_never_a_later_owner(string outcome, bool capacity)
     {
         await using var database = await DatabaseAsync();
         var bounds = new BackgroundJobRuntimeOptions
@@ -30,16 +33,24 @@ public sealed partial class BackgroundJobControlTests
         {
             Body = (_, _, _) => Task.FromResult(Result<None>.Fail(new Error(new LocalizedMessage("lockey_concurrency_conflict")))),
         };
-        await using var host = Fixture.Host(database, probe, configure: services => services.AddSingleton(bounds));
+        var registry = capacity ? Fixture.CapacityRegistry() : Fixture.Registry;
+        await using var host = Fixture.Host(database, probe, configure: services =>
+        {
+            services.AddSingleton(bounds);
+            services.RemoveAll<BackgroundJobDefinitionRegistry>();
+            services.AddSingleton(registry);
+        });
         await using var proxy = new CommitResponseDroppingProxy(database.OutboxConnectionString,
             commitsToPass: outcome == "ack" ? int.MaxValue : 0, holdCommitResponse: true);
         await using var source = Source(proxy.ConnectionString);
-        var gate = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
-        var generation = new HangfireGenerationWork(Fixture.Registry.Infrastructure.Pools["transactional"], gate);
+        var gate = new BackgroundJobRuntimeGate(registry.Infrastructure);
+        var generation = new HangfireGenerationWork(registry.Infrastructure.Pools["transactional"], gate);
         var executor = host.Services.GetRequiredService<JobExecutor>();
-        var controller = new BackgroundJobControl(source, Fixture.Registry, executor, gate, bounds,
+        var controller = new BackgroundJobControl(source, registry, executor, gate, bounds,
             new SystemGuidFactory(), TimeProvider.System);
-        var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+        var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
+            capacity ? BackgroundJobRuntimeFixture.CapacityKey : BackgroundJobRuntimeFixture.TenantKey,
+            capacityGroup: capacity ? BackgroundJobRuntimeFixture.CapacityGroup : null);
         var routing = host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>();
         var claim = (await routing.TryClaimAsync(job, 1))!;
         var work = generation.TryBegin()!;
@@ -64,8 +75,14 @@ public sealed partial class BackgroundJobControlTests
             result.Decision.Disposition.Should().Be(BackgroundJobFailureDisposition.Retry);
             // Only the existing control lane can now write: the completed
             // handler's actual deadline/renewal observers have been joined.
-            (await execution.JoinBusinessObserversAsync()).Should().BeTrue();
-            var completion = controller.FinishBusinessAsync(execution, result);
+            BackgroundJobActualCleanup? cleanup = null;
+            if (capacity)
+            {
+                cleanup = await work.PrepareCapacityCleanupAsync(execution).WaitAsync(deadline.Token);
+                cleanup.Should().NotBeNull("only the actual held business/source/cancellation cleanup can mint capacity recovery");
+            }
+            else (await execution.JoinBusinessObserversAsync()).Should().BeTrue();
+            var completion = controller.FinishBusinessAsync(execution, result, cleanup);
             controller.Snapshot.Retries.Should().Be(0);
             controller.Start();
             if (outcome != "ack")
@@ -121,6 +138,15 @@ public sealed partial class BackgroundJobControlTests
             proxy.DroppedCommitResponses.Should().Be(outcome == "ack" ? 0 : 1);
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job))
                 .Should().Be(outcome == "changed_owner" ? 2 : 1);
+            if (capacity)
+            {
+                await using var released = new NpgsqlCommand("""
+                    SELECT count(*) FROM background_job_reservations WHERE job_id=@id
+                        AND released_at IS NOT NULL AND release_reason='transactional_rollback'
+                    """, locker);
+                released.Parameters.AddWithValue("id", job.Value);
+                (await released.ExecuteScalarAsync(deadline.Token)).Should().Be(1L);
+            }
         }
         finally
         {

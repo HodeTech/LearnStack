@@ -65,6 +65,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             var firstControl = NativeFinalizerControl(runtime, job);
             var firstTask = (Task<JobBusinessExecutionResult>)NativeSdkField(firstControl, "_business");
             firstTask.IsCompleted.Should().BeFalse("the real first root is held after its nested business write");
+            runtime.Snapshot.Control!.Retries.Should().Be(0);
             var initial = await ReadNativeFinalizerFactsAsync(database, job);
             initial.Phase.Should().Be("finalizing");
             initial.NormalAttempts.Should().Be(1);
@@ -82,6 +83,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
 
             probe.AllowFirstReturn.TrySetResult();
             await probe.SecondEntered.Task.WaitAsync(TimeSpan.FromSeconds(50));
+            runtime.Snapshot.Control!.Retries.Should().Be(1);
             var secondControl = NativeFinalizerControl(runtime, job);
             secondControl.Should().NotBeSameAs(firstControl);
             var secondTask = (Task<JobBusinessExecutionResult>)NativeSdkField(secondControl, "_business");
@@ -156,6 +158,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             second.Receipt.NormalAttemptOrdinal.Should().Be(1);
             AssertNativeFinalizerCleaned(attempts[1]);
             probe.Snapshot().Should().HaveCount(2);
+            runtime.Snapshot.Control!.Retries.Should().Be(1);
 
             var completed = await ReadNativeFinalizerFactsAsync(database, job);
             completed.Phase.Should().Be("completed");

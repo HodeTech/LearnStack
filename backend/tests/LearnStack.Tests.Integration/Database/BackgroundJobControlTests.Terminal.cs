@@ -9,6 +9,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
@@ -17,6 +18,66 @@ namespace LearnStack.Tests.Integration.Database;
 
 public sealed partial class BackgroundJobControlTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Actual_terminal_owner_counts_committed_audit_after_scope_cleanup_even_when_cleanup_refuses_release(bool failCleanup)
+    {
+        await using var database = await DatabaseAsync();
+        await using var host = Fixture.Host(database, new BackgroundJobFixtureProbe());
+        await using var source = Source(database.OutboxConnectionString);
+        var job = await RequestInvalidAsync(database, host.Services, source);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var scopes = new HoldingScopes(host.Services.GetRequiredService<IServiceScopeFactory>(), entered, release, failCleanup);
+        var bounds = new BackgroundJobRuntimeOptions { ControlPoll = TimeSpan.FromMilliseconds(50) };
+        var executor = new JobExecutor(scopes, host.Services.GetRequiredService<ITenantContextAccessor>(),
+            host.Services.GetRequiredService<BackgroundJobExecutionAdmission>(), bounds,
+            host.Services.GetRequiredService<BackgroundJobObservation>());
+        var gate = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
+        var controller = new BackgroundJobControl(source, Fixture.Registry, executor, gate, bounds,
+            new SystemGuidFactory(), TimeProvider.System);
+        controller.Start();
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            await entered.Task.WaitAsync(deadline.Token);
+            (await ReadDeadAsync(database, job)).Should().NotBeNull();
+            (await AuditAsync(database, job)).Count.Should().Be(1);
+            controller.Snapshot.Terminalized.Should().Be(0,
+                "the actual terminal task still owns the held post-COMMIT scope cleanup");
+            release.TrySetResult();
+            while (controller.Snapshot.Terminalized != 1) await Task.Delay(10, deadline.Token);
+            (await AuditAsync(database, job)).Count.Should().Be(1);
+            if (failCleanup)
+            {
+                controller.Snapshot.TerminalHealthy.Should().BeFalse();
+                const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+                var retained = (OwnedBackgroundJobControl<BackgroundJobControlChange>)typeof(BackgroundJobControl)
+                    .GetField("_terminalOperation", flags)!.GetValue(controller)!;
+                retained.CommitAcknowledged.Should().BeTrue();
+                retained.CleanupConfirmed.Should().BeFalse();
+                retained.KnownRollback.Should().BeFalse();
+            }
+        }
+        finally
+        {
+            release.TrySetResult();
+            gate.StopStarts();
+            controller.RequestStop();
+            // The finite observer joins the actual lane/stop tasks even when
+            // the public cleanup witness must remain deliberately unconfirmed.
+            var joined = (Task)typeof(BackgroundJobControl)
+                .GetField("_completionObservation", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .GetValue(controller)!;
+            await joined.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        controller.Snapshot.Terminalized.Should().Be(1);
+        controller.Snapshot.CleanupConfirmed.Should().Be(!failCleanup);
+        controller.Completion.IsCompletedSuccessfully.Should().Be(!failCleanup);
+        (await AuditAsync(database, job)).Count.Should().Be(1);
+    }
+
     [Fact]
     public async Task Invalid_never_started_org_job_terminalizes_with_one_actual_row_bound_MUST_and_no_causal_payload_access()
     {

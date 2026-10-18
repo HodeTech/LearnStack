@@ -8210,10 +8210,35 @@ PG fixture inputs; the final changes affect only four guard/unit files. The
 final 363-source receipt is
 `067bf593428c041bcbb0b0e1857c0c2e1c8a635f55b0bed3608eb6c6fd7362e8`.
 
-Broader post-ACK cleanup and finalizer/capacity/external retry-probe owner
-qualification, recurrence/bridge/lease/late accounting, nineteen-rule enforcement,
-whole regression and unchanged CI-budget qualification, and both full Step 9
-reviews remain open. No catalogue obligation is promoted by this slice.
+#### Control branch qualification
+
+Fourteen actual-owner PostgreSQL cases pass together with zero failures/skips.
+They cover external retry ACK, lost ACK with blocked original-history confirmation
+and changed ownership; both native Finalize retry paths; ordinary retry plus
+actual grouped-capacity rollback/release; physical versus history-confirmed
+renewal; and terminal MUST audit followed by held or refused scope cleanup.
+The existing prebound late-renewal case also passes with the selective proxy.
+History-confirmed renewal never reopens execution permission. Terminal counting
+preserves an acknowledged audit even when actual cleanup refuses release.
+
+The proxy holds the actual renewal COMMIT by its returned column inventory;
+other control transactions cannot consume that fault. Actual owner results,
+durable state and row-lock waiters constrain the observations independently.
+The grouped retry case qualifies a physical ACK, not grouped lost-ACK history.
+The deliberate terminal cleanup failure disposes its inner scope before throwing;
+the finite observation task joins actual lanes while public cleanup remains
+unconfirmed. Isolated external retry ownership does not establish native
+Hangfire handoff. The focused source review reports no verified findings and
+grants no full Step 9 review-round credit.
+
+The final CI-mode Release build has zero warnings/errors; scoped formatting
+reports no changes. Production source remains unchanged from `c581f798`.
+The final 364-source receipt is
+`fb03a92a9e6e96b22aae6953c233fe5b4106d02567421b6e355d1741627b06b1`.
+Connection-cleanup fault combinations and grouped retry history are not claimed
+by this bounded cohort. Recurrence/bridge/lease/late accounting, nineteen-rule
+enforcement, whole regression and unchanged CI-budget qualification, and both
+full Step 9 reviews remain open. No catalogue obligation is promoted here.
 
 ### Durable outbox dispatch
 
