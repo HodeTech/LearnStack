@@ -59,6 +59,13 @@ elif name == 'dotnet':
     proc.joinpath('cgroup').write_text('0::' + config.get('work', '/owned/work') + '\n')
     base.joinpath('session.json').write_text(json.dumps({'pid':os.getpid(), 'sid':os.getsid(0)}))
     try:
+        if '--diag' in sys.argv:
+            diagnostic = pathlib.Path(sys.argv[sys.argv.index('--diag') + 1])
+            with diagnostic.open('w') as stream:
+                for chunk in config.get('diagnostic_chunks', []):
+                    stream.write(chunk)
+                    stream.flush()
+                    time.sleep(0.02)
         for line in config.get('console', []):
             print(line, flush=True)
         time.sleep(config.get('delay', 0.2))
@@ -145,6 +152,27 @@ class OwnerControls(unittest.TestCase):
         return {'all': native + ordinary, 'native': native, 'ordinary': ordinary,
                 'assemblies': ['LearnStack.Tests.Integration']}
 
+    def execution_result(self, case, outcome=1):
+        return {'TestCase': {'Id': case['id'], 'DisplayName': case['name'],
+                             'Source': '/private/LearnStack.Tests.Integration.dll'},
+                'Outcome': outcome, 'Duration': '00:00:00.0010000',
+                'ErrorMessage': 'PRIVATE-CANARY provider detail', 'Messages': ['PRIVATE-CANARY']}
+
+    def execution_message(self, kind, payload):
+        return (self.owner.ExecutionProgress.marker.decode() + json.dumps(
+            {'MessageType': kind, 'Payload': payload}) + '\n')
+
+    def execution_event(self, cases):
+        return self.execution_message('TestExecution.StatsChange',
+                                      {'NewTestResults': [self.execution_result(case) for case in cases]})
+
+    def execution_complete(self, cases, *, tail=()):
+        return self.execution_message('TestExecution.Completed', {
+            'TestRunCompleteArgs': {'IsCanceled': False, 'IsAborted': False, 'Error': None,
+                                    'TestRunStatistics': {'ExecutedTests': len(cases),
+                                                          'Stats': {'Passed': len(cases)}}},
+            'LastRunTests': {'NewTestResults': [self.execution_result(case) for case in tail]}})
+
     def trx(self, output, cases, *, outcome='Passed', summary='Completed', raw_canary=False):
         output.mkdir(parents=True, exist_ok=True)
         tag = lambda name: '{' + self.owner.NS['t'] + '}' + name
@@ -159,7 +187,10 @@ class OwnerControls(unittest.TestCase):
             ET.SubElement(definitions, tag('UnitTest'), id=case['id'], storage=case['assembly'] + '.dll')
         summary = ET.SubElement(root, tag('ResultSummary'), outcome=summary)
         ET.SubElement(summary, tag('Counters'), total=str(len(cases)),
-                      executed=str(len(cases) if outcome != 'NotExecuted' else 0))
+                      executed=str(len(cases) if outcome != 'NotExecuted' else 0),
+                      passed=str(len(cases) if outcome == 'Passed' else 0),
+                      failed=str(len(cases) if outcome == 'Failed' else 0),
+                      notExecuted=str(len(cases) if outcome == 'NotExecuted' else 0))
         path = output / 'owned.trx'
         ET.ElementTree(root).write(path, encoding='utf-8')
         return path
@@ -170,7 +201,7 @@ class OwnerControls(unittest.TestCase):
         self.trx(output / 'results', population[mode])
         self.owner.write_json(output / 'discovery.json', {'protocol': 1, 'identity': context, 'population': population})
         output.joinpath('completed-cases.jsonl').write_text(''.join(json.dumps(
-            {'name': case['name'], 'outcome': 'Passed', 'duration': '< 1 ms'}) + '\n' for case in population[mode]))
+            {**case, 'outcome': 'Passed', 'duration': '00:00:00.0010000'}) + '\n' for case in population[mode]))
         if mode == 'native':
             output.joinpath('native-refusals.jsonl').write_text('')
             self.owner.write_json(output / 'provisioning.json', {
@@ -249,15 +280,18 @@ except launcher.Refusal as failure:
             directory.rmdir()
 
     def test_real_subprocess_and_setsid_keep_observed_membership_and_completed_duration(self):
-        name = self.case(1)['name']
-        self.configure(console=['raw PRIVATE-CANARY', '  Passed ' + name + ' [< 1 ms]'])
+        case = self.case(1)
+        diagnostic = self.root / 'execution.diag'
+        self.configure(console=['raw PRIVATE-CANARY', '  Passed ' + case['name'] + ' [< 1 ms]'],
+                       diagnostic_chunks=[self.execution_event([case]), self.execution_complete([case])])
         evidence, console = io.StringIO(), io.StringIO()
-        seen = Counter()
+        progress = self.owner.ExecutionProgress(diagnostic, 'LearnStack.Tests.Integration', [case], evidence)
         with contextlib.redirect_stdout(console):
-            status = self.owner.dotnet(['test'], time.monotonic() + 3, '/owned/work',
-                lambda value: self.owner.completed_line(value, Counter({name: 1}), seen, evidence))
+            status = self.owner.dotnet(['test', '--diag', str(diagnostic)], time.monotonic() + 3,
+                                       '/owned/work', lambda _value: None, progress)
         self.assertEqual(0, status)
-        self.assertEqual({'name': name, 'outcome': 'Passed', 'duration': '< 1 ms'}, json.loads(evidence.getvalue()))
+        self.assertEqual({**case, 'outcome': 'Passed', 'duration': '00:00:00.0010000'},
+                         json.loads(evidence.getvalue()))
         self.assertNotIn('PRIVATE-CANARY', console.getvalue())
         session = json.loads((self.bin / 'session.json').read_text())
         self.assertEqual(session['pid'], session['sid'], 'The actual subprocess changed session')
@@ -266,6 +300,63 @@ except launcher.Refusal as failure:
         self.configure(work='/unrelated/session')
         self.refuses('testhost_outside_owned_subtree', self.owner.dotnet, ['test'],
                      time.monotonic() + 3, '/owned/work', lambda _line: None)
+
+    def test_interrupted_protocol_keeps_actual_colliding_id_before_partial_json_without_trx(self):
+        cases = self.population()['ordinary']
+        output = self.root / 'interrupted'
+        output.mkdir()
+        diagnostic = self.root / 'interrupted.diag'
+        partial = self.execution_event(cases[1:])[:100]
+        self.configure(diagnostic_chunks=[self.execution_event(cases[:1]), partial], delay=1)
+        console = io.StringIO()
+        with (output / 'completed-cases.jsonl').open('w') as stream:
+            progress = self.owner.ExecutionProgress(diagnostic, 'LearnStack.Tests.Integration', cases, stream)
+            with contextlib.redirect_stdout(console):
+                self.refuses('deadline_exhausted', self.owner.dotnet, ['test', '--diag', str(diagnostic)],
+                             time.monotonic() + 0.2, '/owned/work', lambda _line: None, progress)
+        rows = [json.loads(line) for line in (output / 'completed-cases.jsonl').read_text().splitlines()]
+        self.assertEqual([{**cases[0], 'outcome': 'Passed', 'duration': '00:00:00.0010000'}], rows)
+        self.assertEqual(cases[0]['name'], cases[1]['name'])
+        self.assertIn(cases[0]['id'], console.getvalue())
+        self.assertNotIn(cases[1]['id'], console.getvalue())
+        self.assertNotIn('PRIVATE-CANARY', console.getvalue())
+        self.refuses('execution_incomplete', progress.poll, final=True)
+        self.refuses('trx_missing', self.owner.validate_results, output, cases)
+
+    def test_execution_protocol_requires_unique_expected_ids_and_finite_non_skip_outcomes(self):
+        case = self.case(1)
+        for mutation in ('missing', 'wrong', 'duplicate', 'skip', 'none', 'notfound', 'unknown', 'boolean'):
+            with self.subTest(mutation=mutation):
+                stream = io.StringIO()
+                progress = self.owner.ExecutionProgress(self.root / 'unused.diag',
+                                                       'LearnStack.Tests.Integration', [case], stream)
+                result = self.execution_result(case)
+                if mutation == 'missing':
+                    result['TestCase'].pop('Id')
+                elif mutation == 'wrong':
+                    result['TestCase']['Id'] = self.case(99)['id']
+                elif mutation != 'duplicate':
+                    result['Outcome'] = {'skip': 3, 'none': 0, 'notfound': 4,
+                                         'unknown': 9, 'boolean': True}[mutation]
+                payload = {'NewTestResults': [result, result] if mutation == 'duplicate' else [result]}
+                with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(self.owner.Refusal):
+                    progress.line(self.execution_message('TestExecution.StatsChange', payload).encode())
+                self.assertNotIn('PRIVATE-CANARY', stream.getvalue())
+
+    def test_execution_completion_tail_uses_actual_ids_and_refuses_missing_results(self):
+        cases = self.population()['ordinary']
+        diagnostic = self.root / 'tail.diag'
+        stream = io.StringIO()
+        progress = self.owner.ExecutionProgress(diagnostic, 'LearnStack.Tests.Integration', cases, stream)
+        diagnostic.write_text(self.execution_complete(cases, tail=cases))
+        with contextlib.redirect_stdout(io.StringIO()):
+            progress.poll(final=True)
+        self.assertEqual([case['id'] for case in cases], [json.loads(line)['id'] for line in stream.getvalue().splitlines()])
+        incomplete = self.owner.ExecutionProgress(self.root / 'missing.diag',
+                                                 'LearnStack.Tests.Integration', cases, io.StringIO())
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.refuses('execution_incomplete', incomplete.line,
+                         self.execution_complete(cases[:1], tail=cases[:1]).encode())
 
     def test_populated_and_missing_cgroup_never_count_as_empty(self):
         group = Path(self.owner.CGROUP) / 'work'
@@ -397,6 +488,24 @@ except launcher.Refusal as failure:
         self.assertEqual(2, len(actual))
         self.assertEqual(actual[0]['name'], actual[1]['name'])
 
+    def test_trx_rejects_contradictory_counters_before_sanitizing_and_keeps_truthful_failure(self):
+        cases = self.population()['ordinary']
+        path = self.trx(self.root / 'counter-check', cases, raw_canary=True)
+        clean = path.read_bytes()
+        for name, value in (('skipped', '1'), ('passed', '0'), ('failed', '1'), ('notExecuted', '1'),
+                            ('aborted', '1'), ('error', '1'), ('inProgress', '1'), ('passed', '-1'),
+                            ('passed', '1.0'), ('passed', 'unknown')):
+            root = ET.fromstring(clean)
+            root.find('t:ResultSummary/t:Counters', self.owner.NS).set(name, value)
+            ET.ElementTree(root).write(path, encoding='utf-8')
+            self.refuses('trx_counters_invalid', self.owner.trx_cases, path, sanitize=True)
+            self.assertIn(b'PRIVATE-CANARY', path.read_bytes())
+        failed = self.trx(self.root / 'failed-counter-check', cases, outcome='Failed',
+                          summary='Failed', raw_canary=True)
+        self.assertTrue(all(row['outcome'] == 'Failed' for row in self.owner.trx_cases(failed, sanitize=True)))
+        self.assertNotIn(b'PRIVATE-CANARY', failed.read_bytes())
+        self.assertEqual('2', ET.parse(failed).find('t:ResultSummary/t:Counters', self.owner.NS).get('failed'))
+
     def test_export_keeps_raw_files_private_on_invalid_input_or_expired_budget(self):
         raw_results = self.root / 'private-trx'
         output = self.root / 'export'
@@ -425,8 +534,11 @@ except launcher.Refusal as failure:
                   '_running_no_oom_no_exit_refused_preflight_collector_pipe')
         for suffix in (reason, reason + '_PRIVATE_CANARY', reason.replace('members_2', 'members_7')):
             self.owner.native_refusal('The isolated generation phase fixture refused: ' + suffix + ':docker', stream, seen)
+        closed_topology = reason.rsplit('_preflight_', 1)[0]
+        self.owner.native_refusal('The isolated generation phase fixture refused: ' + closed_topology, stream, seen)
+        self.owner.native_refusal('The isolated generation phase fixture refused: ' + closed_topology + '_private_extra', stream, seen)
         self.owner.native_refusal('The isolated Linux fatal probe refused: collector_pipe credential=PRIVATE_CANARY', stream, seen)
-        self.assertEqual([{'reason': reason}, {'reason': 'collector_pipe'}],
+        self.assertEqual([{'reason': reason}, {'reason': closed_topology}, {'reason': 'collector_pipe'}],
                          [json.loads(line) for line in stream.getvalue().splitlines()])
         self.assertNotIn('PRIVATE_CANARY', stream.getvalue())
 
@@ -438,7 +550,7 @@ except launcher.Refusal as failure:
         self.refuses('results_incomplete', self.owner.validate_results, output, cases)
         self.trx(output / 'results', cases)
         output.joinpath('completed-cases.jsonl').write_text(json.dumps(
-            {'name': cases[0]['name'], 'outcome': 'Passed', 'duration': '1 ms'}) + '\n')
+            {**cases[0], 'outcome': 'Passed', 'duration': '00:00:00.0010000'}) + '\n')
         self.refuses('completed_evidence_incomplete', self.owner.validate_results, output, cases)
 
     def test_aggregate_requires_both_jobs_complete_matching_artifacts_and_current_identity(self):

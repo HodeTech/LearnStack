@@ -119,6 +119,12 @@ restricts the shared native trait to the two complete native proof classes and
 rejects an unclassified proof caller. Actual VSTest discovery and final TRX IDs
 prove the disjoint complete population; display names alone can collide across
 theory rows. Private discovery diagnostics are not exported.
+Incremental execution events retain actual assembly/case IDs, outcome and
+duration even when interruption prevents final TRX. Each selected project uses
+its own private diagnostic stream with the pinned VSTest `BatchSize=1` setting;
+empty project populations remain covered by discovery. Final results reconcile
+those records with TRX, including all summary counters. A display-name-only
+progress record cannot distinguish colliding theory rows.
 
 Native alone uses the exclusive disposable Ubuntu 24.04 VM and closed
 `scripts/ci-native-provisioning.py` owner. Setup verifies a supported collector or

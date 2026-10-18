@@ -9119,6 +9119,52 @@ ADR-parser and five read-only observer controls, actionlint and changed-document
 links/fragments pass. Two fresh follow-up review rounds and actual final-source
 hosted qualification remain pending; PR #32 stays open and no merge is claimed.
 
+
+###### Native CI follow-up review round 1
+
+Commit `ee11bc94` contains the coherent implementation after acceptance
+`c4e64b52`. Normal commit hooks pass and preserve all 24 validated source hashes.
+Two new independent reviewers inspect the exact committed boundary through
+process/authority and coverage/corpus lenses. Their four findings are verified
+against that source before correction:
+
+- A failed optional preflight-log inspection drops the already bounded topology
+  facts from the exported reason. The exact topology form now permits an absent
+  preflight suffix while retaining its finite fields and refusal allowlist.
+- A contradictory positive TRX skip counter is accepted and then erased by
+  sanitization. Counter parsing now checks nonnegative values, row reconciliation
+  and zero error/skip/incomplete buckets before projecting a file for export.
+- Display-name-only interrupted records cannot distinguish 20 duplicate display
+  rows. The private incremental VSTest execution stream now supplies actual
+  assembly/case IDs, outcome and duration independently of final TRX.
+- A statically declared instance-extension helper escapes the source closure.
+  Its planted dirty control fails the original detector; source method symbols,
+  reduced extension declarations and ambiguous candidates now retain the helper
+  edge. An unrelated same-named extension remains a clean control.
+
+The extension correction builds with zero warnings/errors and all seven selected
+source/corpus controls pass with zero skips. This modifies only the Architecture
+source file; all native fixture and production C# files remain unchanged from the
+31-case local native proof. No extra rule or test method is added.
+
+Twenty-four corrected Python controls pass, including interrupted colliding IDs,
+partial event lines, completed tails, missing/duplicate/wrong identities, truthful
+failed rows, contradictory counters and missing optional diagnostics. The actual
+pinned runner also executes the two existing pure native predicates with
+`RunConfiguration.BatchSize=1`; each result arrives in its own StatsChange event,
+and the real parser's five-field records exactly match both actual TRX rows.
+Without that setting this small run delivers results only at Completed. Raw
+execution diagnostics remain private. The setting changes event batching, not
+case membership or assertions; nonempty projects receive distinct private streams
+and zero-case projects retain complete discovery coverage.
+
+This narrow wire experiment and offline controls do not qualify the hosted unit,
+provisioning, full ordinary partition or tail budget. The
+[VSTest 17.12 configuration](https://github.com/microsoft/vstest/blob/v17.12.0/src/Microsoft.TestPlatform.ObjectModel/RunSettings/RunConfiguration.cs)
+and [result cache](https://github.com/microsoft/vstest/blob/v17.12.0/src/Microsoft.TestPlatform.CrossPlatEngine/Execution/TestRunCache.cs)
+are the pinned source basis. The corrected commit and a second fresh independent
+review round still precede actual hosted qualification; PR #32 remains open.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

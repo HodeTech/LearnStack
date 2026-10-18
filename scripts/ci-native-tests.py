@@ -247,7 +247,7 @@ def test_environment():
     return env
 
 
-def dotnet(argv, deadline, work, consume):
+def dotnet(argv, deadline, work, consume, progress=None):
     """Wait the actual child, retaining completed lines before a final TRX exists."""
     require(testhost_membership(work) == 0, 'preexisting_testhost')
     process = subprocess.Popen([DOTNET, *argv], cwd=ROOT / 'backend', env=test_environment(),
@@ -257,7 +257,9 @@ def dotnet(argv, deadline, work, consume):
     pending = b''
     seen_testhost = False
     try:
-        while selector.get_map():
+        while selector.get_map() or process.poll() is None:
+            if progress is not None:
+                progress.poll()
             remaining(deadline)
             seen_testhost |= testhost_membership(work) > 0
             for key, _ in selector.select(POLL_SECONDS):
@@ -273,6 +275,8 @@ def dotnet(argv, deadline, work, consume):
         if pending:
             consume(pending.decode('utf-8', errors='replace'))
         status = process.wait(timeout=remaining(deadline))
+        if progress is not None:
+            progress.poll(final=True)
         require(seen_testhost, 'actual_testhost_not_observed')
         return status
     except BaseException:
@@ -289,6 +293,11 @@ def dotnet(argv, deadline, work, consume):
                     process.wait(timeout=max(0.001, stop - time.monotonic()))
                 except subprocess.TimeoutExpired:
                     raise Refusal('launcher_join_failed') from None
+        if progress is not None:
+            try:
+                progress.poll()
+            except (Refusal, OSError, ValueError):
+                pass
         raise
     finally:
         selector.close()
@@ -411,7 +420,6 @@ def discover(private, deadline, work):
     return manifest
 
 
-COMPLETED = re.compile(r'^  (Passed|Failed|Skipped) (.+) \[((?:< )?[0-9]+(?:\.[0-9]+)? (?:ms|s|m|h)|[^\[\]]+)\]$')
 PREFLIGHT_REFUSALS = (
     'unknown', 'argument_refused', 'collector_unreadable', 'collector_pipe', 'collector_unsupported',
     'soft_core_not_zero', 'hard_core_not_zero', 'soft_core_refused', 'hard_core_refused',
@@ -423,7 +431,7 @@ PREFLIGHT_PATTERN = ('(?:' + '|'.join(PREFLIGHT_REFUSALS)
 TOPOLOGY_PATTERN = (
     'supervisor_topology_membership_internal_(?:yes|no)_members_[0-3]_database_(?:yes|no)'
     '_supervisor_(?:yes|no)_running_(?:yes|no)_oom_(?:yes|no)'
-    '_exit_(?:absent|zero|abort|refused|failed|other)_preflight_' + PREFLIGHT_PATTERN)
+    '_exit_(?:absent|zero|abort|refused|failed|other)(?:_preflight_' + PREFLIGHT_PATTERN + ')?')
 
 
 def native_refusal(line, stream, seen):
@@ -442,20 +450,81 @@ def native_refusal(line, stream, seen):
         stream.flush()
 
 
-def completed_line(line, expected, seen, stream):
-    match = COMPLETED.fullmatch(line)
-    if not match:
-        return
-    outcome, name, duration = match.groups()
-    require(name in expected and seen[name] < expected[name], 'completed_case_unexpected')
-    require(re.fullmatch(r'(?:< )?[0-9]+(?:\.[0-9]+)? (?:ms|s|m|h)(?: [0-9]+(?:\.[0-9]+)? (?:ms|s|m|h))*', duration),
-            'completed_duration_invalid')
-    seen[name] += 1
-    item = {'name': name, 'outcome': outcome, 'duration': duration}
-    value = json.dumps(item, sort_keys=True, separators=(',', ':'))
-    stream.write(value + '\n')
-    stream.flush()
-    print(value, flush=True)
+class ExecutionProgress:
+    """Tail the private pinned VSTest protocol, retaining only actual result IDs."""
+    marker = b'TestRequestSender.OnExecutionMessageReceived: Received message: '
+
+    def __init__(self, path, assembly, expected, stream):
+        self.path, self.assembly, self.stream = path, assembly, stream
+        self.expected = {key(case) for case in expected}
+        require(len(self.expected) == len(expected), 'duplicate_discovery_identity')
+        self.seen, self.outcomes = set(), Counter()
+        self.offset, self.pending, self.completed = 0, b'', False
+
+    def results(self, payload):
+        require(isinstance(payload, dict) and isinstance(payload.get('NewTestResults'), list),
+                'execution_protocol_invalid')
+        for raw in payload['NewTestResults']:
+            require(isinstance(raw, dict), 'execution_case_invalid')
+            case = case_identity(raw.get('TestCase'), self.assembly)
+            identity = key(case)
+            require(identity in self.expected and identity not in self.seen, 'completed_case_unexpected')
+            # vstest v17.12.0 TestOutcome: None=0, Passed=1, Failed=2,
+            # Skipped=3, NotFound=4. Skips/unknown outcomes refuse qualification.
+            require(type(raw.get('Outcome')) is int and raw['Outcome'] in (1, 2), 'execution_outcome_invalid')
+            duration = raw.get('Duration')
+            require(isinstance(duration, str) and re.fullmatch(
+                r'[0-9]+:[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,7})?', duration), 'execution_duration_invalid')
+            outcome = {1: 'Passed', 2: 'Failed'}[raw['Outcome']]
+            item = {**case, 'outcome': outcome, 'duration': duration}
+            value = json.dumps(item, sort_keys=True, separators=(',', ':'))
+            self.stream.write(value + '\n')
+            self.stream.flush()
+            print(value, flush=True)
+            self.seen.add(identity)
+            self.outcomes[outcome] += 1
+
+    def line(self, line):
+        if self.marker not in line:
+            return
+        try:
+            message = json.loads(line.split(self.marker, 1)[1])
+        except (ValueError, UnicodeError):
+            raise Refusal('execution_protocol_invalid') from None
+        require(isinstance(message, dict), 'execution_protocol_invalid')
+        kind, payload = message.get('MessageType'), message.get('Payload')
+        if kind == 'TestExecution.StatsChange':
+            require(not self.completed, 'execution_protocol_invalid')
+            self.results(payload)
+        elif kind == 'TestExecution.Completed':
+            require(not self.completed and isinstance(payload, dict), 'execution_protocol_invalid')
+            complete = payload.get('TestRunCompleteArgs')
+            require(isinstance(complete, dict), 'execution_protocol_invalid')
+            tail = payload.get('LastRunTests')
+            if tail is not None:
+                self.results(tail)
+            require(complete.get('IsCanceled') is False and complete.get('IsAborted') is False
+                    and complete.get('Error') is None, 'execution_incomplete')
+            stats = complete.get('TestRunStatistics')
+            require(isinstance(stats, dict) and stats.get('ExecutedTests') == len(self.seen)
+                    and stats.get('Stats') == dict(self.outcomes)
+                    and self.seen == self.expected, 'execution_incomplete')
+            self.completed = True
+
+    def poll(self, *, final=False):
+        if self.path.exists():
+            with self.path.open('rb') as stream:
+                require(os.fstat(stream.fileno()).st_size >= self.offset, 'execution_diagnostic_changed')
+                stream.seek(self.offset)
+                chunk = stream.read(MAX_BYTES - self.offset + 1)
+            self.offset += len(chunk)
+            require(self.offset <= MAX_BYTES, 'execution_diagnostic_bound')
+            lines = (self.pending + chunk).split(b'\n')
+            self.pending = lines.pop()
+            for line in lines:
+                self.line(line)
+        if final:
+            require(not self.pending and self.completed, 'execution_incomplete')
 
 
 def trx_cases(path, *, sanitize=False):
@@ -478,8 +547,16 @@ def trx_cases(path, *, sanitize=False):
         require(re.fullmatch(r'[0-9]+:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?', duration), 'trx_duration_invalid')
         cases.append({'assembly': definitions[test_id], 'id': test_id, 'name': result.get('testName'),
                       'outcome': result.get('outcome'), 'duration': duration})
-    require(int(counts.get('total', '-1')) == len(cases)
-            and int(counts.get('executed', '-1')) == sum(case['outcome'] != 'NotExecuted' for case in cases),
+    required = {'total', 'executed', 'passed', 'failed', 'notExecuted'}
+    require(required <= set(counts.attrib) and all(re.fullmatch(r'[0-9]+', value)
+            and int(value) <= MAX_CASES for value in counts.attrib.values()), 'trx_counters_invalid')
+    counters = {name: int(value) for name, value in counts.attrib.items()}
+    outcomes = Counter(case['outcome'] for case in cases)
+    require(counters['total'] == len(cases)
+            and counters['executed'] == outcomes['Passed'] + outcomes['Failed']
+            and counters['passed'] == outcomes['Passed'] and counters['failed'] == outcomes['Failed']
+            and counters['notExecuted'] == outcomes['NotExecuted']
+            and all(value == 0 for name, value in counters.items() if name not in required),
             'trx_counters_invalid')
     if sanitize:
         # Preserve test IDs, assembly, outcome and measured duration. Raw failure
@@ -496,7 +573,8 @@ def trx_cases(path, *, sanitize=False):
         ET.SubElement(cleaned_summary, tag('Counters'), total=str(len(cases)),
                       executed=str(sum(case['outcome'] != 'NotExecuted' for case in cases)),
                       passed=str(sum(case['outcome'] == 'Passed' for case in cases)),
-                      failed=str(sum(case['outcome'] == 'Failed' for case in cases)))
+                      failed=str(sum(case['outcome'] == 'Failed' for case in cases)),
+                      notExecuted=str(sum(case['outcome'] == 'NotExecuted' for case in cases)))
         ET.ElementTree(clean).write(path, encoding='utf-8', xml_declaration=True)
     return cases
 
@@ -512,8 +590,10 @@ def validate_results(output, expected):
     require(rows and all(case['outcome'] == 'Passed' for case in rows)
             and Counter(key(case) for case in rows) == Counter(key(case) for case in expected), 'results_incomplete')
     lines = [json.loads(line) for line in read_bytes(output / 'completed-cases.jsonl').splitlines()]
-    require(all(set(line) == {'name', 'outcome', 'duration'} and line['outcome'] == 'Passed' for line in lines)
-            and Counter(line['name'] for line in lines) == Counter(case['name'] for case in expected),
+    require(all(set(line) == {'assembly', 'id', 'name', 'outcome', 'duration'}
+                and line['outcome'] == 'Passed' for line in lines)
+            and Counter((key(line), line['outcome'], line['duration']) for line in lines)
+            == Counter((key(case), case['outcome'], case['duration']) for case in rows),
             'completed_evidence_incomplete')
     return len(rows)
 
@@ -534,8 +614,6 @@ def workload(mode, context, private, output, deadline, work):
     require(cgroup_path('self') == work, 'worker_outside_owned_subtree')
     manifest = discover(private, deadline, work)
     write_json(output / 'discovery.json', {'protocol': PROTOCOL, 'identity': context, 'population': manifest})
-    expected = Counter(case['name'] for case in manifest[mode])
-    seen = Counter()
     # Raw TRX initially stays private; only the sanitized projection is exported.
     raw_results = private / 'trx'
     raw_results.mkdir(mode=0o700)
@@ -544,18 +622,27 @@ def workload(mode, context, private, output, deadline, work):
         with (output / 'completed-cases.jsonl').open('x', encoding='utf-8') as stream:
             refusal_seen = set()
             def consume(line):
-                completed_line(line, expected, seen, stream)
                 if refusal_stream is not None:
                     native_refusal(line, refusal_stream, refusal_seen)
-            status = dotnet(['test', 'LearnStack.slnx', '--configuration', 'Release', '--no-build', '--no-restore',
-                             '--disable-build-servers', '--filter', FILTERS[mode],
-                             '--logger', 'console;verbosity=normal', '--logger', 'trx',
-                             '--results-directory', str(raw_results)], deadline, work, consume)
+            statuses = []
+            for project, assembly in test_projects():
+                expected = [case for case in manifest[mode] if case['assembly'] == assembly.casefold()]
+                if not expected:
+                    continue  # Discovery already proved this assembly owns no case in this partition.
+                diagnostic = private / (assembly + '-execution.diag')
+                progress = ExecutionProgress(diagnostic, assembly, expected, stream)
+                statuses.append(dotnet(['test', project, '--configuration', 'Release', '--no-build', '--no-restore',
+                                        '--disable-build-servers', '--filter', FILTERS[mode],
+                                        '--logger', 'console;verbosity=normal', '--logger', 'trx',
+                                        '--results-directory', str(raw_results), '--diag', str(diagnostic),
+                                        '--', 'RunConfiguration.BatchSize=1'], deadline, work, consume, progress))
+                for candidate in private.glob(diagnostic.stem + '*'):
+                    candidate.unlink()
     finally:
         if refusal_stream is not None:
             refusal_stream.close()
     export_results(raw_results, output, deadline)
-    require(status == 0, 'tests_failed')
+    require(statuses and all(status == 0 for status in statuses), 'tests_failed')
     count = validate_results(output, manifest[mode])
     write_json(private / 'workload.json', {'protocol': PROTOCOL, 'success': True, 'cases': count})
 
@@ -753,7 +840,7 @@ def print_completed(path, state):
     state['pending'] = lines.pop()
     for line in lines:
         value = json.loads(line)
-        require(set(value) == {'name', 'outcome', 'duration'}, 'completed_shape_invalid')
+        require(set(value) == {'assembly', 'id', 'name', 'outcome', 'duration'}, 'completed_shape_invalid')
         print(json.dumps(value, sort_keys=True), flush=True)
 
 

@@ -1669,8 +1669,9 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   ADR-0062's shared native trait belongs to exactly the two complete native proof
   classes, including all predicate/theory/mutant rows. A nonempty source closure
   rejects an unclassified direct or delegated sidecar/preflight test caller;
-  qualified identities, aliases and legitimate partial declarations retain
-  ownership. This bounded source census is not arbitrary dynamic-call analysis.
+  qualified identities, aliases, source extension methods and legitimate partial
+  declarations retain ownership. This bounded source census is not arbitrary
+  dynamic-call analysis.
 - **Why it matters:** CI separates Docker from the remaining tests by complementary
   filters, so a class that forgets the trait does not fail — it runs in the
   `backend` job, whose runner also has a Docker socket, starts its container and passes.
@@ -5263,6 +5264,8 @@ and fixture definitions make the implemented controls non-vacuous.
   all cases and the existing required check. Offline copied-owner controls verify
   the actual fixed seams without changing local host policy; hosted qualification
   remains a separate obligation in the owning CI record.
+  Interrupted execution retains actual case IDs and durations without final TRX;
+  contradictory skip/error/incomplete counters cannot be normalized into success.
 - **Type:** invocation census, real worker fallback and stored/logged canary controls.
   **Kind:** structural + startup + behavioural.
 - **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,

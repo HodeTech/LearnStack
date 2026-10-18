@@ -997,6 +997,9 @@ public sealed partial class PersistenceConventionTests
         RejectNative("Unclassified native test: Other.ThirdTests`0",
             ("Third.cs", "using static LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness; namespace Other; public class ThirdTests { [Fact] public void A() { Run(); } }"));
         RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { this.RunNativeProof(); } }"),
+            ("Extensions.cs", "namespace Other; internal static class NativeExtensions { public static void RunNativeProof(this object value) { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
             ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { Copied.Run(); } }"),
             ("Copied.cs", "namespace Other; internal static class Copied { public static void Run() { _ = \"pre\" + \"flight.sh\"; } }"));
         RejectNative("Unclassified native test: Other.ThirdTests`0",
@@ -1017,6 +1020,7 @@ public sealed partial class PersistenceConventionTests
         {
             ("Other.cs", "namespace Other; internal static class HangfireGenerationPhaseHarness { public static void Run() { } } public class ThirdTests { [Fact] public void A() { HangfireGenerationPhaseHarness.Run(); } }"),
             ("Shadow.cs", "namespace Shadow; public class ThirdTests { [Fact] public void A() { var HangfireGenerationPhaseHarness = 1; _ = HangfireGenerationPhaseHarness; } }"),
+            ("CleanExtensions.cs", "namespace Clean; internal static class Extensions { public static void RunNativeProof(this object value) { } } public class ThirdTests { [Fact] public void A() { this.RunNativeProof(); } }"),
         })).Should().BeEmpty();
     }
 
@@ -1050,12 +1054,14 @@ public sealed partial class PersistenceConventionTests
         var aliases = trees.SelectMany(tree => tree.GetRoot().DescendantNodes().OfType<UsingDirectiveSyntax>())
             .Where(import => import.Alias is not null).Select(import => import.Alias!.Name.Identifier.ValueText)
             .ToHashSet(StringComparer.Ordinal);
+        var methodNames = declarations.SelectMany(part => part.Syntax.Members.OfType<MethodDeclarationSyntax>())
+            .Select(method => method.Identifier.ValueText).ToHashSet(StringComparer.Ordinal);
         var parts = declarations.GroupBy(part => part.Identity, StringComparer.Ordinal)
             .SelectMany(group => group.Count() == 1 || group.All(part => part.Syntax.Modifiers.Any(SyntaxKind.PartialKeyword))
                 ? new[] { group.ToArray() } : group.Select(part => new[] { part }))
             .ToArray();
         var dependencies = parts.ToLookup(group => group[0].Identity,
-            group => group.SelectMany(part => NativeTypeDependencies(part, byName, aliases))
+            group => group.SelectMany(part => NativeTypeDependencies(part, byName, aliases, methodNames))
                 .ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
         var launchParts = declarations.Where(part => part.Syntax.DescendantNodes().OfType<ExpressionSyntax>()
             .Select(NativeConstantString).Any(value => value is not null
@@ -1108,26 +1114,34 @@ public sealed partial class PersistenceConventionTests
     private sealed record NativeTestDeclaration(string Identity, TypeDeclarationSyntax Syntax, SemanticModel Model);
 
     private static IEnumerable<string> NativeTypeDependencies(NativeTestDeclaration part,
-        Dictionary<string, HashSet<string>> byName, HashSet<string> aliases)
+        Dictionary<string, HashSet<string>> byName, HashSet<string> aliases, HashSet<string> methodNames)
     {
         var imports = part.Syntax.SyntaxTree.GetCompilationUnitRoot().Usings.Concat(part.Syntax.Ancestors()
             .OfType<BaseNamespaceDeclarationSyntax>().SelectMany(scope => scope.Usings));
         var names = part.Syntax.DescendantNodes().OfType<SimpleNameSyntax>()
-            .Where(name => byName.ContainsKey(name.Identifier.ValueText) || aliases.Contains(name.Identifier.ValueText))
+            .Where(name => byName.ContainsKey(name.Identifier.ValueText) || aliases.Contains(name.Identifier.ValueText)
+                || methodNames.Contains(name.Identifier.ValueText))
             .Cast<SyntaxNode>().Concat(imports.Where(import => import.StaticKeyword.IsKind(SyntaxKind.StaticKeyword))
                 .Select(import => import.Name).OfType<SyntaxNode>());
         foreach (var name in names)
         {
-            var symbol = part.Model.GetSymbolInfo(name).Symbol;
+            var information = part.Model.GetSymbolInfo(name);
+            var symbol = information.Symbol;
             if (name is IdentifierNameSyntax identifier)
                 symbol = part.Model.GetAliasInfo(identifier)?.Target ?? symbol;
-            var type = symbol as INamedTypeSymbol ?? symbol?.ContainingType;
-            if (type is not null)
+            var symbols = symbol is null ? information.CandidateSymbols : [symbol];
+            foreach (var candidate in symbols)
             {
+                // Instance extension syntax never spells its declaring helper
+                // type. Resolve the source method (including reduced forms)
+                // before assigning the caller's dependency.
+                var resolved = candidate is IMethodSymbol { ReducedFrom: { } original } ? original : candidate;
+                var type = resolved as INamedTypeSymbol ?? resolved.ContainingType;
+                if (type is null) continue;
                 foreach (var reference in type.OriginalDefinition.DeclaringSyntaxReferences)
                     if (reference.GetSyntax() is TypeDeclarationSyntax declared) yield return TypeIdentity(declared);
             }
-            else if (symbol is null && name is SimpleNameSyntax unresolved
+            if (symbol is null && information.CandidateSymbols.IsEmpty && name is SimpleNameSyntax unresolved
                 && byName.TryGetValue(unresolved.Identifier.ValueText, out var candidates))
             {
                 // Missing external references do not authorize silently dropping a
