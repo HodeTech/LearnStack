@@ -304,7 +304,7 @@ public sealed partial class PersistenceConventionTests
             "LearnStack.Application/Messaging/DomainEventCollector.cs",
             "LearnStack.Infrastructure.Audit/AuditStateCapture.cs",
         ], "the census includes shared scoped execution state, not only module callers");
-        ParallelSites.Keys.Concat(RetainedLoaderSites.Keys).Should().BeSubsetOf(relativeFiles,
+        ParallelSites.Keys.Concat(RetainedLoaderSites.Keys).Concat(RecurrenceParallelSites.Keys).Should().BeSubsetOf(relativeFiles,
             "an exception must name a real scanned source file");
 
         var offenders = ParallelOffenders(sourceRoot, files);
@@ -406,6 +406,8 @@ public sealed partial class PersistenceConventionTests
             .Where(file => !ParallelSites.ContainsKey(file.Path))
             .Where(file => RetainedLoaderSites.TryGetValue(file.Path, out var site)
                 ? RetainedLoaderScanText(file.Code, site) is not { } scan || FansOut(scan)
+                : RecurrenceParallelSites.TryGetValue(file.Path, out var recurrence)
+                    ? RecurrenceParallelScanText(file.Code, recurrence) is not { } retained || FansOut(retained)
                 : FansOut(file.Code))
             .Select(file => file.Path).ToArray();
 

@@ -123,13 +123,14 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**247 test methods run in
+**249 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
 Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
 P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–7, with seven additional
-companion methods in the locally completed P02b-4 Step 8. Its nineteen packet
+companion methods in the locally completed P02b-4 Step 8 and two source-boundary
+companions in Step 9. Its nineteen packet
 obligations remain Registered until Step 9 closes enforcement.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
@@ -1798,7 +1799,7 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   protocol. Stricter than ADR-0040's sentence,
   which bans two `DbContext`-bound operations: which operations are bound to the ambient
   connection cannot be read from source, and the honest rule is the one that can.
-- **Source:** ADR-0040 § Nesting.
+- **Source:** ADR-0040 § Nesting; ADR-0047's retained recurrence owners.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** — `PersistenceConventionTests.cs`, Packet 10, after waiting
   for module code to scan: three modules have shipped handlers since Packets 7 and 8, and
@@ -1808,6 +1809,11 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   `The_parallelism_census_reaches_shared_code_and_bounds_its_singleton_exceptions`
   plants violations in every covered root and proves both exemptions are
   path-specific.
+  P02b-4 Step 9 adds `Recurrence_parallel_allowance_is_limited_to_exact_owned_expressions_and_publication`:
+  nine invocation expressions in three actual recurrence owners are admitted only
+  with exact method signatures, suppressed flow and actual-task publication.
+  The remaining source in each file is still scanned; planted copies reject
+  changed callbacks, missing subjects/publication and extra parallel or stored work.
 - **Phase:** 02a (Packet 6 registers it; Packet 10 implements it).
 
 ### Tenancy and isolation
@@ -4539,9 +4545,14 @@ structural test proves — and what it does not.
 - **Phase:** 02a (Packet 7).
 
 - **Accepted extension:** ADR-0047 names a minimal lifecycle inventory reader for
-  bounded recurrence fan-out. Its exact-column/grant/caller exception lands in
-  P02b-4 Step 8. This does not weaken composite ordinary point reads or claim the
-  unimplemented reader is covered by the current test.
+  bounded recurrence fan-out, delivered in P02b-4 Step 8. Step 9's source census
+  pins five SQL subjects in four actual files: three composite point reads and
+  the two bounded composite-key inventory/bounds queries. It also pins the bound
+  key parameters and page-size option. The companion
+  `Organization_reader_census_rejects_missing_keys_extra_readers_and_unbounded_pages`
+  runs the same production detector against dirty/restored source copies. These
+  checks complement the separate database column-grant and runtime caller proofs;
+  ordinary point reads still require both keys.
 
 #### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`
 

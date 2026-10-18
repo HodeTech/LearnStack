@@ -367,8 +367,10 @@ public sealed partial class OutboxDispatchConventionTests
             || methods[0].Parameters.Count != 0 || methods[0].ReturnType.FullName != TaskOf(CapacityResult))
         { offenders.Add("Capacity scheduling cannot accept another task factory"); return null; }
         var callback = methods[0];
+        var callbackId = MethodId(callback);
         CheckSet(offenders, "actual capacity scheduling callback callers", CallSites(census)
-            .Where(site => MethodId(site.Target) == MethodId(callback)).Select(site => site.Owner), [MethodId(schedulers[0])]);
+            .Where(site => site.Target.Name == callback.Name && MethodId(site.Target) == callbackId)
+            .Select(site => site.Owner), [MethodId(schedulers[0])]);
         return callback;
     }
 }

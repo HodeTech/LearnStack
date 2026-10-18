@@ -38,7 +38,9 @@ are complete. Its
 Step 8 durable recurrence and restricted fan-out is locally complete after both
 full review rounds and verified corrections; its
 [closeout](#step-8-full-review-round-2-2026-10-18) owns final qualification. Step 9
-and P02b-5–8 remain pending. Production business definitions remain empty.
+enforcement and packet closeout are in progress; its
+[record](#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18) owns current
+work and remaining qualification. P02b-5–8 remain pending. Production business definitions remain empty.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -7821,6 +7823,92 @@ Step 9 must measure and reduce repeated detector scans while preserving every
 subject and clean/dirty/restored control. No nineteen-rule promotion, complete
 backend/frontend/demo, packaging, CI-duration compliance or real PR-head CI
 success is claimed by Step 8 receipts. No maintainer decision is pending.
+
+
+### P02b-4 Step 9 — enforcement and packet closeout (2026-10-18)
+
+**Implementation in progress.** Step 8 closes locally at `390515b8` after both
+full review rounds and verified corrections. This follows the already Accepted
+ninth step; no new maintainer decision is pending.
+
+Work proceeds through three internal closure units before either full Step 9
+review round:
+
+1. Complete full job observation, including bounded dimensions, memory-only
+   immutable gauges, cold durable unknown/deployment-mismatch health and distinct
+   confirmed-failure versus uncertain outcomes. Reduce repeated Architecture
+   detector scans without dropping cases, production subjects or any mutation/
+   restoration pass; the unchanged whole backend CI budget still requires proof.
+2. Match all nineteen packet obligations to actual nonempty production censuses,
+   behavioural proofs and planted controls; complete carrier/feature handoffs and
+   the shared repository background-job skill. Catalogue promotion waits for
+   complete enforcement and qualification.
+3. Run complete backend/frontend/demo regression and packaging/boot proofs,
+   commit, then run two fresh full multidimensional review rounds with verified
+   corrections and commits. Prepare the development-to-main PR with exact local
+   evidence; real PR-head CI and maintainer merge remain separate.
+
+The initial performance preflight is read-only planning, not a benchmark or full
+review. It finds repeated whole-production instruction traversals inside one
+read-only detector evaluation. A current-source four-case baseline runs before
+editing that mechanism. Any index must be fresh for every clean, dirty and
+restored evaluation, include every actual operand/owner/opcode and retain exact
+identity and multiplicity checks. No shorter filter or increased CI timeout is
+proposed. Full observation/enforcement and packet qualification remain pending.
+
+#### Initial scan and existing-boundary qualification
+
+The first slice adds complete method/field operand indexes inside one disposable
+detector evaluation. Name buckets only prefilter the existing full identity,
+opcode, order and multiplicity checks. Every clean, dirty and restored evaluation
+gets fresh indexes. Owner strings are computed after candidate selection, and
+ordinary call-site ownership is formatted only when its body contains a method
+operand. The attribute-based async-owner mapping remains unchanged.
+
+The four-case current-source baseline passes in 288.801 seconds of summed case
+time. Initial indexing passes the same four cases in 160.233 seconds; the later
+owner-string refinement records 60.062, 38.801 and 47.214 seconds for the three
+existing runtime/bridge cases, plus 3.651 seconds for the expanded cache companion.
+These are focused measurements with additional cache controls, not a complete
+workflow speedup or proof that the CI budget is met. A deliberate persistent-index
+mutant fails the actual membership comparison. A separate stale-owner-string
+mutant fails at the same method's `RenamedRun` versus cached `Run` identity. Both
+test-only mutations are restored byte-for-byte before clean qualification.
+
+The complete intermediate Architecture run executes 403 cases: 401 pass, two
+fail, and none skip, in 1,837.15 seconds of wall time. Its two failures expose
+older source guards that still reject Accepted recurrence readers/task owners.
+They do not justify broader runtime permissions. A brief native sample cannot
+attribute managed hotspots; no profiling-based attribution is claimed.
+
+The organization guard now enumerates five exact SQL subjects across four actual
+files: three composite point reads and the bounded composite inventory/bounds
+queries. It pins direct command arguments, minimal projections, tuple seeks,
+page limits and actual tenant/organization parameter bindings. The original
+validator's READ ONLY/announcement ordering and the EF primary-key ban remain.
+The parallelism guard permits only nine exact invocation spans in three retained
+recurrence owners, with method/signature/count and suppressed-flow publication
+checks; the rest of each file is still scanned. Neither change adds whole-file
+exemptions or substitutes for the separate database grants and resource proofs.
+
+Focused independent inspections identify and close reader-discovery and binding
+false passes: JOIN/interpolated/constant-concatenated readers, transformed SQL
+literals, nonexecuted bindings, protected-key overwrites and captured parameter
+rebinding. The actual-source dirty/clean companions exercise the same detectors.
+Two new companions bring the published Architecture method count to 249; all
+nineteen P02b-4 obligations remain Registered. These inspections are not either
+full Step 9 review round.
+
+The final 338-source snapshot passes a CI Release build with zero warnings/errors
+and all 39 selected Architecture cases, with zero failures/skips. The selection
+includes both corrected source guards and their companions, cache sensitivity,
+catalogue consistency and both complete orchestration mutation companions. Its
+source/artifact receipt is
+`832548288722970b30482e75a1f814e07675476210784f93d6913a7eb07f9b81`.
+The final two orchestration cases take 54.310 and 239.371 seconds, supplying the
+fresh baseline for the next bounded optimization. The unchanged twenty-minute
+whole-backend CI budget remains unqualified. Full job observation, complete
+packet regression and both full Step 9 review rounds remain pending.
 
 ### Durable outbox dispatch
 

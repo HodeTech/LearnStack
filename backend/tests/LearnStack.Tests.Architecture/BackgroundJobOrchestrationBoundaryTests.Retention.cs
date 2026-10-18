@@ -147,10 +147,11 @@ public sealed partial class OutboxDispatchConventionTests
             var type = census.Types[(InfrastructureAssembly, seam.Type)];
             var method = type.Methods.Single(candidate => candidate.Name == seam.Name.Split('#')[0]
                 && ParametersMatch(candidate, seam.Parameters));
+            var methodId = MethodId(method);
             // A removed sanctioned call must fail, not merely an additional caller.
             var call = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
                 .First(instruction => instruction.Operand is MethodReference target
-                    && HasAttachedDeclaringType(target) && MethodId(target) == MethodId(method));
+                    && target.Name == method.Name && HasAttachedDeclaringType(target) && MethodId(target) == methodId);
             AssertMutation(census, "an omitted actual external orchestration call " + seam.Name,
                 () => ReplaceInstruction(call, OpCodes.Nop, null!), JobOrchestrationOffenders);
             AssertMutation(census, "a removed external orchestration seam " + seam.Name, () =>

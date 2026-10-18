@@ -88,10 +88,9 @@ public sealed partial class OutboxDispatchConventionTests
         var fields = type.Fields.Where(field => field.Name == name).ToArray();
         if (fields.Length != 1 || !fields[0].IsPrivate || fields[0].IsStatic || fields[0].FieldType.FullName != capability)
             offenders.Add(TypeId(type) + ": requires its exact private instance capture " + name);
-        CheckSet(offenders, TypeId(type) + " captured capability field access", OwnedBodies(census)
-            .SelectMany(item => item.Body.Body.Instructions
-                .Where(instruction => instruction.Operand is FieldReference field && SameType(field.DeclaringType, type)
-                    && field.Name == name).Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name)), expected);
+        CheckSet(offenders, TypeId(type) + " captured capability field access", census.FieldInstructions(name)
+            .Where(item => SameType(item.Target.DeclaringType, type))
+            .Select(item => item.OwnerId + ":" + item.Instruction.OpCode.Name), expected);
     }
 
     [Fact]

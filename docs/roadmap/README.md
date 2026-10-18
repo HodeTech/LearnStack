@@ -143,7 +143,9 @@ owns the source-specific validation receipts.
 Step 8 durable recurrence and restricted fan-out is locally complete after both
 full review rounds and verified corrections; its
 [closeout](phase-02b-events-auth.md#step-8-full-review-round-2-2026-10-18)
-owns final qualification. Step 9 remains pending.
+owns final qualification. Step 9 enforcement and packet closeout are in progress;
+its [record](phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+owns current work and remaining qualification.
 Step 4's [lifecycle acceptance](phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
 composition qualification under Accepted ADR-0060; business execution stays Step 5.

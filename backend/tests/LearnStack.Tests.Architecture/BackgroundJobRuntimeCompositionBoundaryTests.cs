@@ -210,10 +210,9 @@ public sealed partial class OutboxDispatchConventionTests
         return offenders;
 
         void Exact(TypeDefinition type, string name, string target, string[] expected) =>
-            CheckSet(offenders, "exact runtime lifetime callers " + type.FullName + "." + name, ownedBodies
-                .SelectMany(item => item.Body.Body.Instructions.Where(instruction => instruction.Operand is MethodReference method
-                        && TargetsDeclaredType(method, type) && method.Name == name)
-                    .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name + ":" + MethodId((MethodReference)instruction.Operand))),
+            CheckSet(offenders, "exact runtime lifetime callers " + type.FullName + "." + name, census.MethodInstructions(name)
+                .Where(item => TargetsDeclaredType(item.Target, type))
+                .Select(item => item.OwnerId + ":" + item.Instruction.OpCode.Name + ":" + MethodId(item.Target)),
                 expected.Select(caller => caller + ":" + target));
 
         void CheckReadonlyField(TypeDefinition type, string name, string capability, string[] expected)

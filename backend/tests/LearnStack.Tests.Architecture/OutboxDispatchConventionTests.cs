@@ -459,13 +459,15 @@ public sealed partial class OutboxDispatchConventionTests
             }
         foreach (var method in census.Types.Values.SelectMany(type => type.Methods).Where(method => method.HasBody))
         {
-            var owner = method.Name == "MoveNext" && asyncOwners.TryGetValue(Key(method.DeclaringType), out var original)
-                ? original : MethodId(method);
+            string? owner = null;
             foreach (var instruction in method.Body.Instructions)
             {
                 // Includes call/callvirt, newobj, ldftn and ldvirtftn. A delegate
                 // cannot hide a capability just because its invocation occurs later.
-                if (instruction.Operand is MethodReference target) yield return (owner, target);
+                if (instruction.Operand is not MethodReference target) continue;
+                owner ??= method.Name == "MoveNext" && asyncOwners.TryGetValue(Key(method.DeclaringType), out var original)
+                    ? original : MethodId(method);
+                yield return (owner, target);
             }
         }
     }
@@ -545,6 +547,7 @@ public sealed partial class OutboxDispatchConventionTests
 
     private static void AssertDetectorScanCache(ProductionCensus census, ModuleDefinition module, MethodReference target)
     {
+        AssertDetectorInstructionIndexes(census, module, target);
         ReferenceEquals(census.Types, census.Types).Should().BeFalse("unscoped reads must rebuild after arbitrary metadata edits");
         ReferenceEquals(OwnedBodies(census), OwnedBodies(census)).Should().BeFalse("unscoped body ownership reads must remain fresh");
         var probeKey = (module.Assembly.Name.Name, "ReviewProbe.DetectorScanProbe");
@@ -574,6 +577,8 @@ public sealed partial class OutboxDispatchConventionTests
             _ = current.Types;
             _ = OwnedBodies(current);
             _ = CallSites(current);
+            _ = current.MethodInstructions(target.Name);
+            _ = current.FieldInstructions("_missing");
             throw failure;
         });
         failingScan.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(failure);
@@ -656,6 +661,32 @@ public sealed partial class OutboxDispatchConventionTests
         public IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> ReadOwnedBodies(IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> bodies) =>
             _scan is { } scan ? scan.OwnedBodies ??= Array.AsReadOnly(bodies.ToArray()) : bodies;
 
+        public IEnumerable<DetectorMethodInstruction> MethodInstructions(string name) => Instructions.Methods[name];
+        public IEnumerable<DetectorFieldInstruction> FieldInstructions(string name) => Instructions.Fields[name];
+
+        private DetectorInstructionIndex Instructions =>
+            _scan is { } scan ? scan.Instructions ??= BuildInstructions() : BuildInstructions();
+
+        private DetectorInstructionIndex BuildInstructions()
+        {
+            var methods = new List<DetectorMethodInstruction>();
+            var fields = new List<DetectorFieldInstruction>();
+            foreach (var (body, owner) in OwnedBodies(this))
+            {
+                foreach (var instruction in body.Body.Instructions)
+                {
+                    if (instruction.Operand is MethodReference method)
+                        methods.Add(new(body, owner, instruction, method));
+                    else if (instruction.Operand is FieldReference field)
+                        fields.Add(new(body, owner, instruction, field));
+                }
+            }
+            // Name is only a prefilter. Callers still compare the complete
+            // attached identity/opcode and preserve every occurrence in order.
+            return new(methods.ToLookup(item => item.Target.Name, StringComparer.Ordinal),
+                fields.ToLookup(item => item.Target.Name, StringComparer.Ordinal));
+        }
+
         private Dictionary<(string Assembly, string Type), TypeDefinition> BuildTypes() =>
             Modules.SelectMany(module => module.GetTypes()).ToDictionary(Key);
 
@@ -664,6 +695,7 @@ public sealed partial class OutboxDispatchConventionTests
             internal Dictionary<(string Assembly, string Type), TypeDefinition>? Types { get; set; }
             internal IReadOnlyList<(string Owner, MethodReference Target)>? CallSites { get; set; }
             internal IReadOnlyList<(MethodDefinition Body, MethodDefinition Owner)>? OwnedBodies { get; set; }
+            internal DetectorInstructionIndex? Instructions { get; set; }
 
             public void Dispose()
             {
@@ -671,6 +703,7 @@ public sealed partial class OutboxDispatchConventionTests
                 Types = null;
                 CallSites = null;
                 OwnedBodies = null;
+                Instructions = null;
             }
         }
 

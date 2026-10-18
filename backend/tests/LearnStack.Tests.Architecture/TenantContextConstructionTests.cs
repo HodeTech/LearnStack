@@ -11,7 +11,7 @@ namespace LearnStack.Tests.Architecture;
 /// where <see href="../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
 /// put them.
 /// </summary>
-public sealed class TenantContextConstructionTests
+public sealed partial class TenantContextConstructionTests
 {
     private static readonly Assembly Kernel = typeof(TenantContext).Assembly;
 
@@ -245,11 +245,8 @@ public sealed class TenantContextConstructionTests
         // Leg 1 — the SQL. Every organizations read in the source names both key
         // columns. Scanned rather than reflected: a raw command's text is a string
         // literal, which is exactly what a type-reference scan cannot see.
-        var reads = SourceScan.FilesContaining(SourceScan.SourceRoot, "FROM organizations", except: null);
-
-        reads.Should().BeEquivalentTo(
-            ["LearnStack.Infrastructure/MultiTenancy/OrganizationScopeValidator.cs"],
-            "a second raw reader of this table is a second place the composite key can be missed");
+        OrganizationReadOffenders(OrganizationSources()).Should().BeEmpty(
+            "ordinary reads keep both keys; only ADR-0047's exact bounded lifecycle enumeration is an exception");
 
         var validator = File.ReadAllText(Path.Combine(
             SourceScan.SourceRoot,
