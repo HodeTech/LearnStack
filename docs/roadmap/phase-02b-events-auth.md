@@ -8859,6 +8859,31 @@ final-head success. All seven required names and strict freshness remain enabled
 backend, integration and demo keep their unchanged twenty-minute job ceilings.
 The maintainer owns PR review and merge; no merge is claimed here.
 
+#### Hosted CI qualification follow-up (2026-10-18)
+
+The completed [run 39120501520](https://github.com/HodeTech/LearnStack/actions/runs/39120501520)
+at `2e1d227ad1e0150fcbdcbde8df6d68374dc2f682` is **failed**. Frontend,
+meta, secret scan and OpenAPI pass. Backend and integration reach their unchanged
+twenty-minute ceilings; backend's completed TRXs retain 2,452 Unit, 177 HTTP and
+four Contract passes, with Architecture unfinished. Integration has actual early
+native-supervisor failures as well as cancellation; no complete Docker TRX passes.
+
+The actual native preflight reports `collector_pipe` on the hosted kernel.
+Zero inherited core limits do not qualify a piped collector. Earlier topology
+failures may race that refusal, but their precise endpoint states are unrecorded.
+[ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md) proposes explicit
+disposable-VM provisioning authority; it is not accepted or implemented. ADR-0060
+does not allow a failed precondition to authorize a host-wide setting change.
+
+The demo hits its separate sixteen-minute outer setup/proof budget during final
+report handoff; its inner proof lasts 659.906 seconds. Twenty-seven clean report
+pairs on disk do not repair the incomplete 26-row accepted receipt. Cleanup is
+confirmed; the run remains failed. Independent corrections address repeated
+architecture identity work and duplicate migration/API builds, preserving all
+cases, assertions, complete filters and existing deadlines. Their qualification
+and final exact-head hosted success remain pending. The earlier local receipts
+and completed review rounds retain their stated scopes.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

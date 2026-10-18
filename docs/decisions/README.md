@@ -108,6 +108,7 @@ qualification remain pending.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0062 | [Native Crash Proof CI Provisioning](0062-native-crash-proof-ci-provisioning.md) | Proposed: explicitly bounded collector setup/restoration on the exclusive disposable hosted integration VM; unchanged native refusal/assertions | P02b-4 hosted CI qualification; approval before implementation |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains
