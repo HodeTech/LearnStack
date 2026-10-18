@@ -60,6 +60,7 @@ public sealed partial class BackgroundJobObservationTests
         ]));
         fixture.Time.Advance(TimeSpan.FromSeconds(10));
         fixture.ObserveRenewals(acknowledged: 2, historyConfirmed: 3);
+        fixture.ObserveRecurrence();
         using var probe = new Probe(fixture.Observer);
         var points = probe.Collect();
         One(points, "learnstack_job_control_total", ("operation", "renewal_acknowledged"), ("pool", "none")).Should().Be(2);
@@ -69,7 +70,16 @@ public sealed partial class BackgroundJobObservationTests
                 "generation", "expiration_invocation", "fetched_heartbeat_invocation", "bridge_acknowledged", "bridge_failed",
                 "bridge_deferred", "renewal_acknowledged", "renewal_history_confirmed", "retry_confirmed", "terminal_confirmed",
                 "uncertainty_observation",
+                "occurrence_acknowledged", "skipped_slot_acknowledged", "fanout_page_acknowledged",
+                "fanout_route_examined_acknowledged", "fanout_recipient_inserted_acknowledged", "fanout_completed_acknowledged",
             ]);
+        foreach (var (operation, expected) in new (string, long)[]
+                 {
+                     ("occurrence_acknowledged", 2), ("skipped_slot_acknowledged", 7), ("fanout_page_acknowledged", 3),
+                     ("fanout_route_examined_acknowledged", 11), ("fanout_recipient_inserted_acknowledged", 5),
+                     ("fanout_completed_acknowledged", 1),
+                 })
+            One(points, "learnstack_job_control_total", ("operation", operation), ("pool", "none")).Should().Be(expected);
         probe.Instruments.Order(StringComparer.Ordinal).Should().Equal(RequiredInstruments.Order(StringComparer.Ordinal));
         One(points, "learnstack_job_state_count", ("kind", "pending"), ("profile", "external")).Should().Be(4);
         One(points, "learnstack_job_state_count", ("kind", "deferred"), ("artifact", "job"), ("reason", "unknown")).Should().Be(2);
@@ -227,6 +237,19 @@ public sealed partial class BackgroundJobObservationTests
         {
             Set("_renewals", acknowledged);
             Set("_renewalsConfirmed", historyConfirmed);
+        }
+        internal void ObserveRecurrence()
+        {
+            var recurrence = typeof(BackgroundJobControl).GetField("_recurrence", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .GetValue(_control)!;
+            // Only listener projection; the real SQL owner is qualified separately.
+            foreach (var (name, value) in new (string, long)[]
+                     {
+                         ("_occurrences", 2), ("_skippedSlots", 7), ("_pages", 3), ("_routesExamined", 11),
+                         ("_recipientsInserted", 5), ("_fanoutsCompleted", 1),
+                     })
+                typeof(BackgroundJobRecurrenceControl).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .SetValue(recurrence, value);
         }
         private void Set(string name, object value) => typeof(BackgroundJobControl)
             .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(_control, value);

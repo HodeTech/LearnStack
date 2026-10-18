@@ -32,9 +32,10 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         {
             await SeedLifecycleTenantAsync(app, SchemaFixture.TenantA, SchemaFixture.OrgA1, "Active", false, true);
             await SeedLifecycleTenantAsync(app, SchemaFixture.TenantB, SchemaFixture.OrgB1, "Active", false, true);
+            await SeedLifecycleTenantAsync(app, RouteId(9000), RouteId(9001), "Suspended", false, true);
         }
         var today = await TodayAsync(database);
-        var manifest = Fixture.Manifest(today.AddDays(-1), today.AddDays(-1), period: TimeSpan.FromDays(30),
+        var manifest = Fixture.Manifest(today.AddDays(-61), today.AddDays(-61), period: TimeSpan.FromDays(30),
             target: organization ? "jobsrecurrencefixture.organization.v1" : "jobsrecurrencefixture.run.v1",
             policy: organization ? BackgroundJobRecipientPolicy.ServingOrganizations : BackgroundJobRecipientPolicy.ServingTenants);
         var executed = new ConcurrentQueue<(Guid Tenant, Guid? Organization)>();
@@ -52,8 +53,9 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
             configure: services => services.AddSingleton<IAuditCatalogSource>(new RecurrenceFixtureAuditSource()));
         await using var source = Source(database);
         using var globals = new RecurrenceGlobalFilters();
-        var bounds = new BackgroundJobRuntimeOptions { ControlPoll = TimeSpan.FromMilliseconds(50) };
+        var bounds = new BackgroundJobRuntimeOptions { ControlPoll = TimeSpan.FromMilliseconds(50), FanoutPageSize = 2 };
         var runtime = RecurrenceRuntime(host.Services, source, Fixture.Recurrences(manifest), bounds);
+        using var metrics = new BackgroundJobMetricProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         try
         {
             await runtime.StartAsync();
@@ -68,6 +70,9 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
                 (SchemaFixture.TenantB, organization ? (Guid?)SchemaFixture.OrgB1 : null),
             };
             executed.ToArray().Should().BeEquivalentTo(expected);
+            await RecurrenceEventuallyAsync(() => Task.FromResult(runtime.Snapshot.Control!.Recurrence!.FanoutsCompletedAcknowledged == 1));
+            AssertProgress();
+            AssertProgress();
 
             // Actual stock workers invoke the opaque tick wrapper. Each tick
             // must succeed while the durable occurrence remains the authority.
@@ -99,6 +104,8 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
             await RecurrenceEventuallyAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy));
             await using var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
             (await ReadAsync<long>(dispatcher, "SELECT count(*) FROM background_job_occurrences")).Should().Be(1);
+            (await ReadAsync<long>(dispatcher, "SELECT skipped_slots FROM background_job_occurrences")).Should().Be(2);
+            (await ReadAsync<long>(dispatcher, "SELECT count(*) FROM background_job_occurrences WHERE completed_at IS NOT NULL")).Should().Be(1);
             (await ReadAsync<long>(dispatcher, "SELECT count(*) FROM background_job_recipients")).Should().Be(2);
             (await ReadAsync<long>(dispatcher, "SELECT count(*) FROM background_jobs")).Should().Be(2);
             (await ReadAsync<long>(dispatcher, """
@@ -110,6 +117,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
                 """)).Should().Be(2);
             executed.ToArray().Should().BeEquivalentTo(expected);
             runtime.Snapshot.Control!.Recurrence!.RetainedApplications.Should().Be(0);
+            AssertProgress();
         }
         finally
         {
@@ -119,6 +127,29 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         }
         runtime.Snapshot.CleanupConfirmed.Should().BeTrue();
         runtime.Snapshot.Control!.Recurrence!.CleanupConfirmed.Should().BeTrue();
+
+        void AssertProgress()
+        {
+            var totals = runtime.Snapshot.Control!.Recurrence!;
+            totals.OccurrencesAcknowledged.Should().Be(1);
+            totals.SkippedSlotsAcknowledged.Should().Be(2);
+            totals.PagesAcknowledged.Should().Be(2);
+            totals.RoutesExaminedAcknowledged.Should().Be(3, "raw routes include the suspended tenant/organization");
+            totals.RecipientsInsertedAcknowledged.Should().Be(2);
+            totals.FanoutsCompletedAcknowledged.Should().Be(1);
+            var points = metrics.Read();
+            foreach (var (operation, value) in new (string, long)[]
+                     {
+                         ("occurrence_acknowledged", 1), ("skipped_slot_acknowledged", 2), ("fanout_page_acknowledged", 2),
+                         ("fanout_route_examined_acknowledged", 3), ("fanout_recipient_inserted_acknowledged", 2),
+                         ("fanout_completed_acknowledged", 1),
+                     })
+                BackgroundJobMetricProbe.One(points, "learnstack_job_control_total", ("operation", operation), ("pool", "none"))
+                    .Should().Be(value);
+            points.GroupBy(point => point.Name + ":" + string.Join(";", point.Tags.OrderBy(tag => tag.Key, StringComparer.Ordinal)
+                    .Select(tag => tag.Key + "=" + tag.Value)), StringComparer.Ordinal)
+                .Should().OnlyContain(group => group.Count() == 1);
+        }
     }
 
     private static BackgroundJobRuntime RecurrenceRuntime(IServiceProvider services, PrivilegedDataSource source,

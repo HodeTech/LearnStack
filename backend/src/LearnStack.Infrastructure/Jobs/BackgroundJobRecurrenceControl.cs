@@ -10,6 +10,12 @@ public sealed record BackgroundJobRecurrenceHealth(int ApplicationOwners, int Re
     bool NativeHealthy, bool CleanupConfirmed, bool HasQuarantinedControl, bool IsHealthy)
 {
     public long? ProgressTimestamp { get; init; }
+    public long OccurrencesAcknowledged { get; init; }
+    public long SkippedSlotsAcknowledged { get; init; }
+    public long PagesAcknowledged { get; init; }
+    public long RoutesExaminedAcknowledged { get; init; }
+    public long RecipientsInsertedAcknowledged { get; init; }
+    public long FanoutsCompletedAcknowledged { get; init; }
 }
 
 /// <summary>Fair durable quanta remain independent of native timers and actual application cleanup.</summary>
@@ -43,6 +49,7 @@ internal sealed class BackgroundJobRecurrenceControl
     private object? _sqlOperation;
     private bool _started, _stopping, _cleanupFault, _quarantined;
     private long? _progress;
+    private long _occurrences, _skippedSlots, _pages, _routesExamined, _recipientsInserted, _fanoutsCompleted;
     private int _turn, _keyCursor, _historyCursor, _tick;
 
     internal BackgroundJobRecurrenceControl(PrivilegedDataSource source, BackgroundJobDefinitionRegistry definitions,
@@ -88,6 +95,12 @@ internal sealed class BackgroundJobRecurrenceControl
                         && _deploymentMismatch.Count == 0 && !_quarantined)
                 {
                     ProgressTimestamp = _progress,
+                    OccurrencesAcknowledged = _occurrences,
+                    SkippedSlotsAcknowledged = _skippedSlots,
+                    PagesAcknowledged = _pages,
+                    RoutesExaminedAcknowledged = _routesExamined,
+                    RecipientsInsertedAcknowledged = _recipientsInserted,
+                    FanoutsCompletedAcknowledged = _fanoutsCompleted,
                 };
             }
         }
@@ -263,12 +276,32 @@ internal sealed class BackgroundJobRecurrenceControl
         lock (_sync)
         {
             _sqlOperation = operation;
+            ObserveProgress(operation.CommitAcknowledged, operation.Value);
             if (!operation.CleanupConfirmed) { _cleanupFault = true; return null; }
             _sqlOperation = null;
             _sqlFlight = null;
             _faults[turn] = operation.Failed || operation.CommitUncertain;
             if (!_faults[turn]) _progress = _time.GetTimestamp();
             return _faults[turn] ? null : operation;
+        }
+    }
+
+    // Called once under _sync after the actual store task returns. A value can
+    // precede COMMIT; cleanup refusal cannot erase an acknowledged transition.
+    private void ObserveProgress(bool acknowledged, object? value)
+    {
+        if (!acknowledged) return;
+        if (value is BackgroundJobMaterializedOccurrence occurrence)
+        {
+            _occurrences++;
+            _skippedSlots += occurrence.SkippedSlots;
+        }
+        else if (value is BackgroundJobOccurrencePage page)
+        {
+            _pages++;
+            _routesExamined += page.ExaminedRoutes;
+            _recipientsInserted += page.InsertedRecipients;
+            if (page.Completed) _fanoutsCompleted++;
         }
     }
 

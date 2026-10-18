@@ -167,6 +167,15 @@ public sealed partial class BackgroundJobObservation : IDisposable
             Add(control.Retries, "retry_confirmed");
             Add(control.Terminalized, "terminal_confirmed");
             Add(control.UnknownOutcomes, "uncertainty_observation");
+            if (control.Recurrence is { } recurrence)
+            {
+                Add(recurrence.OccurrencesAcknowledged, "occurrence_acknowledged");
+                Add(recurrence.SkippedSlotsAcknowledged, "skipped_slot_acknowledged");
+                Add(recurrence.PagesAcknowledged, "fanout_page_acknowledged");
+                Add(recurrence.RoutesExaminedAcknowledged, "fanout_route_examined_acknowledged");
+                Add(recurrence.RecipientsInsertedAcknowledged, "fanout_recipient_inserted_acknowledged");
+                Add(recurrence.FanoutsCompletedAcknowledged, "fanout_completed_acknowledged");
+            }
         }
         return points;
         void Add(long value, string operation, string pool = "none") =>

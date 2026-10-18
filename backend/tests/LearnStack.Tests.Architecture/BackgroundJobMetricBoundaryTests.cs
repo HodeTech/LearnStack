@@ -218,6 +218,18 @@ public sealed partial class OutboxDispatchConventionTests
             else roots.Add(test);
         }
         else offenders.Add("Missing actual control counter memory owner");
+        if (types.TryGetValue((InfrastructureAssembly, RcControl), out var recurrence))
+        {
+            var id = RequireBoundaryMethod(offenders, recurrence, "ObserveProgress", "System.Void", MethodAttributes.Private,
+                "System.Boolean", "System.Object");
+            roots.AddRange(recurrence.Methods.Where(method => MethodId(method) == id));
+            var caller = JobOwner(offenders, types, InfrastructureAssembly, RcControl, "ObserveSqlAsync");
+            CheckSet(offenders, "exact recurrence progress observation caller", census.MethodInstructions("ObserveProgress")
+                .Where(site => TargetsDeclaredType(site.Target, recurrence))
+                .Select(site => site.OwnerId + ":" + MethodId(site.Target) + ":" + site.Instruction.OpCode.Name),
+                [caller + ":" + id + ":call"]);
+        }
+        else offenders.Add("Missing actual recurrence progress memory owner");
         return roots;
     }
 
@@ -270,7 +282,7 @@ public sealed partial class OutboxDispatchConventionTests
         var ignored = new SortedSet<string>(StringComparer.Ordinal);
         var roots = JobMetricRoots(census, ignored);
         ignored.Should().BeEmpty();
-        roots.Should().HaveCount(9, "five actual collectors and four fixed-memory control recorders/predicates are independently reached");
+        roots.Should().HaveCount(10, "five actual collectors and five fixed-memory control/recurrence recorders or predicates are independently reached");
         var root = roots.Single(method => method.Name == "CollectCounts");
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var helper = AddProbe(application, "MetricMemoryHelper");
@@ -295,7 +307,7 @@ public sealed partial class OutboxDispatchConventionTests
             }
             finally { memory.Body.Instructions.Remove(indirect); }
             EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
-            foreach (var recorder in roots.Where(method => method.DeclaringType.FullName == OrchestrationControl))
+            foreach (var recorder in roots.Where(method => method.DeclaringType.FullName is OrchestrationControl or RcControl))
             {
                 var recorderCall = Instruction.Create(OpCodes.Call, recorder.Module.ImportReference(sql));
                 recorder.Body.Instructions.Insert(0, recorderCall);
@@ -311,6 +323,18 @@ public sealed partial class OutboxDispatchConventionTests
         }
         finally { root.Body.Instructions.Remove(call); application.Types.Remove(helper); }
         EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
+        AssertMutation(census, "an unlisted recurrence progress caller outside the actual awaited SQL observation", () =>
+        {
+            var owner = census.Types[(InfrastructureAssembly, RcControl)];
+            var extra = new MethodDefinition("InventRecurrenceProgress", MethodAttributes.Private, owner.Module.TypeSystem.Void);
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_1));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldnull));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Call, owner.Methods.Single(method => method.Name == "ObserveProgress")));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            owner.Methods.Add(extra);
+            return () => owner.Methods.Remove(extra);
+        }, RuntimeLifetimeOffenders);
 
         var callback = AddProbe(application, "CustomMetricCallback");
         callback.BaseType = application.ImportReference(typeof(MulticastDelegate));

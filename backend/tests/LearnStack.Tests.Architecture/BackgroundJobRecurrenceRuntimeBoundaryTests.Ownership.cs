@@ -9,7 +9,7 @@ public sealed partial class OutboxDispatchConventionTests
     private const string RcSignal = "System.Threading.Tasks.TaskCompletionSource";
     private static readonly (string Type, string[] Names)[] RecurrenceFieldNames =
     [
-        (RcControl, ["ApplicationOwnerLimit", "_sync", "_store", "_definitions", "_registry", "_projection", "_executor", "_runtime", "_bounds", "_time", "_recipients", "_nativeAfter", "_deploymentMismatch", "_nativeFailures", "_faults", "_stop", "_stopRequested", "_loopPublished", "_completion", "_stopRelay", "_completionObservation", "_client", "_native", "_sqlFlight", "_sqlOperation", "_started", "_stopping", "_cleanupFault", "_quarantined", "_progress", "_turn", "_keyCursor", "_historyCursor", "_tick"]),
+        (RcControl, ["ApplicationOwnerLimit", "_sync", "_store", "_definitions", "_registry", "_projection", "_executor", "_runtime", "_bounds", "_time", "_recipients", "_nativeAfter", "_deploymentMismatch", "_nativeFailures", "_faults", "_stop", "_stopRequested", "_loopPublished", "_completion", "_stopRelay", "_completionObservation", "_client", "_native", "_sqlFlight", "_sqlOperation", "_started", "_stopping", "_cleanupFault", "_quarantined", "_progress", "_occurrences", "_skippedSlots", "_pages", "_routesExamined", "_recipientsInserted", "_fanoutsCompleted", "_turn", "_keyCursor", "_historyCursor", "_tick"]),
         (RcRecipient, ["_executor", "_projection", "_bounds", "_time", "_cancellation", "_published", "_returned", "_issued", "_stop", "_completion", "_wait", "_cancel", "_observation", "_scheduled", "_retained", "_cleanupFailed", "_result", "<Claim>k__BackingField", "<Gate>k__BackingField"]),
         (RcNative, ["_client", "_runtime", "_published", "_result", "_completion", "_thread", "_observation", "_time", "_stopped", "_scheduled", "<Manifest>k__BackingField", "<StartedAt>k__BackingField"]),
         (RcClient, ["_manager"]),
@@ -50,7 +50,9 @@ public sealed partial class OutboxDispatchConventionTests
         Field(RcControl, "_bounds", "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", true,
             ".ctor:stfld get_Snapshot:ldfld get_Snapshot:ldfld ClaimAsync:ldfld RegisterAsync:ldfld ResolveOneAsync:ldfld RunAsync:ldfld");
         Field(RcControl, "_time", "System.TimeProvider", true,
-            ".ctor:stfld get_Snapshot:ldfld get_Snapshot:ldfld get_Snapshot:ldfld get_Snapshot:ldfld Start:ldfld Later:ldfld Later:ldfld <ResolveOneAsync>b__46_0:ldfld ClaimAsync:ldfld ObserveSqlAsync:ldfld RegisterAsync:ldfld RegisterAsync:ldfld RunAsync:ldfld");
+            ".ctor:stfld get_Snapshot:ldfld get_Snapshot:ldfld get_Snapshot:ldfld get_Snapshot:ldfld Start:ldfld Later:ldfld Later:ldfld <ResolveOneAsync>b__52_0:ldfld ClaimAsync:ldfld ObserveSqlAsync:ldfld RegisterAsync:ldfld RegisterAsync:ldfld RunAsync:ldfld");
+        foreach (var counter in new[] { "_occurrences", "_skippedSlots", "_pages", "_routesExamined", "_recipientsInserted", "_fanoutsCompleted" })
+            Field(RcControl, counter, "System.Int64", false, "get_Snapshot:ldfld ObserveProgress:ldfld ObserveProgress:stfld");
 
         Field(RcControl, "_recipients", "System.Collections.Generic.Dictionary`2<System.Guid," + RcPending + ">", true,
             ".ctor:stfld get_Snapshot:ldfld get_Snapshot:ldfld get_Snapshot:ldfld RequestStop:ldfld ClaimAsync:ldfld ClaimAsync:ldfld ClaimAsync:ldfld ClaimAsync:ldfld ObserveCompletionAsync:ldfld ResolveOneAsync:ldfld ResolveOneAsync:ldfld ResolveOneAsync:ldfld ResolveOneAsync:ldfld");
@@ -169,10 +171,10 @@ public sealed partial class OutboxDispatchConventionTests
             expected.Add(JobOwner(offenders, types, InfrastructureAssembly, RcControl, "ResolveOneAsync") + "::<pending>5__2:" + RcPending);
             // These four private compiler cache slots bind the named source callbacks; they are not general holders.
             var cache = RcControl + "/<>c";
-            expected.Add(InfrastructureAssembly + ":" + cache + "::<>9__38_0:System.Func`2<" + RcPending + ",System.Boolean>");
-            expected.Add(InfrastructureAssembly + ":" + cache + "::<>9__38_1:System.Func`2<" + RcPending + ",System.Boolean>");
-            expected.Add(InfrastructureAssembly + ":" + cache + "::<>9__42_0:System.Func`2<" + RcPending + "," + RcRecipient + ">");
-            expected.Add(InfrastructureAssembly + ":" + cache + "::<>9__52_0:System.Func`2<" + RcPending + "," + BoundaryTask + ">");
+            expected.Add(InfrastructureAssembly + ":" + cache + "::<>9__44_0:System.Func`2<" + RcPending + ",System.Boolean>");
+            expected.Add(InfrastructureAssembly + ":" + cache + "::<>9__44_1:System.Func`2<" + RcPending + ",System.Boolean>");
+            expected.Add(InfrastructureAssembly + ":" + cache + "::<>9__48_0:System.Func`2<" + RcPending + "," + RcRecipient + ">");
+            expected.Add(InfrastructureAssembly + ":" + cache + "::<>9__59_0:System.Func`2<" + RcPending + "," + BoundaryTask + ">");
             CheckSet(offenders, "whole-production concrete recurrence holders", actual, expected);
         }
 

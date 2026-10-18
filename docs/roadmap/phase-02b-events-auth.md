@@ -8240,6 +8240,45 @@ by this bounded cohort. Recurrence/bridge/lease/late accounting, nineteen-rule
 enforcement, whole regression and unchanged CI-budget qualification, and both
 full Step 9 reviews remain open. No catalogue obligation is promoted here.
 
+#### Recurrence progress qualification
+
+The actual recurrence owner records six fixed process totals from original
+acknowledged occurrence/page results before cleanup qualification. These cover
+inserted occurrences, skipped slots, pages, raw routes examined, inserted
+recipients and completed fanout cursors. Registration, native ticks, null results,
+unacknowledged values and later history add no original ACK. The existing
+eight-family metric inventory projects them through fixed control-total
+operations without identity labels, new SQL, sources, tasks or authority.
+
+Both-scope actual-runtime PostgreSQL cases examine three raw lifecycle routes,
+including a suspended tenant, and create two recipients in two pages. Independent
+stored state, child/context checks and actual listener samples establish one
+occurrence, two skipped slots and one completed cursor. Repeated collection and
+duplicate native ticks preserve the totals. Two isolated actual-store/owner-hook
+cases lose the physical COMMIT response after proving the server write: their
+nonnull results and later no-op queries never become acknowledged progress.
+They qualify occurrence and empty-page uncertainty, not native-runtime handoff
+or nonempty-page lost-ACK inserts.
+
+Eleven unit cases feed the actual generic owner observation hook with synthetic
+ACK facts and real resource-model cleanup. ACK plus failed cleanup preserves
+the totals and retained ownership; no ACK remains zero. This is not genuine
+PostgreSQL transaction/connection disposal-fault injection. Distinct scalar
+listener projection is supplementary to actual-runtime producer qualification.
+The transitive memory census includes the private recorder and rejects reached
+SQL and an extra caller; exact typed field access and emitted compiler cache
+owners remain pinned. The two source-review findings, a missing namespace import
+and assertion-failure teardown path, are corrected before the first build.
+The focused review has no remaining findings and supplies no full Step 9 credit.
+
+The CI-mode Release build has zero warnings/errors. All 384 Jobs unit, 52 focused
+Architecture and four PostgreSQL cases pass with zero failures/skips. The final
+366-source receipt is
+`10600bb7dd16c847e74001e3e1af3b375dc1e1057cbdf6c0ea1caeaab073a6b5`.
+Bridge/lease/late accounting, nineteen-rule enforcement, full regression,
+unchanged CI-budget qualification and both full Step 9 reviews remain open.
+No catalogue obligation is promoted by this slice.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

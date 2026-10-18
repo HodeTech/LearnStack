@@ -385,6 +385,16 @@ same-generation routing repair and changed ownership do not count. Physical ACK
 accounting precedes cleanup refusal without granting execution or cleanup
 authority. The fixed counter recorders invoke no listener and perform no SQL.
 
+Recurrence progress uses six fixed control-total operations: original acknowledged
+occurrences, skipped slots, recipient pages, raw routes examined, recipients
+inserted and completed fanouts. A completed fanout is its durable cursor marker,
+not completed child execution. Empty completed pages count; ineligible raw routes
+contribute to examined routes without fabricating recipients. Only an original
+physical COMMIT acknowledgement plus its typed progress result increments these
+process totals, before cleanup qualification. A returned value or later durable
+history cannot backfill a lost ACK. Native ticks and repeated collection add no
+progress. All six use `pool=none` without recurrence/tenant/identity labels.
+
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
 `tenancy:feature-flags`, `tenancy:settings`, `audit:config`, or
