@@ -677,6 +677,28 @@ def join_workload(pid, work, execution, cleanup):
     return status, forced
 
 
+WORKLOAD_FAULT_STAGES = {'testhost_membership': 'membership', 'dotnet': 'process',
+    'test_projects': 'projects', 'case_identity': 'identity', 'discovery_log': 'discovery',
+    'discover': 'discovery', 'results': 'progress', 'line': 'progress', 'poll': 'progress',
+    'trx_cases': 'trx', 'export_results': 'export', 'validate_results': 'results',
+    'workload': 'workload', 'read_bytes': 'read'}
+WORKLOAD_FAULT_KINDS = ((FileNotFoundError, 'missing_file'), (PermissionError, 'permission'),
+    (OSError, 'io'), (UnicodeError, 'encoding'), (TypeError, 'type'), (AttributeError, 'shape'),
+    (KeyError, 'key'), (ValueError, 'value'), (RuntimeError, 'runtime'),
+    (subprocess.TimeoutExpired, 'process_timeout'))
+
+
+def workload_fault(failure):
+    # Never stringify an exception or emit provider frames/types/filenames.
+    kind = next((label for known, label in WORKLOAD_FAULT_KINDS if isinstance(failure, known)), 'other')
+    stage, frame = 'other', failure.__traceback__
+    while frame is not None:
+        if frame.tb_frame.f_code.co_filename == __file__:
+            stage = WORKLOAD_FAULT_STAGES.get(frame.tb_frame.f_code.co_name, stage)
+        frame = frame.tb_next
+    return 'workload_internal_' + stage + '_' + kind
+
+
 def leaf(mode):
     context = identity(mode)
     unit, private, output = locations(mode, context)
@@ -702,7 +724,7 @@ def leaf(mode):
             workload(mode, context, private, output, execution, base + '/work')
             os._exit(0)
         except BaseException as failure:
-            reason = failure.reason if isinstance(failure, Refusal) else 'workload_internal_refusal'
+            reason = failure.reason if isinstance(failure, Refusal) else workload_fault(failure)
             write_json(private / 'workload.json', {'protocol': PROTOCOL, 'success': False, 'error': reason})
             os._exit(1)
     # Kill/join on failure keeps the entire retained work subtree accounted for,
@@ -1014,6 +1036,9 @@ def workload_failure(private):
                'execution_incomplete', 'completed_case_unexpected', 'actual_testhost_not_observed',
                'preexisting_testhost', 'testhost_outside_owned_subtree', 'tests_failed', 'deadline_exhausted',
                'workload_internal_refusal', 'console_bound', 'launcher_join_failed'}
+    allowed.update('workload_internal_' + stage + '_' + kind
+                   for stage in {*WORKLOAD_FAULT_STAGES.values(), 'other'}
+                   for kind in {label for _, label in WORKLOAD_FAULT_KINDS} | {'other'})
     try:
         value = json.loads(read_bytes(private / 'workload.json', 4096))
         require(isinstance(value, dict) and value.get('protocol') == PROTOCOL

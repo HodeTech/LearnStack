@@ -9339,6 +9339,14 @@ volume artifact still appears; malformed and post-scan-changing metadata cannot
 make the result clean. No developer Docker state or host collector is changed.
 Focused review and actual hosted qualification still precede closure.
 
+The first fresh focused scope review approves `7cd07a18` without findings and
+independently passes all 32 controls. A second fresh independent review follows.
+Run 39145489321's ordinary job separately records `workload_internal_refusal`;
+its failure remains red. The child now classifies unexpected faults solely by
+a fixed owner-stage map and finite exception families, never exception text,
+provider type names, filenames or stack output. The closed fact supplements
+the failed receipt; no retry, passing result or completion witness is invented.
+
 ADR-0062's reopen condition is met. Proposed
 [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) describes one
 backend-base VM retaining non-test gates and cheap non-Docker suites, four

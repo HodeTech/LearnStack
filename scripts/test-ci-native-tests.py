@@ -833,6 +833,25 @@ except launcher.Refusal as failure:
         path.write_text('PRIVATE-CANARY invalid JSON')
         self.assertEqual('workload_diagnostic_unavailable', self.owner.workload_failure(private))
 
+    def test_internal_workload_fault_keeps_only_closed_owner_stage_and_exception_class(self):
+        private = self.root / 'private-fault'
+        private.mkdir()
+        try:
+            self.owner.case_identity({'DisplayName': 'PRIVATE-CANARY', 'Id': self.case(1)['id'],
+                                      'Source': None}, 'LearnStack.Tests.Integration')
+        except TypeError as failure:
+            reason = self.owner.workload_fault(failure)
+        else:
+            self.fail('The invalid protocol source must actually fail')
+        self.assertEqual('workload_internal_identity_type', reason)
+        self.owner.write_json(private / 'workload.json', {'protocol': 1, 'success': False, 'error': reason})
+        self.assertEqual(reason, self.owner.workload_failure(private))
+        for failure, kind in ((FileNotFoundError('PRIVATE-CANARY'), 'missing_file'),
+                              (PermissionError('PRIVATE-CANARY'), 'permission'),
+                              (OSError('PRIVATE-CANARY'), 'io'), (RuntimeError('PRIVATE-CANARY'), 'runtime'),
+                              (Exception('PRIVATE-CANARY'), 'other')):
+            self.assertEqual('workload_internal_other_' + kind, self.owner.workload_fault(failure))
+
     def test_malformed_ownership_still_writes_failed_completion_receipt(self):
         private, output = self.root / 'private', self.root / 'output'
         (self.bin / 'cgroup/cgroup.controllers').touch()
