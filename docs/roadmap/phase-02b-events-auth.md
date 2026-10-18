@@ -9657,6 +9657,15 @@ Step 2's implementation commit and two fresh independent reviews follow before
 Step 3 begins. The general CI catalogue rule remains Registered; no final-source
 hosted success, complete packet CI or merge is claimed.
 
+**Step 2 review round 1.** A fresh `gpt-6.1-sol` reviewer at `xhigh` reviews
+`357b97fd..17f9cd4f` and approves with no actionable finding. All 31 shard,
+38 launcher and 18 provisioning controls independently pass. The reviewer checks
+the authority split, independent pre-execution selection, exact results,
+retained lifecycle/deadlines and honest resource/toolchain observations against
+the Accepted decisions and primary Linux/systemd sources. This unprivileged
+review does not supply actual hosted containment or fit. The second fresh review
+is required before Step 3 begins.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
