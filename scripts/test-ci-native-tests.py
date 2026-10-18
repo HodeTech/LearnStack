@@ -412,7 +412,10 @@ except launcher.Refusal as failure:
         rows = [json.loads(line) for line in stream.getvalue().splitlines()]
         self.assertTrue(all(set(row) == {'assembly', 'id', 'name', 'outcome', 'duration'}
                             and row['outcome'] == 'Failed' for row in rows))
-        self.assertEqual(7, len(self.owner.FAILURE_SOURCES))
+        expected = {path.name for path in (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database').glob(
+            'BackgroundJobRuntimeFacadeTests*.cs')} | {'PublicAdmissionRenderingTests.cs'}
+        self.assertEqual(expected, set(self.owner.FAILURE_SOURCES))
+        self.assertEqual(len(expected), len(set(self.owner.FAILURE_SOURCES.values())))
         for filename, code in self.owner.FAILURE_SOURCES.items():
             self.assertTrue((ROOT / 'backend/tests/LearnStack.Tests.Integration/Database' / filename).is_file())
             progress.failure_locations.clear()
@@ -471,7 +474,7 @@ except launcher.Refusal as failure:
                             and item['reason'] == 'None' for item in value['pools']))
         self.assertTrue(all(item['heartbeat'] == {'entries': 1, 'attempts': 2, 'phase': 'Invoking'}
                             for item in value['pools']))
-        for phase in ('Created', 'Acquiring', 'Disposing', 'Returned'):
+        for phase in ('Created', 'Acquiring', 'PhysicalOpening', 'Disposing', 'Returned'):
             changed = parse(case, {'ErrorMessage': message.replace('Phase = Invoking', 'Phase = ' + phase)})
             self.assertTrue(all(item['heartbeat']['phase'] == phase for item in changed['pools']))
         for changed in (message.replace(heartbeat, ''), message.replace('Entries = 1', 'Entries = -1'),

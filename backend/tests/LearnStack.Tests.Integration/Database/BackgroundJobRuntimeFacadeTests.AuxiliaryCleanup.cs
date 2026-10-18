@@ -42,6 +42,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var waiterReturned = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstJob = new TaskCompletionSource<BackgroundJobId>(TaskCreationOptions.RunContinuationsAsynchronously);
         var followOnJob = new TaskCompletionSource<BackgroundJobId>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var followOnStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var organizationTime = DateTimeOffset.UtcNow;
         var firstOrganization = Guid.CreateVersion7(organizationTime);
         var nextOrganization = Guid.CreateVersion7(organizationTime);
@@ -67,7 +68,11 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 context.JobId.Should().NotBeNull("business execution always carries its admitted job identity");
                 if (first) firstJob.TrySetResult(context.JobId!.Value);
                 var originalJob = context.JobId == await firstJob.Task;
-                if (!originalJob) context.JobId.Should().Be(await followOnJob.Task);
+                if (!originalJob)
+                {
+                    context.JobId.Should().Be(await followOnJob.Task);
+                    followOnStarted.TrySetResult();
+                }
                 var organization = originalJob ? firstOrganization : nextOrganization;
                 var written = await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
                     OrganizationId.From(organization), "job-aux-" + organization.ToString("N"), "Job auxiliary"), token);
@@ -135,11 +140,13 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var runtime = Runtime(host.Services, source, bounds, new(true, 52));
         HangfireGeneration? generation = null;
         var verified = false;
+        Exception? testFailure = null;
         var lockReleased = false;
         try
         {
             await runtime.StartAsync();
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+            await EnsureQualificationStartAsync(runtime, source, job, published.Task);
             var owner = await published.Task.WaitAsync(TestWait);
             await waiterReturned.Task.WaitAsync(TestWait);
             await auxiliary.Entered.Task.WaitAsync(TestWait);
@@ -239,6 +246,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                     .Should().Be(0, "the original retry cannot consume the independent job's fixture resource");
                 var healthy = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
                 followOnJob.TrySetResult(healthy);
+                await EnsureQualificationStartAsync(runtime, source, healthy, followOnStarted.Task);
                 try { await EventuallyAsync(() => NativeBusinessCompletedAsync(database, source, healthy)); }
                 catch (TimeoutException)
                 {
@@ -283,39 +291,43 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             }
             verified = true;
         }
+        catch (Exception failure) { testFailure = failure; }
         finally
         {
-            auxiliary.Release.TrySetResult();
-            callback.Release.TrySetResult();
-            if (!lockReleased) await locked.RollbackAsync();
-            if (actual is not null)
+            await PreserveNativeBodyFailureAsync(testFailure, async () =>
             {
-                await actual.WaitAsync(TestWait).ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext | ConfigureAwaitOptions.SuppressThrowing);
-                actual.IsCompleted.Should().BeTrue("the fixture releases and joins its actual auxiliary operation");
-            }
-            if (borrowed is not null && cleanup is not null) borrowed.StateChange -= cleanup;
-            privateCallback.Dispose();
-            runtime.RequestStop();
-            if (!dirty && verified)
-            {
-                await runtime.StopAsync().WaitAsync(TestWait);
-                await runtime.Completion.WaitAsync(TestWait);
-                await DisposePinnedSourceAsync(source);
-            }
-            else
-            {
-                // The disposal-fault witness deliberately cannot release its
-                // invocation. Join actual stock/control/shared I/O before the
-                // isolated database is removed, without inventing positive cleanup.
-                // The same finite cleanup preserves an earlier failed assertion
-                // when the regression under test permanently retained clean work.
-                using var finiteWait = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
-                try { await runtime.StopAsync(finiteWait.Token); }
-                catch (OperationCanceledException) when (finiteWait.IsCancellationRequested) { }
-                await EventuallyAsync(() => Task.FromResult(AuxiliaryCleanupStockJoined(runtime)
-                    && runtime.Snapshot.Control!.CleanupConfirmed
-                    && runtime.Snapshot.Maintenance.All(component => component.ActualJoined)));
-            }
+                auxiliary.Release.TrySetResult();
+                callback.Release.TrySetResult();
+                if (!lockReleased) await locked.RollbackAsync();
+                if (actual is not null)
+                {
+                    await actual.WaitAsync(TestWait).ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext | ConfigureAwaitOptions.SuppressThrowing);
+                    actual.IsCompleted.Should().BeTrue("the fixture releases and joins its actual auxiliary operation");
+                }
+                if (borrowed is not null && cleanup is not null) borrowed.StateChange -= cleanup;
+                privateCallback.Dispose();
+                runtime.RequestStop();
+                if (!dirty && verified)
+                {
+                    await runtime.StopAsync().WaitAsync(TestWait);
+                    await runtime.Completion.WaitAsync(TestWait);
+                    await DisposePinnedSourceAsync(source);
+                }
+                else
+                {
+                    // The disposal-fault witness deliberately cannot release its
+                    // invocation. Join actual stock/control/shared I/O before the
+                    // isolated database is removed, without inventing positive cleanup.
+                    // The same finite cleanup preserves an earlier failed assertion
+                    // when the regression under test permanently retained clean work.
+                    using var finiteWait = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+                    try { await runtime.StopAsync(finiteWait.Token); }
+                    catch (OperationCanceledException) when (finiteWait.IsCancellationRequested) { }
+                    await EventuallyAsync(() => Task.FromResult(AuxiliaryCleanupStockJoined(runtime)
+                        && runtime.Snapshot.Control!.CleanupConfirmed
+                        && runtime.Snapshot.Maintenance.All(component => component.ActualJoined)));
+                }
+            });
         }
     }
 

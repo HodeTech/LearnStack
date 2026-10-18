@@ -80,13 +80,30 @@ CANCELLED = False
 SHARDS = None
 STARTUP_FAILURES = {'resource_controllers_unavailable', 'work_cgroup_not_empty',
                     'cgroup_kill_unavailable', 'startup_io_refused', 'startup_internal_refusal'}
-FAILURE_SOURCES = {'BackgroundJobRuntimeFacadeTests.ControlFailures.cs': 'facade_control_failure',
-                   'BackgroundJobRuntimeFacadeTests.CapacityNoStart.cs': 'facade_capacity_no_start',
-                   'BackgroundJobRuntimeFacadeTests.CapacityAdmission.cs': 'facade_capacity_admission',
-                   'BackgroundJobRuntimeFacadeTests.CapacityCleanup.cs': 'facade_capacity_cleanup',
-                   'BackgroundJobRuntimeFacadeTests.CapacityControl.cs': 'facade_capacity_control',
-                   'BackgroundJobRuntimeFacadeTests.HeartbeatCutoff.cs': 'facade_heartbeat_cutoff',
-                   'PublicAdmissionRenderingTests.cs': 'public_admission'}
+FAILURE_SOURCES = {
+    'BackgroundJobRuntimeFacadeTests.AuxiliaryCleanup.cs': 'facade_auxiliary_cleanup',
+    'BackgroundJobRuntimeFacadeTests.Business.cs': 'facade_business',
+    'BackgroundJobRuntimeFacadeTests.CapacityAdmission.cs': 'facade_capacity_admission',
+    'BackgroundJobRuntimeFacadeTests.CapacityAdmissionRollback.cs': 'facade_capacity_admission_rollback',
+    'BackgroundJobRuntimeFacadeTests.CapacityCheckpoint.cs': 'facade_capacity_checkpoint',
+    'BackgroundJobRuntimeFacadeTests.CapacityCleanup.cs': 'facade_capacity_cleanup',
+    'BackgroundJobRuntimeFacadeTests.CapacityControl.cs': 'facade_capacity_control',
+    'BackgroundJobRuntimeFacadeTests.CapacityNoStart.cs': 'facade_capacity_no_start',
+    'BackgroundJobRuntimeFacadeTests.CapacityStop.cs': 'facade_capacity_stop',
+    'BackgroundJobRuntimeFacadeTests.CapacityTakeover.cs': 'facade_capacity_takeover',
+    'BackgroundJobRuntimeFacadeTests.CombinedPhysicalCapacity.cs': 'facade_combined_physical_capacity',
+    'BackgroundJobRuntimeFacadeTests.CommitFaults.cs': 'facade_commit_faults',
+    'BackgroundJobRuntimeFacadeTests.ComposedLifetime.cs': 'facade_composed_lifetime',
+    'BackgroundJobRuntimeFacadeTests.ControlFailures.cs': 'facade_control_failure',
+    'BackgroundJobRuntimeFacadeTests.Diagnostics.cs': 'facade_diagnostics',
+    'BackgroundJobRuntimeFacadeTests.HandoffQualification.cs': 'facade_handoff_qualification',
+    'BackgroundJobRuntimeFacadeTests.HeartbeatCutoff.cs': 'facade_heartbeat_cutoff',
+    'BackgroundJobRuntimeFacadeTests.Lifetime.cs': 'facade_lifetime',
+    'BackgroundJobRuntimeFacadeTests.Metrics.cs': 'facade_metrics',
+    'BackgroundJobRuntimeFacadeTests.ReviewHealth.cs': 'facade_review_health',
+    'BackgroundJobRuntimeFacadeTests.cs': 'facade_runtime',
+    'PublicAdmissionRenderingTests.cs': 'public_admission',
+}
 PUBLIC_FAILURE_STAGES = {
     'configuration', 'wire mutant', 'wire positive request', 'wire positive safety',
     'wire positive status', 'wire positive site', 'wire positive release', 'wire positive accounting',
@@ -154,7 +171,7 @@ def closed_failure_details(case, raw):
             observed = {'pool': pool, 'reason': match[9],
                         **{name: match[index + 1] == 'True' for index, name in enumerate(fields)}}
             heartbeat = re.match(r';heartbeat=HangfireHeartbeatDiagnostic \{ Entries = ([0-9]{1,5}), '
-                                 r'Attempts = ([0-9]{1,5}), Phase = (Created|Acquiring|Invoking|Disposing|Returned) \}',
+                                 r'Attempts = ([0-9]{1,5}), Phase = (Created|Acquiring|PhysicalOpening|Invoking|Disposing|Returned) \}',
                                  message[match.end():])
             if heartbeat and int(heartbeat[1]) <= 10000 and int(heartbeat[2]) <= 10000:
                 observed['heartbeat'] = {'entries': int(heartbeat[1]), 'attempts': int(heartbeat[2]),

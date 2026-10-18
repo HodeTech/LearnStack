@@ -13,6 +13,8 @@ public sealed class HangfireConnectionFactory(PrivilegedDataSource source, Backg
     {
         if (gate?.TryAdmitStorage() == false)
             throw new InvalidOperationException("The job storage acquisition gate is closed.");
-        return _source.OpenConnection();
+        PoolHangfireLifecycleOperation.ObservePhysicalOpening();
+        try { return _source.OpenConnection(); }
+        finally { PoolHangfireLifecycleOperation.ObservePhysicalOpened(); }
     }
 }

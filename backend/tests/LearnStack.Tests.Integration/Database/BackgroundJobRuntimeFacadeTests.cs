@@ -248,12 +248,13 @@ public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema
         return (bool)(await command.ExecuteScalarAsync())!;
     }
 
-    private static async Task<string?> VendorAsync(PrivilegedDataSource source, BackgroundJobId job)
+    private static async Task<string?> VendorAsync(PrivilegedDataSource source, BackgroundJobId job,
+        CancellationToken cancellationToken = default)
     {
-        await using var connection = await source.OpenConnectionAsync();
+        await using var connection = await source.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand("SELECT vendor_job_id FROM background_jobs WHERE id=@id", connection);
         command.Parameters.AddWithValue("id", job.Value);
-        return await command.ExecuteScalarAsync() as string;
+        return await command.ExecuteScalarAsync(cancellationToken) as string;
     }
 
     private static async Task<string?> StateAsync(PrivilegedDataSource source, string vendor)

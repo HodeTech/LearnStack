@@ -9943,6 +9943,52 @@ separately and probes actual compiled phases, numeric boundaries and privacy.
 The observation supplies no root-cause correction or ownership witness.
 Actual hosted root causes and complete final-source A/B remain open.
 
+**Candidate `89fd8450` and native qualification corrections.** Run
+39176455522 finishes with 22 successful jobs and five failures: ordinary-1,
+ordinary-3, ordinary-4, ordinary-9 and their integration aggregate. All six
+Architecture shards, base, native and the other five protected checks pass.
+The independently hashed ordinary-9 artifact records all three metadata
+heartbeats inside their first stock invocation, without a published fault,
+89,553 milliseconds after the database pause. This narrows the observation
+to the provider invocation; it does not distinguish physical acquisition,
+SQL or provider release. An owned Linux ARM64 experiment using the hosted
+SDK version, 10.0.402, returns paused pooled calls within 15.014 seconds and
+fresh opens within 5.009 seconds. It does not reproduce hosted x64 behavior.
+
+The other three failed cases concern the lost capacity checkpoint ACK,
+completion after row-lock expiry, and retained auxiliary cleanup. Their
+original failure locations are absent from the previous closed map. Source
+inspection also verifies a qualification race: a native hint can complete
+without business admission while the bridge ACK holds the application row;
+the committed ACK then leaves repair behind its accepted grace, longer than
+the fixture's initial wait. A new real-PostgreSQL control deliberately locks
+that row, observes the actual skipped native hint and zero business attempts,
+commits the real ACK, and resends through the real stock provider. Exactly
+one business execution and attempt complete. This proves the fixture gap is
+reachable; it does not establish the cause of earlier hosted failures.
+
+Execution-focused fixtures now observe either their actual start signal or
+the committed bridge ACK before supplying that additional native hint. A
+started body need not wait for an ACK blocked by its own row lock. Existing
+repair, lease, execution and cleanup bounds remain unchanged. Their explicit
+finally blocks preserve the original body failure together with a cleanup
+failure. This does not claim to cover every later implicit disposal fault.
+All facade source basenames join the fixed diagnostic map. A thread-local,
+synchronous observation adds PhysicalOpening around the actual connection
+factory; it has no admission, retry or cleanup authority and does not flow
+into child work.
+
+Local validation passes the warnings-as-errors Release build, all 2,452 unit
+cases, eight actual PostgreSQL regression rows, five affected Architecture
+boundary cases, forty launcher controls and 49 selector/result controls,
+without skips. Two deliberately failed pinned-xUnit wire cases retain both
+original and cleanup source locations and the three actual compiled
+PhysicalOpening records, while private canaries remain absent. The earlier
+full Architecture run passes 410 cases at `2c7d4300`/`89fd8450`; the five
+focused cases cover the changed production boundary. Two fresh correction
+reviews precede publication. Actual hosted root causes and the two complete
+final-source A/B attempts remain open.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

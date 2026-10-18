@@ -114,7 +114,7 @@ internal abstract class PoolHangfireLifecycle
 }
 
 internal enum PoolHangfireLifecycleMethod { Announce, Heartbeat, Remove }
-internal enum PoolHangfireLifecyclePhase { Created, Acquiring, Invoking, Disposing, Returned }
+internal enum PoolHangfireLifecyclePhase { Created, Acquiring, PhysicalOpening, Invoking, Disposing, Returned }
 
 internal sealed record PoolHangfireLifecycleResult(Exception? Failure, Exception? DisposalFailure)
 {
@@ -125,6 +125,9 @@ internal sealed record PoolHangfireLifecycleResult(Exception? Failure, Exception
 internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool readOnly,
     PoolHangfireLifecycleMethod method, string serverId, ServerContext? context, PoolHangfireStorage? contract = null)
 {
+    // The pinned lifecycle and connection factory are synchronous. This observer
+    // never flows to child work and carries no admission or cleanup authority.
+    [ThreadStatic] private static PoolHangfireLifecycleOperation? _observedOperation;
     private readonly object _gate = new();
     private IStorageConnection? _retainedConnection;
     private bool _executing;
@@ -137,6 +140,18 @@ internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool r
     // Observation only: Returned does not attest successful disposal or child join.
     internal PoolHangfireLifecyclePhase Phase => (PoolHangfireLifecyclePhase)Volatile.Read(ref _phase);
     internal int Attempts => Volatile.Read(ref _attempts);
+
+    internal static void ObservePhysicalOpening()
+    {
+        if (_observedOperation is { } operation)
+            Volatile.Write(ref operation._phase, (int)PoolHangfireLifecyclePhase.PhysicalOpening);
+    }
+
+    internal static void ObservePhysicalOpened()
+    {
+        if (_observedOperation is { } operation)
+            Volatile.Write(ref operation._phase, (int)PoolHangfireLifecyclePhase.Invoking);
+    }
 
     internal bool RetainsConnection
     {
@@ -159,6 +174,8 @@ internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool r
         Exception? failure = null;
         Exception? disposalFailure = null;
         var invoked = false;
+        var previous = _observedOperation;
+        _observedOperation = this;
         try
         {
             Volatile.Write(ref _phase, (int)PoolHangfireLifecyclePhase.Acquiring);
@@ -198,6 +215,7 @@ internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool r
                     _executing = false;
                     Volatile.Write(ref _phase, (int)PoolHangfireLifecyclePhase.Returned);
                 }
+                _observedOperation = previous;
             }
         }
         return new(failure, disposalFailure);

@@ -44,12 +44,14 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         using var traces = new BackgroundJobTraceProbe(observation);
         await using var locker = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.OutboxConnectionString);
         NpgsqlTransaction? locked = null;
+        Exception? testFailure = null;
         try
         {
             await runtime.StartAsync(deadline.Token);
             await EventuallyQualificationAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy), deadline.Token);
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
+            await EnsureQualificationStartAsync(runtime, source, job, proxy.CommitResponseHeld, deadline.Token);
             await proxy.CommitResponseHeld.WaitAsync(deadline.Token);
             proxy.CompletedCommits.Should().Be(3, "the checkpoint is the third actual app COMMIT after framework read and admission");
             var execution = NativeCommitExecution(runtime, job);
@@ -95,24 +97,28 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             historical.Value.CurrentRecoveryAuthority.Should().BeFalse("terminal routing cleared ownership without erasing immutable cleanup history");
             await AssertNoNativeProviderRetryAsync(source, job, deadline.Token);
         }
+        catch (Exception failure) { testFailure = failure; }
         finally
         {
-            proxy.ReleaseHeldResponse();
-            try
+            await PreserveNativeBodyFailureAsync(testFailure, async () =>
             {
-                if (locked is not null)
+                proxy.ReleaseHeldResponse();
+                try
                 {
-                    try { await locked.RollbackAsync(); }
-                    finally { await locked.DisposeAsync(); }
+                    if (locked is not null)
+                    {
+                        try { await locked.RollbackAsync(); }
+                        finally { await locked.DisposeAsync(); }
+                    }
                 }
-            }
-            finally
-            {
-                using var cleanup = new CancellationTokenSource(TestWait);
-                await runtime.StopAsync(cleanup.Token);
-                await runtime.Completion.WaitAsync(cleanup.Token);
-                await DisposePinnedSourceAsync(source);
-            }
+                finally
+                {
+                    using var cleanup = new CancellationTokenSource(TestWait);
+                    await runtime.StopAsync(cleanup.Token);
+                    await runtime.Completion.WaitAsync(cleanup.Token);
+                    await DisposePinnedSourceAsync(source);
+                }
+            });
         }
     }
 }

@@ -43,11 +43,13 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var runtime = Runtime(host.Services, source, bounds, physical);
         await using var locker = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.OutboxConnectionString);
         NpgsqlTransaction? locked = null;
+        Exception? testFailure = null;
         try
         {
             await runtime.StartAsync();
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
+            await EnsureQualificationStartAsync(runtime, source, job, proxy.CommitResponseHeld);
             await proxy.CommitResponseHeld.WaitAsync(TestWait);
             proxy.CompletedCommits.Should().Be(3, "the held COMMIT is the actual app cleanup checkpoint after a rolled-back business owner");
             await AssertNativeCapacityReleaseAsync(database, job, "transactional_rollback", cleanup: true);
@@ -73,13 +75,17 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             calls.Should().Be(1);
             probe.Constructions.Should().Equal("CapacityRoot");
         }
+        catch (Exception failure) { testFailure = failure; }
         finally
         {
-            proxy.ReleaseHeldResponse();
-            if (locked is not null) { await locked.RollbackAsync(); await locked.DisposeAsync(); }
-            await runtime.StopAsync().WaitAsync(TestWait);
-            await runtime.Completion.WaitAsync(TestWait);
-            await DisposePinnedSourceAsync(source);
+            await PreserveNativeBodyFailureAsync(testFailure, async () =>
+            {
+                proxy.ReleaseHeldResponse();
+                if (locked is not null) { await locked.RollbackAsync(); await locked.DisposeAsync(); }
+                await runtime.StopAsync().WaitAsync(TestWait);
+                await runtime.Completion.WaitAsync(TestWait);
+                await DisposePinnedSourceAsync(source);
+            });
         }
     }
 }

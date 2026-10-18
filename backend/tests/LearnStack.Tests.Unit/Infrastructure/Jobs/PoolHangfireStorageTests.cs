@@ -6,6 +6,7 @@ using Hangfire.PostgreSql;
 using Hangfire.Server;
 using Hangfire.Storage;
 using LearnStack.Infrastructure.Jobs;
+using LearnStack.Infrastructure.Persistence;
 using NSubstitute;
 using Xunit;
 
@@ -209,6 +210,12 @@ public sealed class PoolHangfireStorageTests
         var inner = Substitute.For<JobStorageConnection>();
         var failure = new InvalidOperationException("fixture fault");
         var lifecycle = new RecordingLifecycle();
+        using var source = new PrivilegedDataSource(() =>
+        {
+            lifecycle.Operation!.Phase.Should().Be(PoolHangfireLifecyclePhase.PhysicalOpening);
+            throw failure;
+        });
+        var factory = new HangfireConnectionFactory(source);
         provider.GetConnection().Returns(_ =>
         {
             lifecycle.Operation!.Phase.Should().Be(PoolHangfireLifecyclePhase.Acquiring);
@@ -217,7 +224,7 @@ public sealed class PoolHangfireStorageTests
         void InvokeProvider()
         {
             lifecycle.Operation!.Phase.Should().Be(PoolHangfireLifecyclePhase.Invoking);
-            if (fault == "invoke") throw failure;
+            if (fault == "invoke") factory.GetOrCreateConnection();
         }
         inner.When(connection => connection.AnnounceServer(Arg.Any<string>(), Arg.Any<ServerContext>())).Do(_ => InvokeProvider());
         inner.When(connection => connection.Heartbeat(Arg.Any<string>())).Do(_ => InvokeProvider());
@@ -236,6 +243,14 @@ public sealed class PoolHangfireStorageTests
         lifecycle.Operation!.RetainsConnection.Should().Be(fault == "dispose");
         lifecycle.Operation.Phase.Should().Be(PoolHangfireLifecyclePhase.Returned);
         lifecycle.Operation.Attempts.Should().Be(1);
+        if (fault == "invoke")
+        {
+            // A cached source-factory refusal outside the completed lifecycle
+            // must not mutate its diagnostic through a leaked thread slot.
+            var outside = () => factory.GetOrCreateConnection();
+            outside.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(failure);
+            lifecycle.Operation.Phase.Should().Be(PoolHangfireLifecyclePhase.Returned);
+        }
         wrapper.Dispose();
         wrapper.Dispose();
         inner.Received(fault == "acquire" ? 0 : 1).Dispose();
