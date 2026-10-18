@@ -9165,6 +9165,42 @@ and [result cache](https://github.com/microsoft/vstest/blob/v17.12.0/src/Microso
 are the pinned source basis. The corrected commit and a second fresh independent
 review round still precede actual hosted qualification; PR #32 remains open.
 
+###### Native CI follow-up review round 2
+
+The round-1 correction is committed at `779b6007`. Two fresh independent
+reviewers inspect the complete acceptance-to-correction boundary: GPT-6-sol
+xhigh reviews runtime/authority and GPT-6.1-sol xhigh reviews proof/partition
+and corpus claims. The runtime review reports no verified finding; the proof
+review identifies two additional issues, both verified before correction:
+
+- GitHub's absent job-services context serializes as `null`, while both owners
+  accept only an empty object. Both now accept exactly those two empty forms;
+  missing, malformed, non-object and nonempty service contexts remain refusals.
+  Copied-owner controls exercise the real absent-services input before launch.
+  All 17 provisioning and 25 launcher controls pass.
+- A native call under a compiler-defined conditional symbol is invisible to
+  a parser with no defines. The source census now reuses the existing bounded
+  MSBuild symbol reader against the actual Integration Release project,
+  including SDK implicit defines. Whole-class and method-body controls under
+  `NET10_0` and `TRACE` reject unclassified callers; inactive `DEBUG` source
+  remains a clean control. The planted control fails the original parser.
+
+The corrected Release build has zero warnings/errors; all seven selected
+source/corpus cases pass with zero skips. Scoped whitespace verification passes
+with the separately reported workspace-loading warning. No native fixture or
+production C# source changes in this correction, and no rule/method count changes.
+
+The actual complete 31-case native fixture also passes with private incremental
+execution diagnostics and `RunConfiguration.BatchSize=1`. All five exported fields
+for every result match the final TRX exactly, including fresh-discovery IDs;
+there are zero skips, zero remaining new containers and unchanged states for
+all 22 pre-existing containers. The TRX hash is
+`03e826a07d94e06ec22f748ca80586eef1fe709de279a4914d29569c21729bf9`.
+This is a local fixture/protocol receipt, not hosted systemd/provisioning,
+ordinary-workload or whole-job timing qualification. Both full independent
+follow-up rounds are complete; verified corrections and final-source hosted
+qualification still precede PR closure. PR #32 remains open and unmerged.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

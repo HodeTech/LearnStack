@@ -1670,7 +1670,9 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   classes, including all predicate/theory/mutant rows. A nonempty source closure
   rejects an unclassified direct or delegated sidecar/preflight test caller;
   qualified identities, aliases, source extension methods and legitimate partial
-  declarations retain ownership. This bounded source census is not arbitrary
+  declarations retain ownership. Conditional source is parsed with the actual
+  Integration Release project's evaluated build symbols; inactive branches are
+  not flattened into that population. This bounded source census is not arbitrary
   dynamic-call analysis.
 - **Why it matters:** CI separates Docker from the remaining tests by complementary
   filters, so a class that forgets the trait does not fail — it runs in the

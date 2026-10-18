@@ -999,6 +999,22 @@ public sealed partial class PersistenceConventionTests
         RejectNative("Unclassified native test: Other.ThirdTests`0",
             ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { this.RunNativeProof(); } }"),
             ("Extensions.cs", "namespace Other; internal static class NativeExtensions { public static void RunNativeProof(this object value) { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"));
+        // The Release compiler, rather than a manually maintained symbol list,
+        // determines which conditional code the hosted job actually executes.
+        NativeReleaseSymbols.Value.Should().Contain("NET10_0").And.Contain("TRACE").And.NotContain("DEBUG");
+        foreach (var symbol in new[] { "NET10_0", "TRACE" })
+        {
+            RejectNative("Unclassified native test: Other.ThirdTests`0",
+                ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() {\n#if "
+                    + symbol + "\nLearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run();\n#endif\n} }"));
+            RejectNative("Unclassified native test: Other.ThirdTests`0",
+                ("Third.cs", "namespace Other;\n#if " + symbol
+                    + "\npublic class ThirdTests { [Fact] public void A() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }\n#endif\n"));
+        }
+        NativePartitionOffenders(nativeFiles.Concat(new (string Path, string Source)[]
+        {
+            ("Inactive.cs", "namespace Other; public class ThirdTests { [Fact] public void A() {\n#if DEBUG\nLearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run();\n#endif\n} }"),
+        })).Should().BeEmpty("Release must not flatten inactive branches into compiled code");
         RejectNative("Unclassified native test: Other.ThirdTests`0",
             ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { Copied.Run(); } }"),
             ("Copied.cs", "namespace Other; internal static class Copied { public static void Run() { _ = \"pre\" + \"flight.sh\"; } }"));
@@ -1030,13 +1046,19 @@ public sealed partial class PersistenceConventionTests
         "LearnStack.Tests.Integration.Database.HangfireGenerationPhaseTests`0",
     ];
 
+    private static readonly Lazy<string[]> NativeReleaseSymbols = new(() => AnalyzerReport.EvaluatedSymbols(
+        Path.Combine(RepositoryPaths.RepoRoot(), "backend", "tests", "LearnStack.Tests.Integration",
+            "LearnStack.Tests.Integration.csproj"), "Release"));
+
     private static List<string> NativePartitionOffenders(IEnumerable<(string Path, string Source)> files)
     {
         // One bounded source compilation per population, without emission, test-project
         // references or loading the fatal sidecar. Only declared type dependencies are
         // consumed; this is not a claim that arbitrary test bodies compile in isolation.
+        // Evaluate the real Release project so SDK/custom defines are neither guessed
+        // nor omitted. Flattening directives would misclassify inactive code.
         var trees = files.Select(file => CSharpSyntaxTree.ParseText(file.Source,
-            new CSharpParseOptions(LanguageVersion.Latest), file.Path)).ToArray();
+            new CSharpParseOptions(LanguageVersion.Latest).WithPreprocessorSymbols(NativeReleaseSymbols.Value), file.Path)).ToArray();
         if (trees.Length == 0) return ["Native source census is empty"];
         var compilation = CSharpCompilation.Create("NativePartition", trees,
             new[] { typeof(object).Assembly.Location, typeof(FactAttribute).Assembly.Location }

@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 SOURCE = Path(__file__).with_name('ci-native-provisioning.py')
-SOURCE_SHA256 = 'a20eb1dc68d185025d3f3b0e9ad1124ea90d83055d8eb8c799668d39bfb99c44'
+SOURCE_SHA256 = '0a68bfedcc251956b0cc517195f3028a8ddc3baae360b2316149f2b5f1c24221'
 FIXED_PATHS = {
     'CORE_PATTERN': '/proc/sys/kernel/core_pattern', 'OS_RELEASE': '/etc/os-release',
     'CGROUP_INIT': '/proc/1/cgroup', 'CGROUP_SELF': '/proc/self/cgroup',
@@ -167,7 +167,7 @@ except owner.Refusal as error:
             'ImageVersion': '20261011.5.1', 'LEARNSTACK_NATIVE_RUNNER_CONTEXT': 'github-hosted',
             'LEARNSTACK_NATIVE_RUNNER_OS': 'Linux', 'LEARNSTACK_NATIVE_RUNNER_ARCH': 'X64',
             'LEARNSTACK_NATIVE_RUNNER_LABEL': 'ubuntu-24.04',
-            'LEARNSTACK_NATIVE_JOB_CONTAINER': 'null', 'LEARNSTACK_NATIVE_JOB_SERVICES': '{}',
+            'LEARNSTACK_NATIVE_JOB_CONTAINER': 'null', 'LEARNSTACK_NATIVE_JOB_SERVICES': 'null',
             'PRIVATE_ENV_CANARY': 'PRIVATE-ENVIRONMENT-CANARY',
         }
         for key, value in {
@@ -286,6 +286,16 @@ class NativeProvisioningTests(unittest.TestCase):
                 self.assertEqual(1, len(fixture.commands('sudo')))
                 self.assertEqual('3', (fixture.root / 'reads').read_text())
 
+    def test_absent_services_accept_json_null_and_empty_object(self):
+        for services in ('null', '{}'):
+            with self.subTest(services=services), tempfile.TemporaryDirectory() as root:
+                fixture = Fixture(root)
+                fixture.pattern.write_text('core\n')
+                result = fixture.run(env={'LEARNSTACK_NATIVE_JOB_SERVICES': services})
+                self.assertTrue(result['ok'])
+                self.assertFalse(result['receipt']['changed'])
+                self.assertTrue(fixture.authorized.exists())
+
     def test_untrusted_or_mismatched_step_context_refuses_before_any_command(self):
         cases = [
             ({'GITHUB_ACTIONS': 'false'}, 'unsupported_context'),
@@ -308,6 +318,10 @@ class NativeProvisioningTests(unittest.TestCase):
             ({'LEARNSTACK_NATIVE_WORKFLOW_SHA': 'b' * 40}, 'context_identity_mismatch'),
             ({'LEARNSTACK_NATIVE_JOB_CONTAINER': '{"id":"foreign"}'}, 'unsupported_job_topology'),
             ({'LEARNSTACK_NATIVE_JOB_SERVICES': '{"db":{}}'}, 'unsupported_job_topology'),
+            ({'LEARNSTACK_NATIVE_JOB_SERVICES': '[]'}, 'unsupported_job_topology'),
+            ({'LEARNSTACK_NATIVE_JOB_SERVICES': '"foreign"'}, 'unsupported_job_topology'),
+            ({'LEARNSTACK_NATIVE_JOB_SERVICES': 'broken'}, 'unsupported_job_topology'),
+            ({'LEARNSTACK_NATIVE_JOB_SERVICES': None}, 'unsupported_job_topology'),
             ({'LEARNSTACK_NATIVE_JOB_CONTAINER': 'broken'}, 'unsupported_job_topology'),
             ({'ImageOS': 'ubuntu22'}, 'unsupported_image'),
             ({'ImageVersion': 'PRIVATE-ENVIRONMENT-CANARY'}, 'unsupported_image'),

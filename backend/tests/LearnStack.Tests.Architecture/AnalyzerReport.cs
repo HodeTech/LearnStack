@@ -98,7 +98,7 @@ internal static class AnalyzerReport
     /// is the defect this replaces.
     /// </para>
     /// </remarks>
-    private static string[] EvaluatedSymbols(string projectPath)
+    internal static string[] EvaluatedSymbols(string projectPath, string? configuration = null)
     {
         using var msbuild = new System.Diagnostics.Process
         {
@@ -117,6 +117,8 @@ internal static class AnalyzerReport
             },
         };
 
+        if (configuration is not null)
+            msbuild.StartInfo.ArgumentList.Add("-property:Configuration=" + configuration);
         msbuild.Start();
 
         var output = msbuild.StandardOutput.ReadToEndAsync();

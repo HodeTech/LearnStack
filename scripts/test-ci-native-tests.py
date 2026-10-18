@@ -19,6 +19,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -230,6 +231,47 @@ class OwnerControls(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertEqual('unsupported_context', json.loads(result.stdout)['error'])
         self.assertEqual([], self.calls())
+
+    def test_identity_accepts_only_absent_service_shapes_for_both_execution_jobs(self):
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(self.root)
+            for mode, job, label in (('native', 'backend-native', 'ubuntu-24.04'),
+                                     ('ordinary', 'backend-integration-tests', 'ubuntu-latest')):
+                env = {'GITHUB_ACTIONS': 'true', 'GITHUB_JOB': job,
+                       'RUNNER_OS': 'Linux', 'RUNNER_ARCH': 'X64',
+                       'LEARNSTACK_NATIVE_RUNNER_CONTEXT': 'github-hosted',
+                       'LEARNSTACK_NATIVE_RUNNER_OS': 'Linux',
+                       'LEARNSTACK_NATIVE_RUNNER_ARCH': 'X64',
+                       'LEARNSTACK_NATIVE_RUNNER_LABEL': label,
+                       'LEARNSTACK_NATIVE_JOB_CONTAINER': 'null'}
+                for name, value in {
+                    'RUN_ID': '42', 'RUN_ATTEMPT': '1', 'JOB': job,
+                    'SHA': 'a' * 40, 'REPOSITORY': 'HodeTech/LearnStack',
+                    'WORKFLOW_REF': 'HodeTech/LearnStack/.github/workflows/ci.yml@refs/heads/development',
+                    'WORKFLOW_SHA': 'a' * 40, 'WORKSPACE': str(self.root),
+                }.items():
+                    env['GITHUB_' + name] = value
+                    env['LEARNSTACK_NATIVE_' + ('ATTEMPT' if name == 'RUN_ATTEMPT' else name)] = value
+                with mock.patch.object(self.owner.sys, 'platform', 'linux'), mock.patch.dict(os.environ, env, clear=True):
+                    for services in ('null', '{}'):
+                        with self.subTest(mode=mode, services=services):
+                            os.environ['LEARNSTACK_NATIVE_JOB_SERVICES'] = services
+                            self.assertEqual('42', self.owner.identity(mode)['runId'])
+                    calls_before_dirty = len(self.calls())
+                    for services in ('[]', '{"db":{}}', '"foreign"', 'broken', None):
+                        with self.subTest(mode=mode, services=services):
+                            if services is None:
+                                os.environ.pop('LEARNSTACK_NATIVE_JOB_SERVICES', None)
+                            else:
+                                os.environ['LEARNSTACK_NATIVE_JOB_SERVICES'] = services
+                            self.refuses('unsupported_job_topology', self.owner.identity, mode)
+                            # Identity reads the checkout before job topology.
+                            self.assertEqual(calls_before_dirty + 1, len(self.calls()))
+                            self.assertEqual('git', self.calls()[-1]['name'])
+                            calls_before_dirty += 1
+        finally:
+            os.chdir(old_cwd)
 
     def test_composed_native_prevalidation_rejects_actual_unknown_collector_before_privilege(self):
         spec = importlib.util.spec_from_file_location(

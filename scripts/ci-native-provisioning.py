@@ -141,7 +141,7 @@ def workflow_context():
         services = json.loads(env.get('LEARNSTACK_NATIVE_JOB_SERVICES', ''))
     except (ValueError, TypeError):
         raise Refusal('unsupported_job_topology') from None
-    require(container in (None, {}) and services == {}, 'unsupported_job_topology')
+    require(container in (None, {}) and services in (None, {}), 'unsupported_job_topology')
     workspace = Path(env['GITHUB_WORKSPACE'])
     try:
         require(workspace.is_absolute()

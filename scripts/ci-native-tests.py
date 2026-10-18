@@ -170,7 +170,7 @@ def identity(mode):
                 ('ubuntu-24.04' if mode == 'native' else 'ubuntu-latest'), 'unsupported_context')
         try:
             require(json.loads(env.get('LEARNSTACK_NATIVE_JOB_CONTAINER', '')) in (None, {})
-                    and json.loads(env.get('LEARNSTACK_NATIVE_JOB_SERVICES', '')) == {},
+                    and json.loads(env.get('LEARNSTACK_NATIVE_JOB_SERVICES', '')) in (None, {}),
                     'unsupported_job_topology')
         except ValueError:
             raise Refusal('unsupported_job_topology') from None
