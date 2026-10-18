@@ -481,6 +481,12 @@ except launcher.Refusal as failure:
                 ('/var/crash/PRIVATE-CANARY.crash', 'apport', 'crash'),
                 ('/var/lib/systemd/coredump/PRIVATE-CANARY.core', 'systemd', 'core'),
                 ('/var/lib/docker/PRIVATE-CANARY.dump', 'docker', 'dump'),
+                ('/var/lib/docker/network/PRIVATE-CANARY.dump', 'docker_network', 'dump'),
+                ('/var/lib/docker/buildkit/PRIVATE-CANARY.dump', 'docker_buildkit', 'dump'),
+                ('/var/lib/docker/overlay2/PRIVATE-CANARY.dump', 'docker_overlay', 'dump'),
+                ('/var/lib/docker/containerd/PRIVATE-CANARY.dump', 'docker_containerd', 'dump'),
+                ('/var/lib/docker/containers/PRIVATE-CANARY.dump', 'docker_containers', 'dump'),
+                ('/var/lib/docker/volumes/PRIVATE-CANARY.dump', 'docker_volumes', 'dump'),
                 ('/tmp/PRIVATE-CANARY/core', 'tmp', 'core'),
                 ('/var/tmp/PRIVATE-CANARY.dmp', 'var_tmp', 'dmp'),
                 ('/unclassified/PRIVATE-CANARY.unknown', 'unknown', 'unknown'),
@@ -498,13 +504,17 @@ except launcher.Refusal as failure:
                 ('Mini DuMP crash report PRIVATE-CANARY', 'minidump'),
                 ('ASCII text PRIVATE-CANARY', 'text'),
                 ('gzip compressed data PRIVATE-CANARY', 'compressed'),
+                ('Zstandard compressed data PRIVATE-CANARY', 'zstd'),
+                ('SQLite 3.x database PRIVATE-CANARY', 'sqlite'),
+                ('empty\n', 'empty'),
+                ('data\n', 'binary_data'),
                 ('PRIVATE-CANARY', 'unknown'),
             ):
                 self.configure(crash='/var/lib/docker/PRIVATE-CANARY.dump\0', file_description=description)
                 self.refuses('unexpected_crash_artifact_docker_dump_' + label,
                              self.owner.crash_scan, time.monotonic() + 2)
             self.configure(status={'file': 1})
-            self.refuses('unexpected_crash_artifact_docker_dump_unknown',
+            self.refuses('unexpected_crash_artifact_docker_dump_probe_refused',
                          self.owner.crash_scan, time.monotonic() + 2)
             self.configure(crash='')
             self.owner.crash_scan(time.monotonic() + 2)

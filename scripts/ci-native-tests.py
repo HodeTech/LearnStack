@@ -804,6 +804,10 @@ def crash_scan(deadline):
     locations = [(str(ROOT), 'workspace'), (os.environ['RUNNER_TEMP'], 'runner_temp')]
     locations.extend(zip(HOST_CRASH_ROOTS, ('apport', 'systemd', 'docker', 'tmp', 'var_tmp')))
     roots = [path for path, _ in locations if Path(path).exists()]
+    # Diagnostic categories only: retain the original scan roots/traversal.
+    locations.extend(('/var/lib/docker/' + directory, 'docker_' + label) for directory, label in (
+        ('network', 'network'), ('buildkit', 'buildkit'), ('overlay2', 'overlay'),
+        ('containerd', 'containerd'), ('containers', 'containers'), ('volumes', 'volumes')))
     # Read-only, fixed predicates. Container scratch proofs remain in the native
     # tests; this additionally inspects actual host file-collector destinations.
     value = command([SUDO, '-n', FIND, *roots, '-xdev', '-type', 'f', '(', '-name', 'core',
@@ -835,9 +839,17 @@ def crash_scan(deadline):
                     format_class = 'text'
                 elif description.startswith('gzip compressed data'):
                     format_class = 'compressed'
+                elif description.startswith('Zstandard compressed data'):
+                    format_class = 'zstd'
+                elif description.startswith('SQLite 3.x database'):
+                    format_class = 'sqlite'
+                elif description.strip() == 'empty':
+                    format_class = 'empty'
+                elif description.strip() == 'data':
+                    format_class = 'binary_data'
             except Refusal:
                 # A diagnostic fault cannot replace or suppress the scan refusal.
-                pass
+                format_class = 'probe_refused'
         raise Refusal('unexpected_crash_artifact_' + scope + '_' + kind + '_' + format_class)
 
 

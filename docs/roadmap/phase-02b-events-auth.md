@@ -9273,6 +9273,18 @@ and an independent focused review finds no defect. Actual classification and
 native hosted qualification remain pending; this adds no collector authority
 or file exclusion.
 
+Diagnostic commit `b4ee65b2` is pushed normally with the Proposed ADR-0063
+documents. Run 39142456800 is superseded/canceled after its independent
+meta/native observations; no complete backend/ordinary result is inferred.
+[Run 39143417261](https://github.com/HodeTech/LearnStack/actions/runs/39143417261)
+again passes meta, frontend, OpenAPI and secret scan. Its native job builds
+successfully but refuses before provisioning/tests on
+`unexpected_crash_artifact_docker_dump_unknown`. Further fixed diagnostic labels
+distinguish Docker storage regions and common formats/probe refusal, without
+changing scan traversal, predicates or any failure decision. All 26 controls
+pass and independent focused review approves. The candidate remains unexplained;
+no allowlist, deletion, shard implementation or passing native result is claimed.
+
 ADR-0062's reopen condition is met. Proposed
 [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) describes one
 backend-base VM retaining non-test gates and cheap non-Docker suites, four
