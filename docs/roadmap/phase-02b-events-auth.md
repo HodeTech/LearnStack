@@ -7529,6 +7529,65 @@ at `c9331866654efc91c83769cb718398416c97084897f38547a0a18f9cd2253416`.
 The narrow review supplies no full Step 8 review credit. Remaining recipient
 retention/fairness and exact capability guards still precede both full rounds.
 
+#### Actual recipient ownership, expiry and source cleanup
+
+Following `dd600e88`, the actual runtime exercises six due recurrence keys with
+four real recipient application tasks held before their handler acquires a row
+lock. Each retains its original unit, source owner and published operation.
+PostgreSQL's clock establishes natural expiry of all four 15-second leases;
+the fixture neither rewrites those leases nor substitutes local timestamps.
+Durable registration and fan-out continue while all four application slots remain
+occupied, including their timed-out actual tasks.
+
+The otherwise-eligible production selector independently ranks a retained original
+first. Three handlers then return through their real closed-gate refusal,
+rollback, cleanup and history resolution. Exact original-object eviction permits
+a fresh operation for the same ID. Another recipient commits its reciprocal child
+and completes while the remaining held row preserves its original token and
+operation. Releasing that old attempt cannot attribute a later child's ACK to it.
+All six children eventually complete through the actual runtime.
+
+Two separate source controls fail the same semantic assertions: enlarging the
+ceiling from four to five admits six wrapper entries, and removing only the SQL
+retained-ID exclusion replaces the otherwise-first held token. The rank helper
+does not assert the removed SQL spelling, and full capacity does not mask the
+exclusion check. Both controls build cleanly and are restored with exact hashes
+and file modes before final qualification.
+
+Two further cases separate a physically held original cancellation callback from
+an actual DI scope's successful asynchronous disposal. The callback case first
+proves that the executor, scope and application-source cleanup have returned;
+the cancellation relay alone remains held. The scope case instead observes a
+positive child COMMIT ACK while actual scope disposal and executor return remain
+pending. Every sibling, including any native registration, positively joins
+before the original operation and both source pins are checked. Replacing the
+all-owner cancellation join with an any-owner wait fails the callback case while
+the independent scope case still passes. The original join is restored exactly.
+
+Narrow reviews correct the exact three-history-owner eviction observation and
+the registration fixture's inline-cancellation race. Registration is itself an
+owned actual task with a finite setup wait. All barriers release before shutdown;
+nested finally blocks independently join registration cleanup and the original
+operation. These reviews grant no full Step 8 review credit.
+
+The initial application-test build records two analyzer errors, corrected without
+changing production policy. Earlier clean qualification passes the application
+case and both source-pin cases. The final restored 325-source Release build has
+zero warnings/errors; all 79 recurrence PostgreSQL cases pass with zero skips in
+1m08s. The four focused Architecture cases initially expose the stale published
+240-method count; five already-added Step 8 methods make the actual total 245.
+After that documentation correction all four pass, including Docker-trait and
+planted-trait checks, the non-skip guard and catalogue counts. The runner verifies
+nonempty execution and zero skips; explicit TRX checks separately require zero
+failures in both final runs. Scoped formatting reports no changes. The source,
+mode and artifact receipt closes at
+`c463834754105981e5babcad10d39cbf0529a6c8a4b9f3b0358ba0ae94ebec6a`.
+
+New-owner/native-manager/tick/exclusion capability guards and their planted
+controls still precede both fresh full Step 8 review rounds. Nineteen packet
+obligations remain Registered, Step 9 remains pending, and this qualification
+claims neither packet-wide regression nor CI success.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
