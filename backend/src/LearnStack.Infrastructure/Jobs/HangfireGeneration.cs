@@ -18,7 +18,10 @@ internal enum HangfireGenerationReason
 
 internal sealed record HangfireGenerationSnapshot(bool HandlePublished, bool Captured,
     bool WaitEntered, bool NormalChildrenJoined, bool OuterJoined, bool CleanupComplete,
-    bool Draining, bool HeartbeatFault, HangfireGenerationReason Reason);
+    bool Draining, bool HeartbeatFault, HangfireGenerationReason Reason)
+{
+    internal long? MetadataHeartbeatTimestamp { get; init; }
+}
 
 /// <summary>Owns one actual Core generation; caller deadlines never dispose its work.</summary>
 internal sealed class HangfireGeneration : PoolHangfireLifecycle
@@ -121,7 +124,12 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
         Volatile.Read(ref _context) is not null, _waitEntered.Task.IsCompleted,
         HasNormalChildJoin, Volatile.Read(ref _outerJoined) != 0,
         Volatile.Read(ref _cleanupComplete) != 0, Volatile.Read(ref _draining) != 0,
-        Volatile.Read(ref _heartbeatFault) != 0, (HangfireGenerationReason)Volatile.Read(ref _reason));
+        Volatile.Read(ref _heartbeatFault) != 0, (HangfireGenerationReason)Volatile.Read(ref _reason))
+    {
+        // Zero is a valid monotonic timestamp. Only the actual successful
+        // announcement/heartbeat path can establish that it was observed.
+        MetadataHeartbeatTimestamp = Volatile.Read(ref _confirmed) != 0 ? Interlocked.Read(ref _lastHeartbeat) : null,
+    };
 
     internal void Start()
     {

@@ -8023,6 +8023,28 @@ Complete metric emission, nineteen-rule enforcement, full regression/CI duration
 and both full Step 9 reviews remain in progress. No catalogue promotion or packet
 closeout is claimed by this slice.
 
+#### Native observation projection qualification
+
+The immutable runtime snapshot now projects actual running/retained work,
+generation counts and capture/join/cleanup facts from their existing owners.
+Confirmed metadata timestamps remain nullable: an actual successful announcement
+can confirm monotonic zero, while no confirmation remains absent. Returned pool
+and maintenance collections reject replacement through their collection interfaces.
+These additions introduce no scheduling, SQL, source or release authority.
+
+The first two-case PostgreSQL run passes the existing facade health case and
+rejects a new fixture that supplies a separately reconstructed topology. Using
+the host's actual frozen registry corrects the fixture without weakening the
+production identity check. A focused inspection also closes its failure-path
+cleanup gap: generation stop starts before either heartbeat or stop is awaited.
+The final 350-source cohort passes both cases with zero failures/skips after a
+zero-warning/error CI Release build. Its source/artifact receipt is
+`733c1d57536c2c870810d27bb826b2cbf614cb153609ac6db01218e3f6dcb598`.
+Three Architecture owner cases pass against the same production projection.
+The manual real metadata callback does not claim Core's scheduling-cadence proof.
+The focused inspection has no open findings and supplies no full Step 9 review
+credit. Metric emitters and complete packet qualification remain pending.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

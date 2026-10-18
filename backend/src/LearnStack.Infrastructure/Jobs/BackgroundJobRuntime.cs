@@ -10,7 +10,16 @@ namespace LearnStack.Infrastructure.Jobs;
 public enum BackgroundJobRuntimeState { NotStarted, Bootstrapping, Starting, Running, Stopping, Retained, Stopped }
 
 public sealed record BackgroundJobPoolHealth(string Pool, string State, string Reason, int RetainedInvocations,
-    bool MetadataHeartbeatFault);
+    bool MetadataHeartbeatFault)
+{
+    public int RunningInvocations { get; init; }
+    public long Generations { get; init; }
+    public long? MetadataHeartbeatTimestamp { get; init; }
+    public bool GenerationCaptured { get; init; }
+    public bool NormalChildrenJoined { get; init; }
+    public bool OuterJoined { get; init; }
+    public bool GenerationCleanupComplete { get; init; }
+}
 
 public sealed record BackgroundJobMaintenanceHealth(string Component, string State, string Outcome,
     long Invocations, bool ActualJoined, bool OwnsResources, bool StorageFault, bool IsHealthy);
@@ -198,10 +207,19 @@ public sealed class BackgroundJobRuntime
                          && retained == 0 && bridgeHealthy && expirationHealthy && heartbeatHealthy) state = BackgroundJobRuntimeState.Running;
                 return new(state, _capacity, running, retained, retainedInvocations, bridge, bridgeHealthy, expirationHealthy, heartbeatHealthy,
                     !_started || _bootstrap.ActualJoined, Completion.IsCompletedSuccessfully,
-                    pools.Select(pool => new BackgroundJobPoolHealth(pool.Pool, pool.State.ToString(),
+                    Array.AsReadOnly(pools.Select(pool => new BackgroundJobPoolHealth(pool.Pool, pool.State.ToString(),
                         (pool.Generation?.Reason ?? HangfireGenerationReason.None).ToString(), pool.Work?.Retained ?? 0,
-                        pool.Generation?.HeartbeatFault == true)).ToArray(),
-                    [MaintenanceHealth("expiration", expiration), MaintenanceHealth("fetched_job_heartbeat", heartbeat)],
+                        pool.Generation?.HeartbeatFault == true)
+                    {
+                        RunningInvocations = pool.Work?.Running ?? 0,
+                        Generations = pool.Generations,
+                        MetadataHeartbeatTimestamp = pool.Generation?.MetadataHeartbeatTimestamp,
+                        GenerationCaptured = pool.Generation?.Captured == true,
+                        NormalChildrenJoined = pool.Generation?.NormalChildrenJoined == true,
+                        OuterJoined = pool.Generation?.OuterJoined == true,
+                        GenerationCleanupComplete = pool.Generation?.CleanupComplete == true,
+                    }).ToArray()),
+                    Array.AsReadOnly(new[] { MaintenanceHealth("expiration", expiration), MaintenanceHealth("fetched_job_heartbeat", heartbeat) }),
                     _jobs.Snapshot, _applicationCapacity);
             }
         }

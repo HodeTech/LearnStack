@@ -28,6 +28,17 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         {
             await runtime.StartAsync();
             await EventuallyAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy));
+            var initial = runtime.Snapshot;
+            initial.Pools.Should().HaveCount(3).And.OnlyContain(pool => pool.Generations == 1
+                && pool.RunningInvocations == 0 && pool.RetainedInvocations == 0
+                && pool.GenerationCaptured && pool.MetadataHeartbeatTimestamp.HasValue
+                && !pool.NormalChildrenJoined && !pool.OuterJoined && !pool.GenerationCleanupComplete);
+            var pools = initial.Pools.Should().BeAssignableTo<IList<BackgroundJobPoolHealth>>().Which;
+            Action replacePool = () => pools[0] = pools[0];
+            replacePool.Should().Throw<NotSupportedException>();
+            var maintenance = initial.Maintenance.Should().BeAssignableTo<IList<BackgroundJobMaintenanceHealth>>().Which;
+            Action replaceMaintenance = () => maintenance[0] = maintenance[0];
+            replaceMaintenance.Should().Throw<NotSupportedException>();
             var provider = ActualProvider(runtime);
             // This fixed fixture-only orphan queue has no native consumer. Fetch
             // through the facade's actual provider: renewal tracking belongs to
