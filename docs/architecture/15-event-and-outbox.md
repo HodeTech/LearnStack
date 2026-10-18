@@ -738,6 +738,11 @@ adds a whole-API failure boundary to H1's ordinary per-pool ownership. Its exact
 trigger, global start gates, durable uncertainty and qualification requirements
 are carried by [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire).
 Step 4 owns implementation; acceptance provides no activated worker or crash proof.
+Accepted [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md)
+adds only the named disposable native CI provisioning/partition authority;
+[its acceptance record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+owns pending implementation and hosted qualification. Native children retain
+all independent preconditions; local/shared machines gain no host-change authority.
 
 The current Step 4 API composition uses
 [`BackgroundJobRuntime`](../glossary.md#background-jobs) to own bootstrap, pool

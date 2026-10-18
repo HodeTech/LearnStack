@@ -747,6 +747,16 @@ attempt, external uncertainty or reservation. Real fatal-child, callback/dump an
 worker/PostgreSQL qualification remains mandatory before activation. Phase 11 owns
 production supervision and crash diagnostics; acceptance claims no delivered runtime.
 
+**Accepted native CI boundary — 2026-10-18.**
+[ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md) authorizes a
+named CI-only owner to verify or set the fixed file collector on an exclusive
+disposable hosted native-proof VM, without restoration. Native/ordinary Docker
+execution stays complete behind the existing required integration result. This
+is not developer/shared/production host authority or a weaker child precondition.
+The [CI acceptance](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+owns pending implementation and actual hosted qualification; acceptance promotes
+no additive catalogue assertions before their controls ship.
+
 - Step 4's API composition registers one `BackgroundJobHostedService` over
   [`BackgroundJobRuntime`](../glossary.md#background-jobs), with singleton hosted
   aliases for the actual `OutboxProcessor` and `DeliveryProcessor`. Bind their

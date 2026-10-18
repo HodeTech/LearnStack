@@ -373,3 +373,29 @@ refuses qualification; no skip or synthetic-to-production inference closes the g
 - [FailFast semantics](https://learn.microsoft.com/en-us/dotnet/api/system.environment.failfast?view=net-10.0),
   [runtime dump/crash-report configuration](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/collect-dumps-crash),
   [Linux core limits and pipe collectors](https://man7.org/linux/man-pages/man5/core.5.html).
+
+## Amendments
+
+### Amendment 1 — native CI provisioning boundary (2026-10-18)
+
+[ADR-0062](0062-native-crash-proof-ci-provisioning.md), Accepted 2026-10-18,
+boundedly supersedes only this record's lack of host-change authority for its
+named CI provisioning owner. The original requirement remains:
+
+> An unsupported collector/dump precondition fails qualification
+> before launch; it is not a skipped passing test or permission to change host-wide
+> crash settings.
+
+The new owner may verify an already supported file pattern or set only fixed
+`core` on a standard exclusive disposable GitHub-hosted native-proof VM. It never
+restores a pipe; VM decommission is the platform backstop. Native children retain
+all independent preconditions, topology, benign/mutant and no-dump assertions.
+Ordinary Docker execution stays on a separate VM; both complete partitions remain
+mandatory behind the existing integration result, with seven required names and
+twenty-minute execution ceilings unchanged. All excluded machines retain the
+original host-change restriction and isolated-environment requirement.
+
+This is a newly approved authority, not an ADR-0041 correction. This record's
+Accepted body, acceptance metadata, fatal policy and durable-state guarantees
+remain intact. Provisioning/partition/launcher implementation and their actual
+hosted qualification remain pending at acceptance; no passing result is inferred.

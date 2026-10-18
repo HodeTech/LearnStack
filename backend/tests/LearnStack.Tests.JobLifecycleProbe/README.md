@@ -22,7 +22,13 @@ false on a direct fatal case makes no claim about the gate after termination.
 They do not prove generation phase dominance, genuine Core resource failure,
 PostgreSQL ownership, production dump policy or successful external cleanup.
 Unsupported preflight or an unavailable image fails; no case is skipped and no
-host-wide crash/collector setting is changed.
+host-wide crash/collector setting is changed **by this fixture**.
+
+Accepted [ADR-0062](../../../docs/decisions/0062-native-crash-proof-ci-provisioning.md)
+authorizes separate, named CI provisioning on an exclusive disposable native VM.
+That implementation remains pending at acceptance. It does not change this
+fixture's independent collector/resource checks or authorize host changes on
+local, shared, self-hosted or production machines.
 
 ## Actual generation phase controls
 

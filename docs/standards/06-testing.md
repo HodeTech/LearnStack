@@ -108,6 +108,14 @@ not flag. And neither backend job can pass having run nothing: each ends with
 All three: real module configuration, no mocked repositories, and coverage of the
 happy path and the edges.
 
+Accepted [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md)
+authorizes a complete native/ordinary Docker partition and named disposable-VM
+provisioning without changing native child assertions. Its
+[CI acceptance](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+owns implementation and hosted qualification. The current two-filter execution
+above remains the implemented baseline until that follow-up ships; acceptance
+alone supplies no new passing partition or no-dump proof.
+
 **An isolation test connects as `learnstack_app`.** One that runs as
 `learnstack_migration`, `learnstack_platform` or `learnstack_outbox_admin`
 passes even when every policy is inert, and therefore proves nothing.

@@ -2,15 +2,19 @@
 
 ## Status
 
-Proposed — approval pending.
+Accepted — 2026-10-18.
 
 **Date:** 2026-10-18 **Deciders:** @cemil
 
-The revised proposal selects a dedicated disposable native-proof VM with one
-fixed collector write and no restoration. It separates native and ordinary Docker
-execution behind the existing required check. Both choices need maintainer
-approval; neither is implemented. Read-only observation is independent of this
-authority. ADR-0060 remains Accepted and its body remains intact.
+**Maintainer acceptance — 2026-10-18.** The maintainer approves the reviewed
+revision at `51346376` and authorizes dependent P02b-4 CI implementation on
+`development`: a dedicated native-proof VM, fixed collector setup without
+restoration, and complete complementary Docker execution behind the existing
+required integration result. All seven required names and twenty-minute execution
+ceilings remain. Acceptance is not implementation or hosted qualification; the
+planned owners and their additive controls remain pending at this boundary.
+ADR-0060 retains its Accepted body and metadata with a dated bounded-supersession
+disclosure. Read-only observation needs none of this new authority.
 
 ## Decision Drivers
 
@@ -30,7 +34,7 @@ authority. ADR-0060 remains Accepted and its body remains intact.
 
 ## Considered Options
 
-1. **Separate native VM; set once and discard** (proposed selection). Keep the
+1. **Separate native VM; set once and discard** (chosen). Keep the
    fixture unchanged, isolate its workload and collector policy from ordinary
    integration, and retain the file pattern until GitHub decommissions the VM.
 2. **Save, set and restore on the full integration VM** (not selected). Shorten
@@ -59,14 +63,14 @@ authority. ADR-0060 remains Accepted and its body remains intact.
 
 ## Decision
 
-The proposal uses a standard GitHub-hosted `ubuntu-24.04` x64 VM exclusively for
+LearnStack uses a standard GitHub-hosted `ubuntu-24.04` x64 VM exclusively for
 the complete native crash-proof partition. A closed CI owner verifies an already
 supported file pattern unchanged, or writes only fixed `core` to the actual
 `/proc/sys/kernel/core_pattern` and verifies readback. That value remains until VM
 destruction; it never restores a pipe. The unchanged fixture
 independently qualifies real collector/resource/topology/native-exit evidence.
 Ordinary Docker tests run on a separate VM; a fail-closed aggregate retains the
-existing required integration check name. Approval authorizes this bounded CI
+existing required integration check name. This decision authorizes this bounded CI
 arrangement, not developer/shared/self-hosted/production changes or weaker proofs.
 
 ### Trust and platform boundary
@@ -214,8 +218,8 @@ From [ADR-0060 Diagnostics, dumps and durable consequences](0060-fatal-hangfire-
 Retain isolated qualification, pre-launch refusal and all child assertions.
 Replace only the lack of host-change authority for this named CI owner and its
 exclusive disposable native VM's one setting. This is a new bounded decision,
-not an ADR-0041 correction of a statement false when accepted. After approval,
-append a dated disclosure to ADR-0060, preserving its body/acceptance metadata.
+not an ADR-0041 correction of a statement false when accepted. Acceptance adds
+a dated disclosure to ADR-0060, preserving its body/acceptance metadata.
 Every excluded machine keeps the original rule. Phase 11 keeps production
 dump/supervision ownership.
 
@@ -253,7 +257,7 @@ for final CI/PR closure until these gates pass.
 
 ## Implementation Notes
 
-Approval precedes acceptance/disclosure and dependent implementation. Then update
+Acceptance/disclosure precede dependent implementation. Update
 the decision index, P02b-4 record, Infrastructure/Testing Standards, probe README
 and shared guidance together; retain historical failed/local receipts. Probe
 README must distinguish unchanged fixture behavior from named CI provisioning.

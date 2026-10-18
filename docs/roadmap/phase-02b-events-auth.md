@@ -42,6 +42,10 @@ enforcement and P02b-4 are locally complete; the
 [local closeout](#p02b-4-local-closeout-2026-10-18) owns exact qualification and
 remaining PR/CI/merge work. P02b-5–8 remain pending. Production business and
 recurrence definitions remain empty.
+[ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md) is Accepted —
+2026-10-18. Its [CI acceptance](#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+authorizes the bounded native provisioning/partition follow-up; implementation
+and exact-head hosted qualification remain in progress.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -9042,6 +9046,25 @@ closed 385-file C# receipt is
 This correction has focused validation; the complete 3,043-case receipt above
 belongs to the preceding `82d5307c` source. No new full-run or hosted budget result
 is inferred, and ADR-0062 remains Proposed pending maintainer approval.
+
+##### ADR-0062 acceptance and CI implementation (2026-10-18)
+
+The maintainer explicitly approves revised ADR-0062 at `51346376` and authorizes
+implementation on `development`. Acceptance and ADR-0060's dated disclosure are
+committed before dependent CI code. The exact required integration name remains
+`backend integration (Testcontainers)`; it becomes a fail-closed aggregate of
+both complete Docker execution jobs. The other six required names, strict
+protection settings and twenty-minute execution ceilings remain unchanged.
+
+This follow-up implements one coherent CI boundary: closed provisioning and its
+offline meta controls; native process/cgroup ownership, complete complementary
+partition and result validation; then actual hosted qualification with complete
+artifacts and measured failure-cleanup reserve. It receives two fresh independent
+review rounds, with verified findings fixed and committed before final CI closure.
+Existing native child assertions and all ordinary test cases remain mandatory.
+No passing hosted result, new catalogue enforcement or completed implementation
+is claimed by this acceptance. The earlier failed and source-specific local
+receipts remain historical evidence; native separation alone is no budget proof.
 
 ### Durable outbox dispatch
 
