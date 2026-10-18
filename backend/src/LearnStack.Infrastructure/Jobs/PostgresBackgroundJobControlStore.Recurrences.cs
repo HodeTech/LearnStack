@@ -28,10 +28,11 @@ internal sealed partial class PostgresBackgroundJobControlStore
                 await command.ExecuteNonQueryAsync(deadline.Token).ConfigureAwait(false);
                 await FinishAsync(resources).ConfigureAwait(false);
                 command = Command(resources, """
-                    SELECT revision,manifest_hash,activates_at FROM background_job_recurrences
+                    SELECT revision,manifest_hash,activates_at>@activation FROM background_job_recurrences
                     WHERE recurrence_key=@key ORDER BY revision DESC LIMIT 1 FOR UPDATE
                     """);
                 command.Parameters.AddWithValue("key", facts.Key);
+                command.Parameters.AddWithValue("activation", facts.ActivatesAt);
                 resources.SetReader(await command.ExecuteReaderAsync(deadline.Token).ConfigureAwait(false));
                 var insert = true;
                 if (await resources.Reader!.ReadAsync(deadline.Token).ConfigureAwait(false))
@@ -44,7 +45,7 @@ internal sealed partial class PostgresBackgroundJobControlStore
                             : descriptor.ManifestHash == resources.Reader.GetString(1)
                                 ? BackgroundJobRecurrenceRegistrationResult.Existing : BackgroundJobRecurrenceRegistrationResult.Conflict;
                     }
-                    else if (facts.ActivatesAt < resources.Reader.GetFieldValue<DateTimeOffset>(2))
+                    else if (resources.Reader.GetBoolean(2))
                     {
                         insert = false;
                         value = BackgroundJobRecurrenceRegistrationResult.Conflict;
@@ -124,15 +125,17 @@ internal sealed partial class PostgresBackgroundJobControlStore
                 await FinishAsync(resources).ConfigureAwait(false);
                 if (stored is not null)
                 {
-                    var compatible = recurrences.TryGet(stored.Facts.Key, out var local)
-                        && local.Registration.Revision >= stored.Facts.Revision
-                        && (local.Registration.Revision != stored.Facts.Revision || local.ManifestHash == stored.Hash)
-                        && definitions.TryGet(stored.Facts.Target, out var target)
+                    var facts = stored.Facts;
+                    var compatible = facts is not null && recurrences.TryGet(stored.Key, out var local)
+                        && local.Registration.Revision >= stored.Revision
+                        && (local.Registration.Revision != stored.Revision || local.ManifestHash == stored.Hash)
+                        && definitions.TryGet(facts.Target, out var target)
                         && target.Readiness == BackgroundJobDefinitionReadiness.Active
                         && target.ParameterType == typeof(BackgroundJobOccurrenceParameters)
-                        && target.Scope == stored.Facts.Scope
-                        && target.OwnerModule == stored.Facts.Key.Split('.')[0];
-                    var invalid = stored.Facts.Fingerprint() != stored.Hash || stored.Slot < stored.Next;
+                        && target.Scope == facts.Scope
+                        && target.OwnerModule == stored.Key.Split('.')[0];
+                    var invalid = facts is null || stored.Next is null || stored.Slot is null
+                        || facts.Fingerprint() != stored.Hash || stored.Slot < stored.Next;
                     if (invalid || !compatible)
                     {
                         command = Command(resources, """
@@ -147,7 +150,7 @@ internal sealed partial class PostgresBackgroundJobControlStore
                     else
                     {
                         var occurrence = BackgroundJobOccurrenceId.From(ids.NewUuidV7());
-                        var skipped = (stored.Slot - stored.Next).Ticks / stored.Facts.Period.Ticks;
+                        var skipped = (stored.Slot!.Value - stored.Next!.Value).Ticks / facts!.Period.Ticks;
                         command = Command(resources, """
                             INSERT INTO background_job_occurrences (id,recurrence_key,revision,manifest_hash,
                                 target_definition_key,recipient_policy,scheduled_at,jitter_microseconds,skipped_slots)
@@ -155,26 +158,26 @@ internal sealed partial class PostgresBackgroundJobControlStore
                             ON CONFLICT (recurrence_key,scheduled_at) DO NOTHING
                             """);
                         command.Parameters.AddWithValue("id", occurrence.Value);
-                        command.Parameters.AddWithValue("key", stored.Facts.Key);
-                        command.Parameters.AddWithValue("revision", stored.Facts.Revision);
+                        command.Parameters.AddWithValue("key", stored.Key);
+                        command.Parameters.AddWithValue("revision", stored.Revision);
                         command.Parameters.AddWithValue("hash", stored.Hash);
-                        command.Parameters.AddWithValue("target", stored.Facts.Target);
-                        command.Parameters.AddWithValue("policy", stored.Facts.StoredRecipientPolicy);
-                        command.Parameters.AddWithValue("slot", stored.Slot);
-                        command.Parameters.AddWithValue("jitter", stored.Facts.Jitter.Ticks / TimeSpan.TicksPerMicrosecond);
+                        command.Parameters.AddWithValue("target", facts.Target);
+                        command.Parameters.AddWithValue("policy", facts.StoredRecipientPolicy);
+                        command.Parameters.AddWithValue("slot", stored.Slot.Value);
+                        command.Parameters.AddWithValue("jitter", facts.Jitter.Ticks / TimeSpan.TicksPerMicrosecond);
                         command.Parameters.AddWithValue("skipped", skipped);
                         var inserted = await command.ExecuteNonQueryAsync(deadline.Token).ConfigureAwait(false) == 1;
                         await FinishAsync(resources).ConfigureAwait(false);
-                        if (inserted) value = new(occurrence, stored.Facts.Key, stored.Facts.Revision, stored.Slot, skipped);
+                        if (inserted) value = new(occurrence, stored.Key, stored.Revision, stored.Slot.Value, skipped);
                         command = Command(resources, """
                             UPDATE background_job_recurrences SET next_scheduled_at=@next,available_after=GREATEST(clock_timestamp(),@next),
                                 ownership_token=NULL,ownership_until=NULL,last_error=NULL
                             WHERE recurrence_key=@key AND revision=@revision
                             """);
-                        command.Parameters.AddWithValue("next", stored.Slot + stored.Facts.Period);
+                        command.Parameters.AddWithValue("next", stored.Slot.Value + facts.Period);
                     }
-                    command.Parameters.AddWithValue("key", stored.Facts.Key);
-                    command.Parameters.AddWithValue("revision", stored.Facts.Revision);
+                    command.Parameters.AddWithValue("key", stored.Key);
+                    command.Parameters.AddWithValue("revision", stored.Revision);
                     await command.ExecuteNonQueryAsync(deadline.Token).ConfigureAwait(false);
                     await FinishAsync(resources).ConfigureAwait(false);
                     await CommitAsync(resources, deadline.Token).ConfigureAwait(false);
@@ -186,9 +189,11 @@ internal sealed partial class PostgresBackgroundJobControlStore
         return new(value, resources, []);
     }
 
-    private sealed record StoredRecurrence(BackgroundJobRecurrenceFacts Facts, string Hash, DateTimeOffset Next, DateTimeOffset Slot)
+    private sealed record StoredRecurrence(string Key, long Revision, BackgroundJobRecurrenceFacts? Facts,
+        string Hash, DateTimeOffset? Next, DateTimeOffset? Slot)
     {
         internal static StoredRecurrence Read(Npgsql.NpgsqlDataReader row) =>
-            new(BackgroundJobRecurrenceFacts.Read(row), row.GetString(2), row.GetFieldValue<DateTimeOffset>(10), row.GetFieldValue<DateTimeOffset>(11));
+            new(row.GetString(0), row.GetInt64(1), BackgroundJobRecurrenceFacts.Read(row), row.GetString(2),
+                BackgroundJobRecurrenceFacts.ReadTimestamp(row, 10), BackgroundJobRecurrenceFacts.ReadTimestamp(row, 11));
     }
 }

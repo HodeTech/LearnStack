@@ -7665,6 +7665,80 @@ This completes the new guard slice. Both fresh full Step 8 review rounds remain
 before Step 9; these narrow inspections award neither round. All nineteen packet
 obligations remain Registered. No packet-wide regression or CI success is claimed.
 
+#### Step 8 full review round 1 (2026-10-18)
+
+Three fresh independent reviewers inspected `69405b16..332e7a4a`: GPT-6-astra
+xhigh covered runtime/lifecycle, GPT-6.1-sol xhigh covered persistence/authority,
+and GPT-6.1-sol high covered tests/corpus. These are full Step 8 reviews, distinct
+from the earlier narrow preflights. The reviewers ran no toolchain or database
+checks; the execution receipts below belong to the root implementer.
+
+Two Major findings and one Minor corpus correction were verified:
+
+- A stop winning before the new child's native-client binding or Start caused a
+  setup exception. The parent/facade could then retain a false cleanup failure
+  indefinitely despite no issued recurrence work. Both child entry points now
+  return neutrally for that stopped-before-setup state. Already-bound/started
+  duplicate refusals and an open nonempty owner's missing-client refusal remain.
+- PostgreSQL's finite timestamp range exceeds the CLR range. A schema-legal BC
+  activation or year-10000 anchor could repeatedly fail decoding the first due
+  row before its invalid-control branch, starving healthy work. Readers retain
+  the actual locked locator before decoding and treat unrepresentable dates as
+  absent facts, never fabricated valid values. After actual reader cleanup, the
+  exact recurrence, occurrence or recipient is quarantined without issuing work.
+  Only deterministic conversion exceptions are contained; IO/cancellation/server
+  failures retain the existing owner/cleanup path. Higher-revision registration
+  compares the prior activation in PostgreSQL instead of decoding it into CLR.
+- The live catalogue introduction still described completed Step 7 qualification
+  as pending. Both current pointers now agree with its completed record; Step 9
+  enforcement remains pending and all nineteen obligations stay Registered.
+
+The first four regressions ran against unchanged production code and failed at
+all four intended assertions, not fixture setup: two bad-date rows repeatedly
+failed without quarantine/healthy progress; two late child setup calls threw.
+That test-only receipt is
+`6613d4652759320ee077261bc6186efef597258d74d832431dc407d584d24299`.
+With the five production corrections, the same four cases pass; the first
+corrected receipt is
+`e54a9f08143b829cac78911e3291a2a7dfafe374e0a9dbee2e7548a6cb94948f`.
+Neither receipt is a current-head whole-packet regression or CI claim.
+
+The expanded qualification adds eight timestamp cases across recurrence
+materialization, occurrence paging, recipient acquisition and higher-revision
+registration, all under the real confined-role grants and unmodified guards.
+Each invalid selected row confirms ACK/cleanup, no authority/progress beyond
+quarantine, and healthy sibling progress. BC scheduled routes require BC manifest
+activation, so their absent-manifest branch does not independently qualify the
+recipient's own-date checks. A future year-10000 incumbent activation returns
+Conflict without inserting a revision; a BC incumbent permits the later valid
+revision and exact supersession/hash.
+
+Four lifecycle cases use actual owners and sources. The late setup assertions
+inspect the actual null client/native fields, unstarted flag, empty recipients
+and positively completed null-loop witness. A synchronous hold on the actual
+child monitor orders real parent Start past its admission guard before facade
+stop, then joins the original start task, parent/facade completion and both
+sources. The open/duplicate controls preserve programmer-error refusals. No
+synthetic owner/task/source replaces the real cleanup chain; the parent barrier
+is qualified on corrected code, not described as an original-code execution.
+
+The expanded Release build has zero warnings/errors. All 2,408 Unit, 91
+recurrence PostgreSQL and 57 focused Architecture cases pass with zero
+failures/skips. The Architecture run includes all 49 recurrence capability cases,
+four existing owner/recipient guards and four catalogue/skip/Docker-trait checks.
+The seven changed C# files pass formatter verification with no changes; its
+workspace-load warning is distinct from the warning-free build. The 332-source
+hash/mode receipt closes at
+`afdda5089283dd6eee49f527576466778817bf78f3a041c857d4385bccb00239`.
+The local link audit passes 1,740 links and 519 fragments. These focused checks
+do not replace Step 9's complete regression or real CI. Round 1 and its verified
+corrections are complete; a fresh full Step 8 round 2 is still required.
+
+Step 9 explicitly owns durable unknown/deployment-mismatch observation, including
+an empty-registry restart. Local registration mismatch flags alone do not qualify
+that cold durable-health surface. These corrections add no new ADR decision,
+role/grant, production business definition or general lifecycle selector.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

@@ -49,14 +49,15 @@ internal sealed partial class PostgresBackgroundJobControlStore
                 await FinishAsync(resources).ConfigureAwait(false);
                 if (route is not null)
                 {
-                    var compatible = recurrences.TryGet(route.Manifest.Key, out var local)
-                        && local.Registration.Revision >= route.Manifest.Revision
-                        && (local.Registration.Revision != route.Manifest.Revision || local.ManifestHash == route.Hash)
-                        && definitions.TryGet(route.Manifest.Target, out var target)
+                    BackgroundJobRecurrenceDescriptor? local = null;
+                    var compatible = !route.Invalid && route.Manifest is { } manifest && recurrences.TryGet(manifest.Key, out local)
+                        && local.Registration.Revision >= manifest.Revision
+                        && (local.Registration.Revision != manifest.Revision || local.ManifestHash == route.Hash)
+                        && definitions.TryGet(manifest.Target, out var target)
                         && target.Readiness == BackgroundJobDefinitionReadiness.Active
                         && target.ParameterType == typeof(BackgroundJobOccurrenceParameters)
-                        && target.Scope == route.Manifest.Scope
-                        && target.OwnerModule == route.Manifest.Key.Split('.')[0];
+                        && target.Scope == manifest.Scope
+                        && target.OwnerModule == manifest.Key.Split('.')[0];
                     if (route.Invalid || !compatible)
                     {
                         command = Command(resources, """
@@ -116,16 +117,19 @@ internal sealed partial class PostgresBackgroundJobControlStore
             MintRecipient(row, observedAt, declarationType);
     }
 
-    private sealed record RecipientRoute(Guid Id, BackgroundJobRecurrenceFacts Manifest, string Hash, bool Invalid)
+    private sealed record RecipientRoute(Guid Id, BackgroundJobRecurrenceFacts? Manifest, string Hash, bool Invalid)
     {
         internal static RecipientRoute Read(Npgsql.NpgsqlDataReader row)
         {
+            var id = row.GetGuid(10);
             var manifest = BackgroundJobRecurrenceFacts.Read(row);
             var hash = row.GetString(2);
-            var invalid = manifest.Fingerprint() != hash || row.GetString(14) != manifest.Key
+            var invalid = manifest is null || BackgroundJobRecurrenceFacts.ReadTimestamp(row, 19) is null
+                || BackgroundJobRecurrenceFacts.ReadTimestamp(row, 20) is null
+                || manifest.Fingerprint() != hash || row.GetString(14) != manifest.Key
                 || row.GetInt64(15) != manifest.Revision || row.GetString(16) != hash
                 || row.GetString(17) != manifest.Target || row.GetString(18) != manifest.StoredRecipientPolicy;
-            return new(row.GetGuid(10), manifest, hash, invalid);
+            return new(id, manifest, hash, invalid);
         }
     }
 }

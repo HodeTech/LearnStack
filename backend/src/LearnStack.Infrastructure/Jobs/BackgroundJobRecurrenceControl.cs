@@ -92,8 +92,9 @@ internal sealed class BackgroundJobRecurrenceControl
         ArgumentNullException.ThrowIfNull(client);
         lock (_sync)
         {
-            if (_client is not null || _started || _stopping)
+            if (_client is not null || _started)
                 throw new InvalidOperationException("The recurrence client binds once before startup.");
+            if (_stopping) return;
             _client = client;
         }
     }
@@ -102,8 +103,11 @@ internal sealed class BackgroundJobRecurrenceControl
     {
         lock (_sync)
         {
-            if (_started || _stopping || _registry.Keys.Count != 0 && _client is null)
+            if (_started)
                 throw new InvalidOperationException("The recurrence owner starts once with its bound native client.");
+            if (_stopping) return;
+            if (_registry.Keys.Count != 0 && _client is null)
+                throw new InvalidOperationException("The recurrence owner requires its bound native client.");
             _started = true;
             _progress = _time.GetTimestamp();
         }

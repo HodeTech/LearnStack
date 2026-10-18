@@ -30,7 +30,7 @@ owns validation, review and PR closeout status),
 [ADR-0060 Fatal Hangfire Startup and Unsafe Unwind](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
 (Accepted 2026-10-16; exceptional boundary proofs Registered, runtime pending),
 [ADR-0061 Known External Job Failure Policy](../decisions/0061-known-external-job-failure-policy.md)
-(Accepted 2026-10-17; completed-failure obligations Registered, Step 7 pending). The
+(Accepted 2026-10-17; Step 7 qualified, Step 9 enforcement Registered). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -5098,8 +5098,9 @@ qualification to the existing bootstrap, credential and capacity obligations.
 [Accepted ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md#architecture-tests)
 adds the exceptional fatal-boundary assignments below.
 [Accepted ADR-0061](../decisions/0061-known-external-job-failure-policy.md#architecture-tests)
-extends seven existing assertions for completed external-failure policy; Step 7
-qualification and Step 9 enforcement remain pending. No rule is promoted by
+extends seven existing assertions for completed external-failure policy.
+[Step 7 qualification and both full reviews](../roadmap/phase-02b-events-auth.md#p02b-4-step-7--external-stages-and-recovery-2026-10-17)
+are complete; Step 9 enforcement remains pending. No rule is promoted by
 acceptance. All nineteen names are Registered. A step's partial foundation is not
 enforcement of the complete assertion; promotion names its actual tests when they ship.
 Production business/recurrence registries remain empty; real framework subjects

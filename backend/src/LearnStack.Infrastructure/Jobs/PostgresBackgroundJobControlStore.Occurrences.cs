@@ -212,21 +212,21 @@ internal sealed partial class PostgresBackgroundJobControlStore
         command.Parameters.AddWithValue("tenants", routes.Select(route => route.Tenant).ToArray());
         command.Parameters.AddWithValue("organizations", NpgsqlDbType.Array | NpgsqlDbType.Uuid, routes.Select(route => route.Organization).ToArray());
         command.Parameters.AddWithValue("dues", routes.Select(route => BackgroundJobRecipientJitter.DueAt(cursor.Id, route.Tenant,
-            route.Organization, cursor.Slot, cursor.JitterMicroseconds)).ToArray());
+            route.Organization, cursor.Slot!.Value, cursor.JitterMicroseconds)).ToArray());
         command.Parameters.AddWithValue("occurrence", cursor.Id);
         command.Parameters.AddWithValue("key", cursor.Key);
         command.Parameters.AddWithValue("revision", cursor.Revision);
         command.Parameters.AddWithValue("hash", cursor.Hash);
         command.Parameters.AddWithValue("target", cursor.Target);
         command.Parameters.AddWithValue("policy", cursor.StoredPolicy);
-        command.Parameters.AddWithValue("slot", cursor.Slot);
+        command.Parameters.AddWithValue("slot", cursor.Slot!.Value);
         var inserted = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
         await FinishAsync(resources).ConfigureAwait(false);
         return inserted;
     }
 
     private sealed record OccurrenceCursor(Guid Id, string Key, long Revision, string Hash, string Target,
-        string StoredPolicy, DateTimeOffset Slot, long JitterMicroseconds, bool BoundsFrozen, Guid? UpperTenant,
+        string StoredPolicy, DateTimeOffset? Slot, long JitterMicroseconds, bool BoundsFrozen, Guid? UpperTenant,
         Guid? UpperOrganization, Guid? AfterTenant, Guid? AfterOrganization, bool Invalid = false, Guid Token = default)
     {
         internal bool Organizations => StoredPolicy == "serving_organizations";
@@ -239,14 +239,17 @@ internal sealed partial class PostgresBackgroundJobControlStore
         };
         internal static OccurrenceCursor Read(Npgsql.NpgsqlDataReader row)
         {
+            var id = row.GetGuid(10);
+            var key = row.GetString(11);
+            var revision = row.GetInt64(12);
             var manifest = BackgroundJobRecurrenceFacts.Read(row);
-            var cursor = new OccurrenceCursor(row.GetGuid(10), row.GetString(11), row.GetInt64(12), row.GetString(13),
-                row.GetString(14), row.GetString(15), row.GetFieldValue<DateTimeOffset>(16), row.GetInt64(17),
+            var cursor = new OccurrenceCursor(id, key, revision, row.GetString(13),
+                row.GetString(14), row.GetString(15), BackgroundJobRecurrenceFacts.ReadTimestamp(row, 16), row.GetInt64(17),
                 !row.IsDBNull(18), row.IsDBNull(19) ? null : row.GetGuid(19), row.IsDBNull(20) ? null : row.GetGuid(20),
                 row.IsDBNull(21) ? null : row.GetGuid(21), row.IsDBNull(22) ? null : row.GetGuid(22));
             return cursor with
             {
-                Invalid = manifest.Fingerprint() != row.GetString(2) || cursor.Hash != row.GetString(2)
+                Invalid = manifest is null || cursor.Slot is null || manifest.Fingerprint() != row.GetString(2) || cursor.Hash != row.GetString(2)
                 || cursor.Key != manifest.Key || cursor.Revision != manifest.Revision || cursor.Target != manifest.Target
                 || cursor.StoredPolicy != manifest.StoredRecipientPolicy
                 || cursor.JitterMicroseconds != manifest.Jitter.Ticks / TimeSpan.TicksPerMicrosecond

@@ -39,7 +39,7 @@ internal sealed record BackgroundJobRecurrenceFacts(string Key, long Revision, D
         _ => throw new InvalidOperationException("A recurrence requires a closed recipient policy."),
     };
 
-    internal static BackgroundJobRecurrenceFacts Read(NpgsqlDataReader row)
+    internal static BackgroundJobRecurrenceFacts? Read(NpgsqlDataReader row)
     {
         var policy = row.GetString(9) switch
         {
@@ -54,9 +54,22 @@ internal sealed record BackgroundJobRecurrenceFacts(string Key, long Revision, D
             "daily" => BackgroundJobRecurrenceSchedule.Daily,
             _ => throw new InvalidOperationException("The stored recurrence schedule is invalid."),
         };
-        return new(row.GetString(0), row.GetInt64(1), row.GetFieldValue<DateTimeOffset>(5), row.GetString(3), schedule,
-            row.GetFieldValue<DateTimeOffset>(6), TimeSpan.FromTicks(checked(row.GetInt64(7) * TimeSpan.TicksPerMicrosecond)),
+        var activation = ReadTimestamp(row, 5);
+        var anchor = ReadTimestamp(row, 6);
+        if (activation is null || anchor is null) return null;
+        return new(row.GetString(0), row.GetInt64(1), activation.Value, row.GetString(3), schedule,
+            anchor.Value, TimeSpan.FromTicks(checked(row.GetInt64(7) * TimeSpan.TicksPerMicrosecond)),
             TimeSpan.FromTicks(checked(row.GetInt64(8) * TimeSpan.TicksPerMicrosecond)), policy, BackgroundJobMisfirePolicy.CoalesceLatest,
             policy == BackgroundJobRecipientPolicy.ServingOrganizations ? BackgroundJobScope.Organization : BackgroundJobScope.TenantWide);
+    }
+
+    // PostgreSQL's finite timestamp range exceeds DateTimeOffset's range.
+    // Absent decoded facts grant no authority; the caller retains the locked
+    // locator and quarantines that row after closing its actual reader.
+    internal static DateTimeOffset? ReadTimestamp(NpgsqlDataReader row, int ordinal)
+    {
+        try { return row.GetFieldValue<DateTimeOffset>(ordinal); }
+        catch (InvalidCastException) { return null; }
+        catch (ArgumentOutOfRangeException) { return null; }
     }
 }
