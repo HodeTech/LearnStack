@@ -9935,9 +9935,13 @@ build, 2,452 unit cases and three actual PostgreSQL heartbeat/capacity-control
 cases, all without skips. The actual compiled diagnostic record is passed
 through two deliberately failed pinned-xUnit wire cases: three pool details
 retain their bounded phase/count facts, both cases stay Failed, and the
-private canary is absent. Forty launcher and 49 shard/result controls are required alongside focused
-independent reviews before publication. Actual hosted root causes and
-complete final-source A/B remain open.
+private canary is absent. The fresh `gpt-6.1-sol` / `high` and
+`gpt-6-astra` / `high` focused reviews each approve `e0124baf..2c7d4300`
+without findings. Both independently pass forty launcher and 49 combined
+shard/result controls; the second also runs the fourteen result controls
+separately and probes actual compiled phases, numeric boundaries and privacy.
+The observation supplies no root-cause correction or ownership witness.
+Actual hosted root causes and complete final-source A/B remain open.
 
 ### Durable outbox dispatch
 
