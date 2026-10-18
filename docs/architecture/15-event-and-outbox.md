@@ -785,9 +785,10 @@ execution and recovery are complete after both full reviews and verified
 corrections; its
 [closeout](../roadmap/phase-02b-events-auth.md#step-7-full-review-round-2-2026-10-17)
 owns the source-specific receipts. Step 8 durable recurrence and restricted
-recipient submission are in progress; its
+recipient submission are locally complete after both full reviews and verified
+corrections; its
 [record](../roadmap/phase-02b-events-auth.md#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18)
-owns current qualification. Production recurrence and business registries stay empty.
+owns final qualification. Production recurrence and business registries stay empty.
 
 [Database Standards](../standards/05-database.md#background-jobs) owns canonical
 storage/grants and reset-safe source deadlines, including five-second idle-session
@@ -804,8 +805,9 @@ owns completed schema/bootstrap/source qualification. The
 owns submission and app-role admission implementation/review status;
 the [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
 owns completed facade/source-lifetime implementation and qualification. Step 9
-owns full observation/enforcement. Both extended canonical obligations remain
-Registered; Step 4 closeout does not claim later business or packet-wide enforcement.
+implements full observation/enforcement and locally qualifies both extended
+canonical obligations. Its record retains pending full review, packet closeout
+and real PR-head CI qualification.
 
 ## Service extraction readiness
 

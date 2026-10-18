@@ -7831,8 +7831,7 @@ success is claimed by Step 8 receipts. No maintainer decision is pending.
 full review rounds and verified corrections. This follows the already Accepted
 ninth step; no new maintainer decision is pending.
 
-Work proceeds through three internal closure units before either full Step 9
-review round:
+The step's three internal closure units are:
 
 1. Complete full job observation, including bounded dimensions, memory-only
    immutable gauges, cold durable unknown/deployment-mismatch health and distinct
@@ -8656,6 +8655,31 @@ are round-1 fix verification, not full round 2. The runtime-lifetime case record
 records 211.55 versus 204.60. Different cohorts/shared load prevent attributing
 those durations to an isolated speedup or claiming CI-budget fit. Whole-job
 qualification remains required without raising its ceiling.
+
+#### Canonical enforcement reconciliation
+
+All nineteen packet obligations now report Implemented in the
+[catalogue](../standards/21-architecture-tests-catalogue.md#backgroundjob_submission_is_transactional_and_stamped).
+Each status names its actual compiled canonical owner and links its exact source;
+the full assertion also retains its structural, native runtime and PostgreSQL
+companions. Ten canonical owners run in Architecture and nine in Integration,
+including the actual Program composition case in the non-Docker partition.
+
+The closed first full run executes all 35 case rows of those nineteen methods
+successfully. The later runtime-detector correction also passes its canonical,
+metric, credential and independent mutation-equivalence cohort. This executed
+evidence replaces the earlier discovery-only receipt; identifier alignment alone
+did not authorize promotion. The three failed full-run fixture cases are
+separately corrected and qualified as recorded above.
+
+The five corpus guards pass after promotion: 254 Architecture method declarations,
+221 Implemented catalogue entries, 131 canonical Architecture entries and 90
+outside that assembly. Integration statuses name their own canonical class;
+Architecture companions do not silently reclassify those rows. Link/fragment and
+diff checks pass. Related live infrastructure/architecture summaries now reflect
+implemented enforcement and the completed Step 8 reviews. Full Step 9 round 2,
+demo/boot, packet closeout and exact PR-head CI/job-budget qualification remain
+separate pending work.
 
 ### Durable outbox dispatch
 

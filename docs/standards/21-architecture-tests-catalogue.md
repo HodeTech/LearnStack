@@ -22,15 +22,16 @@ production-census enforcement; its
 [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 owns validation, review and PR closeout status),
 [ADR-0047 Transactional Background Job Runtime](../decisions/0047-transactional-background-job-runtime.md)
-(Accepted 2026-10-15; P02b-4 obligations Registered, implementation in progress),
+(Accepted 2026-10-15; P02b-4 obligations implemented and locally qualified;
+full Step 9 review/packet closeout remains pending),
 [ADR-0058 Bounded Stock Hangfire Maintenance](../decisions/0058-bounded-stock-hangfire-maintenance.md)
-(Accepted 2026-10-16; maintenance extensions Registered, runtime proofs pending),
+(Accepted 2026-10-16; maintenance extensions and runtime proofs implemented),
 [ADR-0059 Owned Hangfire Server Generations](../decisions/0059-owned-hangfire-server-generations.md)
-(Accepted 2026-10-16; lifecycle qualification Registered),
+(Accepted 2026-10-16; lifecycle qualification implemented),
 [ADR-0060 Fatal Hangfire Startup and Unsafe Unwind](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
-(Accepted 2026-10-16; exceptional boundary proofs Registered, runtime pending),
+(Accepted 2026-10-16; exceptional boundary and runtime proofs implemented),
 [ADR-0061 Known External Job Failure Policy](../decisions/0061-known-external-job-failure-policy.md)
-(Accepted 2026-10-17; Step 7 qualified, Step 9 enforcement Registered). The
+(Accepted 2026-10-17; Step 7 qualified and Step 9 enforcement implemented). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -130,8 +131,10 @@ shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
 P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–8, with further
 source-boundary, observation and production-manifest companions in Step 9.
-Its nineteen packet
-obligations remain Registered until Step 9 closes enforcement.
+Its nineteen packet obligations are implemented with actual canonical owners and
+complementary structural, native-runtime and PostgreSQL controls. The
+[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+distinguishes local enforcement qualification from pending review/packet/CI closeout.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -158,8 +161,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**202 rules in this catalogue are Implemented, and 121 of them are in that assembly.**
-The other 81 are no less binding, and most could not live there. The table says where
+**221 rules in this catalogue are Implemented, and 131 of them are in that assembly.**
+The other 90 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -5124,7 +5127,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   hostile getters, foreign/stale/read-only frames and absorbed failures cannot widen it.
 - **Type:** architecture census and real PostgreSQL submission/rollback controls.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 1, 3 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,
+  `BackgroundJobSubmissionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Integration/Database/BackgroundJobSubmissionTests.cs)).
 
 ### `BackgroundJob_Definitions_Stay_In_Their_Owning_Module`
 
@@ -5133,7 +5137,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   shapes, mutable registration sources and caller-supplied authority.
 - **Type:** registry unit controls and whole-production dependency/capability census.
   **Kind:** structural + startup + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 1 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
+  `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobManifestBoundaryTests.cs)).
 
 ### `BackgroundJob_Execution_Restores_Tenant_And_Trace`
 
@@ -5142,7 +5147,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   restores prior context through actual cleanup, cancellation and late completion.
 - **Type:** context-writer census and actual executor integration controls.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 3, 5, 7–9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,
+  `BackgroundJobBusinessTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Integration/Database/BackgroundJobBusinessTests.Context.cs)).
 
 ### `BackgroundJob_Completion_Is_Owner_Atomic_And_Fenced`
 
@@ -5151,7 +5157,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   together. Lock-wait expiry and uncertain COMMIT cannot authorize a new attempt.
 - **Type:** owner/capability census and real PostgreSQL fault/fence controls.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 5, 7 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
+  `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobOwnerBoundaryTests.cs)).
 
 ### `BackgroundJob_Terminal_Audit_Is_Row_Bound`
 
@@ -5166,7 +5173,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   writes; uncertain COMMIT reconciles the actual row without duplicate audit.
 - **Type:** writer/minting census and real PostgreSQL terminal-atomicity controls.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 5, 7 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
+  `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobTerminalBoundaryTests.cs)).
 
 ### `BackgroundJob_Retries_And_Terminal_Faults_Preserve_Progress`
 
@@ -5182,7 +5190,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   progress never bypasses quiescence or prepared domain finalization.
 - **Type:** actual worker/PostgreSQL retry, crash and backlog controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — P02b-4 Steps 4–5, 7 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,
+  `BackgroundJobControlTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Integration/Database/BackgroundJobControlTests.cs)).
 
 ### `BackgroundJob_Storage_And_Credentials_Are_Confined`
 
@@ -5205,7 +5214,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   each denial.
 - **Type:** whole-schema/consumer census and real app/role/denied-column probes.
   **Kind:** structural + startup + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 1–2, 6–9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
+  `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/HangfireCredentialBoundaryTests.cs)).
 
 ### `BackgroundJob_Runtime_Has_No_Production_Definitions_Or_Dashboard`
 
@@ -5214,7 +5224,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   and dirty controls prevent an absent registration or undiscovered module passing.
 - **Type:** production composition/route/registry census with planted controls.
   **Kind:** structural + startup + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 1, 4 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,
+  `BackgroundJobProductionManifestTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Integration/BackgroundJobProductionManifestTests.cs)).
 
 ### `Hangfire_Wakeups_Are_Recoverable_And_Generation_Fenced`
 
@@ -5223,7 +5234,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   Future-due scheduling, vendor loss and explicit retirement retain correct readiness.
 - **Type:** real pinned client/worker and PostgreSQL fault/repair controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — P02b-4 Steps 3–4 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,
+  `BackgroundJobBridgeTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Integration/Database/BackgroundJobBridgeTests.cs)).
 
 ### `Hangfire_Invocations_And_Diagnostics_Are_Closed`
 
@@ -5235,7 +5247,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   finally/exit markers distinguish fatal from normal exit with a dirty gate control.
 - **Type:** invocation census, real worker fallback and stored/logged canary controls.
   **Kind:** structural + startup + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 2, 4 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,
+  `HangfireStorageTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Integration/Database/HangfireStorageTests.cs)).
 
 ### `Hangfire_Bootstrap_Uses_Pinned_Schema_And_Confined_Role`
 
@@ -5256,7 +5269,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   behavior; dirty inventory/filter/deadline controls refuse before workers start.
 - **Type:** composition/source census and real boot/role/blocked-SQL controls.
   **Kind:** structural + startup + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 2, 4, 8 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
+  `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/HangfireRuntimeBoundaryTests.cs)).
 
 ### `BackgroundJob_Capacity_Is_Tenant_Wide_And_Quiescence_Bound`
 
@@ -5271,7 +5285,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   reacquires capacity through ordinary admission; no TTL supplies release proof.
 - **Type:** actual two-instance/org app-role PostgreSQL admission controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — P02b-4 Steps 6–7 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
+  `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobCapacityBoundaryTests.cs)).
 
 ### `BackgroundJob_External_Work_Has_No_Business_Transaction`
 
@@ -5290,7 +5305,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   and Reconcile require no prior exception to select the correct policy.
 - **Type:** adapter dependency/capability census and real stage/transaction controls.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 1, 7 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
+  `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobExternalActivationBoundaryTests.cs)).
 
 ### `BackgroundJob_External_Recovery_Never_Assumes_Quiescence`
 
@@ -5315,7 +5331,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   durable authority from ephemeral stop flags and uncommitted observations.
 - **Type:** real engine with explicit fixture provider/process/fault controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — P02b-4 Steps 7 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,
+  `BackgroundJobPositiveSdkTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Integration/Database/BackgroundJobPositiveSdkTests.NativeUnresolved.cs)).
 
 ### `BackgroundJob_Finalization_Retries_Are_Bounded`
 
@@ -5339,7 +5356,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   finalizer or invent business Failed state.
 - **Type:** real app-role stage/uncertain-COMMIT/audit-rollback controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — P02b-4 Steps 7 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,
+  `BackgroundJobExternalCheckpointStoreTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Integration/Database/BackgroundJobExternalCheckpointStoreTests.FinalizerControl.cs)).
 
 ### `BackgroundJob_Recurrence_Is_Durable_And_Deduplicated`
 
@@ -5348,7 +5366,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   versions and duplicate ticks; page checkpoint and recipient INSERT are atomic.
 - **Type:** real control-store/PostgreSQL revision, misfire and crash controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — P02b-4 Steps 8–9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Integration`,
+  `BackgroundJobRecurrenceStoreTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Integration/Database/BackgroundJobRecurrenceStoreTests.cs)).
 
 ### `BackgroundJob_Fanout_Uses_Recipient_Bound_Tenant_Admission`
 
@@ -5357,7 +5376,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   atomically submit its child/receipt. Forged routes and lost ACK cannot duplicate it.
 - **Type:** grant/caller census and real cross-scope recipient/child fault controls.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 8–9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
+  `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobRecipientBoundaryTests.cs)).
 
 ### `BackgroundJob_Ordinary_Execution_Has_No_Platform_Authority`
 
@@ -5367,7 +5387,8 @@ and fixture definitions must make the eventual controls non-vacuous.
 - **Type:** request/capability census and actual sender/direct-entry/warm-source
   controls.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 1, 3, 5 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
+  `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobAuthorityBoundaryTests.cs)).
 
 ### `BackgroundJob_Worker_Pools_Reserve_Independent_Capacity`
 
@@ -5388,7 +5409,8 @@ and fixture definitions must make the eventual controls non-vacuous.
   pools progress at that boundary, including nested and retained acquisitions.
 - **Type:** real pinned workers and production-engine saturation/shutdown controls.
   **Kind:** structural + startup + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 1, 4, 7 and 9.
+- **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
+  `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobRuntimeCompositionBoundaryTests.cs)).
 
 ## References
 

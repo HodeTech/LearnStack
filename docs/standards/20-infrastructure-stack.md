@@ -818,8 +818,9 @@ production supervision and crash diagnostics; acceptance claims no delivered run
   rows do not promise disk shrinkage, bounded backlog/store size or recovery rate.
   Phase 11 owns operational retention/space and measured production capacity.
   Step 2 implements source/reset qualification; Step 4 completes actual maintenance/
-  component/filter/pool qualification. Step 9 observation/enforcement remains pending;
-  both extended catalogue obligations remain Registered.
+  component/filter/pool qualification. Step 9 implements observation/enforcement
+  and locally qualifies both extended catalogue obligations; its delivery record
+  retains pending full review, packet closeout and real PR-head CI qualification.
 
 ## Network and Service Topology
 
