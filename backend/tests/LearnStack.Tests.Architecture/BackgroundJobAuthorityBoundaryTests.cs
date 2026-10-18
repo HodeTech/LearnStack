@@ -15,7 +15,7 @@ public sealed partial class OutboxDispatchConventionTests
 
     /// <summary>ADR-0047 ordinary execution authority and Step 3's live framework admission.</summary>
     [Fact]
-    public void Background_job_admission_and_privileged_entries_keep_their_closed_preconstruction_seams()
+    public void BackgroundJob_Ordinary_Execution_Has_No_Platform_Authority()
     {
         using var census = ProductionCensus.Read();
         JobAuthorityOffenders(census).Should().BeEmpty(

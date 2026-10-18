@@ -49,7 +49,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests(SchemaFixture sche
     }
 
     [Fact]
-    public async Task Latest_due_slot_coalesces_and_independent_materializers_cannot_duplicate_it()
+    public async Task BackgroundJob_Recurrence_Is_Durable_And_Deduplicated()
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         var today = await TodayAsync(database);

@@ -188,7 +188,7 @@ public sealed partial class HangfireStorageTests(SchemaFixture schema) : IClassF
     }
 
     [Fact]
-    public async Task Real_pinned_worker_disabled_filter_fallback_persists_only_redacted_failure()
+    public async Task Hangfire_Invocations_And_Diagnostics_Are_Closed()
     {
         await using var source = Source();
         var storage = HangfireStorageBootstrap.Create(source, BackgroundJobInfrastructureRegistry.CreateDefault(), Diagnostics());

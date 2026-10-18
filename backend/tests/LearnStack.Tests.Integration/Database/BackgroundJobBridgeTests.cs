@@ -84,7 +84,7 @@ public sealed partial class BackgroundJobBridgeTests(SchemaFixture schema)
     [InlineData("missing")]
     [InlineData("Failed")]
     [InlineData("Succeeded")]
-    public async Task Vendor_hint_state_never_prevents_same_generation_repair(string hintState)
+    public async Task Hangfire_Wakeups_Are_Recoverable_And_Generation_Fenced(string hintState)
     {
         await using var database = await DatabaseAsync();
         var id = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);

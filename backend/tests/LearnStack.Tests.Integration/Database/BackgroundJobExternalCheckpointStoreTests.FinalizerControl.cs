@@ -28,7 +28,7 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
     [InlineData(false, false, null, 6, false)]
     [InlineData(true, false, null, 6, false)]
     [InlineData(false, false, null, 6, true)]
-    public async Task Actual_clean_finalizer_disposition_preserves_decision_and_exact_commit_identity(
+    public async Task BackgroundJob_Finalization_Retries_Are_Bounded(
         bool permanent, bool expiredOwner, bool? commitLanded, int finalizeOrdinal, bool selectedFailure)
     {
         // Explicit supplied provider observation isolates the real app Finalize

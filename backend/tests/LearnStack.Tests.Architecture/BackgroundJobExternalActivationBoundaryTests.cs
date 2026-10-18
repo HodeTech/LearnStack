@@ -156,7 +156,7 @@ public sealed partial class OutboxDispatchConventionTests
         || target.DeclaringType.FullName == "System.Type" && target.Name is "GetType" or "GetConstructor" or "GetMethod" or "MakeGenericType";
 
     [Fact]
-    public void External_activation_has_exact_typed_bridges_and_request_entries_with_dirty_controls()
+    public void BackgroundJob_External_Work_Has_No_Business_Transaction()
     {
         using var census = ProductionCensus.Read();
         EvaluateDetector(census, JobExternalActivationOffenders).Should().BeEmpty();

@@ -8524,6 +8524,24 @@ success or proof that the entire job fits its unchanged ceiling. Combined
 privileged capacity, complete nineteen-rule reconciliation, full regression and
 both full Step 9 reviews remain open. All nineteen obligations remain Registered.
 
+#### Canonical obligation ownership alignment
+
+Fourteen existing test methods now carry their catalogue identifiers in place.
+Their complete source bytes reverse to the prior files after replacing only that
+one identifier: bodies, attributes, Theory data, traits and dirty companions are
+unchanged. The two existing canonical owners and the three substantive manifest/
+constructor owners provide the other five names. Compiled Architecture and
+Integration discovery finds all nineteen names with their real case rows. The
+Architecture method total stays 254. CI-mode Release compilation has zero
+warnings/errors; scoped fourteen-file formatting reports no changes.
+
+This is naming/discovery qualification, not a new executed-test receipt, a claim
+that any one named method covers its full assertion, or catalogue promotion.
+Each complete obligation also retains its schema, native runtime and fault
+companions. Combined privileged capacity and complete regression/packaging/boot/
+CI-budget qualification remain pending before full Step 9 reviews and closeout.
+All nineteen obligations remain Registered.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

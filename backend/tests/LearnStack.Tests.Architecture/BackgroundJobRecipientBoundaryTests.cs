@@ -29,7 +29,7 @@ public sealed partial class OutboxDispatchConventionTests
 
     /// <summary>ADR-0047: the actual recipient row grants one closed submission on the existing request owner.</summary>
     [Fact]
-    public void Background_job_recipient_submission_keeps_actual_row_minting_and_one_existing_owner()
+    public void BackgroundJob_Fanout_Uses_Recipient_Bound_Tenant_Admission()
     {
         using var census = ProductionCensus.Read();
         RecipientOffenders(census).Should().BeEmpty(

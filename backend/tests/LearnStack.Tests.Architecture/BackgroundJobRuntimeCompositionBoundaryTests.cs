@@ -533,7 +533,7 @@ public sealed partial class OutboxDispatchConventionTests
         && instruction.Next?.Next?.Next?.Next?.Next?.OpCode == OpCodes.Ceq;
 
     [Fact]
-    public void Background_job_runtime_source_pin_and_messaging_owners_reject_off_owner_escapes()
+    public void BackgroundJob_Worker_Pools_Reserve_Independent_Capacity()
     {
         using var census = ProductionCensus.Read();
         EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty("the actual runtime, source and two messaging lifetimes must be clean nonempty subjects");

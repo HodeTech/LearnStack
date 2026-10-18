@@ -17,7 +17,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
     [Theory]
     [InlineData("running")]
     [InlineData("unknown")]
-    public async Task Native_unresolved_reports_keep_occupancy_without_outcome_audit_or_another_Execute(string mode)
+    public async Task BackgroundJob_External_Recovery_Never_Assumes_Quiescence(string mode)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);

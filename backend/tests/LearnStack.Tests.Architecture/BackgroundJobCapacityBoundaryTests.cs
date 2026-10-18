@@ -23,7 +23,7 @@ public sealed partial class OutboxDispatchConventionTests
 
     /// <summary>ADR-0047 capacity admission: positive cleanup and nonexecuting recovery retain their exact existing owners.</summary>
     [Fact]
-    public void Background_job_capacity_uses_closed_cleanup_recovery_and_sequential_checkpoint_capabilities()
+    public void BackgroundJob_Capacity_Is_Tenant_Wide_And_Quiescence_Bound()
     {
         using var census = ProductionCensus.Read();
         EvaluateDetector(census, JobCapacityOffenders).Should().BeEmpty(

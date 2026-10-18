@@ -12,7 +12,7 @@ public sealed partial class OutboxDispatchConventionTests
     private const string JobBridgeStore = "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobBridgeStore";
 
     [Fact]
-    public void Vendor_connection_capability_rejects_extra_acquisition_forwarding_and_factory_construction()
+    public void BackgroundJob_Storage_And_Credentials_Are_Confined()
     {
         using var census = ProductionCensus.Read();
         EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("the actual vendor factory and bootstrap must be clean subjects");

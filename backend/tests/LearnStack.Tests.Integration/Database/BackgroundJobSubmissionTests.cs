@@ -59,7 +59,7 @@ public sealed partial class BackgroundJobSubmissionTests(SchemaFixture schema)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Typed_submission_is_visible_immediately_and_commits_with_business_and_MUST_audit(bool organizationScoped)
+    public async Task BackgroundJob_Submission_Is_Transactional_And_Stamped(bool organizationScoped)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);

@@ -20,7 +20,7 @@ public sealed partial class BackgroundJobControlTests(SchemaFixture schema)
     private static BackgroundJobRuntimeFixture Fixture => BackgroundJobRuntimeFixture.Shared;
 
     [Fact]
-    public async Task Known_rollback_traverses_recovery_observes_all_five_waits_and_never_admits_a_seventh_start()
+    public async Task BackgroundJob_Retries_And_Terminal_Faults_Preserve_Progress()
     {
         await using var database = await DatabaseAsync();
         var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);

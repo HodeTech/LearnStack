@@ -24,7 +24,7 @@ public sealed partial class OutboxDispatchConventionTests
     private const string AsyncDiagnostics = "LearnStack.SharedKernel.Tenancy.AsyncExecutionDiagnostics";
 
     [Fact]
-    public void Background_job_business_uses_only_the_existing_ordinary_owner_and_closed_completion_capabilities()
+    public void BackgroundJob_Completion_Is_Owner_Atomic_And_Fenced()
     {
         using var census = ProductionCensus.Read();
         JobOwnerOffenders(census).Should().BeEmpty(
