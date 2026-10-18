@@ -8501,6 +8501,29 @@ Combined privileged capacity, complete nineteen-rule reconciliation, distributio
 and full regression/CI-budget qualification, and both full Step 9 reviews remain
 open. All nineteen obligations remain Registered.
 
+#### Published distribution gate qualification
+
+The existing backend CI job now publishes the actual Release API into a fresh
+owned temporary directory, then runs both existing offline distribution
+verifiers against that publish and its exact API/Infrastructure build graphs.
+Failure remains gating; only JSON receipts join its test-result artifact. The
+required job name, filters and twenty-minute ceiling stay unchanged. The kit
+README documents the prerequisite Release restore/build/publish commands.
+
+A fresh local framework-dependent publish completes in 1.176 seconds. All four
+stock shared DLLs, corresponding-source archives and licence/notice inventories
+verify. Fifteen dirty distribution controls reject, and the recipient-modified
+Core inspection succeeds without a runtime restriction. The original 178-file
+publish remains byte-identical after controls. These checks take 0.801 seconds;
+replacement inspection does not prove a modified assembly executes compatibly.
+The exact new workflow shell block also passes locally, emits both JSON receipts
+and removes its owned temporary publish. `actionlint` and diff checks pass.
+
+This is artifact/graph and workflow-step qualification, not API boot, full CI
+success or proof that the entire job fits its unchanged ceiling. Combined
+privileged capacity, complete nineteen-rule reconciliation, full regression and
+both full Step 9 reviews remain open. All nineteen obligations remain Registered.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

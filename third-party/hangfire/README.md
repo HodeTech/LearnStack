@@ -48,8 +48,19 @@ project's PackageReferences are ordinary removable references, with no signature
 or checksum enforcement at runtime. Production qualification of a changed provider
 remains the deployer's responsibility.
 
+First restore and build the solution in Release, then publish the API to a fresh
+directory. The verifier needs the API and referenced Infrastructure assets from
+that same build. Ordinary framework-dependent output is the qualified format:
+
+```sh
+dotnet restore backend/LearnStack.slnx
+CI=true dotnet build backend/LearnStack.slnx --configuration Release --no-restore
+dotnet publish backend/src/LearnStack.Api/LearnStack.Api.csproj \
+  --configuration Release --no-build --no-restore --output /absolute/fresh/publish
+```
+
 Check the shared assemblies, corresponding source, licence kit and concrete
-resolved dependency graph from the repository root:
+resolved dependency graph from the repository root against that output:
 
 ```sh
 python3 third-party/hangfire/verify-distribution.py path/to/publish \
@@ -72,6 +83,12 @@ including the internally merged Cronos source/notice/pin, missing/modified share
 assemblies, absent framework reference, and explicit
 recipient-replacement inspection. It mutates only a temporary copy and emits its
 receipt to stdout.
+
+The existing backend CI job performs a fresh Release publish and runs both
+verifiers as a failure gate before its tests. Its artifact includes only the JSON
+receipts alongside test results. This checks original distribution material and
+recipient-replacement inspection; it does not execute a replacement assembly or
+prove API startup. The job's existing twenty-minute ceiling is unchanged.
 
 Isolated maintenance/timeout decision experiments and their prerequisites live in
 [qualification/](qualification/README.md). They are not production initialization

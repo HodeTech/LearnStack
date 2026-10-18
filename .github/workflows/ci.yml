@@ -112,6 +112,25 @@ jobs:
           CI: "true"
         run: dotnet build LearnStack.slnx --no-restore --configuration Release
 
+      # ADR-0047: qualify the actual framework-dependent distribution and its
+      # pre-pruning Infrastructure graph, not only the solution's test binaries.
+      - name: Verify Hangfire distribution and replacement controls
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/hangfire-distribution
+          distribution_publish="$(mktemp -d "${RUNNER_TEMP}/learnstack-hangfire-publish.XXXXXX")"
+          trap 'rm -rf -- "$distribution_publish"' EXIT
+          dotnet publish backend/src/LearnStack.Api/LearnStack.Api.csproj \
+            --configuration Release --no-build --no-restore --output "$distribution_publish"
+          python3 third-party/hangfire/verify-distribution.py "$distribution_publish" \
+            --assets backend/src/LearnStack.Api/obj/project.assets.json \
+            --infrastructure-assets backend/src/LearnStack.Infrastructure/obj/project.assets.json \
+            > artifacts/hangfire-distribution/distribution.json
+          python3 third-party/hangfire/verify-distribution-controls.py "$distribution_publish" \
+            --assets backend/src/LearnStack.Api/obj/project.assets.json \
+            --infrastructure-assets backend/src/LearnStack.Infrastructure/obj/project.assets.json \
+            > artifacts/hangfire-distribution/controls.json
+
       # The filter EXCLUDES a set, it does not name one. LearnStack.Tests.Integration
       # holds WebApplicationFactory tests that need no Docker and carry rules the
       # structural tests cannot — no-op'ing VersionedRouteConvention leaves every
@@ -149,7 +168,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-results
-          path: artifacts/backend-tests
+          path: |
+            artifacts/backend-tests
+            artifacts/hangfire-distribution
           if-no-files-found: warn
 
   # ─── Backend integration (Testcontainers — active since Phase 02a Packet 6) ────
