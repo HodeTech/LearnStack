@@ -11131,7 +11131,8 @@ these test corrections.
 
 ### Additional verification and evidence reconciliation (2026-10-19)
 
-**Status: verified corrections in progress; renewed source qualification pending.**
+**Status: local corrections and both independent review rounds complete;
+quota accounting choice and renewed source qualification pending.**
 This pass retains existing ADRs, durable-state authority and phase boundaries.
 
 #### Previously qualified source and retained evidence
@@ -11179,7 +11180,7 @@ subsequent corrections.
 | Explicit Retry-After is overwritten | Preserve an existing delta/date value; supply the existing default only when absent or empty. |
 | Cleanup wait's boolean is ignored | `Completion` is a Task, not Task<bool>; awaiting WaitAsync already requires successful completion. No weakened or discarded boolean exists. |
 | Dependency/comment drift | Remove the unused audit-adapter MediatR reference; align its catalogue/coordinator description, Next patch comment, middleware XML summary and P02b-5 authentication owner. |
-| Moving CI action tags and scanner admission | Pin all 39 uses to seven reviewed upstream commits and let Dependabot propose updates. Go already uses its checksum database; additionally require exact module and go.mod hashes before scanner installation. Keep aggregate upload identity exact and reject a tag or substituted commit. |
+| Moving CI action tags and scanner admission | Pin all 39 uses to seven reviewed upstream commits; future updates require review. Go already uses its checksum database; additionally require exact module and go.mod hashes before scanner installation. Keep aggregate upload identity exact and reject a tag or substituted commit. |
 | ADR comparison silently skips an unresolved base | Require the actual PR base SHA, push predecessor or explicit manual base, and refuse an unresolved base or failed diff. Require the SARIF artifact instead of warning when absent. |
 | Plan-gated content-type count is unenforced | Confirmed pre-existing gap. Correct the absolute enforcement claim; the linked quota proposal makes revision/default/deletion accounting and a tenant-wide concurrency proof explicit before implementing a commercial rule. |
 | Broken ADR-0038 anchor | Standards 13 already provides the exact `adr-amendments` HTML alias. The accepted record is not edited. |
@@ -11219,6 +11220,19 @@ of an explicit value. The CI reviewer independently verifies all seven upstream
 commit identities, 51 shard, seven lifecycle and seven supply-chain controls,
 actionlint and both retained historical 5,482-case unions. These are separate
 local checks, not qualification of the new source.
+
+**Additional review round 2.** Two different fresh reviewers examine
+`62ad318c..abd5320b`. Both approve without a correctness/security finding.
+The backend reviewer runs 111 focused unit/configuration/corpus cases, zero
+failures/skips; the CI reviewer again runs all 51 shard, seven lifecycle and
+seven supply-chain controls and actionlint. The latter independently verifies
+official action identities, both Go sums, the historical merge parents and the
+bundle hash/implementation, but does not rerun its offline reconstruction.
+An optional new weekly Dependabot schedule is removed after scope review; exact
+SHA admission and its mutation controls remain. Parent verification also passes
+177 HTTP and four Contract cases, zero skips, and complete format verification.
+All 512 relative links in the changed documents resolve, including HTML aliases.
+No reviewer claims full hosted qualification for this corrected source.
 
 ## Completion Criteria
 
