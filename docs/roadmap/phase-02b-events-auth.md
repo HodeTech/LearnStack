@@ -11944,8 +11944,8 @@ activation, the real route, response policy and typed contract.
 
 ### P02b-5 Step 4 — atomic HTTP activation and contracts (2026-10-19)
 
-**Implementation and local validation complete; both review rounds pending.**
-Entry is `6686d018`. The production root installs the strict scheme, authorization,
+**Complete after both independent review rounds.** Entry is `6686d018`. The
+production root installs the strict scheme, authorization,
 credential-result gate, subject quota and independent surface admission together.
 Their explicit order retains earlier visitor/peer/body precedence, classifies
 hosts before authentication and reconciles claims before header assertions.
@@ -12017,6 +12017,24 @@ Frontend typecheck, SDK lint and the complete guarded 1,629-case suite pass with
 zero skips/todos. Carrier and whitespace checks pass. The second fresh independent
 review round remains pending.
 
+#### Step 4 independent review round 2 and closeout
+
+Two different fresh xhigh reviewers independently inspected the complete
+`6686d018..746c0cd2` slice, including the round-1 correction. Neither found a
+verified actionable finding. Their checks covered security/correctness,
+performance, ownership, refactoring, complete route/helper/nested-dispatch census,
+actual-host error precedence, API-only issuer configuration and public/authenticated
+contracts. The security reviewer independently passed 34 HTTP/PostgreSQL/quota,
+12 census and five contract cases. The quality reviewer independently passed
+12 actual-host, 12 census, five contract, one production-manifest and 62 guarded
+SDK cases plus SDK typecheck. All have zero failures/skips/todos. No actual
+Keycloak, session, native Linux or full hosted qualification is inferred.
+
+Implementation is `0be26abc`; `746c0cd2` records the verified 413 correction and
+round 1. Both independent review rounds and their verified correction are closed.
+Step 4 is complete. Step 5 now owns the remaining authority census, final carrier
+reconciliation and complete local/hosted packet qualification before PR handoff.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile
@@ -12050,8 +12068,8 @@ partition. The
 [P02b-3 merge closeout](#p02b-3-merge-and-closeout-2026-10-15) owns final combined
 event verification. P02b-4's job infrastructure is locally complete, with exact
 qualification in its [local closeout](#p02b-4-local-closeout-2026-10-18). P02b-5 is
-in progress, with Steps 1–3 complete and Step 4 HTTP activation undergoing
-validation/review; Step 5 final enforcement/hosted proof and P02b-6–8 remain
+in progress, with Steps 1–4 complete after both review rounds. Step 5 final
+enforcement/hosted proof and P02b-6–8 remain
 pending.
 The whole phase is not complete.
 

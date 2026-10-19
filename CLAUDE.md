@@ -248,9 +248,9 @@ owns validation. Step 3 completes attributed reconciliation and subject admissio
 after both independent reviews; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-3--attributed-reconciliation-and-subject-admission-2026-10-19)
 owns verified log-emission and default-window test corrections. Step 4 installs
-the complete HTTP boundary and typed contract; its
+the complete HTTP boundary and typed contract after both review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
-owns current validation and review status. Final enforcement and hosted proof
+owns validation and completed reviews. Final enforcement and hosted proof
 remain Step 5. Realm reconciliation, BFF sessions and phase exit remain
 P02b-6–8.
 Phase 06 retains the full

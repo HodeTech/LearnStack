@@ -137,7 +137,8 @@ not deferred to the showcase phase.
   [record](phase-02b-events-auth.md#p02b-5-step-3--attributed-reconciliation-and-subject-admission-2026-10-19)
   owns verified corrections. Step 4 installs the complete HTTP boundary and typed
   contract; its [record](phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
-  owns validation and review status. Step 5 owns final enforcement/hosted proof.
+  owns validation and both completed reviews. Step 5 owns final enforcement/hosted
+  proof.
   Realm reconciliation, BFF sessions and phase-exit enforcement remain P02b-6–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
