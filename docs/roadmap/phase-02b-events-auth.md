@@ -11108,6 +11108,17 @@ falsifiability receipt. The hosted run ends with 25 successful jobs and the
 correctly failing ordinary/integration pair, not qualified A/B evidence. Focused
 independent review and complete final-source qualification remain pending.
 
+The first fresh focused reviewer finds a valid ordering gap in `f8c003a7`: the
+staged child's parent FK already holds KEY SHARE, so the initial ACK's FOR UPDATE
+can wait behind the held handler. The corrected test signals native body entry
+before staging, asserts no child exists, observes the committed ACK and joins the
+bridge, then opens the staging gate and waits for its completion. Cleanup opens
+both handler gates. All original fence/rollback/effect assertions remain intact.
+A fresh warning-as-error build and the same complete 32-case selection pass with
+zero skips; the earlier passing schedule did not cover this ordering and is not
+presented as proof against it. Focused fix verification and a new second review
+precede another final-source freeze.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

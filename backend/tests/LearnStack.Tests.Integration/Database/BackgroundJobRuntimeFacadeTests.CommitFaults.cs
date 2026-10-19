@@ -137,6 +137,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var bounds = NativeCommitFaultBounds();
         var effects = new NativeCommitEffects();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var beginEffects = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var effectsStaged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finishHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var appName = "native_final_lock_" + Guid.NewGuid().ToString("N");
         var appSettings = new NpgsqlConnectionStringBuilder(database.AppConnectionString)
@@ -149,8 +151,10 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         {
             Body = async (_, services, token) =>
             {
-                await StageNativeCommitEffectsAsync(services, effects, token);
                 entered.TrySetResult();
+                await beginEffects.Task.WaitAsync(token);
+                await StageNativeCommitEffectsAsync(services, effects, token);
+                effectsStaged.TrySetResult();
                 await finishHandler.Task.WaitAsync(token);
                 return Result.Ok(None.Value);
             },
@@ -178,6 +182,9 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
             await EnsureQualificationStartAsync(runtime, source, job, entered.Task, deadline.Token);
             await entered.Task.WaitAsync(deadline.Token);
+            // The child FK takes KEY SHARE on its parent. Hold staging until
+            // ACK has acquired its stronger row lock and actually completed.
+            effects.Child.Should().BeNull();
             // Observe the first real handoff, then join only the bridge. This
             // isolates final-fence/rollback state from a later retry hint ACK,
             // which legitimately clears last_error while the row is pending.
@@ -186,6 +193,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 .GetField("_bridge", PrivateInstance)!.GetValue(runtime)!;
             await bridge.StopAsync(deadline.Token);
             bridge.Snapshot.Outstanding.Should().Be(0);
+            beginEffects.TrySetResult();
+            await effectsStaged.Task.WaitAsync(deadline.Token);
             var execution = NativeCommitExecution(runtime, job);
             var admitted = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!;
             admitted.Phase.Should().Be("executing");
@@ -250,6 +259,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         {
             await PreserveNativeBodyFailureAsync(testFailure, async () =>
             {
+                beginEffects.TrySetResult();
                 finishHandler.TrySetResult();
                 if (locked is not null) { await locked.RollbackAsync(); await locked.DisposeAsync(); }
                 using var cleanup = new CancellationTokenSource(TestWait);
