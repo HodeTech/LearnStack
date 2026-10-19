@@ -9,7 +9,7 @@ namespace LearnStack.Infrastructure.Audit;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Built once, then immutable.</b> A singleton read by <c>AuditLogBehavior</c> at
+/// <b>Built once, then immutable.</b> A singleton read by <c>AuditExecutionCoordinator</c> at
 /// pipeline step 3 on every request, so the merge happens at composition time and the
 /// lookup afterwards is a dictionary hit. It is never a database query — at step 3 no
 /// transaction is open and <c>app.tenant_id</c> is unset, so a query against

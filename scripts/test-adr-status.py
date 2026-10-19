@@ -79,6 +79,31 @@ class LifecycleTests(unittest.TestCase):
             result = subprocess.run(['bash', '-c', script], cwd=root, env=env, capture_output=True, text=True)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertIn('Accepted ADR disclosure: clean.', result.stdout)
+            # The real shell owner must not convert a missing comparison into
+            # a clean result. Manual runs use their required explicit base.
+            for event, values in (
+                    ('push', {'PUSH_BEFORE_SHA': 'f' * 40}),
+                    ('push', {'PUSH_BEFORE_SHA': ''}),
+                    ('pull_request', {'PR_BASE_SHA': 'f' * 40}),
+                    ('workflow_dispatch', {'MANUAL_BASE_REF': 'missing-base'})):
+                with self.subTest(event=event, values=values):
+                    refused = subprocess.run(['bash', '-c', script], cwd=root,
+                        env={**env, 'EVENT_NAME': event, **values}, capture_output=True, text=True)
+                    self.assertEqual(1, refused.returncode)
+                    self.assertIn('::error::ADR comparison base does not resolve.', refused.stdout)
+            for event, values in (
+                    ('pull_request', {'PR_BASE_SHA': base}),
+                    ('workflow_dispatch', {'MANUAL_BASE_REF': base})):
+                with self.subTest(event=event):
+                    accepted = subprocess.run(['bash', '-c', script], cwd=root,
+                        env={**env, 'EVENT_NAME': event, **values}, capture_output=True, text=True)
+                    self.assertEqual(0, accepted.returncode, accepted.stderr)
+                    self.assertIn('Accepted ADR disclosure: clean.', accepted.stdout)
+            unrelated = git('commit-tree', git('write-tree'), '-m', 'Unrelated fixture')
+            refused = subprocess.run(['bash', '-c', script], cwd=root,
+                env={**env, 'PUSH_BEFORE_SHA': unrelated}, capture_output=True, text=True)
+            self.assertNotEqual(0, refused.returncode)
+            self.assertNotIn('Accepted ADR disclosure: clean.', refused.stdout)
 
     def test_workflow_uses_the_tested_parser_for_base_status(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()

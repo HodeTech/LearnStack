@@ -45,7 +45,7 @@ public sealed class HangfireStorageContractTests
     }
 
     [Fact]
-    public void The_bounded_log_boundary_never_evaluates_a_factory_or_retains_an_exception_or_logger_name()
+    public void The_bounded_log_boundary_never_evaluates_a_factory_and_records_only_closed_outcomes()
     {
         var diagnostics = new HangfireBoundedLogProvider();
         var logger = diagnostics.GetLogger("synthetic-secret-canary");
@@ -114,7 +114,7 @@ public sealed class HangfireStorageContractTests
     }
 
     [Fact]
-    public void Every_stock_bootstrap_resource_matches_the_exact_upstream_bytes()
+    public void Every_stock_bootstrap_resource_matches_its_reviewed_checksum_manifest()
     {
         var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,
             "third-party", "hangfire", "script-sha256.json")));

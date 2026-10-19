@@ -21,6 +21,16 @@ public sealed class BackgroundJobRuntimeOptionsTests
         BackgroundJobRuntimeOptions.RetainedHardBound(16).Should().Be(20);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(17)]
+    public void Retained_bound_refuses_workers_outside_the_inclusive_pool_limits(int workers)
+    {
+        var bound = () => BackgroundJobRuntimeOptions.RetainedHardBound(workers);
+
+        bound.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(workers));
+    }
+
     [Fact]
     public void Lease_must_strictly_exceed_two_renewals_two_sql_timeouts_and_five_seconds()
     {

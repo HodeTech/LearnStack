@@ -43,6 +43,7 @@ JOB_IDS = {'base': 'backend-base', 'native': 'backend-native',
 EXECUTE_STEP = 'Execute assigned cases under the bounded owner'
 UPLOAD_STEP = 'Upload immutable attempt evidence'
 BUILD_STEP = 'Build Release with warnings as errors'
+UPLOAD_ACTION = 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'
 
 
 def module(name, filename):
@@ -165,7 +166,7 @@ def workflow_topology(documents, plan):
                 and execute.get('run') == 'python3 scripts/ci-native-tests.py ' + mode
                 and not any(step.get('continue-on-error') for step in steps), 'execution_gate_invalid')
         owner = 'native' if scope == 'native' else mode
-        require(upload.get('uses') == 'actions/upload-artifact@v4' and upload.get('if') == 'always()'
+        require(upload.get('uses') == UPLOAD_ACTION and upload.get('if') == 'always()'
                 and upload.get('with', {}).get('name') == 'ci-proof-${{ github.run_id }}-${{ github.run_attempt }}-' + owner
                 and upload.get('with', {}).get('if-no-files-found') == 'error', 'artifact_upload_invalid')
     for scope, job_id, needs in (

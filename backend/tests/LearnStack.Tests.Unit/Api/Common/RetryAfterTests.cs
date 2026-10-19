@@ -27,6 +27,31 @@ namespace LearnStack.Tests.Unit.Api.Common;
 /// </remarks>
 public sealed class RetryAfterTests
 {
+    [Theory]
+    [InlineData("120")]
+    [InlineData("Wed, 21 Oct 2026 07:28:00 GMT")]
+    public async Task A_503_result_preserves_an_explicit_Retry_After(string value)
+    {
+        var context = ActionContext();
+        context.HttpContext.Response.Headers.RetryAfter = value;
+
+        await new ProblemDetailsActionResult(
+            new Error(new LocalizedMessage("lockey_dependency_unavailable"))).ExecuteResultAsync(context);
+
+        context.HttpContext.Response.Headers.RetryAfter.ToString().Should().Be(value);
+    }
+
+    [Fact]
+    public void An_empty_Retry_After_is_replaced_by_the_service_unavailable_default()
+    {
+        var context = new DefaultHttpContext();
+        context.Response.Headers.RetryAfter = string.Empty;
+
+        RetryAfter.Apply(context.Response, StatusCodes.Status503ServiceUnavailable);
+
+        context.Response.Headers.RetryAfter.ToString().Should().Be("30");
+    }
+
     [Fact]
     public async Task A_503_result_carries_Retry_After()
     {

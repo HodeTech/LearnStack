@@ -31,7 +31,8 @@ internal static class RetryAfter
     {
         ArgumentNullException.ThrowIfNull(response);
 
-        if (status == StatusCodes.Status503ServiceUnavailable)
+        if (status == StatusCodes.Status503ServiceUnavailable
+            && string.IsNullOrEmpty(response.Headers.RetryAfter))
         {
             response.Headers.RetryAfter = ServiceUnavailableSeconds.ToString(CultureInfo.InvariantCulture);
         }

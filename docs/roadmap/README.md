@@ -92,6 +92,8 @@ not deferred to the showcase phase.
   [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; its
   [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
   owns final verification and the completed phase exit.
+  The [individual exit evidence](phase-02d-exit-evidence.md) maps each exit
+  criterion to its actual proof and completed disposition.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
   — **P02b-0 through P02b-3 complete; P02b-3 merged through PR #31 on 2026-10-15**. Its
   [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)

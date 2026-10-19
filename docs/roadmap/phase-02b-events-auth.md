@@ -11129,6 +11129,87 @@ PR #32 owns the renewed final-source A/B results and retained evidence. No new
 runtime code, source-selection rule, privilege or deadline is introduced by
 these test corrections.
 
+### Additional verification and evidence reconciliation (2026-10-19)
+
+**Status: verified corrections in progress; renewed source qualification pending.**
+This pass retains existing ADRs, durable-state authority and phase boundaries.
+
+#### Previously qualified source and retained evidence
+
+[Run 39236406151, attempt A](https://github.com/HodeTech/LearnStack/actions/runs/39236406151/attempts/1)
+and [attempt B](https://github.com/HodeTech/LearnStack/actions/runs/39236406151/attempts/2)
+both pass all 27 jobs on development head
+`62ad318cc79b1f3f4888c03158b158336bea6010`. The checkout SHA
+`3104c0fc2d812bfacda4825594263cc339363556` identifies GitHub's generated PR #32
+merge-ref commit, not a development commit. GitHub's commit API identifies its
+parents as `ed60157c14d33fad926fd201b49c08e2d24eed1f` and that development head;
+the retained source/aggregate checks independently verify the binding.
+
+Each exact union contains 5,482 backend cases, zero skips: 2,455 Unit, 410
+Architecture, 177 HTTP, four Contract and 2,436 Docker, including 31 native.
+The older 2,432 Docker count belongs to an earlier source and is not substituted
+for this result. Both actual assignments differ, including SharedSchema groups.
+Execution jobs take at most 809/777 seconds for A/B; all aggregates remain within
+five minutes. The seven strict required contexts and protection readback agree.
+
+All 22 A archives and their API metadata were retained before rerunning all jobs
+for B. Afterwards A's IDs return 404; B remains downloadable. The complete local
+bundle `learnstack-pr32-evidence-39236406151.tar.gz` has 44 ZIPs, 40,756,752 bytes
+and SHA-256
+`9630ede9052e7f20b1d9db18440a8a595030c519cf52daeed8a9d1644370e0db`.
+Its `verify-retained.py` entry point is packaged inside the bundle, not under
+repository `scripts/`. From its extracted directory, run
+`python3 verify-retained.py /path/to/qualified-checkout` at `62ad318c`.
+Independent reconstruction again passes both 5,482-case unions and checks the
+different co-membership. This verifies captured API responses and archives; it
+does not reauthenticate unavailable responses or rerun tests. The bundle is a
+shared-workspace artifact, not a public GitHub download. New source still requires
+renewed complete A/B qualification; this prior receipt is not proof of these
+subsequent corrections.
+
+#### Verified scope and dispositions
+
+| Examined concern | Current verification and action |
+|---|---|
+| Eager dispatcher parsing breaks absent configuration | Existing null/empty/whitespace controls pass: Npgsql's builder supplies defaults, the lazy source remains uncreated, and mandatory resolution refuses with the named key. No production change. |
+| Duplicate statistics-history filters are tolerated | Existing code rejects more than one. Zero is valid after intentional one-time removal. No filter-policy change. |
+| Blank application settings reach a raw first-query error | The lazy application source calls its named validator before building/opening the pool. No eager validation added. |
+| Pool worker bound lacks an independent discriminator | Add one 17-worker pool below the total-worker ceiling, retain the accepted 16-worker control, and test retained-bound arguments zero and seventeen. |
+| Domain-event drain boundary lacks a direct unit proof | Add inclusive 256 and rejecting 257 controls with FIFO, repeated-collection and rollback-only assertions. Existing PostgreSQL rollback proofs remain. |
+| Explicit Retry-After is overwritten | Preserve an existing delta/date value; supply the existing default only when absent or empty. |
+| Cleanup wait's boolean is ignored | `Completion` is a Task, not Task<bool>; awaiting WaitAsync already requires successful completion. No weakened or discarded boolean exists. |
+| Dependency/comment drift | Remove the unused audit-adapter MediatR reference; align its catalogue/coordinator description, Next patch comment, middleware XML summary and P02b-5 authentication owner. |
+| Moving CI action tags and scanner admission | Pin all 39 uses to seven reviewed upstream commits and let Dependabot propose updates. Go already uses its checksum database; additionally require exact module and go.mod hashes before scanner installation. Keep aggregate upload identity exact and reject a tag or substituted commit. |
+| ADR comparison silently skips an unresolved base | Require the actual PR base SHA, push predecessor or explicit manual base, and refuse an unresolved base or failed diff. Require the SARIF artifact instead of warning when absent. |
+| Plan-gated content-type count is unenforced | Confirmed pre-existing gap. Correct the absolute enforcement claim; the linked quota proposal makes revision/default/deletion accounting and a tenant-wide concurrency proof explicit before implementing a commercial rule. |
+| Broken ADR-0038 anchor | Standards 13 already provides the exact `adr-amendments` HTML alias. The accepted record is not edited. |
+| Historical SQL copies or loose-then-tightened policies should be folded | Up/Down snapshots preserve versioned rollout and reversal. Current canonical bodies have parity proofs; no historical migration is folded or made dependent on mutable SQL. |
+| Vendor installer leaves search_path set | Pinned Install.v23.sql ends with RESET search_path. No session-setting change. |
+| environment.json is unbound | The API-authenticated SHA-256 covers its entire ZIP, including this observation file. No independent qualification authority is attributed to the file. |
+| Control cleanup limits are below the supported topology | At most 32 workers plus eight pools times four retained executions is 64; 128 request slots allow the documented cleanup boundaries. The proposed 160-owner premise exceeds the accepted topology. |
+| Catalogue guards should source-parse integration methods | The architecture guard explicitly owns its compiled assembly and a repository-wide orphan check. All nine job integration owners are real discovered tests. Source parsing would reintroduce the documented conditional-compilation blind spot; no absent current owner was found. |
+| Test reflection, real-time negative windows and canary naming | No bypass of a production boundary was demonstrated. Narrow two test names to their actual copy/closed-shape assertions; retain real gate/cleanup negative windows and native proofs. |
+| Display locale, enum fallback and fifth public route | English is the accepted display fallback; the two-value enum is checked in domain/storage; served OpenAPI and its extra-route mutant already reject surface drift. No speculative refactor. |
+| Audit diagnostics, slug helpers, tracker complexity and startup round trips | No incorrect durable outcome, isolation leak or unbounded admitted input was reproduced. Existing closed diagnostics remain; batching/helper extraction requires evidence beyond code similarity. |
+| Terminal timestamp/transaction liveness symmetry | Existing event witnesses bind the fenced row and same live transaction under ADR-0046. Job witnesses have their separate ADR-0047 contract; copying their wider shape is not an established event defect. |
+| Unused assert-tests-ran helper and FailureDescriptor constant | The first remains a source-inventory subject and its cited dated receipt is historical. The second documents the storage descriptor ceiling. Neither silently bypasses the current CI owner. |
+| Broader refactors, generated-file headers and recurring protection recorder | No current contract failure established. Do not hand-edit generated output, add a recurring automation or expand this correction into unrelated extraction work. |
+
+Phase 03 retains first production definitions, audited operator recovery and any
+new terminal caller census. Phase 04 retains real media capacity/limit consumers;
+Phase 06 owns the Studio audit-config writer and public error experience. Phase
+11 retains mapped readiness, supervised deployment/dump policy, retention/purge,
+connection-pooling qualification and production/browser operational diagnostics.
+These are existing owners, not delivered features of this correction.
+
+The warning-as-error Release solution build passes with zero warnings/errors.
+All 2,463 Unit cases and five compiled corpus guards pass with zero skips, as
+does the actual production-manifest test. The 51 combined shard controls, seven
+ADR lifecycle controls and seven new supply-chain controls pass. The real scanner
+installation verifies both pinned sums and its resulting Go module metadata;
+actionlint accepts the pinned workflow. The quota proposal remains non-runtime
+and awaits the maintainer's accounting choice.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

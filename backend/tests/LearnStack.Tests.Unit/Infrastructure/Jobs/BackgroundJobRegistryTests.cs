@@ -188,6 +188,24 @@ public sealed class BackgroundJobRegistryTests
         wrongLane.Should().Throw<ArgumentException>();
     }
 
+    [Fact]
+    public void One_pool_cannot_exceed_sixteen_workers_even_below_the_total_worker_bound()
+    {
+        var pools = new[]
+        {
+            new BackgroundJobWorkerPoolRegistration("transactional", BackgroundJobWorkerPoolKind.Transactional, 16, ["transactional"]),
+            new BackgroundJobWorkerPoolRegistration("external", BackgroundJobWorkerPoolKind.External, 1, ["external"]),
+            new BackgroundJobWorkerPoolRegistration("control", BackgroundJobWorkerPoolKind.Control, 1, ["control"]),
+        };
+        BackgroundJobInfrastructureRegistry.Create(pools, [], [], []).Pools["transactional"].Workers.Should().Be(16);
+        pools[0] = new("transactional", BackgroundJobWorkerPoolKind.Transactional, 17, ["transactional"]);
+        pools.Sum(pool => pool.Workers).Should().BeLessThanOrEqualTo(32);
+
+        var create = () => BackgroundJobInfrastructureRegistry.Create(pools, [], [], []);
+
+        create.Should().Throw<ArgumentException>().WithMessage("*1–16 workers*");
+    }
+
     [Theory]
     [InlineData("UPPER")]
     [InlineData("media-worker")]

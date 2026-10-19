@@ -478,9 +478,10 @@ storage per [ADR-0043 § 8](../decisions/0043-customization-payload-validation.m
 
 Everything above describes what a tenant *can* declare. This section describes what it
 *costs* to serve, because a customization model without a cost model is an invitation to
-declare something the runtime cannot render inside a request budget. Every limit here is
-enforced at write time, so a tenant learns about it while authoring rather than a learner
-discovering it on a page load.
+declare something the runtime cannot render inside a request budget. Structural
+document limits are enforced at write time, so a tenant learns about them while
+authoring rather than a learner discovering them on a page load. Section 8.4
+distinguishes the outstanding plan-quota accounting decision.
 
 ### 8.1 Validation timing — write time, not read time
 
@@ -658,9 +659,13 @@ queries, this contract silently regresses the first time someone writes a conven
 
 ### 8.4 Declared limits
 
-Every limit is checked at write time and returns Problem Details naming the limit that
-was exceeded. They are deliberately generous — they exist to stop pathological documents,
-not to constrain reasonable authoring.
+Structural limits are checked at write time and return Problem Details naming the
+limit that was exceeded. They are deliberately generous — they exist to stop
+pathological documents, not to constrain reasonable authoring. The content-type
+count is an outstanding exception: its entitlement keys exist, but registration
+does not yet enforce them. The
+[quota accounting proposal](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--proposal-2026-10-19)
+states the pending counting decision and required concurrency proof.
 
 | Limit | Value | Why this one |
 |---|---|---|

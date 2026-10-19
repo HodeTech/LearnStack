@@ -179,6 +179,10 @@ class AggregateControls(unittest.TestCase):
                 if step.get('name') == RESULTS.BUILD_STEP).update(run='true')),
             ('execution_gate_invalid', lambda jobs: next(step for step in jobs['backend-base']['steps']
                 if step.get('name') == RESULTS.EXECUTE_STEP).update({'if': 'success()'})),
+            ('artifact_upload_invalid', lambda jobs: next(step for step in jobs['backend-base']['steps']
+                if step.get('name') == RESULTS.UPLOAD_STEP).update(uses='actions/upload-artifact@v4')),
+            ('artifact_upload_invalid', lambda jobs: next(step for step in jobs['backend-base']['steps']
+                if step.get('name') == RESULTS.UPLOAD_STEP).update(uses='actions/upload-artifact@' + 'f' * 40)),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend'].update({'if': 'success()'})),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend-integration'].update(needs=['backend-native'])),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend'].update({'timeout-minutes': 6})),
