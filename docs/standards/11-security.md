@@ -322,9 +322,10 @@ alone never stamps the tenant-announced marker. If setup fails or is cancelled,
 Begin cleans up the partial transaction and marks rollback-only before rethrowing.
 Mode resets per transaction; poisoning remains sticky for the unit's lifetime.
 
-The authenticated-query extension is Accepted on 2026-10-19; P02b-5 Step 2 owns
-its pending implementation and Step 4 owns HTTP activation. Selection is by exact
-request type, never a query-name suffix, public marker or general authenticated
+The authenticated-query extension is implemented by
+[P02b-5 Step 2](../roadmap/phase-02b-events-auth.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19);
+Step 4 owns HTTP activation. Selection is by exact request type, never a
+query-name suffix, public marker or general authenticated
 read category. It reuses the existing physical owner and tenant announcement;
 the closed setter set and transaction-ownership contracts do not change.
 
