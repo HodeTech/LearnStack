@@ -11726,8 +11726,36 @@ integration total includes 18 configuration cases, eight real-handler cases with
 independent negative/positive matrices and six full diagnostic cases. The complete
 architecture suite passes all 410 cases with zero skips; scoped format verification
 and the acceptance-carrier link/prose checks also pass. No database/realm/frontend
-runtime changes or Docker-suite evidence are claimed for this isolated token slice. Catalogue
-obligations remain Registered until their complete active-path owners ship.
+runtime changes or Docker-suite evidence are claimed for this isolated token slice.
+Catalogue obligations remain Registered until their complete active-path owners ship.
+
+#### Step 1 review round 1 (2026-10-19)
+
+Two fresh independent xhigh reviewers inspected `493d7f92..65263623` across
+security, correctness, performance, ownership, diagnostics and test falsifiability.
+They independently verified one shared finding: request-local instrumentation
+suppression removes metadata HTTP spans, but native HTTP/DNS metrics still export
+the destination hostname. Actual retriever-to-OTLP controls reproduced it. No
+token or full-URL leak was established; neither review found another confirmed
+defect in this isolated slice. Focused independent reruns pass 26 profile/config
+and six diagnostic cases, all with zero skips.
+
+**Correction to the initial receipt:** its general metadata-instrumentation
+suppression statement qualifies spans only. The initial full-URL canaries did
+not detect destination-only metric tags. The verified correction projects native
+HTTP/DNS metrics onto fixed non-destination dimensions and adds a distinct-host
+canary plus exported metric positives. This projection applies to all outbound
+metrics; unrelated traces/logs and metric counts, durations and status remain.
+The new regression fails on the initial runtime and passes after the projection;
+its unprojected SDK control still exports the private hostname. Actual metadata
+GET and DNS duration positives are checked before unrelated traffic, and the
+temporary test proxy override is restored under the nonparallel collection.
+The correction passes a zero-warning Release solution build, all 2,471 unit and
+210 Docker-free integration cases, plus 23 affected cross-cutting/corpus cases;
+all have zero skips. Format, link/prose and whitespace checks pass. The earlier
+complete 410-case architecture run remains the initial implementation receipt;
+no complete rerun is claimed for this metric-only correction. The second fresh
+independent review round is pending.
 
 ### Work deliberately retained by its first consumer
 

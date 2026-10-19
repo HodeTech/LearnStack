@@ -34,7 +34,7 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
 {
     private static async Task<WebApplication> CreateHost(TenantAuthenticationIssuer issuer,
         DiagnosticObservation? observed = null, string? endpoint = null, DiagnosticVendorProvider? control = null,
-        bool configurationAdapter = false)
+        bool configurationAdapter = false, TenantAuthenticationOptions? settings = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Configuration.Sources.Clear();
@@ -53,7 +53,7 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
             builder.Services.AddSingleton<IErrorTrackingProvider>(observed);
         }
         builder.Services.AddLearnStackTenantAuthentication(
-            TenantAuthenticationOptions.Create(issuer.Issuer, DeploymentMode.Development));
+            settings ?? TenantAuthenticationOptions.Create(issuer.Issuer, DeploymentMode.Development));
         if (configurationAdapter)
         {
             // The production BaseConfigurationManager returns initial discovery

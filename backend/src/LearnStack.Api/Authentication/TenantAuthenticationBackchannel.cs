@@ -40,7 +40,8 @@ internal sealed class TenantOidcDocumentRetriever(
 
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel);
         deadline.CancelAfter(TenantAuthenticationBackchannel.Timeout);
-        // Metadata addresses and provider errors must not become exported HTTP spans.
+        // Suppress metadata HTTP spans. The composition root separately projects
+        // native HTTP/DNS metrics, which do not honor this request-local scope.
         using var suppression = SuppressInstrumentationScope.Begin();
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         using var response = await backchannel.Client.SendAsync(

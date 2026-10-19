@@ -250,6 +250,16 @@ public static class CrossCuttingFoundationExtensions
             .WithMetrics(m =>
             {
                 m.AddAspNetCoreInstrumentation();
+                // Native HTTP/DNS meters ignore request-local trace suppression.
+                // Omit destination names for every outbound request so metadata
+                // cannot escape through metrics; preserve bounded dimensions.
+                m.AddView(instrument => instrument.Meter.Name is "System.Net.Http" or "System.Net.NameResolution"
+                    ? new MetricStreamConfiguration
+                    {
+                        TagKeys = ["http.request.method", "http.response.status_code", "network.protocol.version",
+                            "url.scheme", "error.type"],
+                    }
+                    : null);
                 m.AddHttpClientInstrumentation();
                 m.AddMeter("learnstack.*");
                 if (exportOverNetwork)

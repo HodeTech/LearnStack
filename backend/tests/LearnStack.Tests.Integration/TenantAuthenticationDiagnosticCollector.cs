@@ -23,6 +23,7 @@ internal sealed class TenantAuthenticationDiagnosticCollector : IAsyncDisposable
     internal string Endpoint { get; private set; } = "";
     internal string Logs => Payloads("/opentelemetry.proto.collector.logs.v1.LogsService/Export");
     internal string Traces => Payloads("/opentelemetry.proto.collector.trace.v1.TraceService/Export");
+    internal string Metrics => Payloads("/opentelemetry.proto.collector.metrics.v1.MetricsService/Export");
     internal string AllPayloads => string.Join('\n', _requests.Select(request => request.Payload));
 
     internal static async Task<TenantAuthenticationDiagnosticCollector> StartAsync()

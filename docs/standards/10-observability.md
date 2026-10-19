@@ -185,6 +185,17 @@ the same boundary. Actual Serilog-to-OTLP/error-capture and collector canary
 controls must prove both absence of raw failures and presence of closed outcomes;
 a Warning threshold or response-only setting is insufficient. Unrelated logging
 and sanctioned typed UUID/correlation recorder attribution remain observable.
+
+Metadata HTTP spans are suppressed. Native `System.Net.Http` and
+`System.Net.NameResolution` metrics do not honor that request-local suppression;
+their API export therefore retains only `http.request.method`,
+`http.response.status_code`, `network.protocol.version`, `url.scheme` and
+`error.type` dimensions. Raw destination, peer and DNS names are omitted from
+metrics for all outbound requests. Counts, durations and status remain observable,
+as do unrelated HTTP traces and application logs. Exported metric positives
+and a distinct metadata-hostname canary qualify this boundary alongside logs
+and traces.
+
 Step 3 implements recorder/claimless/quota diagnostics; Steps 4–5 qualify the
 complete active path. Acceptance alone claims none of these mechanisms delivered.
 
