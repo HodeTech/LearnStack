@@ -11062,6 +11062,24 @@ the source for two complete hosted assignments. PR #32 owns the final hash,
 actual A/B outcomes, independent reconstruction and current archive availability;
 this local receipt does not claim those pending runs have passed.
 
+
+**Qualification follow-up.** The first hosted run of `8cd789de`,
+[39231264902 / attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/39231264902/attempts/1),
+exposes six failures in two ordinary shards. They share one test-only SQL helper:
+it searches for the previous complete six-column output projection after the
+capacity observation adds a seventh field. A local unchanged-source run reproduces
+all five invalid-fact theory failures at that exact guard. This is a verified
+coverage gap in the earlier focused test selection, not a passing qualification.
+
+The helper now identifies the unique terminal projection prefix and final output
+suffix before replacing that projection. Every production CTE, hash arithmetic,
+validity check and typed binding remains intact; the planted date/hash/history
+mutants retain their assertions. The actual Release build passes without warnings
+or errors, and the complete recurrence store suite passes all 110 cases with zero
+skips, including all six affected cases and their mutant controls. The production
+query is unchanged. Fresh focused review and renewed complete A/B qualification
+follow this correction; PR #32 owns their live results.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

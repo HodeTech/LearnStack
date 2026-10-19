@@ -121,11 +121,12 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
     private static async Task<IReadOnlyList<ObservationHashRow>> ReadObservationHashesAsync(NpgsqlConnection connection,
         BackgroundJobObservationManifest manifest, ObservationHashMutation mutation = ObservationHashMutation.None)
     {
-        const string projection = "SELECT family AS observation_family,label,code,n,eligible,age FROM output ORDER BY family,label,code;";
+        const string projection = "SELECT family AS observation_family,";
+        const string suffix = "FROM output ORDER BY family,label,code;";
         var sql = PostgresBackgroundJobControlStore.DurableObservationSql;
         var at = sql.IndexOf(projection, StringComparison.Ordinal);
         at.Should().BeGreaterThan(0);
-        sql.EndsWith(projection, StringComparison.Ordinal).Should().BeTrue();
+        sql.EndsWith(suffix, StringComparison.Ordinal).Should().BeTrue();
         sql.LastIndexOf(projection, StringComparison.Ordinal).Should().Be(at);
         // Only the terminal projection changes. All hash/validity/compatibility
         // CTEs and typed metadata binding are the production statement itself.
