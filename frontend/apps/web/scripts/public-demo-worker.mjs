@@ -14,6 +14,7 @@ import {
   reconcileScriptInventory,
   validateReport,
 } from './public-demo-contract.mjs';
+import { publicDemoWorkerStage } from './public-demo-diagnostics.mjs';
 import { resolvedDemoCensus, demoLighthouseConfiguration } from './public-demo-gatherer.mjs';
 import { readDemoToolchain } from './public-demo-toolchain.mjs';
 
@@ -160,7 +161,7 @@ async function timeoutControl(port) {
   }
 }
 
-async function main(input) {
+async function main(input, stage) {
   assert.deepEqual(readDemoToolchain(), expectedCensus.versions, 'Pinned tool/browser census');
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${input.port}`, {
     timeout: 10000,
@@ -177,6 +178,7 @@ async function main(input) {
     for (const context of browser.contexts())
       for (const page of context.pages()) await page.close();
     if (input.mode === 'tls-refusal') {
+      stage('preflight');
       const page = await browser.newPage();
       let refused = false;
       let failureCode = 'no-navigation-error';
@@ -191,15 +193,19 @@ async function main(input) {
         true,
         'Untrusted/wrong-SPKI browser certificate refusal: ' + failureCode,
       );
+      stage('report');
       writeFileSync(input.result, JSON.stringify({ refused: true, browserVersion }));
       return;
     }
     if (input.mode === 'browser') {
+      stage('preflight');
       const counts = await browserPaths(browser, input);
+      stage('report');
       writeFileSync(input.result, JSON.stringify({ browserVersion, ...counts }));
       return;
     }
     if (input.mode !== 'timeout-control') {
+      stage('preflight');
       const context = await browser.newContext({
         viewport: { width: 412, height: 823 },
         deviceScaleFactor: 1.75,
@@ -217,7 +223,9 @@ async function main(input) {
   }
 
   if (input.mode === 'timeout-control') {
+    stage('audit');
     await timeoutControl(input.port);
+    stage('report');
     writeFileSync(input.result, JSON.stringify({ browserVersion, refused: true }));
     return;
   }
@@ -229,8 +237,10 @@ async function main(input) {
     output: ['json', 'html'],
     maxWaitForLoad: 15000,
   };
+  stage('audit');
   assertConfiguration(await resolvedDemoCensus(flags), expectedCensus);
   const result = await lighthouse(input.url, flags, demoLighthouseConfiguration);
+  stage('report');
   assert.ok(result?.artifacts?.PublicDemoDocument, 'Actual audit product artifact');
   for (const { id } of expectedCensus.artifacts)
     assert.ok(result.artifacts[id], 'Required gathered artifact ' + id);
@@ -265,15 +275,26 @@ async function main(input) {
   );
 }
 
+let input;
+let stage = 'connect';
 try {
-  await main(JSON.parse(readFileSync(process.argv[2], 'utf8')));
-} catch (error) {
-  // Never echo raw browser/provider messages, document values or configuration.
-  console.error(
-    'Public demo worker refused: ' +
-      (error?.code === 'ERR_ASSERTION'
-        ? String(error.message).split('\n')[0].slice(0, 160)
-        : (error?.name ?? 'failure')),
-  );
+  input = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  await main(input, (next) => {
+    stage = publicDemoWorkerStage(next);
+  });
+} catch {
+  // The private failure result carries only a closed phase; the parent validates
+  // it again before promoting it to the public receipt. No provider text crosses.
+  if (input?.result) {
+    try {
+      writeFileSync(
+        input.result,
+        JSON.stringify({ failure: { stage: publicDemoWorkerStage(stage) } }),
+      );
+    } catch {
+      /* Parent still records a closed worker-failure when no result can be written. */
+    }
+  }
+  console.error('Public demo worker refused: ' + (publicDemoWorkerStage(stage) ?? 'unknown'));
   process.exitCode = 1;
 }

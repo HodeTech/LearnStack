@@ -9,6 +9,12 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 import { digest, reportAdvisories, reportInventory } from './public-demo-contract.mjs';
+import {
+  PublicDemoFailure,
+  publicDemoFailure,
+  publicDemoOperation,
+  publicDemoWorkerStage,
+} from './public-demo-diagnostics.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 import { demoRequest } from '../../../../scripts/demo-http.mjs';
 import { completionDelta, finalCompletionCensus } from '../../../../scripts/demo-observation.mjs';
@@ -26,7 +32,7 @@ export async function verifyPublicDemo(runtime) {
   const deadline = started + 12 * 60 * 1000;
   const remaining = (bound) => {
     runtime.processes.assertActive();
-    if (Date.now() >= deadline) throw new Error('Public proof wall-clock deadline');
+    if (Date.now() >= deadline) throw new PublicDemoFailure('deadline');
     return Math.min(bound, deadline - Date.now());
   };
   const output = join(root, 'artifacts/public-demo');
@@ -93,78 +99,105 @@ export async function verifyPublicDemo(runtime) {
   async function operation(input, trust = spki) {
     const index = operationIndex++;
     const profile = join(runtime.privateRoot, `chromium-${index}`);
-    mkdirSync(profile, { mode: 0o700 });
     const resultFile = join(runtime.privateRoot, `browser-result-${index}.json`);
     const inputFile = join(runtime.privateRoot, `browser-input-${index}.json`);
-    const browser = runtime.processes.start(
-      chromium.executablePath(),
-      [
-        '--headless=new',
-        '--remote-debugging-address=127.0.0.1',
-        '--remote-debugging-port=0',
-        `--user-data-dir=${profile}`,
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-background-networking',
-        '--disable-component-update',
-        '--disable-sync',
-        '--no-proxy-server',
-        `--host-resolver-rules=${hosts.map((host) => `MAP ${host} 127.0.0.1`).join(',')}`,
-        ...(trust ? [`--ignore-certificate-errors-spki-list=${trust}`] : []),
-        'about:blank',
-      ],
-      {
-        cwd: root,
-        // macOS's native certificate verifier needs the real account home.
-        // Chromium data stays in its explicitly owned disposable profile.
-        env: { ...childrenEnv, ...(platform() === 'darwin' ? { HOME: homedir() } : {}) },
-        label: 'Owned managed Chromium',
+    let browser;
+    let profileOwned = false;
+    return publicDemoOperation({
+      input,
+      child: () => browser?.child,
+      record: (failure) => {
+        receipt.failure ??= failure;
       },
-    );
-    try {
-      const portFile = join(profile, 'DevToolsActivePort');
-      const startupDeadline = Date.now() + remaining(10000);
-      while (!existsSync(portFile)) {
-        remaining(10000);
-        if (browser.child.exitCode !== null || Date.now() >= startupDeadline)
-          throw new Error('Managed Chromium startup');
-        await pause(50, undefined, { signal: runtime.signal });
-      }
-      const port = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
-      assert.ok(port > 0 && port <= 65535);
-      writeFileSync(
-        inputFile,
-        JSON.stringify({
-          ...input,
-          port,
-          lanes: runtime.manifest,
-          result: resultFile,
-          output,
-          identity,
-        }),
-        { mode: 0o600, flag: 'wx' },
-      );
-      await runtime.processes.run('node', [worker, inputFile], {
-        cwd: root,
-        env: childrenEnv,
-        label: `Public ${input.mode} proof`,
-        timeout: remaining(input.mode === 'browser' ? 135000 : 60000),
-        // Fixed assertions/phase names only; provider/document logs stay suppressed.
-        observe: (chunk) => {
-          if (chunk.toString().startsWith('Public demo worker refused:'))
-            console.error(chunk.toString().trim());
-        },
-      });
-      return JSON.parse(readFileSync(resultFile, 'utf8'));
-    } finally {
-      await stopTestChild(browser.child);
-      await browser.exit;
-      rmSync(profile, { recursive: true, force: true });
-    }
+      run: async (stage) => {
+        mkdirSync(profile, { mode: 0o700 });
+        profileOwned = true;
+        browser = runtime.processes.start(
+          chromium.executablePath(),
+          [
+            '--headless=new',
+            '--remote-debugging-address=127.0.0.1',
+            '--remote-debugging-port=0',
+            `--user-data-dir=${profile}`,
+            '--no-first-run',
+            '--no-default-browser-check',
+            '--disable-background-networking',
+            '--disable-component-update',
+            '--disable-sync',
+            '--no-proxy-server',
+            `--host-resolver-rules=${hosts.map((host) => `MAP ${host} 127.0.0.1`).join(',')}`,
+            ...(trust ? [`--ignore-certificate-errors-spki-list=${trust}`] : []),
+            'about:blank',
+          ],
+          {
+            cwd: root,
+            // macOS's native certificate verifier needs the real account home.
+            // Chromium data stays in its explicitly owned disposable profile.
+            env: { ...childrenEnv, ...(platform() === 'darwin' ? { HOME: homedir() } : {}) },
+            label: 'Owned managed Chromium',
+          },
+        );
+        stage('startup-port');
+        const portFile = join(profile, 'DevToolsActivePort');
+        const startupDeadline = Date.now() + remaining(10000);
+        while (!existsSync(portFile)) {
+          remaining(10000);
+          if (browser.child.exitCode !== null) throw new PublicDemoFailure('chromium-exited');
+          if (Date.now() >= startupDeadline) throw new PublicDemoFailure('deadline');
+          await pause(50, undefined, { signal: runtime.signal });
+        }
+        const port = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
+        if (!(port > 0 && port <= 65535)) throw new PublicDemoFailure('port-invalid');
+        writeFileSync(
+          inputFile,
+          JSON.stringify({
+            ...input,
+            port,
+            lanes: runtime.manifest,
+            result: resultFile,
+            output,
+            identity,
+          }),
+          { mode: 0o600, flag: 'wx' },
+        );
+        stage('worker');
+        try {
+          await runtime.processes.run('node', [worker, inputFile], {
+            cwd: root,
+            env: childrenEnv,
+            label: `Public ${input.mode} proof`,
+            timeout: remaining(input.mode === 'browser' ? 135000 : 60000),
+            // Fixed assertions/phase names only; provider/document logs stay suppressed.
+            observe: (chunk) => {
+              if (chunk.toString().startsWith('Public demo worker refused:'))
+                console.error(chunk.toString().trim());
+            },
+          });
+        } catch (error) {
+          try {
+            input.workerStage = publicDemoWorkerStage(
+              JSON.parse(readFileSync(resultFile, 'utf8'))?.failure?.stage,
+            );
+          } catch {
+            /* A missing/incomplete private result supplies no public diagnostic data. */
+          }
+          throw error;
+        }
+        stage('result');
+        return JSON.parse(readFileSync(resultFile, 'utf8'));
+      },
+      cleanup: async () => {
+        if (browser) {
+          await stopTestChild(browser.child);
+          await browser.exit;
+        }
+        if (profileOwned) rmSync(profile, { recursive: true, force: true });
+      },
+    });
   }
   async function quiet() {
     remaining(61000);
-    if (deadline - Date.now() < 61000) throw new Error('Insufficient proof quiet interval');
+    if (deadline - Date.now() < 61000) throw new PublicDemoFailure('deadline');
     const before = runtime.completions.total;
     await pause(61000, undefined, { signal: runtime.signal });
     assert.equal(runtime.completions.total, before, 'Quiet window has no hidden product traffic');
@@ -252,14 +285,16 @@ export async function verifyPublicDemo(runtime) {
     receipt.passed = true;
   } catch (error) {
     failure = error;
+    receipt.failure ??= publicDemoFailure('proof', error);
   } finally {
     receipt.proofMilliseconds = Date.now() - started;
     const beforeCleanup = snapshot(runtime.completions);
     try {
       receipt.cleanup = await runtime.dispose();
-    } catch {
+    } catch (error) {
       receipt.cleanup = { passed: false };
       receipt.passed = false;
+      receipt.failure ??= publicDemoFailure('cleanup', error);
       failure ??= new Error('Public proof owned cleanup failed');
     } finally {
       receipt.totalCompletions = snapshot(runtime.completions);
@@ -272,10 +307,14 @@ export async function verifyPublicDemo(runtime) {
         );
       } catch (error) {
         receipt.passed = false;
+        receipt.failure ??= publicDemoFailure('proof', error);
         failure ??= error;
       }
       save();
     }
   }
-  if (failure) throw failure;
+  if (failure) {
+    console.error('Public demo proof refused: ' + JSON.stringify(receipt.failure));
+    throw failure;
+  }
 }
