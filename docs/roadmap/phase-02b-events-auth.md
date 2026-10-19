@@ -10143,6 +10143,44 @@ Round 1 additionally verifies the live job API and immutable artifact hashes
 for the source-specific claims above. These are completed correction reviews,
 not a claim that either final hosted assignment has passed.
 
+**Candidate `39adff20` and owned completion witnesses.** Full A run
+39185926530 finishes with 24/27 successful jobs. Ordinary-6 now passes; the
+31-case native and 2,633-case base receipts pass with actual cleanup and
+API-matching archive hashes. The two failing cases are ordinary-1's public
+client-pool disposal proof and ordinary-8's grouped no-start/private-callback
+proof; their API-hashed archives retain the failures. The integration
+aggregate rejects the failed execution evidence. No B is requested for this source.
+
+The public case's exported result has no raw assertion message or mapped source
+location, so its precise hosted assertion is unknown. Independent pinned-source
+inspection verifies two missing synchronization premises: client connector
+closure does not join PostgreSQL backend exit, and competing framework host
+disposals need not join one another's service cleanup. The proof now observes
+the actual captured application-source lifetime without disposing it itself,
+requires a used, uniquely tagged pool and refused borrowing after disposal,
+then boundedly observes only that pool's server sessions disappear. Another
+connection's exit cannot hide a leak.
+
+The no-start artifact identifies its exact generation-snapshot assertion but
+does not retain the observed tuple. Source inspection confirms that the
+optional qualification hint may itself own the held callback; waiting only for
+the bridge hint's success does not establish its native wrapper's return.
+That case and the matching auxiliary-cleanup case now retain the optional hint
+identity and await its actual stock success before the unchanged exact snapshot.
+The callbacks remain held throughout. An independent sweep checks all eighteen
+qualifier calls; the other sixteen already use sufficient actual owner/cleanup
+or retained-only witnesses. Native snapshot and held-owner assertions remain
+intact; runtime, assignment and retry behavior do not change.
+The next final source still requires both complete hosted assignments.
+
+Local qualification passes a warning-as-error Release build, 35 actual
+PostgreSQL public-site/native-owner cases and seven corpus/Docker-trait guards
+with zero failures/skips. The public-pool case also passes alone. Removing
+only child-factory disposal makes that case fail its bounded actual-completion
+wait; exact source restoration, a fresh clean build and the isolated case pass
+again. This planted failure is a falsifiability control, not passing suite
+evidence. Two fresh correction reviews precede publication.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

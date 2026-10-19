@@ -109,7 +109,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await runtime.StartAsync();
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
-            await EnsureQualificationStartAsync(runtime, source, job,
+            var qualificationHint = await EnsureQualificationStartAsync(runtime, source, job,
                 loseAdmissionAck ? proxy.CommitResponseHeld : state.Disposal.Entered.Task);
             if (loseAdmissionAck)
             {
@@ -248,6 +248,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
 
             await EventuallyAsync(async () => await VendorAsync(source, job) is { } vendor
                 && await StateAsync(source, vendor) == "Succeeded");
+            if (qualificationHint is not null)
+                await EventuallyAsync(async () => await StateAsync(source, qualificationHint) == "Succeeded");
             var generation = ActualGeneration(runtime, "transactional");
             generation.WorkSnapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 1, false));
             preparation.IsCompleted.Should().BeFalse("vendor success supplies no private-callback cleanup evidence");

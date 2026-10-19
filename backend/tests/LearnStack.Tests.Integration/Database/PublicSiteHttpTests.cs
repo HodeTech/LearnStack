@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Tenancy;
+using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
@@ -10,6 +11,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.Tools.Seeder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Xunit;
 
@@ -26,23 +28,53 @@ public sealed class PublicSiteHttpTests(PublicReadFixture fixture)
     [Fact]
     public async Task Disposed_public_test_clients_release_their_database_pools()
     {
-        var before = await AppConnections();
         for (var index = 0; index < 3; index++)
         {
-            using var client = fixture.ClientFor(English.Host);
-            using var response = await client.GetAsync(Path);
-            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var application = "public-pool-proof-" + Guid.NewGuid().ToString("N");
+            ApplicationDataSourceLifetime? owned = null;
+            using (var client = fixture.ClientFor(English.Host, services =>
+            {
+                services.RemoveAll<ApplicationDataSourceLifetime>();
+                services.AddSingleton<ApplicationDataSourceLifetime>(_ => owned = new(
+                    new NpgsqlConnectionStringBuilder(fixture.AppConnectionString)
+                    { ApplicationName = application }.ConnectionString));
+            }))
+            {
+                using var response = await client.GetAsync(Path);
+                response.StatusCode.Should().Be(HttpStatusCode.OK);
+                owned.Should().NotBeNull();
+                owned!.Source.IsValueCreated.Should().BeTrue();
+                (await AppConnections(application)).Should().BeGreaterThan(0,
+                    "the observed pool must own actual server connections before disposal");
+            }
+            var ownedSource = owned!;
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            // Program and the factory can concurrently dispose the same host.
+            // Observe this source's actual completion without requesting it here.
+            while (!ownedSource.IsDisposalComplete)
+            {
+                ownedSource.HasUnconfirmedCleanup.Should().BeFalse();
+                await Task.Delay(TimeSpan.FromMilliseconds(25), deadline.Token);
+            }
+            Func<Task> reopen = async () => { await using var connection = await ownedSource.Source.Value.OpenConnectionAsync(); };
+            await reopen.Should().ThrowAsync<ObjectDisposedException>();
+            // Local connector disposal does not join PostgreSQL backend exit.
+            // Observe only this pool, so another session's exit cannot hide it.
+            while (await AppConnections(application, deadline.Token) != 0)
+                await Task.Delay(TimeSpan.FromMilliseconds(25), deadline.Token);
         }
-        (await AppConnections()).Should().BeLessThanOrEqualTo(before,
-            "disposing each client must release its private application host and data-source pool");
     }
 
-    private async Task<long> AppConnections()
+    private async Task<long> AppConnections(string application, CancellationToken cancellationToken = default)
     {
         await using var connection = new NpgsqlConnection(fixture.AppConnectionString);
-        await connection.OpenAsync();
-        await using var command = new NpgsqlCommand("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND usename='learnstack_app'", connection);
-        return (long)(await command.ExecuteScalarAsync())!;
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT count(*) FROM pg_stat_activity WHERE datname=current_database()
+                AND usename='learnstack_app' AND application_name=@application
+            """, connection) { CommandTimeout = 5 };
+        command.Parameters.AddWithValue("application", application);
+        return (long)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
     [Fact]

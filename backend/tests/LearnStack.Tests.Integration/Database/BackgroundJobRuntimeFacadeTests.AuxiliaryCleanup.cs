@@ -146,7 +146,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         {
             await runtime.StartAsync();
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
-            await EnsureQualificationStartAsync(runtime, source, job, published.Task);
+            var qualificationHint = await EnsureQualificationStartAsync(runtime, source, job, published.Task);
             var owner = await published.Task.WaitAsync(TestWait);
             await waiterReturned.Task.WaitAsync(TestWait);
             await auxiliary.Entered.Task.WaitAsync(TestWait);
@@ -162,6 +162,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await callback.Entered.Task.WaitAsync(TestWait);
             await EventuallyAsync(async () => await VendorAsync(source, job) is { } vendor
                 && await StateAsync(source, vendor) == "Succeeded");
+            if (qualificationHint is not null)
+                await EventuallyAsync(async () => await StateAsync(source, qualificationHint) == "Succeeded");
             execution.Gate.IsClosed.Should().BeTrue();
             execution.Gate.CommitStarted.Should().BeFalse();
             generation.WorkSnapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 1, false));
