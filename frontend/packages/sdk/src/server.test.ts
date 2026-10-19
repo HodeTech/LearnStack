@@ -1,8 +1,14 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import type { operations, paths } from './generated/schema';
+import type { operations } from './generated/schema';
 import { createServerSdk, PUBLIC_GET_WRAPPERS } from './server';
-import type { ApiResult, PublicFetch, RequestOptions, ServerSdk } from './server';
+import type {
+  ApiResult,
+  PublicFetch,
+  RequestOptions,
+  ServerSdk,
+  PUBLIC_GET_CONTRACTS,
+} from './server';
 
 const pageInfo = { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false };
 const course = {
@@ -68,10 +74,12 @@ describe('public GET transport', () => {
       '/api/v1/public/courses/{slug}': 'getCourse',
       '/api/v1/public/courses/{slug}/lessons/{lessonSlug}': 'getLesson',
     });
-    type GetPaths = {
-      [P in keyof paths]: paths[P]['get'] extends undefined ? never : P;
-    }[keyof paths];
-    expectTypeOf<keyof typeof PUBLIC_GET_WRAPPERS>().toEqualTypeOf<GetPaths>();
+    expectTypeOf<keyof typeof PUBLIC_GET_WRAPPERS>().toEqualTypeOf<
+      keyof typeof PUBLIC_GET_CONTRACTS
+    >();
+    expectTypeOf<keyof typeof PUBLIC_GET_WRAPPERS>()
+      .extract<'/api/v1/account/site'>()
+      .toEqualTypeOf<never>();
     expectTypeOf<Parameters<ServerSdk['getCourses']>[0]>().toEqualTypeOf<
       operations['GetPublicCourses']['parameters']['query']
     >();

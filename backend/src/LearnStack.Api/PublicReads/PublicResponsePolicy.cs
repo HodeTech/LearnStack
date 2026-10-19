@@ -1,8 +1,9 @@
+using LearnStack.Api.Authentication;
 using LearnStack.Api.Versioning;
 
 namespace LearnStack.Api.PublicReads;
 
-/// <summary>Wraps all public responses, including refusals before MVC or the tenant pipeline.</summary>
+/// <summary>Wraps public and exact account-site responses, including refusals before the tenant pipeline.</summary>
 public static class PublicResponsePolicy
 {
     public static IApplicationBuilder UseLearnStackPublicResponsePolicy(this IApplicationBuilder app)
@@ -10,7 +11,9 @@ public static class PublicResponsePolicy
         ArgumentNullException.ThrowIfNull(app);
         return app.Use(async (context, next) =>
         {
-            if (!ApiVersioningExtensions.LiveMajors.Any(major =>
+            if (!TenantSurfaceAdmissionMiddleware.IsAccountSitePath(context.Request.Path)
+                && !TenantSurfaceAdmissionMiddleware.IsAccountSiteEndpoint(context)
+                && !ApiVersioningExtensions.LiveMajors.Any(major =>
                     context.Request.Path.StartsWithSegments($"/api/v{major}/public", StringComparison.OrdinalIgnoreCase)))
             {
                 await next(context);

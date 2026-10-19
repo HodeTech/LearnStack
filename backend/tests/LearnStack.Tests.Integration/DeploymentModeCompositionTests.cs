@@ -137,6 +137,7 @@ public sealed class DeploymentModeCompositionTests
         {
             builder.UseSetting("Deployment:Mode", mode);
             builder.UseSetting("ErrorTracking:Sentry:Dsn", DevelopmentShapedDsn);
+            builder.UseSetting("Authentication:Tenant:Issuer", "https://issuer.invalid/realms/learnstack");
         });
 
     private sealed class ResolvedContext(Guid tenantId) : ITenantContext

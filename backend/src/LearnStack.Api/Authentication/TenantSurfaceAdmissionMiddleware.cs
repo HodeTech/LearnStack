@@ -1,6 +1,8 @@
+using LearnStack.Api.Account;
 using LearnStack.Api.Tenancy;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
+using Microsoft.AspNetCore.Mvc.Controllers;
 
 namespace LearnStack.Api.Authentication;
 
@@ -13,14 +15,19 @@ internal sealed class TenantSurfaceAdmissionMiddleware(RequestDelegate next)
         path.Equals(AccountSitePath, StringComparison.OrdinalIgnoreCase)
         || path.Equals(AccountSitePath + "/", StringComparison.OrdinalIgnoreCase);
 
+    internal static bool IsAccountSiteEndpoint(HttpContext context) =>
+        context.GetEndpoint()?.Metadata.GetMetadata<ControllerActionDescriptor>() is { } action
+        && action.ControllerTypeInfo.AsType() == typeof(AccountController)
+        && action.MethodInfo.Name == nameof(AccountController.GetSite);
+
     public Task InvokeAsync(HttpContext context, ITenantContext tenantContext)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(tenantContext);
         if (context.Features.Get<HostClassification>() is not null
-            && IsAccountSitePath(context.Request.Path)
-            && (!HttpMethods.IsGet(context.Request.Method)
-                || context.Features.Get<TenantCredentialFeature>()?.Identity is not { } identity
+            && (IsAccountSiteEndpoint(context)
+                || (HttpMethods.IsGet(context.Request.Method) && IsAccountSitePath(context.Request.Path)))
+            && (context.Features.Get<TenantCredentialFeature>()?.Identity is not { } identity
                 || !HasHostAuthority(tenantContext, identity)))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;

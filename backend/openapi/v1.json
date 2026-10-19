@@ -1,6 +1,40 @@
 {
   "components": {
     "schemas": {
+      "AccountSite": {
+        "properties": {
+          "actorId": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "organizationId": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OrganizationId"
+              }
+            ]
+          },
+          "site": {
+            "$ref": "#/components/schemas/PublicSite"
+          },
+          "tenantId": {
+            "$ref": "#/components/schemas/TenantId"
+          }
+        },
+        "required": [
+          "actorId",
+          "tenantId",
+          "organizationId",
+          "site"
+        ],
+        "type": "object"
+      },
+      "OrganizationId": {
+        "format": "uuid",
+        "type": "string"
+      },
       "PageInfo": {
         "properties": {
           "hasNext": {
@@ -494,6 +528,22 @@
           "muted"
         ],
         "type": "object"
+      },
+      "TenantId": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "UserId": {
+        "format": "uuid",
+        "type": "string"
+      }
+    },
+    "securitySchemes": {
+      "TenantBearer": {
+        "bearerFormat": "JWT",
+        "description": "The configured learnstack realm's signed RS256 access token for learnstack-api, issued to learnstack-web. Authentication grants no membership or application permission.",
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -503,9 +553,211 @@
   },
   "openapi": "3.1.1",
   "paths": {
+    "/api/v1/account/site": {
+      "get": {
+        "description": "Authenticated host-backed read through the physical read-only pipeline. Returns only the validated actor UUID, resolved tenant/organization UUIDs and existing public site projection. Accepts no query parameters or client-selected identifiers. No response caching or validators.",
+        "operationId": "GetAccountSite",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSite"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "validation_failed; no query parameters are accepted, and malformed or repeated assertion headers are refused.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "not_found for absent credentials, unknown hosts, membership refusals or missing host-backed authority; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "method_not_allowed from routing; this authenticated operation admits GET only.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "rate_limited from early visitor/peer admission or the validated-subject limiter.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the first refusing quota permits another attempt.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "internal_error from unexpected failures; no exception or query details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "dependency_unavailable from invalid stored public configuration.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
+        "tags": [
+          "Account"
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
     "/api/v1/public/courses": {
       "get": {
-        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "description": "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
         "operationId": "GetPublicCourses",
         "parameters": [
           {
@@ -584,6 +836,36 @@
               }
             }
           },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
             "content": {
               "application/problem+json": {
@@ -592,7 +874,7 @@
                 }
               }
             },
-            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "description": "not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -634,7 +916,7 @@
                 }
               }
             },
-            "description": "rate_limited from the anonymous limiter.",
+            "description": "rate_limited from early visitor/peer admission or the validated-subject limiter.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -643,6 +925,14 @@
                     "no-store"
                   ],
                   "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the first refusing quota permits another attempt.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
                 }
               }
             }
@@ -696,7 +986,7 @@
         "x-version-introduced": "v1"
       },
       "head": {
-        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "description": "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
         "operationId": "HeadPublicCourses",
         "parameters": [
           {
@@ -761,8 +1051,31 @@
               }
             }
           },
+          "401": {
+            "description": "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "description": "not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -790,7 +1103,7 @@
             }
           },
           "429": {
-            "description": "rate_limited from the anonymous limiter.",
+            "description": "rate_limited from early visitor/peer admission or the validated-subject limiter.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -799,6 +1112,14 @@
                     "no-store"
                   ],
                   "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the first refusing quota permits another attempt.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
                 }
               }
             }
@@ -840,7 +1161,7 @@
     },
     "/api/v1/public/courses/{slug}": {
       "get": {
-        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "description": "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
         "operationId": "GetPublicCourse",
         "parameters": [
           {
@@ -930,6 +1251,36 @@
               }
             }
           },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
             "content": {
               "application/problem+json": {
@@ -938,7 +1289,7 @@
                 }
               }
             },
-            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "description": "not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -980,7 +1331,7 @@
                 }
               }
             },
-            "description": "rate_limited from the anonymous limiter.",
+            "description": "rate_limited from early visitor/peer admission or the validated-subject limiter.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -989,6 +1340,14 @@
                     "no-store"
                   ],
                   "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the first refusing quota permits another attempt.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
                 }
               }
             }
@@ -1042,7 +1401,7 @@
         "x-version-introduced": "v1"
       },
       "head": {
-        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "description": "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
         "operationId": "HeadPublicCourse",
         "parameters": [
           {
@@ -1118,8 +1477,31 @@
               }
             }
           },
+          "401": {
+            "description": "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "description": "not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1147,7 +1529,7 @@
             }
           },
           "429": {
-            "description": "rate_limited from the anonymous limiter.",
+            "description": "rate_limited from early visitor/peer admission or the validated-subject limiter.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1156,6 +1538,14 @@
                     "no-store"
                   ],
                   "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the first refusing quota permits another attempt.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
                 }
               }
             }
@@ -1197,7 +1587,7 @@
     },
     "/api/v1/public/courses/{slug}/lessons/{lessonSlug}": {
       "get": {
-        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "description": "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
         "operationId": "GetPublicLesson",
         "parameters": [
           {
@@ -1278,6 +1668,36 @@
               }
             }
           },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
             "content": {
               "application/problem+json": {
@@ -1286,7 +1706,7 @@
                 }
               }
             },
-            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "description": "not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1328,7 +1748,7 @@
                 }
               }
             },
-            "description": "rate_limited from the anonymous limiter.",
+            "description": "rate_limited from early visitor/peer admission or the validated-subject limiter.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1337,6 +1757,14 @@
                     "no-store"
                   ],
                   "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the first refusing quota permits another attempt.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
                 }
               }
             }
@@ -1390,7 +1818,7 @@
         "x-version-introduced": "v1"
       },
       "head": {
-        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "description": "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
         "operationId": "HeadPublicLesson",
         "parameters": [
           {
@@ -1457,8 +1885,31 @@
               }
             }
           },
+          "401": {
+            "description": "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "description": "not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1486,7 +1937,7 @@
             }
           },
           "429": {
-            "description": "rate_limited from the anonymous limiter.",
+            "description": "rate_limited from early visitor/peer admission or the validated-subject limiter.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1495,6 +1946,14 @@
                     "no-store"
                   ],
                   "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the first refusing quota permits another attempt.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
                 }
               }
             }
@@ -1536,7 +1995,7 @@
     },
     "/api/v1/public/site": {
       "get": {
-        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "description": "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
         "operationId": "GetPublicSite",
         "responses": {
           "200": {
@@ -1581,6 +2040,36 @@
               }
             }
           },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
             "content": {
               "application/problem+json": {
@@ -1589,7 +2078,7 @@
                 }
               }
             },
-            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "description": "not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1631,7 +2120,7 @@
                 }
               }
             },
-            "description": "rate_limited from the anonymous limiter.",
+            "description": "rate_limited from early visitor/peer admission or the validated-subject limiter.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1640,6 +2129,14 @@
                     "no-store"
                   ],
                   "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the first refusing quota permits another attempt.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
                 }
               }
             }
@@ -1693,7 +2190,7 @@
         "x-version-introduced": "v1"
       },
       "head": {
-        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "description": "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
         "operationId": "HeadPublicSite",
         "responses": {
           "200": {
@@ -1724,8 +2221,31 @@
               }
             }
           },
+          "401": {
+            "description": "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "description": "not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1753,7 +2273,7 @@
             }
           },
           "429": {
-            "description": "rate_limited from the anonymous limiter.",
+            "description": "rate_limited from early visitor/peer admission or the validated-subject limiter.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1762,6 +2282,14 @@
                     "no-store"
                   ],
                   "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the first refusing quota permits another attempt.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
                 }
               }
             }
@@ -1808,6 +2336,9 @@
     },
     {
       "name": "PublicSite"
+    },
+    {
+      "name": "Account"
     }
   ]
 }

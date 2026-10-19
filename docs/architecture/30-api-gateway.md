@@ -16,24 +16,17 @@ the LearnStack core API and the LearnStack Hub API.
 > header normalisation. [ADR-0015](../decisions/0015-api-gateway-apisix.md) stands as the
 > decision that APISIX is the gateway LearnStack uses; ADR-0035 decides when.
 >
-> **A gap worth naming rather than discovering.** In the shipped
-> `infra/apisix/apisix.yaml`, route 100's `openid-connect` block is **commented out**, so
-> today every `/api/v*` request reaches the backend unauthenticated **at the gateway**.
-> **Neither layer authenticates today.** The backend does not re-validate, because there
-> is nothing yet to re-validate against: `grep AddAuthentication\|UseAuthentication` over
-> `backend/src` returns no registration, and `AuthorizationBehavior.Handle` is
-> `return next()` with a Phase 03 TODO. Authentication lands in
-> [Phase 02b](../roadmap/phase-02b-events-auth.md) and authorization in
-> [Phase 03](../roadmap/phase-03-identity-admin.md). Tenant-owned tables now exist;
-> authoring commands remain unrouted and HostOnly pipeline admission requires a
-> `[PublicSurface]` marker. P02d-4 supplies marked anonymous GET/HEAD routes under ADR-0052.
-> The "validated twice" property in § 5 describes the Phase 11 target, not
-> the running system — and the first half of it arrives well before the gateway half.
-> The block is uncommented in
-> [Phase 11](../roadmap/phase-11-production-hardening.md), with the rest of APISIX:
-> [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) demand-gates the gateway,
-> so [Phase 03](../roadmap/phase-03-identity-admin.md) delivers authorization in ASP.NET
-> middleware and corrects this route table, but does not stand APISIX up in front of it.
+> **Backend boundary — P02b-5 Step 4, 2026-10-19.** The gateway remains gated
+> and route 100's `openid-connect` block remains commented out. The backend now
+> validates the closed tenant bearer profile under
+> [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md), before tenant
+> reconciliation. Its production surface is the existing anonymous reads plus
+> exact AccountSite GET; application authorization still passes through until
+> [Phase 03](../roadmap/phase-03-identity-admin.md). No authoring command is routed.
+> Present invalid credentials return 401 even on public routes; absent AccountSite
+> credentials return masked 404. The “validated twice” property in § 5 remains
+> the Phase 11 target. The [Step 4 delivery record](../roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+> owns validation and review status, rather than this topology claiming completion.
 
 **Accepted P02d-5 local topology — 2026-10-08.**
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) uses native loopback
@@ -389,35 +382,21 @@ If APISIX is misconfigured, bypassed (someone hits the backend directly on the i
 network), or compromised, the backend still rejects unauthenticated requests. This is
 non-negotiable.
 
-That property is what makes today's state a gap rather than a breach: with route 100's
-`openid-connect` block commented out, layer 1 is absent and layer 2 carries the whole
-load. The system is not open — it is running on one line of defense where the design
-calls for two, and the cheap fast rejection at the edge is not happening. Restoring
-layer 1 is [Phase 03](../roadmap/phase-03-identity-admin.md) work; nothing about the
-backend's obligations changes when it lands.
+The backend currently carries the bearer-validation boundary on its own.
+Phase 11 activates the gateway's independent check when ADR-0035's trigger fires;
+Phase 03 supplies application permissions. Neither changes the backend's duty
+to validate and reconcile its own trusted inputs.
 
-```csharp
-// LearnStack.Host/Program.cs
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = "http://keycloak:8080/realms/learnstack";
-        options.Audience = "learnstack-api";
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-        options.MapInboundClaims = false;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = "https://auth.learnstack.dev/realms/learnstack",  // PUBLIC issuer
-            // Authority above is the INTERNAL URL for JWKS fetch; ValidIssuer is what's
-            // in the JWT `iss` claim (set by Keycloak's KC_HOSTNAME).
-            // Documented in 13-identity-and-auth.md.
-        };
-    });
-```
+The running registration is
+[`TenantAuthenticationRegistration`](../../backend/src/LearnStack.Api/Authentication/TenantAuthenticationRegistration.cs),
+installed in the explicit order in
+[`Program.cs`](../../backend/src/LearnStack.Api/Program.cs).
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) owns its strict
+issuer, purpose, actor, JOSE, diagnostic and refresh contract. Configure
+`Authentication:Tenant:Issuer` as the canonical tenant-realm issuer. Only
+Development permits loopback HTTP; other deployment modes require explicit HTTPS.
+Metadata is fetched from that configured issuer, never a URL selected by claims.
+No API client secret, live membership or BFF session is introduced here.
 
 ## 6. Rate limit policy
 
@@ -527,8 +506,8 @@ Phase 11 deliverables:
   present invalid credentials on known hosts return 401, including public routes.
   Exact AccountSite absent credentials return masked `not_found` 404 on tenant,
   organization and platform hosts. Unknown hosts refuse before JWT work; the
-  generic unresolved MediatR gate is unchanged. P02b-5 implements these controls
-  before production authentication activation in Step 4.
+  generic unresolved MediatR gate is unchanged. P02b-5 Step 4 activates this
+  boundary; its delivery record above owns the actual proof and review receipts.
   This is the test that holds the line while the gateway's OIDC block is commented out.
 
 ## 12. Non-goals

@@ -21,6 +21,14 @@ runtime proofs and two independent review rounds each. Authentication and
 authorization registration activate together with the closed surface in Step 4.
 Realm reconciliation and BFF sessions remain P02b-6/P02b-7.
 
+**API activation — P02b-5 Step 4, 2026-10-19.** The production API now installs
+that strict bearer boundary and exposes exact `GET /api/v1/account/site`.
+The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+owns validation and review status. This updates the API-validation part of the
+2026-10-12 baseline above; realm mappers, BFF sessions and the application identity
+model remain with their named packets/phases. Public transport stays anonymous.
+
+
 ## Why Not Build It Ourselves
 
 Email + password + refresh tokens + invitation flow + password reset + email verification + audit + future SSO + future MFA is a large, security-sensitive surface. Each of these pieces is non-trivial in isolation and easy to get subtly wrong. Off-the-shelf identity systems have been hardened against the entire OWASP authentication catalogue; replicating that hardening costs months of engineering and ongoing vigilance.

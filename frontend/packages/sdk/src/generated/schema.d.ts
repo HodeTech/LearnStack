@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/v1/account/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Authenticated host-backed read through the physical read-only pipeline. Returns only the validated actor UUID, resolved tenant/organization UUIDs and existing public site projection. Accepts no query parameters or client-selected identifiers. No response caching or validators. */
+        get: operations["GetAccountSite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/courses": {
         parameters: {
             query?: never;
@@ -11,13 +28,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
+        /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
         get: operations["GetPublicCourses"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
-        /** @description Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
+        /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
         head: operations["HeadPublicCourses"];
         patch?: never;
         trace?: never;
@@ -29,13 +46,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
+        /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
         get: operations["GetPublicCourse"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
-        /** @description Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
+        /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
         head: operations["HeadPublicCourse"];
         patch?: never;
         trace?: never;
@@ -47,13 +64,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
+        /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
         get: operations["GetPublicLesson"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
-        /** @description Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
+        /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
         head: operations["HeadPublicLesson"];
         patch?: never;
         trace?: never;
@@ -65,13 +82,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
+        /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
         get: operations["GetPublicSite"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
-        /** @description Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
+        /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
         head: operations["HeadPublicSite"];
         patch?: never;
         trace?: never;
@@ -80,6 +97,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountSite: {
+            actorId: components["schemas"]["UserId"];
+            organizationId: null | components["schemas"]["OrganizationId"];
+            site: components["schemas"]["PublicSite"];
+            tenantId: components["schemas"]["TenantId"];
+        };
+        /** Format: uuid */
+        OrganizationId: string;
         PageInfo: {
             hasNext: boolean;
             hasPrevious: boolean;
@@ -194,6 +219,10 @@ export interface components {
             muted: string;
             primary: string;
         };
+        /** Format: uuid */
+        TenantId: string;
+        /** Format: uuid */
+        UserId: string;
     };
     responses: never;
     parameters: never;
@@ -203,6 +232,100 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    GetAccountSite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountSite"];
+                };
+            };
+            /** @description validation_failed; no query parameters are accepted, and malformed or repeated assertion headers are refused. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for absent credentials, unknown hosts, membership refusals or missing host-backed authority; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed from routing; this authenticated operation admits GET only. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error from unexpected failures; no exception or query details. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable from invalid stored public configuration. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     GetPublicCourses: {
         parameters: {
             query: {
@@ -239,7 +362,18 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure. */
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -259,10 +393,12 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description rate_limited from the anonymous limiter. */
+            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -323,7 +459,16 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure. */
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -339,10 +484,12 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description rate_limited from the anonymous limiter. */
+            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -404,7 +551,18 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure. */
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -424,10 +582,12 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description rate_limited from the anonymous limiter. */
+            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -491,7 +651,16 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure. */
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -507,10 +676,12 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description rate_limited from the anonymous limiter. */
+            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -570,7 +741,18 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure. */
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -590,10 +772,12 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description rate_limited from the anonymous limiter. */
+            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -655,7 +839,16 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure. */
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -671,10 +864,12 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description rate_limited from the anonymous limiter. */
+            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -726,7 +921,18 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure. */
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -746,10 +952,12 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description rate_limited from the anonymous limiter. */
+            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -803,7 +1011,16 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure. */
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -819,10 +1036,12 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description rate_limited from the anonymous limiter. */
+            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content?: never;

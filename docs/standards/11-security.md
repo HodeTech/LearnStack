@@ -665,7 +665,7 @@ request retains a limiter removed by retirement.
 | Webhook endpoints | 1000 req/min per provider |
 | Hub internal API (`/api/internal/*`) | 60 req/min per mTLS client cert |
 
-P02b-5 Step 3 implements the subject component; Step 4 owns production activation.
+P02b-5 Step 3 implements the subject component; Step 4 activates it in production.
 The stable issuer/subject key survives token rotation and tenant selection; actor,
 host and credential text do not select a partition. It uses a one-minute fixed
 window with no queue. Retirement inspects at most 128 entries per timer callback,

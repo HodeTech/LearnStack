@@ -158,7 +158,7 @@ tenant's own enabled rows, not a speculative platform language allowlist.
 
 ### P02b-5 authenticated account-site read
 
-`GetAccountSiteQuery` is an unrouted, non-public, audit Off request under
+`GetAccountSiteQuery` is a non-public, audit Off request under
 [ADR-0064's closed authenticated read](../../decisions/0064-tenant-api-authentication-boundary.md#closed-authenticated-read).
 It accepts no scope selector and returns `AccountSite`: the context's stable
 `ActorId`, resolved `TenantId` and nullable `OrganizationId`, plus the existing
@@ -173,7 +173,9 @@ Both site handlers call the same projection directly within the pipeline-owned
 physical READ ONLY frame. The live configuration reader independently retains
 its host, enlistment, tenant/organization lifecycle and locale checks. Theme/null
 and attribution follow the public contract above; `branding.theme` stays
-tenant-wide. P02b-5 Step 4 owns HTTP routing and production authentication activation.
+tenant-wide. P02b-5 Step 4 exposes only `GET /api/v1/account/site`; its
+[delivery record](../../roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+owns HTTP validation and review status.
 
 ### Whole-theme setting and public boundary
 

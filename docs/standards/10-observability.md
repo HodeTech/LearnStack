@@ -11,7 +11,7 @@ Accepted job-lifecycle observation derives from
 implementation remains P02b-4 Steps 4 and 9.
 Tenant-authentication diagnostics derive from
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md);
-their P02b-5 implementation remains pending.
+P02b-5 Steps 1 and 3 implement the components; Step 4 activates the HTTP boundary.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -149,7 +149,7 @@ Structured JSON, one event per line. Example:
 
 ### Tenant-authentication diagnostics
 
-**Accepted contract — 2026-10-19; P02b-5 runtime pending.**
+**Accepted contract — 2026-10-19; HTTP activation in P02b-5 Step 4.**
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) extends the
 existing rejection recorder; it introduces no second detector or audit slug.
 

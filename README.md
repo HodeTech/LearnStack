@@ -87,8 +87,12 @@ owns final verification.
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
 records all nine job-runtime steps, three CI steps, independent reviews and both
 complete final-source hosted assignments. Production business and recurrence
-definitions remain empty. **Next: P02b-5 API authentication decision pass**;
-realm reconciliation, BFF sessions and phase exit remain P02b-6–8.
+definitions remain empty. **P02b-5 API authentication is in progress** under
+Accepted ADR-0064. Steps 1–3 completed both review rounds;
+[Step 4](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+owns the closed AccountSite HTTP activation and current proof/review status.
+Final enforcement and hosted qualification remain Step 5; realm reconciliation,
+BFF sessions and phase exit remain P02b-6–8.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.

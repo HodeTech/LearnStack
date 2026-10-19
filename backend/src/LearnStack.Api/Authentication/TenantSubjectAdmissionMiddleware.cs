@@ -43,7 +43,7 @@ internal sealed class TenantSubjectAdmissionMiddleware(RequestDelegate next, Ten
     private sealed record TenantSubjectAdmissionOutcome(bool Acquired, TimeSpan RetryAfter);
 }
 
-/// <summary>Prepared component registration; production activation belongs to P02b-5 Step 4.</summary>
+/// <summary>Registers the owned additional subject budget used by the closed tenant HTTP boundary.</summary>
 internal static class TenantSubjectAdmissionExtensions
 {
     internal static IServiceCollection AddLearnStackTenantSubjectAdmission(this IServiceCollection services)

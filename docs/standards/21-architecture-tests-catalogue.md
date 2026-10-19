@@ -132,7 +132,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**254 test methods run in
+**257 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -4520,6 +4520,13 @@ structural test proves — and what it does not.
   `backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.cs`
   and `backend/tests/LearnStack.Tests.Integration/Database/AccountSiteHttpTests.cs`;
   SDK/OpenAPI contract controls remain with their actual contract owners.
+  The architecture owner now checks the nine real production actions, exact
+  request construction, Off classification, controller/helper persistence and
+  handler/helper nested dispatch across every production assembly. Its two
+  companion methods plant route, method, request, controller, mapping and
+  transitive-capability violations into those same Cecil subjects; missing
+  subjects and weakened discovery predicates fail. Complete runtime and
+  cross-contract qualification remains with Steps 4–5 before promotion.
 - **Status:** **Registered.**
 - **Phase:** P02b-5 Step 2 query/database boundary; Step 4 route/contract
   activation; Step 5 complete transitive enforcement.

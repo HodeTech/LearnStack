@@ -282,6 +282,12 @@ export function loadLocalEnvironment(
   ]) {
     if (environment[key] !== undefined) result[key] = environment[key];
   }
+  const issuerKey = 'Authentication__Tenant__Issuer';
+  if (environment[issuerKey] !== undefined) {
+    if (source[issuerKey] !== undefined && source[issuerKey] !== environment[issuerKey])
+      throw new Error('Conflicting API authentication configuration');
+    result[issuerKey] = environment[issuerKey];
+  }
   return result;
 }
 

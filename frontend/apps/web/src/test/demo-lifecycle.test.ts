@@ -484,6 +484,31 @@ describe('demo runtime boundaries', () => {
       ),
     });
   });
+  it('confines the selected tenant issuer to the API child', () => {
+    const root = temporary();
+    const key = 'Authentication__Tenant__Issuer';
+    const issuer = 'https://identity.example/realms/learnstack';
+    const values = {
+      ConnectionStrings__Default: 'application',
+      ConnectionStrings__OutboxDispatcher: 'dispatcher',
+      [key]: issuer,
+    };
+    const configuration = { apiOrigin: 'http://127.0.0.1:5080', secret: 'private' };
+    expect(publicApiEnvironment(values, configuration, {})[key]).toBe(issuer);
+    expect(publicWebEnvironment(values, root, { [key]: issuer })).not.toHaveProperty(key);
+    expect(publicApiEnvironment({ ...values, [key]: '' }, configuration, {})[key]).toBe('');
+    expect(
+      publicApiEnvironment(
+        {
+          ConnectionStrings__Default: 'application',
+          ConnectionStrings__OutboxDispatcher: 'dispatcher',
+        },
+        configuration,
+        { [key]: issuer },
+      ),
+    ).not.toHaveProperty(key);
+  });
+
   it('passes only explicit API credentials and hop configuration', () => {
     const env = publicApiEnvironment(
       {

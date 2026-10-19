@@ -9,7 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace LearnStack.Api.Authentication;
 
-/// <summary>Closed tenant scheme. Production registration is deferred until P02b-5 Step 4.</summary>
+/// <summary>The single closed tenant scheme activated with the complete P02b-5 HTTP boundary.</summary>
 internal static class TenantAuthenticationRegistration
 {
     internal const string Scheme = "TenantBearer";

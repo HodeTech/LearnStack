@@ -1,0 +1,230 @@
+using System.Net;
+using System.Text.Json;
+using FluentAssertions;
+using LearnStack.Api.Authentication;
+using LearnStack.Api.Common;
+using LearnStack.Api.Tenancy;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Xunit;
+
+namespace LearnStack.Tests.Integration;
+
+/// <summary>Actual production HTTP activation, without a fabricated principal or alternate pipeline.</summary>
+[Collection(TenantAuthenticationDiagnosticsTestGroup.Name)]
+public sealed class TenantAuthenticationHttpTests
+{
+    [Fact]
+    public async Task Api_Registers_Only_The_Tenant_Realm_Authority()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var factory = new TenantAuthenticationApiFactory(issuer);
+        var schemes = await factory.Services.GetRequiredService<IAuthenticationSchemeProvider>().GetAllSchemesAsync();
+        schemes.Select(scheme => scheme.Name).Should().Equal(TenantAuthenticationRegistration.Scheme);
+        schemes.Single().HandlerType.Should().Be<JwtBearerHandler>();
+        var options = factory.Services.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+            .Get(TenantAuthenticationRegistration.Scheme);
+        options.Authority.Should().Be(issuer.Issuer);
+        options.MetadataAddress.Should().Be(issuer.MetadataAddress);
+        issuer.MetadataRequests.Should().Be(0, "the production registration does not eagerly contact an issuer");
+
+        using var client = factory.CreateClient();
+        using var response = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.TenantHost, token: issuer.Token(issuer.Payload(
+                ("iss", issuer.Issuer.Replace("/realms/learnstack", "/realms/learnstack-hub", StringComparison.Ordinal)))));
+        await Problem(response, HttpStatusCode.Unauthorized, "unauthorized");
+        BareBearer(response);
+        issuer.MetadataRequests.Should().BeGreaterThan(0, "the trusted signing key must be obtained before rejecting the foreign issuer");
+        issuer.JwksRequests.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Backend_RequiresJwt_OnAllAuthenticatedRoutes()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var factory = new TenantAuthenticationApiFactory(issuer);
+        using var client = factory.CreateClient();
+        var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
+            .Where(endpoint => endpoint.RoutePattern.RawText == "api/v1/account/site").ToArray();
+        endpoints.Should().ContainSingle("the non-public production route must actually exist");
+        endpoints.Single().Metadata.GetOrderedMetadata<IAuthorizeData>().Should().NotBeEmpty();
+        endpoints.Single().Metadata.GetMetadata<IAllowAnonymous>().Should().BeNull();
+        endpoints.Single().Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Should().Equal("GET");
+
+        using var unknown = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.UnknownHost);
+        await Problem(unknown, HttpStatusCode.NotFound, "not_found");
+        var masked = await WithoutCorrelation(unknown);
+        foreach (var host in new[] { TenantAuthenticationReconciliationHost.TenantHost,
+                     TenantAuthenticationReconciliationHost.OrganizationHost,
+                     TenantAuthenticationReconciliationHost.PlatformHost })
+        {
+            using var response = await TenantAuthenticationHttpRequest.Send(client, host);
+            await Problem(response, HttpStatusCode.NotFound, "not_found");
+            response.Headers.WwwAuthenticate.Should().BeEmpty();
+            (await WithoutCorrelation(response)).Should().Be(masked,
+                "every protected absent-credential refusal is indistinguishable from the unknown-host result");
+        }
+        issuer.MetadataRequests.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Authorization_result_handler_masks_only_the_closed_classified_surface_and_preserves_default_challenges()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var factory = new TenantAuthenticationApiFactory(issuer);
+        using var client = factory.CreateClient();
+        var account = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
+            .Single(endpoint => endpoint.RoutePattern.RawText == "api/v1/account/site");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var handler = scope.ServiceProvider.GetRequiredService<IAuthorizationMiddlewareResultHandler>();
+        handler.Should().BeOfType<TenantAuthorizationResultHandler>();
+        var policy = new AuthorizationPolicyBuilder(TenantAuthenticationRegistration.Scheme).RequireAuthenticatedUser().Build();
+        var protectedContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        protectedContext.Request.Path = TenantAuthenticationHttpRequest.AccountPath;
+        protectedContext.SetEndpoint(account);
+        protectedContext.Features.Set(HostClassification.Platform(TenantAuthenticationReconciliationHost.PlatformHost));
+        await handler.HandleAsync(_ => throw new InvalidOperationException("A challenge cannot dispatch the endpoint."),
+            protectedContext, policy, PolicyAuthorizationResult.Challenge());
+        protectedContext.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        protectedContext.Response.Headers.WWWAuthenticate.Should().BeEmpty();
+
+        var internalContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        internalContext.Request.Path = "/api/internal/authorization-control";
+        await handler.HandleAsync(_ => throw new InvalidOperationException("A challenge cannot dispatch the endpoint."),
+            internalContext, policy, PolicyAuthorizationResult.Challenge());
+        internalContext.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized,
+            "outside the classified AccountSite surface the stock authorization challenge remains active");
+        internalContext.Response.Headers.WWWAuthenticate.ToString().Should().Be("Bearer");
+        issuer.MetadataRequests.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Authentication_Middleware_Order_Is_Enforced()
+    {
+        TenantAuthenticationPipelineProof.AssertProductionOrderAndPlantedReorders();
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var factory = new TenantAuthenticationApiFactory(issuer);
+        using var client = factory.CreateClient();
+
+        using var oversized = new HttpRequestMessage(HttpMethod.Get, TenantAuthenticationHttpRequest.AccountPath);
+        oversized.Headers.Host = TenantAuthenticationReconciliationHost.UnknownHost;
+        oversized.Headers.TryAddWithoutValidation("Authorization", "Bearer " + issuer.Token());
+        oversized.Content = new ByteArrayContent(new byte[checked((int)RequestBodyLimit.MaxBytes + 1)]);
+        using var bodyRefusal = await client.SendAsync(oversized);
+        await Problem(bodyRefusal, HttpStatusCode.RequestEntityTooLarge, "payload_too_large");
+        factory.Ports.HostLookups.Should().BeEmpty("the body bound precedes host lookup and authentication");
+        issuer.MetadataRequests.Should().Be(0);
+
+        using var unknown = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.UnknownHost, token: issuer.Token());
+        await Problem(unknown, HttpStatusCode.NotFound, "not_found");
+        issuer.MetadataRequests.Should().Be(0, "host classification precedes authentication");
+
+        using var invalid = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.OrganizationHost, token: issuer.Token(issuer.Payload(("typ", "ID"))),
+            tenantAssertion: "not-a-guid");
+        await Problem(invalid, HttpStatusCode.Unauthorized, "unauthorized");
+        factory.Ports.Memberships.Should().BeEmpty("credential admission precedes tenant resolution");
+        factory.Recorder!.Rejections.Should().BeEmpty("invalid credentials cannot reach assertion recording");
+
+        using var mismatch = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.OrganizationHost, token: issuer.Token(issuer.Payload(
+                ("tenant_id", TenantAuthenticationReconciliationHost.OtherTenant.ToString("D")))),
+            tenantAssertion: "not-a-guid");
+        await Problem(mismatch, HttpStatusCode.NotFound, "tenant_mismatch");
+        factory.Recorder!.Rejections.Should().ContainSingle().Which.Source.Should().Be(TenantAssertionSource.JwtClaim,
+            "validated claims reach the resolver before malformed header assertions");
+        factory.Ports.Memberships.Should().BeEmpty("claim disagreement precedes membership I/O");
+        issuer.MetadataRequests.Should().Be(1, "real authentication is activated in the production pipeline");
+    }
+
+    [Theory]
+    [InlineData("not-a-token")]
+    [InlineData("Bearer")]
+    [InlineData("Basic dXNlcjpwYXNz")]
+    [InlineData("Bearer a.b.c, Bearer a.b.c")]
+    public async Task Invalid_present_credentials_on_actual_public_routes_never_become_anonymous(string authorization)
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var factory = new TenantAuthenticationApiFactory(issuer);
+        using var client = factory.CreateClient();
+        using var response = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.TenantHost, TenantAuthenticationHttpRequest.PublicPath,
+            authorization: authorization);
+
+        await Problem(response, HttpStatusCode.Unauthorized, "unauthorized");
+        BareBearer(response);
+        factory.Recorder!.Rejections.Should().BeEmpty();
+        issuer.MetadataRequests.Should().Be(0, "malformed credentials need no discovery");
+    }
+
+    [Fact]
+    public async Task Discovery_failure_on_an_actual_public_route_is_401_and_never_anonymous()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        issuer.DiscoveryStatusCode = 503;
+        await using var factory = new TenantAuthenticationApiFactory(issuer);
+        using var client = factory.CreateClient();
+        using var response = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.TenantHost, TenantAuthenticationHttpRequest.PublicPath,
+            token: issuer.Token());
+
+        await Problem(response, HttpStatusCode.Unauthorized, "unauthorized");
+        BareBearer(response);
+        issuer.MetadataRequests.Should().BeGreaterThan(0);
+        factory.Recorder!.Rejections.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("/healthz", HttpStatusCode.OK)]
+    [InlineData("/openapi/v1.json", HttpStatusCode.OK)]
+    [InlineData("/api/internal/unmapped-auth-control", HttpStatusCode.NotFound)]
+    public async Task Infrastructure_and_internal_paths_ignore_bad_credentials_without_discovery(string path,
+        HttpStatusCode status)
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        issuer.DiscoveryStatusCode = 503;
+        await using var factory = new TenantAuthenticationApiFactory(issuer);
+        using var client = factory.CreateClient();
+        using var response = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.UnknownHost, path, authorization: "Bearer definitely-not-a-token",
+            tenantAssertion: "not-a-guid", organizationAssertion: "also-not-a-guid");
+
+        response.StatusCode.Should().Be(status);
+        response.Headers.WwwAuthenticate.Should().BeEmpty();
+        issuer.MetadataRequests.Should().Be(0);
+        issuer.JwksRequests.Should().Be(0);
+        factory.Ports.HostLookups.Should().BeEmpty();
+        factory.Recorder!.Rejections.Should().BeEmpty();
+    }
+
+    internal static async Task Problem(HttpResponseMessage response, HttpStatusCode status, string code)
+    {
+        await TenantAuthenticationReconciliationTests.AssertProblem(response, status, code);
+        NoStore(response);
+    }
+
+    internal static void NoStore(HttpResponseMessage response)
+    {
+        response.Headers.CacheControl?.NoStore.Should().BeTrue();
+        response.Headers.ETag.Should().BeNull();
+        response.Content.Headers.LastModified.Should().BeNull();
+    }
+
+    private static void BareBearer(HttpResponseMessage response) =>
+        response.Headers.WwwAuthenticate.Should().ContainSingle().Which.ToString().Should().Be("Bearer");
+
+    private static async Task<string> WithoutCorrelation(HttpResponseMessage response)
+    {
+        var problem = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(await response.Content.ReadAsStringAsync())!;
+        problem.Remove("correlationId");
+        return JsonSerializer.Serialize(problem);
+    }
+}

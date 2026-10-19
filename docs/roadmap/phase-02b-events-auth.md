@@ -19,8 +19,10 @@ revised [decision package](#p02b-5-decision-package-2026-10-19) and
 G12's BFF-client choice, G14 and G20 are Accepted. Five implementation steps are
 authorized; [Step 1](#p02b-5-step-1--token-foundation-2026-10-19) completes the
 dated disclosures and isolated token foundation after both independent review
-rounds. Step 2 adds the real read-only application subject. Production
-authentication activation remains Step 4.
+rounds. Steps 2–3 complete the real read-only subject and attributed admission
+after both independent reviews. [Step 4](#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+installs the complete HTTP boundary and owns current validation/review status.
+Step 5 retains final enforcement and hosted proof.
 P02b-6 realm reconciliation, P02b-7 BFF sessions and P02b-8 enforcement/erasure
 inventory remain pending; Phase 02b remains in progress. Earlier dated delivery
 and failed-run receipts keep their as-of state.
@@ -11940,6 +11942,57 @@ checks pass. Implementation is `c0909708`; `90724a54` records round 1. Both revi
 rounds and verified corrections are complete. Step 4 now owns atomic production
 activation, the real route, response policy and typed contract.
 
+### P02b-5 Step 4 — atomic HTTP activation and contracts (2026-10-19)
+
+**Implementation and local validation complete; both review rounds pending.**
+Entry is `6686d018`. The production root installs the strict scheme, authorization,
+credential-result gate, subject quota and independent surface admission together.
+Their explicit order retains earlier visitor/peer/body precedence, classifies
+hosts before authentication and reconciles claims before header assertions.
+The only new action is authorized `GET /api/v1/account/site`, dispatching the
+already-qualified exact Off/ReadOnly query. A scoped authorization result handler
+masks missing credentials without changing infrastructure/internal challenges.
+The outer response owner reasserts no-store and removes validators on account
+successes and early errors, including errors before tenant resolution.
+
+Development config supplies only its canonical loopback realm issuer. Every other
+deployment mode requires explicit HTTPS configuration; startup validates its form
+without connecting to the issuer. The local launcher carries an explicit issuer
+only to the API child, rejects conflicting file/ambient configuration and keeps
+it out of the public web environment. No realm export, mapper or client secret
+changes in this step.
+
+The served OpenAPI document separates AccountSite bearer security from anonymous
+operations, preserves the shared public projection and describes bounded refusal
+headers/shapes. The SDK is regenerated from that actual document. Exact disjoint
+public/authenticated GET ownership remains exhaustive; the authenticated package
+exports a typed contract without adding session or bearer transport. P02b-7 owns
+that transport. Production route/helper censuses and actual-host/PostgreSQL proofs
+are part of this slice.
+
+Validation passes on the current Release binaries: warnings-as-errors solution
+build with zero warnings/errors; 2,536 unit, five contract, 294 integration
+(241 Docker-free plus 53 application-role PostgreSQL) and 96 affected architecture
+cases, all with zero failures/skips. The PostgreSQL set includes the 20 real
+AccountSite HTTP cases and two actual-chain quota cases. The full frontend lint,
+typecheck and guarded workspace run pass 1,629 cases with zero skips/todos. The
+snapshot is exported from the real production Program in its ordinary contract
+fixture and compared with the served document; SDK generation uses that snapshot.
+Scoped formatting, whitespace and carrier link/prose checks pass.
+
+The complete route detector and planted controls use actual production metadata;
+its helper traversal distinguishes inherited base members from acquired abstract
+services without losing concrete-service traversal. The older job-manifest route
+multiset now names the one newly approved AccountSite GET; extra/dashboard routes
+still fail. The order proof combines real-host precedence with reordered, missing
+and duplicated registrations from actual Program source. Initial fixture-only
+corrections retain lazy recorder construction and stock metadata refresh behavior.
+No production fallback was weakened to satisfy a test.
+
+Complete backend/hosted unions and final catalogue promotion remain Step 5.
+This receipt claims only the named local populations; both fresh independent
+Step 4 review rounds remain pending.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile
@@ -11973,9 +12026,9 @@ partition. The
 [P02b-3 merge closeout](#p02b-3-merge-and-closeout-2026-10-15) owns final combined
 event verification. P02b-4's job infrastructure is locally complete, with exact
 qualification in its [local closeout](#p02b-4-local-closeout-2026-10-18). P02b-5 is
-in progress, with its isolated token, read-only query and attributed admission
-components complete; production HTTP activation remains Step 4 and P02b-6–8
-remain pending.
+in progress, with Steps 1–3 complete and Step 4 HTTP activation undergoing
+validation/review; Step 5 final enforcement/hosted proof and P02b-6–8 remain
+pending.
 The whole phase is not complete.
 
 - An aggregate change and its outbox row commit together and roll back together,

@@ -215,6 +215,19 @@ describe('private local configuration', () => {
     ).toBe('explicit');
   });
 
+  it('loads an API issuer without letting ambient configuration silently replace it', () => {
+    const key = 'Authentication__Tenant__Issuer';
+    const issuer = 'https://identity.example/realms/learnstack';
+    writeFileSync(join(directory, '.env'), key + '=' + issuer);
+    expect(loadLocalEnvironment(directory, {})[key]).toBe(issuer);
+    expect(loadLocalEnvironment(directory, { [key]: issuer })[key]).toBe(issuer);
+    expect(() => loadLocalEnvironment(directory, { [key]: issuer + '-hub' })).toThrow(
+      'Conflicting API authentication configuration',
+    );
+    writeFileSync(join(directory, '.env'), '');
+    expect(loadLocalEnvironment(directory, { [key]: issuer })[key]).toBe(issuer);
+  });
+
   const configuration = {
     LEARNSTACK_PUBLIC_API_ORIGIN: 'http://127.0.0.1:5080',
     LEARNSTACK_PUBLIC_HOP_SECRET: secret,

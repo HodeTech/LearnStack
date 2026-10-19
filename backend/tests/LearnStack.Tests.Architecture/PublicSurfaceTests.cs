@@ -219,7 +219,7 @@ public sealed class PublicSurfaceTests
 
     // Each action is checked independently, including its generated async body.
     // Merely finding Send somewhere else in the same controller is insufficient.
-    private static bool Dispatches(TypeDefinition type, string action)
+    internal static bool Dispatches(TypeDefinition type, string action, string? exactRequest = null)
     {
         var actionNames = type.Methods.Where(method => method.IsPublic && method.CustomAttributes.Any(attribute =>
                 attribute.AttributeType.FullName == typeof(HttpGetAttribute).FullName
@@ -246,7 +246,9 @@ public sealed class PublicSurfaceTests
         while (position >= 0 && definition.Body.Instructions[position].OpCode == OpCodes.Nop) position--;
         return position >= 0 && definition.Body.Instructions[position].OpCode == OpCodes.Newobj
             && definition.Body.Instructions[position].Operand is MethodReference constructor
-            && MarkedNames.Contains(constructor.DeclaringType.FullName.Replace('/', '+'));
+            && (exactRequest is null
+                ? MarkedNames.Contains(constructor.DeclaringType.FullName.Replace('/', '+'))
+                : constructor.DeclaringType.FullName == exactRequest);
     }
 
     // Walk the cancellation-token expression backwards. Stop at control flow and
@@ -295,22 +297,24 @@ public sealed class PublicSurfaceTests
             && methods.Any(method => method.Definition.Body.Instructions.Any(item => item.Operand is string path && path == "/healthz")));
     }).Select(type => type.FullName.Replace('/', '+'));
 
-    private static IEnumerable<string> PersistenceOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map)
+    internal static IEnumerable<string> PersistenceOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map)
     {
         var controllers = roots.ToArray();
         var controllerKeys = controllers.Select(Key).ToHashSet(StringComparer.Ordinal);
-        var queue = new Queue<TypeDefinition>(controllers);
+        var queue = new Queue<(TypeDefinition Type, bool ExpandImplementations)>(controllers.Select(type => (type, true)));
         var paths = controllers.ToDictionary(Key, type => type.FullName, StringComparer.Ordinal);
         var visited = new HashSet<string>(StringComparer.Ordinal);
-        while (queue.TryDequeue(out var type))
+        var expanded = new HashSet<string>(StringComparer.Ordinal);
+        while (queue.TryDequeue(out var current))
         {
-            if (!visited.Add(Key(type))) continue;
-            if (type.IsInterface || type.IsAbstract)
+            var type = current.Type;
+            if (current.ExpandImplementations && (type.IsInterface || type.IsAbstract) && expanded.Add(Key(type)))
                 foreach (var implementation in map.Values.Where(candidate => !candidate.IsInterface && Implements(candidate, Key(type), map, [])))
                 {
                     paths.TryAdd(Key(implementation), paths[Key(type)] + " -> " + implementation.FullName);
-                    queue.Enqueue(implementation);
+                    queue.Enqueue((implementation, true));
                 }
+            if (!visited.Add(Key(type))) continue;
             var references = Il.ReferencedTypeReferences(type).ToArray();
             if (references.Any(reference => Forbidden(reference.FullName))
                 || (!controllerKeys.Contains(Key(type)) && references.Any(reference =>
@@ -332,12 +336,23 @@ public sealed class PublicSurfaceTests
                         && helper.CustomAttributes.Any(attribute => attribute.AttributeType.Name == "CompilerGeneratedAttribute")))
                 {
                     paths.TryAdd(Key(helper), paths[Key(type)] + " -> " + helper.FullName);
-                    queue.Enqueue(helper);
+                    // Inheriting a base class acquires its members, not every
+                    // sibling implementation. An actual abstract collaborator
+                    // in a field/signature still expands its concrete services.
+                    var inherited = type.BaseType is { } parent && Key(parent) == Key(reference);
+                    queue.Enqueue((helper, !inherited || Acquires(type, Key(reference))));
                 }
         }
     }
 
-    private static bool Implements(TypeDefinition type, string contract, Dictionary<string, TypeDefinition> map, HashSet<string> visited)
+    private static bool Acquires(TypeDefinition owner, string dependency) => owner.Fields
+        .SelectMany(field => Il.ExpandedTypeReferences(field.FieldType))
+        .Concat(owner.Properties.SelectMany(property => Il.ExpandedTypeReferences(property.PropertyType)))
+        .Concat(owner.Methods.SelectMany(method => method.Parameters.SelectMany(parameter => Il.ExpandedTypeReferences(parameter.ParameterType))
+            .Concat(Il.ExpandedTypeReferences(method.ReturnType))))
+        .Any(reference => Key(reference) == dependency);
+
+    internal static bool Implements(TypeDefinition type, string contract, Dictionary<string, TypeDefinition> map, HashSet<string> visited)
     {
         if (!visited.Add(Key(type))) return false;
         return type.Interfaces.Select(item => item.InterfaceType).Concat(type.BaseType is { } parent ? [parent] : [])

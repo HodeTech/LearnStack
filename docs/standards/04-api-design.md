@@ -8,7 +8,8 @@ Public-read additions derive from
 [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 The accepted tenant-authentication contract derives from
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md);
-P02b-5 implementation remains pending.
+P02b-5 Step 4 activates the closed HTTP boundary; its delivery record owns proof
+and review status.
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -130,7 +131,7 @@ Two things a reader of this document needs, because both are easy to get wrong:
 - Service-to-service uses client-credentials grants with limited scopes.
 - API keys are forbidden in the MVP; if added later, they live in `Integrations` with rotation + audit.
 
-**P02b-5 accepted contract — 2026-10-19; runtime pending.**
+**P02b-5 HTTP activation — 2026-10-19.**
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) defines the
 strict tenant bearer profile and ordered HTTP admission. On classified known
 hosts, present invalid or undecidable credentials return 401 with a bare Bearer
@@ -207,7 +208,7 @@ reconciliation matrix are the separate case — no tenant context resolves at al
   discloses membership of `Tenancy:PlatformHosts` — a short static list an operator
   publishes as its own entry point — and nothing about any tenant.
   This generic unresolved MediatR result remains `tenant_mismatch`.
-  ADR-0064's planned AccountSite endpoint instead refuses at outer HTTP admission:
+  ADR-0064's exact AccountSite endpoint instead refuses at outer HTTP admission:
   absent credentials on tenant, organization and platform hosts return the masked
   `not_found` 404, as does a validated principal without usable host-backed tenant
   authority. Its scoped authorization result handler preserves that result before
@@ -264,7 +265,7 @@ detected even when all shipped requests are correctly Off.
 
 ### Closed authenticated read
 
-**Accepted by ADR-0064 — 2026-10-19; implementation pending in P02b-5.**
+**Accepted by ADR-0064 — 2026-10-19; HTTP activation in P02b-5 Step 4.**
 The additional operation is exact `GET /api/v1/account/site`, `GetAccountSite`,
 dispatching non-public `GetAccountSiteQuery`. It returns the validated actor,
 resolved tenant/organization and existing live `PublicSite` projection, accepts

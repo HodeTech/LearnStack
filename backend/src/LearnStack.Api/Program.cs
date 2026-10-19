@@ -1,9 +1,11 @@
+using LearnStack.Api.Authentication;
 using LearnStack.Api.Common;
 using LearnStack.Api.Composition;
 using LearnStack.Api.PublicReads;
 using LearnStack.Api.Tenancy;
 using LearnStack.Api.Versioning;
 using LearnStack.SharedKernel.Hosting;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,6 +46,15 @@ builder.AddLearnStackCrossCuttingFoundation(
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration);
 builder.Services.AddLearnStackPersistence(builder.Configuration);
 builder.Services.AddLearnStackRateLimiting();
+
+// Register and activate the entire closed HTTP boundary together. Minimal hosting
+// can insert authentication/authorization merely because their services exist;
+// the explicit middleware order below owns both insertions and all guards.
+builder.Services.AddLearnStackTenantAuthentication(
+    TenantAuthenticationOptions.FromConfiguration(builder.Configuration, deploymentMode));
+builder.Services.AddLearnStackTenantSubjectAdmission();
+builder.Services.AddAuthorization();
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, TenantAuthorizationResultHandler>();
 
 // The outer half of the body bound, and deliberately NOT the same number.
 // RequestBodyLimit's middleware is the authoritative one — it is the only one
@@ -110,12 +121,13 @@ app.MapLearnStackOpenApi();
 // authentication, so the factory sees both signals at once.
 app.UseLearnStackHostClassification();
 
-// Which tenant, given the host and — from P02b-5 — the validated claims.
-// After classification so TenantContextFactory.Create is called once with both
-// signals in hand, rather than twice with one each; ADR-0036 § Rules splits the
-// single step architecture/27 once described into exactly these two. P02b-5
-// inserts UseAuthentication ABOVE this line and UseAuthorization below the
-// assertions — two insertions, not one block.
+app.UseAuthentication();
+app.UseLearnStackTenantCredentialAdmission();
+app.UseLearnStackTenantSubjectAdmission();
+
+// Reconcile both trusted signals once, after credential/subject admission.
+// Authentication precedes resolution; authorization follows header assertions.
+// Keeping these insertions separate preserves ADR-0036/ADR-0064's order.
 app.UseLearnStackTenantResolution();
 
 // X-Tenant-Id / X-Organization-Id are assertions: compared against what the
@@ -125,6 +137,9 @@ app.UseLearnStackTenantResolution();
 // packet the comparison had no resolved value and was unreachable in traffic —
 // and before the endpoints so no handler runs on a request that lost it.
 app.UseLearnStackTenantAssertions();
+
+app.UseAuthorization();
+app.UseLearnStackTenantSurfaceAdmission();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))
     .WithName("HealthCheck");

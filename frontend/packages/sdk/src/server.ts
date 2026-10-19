@@ -1,3 +1,4 @@
+import type { AUTHENTICATED_GET_CONTRACTS, GetContractOwnership } from './authenticated-contract';
 import type { operations, paths } from './generated/schema';
 import { appError, isSuccess, parseProblem } from './response-policy';
 import type { ApiProblem, AppError, PublicGetOperation, PublicSuccess } from './response-policy';
@@ -47,16 +48,35 @@ export type ServerSdk = {
   ): Promise<ApiResult<PublicSuccess<'GetPublicLesson'>>>;
 };
 
-/** A non-empty census that stops compiling when generation introduces an unwrapped GET path. */
+export type PublicGetPath =
+  | '/api/v1/public/site'
+  | '/api/v1/public/courses'
+  | '/api/v1/public/courses/{slug}'
+  | '/api/v1/public/courses/{slug}/lessons/{lessonSlug}';
+
+/** The exact public subset; generated GETs never acquire public ownership implicitly. */
+export const PUBLIC_GET_CONTRACTS = {
+  '/api/v1/public/site': 'GetPublicSite',
+  '/api/v1/public/courses': 'GetPublicCourses',
+  '/api/v1/public/courses/{slug}': 'GetPublicCourse',
+  '/api/v1/public/courses/{slug}/lessons/{lessonSlug}': 'GetPublicLesson',
+} as const satisfies Record<PublicGetPath, PublicGetOperation>;
+
+/** Both path and operation ownership must remain disjoint, correctly paired and exhaustive. */
+export const GET_CONTRACT_OWNERSHIP = true satisfies GetContractOwnership<
+  paths,
+  operations,
+  typeof PUBLIC_GET_CONTRACTS,
+  typeof AUTHENTICATED_GET_CONTRACTS
+>;
+
+/** Every declared public GET has a wrapper; authenticated GETs have their own contract. */
 export const PUBLIC_GET_WRAPPERS = {
   '/api/v1/public/site': 'getSite',
   '/api/v1/public/courses': 'getCourses',
   '/api/v1/public/courses/{slug}': 'getCourse',
   '/api/v1/public/courses/{slug}/lessons/{lessonSlug}': 'getLesson',
-} as const satisfies Record<
-  { [P in keyof paths]: paths[P]['get'] extends undefined ? never : P }[keyof paths],
-  keyof ServerSdk
->;
+} as const satisfies Record<keyof typeof PUBLIC_GET_CONTRACTS, keyof ServerSdk>;
 
 function queryString(query: Record<string, string | undefined>): string {
   const parameters = new URLSearchParams();
