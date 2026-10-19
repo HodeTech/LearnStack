@@ -352,8 +352,8 @@ decides what happens *inside* the steps ADR-0033 named; the order is untouched:
    operation.
 4. **`TenantContextBehavior`** — Asserts `ITenantContext.IsResolved` (the
    `TenantResolverMiddleware` populated it from the inbound HTTP request,
-   the Hangfire `JobActivator` populated it from the job payload, or the
-   integration-event handler scope populated it from the event envelope)
+   `JobExecutor` restored it from the validated durable job row, or the
+   integration-event delivery owner restored it from the event envelope)
    and carries the resolved tenant + organization forward for the rest of
    the pipeline. Unresolved context short-circuits with
    `Result.Fail(tenant_mismatch)` unless the request carries

@@ -365,8 +365,8 @@ LiveKit) carry tenant attributes without per-call enrichment. The processor
 is a singleton (OTel SDK design); it reads from the singleton
 `ITenantContextAccessor` (`AsyncLocal<ITenantContext?>`-backed), which the
 tenant middleware populates at request start. The same accessor is set by
-the Hangfire `JobActivator` (background jobs), the outbox / inbox handler
-scope (integration events), and `HubCorrelationMiddleware`
+`JobExecutor` from the validated job row (background jobs), the integration-event
+delivery owner, and `HubCorrelationMiddleware`
 (`/api/internal/*`). Every downstream span — even spans created by libraries
 the LearnStack codebase has no knowledge of — picks up the right tags
 because the SDK runs the processor's `OnStart` hook synchronously inside the

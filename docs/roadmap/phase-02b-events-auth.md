@@ -11032,10 +11032,20 @@ ADR parser 7 and focused frontend source inventory 19 pass. Changed-document lin
 inspection finds no new broken target; the catalogue's literal placeholder
 `#name_lowercased` remains documentation syntax rather than a real anchor.
 
-Full Architecture verification, both fresh independent review rounds and
-final-source hosted qualification are still pending. Their receipts follow
-before the final source is frozen. No skipped or forced-cleanup result will be
-counted as a passing proof.
+Full Architecture verification and final-source hosted qualification are still
+pending. No skipped or forced-cleanup result will be counted as a passing proof.
+
+**Fresh review round 1.** Two new independent reviewers examined
+`1dbde1a3..df6e2761` across runtime/ownership/tests and tooling/CI/corpus. Both
+approve the runtime and test corrections. One reviewer found five additional
+live-corpus passages still teaching `JobParams`, payload trace metadata or
+`JobActivator` authority. The isolation table, observability, pipeline guidance
+and shared skill instructions now use the authoritative row and `JobExecutor`.
+A scoped residual scan leaves only the explicit retired catalogue navigation and
+an example owned by the separate Hub repository. The second reviewer independently
+ran all 51 plan/aggregate and 23 distribution controls and reconstructed the
+339-case PostgreSQL receipt union. No code defect or weakened assertion was found.
+The next fresh independent round examines the complete corrected range.
 
 ## Completion Criteria
 

@@ -129,9 +129,10 @@ services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
 
 `TenantContextAccessor` carries an `AsyncLocal<ITenantContext?>` field. The
 following sites populate it at scope start: `TenantResolverMiddleware`
-(HTTP), `HubCorrelationMiddleware` (`/api/internal/*`), Hangfire
-`JobActivator` (background jobs), outbox / inbox handler scope (integration
-events). Modules never write to the accessor.
+(HTTP), `HubCorrelationMiddleware` (`/api/internal/*`), `JobExecutor` from its
+validated durable row (background jobs), and the integration-event delivery
+owner. Modules never write to the accessor. The job authority is defined by
+[ADR-0047](../../../docs/decisions/0047-transactional-background-job-runtime.md).
 
 ### Step 5: Wire OpenTelemetry tracing + metrics
 

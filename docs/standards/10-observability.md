@@ -98,8 +98,9 @@ P02b-3 Step 3 implements restoration and incoming-event causation in the common
 delivery owner; Step 5 activates both real defaults and semantic Seeder handoff.
 
 The propagation primitive is **W3C `traceparent`** end to end. Every
-cross-boundary write (outbox row, Hangfire payload, Hub envelope) carries it;
-the receiving side resumes the trace by setting `Activity.ParentId =
+cross-boundary write (outbox row, authoritative LearnStack job row, Hub envelope)
+carries it; Hangfire wakeups carry only opaque references, not trace metadata.
+The receiving side resumes the trace by setting `Activity.ParentId =
 traceparent`.
 
 ## Logging
@@ -202,9 +203,8 @@ its `OnStart` hook reads from the singleton `ITenantContextAccessor`
 auto-instrumentation libraries (EF Core, HttpClient, Valkey via Dapr,
 SeaweedFS S3 SDK, LiveKit) — without per-call enrichment. The accessor is
 populated at scope start by `TenantResolverMiddleware` (HTTP),
-`HubCorrelationMiddleware` (`/api/internal/*`), Hangfire `JobActivator`
-(background jobs), and the outbox / inbox handler scope (integration
-events). Modules never call `Activity.Current?.SetTag("tenant.id", ...)`
+`HubCorrelationMiddleware` (`/api/internal/*`), `JobExecutor` from its validated
+job row (background jobs), and the integration-event delivery owner. Modules never call `Activity.Current?.SetTag("tenant.id", ...)`
 themselves.
 
 Common (set by the respective auto-instrumentation library):
