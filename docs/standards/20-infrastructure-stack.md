@@ -821,6 +821,12 @@ each aggregate to five; actual final-source fit is recorded in the phase.
   `PostgreSqlHeartbeatProcess`, state counters and required admission/retry filters.
   No enabled command overrides finite driver I/O with zero; no socket exception
   exists. Source/reset and enabled-path response-loss proofs remain mandatory.
+- The stock synchronous connection factory joins the guarded source's actual
+  asynchronous acquisition. This keeps the driver's cancellable DNS/socket path
+  instead of its synchronous positive-fraction socket-timeout truncation. It
+  introduces no detached wait, deadline extension or cleanup witness. Physical
+  role validation and its disposal do not capture a caller's synchronization
+  context; every newly opened connector still crosses the same role guard.
 - One API-instance owner shares the actual stock expiration component across pools
   on an owned background thread. The internal interval is exactly one millisecond;
   the owner supplies one-hour cadence after completion and cancelable pacing/backoff.

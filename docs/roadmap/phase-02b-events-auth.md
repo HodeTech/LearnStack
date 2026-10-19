@@ -10014,6 +10014,56 @@ local passing cases. Publication includes both twice-reviewed corrections;
 the next full hosted A attempt, then a complete same-source B attempt, must
 still qualify the final source. No required check or ownership rule is waived.
 
+**Candidate `c3564e08` and acquisition-path correction.** Full hosted run
+39180047008 completes with 25 successful jobs and two failures: ordinary-9
+and its integration aggregate. All six Architecture shards, base, native,
+the other eleven ordinary shards and the other six required checks pass.
+The independently hashed ordinary-9 artifact identifies only the common
+database-outage case. Control/external heartbeat attempts return their faults;
+the transactional heartbeat remains inside PhysicalOpening after 89,293
+post-pause milliseconds. That phase includes the authority check, lazy-source
+resolution and driver open/physical initialization; it does not identify a
+specific internal driver stage. The failed run reports missing owned completion
+and forced cleanup, not successful natural resource release.
+
+An unchanged actual Linux ARM64 fixture on SDK 10.0.402/runtime 10.0.13 passes
+alone in 39.343 seconds. The exact independently verified ordinary-9 cohort
+then passes all 207 actual case IDs, including that case in 38.127 seconds,
+without missing/extra/duplicate/skipped rows. Both use the direct Docker bridge;
+all their PostgreSQL containers are naturally absent after completion. These
+local results do not establish the native hosted x64 cause or final CI fit.
+
+Independent pinned-driver source inspection and an owned socket-pair experiment
+verify a separate acquisition hazard: the pinned
+[read-buffer timeout setter](https://github.com/npgsql/npgsql/blob/v10.0.0/src/Npgsql/Internal/NpgsqlReadBuffer.cs#L49-L57)
+truncates a positive sub-millisecond budget to socket timeout zero. The actual
+pinned read buffer stays held
+past that budget until its exact owned peer sends a byte; the same buffer's
+asynchronous cancellation source cancels a real asynchronous socket read.
+This is source-level evidence, not a reproduction of the hosted open path.
+
+The stock synchronous factory now joins the guarded source's supported
+asynchronous acquisition, retaining its actual completion and existing budgets.
+The shared physical-role initializer's query/disposal awaits are context-free.
+No vendor SQL, role grant, timeout, owner, admission, retry or assignment changes.
+An actual-driver control holds its asynchronous physical initializer: the factory
+cannot return early or dispatch through a caller's deferred synchronization
+context, and a planted synchronous initializer refuses. A second actual-factory
+control verifies the unmodified role guard on a fresh connector, a planted
+NOBYPASSRLS refusal and restoration. Validation and two fresh correction reviews
+precede publication; actual final-source A/B qualification remains open.
+
+Local validation passes the warnings-as-errors Release build, all 2,452 unit
+cases and 24 actual PostgreSQL factory/role/heartbeat cases without skips.
+Temporarily restoring only the old synchronous factory call makes the new
+async-initializer premise fail; restoration of the correction is checked again.
+Both restored factory cases pass, with no skip.
+A separate Ubuntu 24.04 SDK 10.0.402/runtime 10.0.13 x64 process passes the
+actual corrected outage case in 42.882 seconds. The local engine and child
+PostgreSQL remain ARM64, so this cross-architecture experiment does not claim
+native hosted x64 equivalence or root-cause closure. Its two PostgreSQL
+containers are naturally absent afterwards, with exact owned cleanup verified.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

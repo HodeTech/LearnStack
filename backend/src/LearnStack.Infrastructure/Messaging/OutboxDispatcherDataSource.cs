@@ -79,7 +79,8 @@ public static class OutboxDispatcherDataSource
 
     private static async Task RequireConfinedRole(NpgsqlConnection connection, bool async)
     {
-        await using var command = connection.CreateCommand();
+        var command = connection.CreateCommand();
+        await using var ownedCommand = command.ConfigureAwait(false);
         command.CommandTimeout = 5;
         command.CommandText =
             """
@@ -106,7 +107,7 @@ public static class OutboxDispatcherDataSource
         command.Parameters.AddWithValue("role", Role);
 
         var confined = async
-            ? await command.ExecuteScalarAsync()
+            ? await command.ExecuteScalarAsync().ConfigureAwait(false)
             : command.ExecuteScalar();
 
         if (confined is not true)

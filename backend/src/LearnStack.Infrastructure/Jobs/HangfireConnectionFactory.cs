@@ -14,7 +14,11 @@ public sealed class HangfireConnectionFactory(PrivilegedDataSource source, Backg
         if (gate?.TryAdmitStorage() == false)
             throw new InvalidOperationException("The job storage acquisition gate is closed.");
         PoolHangfireLifecycleOperation.ObservePhysicalOpening();
-        try { return _source.OpenConnection(); }
+        // Keep the stock synchronous factory contract, but use the driver's
+        // asynchronous DNS/socket deadline path. Its synchronous buffers can
+        // round a positive sub-millisecond remainder to an infinite socket wait.
+        // Await the actual acquisition; no detached task or substitute timeout.
+        try { return _source.OpenConnectionAsync().AsTask().GetAwaiter().GetResult(); }
         finally { PoolHangfireLifecycleOperation.ObservePhysicalOpened(); }
     }
 }
