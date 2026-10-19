@@ -11372,8 +11372,9 @@ P02b-0–4 remain complete and merged; P02b-5 runtime has not started.
 
 **Maintainer review follow-up — 2026-10-19.** The revised contract below addresses
 verified review findings. The earlier decision-review opinions remain historical;
-this follow-up replaces their readiness conclusion. Fresh revision review and
-maintainer acceptance are still required before runtime work.
+this follow-up replaces their readiness conclusion. Both fresh independent
+revision review rounds are now complete; maintainer acceptance remains required
+before runtime work.
 
 ### Problem statement and verified entry
 
@@ -11632,6 +11633,31 @@ The contract review reran all seven ADR parser controls and whitespace checks;
 the security review inspected sources and diff without rerunning runtime tests.
 Neither review is maintainer acceptance or proof of the future implementation.
 The second fresh independent revision review round remains pending.
+
+### Revised proposal review round 2 and readiness (2026-10-19)
+
+Two different fresh independent reviewers, both at xhigh effort, inspected
+`c94abe1b..9ff8c8a3` within the complete seven-file proposal. Both found no
+verified actionable finding. The security review checked the actual resolver,
+factory, recorder and reader against the proposed JWT, diagnostic and admission
+contracts. The contract review checked the exact Accepted source clauses,
+separate disclosure/correction instruments, carrier ownership and five-step
+activation boundary. Pinned upstream logging and JOSE sources were rechecked.
+
+Final documentation checks pass: seven ADR parser controls, five Release
+`CorpusConsistencyTests` with zero skips, 857 relative links/fragments, exact
+source-clause and added prose-width/diff checks. All pre-existing ADR documents,
+earlier dated phase records and both original P5 decision-review receipts remain
+byte-preserved. Only seven Markdown files differ from the entry baseline;
+runtime, database, realm issuance, browser and hosted CI suites were not rerun.
+
+**Ready for renewed maintainer approval; not Accepted.** These four revision
+reviews qualify the revised proposal for a decision, not its implementation.
+ADR-0064, G10/G11/G12-client/G14/G20 and all five implementation steps remain
+pending explicit approval together. No dependent runtime has started. Acceptance
+first commits the three dated ADR disclosures, row-10 corrections and named
+mutable carrier/catalogue reconciliation, then follows the per-step commit and
+two-round review loop without further routine approval pauses.
 
 ### Work deliberately retained by its first consumer
 
