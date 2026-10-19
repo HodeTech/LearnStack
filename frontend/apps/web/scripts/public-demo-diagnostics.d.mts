@@ -15,6 +15,11 @@ export interface PublicDemoFailureRecord {
   signal: string | null;
 }
 
+export type PublicDemoChildStatus = {
+  exitCode?: unknown;
+  signalCode?: unknown;
+};
+
 export function publicDemoWorkerStage(stage: unknown): string | null;
 export function publicDemoChildExited(child: {
   exitCode: number | null;
@@ -24,12 +29,12 @@ export function publicDemoFailure(
   stage: unknown,
   error: unknown,
   input?: Record<string, unknown>,
-  child?: Record<string, unknown>,
+  child?: PublicDemoChildStatus,
 ): PublicDemoFailureRecord;
 export function publicDemoOperation<T>(options: {
   input?: Record<string, unknown>;
   run: (stage: (value: string) => void) => Promise<T>;
   cleanup: () => Promise<unknown>;
-  child: () => Record<string, unknown> | undefined;
+  child: () => PublicDemoChildStatus | undefined;
   record: (failure: PublicDemoFailureRecord) => void;
 }): Promise<T>;

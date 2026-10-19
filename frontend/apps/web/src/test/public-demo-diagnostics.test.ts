@@ -27,6 +27,9 @@ describe('closed public demo operation diagnostics', () => {
         ['-e', kind === 'normal' ? 'process.exit(0)' : 'process.kill(process.pid, "SIGTERM")'],
         { stdio: 'ignore' },
       );
+      const operationChild = (() => child) satisfies Parameters<
+        typeof publicDemoOperation
+      >[0]['child'];
       const exited = once(child, 'exit');
       try {
         expect(publicDemoChildExited(child)).toBe(false);
@@ -43,7 +46,7 @@ describe('closed public demo operation diagnostics', () => {
             'startup-port',
             new PublicDemoFailure('chromium-exited'),
             context,
-            status,
+            operationChild(),
           ),
         ).toMatchObject({
           reason: 'chromium-exited',
@@ -195,7 +198,7 @@ describe('closed public demo operation diagnostics', () => {
         url: canary,
         workerStage: canary,
       },
-      { exitCode: canary, signalCode: canary, stderr: canary },
+      Object.assign({ exitCode: canary, signalCode: canary }, { stderr: canary }),
     );
     expect(failure).toEqual({
       stage: 'proof',
