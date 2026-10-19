@@ -13,11 +13,14 @@ Accepted ADR-0047/0058/0059/0060/0061 govern the delivered job runtime;
 ADR-0062/0063 govern the delivered bounded CI ownership and partitioning.
 Production business and recurrence definitions remain empty.
 
-**Next: P02b-5 API authentication decision pass.** G10, G11, G12's BFF-client
-choice, G14 and G20 remain Open. No authentication/session implementation is
-started by this merge closeout. P02b-6 realm reconciliation, P02b-7 BFF sessions
-and P02b-8 enforcement/erasure inventory remain pending; Phase 02b remains in
-progress. Earlier dated delivery and failed-run receipts keep their as-of state.
+**P02b-5 decision pass in progress — approval pending.** The
+[decision package](#p02b-5-decision-package-2026-10-19) and
+[Proposed ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) present
+the verified entry, owner choices and five implementation steps. G10, G11,
+G12's BFF-client choice, G14 and G20 remain Open; no dependent runtime has started.
+P02b-6 realm reconciliation, P02b-7 BFF sessions and P02b-8 enforcement/erasure
+inventory remain pending; Phase 02b remains in progress. Earlier dated delivery
+and failed-run receipts keep their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
 its [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
@@ -285,7 +288,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-2** | **Complete and merged — [PR #30 closeout](#p02b-2-merge-and-closeout-2026-10-13).** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
 | **P02b-3** | **Complete and merged — [PR #31 closeout](#p02b-3-merge-and-closeout-2026-10-15).** Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | **Complete and merged — [PR #32 closeout](#p02b-4-merge-and-closeout-2026-10-19).** Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; all nine implementation steps and their review gates delivered; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
-| **P02b-5** | API authentication: JwtBearer wiring and its insertion order, claim population, the host/JWT cross-check through the existing recorder, token-keyed rate limits, the 401 rows, one authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
+| **P02b-5** | **[Decision package Proposed](#p02b-5-decision-package-2026-10-19); approval pending.** API authentication: closed JWT profile, ordered reconciliation and existing rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: the shared client scope, the mappers, the user-profile declaration, UUID attributes agreeing with `SeedData`, the warm-realm reconciler, the Keycloak test fixture | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
 | **P02b-7** | BFF session: Auth.js, the cookie session, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
 | **P02b-8** | `LS0002`, the carrier reconciliations this phase owes, the re-verification that the behavioural check is still required under the name it reports, and the exit checks | G16, G18 (the erasure inventory) Accepted |
@@ -11356,6 +11359,189 @@ wrapping, whitespace and residual checks pass; every dated delivery/review recor
 and every Accepted ADR file is byte-preserved against the final PR source. The
 runtime suites are not rerun locally for these status/navigation edits; their
 final-source qualification is recorded above. This closeout starts no next packet.
+
+## P02b-5 decision package (2026-10-19)
+
+**Proposed — approval pending.** The maintainer requested P02b-5 on development,
+with the document audit before code, decisions presented together, and commit
+plus two fresh independent review rounds for every implementation step.
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) holds the
+proposed security contract. Neither this package nor its draft accepts a gate.
+P02b-0–4 remain complete and merged; P02b-5 runtime has not started.
+
+### Problem statement and verified entry
+
+Deliver the API half of tenant authentication: validate a signed access token,
+reconcile it with the independent host scope, attribute rejections through the
+existing recorder, and expose one genuinely read-only authenticated production
+operation. Keep public rendering independent of Keycloak, and keep role,
+membership, realm reconciliation and session work with their named owners.
+
+The entry audit used `development` at `0e23cb14`, following the verified P02b-4
+merge. Three independent read-only audits checked HTTP/isolation, identity/client
+boundaries and corpus/test ownership. Their facts were cross-checked against the
+current tree; they executed no tests and made no runtime edits.
+
+| Verified premise | Consequence for this packet |
+|---|---|
+| No JwtBearer package, scheme, `UseAuthentication` or `UseAuthorization`; the resolver's reserved claim site supplies no claims | Configuration/DI checks and supplied factory attempts are not authenticated HTTP evidence. Use real signed tokens through the actual handler. |
+| Two public controllers expose four GET/HEAD pairs; no protected production route | Add a real protected subject. Existing public census does not constrain future protected routes. |
+| Application `AuthorizationBehavior` still delegates; `HostAndClaim` admits ordinary requests | Bound production routes and their transitive request dispatch before activating claims. No authoring command can be exposed during the window. |
+| Membership reader denies everyone; row 10 asks about the host's organization | Row 10 stays 404. A matching Yoga organization claim takes row 9; it does not implement membership. Correct the older staging claim using dated errata. |
+| Rejection record has only tenant, dimension, asserted UUID and authenticated bit; resolver failure only logs | Carry source/actor/correlation/trusted organization explicitly, call the existing recorder and retain its two operation keys. |
+| Existing admission spends visitor 60/min and physical peer 600/min before classification | A later 600/min subject limit is an additional ceiling. It cannot establish independent throughput past these floors. |
+| Keycloak 26.6.2 export has no custom mappers/scopes, a public web client and slug-valued tenant attributes; seed only polls readiness | P02b-5 qualifies the API contract with a controlled issuer. P02b-6 must independently deliver actual token issuance and warm reconciliation. |
+| Framework authentication can return failure/NoResult without terminating an anonymous endpoint | A scoped credential-result gate must reject present invalid credentials even on public routes. |
+| `BackgroundJobExecutionAdmission.ModeFor` selects physical ReadOnly only for public requests and two exact framework reads | Add the exact new authenticated query to positive read-mode selection. Do not label it public or use a query-name heuristic. |
+| SDK `PUBLIC_GET_WRAPPERS` presently covers every generated GET path | Separate the exact public operations from the new authenticated contract during regeneration; preserve credential-free public transport. |
+| Name-based telemetry redaction does not sanitize arbitrary exception messages | Token canaries must be absent from logs/spans/error captures, not merely response bodies or named properties. |
+
+### Decisions presented for approval
+
+This table summarizes owner choices. ADR-0064 is the canonical contract; the
+summary does not redefine its validation details.
+
+| Gate / choice | Recommendation and explicit cost |
+|---|---|
+| G10: identity | Scalar UUID `tenant_id`, stable admin-assigned `user_id`, optional scalar `organization_id`; opaque `sub` remains external identity. Reject empty/reserved actors and malformed/duplicate claims. No memberships array or realm-role authority. |
+| G11: organization | P02b-6 issues Yoga's matching organization claim; P02b-5 proves row 9 with real signed test tokens. Tenant-only row 10, tenant-host organization row 7 and platform claim row 14 still fail until Phase 03 membership. |
+| G11: claimless token | Preserve explicit HostOnly public reads, fixed missing-tenant diagnostic, protected-read 404. A missing mapper never grants authenticated tenant authority; rejecting every claimless token instead would alter ADR-0036's absence rule. |
+| G11: platform membership audit | Refuse row 14 with 404 but no durable tenant row when there is no confirmed host tenant. This explicitly replaces only its `+ record under T_j` clause; no claimed/sentinel tenant is fabricated for audit. |
+| G12: API/BFF client split | Convert `learnstack-web` to the confidential PKCE BFF client in P02b-6; API pins its `azp` and `learnstack-api` audience now. Old API-client service-account tokens do not satisfy this user profile. API needs no client secret. |
+| Token/key posture | RS256, exact tenant issuer, JOSE JWT plus payload Bearer, stable actor, 30-second skew and one-hour maximum accepted lifetime. Disable old-configuration reuse after an observed signing-key withdrawal. Cost: stale-key outage fallback cannot keep withdrawn keys valid. Actual issuance TTL remains G13/P02b-6. |
+| G14: quota | Preserve existing early visitor/peer floors for every credential; add stable issuer+subject 600/min accounting before audit. Reduced-subject whole-chain proof plus separate actual-default boundary. Cost: NAT/BFF sharing can throttle users below 600/min; independent end-to-end 600/min is not promised. |
+| G14: routable read | One GET `/api/v1/account/site`: own actor/resolved scope and existing live `PublicSite` data, non-public query, physical ReadOnly, no scope parameters. No authoring, enrollment/private content, mutation, platform or unresolved-context route. |
+| G20: precedence | Early admission/unknown-host 404 precedes JWT work. Present invalid credentials on known hosts give 401 even on public routes. Anonymous protected tenant-host requests keep masked 404; platform-host absence may give 401. Authenticated disagreements give 404 `tenant_mismatch`. |
+
+These decisions, the disclosure instruments and the five-step plan are one
+approval package. No additional permission question is needed for routine
+implementation within that accepted scope. A genuinely new security or
+cross-module decision reopens only its affected boundary before implementation.
+
+### Document audit actions and acceptance instruments
+
+The pre-code work uses `implement-task`'s scoping/decision pass and `write-adr`.
+The implementation additionally uses `add-mediatr-handler`, `add-audit-coverage`,
+`add-architecture-test`, `add-integration-test`, `run-tests-locally`,
+`update-glossary` and `commit-and-pr` where applicable. Each review uses
+`standards-check` followed by `code-review`.
+
+| Carrier | Verified issue and required action | Owner |
+|---|---|---|
+| ADR-0064 and decisions index | New security contract starts Proposed. Move its row only after explicit approval; no inferred acceptance. | Decision pass / Step 1 |
+| ADR-0036 matrix row 14 and recording prose | Conflicting audit targets are resolved by the named bounded supersession. Append its own dated disclosure; preserve Accepted body/metadata. | Acceptance |
+| ADR-0036 staging table and 2026-09-02 erratum | Both omit that row 10 is membership-dependent. Add adjacent dated errata and a correction section in the same new Amendment, with evidence of falsity at entry; do not edit the earlier erratum. | Acceptance |
+| ADR-0036 delegated claim shape and new attribution | Distinguish additive profile/claimless clarification from the preceding replacement and correction; no new context writer. | Acceptance |
+| ADR-0040 Amendment 8 | Disclose the bounded extension of its public-only mode-ordering exception to this exact authenticated query, plus additive exact-type selection. The public guarantee and closed setter set stay intact. | Acceptance |
+| ADR-0032, ADR-0052/0053/0054 | Preserve pipeline, public host provenance, anonymous projection and coordinated ingress policy. No silent replacement or gratuitous amendment. | All steps |
+| Architecture 09/13/14/28/30/33 | Reconcile memberships-array/role sketch, scalar active tenant, actor projection and middleware order; Architecture 30 also repeats blanket non-public 401 and the no-authentication status. Update that carrier with the catalogue/Step 4 activation. Preserve reissued-token selection, public transport and Phase 03 membership. | Steps 1/4/5 |
+| Standards 02/04/05/09/10/11/20 | Reconcile explicit read mode, protected API errors/security, stable quota wording, bounded diagnostics and credential handling. No new SQL policy or grant. Keep issuance TTL separate from API acceptance bound. | Steps 1–5 as mechanisms land |
+| Standards 21 | Narrow blanket-401 row; authority rule has real behavioral owner. Register five ADR-0064 obligations and update canonical counters/statuses only with actual delivery. | Acceptance / Step 5 |
+| Tenancy README, audit and permissions | Document AccountSite query/DTO, Off nonsensitive-query audit registration and no permission-sensitive disclosure before Phase 03. No new permission key. | Step 2 |
+| SDK/OpenAPI | Add protected security/response contract; retain exact public wrappers instead of classifying every GET as public. Bearer/session attachment remains P02b-7. | Step 4 |
+| Glossary / `UserId` XML | Glossary adds Proposed identity/quota terms; fix stale statement assigning Identity domain to 02b instead of Phase 03. Code comment correction travels with implementation. | Decision pass / Step 1 |
+| Phase 03 / 06 / 11 | Phase 03 consumes P02b sessions rather than owning their first wiring; preserve durable identity/permissions. Phase 06 owns the full browser journey; Phase 11 owns production IdP provisioning/edge/readiness. | Step 5 |
+| Realm JSON, Keycloak README, seed | P02b-6 prerequisite receipt: attach audience mapper to issuing client, access-token-only API audience; admin-only identity attributes; preserve `basic` and actual `sub`; converge fresh/warm realms without deleting users or Hub realm. No realm runtime change in P02b-5. | P02b-6 |
+| Frontend auth layout/native admission | P02b-7 owns Auth.js in `apps/web`, bounded auth route/method admission through current GET/HEAD ingress, cookie propagation, refresh/CSRF/logout. No generic ingress exemption. Remove stale `packages/auth` illustration with that decision. | P02b-7 |
+
+The proposal changes no Accepted ADR yet. Acceptance commits the exact dated
+instruments before dependent code; G10/G11/G12-client/G14/G20 then change to
+Accepted together. G12's realm reconciliation, G13, G16 and phase exit stay Open.
+No prior dated delivery record is rewritten.
+
+### Five implementation steps
+
+All work stays on `development`. For each step: implement and validate, commit;
+run review round 1 with fresh independent agents; verify findings against the
+current code, fix valid findings and commit; run round 2 with different agents;
+verify/fix/commit again. Start the next step automatically after both rounds
+close. Findings are evidence to check, never instructions to execute.
+
+| Step | Deliverable and safety boundary | Principal validation |
+|---|---|---|
+| 1 — accepted contract and token foundation | Commit acceptance/disclosures/registrations first. Add pinned JWT package/options, one immutable profile, credential/purpose checks, controlled discovery/JWKS issuer and secret-free diagnostics. Defer production authentication/authorization service registration too: minimal hosting can insert middleware automatically. Test-only composition remains isolated until Step 4 closes the complete HTTP boundary. | Real-handler signature/profile and duplicate JSON controls, wrong issuer under trusted key, ID-token purpose, lifetime/skew, reserved actor, unsafe configuration, key rotation/withdrawal and token-canary capture. |
+| 2 — real read-only application subject | Add AccountSite contract/handler, exact ReadOnly selection, nonsensitive audit registration and module docs; do not route it yet. Read actual public configuration under the independent host ceiling. | Actual app-role PostgreSQL tenant/org data positives/negatives, lifecycle/missing config, no query-selected scope, physical write-refusal and no mixed-mode/nested-public workaround. |
+| 3 — attributed reconciliation and subject admission | Add bounded subject quota, credential-result and surface-admission components; extend recorder and resolver to consume only the validated projection. No production JWT middleware/route activation yet. | Whole-chain component harness, rows 6/9 positives and 7/10/14 negatives, claimless outcome, exactly-one host-owned audit, preserved denial on audit fault, quota concurrency/retirement/disposal and stops-audit proof. |
+| 4 — atomic HTTP activation and typed contract | Wire all guards at their specified positions in one change; map the GET with authorization and exact census; emit no-store/security/errors; regenerate OpenAPI and split public/authenticated SDK contracts. No session transport or realm changes. | Actual API host with real signed tokens, protected 200, anonymous masked404, invalid-public401, unknown-host precedence without metadata fetch, planted extra endpoint/write/reorder, public two-host and Keycloak-unavailable regression, SDK type/lint/tests and served OpenAPI equality. |
+| 5 — production enforcement and packet closeout | Complete transitive production censuses and dirty/clean controls, cross-host/actor/key/telemetry matrices, all related carrier reconciliation and local/hosted verification. Update statuses only from actual proof; prepare the PR for maintainer review. | Complete backend/architecture/HTTP/contract/PostgreSQL suites under existing bounded CI plan, frontend guarded suites, OpenAPI compatibility, all seven required checks and retained public demo/Lighthouse proof; no skip or reduced population. |
+
+No partially safe authentication goes live between steps: Step 4 activates the
+validated principal only together with quota protection, recorder, read-only
+route and surface fence. Before that, tests exercise completed components and
+real handlers in isolated composition. No temporary development bypass is added.
+
+### Required non-vacuous proof obligations
+
+- Real signed JWTs enter the real handler, not a fake authenticated principal.
+  The negative issuer token uses a trusted signing key; the negative ID token
+  also has acceptable audience/client so purpose enforcement is what fails.
+- Repeated/equal JSON properties, singleton identifier arrays, object/null/numeric
+  identifiers, malformed/empty/reserved UUIDs, timestamp boundaries and actor
+  substitution have planted controls. No invalid credential is treated as absent.
+- A previously accepted unexpired token fails after its key is removed and the
+  new metadata snapshot is observed. Added-key success alone is insufficient.
+  Respect the framework's refresh minima and bound every wait.
+- The actual non-public query and production route are nonempty census subjects.
+  Test-only endpoints do not count. A helper/nested dispatch or minimal route
+  cannot evade the permitted request set. A planted write fails physical ReadOnly.
+- AccountSite reads the database: contrasting tenant settings, a visible
+  organization, an inactive organization and cross-tenant/org claim controls must
+  distinguish clean from widened scope. No id-addressed resource route is added;
+  future such routes still owe their separate visible/foreign-id controls.
+- Resolver and assertion mismatches produce the existing authenticated slug once,
+  with defended host tenant/organization, actor, request correlation and closed
+  source. Rejected ambient context is never installed to obtain attribution.
+- Whole-chain reduced-budget tests isolate subject A's refusal from subject B
+  behind one peer; actual production-floor tests separately demonstrate that
+  shared IP/peer throttling remains. Token rotation and tenant switching do not
+  reset subject quota. Rejection stops downstream audit work.
+- Invalid credentials on a public known host give 401; no credentials remain
+  anonymous. Both public sites render with Keycloak stopped. Unclassified health
+  and contract endpoints do not acquire tenant authentication dependencies.
+- Canary token/claim/provider-exception material is absent from responses,
+  challenges, logs, spans, error captures and audit. Bounded legitimate failure
+  diagnostics remain observable; disabling all capture is not a passing control.
+- Every new structural detector has a planted offender/clean control and a
+  mutation of its predicate which must fail. Complete discovery and existing
+  shard ownership remain enforced; any required plan reassignment is explicit.
+
+### Decision-pass review round 1 (2026-10-19)
+
+Two fresh independent reviewers applied standards-check and code-review to the
+proposed contract and package. The security/runtime review used xhigh effort;
+the corpus/test-ownership review used high effort. No runtime proof is claimed.
+
+The verified carrier omission was corrected: Architecture 30 repeats the old
+blanket-401 rule and no-authentication status, so it is now explicitly paired
+with the catalogue/error reconciliation and Step 4 activation. The read-mode
+instrument now names the public-only ordering scope extension separately from
+additive exact-type selection. Row 7's existing membership-denial audit and
+row 10's no-audit disposition are explicit. Production service registration is
+also held until Step 4 because minimal hosting can insert middleware implicitly.
+The final security inspection found no remaining actionable finding.
+
+Local documentation verification passes: seven ADR parser controls, five Release
+`CorpusConsistencyTests` with zero skips, 851 relative links/fragments, added
+prose width and whitespace checks, exact source-clause verification and
+byte-preservation of every prior dated delivery/review record. Only seven
+Markdown files change; no Accepted ADR or runtime file is edited. The second
+fresh independent review round remains pending.
+
+### Work deliberately retained by its first consumer
+
+- **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile
+  edit protection, actual seed identity/UUID agreement and issuance TTL.
+- **P02b-7:** BFF code exchange, session custody/refresh/CSRF/logout, native auth
+  admission, guarded page and authenticated SDK bearer transport.
+- **P02b-8:** LS0002, retained-store erasure inventory and final phase-exit census.
+- **Phase 03:** users/memberships/permissions, durable subject-to-actor mapping,
+  tenant switching through new tokens, privileged and operator routes.
+- **Phase 06 / 11:** full browser OIDC journey / production identity and distributed
+  infrastructure qualification respectively.
+
+These are the already staged first consumers, not cleanup debt from P02b-5.
+The authenticated site endpoint grants no protected lesson/enrollment access.
+
 
 ## Completion Criteria
 

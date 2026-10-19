@@ -111,6 +111,7 @@ owns outstanding hosted CI/PR qualification. Phase 11 owns production qualificat
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0064 | [Tenant API Authentication Boundary](0064-tenant-api-authentication-boundary.md) | Proposed strict tenant bearer profile, stable actor/subject quota, closed authenticated read and narrow membership-denial audit replacement; [five-step P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19) awaits maintainer approval | P02b-5 before dependent runtime |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

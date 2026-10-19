@@ -123,9 +123,11 @@ not deferred to the showcase phase.
   [merge closeout](phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
   records all nine runtime steps, three CI steps, completed independent reviews
   and both complete final-source hosted assignments. Production business and
-  recurrence definitions remain empty. Next is P02b-5's API authentication
-  decision pass; realm reconciliation, BFF sessions and phase-exit enforcement
-  remain P02b-6–8.
+  recurrence definitions remain empty. P02b-5's
+  [decision package](phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
+  and ADR-0064 are Proposed; five implementation steps await maintainer approval.
+  No dependent runtime has started. Realm reconciliation, BFF sessions and
+  phase-exit enforcement remain P02b-6–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)

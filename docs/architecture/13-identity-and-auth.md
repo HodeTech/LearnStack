@@ -12,6 +12,14 @@ or credentials. [Phase 02b's entry verification](../roadmap/phase-02b-events-aut
 records the baseline; G10–G13/G20 settle token shape, resolution, session custody
 and lifetimes before their first consumers. Phase 03 owns the identity domain.
 
+**P02b-5 proposal — approval pending.**
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) and its
+[decision package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
+propose scalar identity claims, one closed authenticated read and additional
+subject accounting. The membership-array and token-flow sketches below are not
+implemented authority; acceptance reconciles their named carriers before code.
+Realm reconciliation and BFF sessions remain P02b-6/P02b-7.
+
 ## Why Not Build It Ourselves
 
 Email + password + refresh tokens + invitation flow + password reset + email verification + audit + future SSO + future MFA is a large, security-sensitive surface. Each of these pieces is non-trivial in isolation and easy to get subtly wrong. Off-the-shelf identity systems have been hardened against the entire OWASP authentication catalogue; replicating that hardening costs months of engineering and ongoing vigilance.
