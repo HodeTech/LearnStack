@@ -10135,6 +10135,14 @@ constructor/recovery/history cases pass, with seven corpus/Docker-trait guards;
 all have zero failures/skips. Two fresh reviews precede publication. The next
 final source still needs complete A/B qualification.
 
+Correction `65afb4d5` completes two fresh independent reviews: Round 1
+(`gpt-6.1-sol`, high) and Round 2 (`gpt-6-astra`, high) approve without verified
+findings. Both independently trace the actual normal/recovery locks, stock
+route, ownership, cleanup and unchanged subjects against the passing receipts.
+Round 1 additionally verifies the live job API and immutable artifact hashes
+for the source-specific claims above. These are completed correction reviews,
+not a claim that either final hosted assignment has passed.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
