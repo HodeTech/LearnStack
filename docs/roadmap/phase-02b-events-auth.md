@@ -11086,6 +11086,28 @@ the correctly failing integration aggregate. It is retained as failed evidence.
 Renewed complete A/B qualification follows the corrected source freeze; PR #32
 owns the final hash, actual outcomes and archive availability.
 
+
+**Native fence proof follow-up.** On corrected source `12c79f38`,
+[run 39233496115 / attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/39233496115/attempts/1)
+passes the six recurrence cases but fails one native final-fence expiry case.
+The retained location identifies its strict `last_error` read. A controlled local
+schedule waits for the next generation's actual bridge ACK before that read and
+reproduces `Column 'last_error' is null`. The bridge intentionally clears this
+transient diagnostic on successful pending-row handoff; the test was racing
+that separate, valid operation after observing rollback.
+
+The fence case now observes the first real committed handoff and positively joins
+only the bridge before releasing the held business handler. Business execution,
+lease expiry, app-role row-lock fencing and control recovery remain real. Every
+strict rollback/error/attempt/effect assertion remains unchanged; no nullable
+alternative replaces the error assertion. Bridge repair has its separate actual
+native proof. A fresh warning-as-error Release build succeeds; both final-fence
+branches, that repair proof, all bridge cases and the retry-progress proof pass
+32/32 with zero skips. The deliberate old-schedule failure is retained as a
+falsifiability receipt. The hosted run ends with 25 successful jobs and the
+correctly failing ordinary/integration pair, not qualified A/B evidence. Focused
+independent review and complete final-source qualification remain pending.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

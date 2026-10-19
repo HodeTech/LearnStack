@@ -178,6 +178,14 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
             await EnsureQualificationStartAsync(runtime, source, job, entered.Task, deadline.Token);
             await entered.Task.WaitAsync(deadline.Token);
+            // Observe the first real handoff, then join only the bridge. This
+            // isolates final-fence/rollback state from a later retry hint ACK,
+            // which legitimately clears last_error while the row is pending.
+            await EventuallyQualificationAsync(async () => await VendorAsync(source, job) is not null, deadline.Token);
+            var bridge = (BackgroundJobBridge)typeof(BackgroundJobRuntime)
+                .GetField("_bridge", PrivateInstance)!.GetValue(runtime)!;
+            await bridge.StopAsync(deadline.Token);
+            bridge.Snapshot.Outstanding.Should().Be(0);
             var execution = NativeCommitExecution(runtime, job);
             var admitted = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!;
             admitted.Phase.Should().Be("executing");
