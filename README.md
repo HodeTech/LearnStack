@@ -87,12 +87,13 @@ owns final verification.
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
 records all nine job-runtime steps, three CI steps, independent reviews and both
 complete final-source hosted assignments. Production business and recurrence
-definitions remain empty. **P02b-5 API authentication is in progress** under
-Accepted ADR-0064. Steps 1–3 completed both review rounds;
-[Step 4](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
-owns the closed AccountSite HTTP activation and current proof/review status.
-Final enforcement and hosted qualification remain Step 5; realm reconciliation,
-BFF sessions and phase exit remain P02b-6–8.
+definitions remain empty. **P02b-5 API authentication is locally complete and
+unmerged** under Accepted ADR-0064. All five steps completed both independent
+review rounds and verified corrections. Its
+[Step 5 closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+records implementation, exact CI evidence and final PR-head qualification limits.
+Realm reconciliation, BFF sessions and phase exit remain P02b-6–8; browser sign-in
+is not implemented.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
@@ -162,7 +163,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs and the closed tenant bearer/AccountSite boundary | P02b-5 final qualification, then realm reconciliation and BFF sessions in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs and the closed tenant bearer/AccountSite boundary | Realm reconciliation and BFF sessions in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and

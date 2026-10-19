@@ -21,8 +21,11 @@ authorized; [Step 1](#p02b-5-step-1--token-foundation-2026-10-19) completes the
 dated disclosures and isolated token foundation after both independent review
 rounds. Steps 2–3 complete the real read-only subject and attributed admission
 after both independent reviews. [Step 4](#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
-installs the complete HTTP boundary and owns current validation/review status.
-Step 5 retains final enforcement and hosted proof.
+installs the complete HTTP boundary after both review rounds.
+[Step 5](#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+completes the authority census, carrier reconciliation and both independent review
+rounds with verified corrections. All five steps are locally complete; the
+closeout distinguishes exact source receipts from live PR-head CI and merge.
 P02b-6 realm reconciliation, P02b-7 BFF sessions and P02b-8 enforcement/erasure
 inventory remain pending; Phase 02b remains in progress. Earlier dated delivery
 and failed-run receipts keep their as-of state.
@@ -294,7 +297,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-2** | **Complete and merged — [PR #30 closeout](#p02b-2-merge-and-closeout-2026-10-13).** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
 | **P02b-3** | **Complete and merged — [PR #31 closeout](#p02b-3-merge-and-closeout-2026-10-15).** Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | **Complete and merged — [PR #32 closeout](#p02b-4-merge-and-closeout-2026-10-19).** Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; all nine implementation steps and their review gates delivered; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
-| **P02b-5** | **[Decision package Accepted](#p02b-5-decision-package-2026-10-19) — 2026-10-19; implementation in progress.** API authentication: closed JWT profile, ordered reconciliation and existing rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
+| **P02b-5** | **[Locally complete](#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19); unmerged.** Five steps and both independent review rounds per step complete under Accepted ADR-0064. API authentication: closed JWT profile, ordered reconciliation and existing rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: the shared client scope, the mappers, the user-profile declaration, UUID attributes agreeing with `SeedData`, the warm-realm reconciler, the Keycloak test fixture | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
 | **P02b-7** | BFF session: Auth.js, the cookie session, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
 | **P02b-8** | `LS0002`, the carrier reconciliations this phase owes, the re-verification that the behavioural check is still required under the name it reports, and the exit checks | G16, G18 (the erasure inventory) Accepted |
@@ -12176,6 +12179,47 @@ is still in progress at this receipt; the new round-2 controls require a later
 source qualification too. No filtered subset, retry or skipped case substitutes
 for final complete ownership and all seven required checks.
 
+### P02b-5 Step 5 — local implementation and review closeout (2026-10-19)
+
+**Locally complete; unmerged.** All five implementation steps and both fresh
+independent review rounds per step are complete. The accepted decision precedes
+runtime; the final implementation/correction head is `e20b6071`. Step 5's
+`d4639529`, `1942662d` and `e20b6071` implement the census and record both
+rounds with their verified corrections and independent targeted rechecks.
+The earlier receipts retain their actual failed/pending state.
+
+The final warnings-as-errors Release solution build passes with zero warnings/
+errors. Twelve current Release authority/HTTP/corpus/manifest cases and the
+current Release terminal-plan case pass, zero failures/skips. The complete local
+base population passed 2,536 unit, five contract and 241 Docker-free HTTP cases.
+The initial complete local architecture and ordinary populations report
+415/416 and 2,454/2,455 respectively; each has the one explicitly corrected
+census/fixture failure above, not a skip or hidden rerun. Corrected current
+subjects pass independently and the complete hosted populations retain their
+own source-bound receipts.
+
+The first complete hosted receipt above proves all 2,486 Docker/native cases,
+frontend, OpenAPI, meta, secret scan and nine-page/27-report public demo, while
+honestly failing the stale job-manifest census. The corrected
+[39319162537](https://github.com/HodeTech/LearnStack/actions/runs/39319162537)
+at `1942662df0e4321163f99b678805bec5a69c314a` is still running at this local
+receipt. Later source changes only strengthen tests and reconcile documentation;
+production/API/SDK/launcher/CI runtime files are unchanged from that source.
+This is not a claim of complete final-head CI: the live PR checks must qualify
+the final source with all seven required contexts, exact case unions, zero skips,
+owned cleanup and the unchanged finite plan/budgets. PR CI status is recorded in
+the PR delivery receipt before handoff; merge remains a maintainer action.
+
+The packet delivers only the API half: strict bearer validation, immutable typed
+identity, attributed host/claim reconciliation, stable subject admission, the
+physically read-only AccountSite query/route and generated authenticated contract.
+Current realm imports do not issue this profile; no browser sign-in/session or
+live membership/permission service is claimed. The next packet is **P02b-6**, whose
+decision pass re-verifies G12's realm/reconciler boundary and G13's issuance TTL
+authority before changing Keycloak or seed users. P02b-7 then owns BFF sessions
+and bearer transport; P02b-8 owns remaining enforcement/erasure/phase-exit work.
+No next packet starts in this closeout.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile
@@ -12209,9 +12253,10 @@ partition. The
 [P02b-3 merge closeout](#p02b-3-merge-and-closeout-2026-10-15) owns final combined
 event verification. P02b-4's job infrastructure is locally complete, with exact
 qualification in its [local closeout](#p02b-4-local-closeout-2026-10-18). P02b-5 is
-in progress, with Steps 1–4 complete after both review rounds. Step 5 final
-enforcement/hosted proof and P02b-6–8 remain
-pending.
+locally complete after all five steps and both independent review rounds per
+step. Its [Step 5 closeout](#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+owns exact validation limits and live PR-head qualification. P02b-6–8 and merge
+remain pending.
 The whole phase is not complete.
 
 - An aggregate change and its outbox row commit together and roll back together,

@@ -250,8 +250,12 @@ after both independent reviews; its
 owns verified log-emission and default-window test corrections. Step 4 installs
 the complete HTTP boundary and typed contract after both review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
-owns validation and completed reviews. Final enforcement and hosted proof
-remain Step 5. Realm reconciliation, BFF sessions and phase exit remain
+owns validation and completed reviews. Step 5 completes production enforcement
+and both independent review rounds; its
+[local closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+separates source-bound CI receipts from live PR-head qualification and merge.
+All five steps are locally complete and unmerged. Realm reconciliation, BFF
+sessions and phase exit remain
 P02b-6–8.
 Phase 06 retains the full
 renderer/Studio expansion.
@@ -465,7 +469,9 @@ Then read the phase that is live and the one it stands on:
   completed both review rounds. Its merge closeout above owns final verification.
   P02b-4 is complete and merged through PR #32 on 2026-10-19; its merge closeout
   above owns final verification. P02b-5's decision package and ADR-0064 are Accepted;
-  its five-step implementation is in progress. P02b-6–8 remain pending, with each
+  all five implementation steps and both review rounds per step are locally
+  complete and unmerged. Its closeout above owns CI/handoff status. P02b-6–8 remain
+  pending, with each
   packet accepting its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
