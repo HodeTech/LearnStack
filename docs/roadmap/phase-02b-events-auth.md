@@ -58,7 +58,8 @@ two-assignment qualification; earlier receipts retain their source-specific stat
 Acceptance is not packet/PR closeout. The
 [review correction record](#p02b-4-review-corrections-2026-10-19) owns the current
 source corrections and evidence-availability qualification. Both final-source
-layouts must remain independently retrievable; PR #32 carries live results.
+layouts require independent reconstruction and retained evidence; PR #32
+carries live results and current artifact availability.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -10926,8 +10927,8 @@ command. The phase retains zero skips, per assembly.
 
 ## P02b-4 review corrections (2026-10-19)
 
-**Status: implementation corrections under local validation; independent review
-rounds and final-source hosted qualification remain pending.** Work stays on
+**Status: local validation and both fresh independent review rounds complete;
+final-source hosted qualification remains pending.** Work stays on
 `development`. These corrections apply the existing Accepted contracts; no new
 runtime, role, grant, quarantine-release authority or ADR decision is introduced.
 
@@ -10946,7 +10947,7 @@ runtime, role, grant, quarantine-release authority or ADR decision is introduced
   deadlines. Recovery/fairness scenarios declare capacity for their sibling
   histories; admission still locks/counts every reservation. The first run caught
   three fixture scenarios trying to exceed the original one-slot declaration.
-  They must pass again with explicit fixture capacity; that failure is not green
+  They pass with explicit fixture capacity; the initial failure is not green
   regression evidence. The independent attempt observer also accepts an explicit
   tenant, with positive tenant-B and tenant-A isolation controls.
 - **Distribution qualification.** The verifier uses its reviewed checkout as the
@@ -11028,12 +11029,14 @@ intermediate failed run is retained as failed evidence, not renamed as success.
 
 The real distribution baseline and 23 dirty/replacement controls pass. Combined
 plan/aggregate controls 51, native environment 5, provisioning 18, native owner 40,
-ADR parser 7 and focused frontend source inventory 19 pass. Changed-document link
-inspection finds no new broken target; the catalogue's literal placeholder
+ADR parser 7 and focused frontend source inventory 19 pass. Full frontend
+verification passes 1,625 cases across both packages with zero skips or todos.
+Changed-document link inspection finds no new broken target; the catalogue's literal placeholder
 `#name_lowercased` remains documentation syntax rather than a real anchor.
 
-Full Architecture verification and final-source hosted qualification are still
-pending. No skipped or forced-cleanup result will be counted as a passing proof.
+Full Architecture verification passes all 410 cases with zero skips. Final-source
+hosted qualification remains pending in PR #32; no skipped or forced-cleanup
+result will be counted as a passing proof.
 
 **Fresh review round 1.** Two new independent reviewers examined
 `1dbde1a3..df6e2761` across runtime/ownership/tests and tooling/CI/corpus. Both
@@ -11045,7 +11048,19 @@ A scoped residual scan leaves only the explicit retired catalogue navigation and
 an example owned by the separate Hub repository. The second reviewer independently
 ran all 51 plan/aggregate and 23 distribution controls and reconstructed the
 339-case PostgreSQL receipt union. No code defect or weakened assertion was found.
-The next fresh independent round examines the complete corrected range.
+
+**Fresh review round 2.** Two different independent reviewers examine
+`1dbde1a3..bc5bf1c2` and the final documentation correction. Both approve with no
+open actionable finding. They independently run all 51 plan/aggregate controls
+and the actual distribution baseline with all 23 dirty/replacement controls;
+one also runs seven ADR parser controls and verifies 36 added local links. Both
+verify the remaining correlation delivery-table correction: authoritative rows,
+delivery ownership and `JobExecutor` restore context, while Hangfire hints stay
+opaque. They run no C# builds or hosted qualification; the local suites above
+are separate evidence. All verified corrections are committed before freezing
+the source for two complete hosted assignments. PR #32 owns the final hash,
+actual A/B outcomes, independent reconstruction and current archive availability;
+this local receipt does not claim those pending runs have passed.
 
 ## Completion Criteria
 
