@@ -118,6 +118,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await runtime.StartAsync();
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
+            await EnsureQualificationStartAsync(runtime, source, job, published.Task);
             var originalOwner = await published.Task.WaitAsync(TestWait);
             await returned.Task.WaitAsync(TestWait);
             await auxiliary.Entered.Task.WaitAsync(TestWait);

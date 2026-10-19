@@ -186,7 +186,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         var applicationName = "facade_capacity_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, applicationName);
-        var probe = new BackgroundJobFixtureProbe();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var probe = new BackgroundJobFixtureProbe { OnConstructed = _ => entered.TrySetResult() };
         await using var host = Fixture.Host(database, probe);
         using var globals = new GlobalFilterSnapshot();
         var runtime = Runtime(host.Services, source, physical: physical);
@@ -213,6 +214,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             PoolStatistics(source).Busy.Should().BeInRange(1, 52);
 
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+            await EnsureQualificationStartAsync(runtime, source, job, entered.Task);
             await EventuallyAsync(() => NativeBusinessCompletedAsync(database, source, job));
 
             (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!.NormalAttempts.Should().Be(1);

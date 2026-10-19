@@ -109,6 +109,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await runtime.StartAsync();
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
+            await EnsureQualificationStartAsync(runtime, source, job,
+                loseAdmissionAck ? proxy.CommitResponseHeld : state.Disposal.Entered.Task);
             if (loseAdmissionAck)
             {
                 await proxy.CommitResponseHeld.WaitAsync(TestWait);

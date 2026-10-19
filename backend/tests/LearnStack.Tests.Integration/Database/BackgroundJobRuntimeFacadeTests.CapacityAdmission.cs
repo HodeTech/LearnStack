@@ -21,12 +21,14 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         await using var proxy = new CommitResponseDroppingProxy(database.AppConnectionString,
             commitsToPass: loseAck ? 2 : int.MaxValue, holdCommitResponse: loseAck);
         var effects = new NativeCommitEffects();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var probe = new BackgroundJobFixtureProbe
         {
             Body = async (request, services, token) =>
             {
                 request.Should().Be("CapacityRoot");
                 proxy.CompletedCommits.Should().Be(2, "the real read and counted capacity admission precede the business owner");
+                entered.TrySetResult();
                 await StageNativeCommitEffectsAsync(services, effects, token);
                 return Result.Ok(None.Value);
             },
@@ -51,6 +53,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await runtime.StartAsync();
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
+            await EnsureQualificationStartAsync(runtime, source, job, entered.Task);
             if (loseAck)
             {
                 await proxy.CommitResponseHeld.WaitAsync(TestWait);

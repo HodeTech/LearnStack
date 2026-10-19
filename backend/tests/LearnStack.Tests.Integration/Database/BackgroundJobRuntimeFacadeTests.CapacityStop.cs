@@ -54,6 +54,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await EventuallyQualificationAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy), deadline.Token);
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
+            await EnsureQualificationStartAsync(runtime, source, job, entered.Task, deadline.Token);
             await entered.Task.WaitAsync(deadline.Token);
             var execution = NativeCommitExecution(runtime, job);
             locked = await locker.BeginTransactionAsync(deadline.Token);
@@ -150,6 +151,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await runtime.StartAsync(deadline.Token);
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
+            await EnsureQualificationStartAsync(runtime, source, job, state.Entered.Task, deadline.Token);
             await state.Entered.Task.WaitAsync(deadline.Token);
             var execution = NativeCommitExecution(runtime, job);
             var checkpoint = (BackgroundJobCapacityCheckpointOperation)typeof(BackgroundJobExecutionControl)

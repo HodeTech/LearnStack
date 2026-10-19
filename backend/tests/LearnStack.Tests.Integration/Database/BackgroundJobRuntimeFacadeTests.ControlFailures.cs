@@ -58,6 +58,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             // 60-second tick cannot conceal this bounded control failure.
             await EventuallyQualificationAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy), deadline.Token);
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+            await EnsureQualificationStartAsync(runtime, source, job, entered.Task, deadline.Token);
             await entered.Task.WaitAsync(deadline.Token);
             var execution = NativeCommitExecution(runtime, job);
             var identity = execution.Identity!;

@@ -9989,6 +9989,21 @@ focused cases cover the changed production boundary. Two fresh correction
 reviews precede publication. Actual hosted root causes and the two complete
 final-source A/B attempts remain open.
 
+Both fresh correction reviews (`gpt-6.1-sol` / `xhigh` and
+`gpt-6-astra` / `xhigh`) approve `89fd8450..15d5161d` without introduced
+findings. Each independently passes 24 storage unit cases and forty launcher
+controls, inspects the actual wire proof and verifies the authority limits.
+The second review separately confirms the same pre-existing fixture gap in
+capacity admission, never-started admission and control-lock execution tests.
+An adjacent audit applies the helper to those and the equivalent capacity
+cleanup/stop/takeover, combined-pool and held-expiration execution premises.
+Initial bridging, repair, future-due and fairness subjects keep their paths.
+The additional eight test files change only start qualification and its
+signals; all original assertions and bounds remain. Their fourteen real
+PostgreSQL rows pass without skips in 84 seconds, and the warnings-as-errors
+Release build remains clean. This adjacent correction receives its own
+focused reviews before publication; it supplies no hosted failure attribution.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

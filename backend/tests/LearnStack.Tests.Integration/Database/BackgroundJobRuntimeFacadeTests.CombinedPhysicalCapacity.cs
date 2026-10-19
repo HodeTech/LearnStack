@@ -120,6 +120,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             Action absentOwner = () => AssertCombinedHolds(new CombinedTerminalHold(), deliveryHold, expiration, source);
             absentOwner.Should().Throw<Xunit.Sdk.XunitException>();
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString, tenant: SchemaFixture.TenantB);
+            await EnsureQualificationStartAsync(runtime, source, job, bodyObserved.Task);
             (await bodyObserved.Task.WaitAsync(TestWait)).Should().BeInRange(3, 52);
             await EventuallyAsync(async () => (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString,
                 job, tenant: SchemaFixture.TenantB))?.Phase == "completed");

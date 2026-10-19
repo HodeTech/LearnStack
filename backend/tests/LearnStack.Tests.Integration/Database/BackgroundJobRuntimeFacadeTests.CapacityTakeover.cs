@@ -68,6 +68,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await EventuallyQualificationAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy), deadline.Token);
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
+            stage = "native handoff or start";
+            await EnsureQualificationStartAsync(runtime, source, job, state.Disposal.Entered.Task, deadline.Token);
             stage = "checkpoint disposal";
             await state.Disposal.Entered.Task.WaitAsync(deadline.Token);
             allowance.Limit = 0; // Keep the peer's legitimate retry observable without another business admission.
