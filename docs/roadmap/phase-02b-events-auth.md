@@ -11848,6 +11848,61 @@ round 1. Both review rounds are complete. Step 3 now implements attributed
 reconciliation, no-tenant diagnostics and subject admission. Production scheme,
 ordered middleware and route activation remain Step 4.
 
+### P02b-5 Step 3 — attributed reconciliation and subject admission (2026-10-19)
+
+**Implementation validated; independent reviews pending.** Entry is `8f9ecff2`.
+Only the immutable validated identity supplies HTTP claim/actor signals. Raw
+principals cannot establish tenant authority. The resolver still calls the pure
+factory once and restores the prior accessor; no context is installed to attribute
+a refusal. Rows 8/11/12 and authenticated header disagreements use the shared
+`tenant_mismatch` Problem Details shape. Membership and anonymous refusals keep
+masked `not_found`; malformed assertions retain their existing 400.
+
+The existing recorder now carries closed source, typed actor, captured request
+correlation and trusted organization. JWT refusals defend the host tenant;
+organization provenance stays in metadata while durable rows remain tenant-wide.
+Row 7 writes one rejection, row 10 none. Row 14 synchronously counts/diagnoses
+without a tenant/asserted-value field or store I/O. Existing operation keys,
+anonymous burst accounting and failure-preserving Critical/health behavior remain.
+Claimless identities keep their actor under HostOnly and emit one fixed Debug
+event after subject admission; the account component refuses that ceiling.
+
+The additional singleton limiter keys only validated issuer/subject, with the
+actual 600/min fixed window and no queue. Token/actor/tenant selection cannot
+reset it. Retirement inspects at most 128 entries per callback and reclaims only
+full-quota partitions idle for a whole window. Snapshot leases retain no child
+ownership; sync/async shutdown closes admission and joins the timer before
+remaining child disposal. Request-local outcome replay does not debit twice.
+The earlier visitor/peer limits still apply to all credentials.
+
+Credential-result admission rejects present invalid credentials even for public
+reads. The account surface component requires a validated actor and independent
+host-backed authority; the application query retains its own guard. These
+components remain isolated from Program: production authentication services,
+middleware/authorization result handling and the route activate together in
+Step 4. The exact production endpoint/dispatch census closes in Steps 4–5.
+
+Validation passes: zero-warning warnings-as-errors Release solution build;
+2,536 unit cases, all 229 Docker-free integration cases, 31 focused PostgreSQL
+cases and 55 affected architecture cases, with zero failures or skips. Nineteen
+new component-chain cases use real signed tokens and the stock handler through
+unchanged early admission, actual host classification, credential/subject gates,
+resolver and assertions. Reduced subject budgets prove independence behind the
+same peer, rotation resistance and stopping recorder work; separate default and
+early-floor controls retain the actual limits. The six new PostgreSQL cases
+exercise resolver-to-real-store rows/omissions and unavailable-store behavior;
+three recorder cases prove captured fields and tenant-wide/foreign visibility.
+Every database assertion runs as verified non-superuser/non-BYPASSRLS
+`learnstack_app`; only fixture cleanup uses the administrator role.
+
+An initial harness correction enabled the exact Debug category and buffered
+response JSON before repeated normalization. A stock limiter test now observes
+actual full-quota idle state rather than treating TryReplenish's supported-mode
+return as proof of replenishment. The corrected complete named populations pass.
+Scoped formatting and carrier/whitespace checks pass. No production scheme,
+HTTP route, realm, membership reader, schema or grant is activated by this slice.
+Complete backend/Docker/architecture unions and hosted proof remain Step 5.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile

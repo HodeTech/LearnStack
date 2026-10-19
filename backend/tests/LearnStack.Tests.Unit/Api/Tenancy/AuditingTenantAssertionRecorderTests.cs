@@ -39,6 +39,11 @@ public sealed class AuditingTenantAssertionRecorderTests
     private static readonly Guid Resolved = Guid.Parse("11111111-1111-7111-8111-111111111111");
     private static readonly Guid Asserted = Guid.Parse("99999999-9999-7999-8999-999999999999");
 
+    private static readonly UserId Actor = UserId.From(Guid.Parse("22222222-2222-7222-8222-222222222222"));
+    private static readonly OrganizationId TrustedOrganization =
+        OrganizationId.From(Guid.Parse("33333333-3333-7333-8333-333333333333"));
+    private const string Correlation = "00-harness-assertion-01";
+
     [Fact]
     public async Task An_authenticated_mismatch_is_a_row_every_time()
     {
@@ -152,12 +157,14 @@ public sealed class AuditingTenantAssertionRecorderTests
         metadata.GetProperty("assertedTenantId").GetString().Should().Be(Asserted.ToString());
         metadata.GetProperty("dimension").GetString().Should().Be("Tenant");
         metadata.GetProperty("authenticated").GetBoolean().Should().BeTrue();
+        metadata.GetProperty("assertionSource").GetString().Should().Be("header");
+        metadata.GetProperty("trustedOrganizationId").ValueKind.Should().Be(JsonValueKind.Null);
 
         // The resolver sets this and runs BEFORE the assertion middleware, so the row, the
         // response header, the Problem Details body and the Warning line carry one value.
         // The comment that used to justify a null here said the correlation was the
         // pipeline's and unavailable; it was neither.
-        row.CorrelationId.Should().Be(HarnessContext.Correlation);
+        row.CorrelationId.Should().Be(Correlation);
 
         // Read from the clock, not from any earlier reading: `ix_audit_log_timestamp` and
         // every retention window are ordered by it.
@@ -183,6 +190,135 @@ public sealed class AuditingTenantAssertionRecorderTests
         row.Operation.Should().Be(AuditingTenantAssertionRecorder.BurstOperation);
         JsonDocument.Parse(row.Metadata!).RootElement
             .GetProperty("authenticated").GetBoolean().Should().BeFalse();
+        row.ActorUserId.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(TenantAssertionSource.Header, "header")]
+    [InlineData(TenantAssertionSource.JwtClaim, "jwt-claim")]
+    public async Task A_rejection_carries_its_captured_attribution_without_an_ambient_context(
+        TenantAssertionSource source, string label)
+    {
+        var store = new RecordingStore();
+        var recorder = Recorder(store, out _);
+        const string capturedCorrelation = "captured-before-resolution-refusal";
+        var rejection = Rejection(authenticated: true, source: source,
+            trustedOrganizationId: TrustedOrganization) with
+        { CorrelationId = capturedCorrelation };
+
+        await recorder.RecordRejectionAsync(rejection);
+
+        var row = store.Written.Should().ContainSingle().Subject;
+        row.TenantId.Value.Should().Be(Resolved);
+        row.ActorUserId.Should().Be(Actor);
+        row.CorrelationId.Should().Be(capturedCorrelation);
+        row.OrganizationId.Should().BeNull("trusted organization is evidence, not the security row's scope");
+        var metadata = JsonDocument.Parse(row.Metadata!).RootElement;
+        metadata.GetProperty("assertionSource").GetString().Should().Be(label);
+        metadata.GetProperty("trustedOrganizationId").GetGuid().Should().Be(TrustedOrganization.Value);
+    }
+
+    [Theory]
+    [InlineData(TenantAssertionSource.Header, "header")]
+    [InlineData(TenantAssertionSource.JwtClaim, "jwt-claim")]
+    public async Task Each_rejection_source_reaches_the_counter_without_actor_or_correlation_labels(
+        TenantAssertionSource source, string label)
+    {
+        using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        var meterFactory = provider.GetRequiredService<IMeterFactory>();
+        var meter = meterFactory.Create(LoggingTenantAssertionRecorder.MeterName);
+        var measurements = new List<(long Count, KeyValuePair<string, object?>[] Tags)>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, active) =>
+        {
+            if (ReferenceEquals(instrument.Meter, meter)
+                && instrument.Name == LoggingTenantAssertionRecorder.MismatchCounterName)
+                active.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, count, tags, _) =>
+            measurements.Add((count, tags.ToArray())));
+        listener.Start();
+        var signalLogger = new CapturingLogger<LoggingTenantAssertionRecorder>();
+        var recorder = Recorder(new RecordingStore(), out _, meterFactory: meterFactory,
+            signalLogger: signalLogger);
+
+        // A different recorder's same-name instrument must not make this proof pass.
+        using var unrelated = new Meter(LoggingTenantAssertionRecorder.MeterName);
+        unrelated.CreateCounter<long>(LoggingTenantAssertionRecorder.MismatchCounterName).Add(9);
+        measurements.Should().BeEmpty();
+
+        await recorder.RecordRejectionAsync(Rejection(authenticated: true, source: source));
+
+        var measurement = measurements.Should().ContainSingle().Subject;
+        measurement.Count.Should().Be(1);
+        measurement.Tags.Should().BeEquivalentTo(new Dictionary<string, object?>
+        {
+            ["tenant"] = Resolved,
+            ["dimension"] = "Tenant",
+            ["source"] = label,
+            ["authenticated"] = true,
+        });
+        var warning = signalLogger.Entries.Should().ContainSingle().Subject;
+        warning.Level.Should().Be(LogLevel.Warning);
+        warning.Properties.Should().ContainKey("AssertionSource").WhoseValue.Should().Be(label);
+        warning.Properties.Should().ContainKey("ActorUserId").WhoseValue.Should().Be(Actor);
+        warning.Properties.Should().ContainKey("CorrelationId").WhoseValue.Should().Be(Correlation);
+    }
+
+    [Fact]
+    public void A_no_tenant_membership_refusal_counts_and_diagnoses_without_touching_the_store()
+    {
+        using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        var meterFactory = provider.GetRequiredService<IMeterFactory>();
+        var meter = meterFactory.Create(LoggingTenantAssertionRecorder.MeterName);
+        var measurements = new List<(long Count, KeyValuePair<string, object?>[] Tags)>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, active) =>
+        {
+            if (ReferenceEquals(instrument.Meter, meter)
+                && instrument.Name == LoggingTenantAssertionRecorder.UnresolvedCounterName)
+                active.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, count, tags, _) =>
+            measurements.Add((count, tags.ToArray())));
+        listener.Start();
+        var store = new RecordingStore { FailsWith = new InvalidOperationException("must not be touched") };
+        var signalLogger = new CapturingLogger<LoggingTenantAssertionRecorder>();
+        var recorder = Recorder(store, out _, meterFactory: meterFactory, signalLogger: signalLogger);
+
+        using var unrelated = new Meter(LoggingTenantAssertionRecorder.MeterName);
+        var unrelatedCounter = unrelated.CreateCounter<long>(LoggingTenantAssertionRecorder.UnresolvedCounterName);
+        var unrelatedCount = 0L;
+        using var unrelatedListener = new MeterListener();
+        unrelatedListener.InstrumentPublished = (instrument, active) =>
+        {
+            if (ReferenceEquals(instrument, unrelatedCounter)) active.EnableMeasurementEvents(instrument);
+        };
+        unrelatedListener.SetMeasurementEventCallback<long>((_, count, _, _) => unrelatedCount += count);
+        unrelatedListener.Start();
+        unrelatedCounter.Add(9);
+        unrelatedCount.Should().Be(9);
+        measurements.Should().BeEmpty("same-name counters belonging to another recorder are excluded");
+
+        recorder.RecordNoTenantRefusal(new TenantNoTenantRefusal(
+            TenantAssertionSource.JwtClaim, TenantAssertionDimension.Tenant, Actor, Correlation));
+
+        store.Attempts.Should().Be(0);
+        store.Written.Should().BeEmpty();
+        var measurement = measurements.Should().ContainSingle().Subject;
+        measurement.Count.Should().Be(1);
+        measurement.Tags.Should().BeEquivalentTo(new Dictionary<string, object?>
+        {
+            ["source"] = "jwt-claim",
+            ["dimension"] = "Tenant",
+        });
+        var diagnostic = signalLogger.Entries.Should().ContainSingle().Subject;
+        diagnostic.Level.Should().Be(LogLevel.Debug);
+        diagnostic.Message.Should().StartWith("membership_unconfirmed");
+        diagnostic.Properties.Keys.Should().BeEquivalentTo(
+            ["AssertionSource", "Dimension", "ActorUserId", "CorrelationId", "{OriginalFormat}"]);
+        diagnostic.Properties["ActorUserId"].Should().Be(Actor);
+        diagnostic.Properties["CorrelationId"].Should().Be(Correlation);
     }
 
     [Fact]
@@ -192,11 +328,14 @@ public sealed class AuditingTenantAssertionRecorderTests
         // did: `An_unresolved_request_writes_nothing` asserts the absence of a row, which
         // a recorder that dropped the call entirely also satisfies — silently killing
         // learnstack_tenant_assertion_unresolved_total.
+        using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        var meterFactory = provider.GetRequiredService<IMeterFactory>();
+        var meter = meterFactory.Create(LoggingTenantAssertionRecorder.MeterName);
         var unresolved = 0L;
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, active) =>
         {
-            if (instrument.Meter.Name == LoggingTenantAssertionRecorder.MeterName
+            if (ReferenceEquals(instrument.Meter, meter)
                 && instrument.Name == LoggingTenantAssertionRecorder.UnresolvedCounterName)
             {
                 active.EnableMeasurementEvents(instrument);
@@ -205,7 +344,8 @@ public sealed class AuditingTenantAssertionRecorderTests
         listener.SetMeasurementEventCallback<long>((_, measurement, _, _) => unresolved += measurement);
         listener.Start();
 
-        Recorder(new RecordingStore(), out _).RecordUnresolved(TenantAssertionDimension.Tenant);
+        Recorder(new RecordingStore(), out _, meterFactory: meterFactory)
+            .RecordUnresolved(TenantAssertionDimension.Tenant);
 
         unresolved.Should().Be(1, "counted, never recorded — and counted is half of that rule");
     }
@@ -349,7 +489,8 @@ public sealed class AuditingTenantAssertionRecorderTests
         // column can disagree with it — an `event` key mirroring `operation` was removed
         // for that reason, and nothing noticed when it came back.
         metadata.EnumerateObject().Select(property => property.Name)
-            .Should().BeEquivalentTo(["dimension", "assertedOrganizationId", "authenticated"]);
+            .Should().BeEquivalentTo(["dimension", "assertedOrganizationId", "authenticated",
+                "assertionSource", "trustedOrganizationId"]);
     }
 
     [Fact]
@@ -372,7 +513,7 @@ public sealed class AuditingTenantAssertionRecorderTests
         row.Outcome.Should().Be(AuditOutcome.Denied,
             "the assertion was refused, which is what the 404 already says; `failed` would "
             + "claim the platform could not answer");
-        row.ActorUserId.Should().BeNull("there is no principal in this process until Phase 02b");
+        row.ActorUserId.Should().Be(Actor);
         row.IpAddress.Should().BeNull("the source IP is attacker-chosen and stays out");
     }
 
@@ -431,11 +572,14 @@ public sealed class AuditingTenantAssertionRecorderTests
         // The real-time half is unconditional and costs no I/O. An anonymous mismatch
         // below the threshold writes no row — and must still be counted, or the counter an
         // operator alerts on would only ever move once per window.
+        using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        var meterFactory = provider.GetRequiredService<IMeterFactory>();
+        var meter = meterFactory.Create(LoggingTenantAssertionRecorder.MeterName);
         var mismatches = 0L;
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, active) =>
         {
-            if (instrument.Meter.Name == LoggingTenantAssertionRecorder.MeterName
+            if (ReferenceEquals(instrument.Meter, meter)
                 && instrument.Name == LoggingTenantAssertionRecorder.MismatchCounterName)
             {
                 active.EnableMeasurementEvents(instrument);
@@ -445,7 +589,7 @@ public sealed class AuditingTenantAssertionRecorderTests
         listener.Start();
 
         var store = new RecordingStore();
-        var recorder = Recorder(store, out _, threshold: 100);
+        var recorder = Recorder(store, out _, threshold: 100, meterFactory: meterFactory);
 
         await recorder.RecordRejectionAsync(Rejection(authenticated: false));
         await recorder.RecordRejectionAsync(Rejection(authenticated: false));
@@ -456,24 +600,29 @@ public sealed class AuditingTenantAssertionRecorderTests
 
     private static TenantAssertionRejection Rejection(
         bool authenticated,
-        TenantAssertionDimension dimension = TenantAssertionDimension.Tenant) =>
-        new(Resolved, dimension, Asserted, authenticated);
+        TenantAssertionDimension dimension = TenantAssertionDimension.Tenant,
+        TenantAssertionSource source = TenantAssertionSource.Header,
+        OrganizationId? trustedOrganizationId = null) =>
+        new(Resolved, dimension, Asserted, authenticated, source,
+            authenticated ? Actor : null, Correlation, trustedOrganizationId);
 
     private static AuditingTenantAssertionRecorder Recorder(
         IAuditStore store,
         out MovableClock clock,
         int threshold = 10,
         IAuditCatalog? catalog = null,
-        ILogger<AuditingTenantAssertionRecorder>? logger = null)
+        ILogger<AuditingTenantAssertionRecorder>? logger = null,
+        IMeterFactory? meterFactory = null,
+        ILogger<LoggingTenantAssertionRecorder>? signalLogger = null)
     {
         clock = new MovableClock(DateTimeOffset.UnixEpoch);
 
-        var meterFactory = new ServiceCollection().AddMetrics()
+        meterFactory ??= new ServiceCollection().AddMetrics()
             .BuildServiceProvider().GetRequiredService<IMeterFactory>();
 
         return new AuditingTenantAssertionRecorder(
             new LoggingTenantAssertionRecorder(
-                NullLogger<LoggingTenantAssertionRecorder>.Instance, meterFactory),
+                signalLogger ?? NullLogger<LoggingTenantAssertionRecorder>.Instance, meterFactory),
             catalog ?? new AuditCatalog([new TenancyAuditCatalogSource()]),
             store,
             new TenantAssertionBurstDetector(
@@ -483,28 +632,9 @@ public sealed class AuditingTenantAssertionRecorderTests
                     Window = TimeSpan.FromMinutes(5),
                 }),
                 clock),
-            new HarnessContext(),
             clock,
             new SystemGuidFactory(),
             logger ?? NullLogger<AuditingTenantAssertionRecorder>.Instance);
-    }
-
-    /// <summary>A resolved context, so the row can carry the correlation the resolver set.</summary>
-    private sealed class HarnessContext : ITenantContext
-    {
-        public const string Correlation = "00-harness-assertion-01";
-
-        public bool IsResolved => true;
-
-        public TenantId TenantId => TenantId.From(Resolved);
-
-        public OrganizationId? OrganizationId => null;
-
-        public UserId? UserId => null;
-
-        public string? CorrelationId => Correlation;
-
-        public string? ModuleName => "tenancy";
     }
 
     private sealed class MovableClock(DateTimeOffset start) : IClock
@@ -581,9 +711,9 @@ public sealed class AuditingTenantAssertionRecorderTests
 
     private class CapturingLogger<T> : ILogger<T>
     {
-        private readonly List<(LogLevel Level, string Message)> _entries = [];
+        private readonly List<(LogLevel Level, string Message, IReadOnlyDictionary<string, object?> Properties)> _entries = [];
 
-        public IReadOnlyList<(LogLevel Level, string Message)> Entries => _entries;
+        public IReadOnlyList<(LogLevel Level, string Message, IReadOnlyDictionary<string, object?> Properties)> Entries => _entries;
 
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => null;
@@ -596,6 +726,9 @@ public sealed class AuditingTenantAssertionRecorderTests
             TState state,
             Exception? exception,
             Func<TState, Exception?, string> formatter) =>
-            _entries.Add((logLevel, formatter(state, exception)));
+            _entries.Add((logLevel, formatter(state, exception),
+                state is IEnumerable<KeyValuePair<string, object?>> properties
+                    ? properties.ToDictionary(property => property.Key, property => property.Value)
+                    : new Dictionary<string, object?>()));
     }
 }

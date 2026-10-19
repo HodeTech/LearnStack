@@ -1,9 +1,11 @@
 using System.Diagnostics.Metrics;
+using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Tenancy;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,12 +37,17 @@ namespace LearnStack.Tests.Integration.Database;
 [Collection(SharedSchema.Name)]
 public sealed class TenantAssertionAuditTests
 {
+    private static readonly UserId Actor = UserId.From(Guid.Parse("22222222-2222-7222-8222-222222222222"));
+    private const string Correlation = "00-assertion-fixture-01";
     private readonly SchemaFixture _schema;
 
     public TenantAssertionAuditTests(SchemaFixture schema) => _schema = schema;
 
-    [Fact]
-    public async Task An_authenticated_mismatch_lands_a_denied_row_the_tenant_can_read()
+    [Theory]
+    [InlineData(TenantAssertionSource.Header, "header")]
+    [InlineData(TenantAssertionSource.JwtClaim, "jwt-claim")]
+    public async Task An_authenticated_mismatch_lands_an_attributed_tenant_wide_row(
+        TenantAssertionSource source, string sourceLabel)
     {
         await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
 
@@ -64,7 +71,11 @@ public sealed class TenantAssertionAuditTests
                 SchemaFixture.TenantA,
                 TenantAssertionDimension.Tenant,
                 SchemaFixture.TenantB,
-                IsAuthenticated: true));
+                IsAuthenticated: true,
+                source,
+                Actor,
+                Correlation,
+                OrganizationId.From(SchemaFixture.OrgA1)));
 
             var row = await ReadAsync();
 
@@ -73,14 +84,24 @@ public sealed class TenantAssertionAuditTests
             row.Value.Outcome.Should().Be("denied");
             row.Value.TenantId.Should().Be(SchemaFixture.TenantA);
             row.Value.OrganizationId.Should().BeNull();
-            row.Value.Metadata.Should().Contain(SchemaFixture.TenantB.ToString(),
-                "the asserted value is metadata, never the row's tenant");
+            row.Value.ActorUserId.Should().Be(Actor.Value);
+            row.Value.DatabaseRole.Should().Be("learnstack_app");
+            var metadata = JsonDocument.Parse(row.Value.Metadata!).RootElement;
+            metadata.GetProperty("assertedTenantId").GetGuid().Should().Be(SchemaFixture.TenantB);
+            metadata.GetProperty("assertionSource").GetString().Should().Be(sourceLabel);
+            metadata.GetProperty("trustedOrganizationId").GetGuid().Should().Be(SchemaFixture.OrgA1);
 
             // Round-tripped through PostgreSQL, not merely handed to a double. The column
             // is varchar(100) with a filtered index on it, so a value the writer composes
             // but the column will not hold is a defect only a real write can show.
-            row.Value.CorrelationId.Should().Be(FixtureContext.Correlation,
+            row.Value.CorrelationId.Should().Be(Correlation,
                 "the row joins to its own trace and to the Warning line beside it");
+
+            (await ReadAsync(organizationId: SchemaFixture.OrgA1)).Should().NotBeNull();
+            (await ReadAsync(organizationId: SchemaFixture.OrgA2)).Should().NotBeNull(
+                "trustedOrganizationId is metadata, so another organization can still read this tenant-wide security row");
+            (await ReadAsync(tenantId: SchemaFixture.TenantB)).Should().BeNull(
+                "the disagreeing tenant cannot read the defended tenant's security row");
         }
         finally
         {
@@ -114,7 +135,11 @@ public sealed class TenantAssertionAuditTests
                     SchemaFixture.TenantA,
                     TenantAssertionDimension.Organization,
                     SchemaFixture.TenantB,
-                    IsAuthenticated: false));
+                    IsAuthenticated: false,
+                    TenantAssertionSource.Header,
+                    ActorUserId: null,
+                    Correlation,
+                    TrustedOrganizationId: null));
             }
 
             var row = await ReadAsync();
@@ -122,6 +147,10 @@ public sealed class TenantAssertionAuditTests
             row.Should().NotBeNull();
             row!.Value.Operation.Should().Be(AuditingTenantAssertionRecorder.BurstOperation);
             row.Value.Metadata.Should().Contain("assertedOrganizationId");
+            row.Value.ActorUserId.Should().BeNull();
+            var metadata = JsonDocument.Parse(row.Value.Metadata!).RootElement;
+            metadata.GetProperty("assertionSource").GetString().Should().Be("header");
+            metadata.GetProperty("trustedOrganizationId").ValueKind.Should().Be(JsonValueKind.Null);
         }
         finally
         {
@@ -138,17 +167,20 @@ public sealed class TenantAssertionAuditTests
     /// readable by the admin whose boundary was defended.
     /// </remarks>
     private async Task<(Guid TenantId, Guid? OrganizationId, string Operation, string Outcome,
-        string? Metadata, string? CorrelationId)?> ReadAsync()
+        string? Metadata, string? CorrelationId, Guid? ActorUserId, string DatabaseRole)?> ReadAsync(
+        Guid? tenantId = null, Guid? organizationId = null)
     {
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
         await using var transaction = await connection.BeginTransactionAsync();
 
-        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+        await SchemaQueries.SetTenantAsync(connection, transaction, tenantId ?? SchemaFixture.TenantA);
+        if (organizationId is { } organization)
+            await SchemaQueries.SetSettingAsync(connection, transaction, "app.organization_id", organization.ToString());
 
         await using var command = new NpgsqlCommand(
             """
             SELECT tenant_id, organization_id, operation, outcome, metadata::text,
-                   correlation_id
+                   correlation_id, actor_user_id, current_user
             FROM audit_log
             WHERE operation LIKE 'tenancy.tenant_assertion.%'
             """,
@@ -168,7 +200,9 @@ public sealed class TenantAssertionAuditTests
             reader.GetString(2),
             reader.GetString(3),
             reader.IsDBNull(4) ? null : reader.GetString(4),
-            reader.IsDBNull(5) ? null : reader.GetString(5));
+            reader.IsDBNull(5) ? null : reader.GetString(5),
+            reader.IsDBNull(6) ? (Guid?)null : reader.GetGuid(6),
+            reader.GetString(7));
 
         (await reader.ReadAsync()).Should().BeFalse("each case writes exactly one row");
 
@@ -198,29 +232,9 @@ public sealed class TenantAssertionAuditTests
                     Window = TimeSpan.FromMinutes(5),
                 }),
                 new SystemClock()),
-            new FixtureContext(),
             new SystemClock(),
             new LearnStack.SharedKernel.Identifiers.SystemGuidFactory(),
             NullLogger<AuditingTenantAssertionRecorder>.Instance);
-
-    /// <summary>Tenant A, resolved, as the resolver would have left it.</summary>
-    private sealed class FixtureContext : LearnStack.SharedKernel.Tenancy.ITenantContext
-    {
-        public bool IsResolved => true;
-
-        public LearnStack.SharedKernel.Identifiers.TenantId TenantId =>
-            LearnStack.SharedKernel.Identifiers.TenantId.From(SchemaFixture.TenantA);
-
-        public LearnStack.SharedKernel.Identifiers.OrganizationId? OrganizationId => null;
-
-        public LearnStack.SharedKernel.Identifiers.UserId? UserId => null;
-
-        public const string Correlation = "00-assertion-fixture-01";
-
-        public string? CorrelationId => Correlation;
-
-        public string? ModuleName => "tenancy";
-    }
 
     private static readonly IMeterFactory MeterFactory =
         new ServiceCollection().AddMetrics().BuildServiceProvider().GetRequiredService<IMeterFactory>();

@@ -548,6 +548,8 @@ public class ResolvedTenantFixture : ConstructionOnlyApiFactory
         {
             lock (_unresolved) { _unresolved.Add(dimension); }
         }
+
+        public void RecordNoTenantRefusal(TenantNoTenantRefusal refusal) { }
     }
 
     internal sealed class ResolvedContext : ITenantContext

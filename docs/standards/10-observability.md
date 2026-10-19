@@ -165,7 +165,8 @@ existing rejection recorder; it introduces no second detector or audit slug.
   `learnstack_tenant_assertion_unresolved_total` increment with only
   `source=jwt-claim`, `dimension=Tenant`, and fixed `membership_unconfirmed`
   diagnostic. Its decorator performs no audit-store I/O and writes zero rows;
-  no claimed tenant or sentinel supplies an audit target.
+  no claimed tenant or sentinel supplies an audit target. The glossary names this
+  [tenantless membership refusal](../glossary.md#multi-tenancy).
 - A validated profile with absent tenant claim emits one fixed
   `tenant_claim_absent` **Debug log event** per admitted request after subject
   admission. It has no claim value or labels, creates no metric or error/message

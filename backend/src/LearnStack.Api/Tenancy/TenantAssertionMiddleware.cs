@@ -1,4 +1,8 @@
 using LearnStack.Api.Common;
+using LearnStack.Api.Authentication;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -114,29 +118,23 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         var mismatch = Mismatch(tenantContext, assertedTenant, assertedOrganization);
         if (mismatch is not null)
         {
+            var identity = context.Features.Get<TenantCredentialFeature>()?.Identity;
             await recorder.RecordRejectionAsync(new TenantAssertionRejection(
-                // Value, not the id: TenantAssertionRejection carries a Guid and
-                // feeds it to a metric tag, so keeping the underlying value here
-                // holds the exported dimension byte-identical across this
-                // conversion. Safe unconditionally — the !IsResolved branch
-                // above has already returned.
-                tenantContext.TenantId.Value,
-                mismatch.Value.Dimension,
-                mismatch.Value.Asserted,
-                context.User.Identity?.IsAuthenticated == true));
+                tenantContext.TenantId.Value, mismatch.Value.Dimension, mismatch.Value.Asserted,
+                IsAuthenticated: identity is not null, TenantAssertionSource.Header,
+                identity?.ActorUserId, tenantContext.CorrelationId,
+                tenantContext.OrganizationId is { } organization && StronglyTypedId.IsAssigned(organization)
+                    ? organization : null));
 
-            // 404, not 403: saying "wrong tenant" confirms the other tenant
-            // exists. From Phase 02b the code differs by caller —
-            // `tenant_mismatch` for an authenticated one, `not_found` for an
-            // anonymous one — so the header adds no bit an anonymous client
-            // could not already get by retrying without it. Until then the
-            // authenticated tier is dormant per ADR-0036 § Staging across
-            // packets — there is no UseAuthentication to be ordered after and
-            // the `authenticated` label is constant-false — so every caller
-            // takes the anonymous branch, and Phase 02b's split needs this
-            // middleware to write the authenticated code itself rather than
-            // leaving the body to UseStatusCodePages.
-            await WriteAsync(context, StatusCodes.Status404NotFound);
+            if (identity is not null)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                await context.Response.WriteAsJsonAsync(
+                    ProblemDetailsFactory.For(TenantMismatch, context),
+                    options: null, contentType: ProblemDetailsMediaType.Value,
+                    cancellationToken: context.RequestAborted);
+            }
+            else await WriteAsync(context, StatusCodes.Status404NotFound);
             return;
         }
 
@@ -226,6 +224,8 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         value = parsed;
         return true;
     }
+
+    private static readonly Error TenantMismatch = new(new LocalizedMessage("lockey_tenant_mismatch"));
 
     private static Task WriteAsync(HttpContext context, int status)
     {

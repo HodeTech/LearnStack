@@ -1,3 +1,5 @@
+using LearnStack.SharedKernel.Identifiers;
+
 namespace LearnStack.Api.Tenancy;
 
 /// <summary>Which client assertion disagreed with what the API resolved.</summary>
@@ -5,6 +7,23 @@ public enum TenantAssertionDimension
 {
     Tenant,
     Organization,
+}
+
+/// <summary>Whether the rejected assertion came from a header or validated token.</summary>
+public enum TenantAssertionSource
+{
+    Header,
+    JwtClaim,
+}
+
+internal static class TenantAssertionSourceExtensions
+{
+    public static string ToLabel(this TenantAssertionSource source) => source switch
+    {
+        TenantAssertionSource.Header => "header",
+        TenantAssertionSource.JwtClaim => "jwt-claim",
+        _ => throw new ArgumentOutOfRangeException(nameof(source), source, "Unknown assertion source."),
+    };
 }
 
 /// <summary>
@@ -29,11 +48,32 @@ public enum TenantAssertionDimension
 /// authenticated mismatch is bounded by token issuance, an anonymous one is
 /// not.
 /// </param>
+/// <param name="Source">Header or validated JWT claim.</param>
+/// <param name="ActorUserId">The validated actor, absent for an anonymous request.</param>
+/// <param name="CorrelationId">Captured request correlation, including on failed resolution.</param>
+/// <param name="TrustedOrganizationId">
+/// The independently classified host organization, or the resolved organization for a
+/// later header refusal. Metadata only; the durable row remains tenant-wide.
+/// </param>
 public readonly record struct TenantAssertionRejection(
     Guid ResolvedTenantId,
     TenantAssertionDimension Dimension,
     Guid AssertedValue,
-    bool IsAuthenticated);
+    bool IsAuthenticated,
+    TenantAssertionSource Source,
+    UserId? ActorUserId,
+    string? CorrelationId,
+    OrganizationId? TrustedOrganizationId);
+
+/// <summary>
+/// A membership refusal with no independently defended tenant. It carries attribution,
+/// but no claimed tenant or value that could become a durable audit destination.
+/// </summary>
+public readonly record struct TenantNoTenantRefusal(
+    TenantAssertionSource Source,
+    TenantAssertionDimension Dimension,
+    UserId ActorUserId,
+    string? CorrelationId);
 
 /// <summary>
 /// Records a rejected tenant or organization assertion.
@@ -92,4 +132,10 @@ public interface ITenantAssertionRecorder
     /// method is defined by not doing.
     /// </remarks>
     void RecordUnresolved(TenantAssertionDimension dimension);
+
+    /// <summary>
+    /// Counts and diagnoses a validated membership refusal with no defended tenant.
+    /// Synchronous: this path performs no audit-store I/O and writes no row.
+    /// </summary>
+    void RecordNoTenantRefusal(TenantNoTenantRefusal refusal);
 }

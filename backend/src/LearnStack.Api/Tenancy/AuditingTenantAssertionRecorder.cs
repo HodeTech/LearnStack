@@ -1,7 +1,6 @@
 using System.Globalization;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
-using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.Logging;
 
@@ -31,11 +30,9 @@ namespace LearnStack.Api.Tenancy;
 /// <c>(resolved tenant, dimension, window)</c>.
 /// </para>
 /// <para>
-/// <b>The authenticated tier is dormant in Phase 02a.</b> There is no
-/// <c>UseAuthentication</c> yet, so <c>IsAuthenticated</c> is constant-false and every
-/// caller takes the anonymous branch. The branch ships anyway: which tenant the row
-/// carries is a one-way door, and writing it for the first time under Phase 02b's
-/// authenticated traffic is the worst moment to decide it.
+/// The authenticated tier uses the immutable validated projection captured by the
+/// resolver or assertion middleware. No tenant context is installed merely to record
+/// a refused resolution; actor, correlation and trusted organization travel on the record.
 /// </para>
 /// <para>
 /// <b>A failed write never changes the response.</b> A rejected assertion has no
@@ -53,7 +50,6 @@ public sealed class AuditingTenantAssertionRecorder(
     IAuditCatalog catalog,
     IAuditStore store,
     TenantAssertionBurstDetector bursts,
-    ITenantContext tenantContext,
     IClock clock,
     IGuidFactory guidFactory,
     ILogger<AuditingTenantAssertionRecorder> logger)
@@ -73,9 +69,6 @@ public sealed class AuditingTenantAssertionRecorder(
 
     private readonly TenantAssertionBurstDetector _bursts =
         bursts ?? throw new ArgumentNullException(nameof(bursts));
-
-    private readonly ITenantContext _tenantContext =
-        tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 
     private readonly IClock _clock = clock ?? throw new ArgumentNullException(nameof(clock));
 
@@ -120,6 +113,12 @@ public sealed class AuditingTenantAssertionRecorder(
         // gap, which is why this override exists only to say so.
         _inner.RecordUnresolved(dimension);
 
+    /// <inheritdoc />
+    public void RecordNoTenantRefusal(TenantNoTenantRefusal refusal) =>
+        // Row 14 has no independently defended tenant. Forward the bounded signal
+        // synchronously without consulting the catalogue or touching the store.
+        _inner.RecordNoTenantRefusal(refusal);
+
     private async Task WriteAsync(string operation, TenantAssertionRejection rejection)
     {
         if (!_catalog.TryGetOffPath(operation, out var declared))
@@ -149,10 +148,7 @@ public sealed class AuditingTenantAssertionRecorder(
             // the reader this event is for.
             OrganizationId = null,
 
-            // No principal exists in this process until Phase 02b. `IsAuthenticated` is
-            // the tier, not an actor, and inventing one would put a fabricated identity on
-            // an append-only table.
-            ActorUserId = null,
+            ActorUserId = rejection.ActorUserId,
             ActorEmail = null,
 
             ModuleName = declared.ModuleName,
@@ -175,13 +171,9 @@ public sealed class AuditingTenantAssertionRecorder(
             AfterState = null,
             Changes = null,
 
-            // The resolver sets this, and the resolver runs BEFORE this middleware — so
-            // the row, the `X-Correlation-Id` response header, the Problem Details body
-            // and the Warning line all carry one value. Without it the only durable record
-            // of a cross-tenant probe cannot be joined to its own trace, and
-            // ix_audit_log_correlation_id — filtered WHERE correlation_id IS NOT NULL —
-            // could never return one of these rows.
-            CorrelationId = _tenantContext.CorrelationId,
+            // Captured before resolution can refuse: ambient context is unavailable on
+            // that path, but the row still joins the response and Problem Details.
+            CorrelationId = rejection.CorrelationId,
 
             // NEVER the source IP and never the effective host. Both are attacker-chosen,
             // and ADR-0036 keeps them out of the metric labels for the same reason.
@@ -242,7 +234,7 @@ public sealed class AuditingTenantAssertionRecorder(
     /// A <see cref="Guid"/>, so it is an opaque identifier and never attacker-authored
     /// free text. It goes in <c>metadata</c> rather than in <c>tenant_id</c> for the
     /// reason the tenant column gives, and the key names the dimension it came from so a
-    /// reader does not have to consult a second column to know which header lied.
+    /// reader does not have to consult a second column to know which assertion disagreed.
     /// <para>
     /// It carries no <c>event</c> key. The slug is already the row's <c>operation</c>
     /// column, and a second copy inside a JSON document is a field that can disagree with
@@ -259,7 +251,11 @@ public sealed class AuditingTenantAssertionRecorder(
             "{\"dimension\":" + AuditJson.Quote(rejection.Dimension.ToString())
             + ",\"" + key + "\":" + AuditJson.Quote(
                 rejection.AssertedValue.ToString(null, CultureInfo.InvariantCulture))
-            + ",\"authenticated\":" + (rejection.IsAuthenticated ? "true" : "false") + "}");
+            + ",\"authenticated\":" + (rejection.IsAuthenticated ? "true" : "false")
+            + ",\"assertionSource\":" + AuditJson.Quote(rejection.Source.ToLabel())
+            + ",\"trustedOrganizationId\":" + (rejection.TrustedOrganizationId is { } organization
+                ? AuditJson.Quote(organization.Value.ToString(null, CultureInfo.InvariantCulture))
+                : "null") + "}");
     }
 
     private static readonly Action<ILogger, string, Exception?> LogRowNotWritten =

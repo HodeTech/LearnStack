@@ -659,11 +659,24 @@ request retains a limiter removed by retirement.
 | Surface | Limit |
 |---------|-------|
 | `/api/v1/auth/*` (login, password reset, register) | 5 req/min per IP |
-| Anonymous API | 60 req/min per canonical IP + 600 req/min per physical peer (P5 Step 2) |
-| Authenticated API | 600 req/min per token |
-| Write endpoints | 60 req/min per token |
+| Early API admission (all credentials) | 60 req/min per canonical IP + 600 req/min per physical peer (P02d-5 Step 2) |
+| Authenticated API | Additional 600 req/min per validated issuer + subject (ADR-0064) |
+| Write endpoints (planned; Phase 03) | 60 req/min per token |
 | Webhook endpoints | 1000 req/min per provider |
 | Hub internal API (`/api/internal/*`) | 60 req/min per mTLS client cert |
+
+P02b-5 Step 3 implements the subject component; Step 4 owns production activation.
+The stable issuer/subject key survives token rotation and tenant selection; actor,
+host and credential text do not select a partition. It uses a one-minute fixed
+window with no queue. Retirement inspects at most 128 entries per timer callback,
+reclaims only full-quota partitions idle for a complete window and joins owned
+timers on disposal. Exhausted live quotas cannot be evicted or reset by pressure.
+The earlier visitor/peer limits apply to every credential, so this is an extra
+ceiling, not a promise of independent 600/min end-to-end throughput. Whole-chain
+reduced-budget proofs isolate the subject limit below those early floors; a
+separate real-default proof exercises the 600 boundary. A quota refusal stops
+before reconciliation and durable rejection audit. See
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md#additional-subject-quota).
 
 429 responses include `Retry-After`. The edge half runs on **APISIX**
 (`limit-req` / `limit-count` plugins); the application half runs in ASP.NET, where

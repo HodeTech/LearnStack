@@ -1,0 +1,32 @@
+using LearnStack.Api.Tenancy;
+
+namespace LearnStack.Api.Authentication;
+
+/// <summary>A failed present credential cannot fall through to an anonymous endpoint.</summary>
+internal sealed class TenantCredentialAdmissionMiddleware(RequestDelegate next)
+{
+    public Task InvokeAsync(HttpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.Features.Get<HostClassification>() is not null
+            && context.Request.Headers.ContainsKey("Authorization")
+            && context.Features.Get<TenantCredentialFeature>()?.Identity is null)
+        {
+            context.Response.Headers.WWWAuthenticate = "Bearer";
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            // The outer status-code owner supplies the shared Problem Details body.
+            return Task.CompletedTask;
+        }
+
+        return next(context);
+    }
+}
+
+internal static class TenantCredentialAdmissionExtensions
+{
+    internal static IApplicationBuilder UseLearnStackTenantCredentialAdmission(this IApplicationBuilder app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        return app.UseMiddleware<TenantCredentialAdmissionMiddleware>();
+    }
+}

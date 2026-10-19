@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using LearnStack.SharedKernel.Identifiers;
 using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Api.Tenancy;
@@ -22,7 +23,7 @@ namespace LearnStack.Api.Tenancy;
 /// cardinality explosion in the metrics store is a self-inflicted outage.
 /// </para>
 /// </remarks>
-public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
+public sealed partial class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
 {
     /// <summary>The meter name every LearnStack metric hangs off.</summary>
     public const string MeterName = "LearnStack.Api";
@@ -66,7 +67,7 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
             1,
             new KeyValuePair<string, object?>("tenant", rejection.ResolvedTenantId),
             new KeyValuePair<string, object?>("dimension", rejection.Dimension.ToString()),
-            new KeyValuePair<string, object?>("source", "header"),
+            new KeyValuePair<string, object?>("source", rejection.Source.ToLabel()),
             new KeyValuePair<string, object?>("authenticated", rejection.IsAuthenticated));
 
         // Warning, not Error: the request was refused, which is the system
@@ -80,18 +81,25 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
             rejection.ResolvedTenantId,
             rejection.AssertedValue,
             rejection.IsAuthenticated,
-            null);
+            rejection.Source.ToLabel(),
+            rejection.ActorUserId,
+            rejection.CorrelationId);
     }
 
-    // LoggerMessage source-generated delegate (CA1848), matching the house
-    // pattern in LoggingBehavior and AuditLogBehavior.
-    private static readonly Action<ILogger, string, Guid, Guid, bool, Exception?> AssertionRejected =
-        LoggerMessage.Define<string, Guid, Guid, bool>(
-            LogLevel.Warning,
-            new EventId(4001, nameof(AssertionRejected)),
-            "Rejected a {Dimension} assertion on tenant {ResolvedTenantId}: the client "
+    [LoggerMessage(4001, LogLevel.Warning,
+        "Rejected a {Dimension} assertion on tenant {ResolvedTenantId}: the client "
             + "asserted {AssertedValue}. Authenticated: {IsAuthenticated}. An authenticated "
-            + "mismatch is audited per occurrence; an anonymous one is audited as a burst.");
+            + "mismatch is audited per occurrence; an anonymous one is audited as a burst. "
+            + "Source: {AssertionSource}. Actor: {ActorUserId}. Correlation: {CorrelationId}.")]
+    private static partial void AssertionRejected(
+        ILogger logger,
+        string dimension,
+        Guid resolvedTenantId,
+        Guid assertedValue,
+        bool isAuthenticated,
+        string assertionSource,
+        UserId? actorUserId,
+        string? correlationId);
 
     public void RecordUnresolved(TenantAssertionDimension dimension)
     {
@@ -109,4 +117,27 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
             new KeyValuePair<string, object?>("source", "header"),
             new KeyValuePair<string, object?>("dimension", dimension.ToString()));
     }
+
+    public void RecordNoTenantRefusal(TenantNoTenantRefusal refusal)
+    {
+        _unresolved.Add(
+            1,
+            new KeyValuePair<string, object?>("source", refusal.Source.ToLabel()),
+            new KeyValuePair<string, object?>("dimension", refusal.Dimension.ToString()));
+
+        MembershipUnconfirmed(
+            _logger,
+            refusal.Source.ToLabel(),
+            refusal.Dimension.ToString(),
+            refusal.ActorUserId,
+            refusal.CorrelationId,
+            null);
+    }
+
+    private static readonly Action<ILogger, string, string, UserId, string?, Exception?> MembershipUnconfirmed =
+        LoggerMessage.Define<string, string, UserId, string?>(
+            LogLevel.Debug,
+            new EventId(4005, nameof(MembershipUnconfirmed)),
+            "membership_unconfirmed. Source: {AssertionSource}. Dimension: {Dimension}. "
+            + "Actor: {ActorUserId}. Correlation: {CorrelationId}.");
 }
