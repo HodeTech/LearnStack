@@ -11119,6 +11119,16 @@ zero skips; the earlier passing schedule did not cover this ordering and is not
 presented as proof against it. Focused fix verification and a new second review
 precede another final-source freeze.
 
+The first reviewer verifies `2b626235` resolves that finding and approves. A new
+second independent reviewer approves `12c79f38..2b626235` without findings,
+checking both ACK/native-entry orderings, bridge/execution gate separation,
+cleanup and every preserved assertion. Both inspect the actual 32-case TRX and
+the deliberate null-diagnostic failure; neither reruns the suites or claims
+hosted qualification. Both focused rounds and verified corrections are complete.
+PR #32 owns the renewed final-source A/B results and retained evidence. No new
+runtime code, source-selection rule, privilege or deadline is introduced by
+these test corrections.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
