@@ -10929,8 +10929,9 @@ command. The phase retains zero skips, per assembly.
 
 **Status: local validation and both fresh independent review rounds complete;
 final-source hosted qualification remains pending.** Work stays on
-`development`. These corrections apply the existing Accepted contracts; no new
-runtime, role, grant, quarantine-release authority or ADR decision is introduced.
+`development`. These corrections apply the existing Accepted contracts and the
+explicitly approved quota accounting below; no new job runtime, role, grant,
+quarantine-release authority or ADR is introduced.
 
 ### Verified corrections
 
@@ -11131,8 +11132,8 @@ these test corrections.
 
 ### Additional verification and evidence reconciliation (2026-10-19)
 
-**Status: local corrections and both independent review rounds complete;
-approved quota implementation and renewed source qualification pending.**
+**Status: all local corrections and both independent review rounds complete;
+renewed final-source qualification pending.**
 This pass retains existing ADRs, durable-state authority and phase boundaries.
 
 #### Previously qualified source and retained evidence
@@ -11283,6 +11284,20 @@ evidence. The parent rebuilds the entire Release solution with zero warnings or
 errors, then runs all 2,471 Unit and 41 quota/default/publication PostgreSQL cases
 in Release: all pass, zero skips. A different fresh review pair follows before
 source freeze; no hosted qualification is claimed by these local receipts.
+
+**Quota review round 2 and source freeze.** Two different fresh reviewers examine
+`617ed087..d2c414ee` and approve without verified findings. They independently
+confirm all new cases are present in current Release binaries before running
+seven actual PostgreSQL quota cases and 181 focused Unit cases, zero skips.
+All 19 genericity cases and the result guard pass; unknown Python files still
+refuse. The contract reviewer verifies all 607 relative links/fragments in the
+changed documents. No test mutation, disabled guard, schema/grant change or new
+lifecycle authority remains. Parent Release build/format, all 2,471 Unit, 177
+HTTP, four Contract and 41 affected PostgreSQL cases pass, zero skips; complete
+frontend remains 1,625 cases across both packages. The source is frozen after
+this receipt for both complete hosted assignments. PR #32 owns the exact final
+head, actual A/B outcomes and retained evidence availability; none is claimed
+passed here before execution.
 
 ## Completion Criteria
 
