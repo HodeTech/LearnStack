@@ -130,10 +130,11 @@ and step 7's implementation were absent. P02b-1 Step 2 now supplies immediate
 enqueue and the enrollment/invariant guard. P02b-2 Step 3 implements the
 API-host `OutboxProcessor` BackgroundService, with both independent review
 rounds complete. P02b-3 delivers `IInboxGuard` and `inbox_messages` as shared
-transport infrastructure under ADR-0046. P02b-4 Step 2 delivers the Hangfire pins
-and guarded storage; Step 4 retains vendor worker activation. The realm's
-protocol mappers remain P02b-5 work. Packet 5's earlier `IInboxGuard` references
-were planned comments, not an interface declaration.
+transport infrastructure under ADR-0046. P02b-4 delivers guarded Hangfire
+storage, worker activation and all nine runtime steps; its
+[merge closeout](#p02b-4-merge-and-closeout-2026-10-19) owns final verification.
+The realm's protocol mappers belong to P02b-6. Packet 5's earlier `IInboxGuard`
+references were planned comments, not an interface declaration.
 
 ### What this phase is not
 
@@ -268,9 +269,9 @@ Decisions made or referenced in this phase:
   with its bounded delivery supersessions and separate additive audit seam.
   [ADR-0047](../decisions/0047-transactional-background-job-runtime.md) and
   [P02b-4's package](#p02b-4-decision-package-2026-10-15) are Accepted — 2026-10-15;
-  all nine implementation steps are locally complete; the
-  [local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification and
-  remaining PR/CI/merge work.
+  all nine implementation steps are complete and merged; the
+  [merge closeout](#p02b-4-merge-and-closeout-2026-10-19) owns final-source
+  qualification and merge verification.
 
 ## Scope
 
@@ -11382,6 +11383,12 @@ merge. Three independent read-only audits checked HTTP/isolation, identity/clien
 boundaries and corpus/test ownership. Their facts were cross-checked against the
 current tree; they executed no tests and made no runtime edits.
 
+A fresh read-only check also confirms the post-merge
+[main CI run 39266220267](https://github.com/HodeTech/LearnStack/actions/runs/39266220267)
+completed successfully at `b81006c7af7d38f1587ecb3bf93dbcca16f353e0`.
+The earlier merge closeout retains its honest queued-as-of receipt. This check
+starts no new workflow and is not a P02b-5 implementation test.
+
 | Verified premise | Consequence for this packet |
 |---|---|
 | No JwtBearer package, scheme, `UseAuthentication` or `UseAuthorization`; the resolver's reserved claim site supplies no claims | Configuration/DI checks and supplied factory attempts are not authenticated HTTP evidence. Use real signed tokens through the actual handler. |
@@ -11526,6 +11533,30 @@ prose width and whitespace checks, exact source-clause verification and
 byte-preservation of every prior dated delivery/review record. Only seven
 Markdown files change; no Accepted ADR or runtime file is edited. The second
 fresh independent review round remains pending.
+
+### Decision-pass review round 2 and readiness (2026-10-19)
+
+Two different fresh reviewers, both at xhigh effort, independently inspected
+`0e23cb14..5bfe3c3b` and the final mutable introduction corrections. Both approve
+for maintainer decision with no verified actionable finding. They checked the
+actual handler/factory/recorder/reader, exact bounded source clauses, pending
+catalogue names, SDK coupling, shared quota limitations and first-consumer
+ownership. Pinned ASP.NET Core 10.0.12, IdentityModel 8.19.2 and Keycloak 26.6.2
+sources support the profile, refresh and implicit-hosting premises. This remains
+a static decision review, not authentication or database qualification.
+
+The final introduction corrections assign realm mappers to P02b-6 and replace
+leftover P02b-4 worker/merge-pending pointers with the actual merge closeout.
+Every prior dated phase delivery/review record and existing ADR remains
+byte-preserved. Final checks pass: seven ADR parser controls, five Release
+corpus tests with zero skips, 852 relative links/fragments, exact source-clause,
+added prose-width and diff/whitespace checks. Runtime, database, realm issuance,
+browser and hosted CI tests were not rerun for this seven-Markdown-file proposal.
+
+**Ready for maintainer approval; not Accepted.** The five implementation steps,
+G10/G11/G12-client/G14/G20 and dependent runtime remain pending. Approval covers
+ADR-0064, the exact disclosure/correction instruments and this implementation
+plan together; it does not approve any P02b-6/7/8 gate implicitly.
 
 ### Work deliberately retained by its first consumer
 
