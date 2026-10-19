@@ -113,14 +113,14 @@ Also in scope:
 - Whether a customization change owes an integration event, per
   [the Customization spec § Integration-event catalogue](../modules/customization/README.md#integration-event-catalogue).
 
-### Content-type quota accounting — proposal (2026-10-19)
+### Content-type quota accounting — accepted (2026-10-19)
 
-**Decision pending.** The existing registration command does not enforce
+**Accepted — 2026-10-19, @cemil.** The maintainer approved the accounting below
+before implementation. The existing registration command does not yet enforce
 `LimitKeys.MaxCustomContentTypes`; the registered key alone is not a write-time
-quota. Resolve this accounting rule before adding enforcement to that command,
-rather than letting an implementation silently choose its commercial meaning.
+quota. The correction implements this rule in that shared writer.
 
-The proposed rule counts distinct, nondeleted, tenant-authored content-type keys.
+The rule counts distinct, nondeleted, tenant-authored content-type keys.
 Schema revisions share one slot; the built-in `card` definition uses none. A soft
 deletion frees a slot only when no nondeleted revision of that custom key remains.
 The unlimited entitlement or a limit of `-1` removes the ceiling; zero permits
@@ -128,9 +128,9 @@ no new custom key. Existing revisions remain writable at the ceiling. A new key'
 count and insert serialize under one tenant-wide transaction advisory lock;
 per-key locks alone cannot prevent two different keys exceeding the quota.
 
-Acceptance must include refusal/allowance controls, revision/default/deletion
+Implementation must include refusal/allowance controls, revision/default/deletion
 accounting, tenant isolation and a real concurrent PostgreSQL count/insert proof.
-This proposal changes no runtime behavior or accepted entitlement decision.
+Approval alone does not claim runtime enforcement or passing qualification.
 
 ### Customization Key Shape and Immutable Schema Versions
 

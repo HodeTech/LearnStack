@@ -664,8 +664,8 @@ limit that was exceeded. They are deliberately generous — they exist to stop
 pathological documents, not to constrain reasonable authoring. The content-type
 count is an outstanding exception: its entitlement keys exist, but registration
 does not yet enforce them. The
-[quota accounting proposal](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--proposal-2026-10-19)
-states the pending counting decision and required concurrency proof.
+[accepted quota accounting](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19)
+states the maintainer's counting decision and required concurrency proof.
 
 | Limit | Value | Why this one |
 |---|---|---|

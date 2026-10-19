@@ -11132,7 +11132,7 @@ these test corrections.
 ### Additional verification and evidence reconciliation (2026-10-19)
 
 **Status: local corrections and both independent review rounds complete;
-quota accounting choice and renewed source qualification pending.**
+approved quota implementation and renewed source qualification pending.**
 This pass retains existing ADRs, durable-state authority and phase boundaries.
 
 #### Previously qualified source and retained evidence
@@ -11182,7 +11182,7 @@ subsequent corrections.
 | Dependency/comment drift | Remove the unused audit-adapter MediatR reference; align its catalogue/coordinator description, Next patch comment, middleware XML summary and P02b-5 authentication owner. |
 | Moving CI action tags and scanner admission | Pin all 39 uses to seven reviewed upstream commits; future updates require review. Go already uses its checksum database; additionally require exact module and go.mod hashes before scanner installation. Keep aggregate upload identity exact and reject a tag or substituted commit. |
 | ADR comparison silently skips an unresolved base | Require the actual PR base SHA, push predecessor or explicit manual base, and refuse an unresolved base or failed diff. Require the SARIF artifact instead of warning when absent. |
-| Plan-gated content-type count is unenforced | Confirmed pre-existing gap. Correct the absolute enforcement claim; the linked quota proposal makes revision/default/deletion accounting and a tenant-wide concurrency proof explicit before implementing a commercial rule. |
+| Plan-gated content-type count is unenforced | Confirmed pre-existing gap. The maintainer approves distinct nondeleted custom keys, shared revision slots, excluded card default and last-live-revision deletion releasing capacity; the shared writer must serialize count/insert tenant-wide. Approval precedes implementation. |
 | Broken ADR-0038 anchor | Standards 13 already provides the exact `adr-amendments` HTML alias. The accepted record is not edited. |
 | Historical SQL copies or loose-then-tightened policies should be folded | Up/Down snapshots preserve versioned rollout and reversal. Current canonical bodies have parity proofs; no historical migration is folded or made dependent on mutable SQL. |
 | Vendor installer leaves search_path set | Pinned Install.v23.sql ends with RESET search_path. No session-setting change. |
@@ -11209,7 +11209,7 @@ does the actual production-manifest test. The 51 combined shard controls, seven
 ADR lifecycle controls and seven new supply-chain controls pass. The real scanner
 installation verifies both pinned sums and its resulting Go module metadata;
 actionlint accepts the pinned workflow. The quota proposal remains non-runtime
-and awaits the maintainer's accounting choice.
+and was awaiting the maintainer's accounting choice at this source.
 
 **Additional review round 1.** Two fresh independent reviewers examine
 `62ad318c..cd69bbc6` across backend/contract tests and CI/dependency/evidence
@@ -11233,6 +11233,12 @@ SHA admission and its mutation controls remain. Parent verification also passes
 177 HTTP and four Contract cases, zero skips, and complete format verification.
 All 512 relative links in the changed documents resolve, including HTML aliases.
 No reviewer claims full hosted qualification for this corrected source.
+
+**Quota acceptance.** The maintainer explicitly selects the proposed accounting
+on 2026-10-19; its
+[accepted rule](phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19)
+precedes the shared-writer change. No new ADR or unapproved counting policy is
+introduced. Runtime implementation and its two independent review rounds follow.
 
 ## Completion Criteria
 
