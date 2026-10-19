@@ -23,7 +23,9 @@ public sealed partial class AuthenticationAuthorityTests
         foreach (var name in new[] { nameof(AuthorityProbe.Role), nameof(AuthorityProbe.InterfaceRole), nameof(AuthorityProbe.IdentityName),
                      nameof(AuthorityProbe.Claim), nameof(AuthorityProbe.ClaimSet),
                      nameof(AuthorityProbe.Email), nameof(AuthorityProbe.Authenticated), nameof(AuthorityProbe.RawUser),
-                     nameof(AuthorityProbe.RolePolicy), nameof(AuthorityProbe.ClaimPolicy), nameof(AuthorityProbe.InterfaceRoleMetadata) })
+                     nameof(AuthorityProbe.RolePolicy), nameof(AuthorityProbe.ClaimPolicy), nameof(AuthorityProbe.InterfaceRoleMetadata),
+                     nameof(AuthorityProbe.RawTokenClaim), nameof(AuthorityProbe.RawTokenSubject),
+                     nameof(AuthorityProbe.LegacyTokenPayload), nameof(AuthorityProbe.RawHeaderReparse) })
         {
             var dirty = methods.Single(method => method.Name == name);
             Offenders(modules, [dirty]).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal), name);
@@ -32,8 +34,17 @@ public sealed partial class AuthenticationAuthorityTests
             blinded.Should().Throw<Xunit.Sdk.XunitException>("a weakened raw-reader predicate must fail its dirty control: " + name);
         }
         foreach (var name in new[] { nameof(AuthorityProbe.Forge), nameof(AuthorityProbe.ForgeFeature),
-                     nameof(AuthorityProbe.Clone), nameof(AuthorityProbe.SubjectPermission), nameof(AuthorityProbe.SubjectDeconstruct) })
+                     nameof(AuthorityProbe.Clone), nameof(AuthorityProbe.SubjectPermission), nameof(AuthorityProbe.SubjectDeconstruct),
+                     nameof(AuthorityProbe.SubjectText), nameof(AuthorityProbe.SubjectInterpolation), nameof(AuthorityProbe.FeatureFormatting) })
             Offenders(modules, [methods.Single(method => method.Name == name)]).Should().NotBeEmpty(name);
+        foreach (var name in new[] { nameof(AuthorityProbe.SubjectText), nameof(AuthorityProbe.SubjectInterpolation), nameof(AuthorityProbe.FeatureFormatting) })
+        {
+            var dirty = methods.Single(method => method.Name == name);
+            Offenders(modules, [dirty]).Should().Contain(value => value.StartsWith("Unapproved typed identity/feature consumer:", StringComparison.Ordinal), name);
+            Action blinded = () => Offenders(modules, [dirty], projectionUse: _ => false).Should()
+                .Contain(value => value.StartsWith("Unapproved typed identity/feature consumer:", StringComparison.Ordinal));
+            blinded.Should().Throw<Xunit.Sdk.XunitException>("an object/generic export must exercise the acquisition/forwarding predicate: " + name);
+        }
         Offenders(modules, [methods.Single(method => method.Name == nameof(AuthorityProbe.TypedActor))])
             .Should().BeEmpty("an application UserId is not raw provider-claim authority");
         Offenders(modules).Should().BeEmpty("compiled probes were additions to the scan, not replacement production subjects");
@@ -87,6 +98,20 @@ public sealed partial class AuthenticationAuthorityTests
         feature.Methods.Add(bypass);
         Offenders(modules).Should().Contain(value => value.StartsWith("Direct identity backing-field write:", StringComparison.Ordinal));
         feature.Methods.Remove(bypass);
+        var action = api.GetType("LearnStack.Api.Account.AccountController").Methods.Single(method => method.Name == "GetSite");
+        AuthenticationMetadata.WithCompiledRole(api, metadata =>
+        {
+            action.CustomAttributes.Add(metadata);
+            try
+            {
+                Offenders(modules).Should().Contain(value => value.StartsWith("Realm-role authorization metadata:", StringComparison.Ordinal),
+                    "the framework reads Roles on derived authorization attributes too");
+                Action blinded = () => Offenders(modules, authorizationData: type => type.FullName == typeof(AuthorizeAttribute).FullName)
+                    .Should().Contain(value => value.StartsWith("Realm-role authorization metadata:", StringComparison.Ordinal));
+                blinded.Should().Throw<Xunit.Sdk.XunitException>("concrete-only metadata matching must fail its compiled control");
+            }
+            finally { action.CustomAttributes.Remove(metadata); }
+        });
         Offenders(modules).Should().BeEmpty("all mutations of actual production subjects are restored");
     });
 
@@ -107,6 +132,11 @@ public sealed partial class AuthenticationAuthorityTests
             metadata.Roles = "tenant-admin";
             return metadata;
         }
+        internal static bool RawTokenClaim(Microsoft.IdentityModel.JsonWebTokens.JsonWebToken token) => token.GetPayloadValue<string>("permission") == "write";
+        internal static bool RawTokenSubject(Microsoft.IdentityModel.JsonWebTokens.JsonWebToken token) => token.Subject == "tenant-admin";
+        internal static bool LegacyTokenPayload(System.IdentityModel.Tokens.Jwt.JwtSecurityToken token) => (string)token.Payload["permission"] == "write";
+        internal static bool RawHeaderReparse(HttpContext context) => new Microsoft.IdentityModel.JsonWebTokens.JsonWebToken(
+            context.Request.Headers.Authorization.ToString()["Bearer ".Length..]).GetPayloadValue<string>("permission") == "write";
         internal static ValidatedTenantIdentity Forge() => new("issuer", "subject", UserId.From(Guid.Parse("a2999254-8355-43da-86ea-5cbebf105d29")), null, null);
         internal static TenantCredentialFeature ForgeFeature(ValidatedTenantIdentity identity) => new() { Identity = identity };
         internal static ValidatedTenantIdentity Clone(ValidatedTenantIdentity identity) => identity with { Subject = "tenant-admin" };
@@ -116,6 +146,10 @@ public sealed partial class AuthenticationAuthorityTests
             var (_, subject, _, _, _) = identity;
             return subject == "tenant-admin";
         }
+        internal static bool SubjectText(ValidatedTenantIdentity identity) => identity.ToString().Contains("Subject = tenant-admin", StringComparison.Ordinal);
+        internal static bool SubjectInterpolation(ValidatedTenantIdentity identity) => $"{identity}".Contains("Subject = tenant-admin", StringComparison.Ordinal);
+        internal static bool FeatureFormatting(HttpContext context) => $"{context.Features.Get<TenantCredentialFeature>()?.Identity}"
+            .Contains("Subject = tenant-admin", StringComparison.Ordinal);
         internal static bool TypedActor(UserId user) => user == UserId.SystemActor;
     }
 }

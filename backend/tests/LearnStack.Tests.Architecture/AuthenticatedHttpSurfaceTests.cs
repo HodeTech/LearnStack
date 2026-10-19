@@ -67,6 +67,18 @@ public sealed class AuthenticatedHttpSurfaceTests
         var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
         var account = api.GetType(Account);
         var action = account.Methods.Single(method => method.Name == "GetSite");
+        AuthenticationMetadata.WithCompiledRole(api, metadata =>
+        {
+            action.CustomAttributes.Add(metadata);
+            try
+            {
+                Dirty("a derived role attribute changes the actual AccountSite authorization policy");
+                Action blinded = () => Violations(modules, authorizationPredicate: type => type.FullName == typeof(AuthorizeAttribute).FullName)
+                    .Should().NotBeEmpty("concrete-only metadata matching must fail this same compiled control");
+                blinded.Should().Throw<Xunit.Sdk.XunitException>();
+            }
+            finally { action.CustomAttributes.Remove(metadata); }
+        });
         var route = account.CustomAttributes.Single(attribute => attribute.AttributeType.FullName == Route);
         var resource = route.ConstructorArguments[0];
         route.ConstructorArguments[0] = new CustomAttributeArgument(api.TypeSystem.String, "account-extra");
@@ -230,7 +242,8 @@ public sealed class AuthenticatedHttpSurfaceTests
     });
 
     private static SortedSet<string> Violations(ModuleDefinition[] modules,
-        Func<TypeDefinition, bool>? controllerPredicate = null, Func<MethodReference, bool>? mappingPredicate = null)
+        Func<TypeDefinition, bool>? controllerPredicate = null, Func<MethodReference, bool>? mappingPredicate = null,
+        Func<TypeReference, bool>? authorizationPredicate = null)
     {
         var errors = new SortedSet<string>(StringComparer.Ordinal);
         if (!modules.Select(module => module.Assembly.Name.Name).Order(StringComparer.Ordinal)
@@ -267,7 +280,7 @@ public sealed class AuthenticatedHttpSurfaceTests
                 if (Attributes(type, map).Concat(action.CustomAttributes).Any(attribute => attribute.AttributeType.FullName == "LearnStack.Api.Versioning.ApiVersionAttribute"
                         && attribute.ConstructorArguments[0].Value is not 1))
                     errors.Add("HTTP ceiling permits only the existing /api/v1 major: " + type.FullName);
-                if (!Authorized(type, action, map)) errors.Add("Unexpected authorization metadata: " + type.FullName + "." + action.Name);
+                if (!Authorized(type, action, map, authorizationPredicate)) errors.Add("Unexpected authorization metadata: " + type.FullName + "." + action.Name);
                 if (!PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName))
                     errors.Add("Construct exactly " + entry.Request.FullName + " at the single direct ISender.Send: " + type.FullName + "." + action.Name);
             }
@@ -301,13 +314,15 @@ public sealed class AuthenticatedHttpSurfaceTests
         return errors;
     }
 
-    private static bool Authorized(TypeDefinition controller, MethodDefinition action, Dictionary<string, TypeDefinition> map)
+    private static bool Authorized(TypeDefinition controller, MethodDefinition action, Dictionary<string, TypeDefinition> map,
+        Func<TypeReference, bool>? predicate)
     {
         var attributes = Attributes(controller, map).Concat(action.CustomAttributes).ToArray();
-        var authorizations = attributes.Where(attribute => attribute.AttributeType.FullName == typeof(AuthorizeAttribute).FullName).ToArray();
+        var authorizations = attributes.Where(attribute => (predicate ?? (type => AuthenticationMetadata.IsData(type, map)))(attribute.AttributeType)).ToArray();
         var anonymous = attributes.Count(attribute => attribute.AttributeType.FullName == typeof(AllowAnonymousAttribute).FullName);
         if (controller.FullName != Account) return anonymous == 1 && authorizations.Length == 0;
         return anonymous == 0 && authorizations.Length == 1 && authorizations[0].ConstructorArguments.Count == 0
+            && authorizations[0].AttributeType.FullName == typeof(AuthorizeAttribute).FullName
             && authorizations[0].Properties.Count == 1
             && authorizations[0].Properties[0].Name == nameof(AuthorizeAttribute.AuthenticationSchemes)
             && authorizations[0].Properties[0].Argument.Value as string == "TenantBearer";

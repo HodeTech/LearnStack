@@ -17,6 +17,14 @@ public sealed partial class AuthenticationAuthorityTests
     private const string Profile = Authentication + nameof(TenantTokenProfile);
     private const string Limiter = Authentication + nameof(TenantSubjectRateLimiter);
     private const string Resolver = "LearnStack.Api.Tenancy.TenantResolverMiddleware";
+    private static readonly HashSet<string> ProjectionOwners = new(StringComparer.Ordinal)
+    {
+        Profile + ".TryReadValidated", Events + ".MessageReceived", Events + ".AuthenticationFailed", Events + ".TokenValidated",
+        Limiter + ".AttemptAcquire", Resolver + ".BuildAttemptAsync", Resolver + ".RecordRefusalAsync", Resolver + ".InvokeAsync",
+        "LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync",
+        Authentication + "TenantSurfaceAdmissionMiddleware.InvokeAsync", Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority",
+        Authentication + "TenantSubjectAdmissionMiddleware.InvokeAsync", Authentication + "TenantCredentialAdmissionMiddleware.InvokeAsync"
+    };
     private static readonly string[] IdentityProperties = ["ActorUserId", "Issuer", "OrganizationId", "Subject", "TenantId"];
     private static readonly Dictionary<string, Type> IdentityTypes = new(StringComparer.Ordinal)
     {
@@ -41,13 +49,16 @@ public sealed partial class AuthenticationAuthorityTests
             "Fix: consume only the validated typed projection at its enumerated boundaries; Phase 03 owns application permissions, never realm roles or free claim text"));
 
     private static SortedSet<string> Offenders(ModuleDefinition[] modules,
-        IEnumerable<Method>? planted = null, Func<MethodReference, bool>? rawReader = null)
+        IEnumerable<Method>? planted = null, Func<MethodReference, bool>? rawReader = null,
+        Func<Method, bool>? projectionUse = null, Func<TypeReference, bool>? authorizationData = null)
     {
         var errors = new SortedSet<string>(StringComparer.Ordinal);
         if (!modules.Select(module => module.Assembly.Name.Name).Order(StringComparer.Ordinal)
                 .SequenceEqual(ProductionAssemblies.Names(), StringComparer.Ordinal))
             errors.Add("Require every production assembly, including the real API trust boundary.");
         var types = modules.SelectMany(module => module.Types.SelectMany(Flatten)).ToArray();
+        var typeMap = types.ToDictionary(AuthenticationMetadata.Key, StringComparer.Ordinal);
+        authorizationData ??= reference => AuthenticationMetadata.IsData(reference, typeMap);
         var methods = Methods(types).Concat(planted ?? []).ToArray();
         var calls = methods.SelectMany(method => method.Definition.Body.Instructions
             .Select(instruction => instruction.Operand).OfType<MethodReference>()
@@ -55,11 +66,20 @@ public sealed partial class AuthenticationAuthorityTests
 
         foreach (var call in calls.Where(call => (rawReader ?? IsRawAuthorityRead)(call.Target)))
             errors.Add("Raw claim/role authority: " + call.Source.Site + " -> " + call.Target.FullName);
+        // Object virtual dispatch and generic formatting can export a positional
+        // record without an identity-declared call. Close acquisition, holders
+        // and forwarding too, rather than treating getters as the only readers.
+        foreach (var method in methods.Where(projectionUse ?? TouchesProjection))
+            if (method.Owner.FullName != Identity && method.Owner.FullName != Feature && !ProjectionOwners.Contains(method.Site))
+                errors.Add("Unapproved typed identity/feature consumer: " + method.Site);
         foreach (var type in types)
+        {
+            if (authorizationData(type)) errors.Add("Unapproved authorization metadata type: " + type.FullName);
             foreach (var attribute in type.CustomAttributes.Concat(type.Methods.SelectMany(method => method.CustomAttributes)))
-                if (attribute.AttributeType.FullName == "Microsoft.AspNetCore.Authorization.AuthorizeAttribute"
+                if (authorizationData(attribute.AttributeType)
                     && attribute.Properties.Any(property => property.Name == "Roles"))
                     errors.Add("Realm-role authorization metadata: " + type.FullName);
+        }
 
         Require(Target(Identity, ".ctor", parameters: 5), Profile + ".TryReadValidated");
         Require(Target(Identity, ".ctor", parameters: 1), Identity + ".<Clone>$");
@@ -138,6 +158,7 @@ public sealed partial class AuthenticationAuthorityTests
 
     private static bool IsRawAuthorityRead(MethodReference target) =>
         target.DeclaringType.Namespace is "System.Security.Claims" or "System.Security.Principal"
+            or "Microsoft.IdentityModel.JsonWebTokens" or "System.IdentityModel.Tokens.Jwt"
         || target.DeclaringType.FullName == "Microsoft.AspNetCore.Http.HttpContext" && target.Name is "get_User" or "set_User"
         || target.DeclaringType.FullName == "Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder"
             && target.Name is "RequireRole" or "RequireClaim"
@@ -159,6 +180,23 @@ public sealed partial class AuthenticationAuthorityTests
             && generic.GenericArguments.Count == 1 && Matches(generic.GenericArguments[0], underlying)
         : actual.FullName == expected.FullName && (expected == typeof(string)
             || actual.Scope.Name.Replace(".dll", "", StringComparison.Ordinal) == expected.Assembly.GetName().Name);
+
+    private static bool CarriesProjection(TypeReference type) => Is(type, Identity) || Is(type, Feature)
+        || type is GenericInstanceType generic && generic.GenericArguments.Any(CarriesProjection)
+        || type is TypeSpecification specification && CarriesProjection(specification.ElementType);
+
+    private static bool TouchesProjection(Method method) => CarriesProjection(method.Definition.ReturnType)
+        || method.Definition.Parameters.Any(parameter => CarriesProjection(parameter.ParameterType))
+        || method.Definition.Body.Variables.Any(variable => CarriesProjection(variable.VariableType))
+        || method.Definition.Body.Instructions.Any(instruction => instruction.Operand switch
+        {
+            TypeReference type => CarriesProjection(type),
+            FieldReference field => CarriesProjection(field.DeclaringType) || CarriesProjection(field.FieldType),
+            MethodReference target => CarriesProjection(target.DeclaringType) || CarriesProjection(target.ReturnType)
+                || target.Parameters.Any(parameter => CarriesProjection(parameter.ParameterType))
+                || target is GenericInstanceMethod generic && generic.GenericArguments.Any(CarriesProjection),
+            _ => false
+        });
 
     private static IEnumerable<Method> Methods(IEnumerable<TypeDefinition> types)
     {

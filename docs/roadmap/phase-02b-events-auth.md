@@ -12117,6 +12117,65 @@ receipt. Both independent review opinions and verified corrections close round
 1. Round 2 uses two different fresh reviewers on the corrected slice; complete
 current-source hosted qualification and packet closeout remain pending.
 
+#### Step 5 independent review round 2 and verified corrections
+
+Two different fresh independent xhigh reviewers inspected
+`a7c9d5a3..1942662d`. They verified three further Major structural-enforcement
+gaps, with no current runtime authority misuse: generated record formatting
+exports subject through object/generic APIs; IdentityModel token/payload APIs
+escape a Claims/Principal-only predicate; and a derived authorization attribute
+with Roles escapes both concrete-only metadata censuses.
+
+The root reproduced the vendor accessor and object-formatting failures in
+sequence with compiled negative controls. A real compiled derived attribute and
+its named Roles metadata then failed both authority and HTTP detectors when
+planted on actual AccountController/GetSite. Synthetic test-helper loading errors
+were corrected before those two red results; they are not counted as proof.
+
+The corrected detector closes identity/feature acquisition, holders, signature,
+local, field, method and generic forwarding to the existing enumerated logical
+owners. It covers object/generic formatting without pretending that the target
+is an identity-declared method. Raw modern/legacy IdentityModel APIs are refused.
+Authorization metadata follows the actual production inheritance/interface graph;
+new custom authorization-data types cannot silently add another policy. Both
+censuses use the compiled derived-attribute control and fail their weakened
+concrete-only predicate. Typed actor use and the real unmodified graph remain
+clean. This is a bounded static census, not general reflection/taint analysis.
+
+Verified Minor corrections remove the stale memberships-array risk from
+Architecture 13 and replace Standards 11's obsolete missing-authentication
+explanation with row 7's actual deny-all membership barrier, owned by Phase 03.
+No production runtime, route, role, grant, retry or quota changes accompany these
+corrections. Twelve focused cases pass in Debug and Release with zero failures/
+skips; the current Release architecture build has zero warnings/errors.
+Both independent reviewers then reran their original bypass probes against the
+corrected binaries: object/interpolated formatting, all four vendor-token probes
+and derived role metadata are refused, while baseline/restored production graphs
+remain clean. Their focused reruns pass three and twelve Debug cases respectively,
+zero skips, and both approve the targeted corrections. Round 2 and its verified
+corrections are closed; complete current-source hosted qualification remains
+pending.
+
+**First complete hosted receipt.**
+[39318063296](https://github.com/HodeTech/LearnStack/actions/runs/39318063296)
+at `d46395299f46428bc175b82745392505b1779a86` is complete and failed honestly:
+architecture shard 4 has 149 passes and one failure for the old two-controller
+job-manifest inventory; the backend aggregate refuses it. The other five
+architecture shards pass. All twelve ordinary shards, the 31-case native lane
+and integration aggregate pass, with 2,486 exact Docker/native case results and
+variant A retained. Native receipts confirm natural owned completion/cleanup and
+zero refusals/skips. Base, frontend, OpenAPI comparison, meta and secret scan
+pass. The public-demo receipt binds the same source and confirms nine URLs,
+27 reports and completed process/Compose/private-file cleanup. The old local
+complete architecture run likewise records 415 passes and that one failure out
+of 416, zero skips. Neither failed run is relabelled green after its correction.
+
+The corrected `1942662d` hosted run
+[39319162537](https://github.com/HodeTech/LearnStack/actions/runs/39319162537)
+is still in progress at this receipt; the new round-2 controls require a later
+source qualification too. No filtered subset, retry or skipped case substitutes
+for final complete ownership and all seven required checks.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile

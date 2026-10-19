@@ -241,6 +241,9 @@ and a re-run is idempotent.
 ## Risks
 
 - **Keycloak as a bottleneck for sign-in.** Mitigated by running Keycloak in HA from the start, using PostgreSQL (not the dev H2) as its store, and caching JWKS.
-- **Single-realm token bloat.** Memberships claim grows with multi-tenant users; capped at a small N (e.g. 20) in the token; full membership list is fetched server-side.
+- **Token scope versus live membership.** ADR-0064 accepts one scalar active
+  tenant and optional organization, never a memberships array. Phase 03 owns
+  live membership checks and switching through reissued tokens; a signed scope
+  alone does not prove current membership or immediate revocation.
 - **Migration path away from Keycloak.** Unlikely, but: usernames + emails are stable, so a migration to Authentik or a custom provider is mechanical. Refresh tokens would not migrate; users would re-authenticate.
 - **Federation complexity.** Per-tenant SSO requires careful admin UX to avoid misconfiguration; tenant admins should not be able to break their own login by removing the only IdP.

@@ -4552,10 +4552,13 @@ structural test proves — and what it does not.
 - **Test owner:**
   `backend/tests/LearnStack.Tests.Architecture/AuthenticationAuthorityTests.cs`.
   Its real production graph closes typed projection creation, feature writes,
-  immutable shape and direct actor/scope/subject accessor consumers. Compiled
-  role/claim, interface role-metadata, deconstruction and forged/clone/subject
-  permission probes use the same detector; predicate mutation,
-  missing real subjects and same-owner additional writes fail independently.
+  immutable shape and direct actor/scope/subject accessors. Signature, local,
+  field, method and generic-argument uses close projection acquisition and
+  forwarding, including object/generic formatting. Raw IdentityModel accessors
+  and inherited/implemented authorization metadata are covered too. Compiled
+  role/claim, header-reparse, derived-attribute, formatting, deconstruction and
+  forged/clone probes use the same detectors; weakened predicates, missing real
+  subjects and same-owner additional writes fail independently.
 - **Status:** **Implemented** (`AuthenticationAuthorityTests`).
 - **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.
 
