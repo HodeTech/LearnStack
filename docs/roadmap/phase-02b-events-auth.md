@@ -10004,6 +10004,16 @@ PostgreSQL rows pass without skips in 84 seconds, and the warnings-as-errors
 Release build remains clean. This adjacent correction receives its own
 focused reviews before publication; it supplies no hosted failure attribution.
 
+The fresh focused `gpt-6.1-sol` / `high` and `gpt-6-astra` / `high` reviews
+both approve `15d5161d..6f5025ce` without findings. Each independently traces
+the actual-entry signals, lost-admission-ACK branch, stock hint and duplicate
+admission fences, and verifies all fourteen distinct passing PostgreSQL rows
+and the clean build receipt. Neither repeats the suites or claims hosted fit.
+The original eight and adjacent fourteen regression rows supply twenty-two
+local passing cases. Publication includes both twice-reviewed corrections;
+the next full hosted A attempt, then a complete same-source B attempt, must
+still qualify the final source. No required check or ownership rule is waived.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
