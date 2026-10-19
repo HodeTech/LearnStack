@@ -17,8 +17,10 @@ Production business and recurrence definitions remain empty.
 revised [decision package](#p02b-5-decision-package-2026-10-19) and
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md). G10, G11,
 G12's BFF-client choice, G14 and G20 are Accepted. Five implementation steps are
-authorized; Step 1 starts with the dated disclosures and isolated token
-foundation. Production authentication activation remains Step 4.
+authorized; [Step 1](#p02b-5-step-1--token-foundation-2026-10-19) completes the
+dated disclosures and isolated token foundation after both independent review
+rounds. Step 2 adds the real read-only application subject. Production
+authentication activation remains Step 4.
 P02b-6 realm reconciliation, P02b-7 BFF sessions and P02b-8 enforcement/erasure
 inventory remain pending; Phase 02b remains in progress. Earlier dated delivery
 and failed-run receipts keep their as-of state.
@@ -11688,7 +11690,7 @@ three previously Accepted ADRs. No runtime file changes in this first commit.
 
 ### P02b-5 Step 1 — token foundation (2026-10-19)
 
-**Implementation validated; independent reviews pending.** Acceptance was
+**Complete after both independent review rounds.** Acceptance was
 committed first at `493d7f92`. The API now contains the closed options/profile,
 immutable typed identity, request-local credential outcome and isolated stock
 JwtBearer registration. `Program.cs` remains unchanged: no production scheme,
@@ -11757,6 +11759,20 @@ complete 410-case architecture run remains the initial implementation receipt;
 no complete rerun is claimed for this metric-only correction. The second fresh
 independent review round is pending.
 
+#### Step 1 review round 2 and closeout (2026-10-19)
+
+Two different fresh independent xhigh reviewers inspected the complete
+`493d7f92..c6108bf9` slice, including the round-1 correction and its documented
+all-outbound metric dimension tradeoff. Neither found a verified actionable
+finding. Each independently ran all 33 authentication integration cases in
+Release, with zero failures or skips; whitespace checks also pass. These reviews
+claim no Docker, real Keycloak, frontend or production-activation qualification.
+
+Step 1 is complete. The next step implements AccountSite's real application
+contract, independent host guard, exact physical read-only selection, explicit
+Off classification and application-role PostgreSQL proofs. Production scheme,
+middleware and HTTP route activation remain Step 4.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile
@@ -11789,8 +11805,9 @@ rows match the enqueuing activity, announced tenant/org and exact nonempty
 partition. The
 [P02b-3 merge closeout](#p02b-3-merge-and-closeout-2026-10-15) owns final combined
 event verification. P02b-4's job infrastructure is locally complete, with exact
-qualification in its [local closeout](#p02b-4-local-closeout-2026-10-18). P02b-5–8
-remain unimplemented; the whole phase is not complete.
+qualification in its [local closeout](#p02b-4-local-closeout-2026-10-18). P02b-5 is
+in progress, with its isolated token foundation complete; P02b-6–8 remain pending.
+The whole phase is not complete.
 
 - An aggregate change and its outbox row commit together and roll back together,
   asserted as `learnstack_app`. An enqueue whose event `TenantId` differs from the

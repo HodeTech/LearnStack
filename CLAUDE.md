@@ -238,8 +238,11 @@ definitions remain empty. **P02b-5's decision package and ADR-0064 are Accepted
 — 2026-10-19**; their
 [decision pass](docs/roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
 authorizes five implementation steps, each with commit and two fresh independent
-review rounds. Step 1 begins with acceptance disclosures and the isolated token
-foundation; production authentication activation remains Step 4. Realm
+review rounds. Step 1 completes acceptance disclosures and the isolated token
+foundation after both independent review rounds; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-1--token-foundation-2026-10-19)
+owns the verified metric-privacy correction. Step 2 adds the real read-only subject;
+production authentication activation remains Step 4. Realm
 reconciliation, BFF sessions and phase exit remain
 P02b-6–8.
 Phase 06 retains the full
