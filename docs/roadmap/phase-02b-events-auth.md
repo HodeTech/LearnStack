@@ -10099,6 +10099,42 @@ live source/run/attempt status and immutable API/artifact receipts. Dated record
 above remain historical observations against their named source, not a substitute
 for the PR's current qualification or the maintainer's review/merge.
 
+**Candidate `0634280b` and remaining execution premises.** Its full A run
+39183839130 verifies the common-outage case on hosted Linux x64 in 39.170
+seconds. The API-hashed ordinary-9 receipt passes all 235 cases with natural
+ownership/cleanup and no forced stop; the new source/factory theory rows also
+pass in ordinary-10. This is positive current-source execution, not proof of
+the predecessor's internal driver cause. Fresh discovery owns 5,479 actual cases.
+
+Ordinary-6 instead fails the native business-overrun/private-callback case
+after 30.890 seconds at its body-entry wait. Its API-hashed artifact retains
+that exact source location and a failing ownership/forced-cleanup result;
+neither is accepted as successful qualification. Source inspection verifies
+that this execution/cleanup subject and the admitted-renewal subject still
+rely only on the initial bridge hint. Both receive the existing actual-start
+or committed-handoff qualification before their entry wait. All original
+assertions and deadlines remain; no runtime code, assignment or retry changes.
+The separate terminal-backlog fairness proof retains its natural bridge path.
+The run ends with 25 successful jobs and the ordinary-6/integration aggregate
+failures; it is not a complete A receipt and no B rerun is requested.
+
+An independent remaining-premise audit inventories all facade entry waits and
+adjacent native external subjects. Five external constructor/recovery-cleanup
+rows also leave the repair grace at 60 seconds while waiting for entry under a
+30-second startup token. Both normal routing and external recovery may skip
+the actual ACK-locked row without provider entry. These execution-only subjects
+receive an external-specific qualifier: actual entry short-circuits; otherwise
+a committed vendor handoff supplies its current stored wake generation for one
+real stock external hint. Provider/recovery, cancellation, accounting and final
+state assertions remain unchanged. Intentional bridge/repair, fairness,
+future-due, recurrence and no-admission subjects retain their natural paths.
+This is a verified permitted interleaving, not a retrospective cause claimed
+from the failed hosted artifact. Release warning-as-error build passes. Four
+actual PostgreSQL business/locked-hint/fairness cases and six external
+constructor/recovery/history cases pass, with seven corpus/Docker-trait guards;
+all have zero failures/skips. Two fresh reviews precede publication. The next
+final source still needs complete A/B qualification.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

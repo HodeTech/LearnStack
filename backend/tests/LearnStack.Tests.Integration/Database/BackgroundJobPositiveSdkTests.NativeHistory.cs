@@ -169,6 +169,35 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }
     }
 
+    private static async Task EnsureNativeSdkStartAsync(BackgroundJobRuntime runtime, PrivilegedDataSource source,
+        BackgroundJobId job, Task started, CancellationToken cancellationToken)
+    {
+        // Execution/cleanup subjects do not measure the bridge's repair grace.
+        // A native hint can skip the ACK-locked row, including recovery. Observe
+        // entry or its committed handoff before sending one real external hint.
+        while (!started.IsCompleted)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            long? generation;
+            await using (var connection = await source.OpenConnectionAsync(cancellationToken))
+            await using (var command = new NpgsqlCommand("""
+                SELECT wake_generation FROM background_jobs WHERE id=@id AND vendor_job_id IS NOT NULL
+                """, connection) { CommandTimeout = 5 })
+            {
+                command.Parameters.AddWithValue("id", job.Value);
+                generation = await command.ExecuteScalarAsync(cancellationToken) as long?;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            if (started.IsCompleted) return;
+            if (generation is { } current)
+            {
+                _ = NativeSdkWakeup(runtime, job, current);
+                return;
+            }
+            await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
+        }
+    }
+
     private static string NativeSdkWakeup(BackgroundJobRuntime runtime, BackgroundJobId job, long generation)
     {
         var provider = (PostgreSqlStorage)NativeSdkField(NativeSdkField(runtime, "_bootstrap"), "_provider");

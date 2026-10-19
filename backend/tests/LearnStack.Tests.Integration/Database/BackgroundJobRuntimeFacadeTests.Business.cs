@@ -139,6 +139,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         {
             await runtime.StartAsync(deadline.Token);
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+            await EnsureQualificationStartAsync(runtime, source, job, entered.Task, deadline.Token);
             await entered.Task.WaitAsync(deadline.Token);
             var admitted = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!;
             admitted.Phase.Should().Be("executing");
@@ -226,6 +227,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         {
             await runtime.StartAsync(deadline.Token);
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+            await EnsureQualificationStartAsync(runtime, source, job, entered.Task, deadline.Token);
             await entered.Task.WaitAsync(deadline.Token);
             await callback.Entered.Task.WaitAsync(deadline.Token);
             await EventuallyQualificationAsync(async () => await VendorAsync(source, job) is { } vendor

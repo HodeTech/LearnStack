@@ -53,6 +53,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(deadline.Token);
+            await EnsureNativeSdkStartAsync(runtime, source, flow.Receipt.Envelope.JobId, probe.Entered, deadline.Token);
             await probe.Entered.WaitAsync(deadline.Token);
             // This is the actual stock worker's bound invocation, not a direct
             // synthetic generation ticket or a manufactured framework Task.

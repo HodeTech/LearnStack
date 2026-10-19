@@ -42,6 +42,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(startup.Token);
+            await EnsureNativeSdkStartAsync(runtime, source, job, construction.Entered, startup.Token);
             await construction.Entered.WaitAsync(startup.Token);
             owned = NativeSdkInvocation(runtime);
             var framework = (HangfireInvocationContract.BoundInvocation)NativeSdkField(owned, "_framework");
@@ -127,6 +128,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(startup.Token);
+            await EnsureNativeSdkStartAsync(runtime, source, job, construction.Entered, startup.Token);
             await construction.Entered.WaitAsync(startup.Token);
             // Deliberately outlive two short-root budgets while the actual
             // external constructor is still blocked. Its independent deadline
