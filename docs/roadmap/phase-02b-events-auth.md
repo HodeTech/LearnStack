@@ -11370,12 +11370,18 @@ plus two fresh independent review rounds for every implementation step.
 proposed security contract. Neither this package nor its draft accepts a gate.
 P02b-0–4 remain complete and merged; P02b-5 runtime has not started.
 
+**Maintainer review follow-up — 2026-10-19.** The revised contract below addresses
+verified review findings. The earlier decision-review opinions remain historical;
+this follow-up replaces their readiness conclusion. Fresh revision review and
+maintainer acceptance are still required before runtime work.
+
 ### Problem statement and verified entry
 
 Deliver the API half of tenant authentication: validate a signed access token,
 reconcile it with the independent host scope, attribute rejections through the
 existing recorder, and expose one genuinely read-only authenticated production
-operation. Keep public rendering independent of Keycloak, and keep role,
+operation with an independently checked host ceiling. Keep public rendering
+independent of Keycloak, and keep role,
 membership, realm reconciliation and session work with their named owners.
 
 The entry audit used `development` at `0e23cb14`, following the verified P02b-4
@@ -11412,13 +11418,13 @@ summary does not redefine its validation details.
 |---|---|
 | G10: identity | Scalar UUID `tenant_id`, stable admin-assigned `user_id`, optional scalar `organization_id`; opaque `sub` remains external identity. Reject empty/reserved actors and malformed/duplicate claims. No memberships array or realm-role authority. |
 | G11: organization | P02b-6 issues Yoga's matching organization claim; P02b-5 proves row 9 with real signed test tokens. Tenant-only row 10, tenant-host organization row 7 and platform claim row 14 still fail until Phase 03 membership. |
-| G11: claimless token | Preserve explicit HostOnly public reads, fixed missing-tenant diagnostic, protected-read 404. A missing mapper never grants authenticated tenant authority; rejecting every claimless token instead would alter ADR-0036's absence rule. |
+| G11: claimless token | Preserve the validated actor for attribution while HostOnly still limits authority to public reads. Emit one fixed Debug diagnostic without claim text; protected read is 404. No new origin, error code or actor suppression. |
 | G11: platform membership audit | Refuse row 14 with 404 but no durable tenant row when there is no confirmed host tenant. This explicitly replaces only its `+ record under T_j` clause; no claimed/sentinel tenant is fabricated for audit. |
 | G12: API/BFF client split | Convert `learnstack-web` to the confidential PKCE BFF client in P02b-6; API pins its `azp` and `learnstack-api` audience now. Old API-client service-account tokens do not satisfy this user profile. API needs no client secret. |
-| Token/key posture | RS256, exact tenant issuer, JOSE JWT plus payload Bearer, stable actor, 30-second skew and one-hour maximum accepted lifetime. Disable old-configuration reuse after an observed signing-key withdrawal. Cost: stale-key outage fallback cannot keep withdrawn keys valid. Actual issuance TTL remains G13/P02b-6. |
+| Token/key posture | RS256, exact tenant issuer, duplicate-free JOSE allowlist (`alg`, `typ`, `kid`), payload Bearer, stable actor, 30-second skew and one-hour maximum lifetime. Suppress raw JWT vendor diagnostics at all levels and replace them with closed outcomes. Old-configuration reuse cannot reaccept an observed withdrawn key; immediate session revocation is not promised. Issuance TTL remains G13/P02b-6. |
 | G14: quota | Preserve existing early visitor/peer floors for every credential; add stable issuer+subject 600/min accounting before audit. Reduced-subject whole-chain proof plus separate actual-default boundary. Cost: NAT/BFF sharing can throttle users below 600/min; independent end-to-end 600/min is not promised. |
-| G14: routable read | One GET `/api/v1/account/site`: own actor/resolved scope and existing live `PublicSite` data, non-public query, physical ReadOnly, no scope parameters. No authoring, enrollment/private content, mutation, platform or unresolved-context route. |
-| G20: precedence | Early admission/unknown-host 404 precedes JWT work. Present invalid credentials on known hosts give 401 even on public routes. Anonymous protected tenant-host requests keep masked 404; platform-host absence may give 401. Authenticated disagreements give 404 `tenant_mismatch`. |
+| G14: routable read | One GET `/api/v1/account/site`: own actor/resolved scope and existing live `PublicSite` data, non-public Off query, physical ReadOnly, no scope parameters. The query itself checks HostAndClaim and matching HostScope before any reader, even when future membership permits row 14. No authoring/private content or platform route. |
+| G20: precedence | Early admission/unknown-host 404 precedes JWT work. Invalid present credentials on known hosts give 401 even on public routes. AccountSite absent credentials give masked 404 on tenant, organization and platform hosts; a scoped authorization result handler prevents a default 401. Rows 8/11/12 and authenticated header mismatches give `tenant_mismatch`; rows 7/10/14 membership refusal and anonymous mismatches give `not_found`. |
 
 These decisions, the disclosure instruments and the five-step plan are one
 approval package. No additional permission question is needed for routine
@@ -11439,14 +11445,14 @@ The implementation additionally uses `add-mediatr-handler`, `add-audit-coverage`
 | ADR-0036 matrix row 14 and recording prose | Conflicting audit targets are resolved by the named bounded supersession. Append its own dated disclosure; preserve Accepted body/metadata. | Acceptance |
 | ADR-0036 staging table and 2026-09-02 erratum | Both omit that row 10 is membership-dependent. Add adjacent dated errata and a correction section in the same new Amendment, with evidence of falsity at entry; do not edit the earlier erratum. | Acceptance |
 | ADR-0036 delegated claim shape and new attribution | Distinguish additive profile/claimless clarification from the preceding replacement and correction; no new context writer. | Acceptance |
-| ADR-0040 Amendment 8 | Disclose the bounded extension of its public-only mode-ordering exception to this exact authenticated query, plus additive exact-type selection. The public guarantee and closed setter set stay intact. | Acceptance |
-| ADR-0032, ADR-0052/0053/0054 | Preserve pipeline, public host provenance, anonymous projection and coordinated ingress policy. No silent replacement or gratuitous amendment. | All steps |
+| ADR-0040 Amendment 8 and ADR-0052 Decision/Context | Each receives its own dated disclosure of the bounded public-read mode-ordering extension to this exact authenticated query; ADR-0040 also records exact-type selection. Preserve bodies, public guarantees and the setter set. | Acceptance |
+| ADR-0032 and ADR-0053/0054 | Preserve the canonical pipeline and coordinated ingress policy. ADR-0052 public host provenance/anonymous projection remain unchanged despite its named read-mode scope extension. | All steps |
 | Architecture 09/13/14/28/30/33 | Reconcile memberships-array/role sketch, scalar active tenant, actor projection and middleware order; Architecture 30 also repeats blanket non-public 401 and the no-authentication status. Update that carrier with the catalogue/Step 4 activation. Preserve reissued-token selection, public transport and Phase 03 membership. | Steps 1/4/5 |
-| Standards 02/04/05/09/10/11/20 | Reconcile explicit read mode, protected API errors/security, stable quota wording, bounded diagnostics and credential handling. No new SQL policy or grant. Keep issuance TTL separate from API acceptance bound. | Steps 1–5 as mechanisms land |
+| Standards 02/04/05/09/10/11/20 | At acceptance, Standards 11 § Tenant Context names the additional exact ReadOnly query; Standards 04 distinguishes its outer masked refusal from the unchanged generic unresolved gate. Reconcile stable quotas, source-aware recorder labels and fixed Debug diagnostics, plus vendor failure events 1/3/7 and credential privacy. No SQL policy/grant change. | Acceptance / Steps 1–5 as mechanisms land |
 | Standards 21 | Narrow blanket-401 row; authority rule has real behavioral owner. Register five ADR-0064 obligations and update canonical counters/statuses only with actual delivery. | Acceptance / Step 5 |
 | Tenancy README, audit and permissions | Document AccountSite query/DTO, Off nonsensitive-query audit registration and no permission-sensitive disclosure before Phase 03. No new permission key. | Step 2 |
-| SDK/OpenAPI | Add protected security/response contract; retain exact public wrappers instead of classifying every GET as public. Bearer/session attachment remains P02b-7. | Step 4 |
-| Glossary / `UserId` XML | Glossary adds Proposed identity/quota terms; fix stale statement assigning Identity domain to 02b instead of Phase 03. Code comment correction travels with implementation. | Decision pass / Step 1 |
+| SDK/OpenAPI / API route and response policy | Explicit account resource/site route; outer no-store applies even before early errors. Exact disjoint public/authenticated GET sets form an exhaustive union. AccountSite is never a public wrapper; bearer/session attachment stays P02b-7. | Step 4 |
+| Glossary / `UserId`, `TenantContextOrigin` and resolver XML | Explain authentication/actor versus tenant authority and HostOnly claimless attribution; fix Identity domain ownership and obsolete bodyless-only resolver description. Implementation comments change only after approval. | Decision pass / Steps 1–3 |
 | Phase 03 / 06 / 11 | Phase 03 consumes P02b sessions rather than owning their first wiring; preserve durable identity/permissions. Phase 06 owns the full browser journey; Phase 11 owns production IdP provisioning/edge/readiness. | Step 5 |
 | Realm JSON, Keycloak README, seed | P02b-6 prerequisite receipt: attach audience mapper to issuing client, access-token-only API audience; admin-only identity attributes; preserve `basic` and actual `sub`; converge fresh/warm realms without deleting users or Hub realm. No realm runtime change in P02b-5. | P02b-6 |
 | Frontend auth layout/native admission | P02b-7 owns Auth.js in `apps/web`, bounded auth route/method admission through current GET/HEAD ingress, cookie propagation, refresh/CSRF/logout. No generic ingress exemption. Remove stale `packages/auth` illustration with that decision. | P02b-7 |
@@ -11466,10 +11472,10 @@ close. Findings are evidence to check, never instructions to execute.
 
 | Step | Deliverable and safety boundary | Principal validation |
 |---|---|---|
-| 1 — accepted contract and token foundation | Commit acceptance/disclosures/registrations first. Add pinned JWT package/options, one immutable profile, credential/purpose checks, controlled discovery/JWKS issuer and secret-free diagnostics. Defer production authentication/authorization service registration too: minimal hosting can insert middleware automatically. Test-only composition remains isolated until Step 4 closes the complete HTTP boundary. | Real-handler signature/profile and duplicate JSON controls, wrong issuer under trusted key, ID-token purpose, lifetime/skew, reserved actor, unsafe configuration, key rotation/withdrawal and token-canary capture. |
-| 2 — real read-only application subject | Add AccountSite contract/handler, exact ReadOnly selection, nonsensitive audit registration and module docs; do not route it yet. Read actual public configuration under the independent host ceiling. | Actual app-role PostgreSQL tenant/org data positives/negatives, lifecycle/missing config, no query-selected scope, physical write-refusal and no mixed-mode/nested-public workaround. |
-| 3 — attributed reconciliation and subject admission | Add bounded subject quota, credential-result and surface-admission components; extend recorder and resolver to consume only the validated projection. No production JWT middleware/route activation yet. | Whole-chain component harness, rows 6/9 positives and 7/10/14 negatives, claimless outcome, exactly-one host-owned audit, preserved denial on audit fault, quota concurrency/retirement/disposal and stops-audit proof. |
-| 4 — atomic HTTP activation and typed contract | Wire all guards at their specified positions in one change; map the GET with authorization and exact census; emit no-store/security/errors; regenerate OpenAPI and split public/authenticated SDK contracts. No session transport or realm changes. | Actual API host with real signed tokens, protected 200, anonymous masked404, invalid-public401, unknown-host precedence without metadata fetch, planted extra endpoint/write/reorder, public two-host and Keycloak-unavailable regression, SDK type/lint/tests and served OpenAPI equality. |
+| 1 — accepted contract and token foundation | Commit acceptance/disclosures/registrations first. Add pinned JWT package/options, one immutable profile, credential/purpose checks, controlled discovery/JWKS issuer and secret-free diagnostics. Defer production authentication/authorization service registration too: minimal hosting can insert middleware automatically. Test-only composition remains isolated until Step 4 closes the complete HTTP boundary. | Real-handler signature/profile and duplicate JSON controls, wrong issuer under trusted key, ID-token purpose, duplicate JOSE header/unsupported extension, lifetime/skew, reserved actor, key rotation/withdrawal and stock/base handler events 1/3/7 canary capture with positive diagnostics. |
+| 2 — real read-only application subject | Add AccountSite contract/handler, exact ReadOnly selection, nonsensitive audit registration and module docs; do not route it yet. Read actual public configuration under the independent host ceiling. | Actual app-role PostgreSQL tenant/org data positives/negatives, lifecycle/missing config, missing/mismatched HostScope and future ClaimAndMembership refusal before reader calls, Off success with zero query audit rows, physical write-refusal and no nested-public workaround. |
+| 3 — attributed reconciliation and subject admission | Add bounded subject quota, credential-result and surface-admission components; extend recorder and resolver to consume only the validated projection. No production JWT middleware/route activation yet. | Whole-chain component harness, rows 6/9 positives and 7/10/14 negatives, claimless outcome, row 7 one tenant-wide audit with trusted-org metadata/captured correlation, row 10 zero rows, row 14 zero rows plus one source-aware unresolved count; preserved denial on audit fault, claimless attribution/Debug event, quota lifecycle and stops-audit proof. |
+| 4 — atomic HTTP activation and typed contract | Wire all guards at their specified positions in one change; map the GET with authorization and exact census; emit no-store/security/errors; regenerate OpenAPI and split public/authenticated SDK contracts. No session transport or realm changes. | Actual API host with real signed tokens, protected 200; absent credentials on all three known host classes masked404, invalid-public401; exact resolver/header/membership codes; no-store on early refusals; future row-14 hostless access404; planted extra endpoint/write/reorder; public/IdP-down regression, SDK partition and served OpenAPI equality. |
 | 5 — production enforcement and packet closeout | Complete transitive production censuses and dirty/clean controls, cross-host/actor/key/telemetry matrices, all related carrier reconciliation and local/hosted verification. Update statuses only from actual proof; prepare the PR for maintainer review. | Complete backend/architecture/HTTP/contract/PostgreSQL suites under existing bounded CI plan, frontend guarded suites, OpenAPI compatibility, all seven required checks and retained public demo/Lighthouse proof; no skip or reduced population. |
 
 No partially safe authentication goes live between steps: Step 4 activates the
@@ -11482,6 +11488,9 @@ real handlers in isolated composition. No temporary development bypass is added.
 - Real signed JWTs enter the real handler, not a fake authenticated principal.
   The negative issuer token uses a trusted signing key; the negative ID token
   also has acceptable audience/client so purpose enforcement is what fails.
+- Duplicate JOSE `alg`/`typ`/`kid`, equal duplicates and every forbidden header
+  (including `crit`, `cty`, `jku`, `x5u`, `jwk` and certificate material) are refused.
+  Only configured issuer keys can verify a token; a header/key URL is never authority.
 - Repeated/equal JSON properties, singleton identifier arrays, object/null/numeric
   identifiers, malformed/empty/reserved UUIDs, timestamp boundaries and actor
   substitution have planted controls. No invalid credential is treated as absent.
@@ -11495,9 +11504,21 @@ real handlers in isolated composition. No temporary development bypass is added.
   organization, an inactive organization and cross-tenant/org claim controls must
   distinguish clean from widened scope. No id-addressed resource route is added;
   future such routes still owe their separate visible/foreign-id controls.
-- Resolver and assertion mismatches produce the existing authenticated slug once,
-  with defended host tenant/organization, actor, request correlation and closed
-  source. Rejected ambient context is never installed to obtain attribution.
+- Resolver rows 8/11/12 and authenticated header mismatch return `tenant_mismatch`;
+  membership rows 7/10/14 and anonymous header mismatch return `not_found`.
+  Row 7 writes the existing slug once under the host tenant; row 10 writes none;
+  row 14 writes none and increments the source-aware unresolved counter once.
+  Audit rows remain tenant-wide (`OrganizationId=null`) with trusted organization
+  in metadata and the previously captured actor/correlation/source. No rejected
+  ambient context or fake tenant is installed for attribution.
+- Claimless profiles preserve actor attribution but retain HostOnly authority:
+  public read 200, AccountSite404 and exactly one fixed Debug diagnostic without
+  a claim value. New origins/error codes/metrics are not an implicit requirement.
+- AccountSite independently rejects missing/mismatched host provenance and
+  ClaimAndMembership before any reader, even with a future active membership.
+  Explicit Off registration yields no normal query audit row. Its outer response
+  policy returns no-store for success and early401/404/429; route and generated
+  public/authenticated GET ownership are exact and disjoint.
 - Whole-chain reduced-budget tests isolate subject A's refusal from subject B
   behind one peer; actual production-floor tests separately demonstrate that
   shared IP/peer throttling remains. Token rotation and tenant switching do not
@@ -11505,9 +11526,11 @@ real handlers in isolated composition. No temporary development bypass is added.
 - Invalid credentials on a public known host give 401; no credentials remain
   anonymous. Both public sites render with Keycloak stopped. Unclassified health
   and contract endpoints do not acquire tenant authentication dependencies.
-- Canary token/claim/provider-exception material is absent from responses,
-  challenges, logs, spans, error captures and audit. Bounded legitimate failure
-  diagnostics remain observable; disabling all capture is not a passing control.
+- Raw-token/issuer/audience/metadata/provider-exception canaries are absent from
+  all enabled sinks; explicitly sanctioned typed UUID/correlation attribution
+  remains testable. Exercise stock JWT failure events 1/3 and inherited event 7;
+  a Warning threshold alone must fail. Positive LearnStack closed outcomes remain
+  observable, and unrelated application diagnostics are not disabled.
 - Every new structural detector has a planted offender/clean control and a
   mutation of its predicate which must fail. Complete discovery and existing
   shard ownership remain enforced; any required plan reassignment is explicit.
@@ -11557,6 +11580,44 @@ browser and hosted CI tests were not rerun for this seven-Markdown-file proposal
 G10/G11/G12-client/G14/G20 and dependent runtime remain pending. Approval covers
 ADR-0064, the exact disclosure/correction instruments and this implementation
 plan together; it does not approve any P02b-6/7/8 gate implicitly.
+
+### Maintainer review follow-up (2026-10-19)
+
+**Changes requested; revised proposal remains Proposed.** Findings were treated
+as review data and rechecked against `c94abe1b`, the actual resolver/factory,
+recorder/reader, Accepted clauses and pinned upstream sources. No runtime test
+or current-production exploit is inferred from a static contract gap. The earlier
+rounds' no-actionable-finding opinions concerned their reviewed draft and were
+not maintainer acceptance. Their original text is preserved; this dated follow-up
+supersedes their readiness conclusion instead of silently editing the receipts.
+
+| Finding group | Verified disposition and revision |
+|---|---|
+| Platform-host absence401 vs row13 | Valid contradiction. Remove the absent-token401 permission; AccountSite absence gives masked404 on tenant/org/platform hosts. Name the scoped authorization result handler so `[Authorize]` cannot silently restore the default401. Generic unresolved MediatR behavior remains separate. |
+| Future row14 and HostScope | Valid latent contract failure, hidden by today's deny-all membership. The exact query now refuses before readers unless HostAndClaim, valid actor and matching host provenance hold. Test active-membership ClaimAndMembership, missing/mismatched host scope and no reader call; do not wait for Phase03. |
+| Resolver/header/membership error codes | Valid ambiguity. Rows8/11/12 and authenticated header mismatch use `tenant_mismatch`; rows7/10/14 membership refusal and anonymous header mismatch use `not_found`. HTTP uses shared Problem Details; pure factory Refused stays unchanged. |
+| Missing recorder paths / row7 tense | Valid. Existing resolver writes no audit, so implement the already-required row7 audit rather than claim it is delivered. Extend source/actor/correlation/trusted-org attribution. Keep defended audit tenant nonnullable; add a synchronous source-aware no-tenant refusal method. Row7 one audit, row10 zero, row14 zero plus one unresolved count. |
+| JOSE duplicate/extension policy | Valid gap in the selected profile. Require exact duplicate-free alg/typ/kid header, configured-issuer keys only, and reject every other parameter. RFC7515 does not itself require this exact allowlist or reject every duplicate; it is LearnStack's stricter proposed profile, not a claim that stock JwtBearer trusts token URLs. |
+| Stock handler diagnostic leaks | Valid source-level gap. Failure events1/3 carry exceptions and inherited event7 logs failure text in the same concrete category. Warning-only filtering is insufficient because event3 is Error. Suppress raw category output at all levels and emit independent closed outcomes; qualify every enabled sink with negative canaries and positive diagnostics. |
+| Claimless UserId / HostOnly | Documentation ambiguity valid; a current authority leak was not established. Factory preserves actor independently of HostOnly, and the ceiling already blocks non-public requests. Retain attribution, clarify origin/XML, prove public200/protected404. A new origin, null actor, metric or `lockey_tenant_claim_absent` is unnecessary; the diagnostic is one fixed Debug event without claim values. |
+| Read-mode authority | Valid missing carrier. ADR0052 authorizes the public ordering departure on which ADR0040 Amendment8 relies. Acceptance therefore adds each ADR's own bounded scope-extension disclosure and reconciles Standards11's PublicSurface-only wording for this exact query; no Accepted body is rewritten and no general read-mode exception is created. |
+| Query audit classification | ADR clarity gap; the package already prescribed Off. The ADR now explicitly names builder.Off, module audit documentation and zero normal query audit rows. No ReadSensitive/MAY classification or new operation slug. |
+| Response/route/SDK contract | Valid implementation handoff gaps. Require explicit account/site route, outer no-store before early errors and exact disjoint public/authenticated generated GET ownership with exhaustive union. Public transport remains credential-free. |
+| Status/instrument/revocation/attribution wording | Clarify Registered catalogue status, Accepted ADR bodies vs supersession, three dated disclosures, scope=platform restriction only within this tenant scheme, TTL/key withdrawal vs immediate revocation, tenant-wide audit column vs trusted-org metadata and captured correlation/source. Add missing module/standards/architecture references. |
+| Earlier IdentityModel source wording | The round2 receipt called8.19.2 pinned. It was the inspected upstream tag and JwtBearer10.0.12 dependency floor, not an existing repository pin. Preserve the receipt with this correction; implementation resolves and qualifies the actual dependency graph. |
+| Per-occurrence audit vs first disagreement | No behavior contradiction found: a rejected resolver short-circuits before assertions. Clarify separate requests remain separate occurrences with no coalescing or tenant ceiling. |
+
+The source check also found a failure-message log beyond the two cited JWT events:
+`AuthenticationHandler.AuthenticateAsync` emits inherited event7 under the concrete
+handler category. Its negative/positive controls are now part of Step1 alongside
+stock events1/3. Pinned upstream and RFC references live in ADR0064; no transient
+review input is a committed reference.
+
+Revision validation passes: seven ADR parser controls, five Release corpus
+tests with zero skips, 857 relative links/fragments, prose/diff checks, and
+byte-comparison of all pre-existing ADRs plus both earlier P5 review receipts.
+Two new independent review rounds remain pending. No acceptance, runtime, realm,
+migration, grant or authorization-domain change is made by this follow-up.
 
 ### Work deliberately retained by its first consumer
 

@@ -6,12 +6,15 @@ Proposed — maintainer approval pending. No dependent runtime is authorized.
 
 **Date:** 2026-10-19
 **Deciders:** @cemil
+**Bounded supersession:** ADR-0036 row 14 (audit clause only);
+ADR-0040 Amendment 8 and ADR-0052 (exact authenticated read-mode scope).
 
 This proposal supplies the security-sensitive access-token profile and HTTP
 admission contract for P02b-5. It retains ADR-0036's resolution matrix except for
 the precisely named audit disposition below. Acceptance adds dated disclosures
-before implementation; it does not rewrite any Accepted decision or accept the
-realm, session or authorization packets.
+before implementation; it does not rewrite an Accepted ADR's body or acceptance
+metadata. It accepts neither the realm/session packets nor Phase 03 authorization
+work. The named normative changes are disclosed separately from clarifications.
 
 ## Decision Drivers
 
@@ -82,6 +85,17 @@ The API takes no client secret and implements no password or token issuance.
   distinguishes access tokens from ID tokens through this payload type. Header
   `typ = JWT` alone cannot establish access-token purpose. ID/refresh tokens are
   refused even if a fixture gives them a trusted signature and API audience.
+- The protected JOSE header contains exactly `alg`, `typ` and `kid`, each once
+  as a nonempty string: `alg = RS256`, `typ = JWT`, and `kid` is at most 128
+  characters. It selects a key only from the configured issuer's validated JWKS.
+  Reject every other header parameter, including `crit`, `cty`, `jku`, `x5u`,
+  `jwk`, `x5c`, certificate thumbprints and `b64`; do not dereference a token URL
+  or accept an embedded key. Reject duplicate header names even when equal.
+  This is the selected LearnStack profile, not a claim that every optional JOSE
+  header is unsafe or that stock JwtBearer follows token-supplied URLs.
+- A bounded compact-JWS/header shape check may reject before cryptographic
+  validation, but confers no identity or authority. Only the stock handler's
+  successful signature/profile validation produces the immutable identity.
 - Require one nonempty opaque `sub` of at most 255 characters and one `user_id`
   UUID. Do not parse `sub` as `UserId`, hash it into one, generate one per login,
   or use an email/name/role as the actor. Reject nil UUIDs and `SystemActor`.
@@ -104,8 +118,10 @@ The API takes no client secret and implements no password or token issuance.
 - Disable inbound claim remapping, token persistence and provider error details.
   Do not interpret realm/client roles, email or display-name claims as application
   permissions. An optional `scope` is a scalar OAuth scope string; reject its
-  `platform` scope, as ADR-0004 Amendment 1 requires, but grant no permission from
-  any other scope. Platform execution remains unavailable to this scheme.
+  `platform` scope everywhere this tenant scheme applies, but grant no permission
+  from any other scope. This is stricter than ADR-0004 Amendment 1's non-platform
+  endpoint rule within this scheme; Hub/internal authentication is not widened
+  or replaced. Platform execution remains unavailable to this scheme.
 
 Use the stock JWT handler and OIDC configuration manager for cryptography,
 discovery and key refresh. Configure five-second backchannel waits, no redirects,
@@ -143,13 +159,26 @@ proof that an intermediate implementation has left authentication inactive.
   requests. A routed protected request returns the masked `not_found` 404,
   indistinguishable from an unknown host after normalizing request correlation.
   A generic authorization fallback must not turn this into 401.
-- On a platform host, no-credential protected access may challenge with 401;
-  a validated principal without a usable resolved tenant still gets 404 for the
-  new tenant-scoped read. No platform or unresolved-context endpoint is added.
-- Authenticated tenant/organization disagreements return 404 `tenant_mismatch`;
-  anonymous assertion disagreements keep 404 `not_found`. Malformed/repeated
-  assertion headers keep 400 `validation_failed`. Membership refusal is masked
-  404 rather than a fabricated mismatch or permission denial.
+- On a platform host, an absent credential on this protected endpoint also
+  returns 404 `not_found`, preserving row 13's status. A validated principal
+  without a usable host-backed tenant receives the same refusal. No platform
+  or unresolved-context endpoint is added and no absent-token 401 is permitted.
+- Keep `[Authorize]` on the endpoint and install a host-aware
+  `IAuthorizationMiddlewareResultHandler` for the closed tenant HTTP surface.
+  It maps the framework's missing-credential challenge to the existing masked
+  404 shape; it does not defer to the default challenge. Present invalid
+  credentials have already returned 401 at the credential-result gate. Leave
+  infrastructure/internal behavior outside this handler's scoped surface.
+- Rows 8/11/12's JWT/host disagreements and authenticated header-assertion
+  mismatches return 404 `tenant_mismatch`. Rows 7/10/14's membership refusals and
+  anonymous header mismatches return 404 `not_found`. Malformed/repeated assertion
+  headers remain 400 `validation_failed`. Preserve the pure factory's shared
+  `Refused`; the HTTP resolver classifies existing attempt facts and uses the
+  shared Problem Details factory to write the authenticated mismatch code.
+- The new endpoint's no-authority 404 is an outer HTTP admission result.
+  Standards 04's generic unresolved MediatR gate still returns
+  `tenant_mismatch`; do not silently change that gate or call an outer
+  authentication challenge a clarification of its result.
 
 ### Resolution and attribution
 
@@ -161,9 +190,9 @@ introduced. HTTP identity never becomes an asynchronous `SystemActor`.
 |---|---|
 | Tenant host and matching tenant-only token | Row 6 succeeds, `HostAndClaim` |
 | Organization host and matching tenant/organization token | Row 9 succeeds, `HostAndClaim` |
-| Organization host and tenant-only token | Row 10 remains 404 while the membership reader denies everyone |
-| Tenant host with an organization claim; platform host with a tenant claim | Rows 7/14 remain membership-dependent 404 until Phase 03 |
-| Host tenant or organization disagrees with valid claims | Rows 8/11/12: 404 and the existing rejection audit under the host tenant |
+| Organization host and tenant-only token | Row 10 remains 404 `not_found`, no audit, while the membership reader denies everyone |
+| Tenant host with an organization claim; platform host with a tenant claim | Rows 7/14 remain membership-dependent 404 `not_found` until Phase 03; their different audit dispositions are explicit below |
+| Host tenant or organization disagrees with valid claims | Rows 8/11/12: 404 `tenant_mismatch` and the shared recorder's rejection audit under the host tenant |
 | Valid principal without tenant claim on a tenant/organization host | Explicit HostOnly case: public read may run, protected read is 404; fixed `tenant_claim_absent` diagnostic, no authority promotion |
 | Valid principal without tenant claim on a platform host | Row 15: unresolved; the new tenant-scoped read is 404 |
 
@@ -173,23 +202,82 @@ header or host without row 10's live membership answer. Headers cannot repair a
 missing mapper. Attribute issuance is admin-controlled; the Phase 03 reader and
 durable `sub`/`UserId` mapping remain absent in P02b-5.
 
-Extend the existing rejection record with a closed source, typed actor,
-correlation and trusted organization scope. Resolver disagreements and header
-disagreements use the same recorder and existing operation slug. A JWT mismatch
-uses the mapped host's tenant/organization, never the disagreeing claim's tenant.
-Capture attribution before discarding a rejected attempt; do not install a failed
-tenant context to obtain it. One request records its first disagreement once.
-Audit failure retains the refusal and existing Critical/health behavior.
+A validated claimless profile retains its stable `UserId` for attribution in a
+host-only context. `HostOnly` describes tenant authority, not anonymity: actor
+presence or `IsAuthenticated` never upgrades its ceiling. Correct that enum's
+anonymous-page XML example and the glossary, not the origin set. Public reads
+remain Off and public-only, the protected query refuses, and authenticated
+header rejections can still be attributed to their real actor. Do not null the
+actor or add a new origin to infer authority from authentication.
 
-Retain row 7's audit on organization-membership refusal under the known host
-tenant, with the organization claim as the rejected assertion and the validated
-actor/source. Row 10's membership refusal remains unaudited as its matrix cell
-already specifies. Neither outcome authorizes the attempted organization scope.
+### Rejection recorder and diagnostic contracts
 
-For a platform-host membership refusal there is no confirmed request tenant.
-Count/log the closed refusal and write no tenant audit row. Do not announce the
-claimed tenant or a sentinel merely to record a denial. The narrowly superseded
-row-14 audit clause is disclosed below; membership still fails closed.
+Extend `TenantAssertionRejection` while keeping its defended tenant nonnullable:
+
+- A closed `TenantAssertionSource` maps only to `header` or `jwt-claim` in
+  metadata/counters. Both recorder implementations consume the source rather
+  than hard-coding `header` on JWT paths.
+- Carry typed `ActorUserId`, captured request `CorrelationId` and nullable
+  `TrustedOrganizationId` explicitly. Derive authenticated tier and actor from
+  the validated projection; never a raw claim or a failed attempt's accessor.
+- `AuditEntryDraft.OrganizationId` remains **null**, preserving the current
+  tenant-wide security-row visibility. Store the trusted organization UUID or
+  null as `metadata.trustedOrganizationId`; do not move it into the scope column.
+  Resolver refusals take it from the independently classified host; later header
+  refusals take it from the successfully resolved context.
+- The draft uses the record's captured correlation, matching the request's shared
+  correlation header/Problem Details value. It does not reread the ambient
+  context after a rejected resolution. Capture without installing that context.
+
+Resolver and header rejections use the existing `tenancy.tenant_assertion.reject`
+operation through the same recorder. A JWT/host mismatch writes under the host
+tenant, never the disagreeing claim's tenant. Implement row 7's already-required
+but currently absent runtime audit: one row under the host tenant with rejected
+organization, validated actor and `jwt-claim` source. Row 10 remains unaudited.
+The existing slugs are retained; no existing row-7 runtime audit is claimed.
+
+Add a separate synchronous `RecordNoTenantRefusal` method on that recorder for
+row 14. It carries the closed source/dimension, validated actor and captured
+correlation for attribution, but **no tenant or asserted tenant value**. Its
+logging half increments the existing `learnstack_tenant_assertion_unresolved_total`
+with only `source=jwt-claim` and `dimension=Tenant`, and emits a fixed
+`membership_unconfirmed` diagnostic. Actor/correlation never become metric labels.
+Its auditing decorator forwards without calling the audit store, opening a
+connection or writing a row; an already constructed injected store is not I/O.
+Do not announce the claimed tenant or a sentinel to record this denial.
+
+One rejected request records its first failing comparison once because resolution
+short-circuits before header assertions. Separate requests remain separate
+occurrences: ADR-0036's per-occurrence, no-coalescing authenticated contract is
+unchanged. Audit failure preserves the refusal and existing Critical/health
+behavior. Prove row 7 has one audit; row 10 none; row 14 none plus one source-aware
+counter increment, without fabricating a nullable durable audit tenant.
+
+Emit `tenant_claim_absent` as one fixed **Debug log event** per admitted request
+with a validated profile but absent tenant claim, after subject admission. It
+contains no claim value or labels. It is neither a new metric nor a Problem
+Details/message key: public 200 and protected 404 remain unchanged.
+
+### Vendor diagnostic boundary
+
+Suppress the exact vendor logger category
+`Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerHandler` at every level
+before any production log sink sees it; a Warning threshold is insufficient.
+This includes exception-bearing events 1 (`TokenValidationFailed`) and 3
+(`ProcessingMessageFailed`) and inherited failure-message event 7. Preserve
+unrelated application logging and emit the authentication outcome independently
+under a LearnStack category using closed stage/reason values, never the raw
+exception, its message/inner/data, token, opaque subject or issuer/audience text.
+Do not rely on an authentication callback that runs after vendor logging.
+
+Configure IdentityModel's PII/complete-security-artifact logging off and constrain
+backchannel diagnostics as part of the same boundary. Qualify the actual
+Serilog-to-OTLP/error-capture paths and test collector; a response-only flag or
+an ASP.NET configuration entry bypassed by the real logger factory is not proof.
+Token/issuer/audience/metadata/provider-exception canaries must not reach any
+enabled sink. Explicitly sanctioned typed UUID/correlation attribution remains
+allowed in the recorder; it is not permission to log arbitrary claim text.
+Events 1/3/7 each need a negative canary and a positive closed-outcome control.
 
 ### Additional subject quota
 
@@ -219,10 +307,22 @@ read from the live database. Accept no query parameters or client-selected ids.
 No email, raw subject, roles, token or privileged configuration is returned.
 The projection has the same public visibility/host scope as the anonymous site.
 
+Before calling any configuration/settings reader, the query independently
+requires `Origin == HostAndClaim`, a valid non-system actor and matching,
+initialized `HostScope.TenantId`. A nonnull host organization must match the
+resolved organization. Missing/mismatched provenance or `ClaimAndMembership`
+returns `Result.Fail(not_found)` without invoking a reader, even after Phase 03
+provides a live membership reader. No host scope is synthesized from JWT claims.
+Test that future row-14 success, including a planted apparently matching scope,
+still cannot reach this host-backed query or turn into a reader exception/500.
+
 Use the existing MediatR/audit owner and an explicit, exact-type read-only
 transaction-mode entry. Do not mark this authenticated query public, classify it
 by a naming suffix, open a second transaction or nest a public send inside a
-writable outer frame. Register it as non-sensitive query audit coverage.
+writable outer frame. Register `builder.Off<GetAccountSiteQuery>()` in Tenancy's
+audit catalogue and record that Off classification in its module audit document.
+A normal query success/refusal writes no query audit row; independently rejected
+assertions retain their sanctioned audit path. It is not ReadSensitive or MAY.
 The database reader retains its independently checked host provenance and
 physical read-only requirement. No migration, role/grant, membership, write
 permission or authorization bypass is added.
@@ -238,6 +338,19 @@ public: keep an exact public operation set and a separate authenticated contract
 P02b-7 owns session-based bearer transport; the existing public transport never
 starts forwarding credentials.
 
+Use an explicit account resource route, for example `[Route("account")]` plus
+`[HttpGet("site")]`; the controller-name convention alone is not this URL.
+Extend the outer response policy for the exact account/site path before any
+refusing middleware. Apply and reassert `Cache-Control: no-store`, removing
+ETag/Last-Modified, on successes and early errors; the current public-only
+prefix predicate does not cover this endpoint. Do not accidentally broaden the
+anonymous public-route allowlist when extending response headers.
+
+Split generated GET ownership into exact, disjoint public and authenticated
+operation/path sets whose union remains exhaustive. Keep `PUBLIC_GET_WRAPPERS`
+exhaustive only over the declared public subset; prove AccountSite belongs only
+to the authenticated subset and an unowned or doubly owned GET fails the guard.
+
 ### Exact relationship to Accepted decisions
 
 | Record and clause | Instrument at acceptance | Effect |
@@ -247,7 +360,9 @@ starts forwarding credentials.
 | ADR-0036, staging table and 2026-09-02 staging erratum | Adjacent dated errata plus that ADR's own correction disclosure under ADR-0041 | Row 10 also requires membership and cannot succeed merely because authentication lands. Preserve original words and acceptance metadata. |
 | ADR-0040 Amendment 8, public-only mode-ordering exception | Bounded scope extension plus additive exact-type selection, disclosed in a dated ADR-0040 Amendment | The one authenticated query also uses the existing physical read-only owner and mode-before-announcement ordering; setter and transaction-ownership contracts stay unchanged. |
 | ADR-0032 canonical pipeline / authorization pass-through | No replacement | Preserve all eight steps; the outer HTTP route census constrains what can enter them. |
-| ADR-0052 public provenance and read-only admission | No replacement | The new read uses the same proven host ceiling; it does not widen anonymous admission or public data. |
+| ADR-0052 Decision and Context, public-read mode-ordering authorization | Bounded scope extension, disclosed in its own dated ADR-0052 Amendment | Extend that authorization to exact `GetAccountSiteQuery` while preserving public markers, public data and host ceiling. This is a normative extension, not a factual correction. |
+| Standards 11 § Tenant Context / The rule: physical PublicSurface ReadOnly owner only | Mutable rule reconciliation at acceptance, citing ADR-0064 and both dated read-mode disclosures | Name the one exact authenticated query as an additional permitted physical ReadOnly owner; no naming heuristic or general authenticated-read exception. |
+| Standards 04 § Public surface, platform gate code; Standards 10 diagnostics | Mutable carrier clarification | Preserve the generic MediatR gate while naming AccountSite's outer `not_found` refusal, source-aware counters and fixed diagnostics. |
 | ADR-0053/0054 ingress accounting | No replacement | All original visitor/peer accounting and credential-free rendering remain. |
 
 The exact bounded source clauses are:
@@ -258,11 +373,20 @@ The exact bounded source clauses are:
 > public-only exception to the Decision sketch's first-statement ordering; this
 > amendment does not authorize it independently.
 
+> ADR-0052 Decision: LearnStack serves every institution public read as a
+> `[PublicSurface]` MediatR request dispatched through `ISender` in an explicitly
+> read-only ambient transaction.
+
+> Standards 11 § Tenant Context / The rule: For a physical PublicSurface
+> ReadOnly owner only,
+
 The first is narrowed only for unconfirmed platform-host membership denial.
-The second gains this one exact authenticated query, not arbitrary reads. These
-are normative changes, not ADR-0041 fact corrections. The row-10 staging mistake
-is a separate correction: membership was already part of that row when accepted.
-A disclosure must name each instrument independently.
+ADR-0040's public-only ordering scope and ADR-0052's associated authorization
+gain this one exact authenticated query, not arbitrary reads; Standards 11 must
+name it too. ADR-0052's public-reader guarantee itself is not weakened. These are
+normative scope changes, not ADR-0041 fact corrections. The row-10 staging
+mistake is a separate correction: membership was already part of that row when
+accepted. Each Accepted ADR receives its own dated disclosure.
 
 ## Context
 
@@ -292,8 +416,10 @@ boundary before its first consumer; do not infer authorization from this phase.
 - Real read-only production subjects make authentication and isolation proofs
   falsifiable without exposing the still-unprotected authoring commands.
 - Public sites remain usable without credentials or identity-provider connectivity.
-- Missing mappers cannot grant protected tenant access; revocation and key refresh
-  have independently asserted limits.
+- Missing mappers cannot grant protected tenant access. Lifetime validation and
+  rejection after an observed signing-key withdrawal have independent proofs.
+  This does not establish immediate user/session revocation: a previously issued
+  JWT can remain usable until expiry within its acceptance bound and clock skew.
 
 ### Negative
 
@@ -319,7 +445,8 @@ boundary before its first consumer; do not infer authorization from this phase.
 
 The [P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
 owns steps, per-step reviews and current implementation status. Acceptance first
-records the two dated ADR disclosures and row-10 errata, registers catalogue
+records dated disclosures in ADR-0036, ADR-0040 and ADR-0052, plus row-10 errata,
+and reconciles Standards 11's PublicSurface-only wording. It registers catalogue
 obligations, and reconciles the named mutable carriers. Architecture 30's blanket
 non-public 401 description changes with the catalogue; its no-authentication
 status changes only with Step 4 activation. No dependent code starts
@@ -333,7 +460,8 @@ typed LearnStack values only. No Keycloak admin adapter is introduced in P02b-5.
 
 Retain/implement `Api_Registers_Only_The_Tenant_Realm_Authority` and
 `Backend_RequiresJwt_OnAllAuthenticatedRoutes`, narrowing the latter's blanket
-401 promise to the explicit tenant/platform outcomes above. At acceptance,
+401 promise to the explicit invalid-credential and absent-credential outcomes
+above. At acceptance,
 register these additional canonical obligations in Standards 21:
 
 - `Tenant_Authentication_Profile_Is_Closed`: real-handler signature/profile,
@@ -348,7 +476,7 @@ register these additional canonical obligations in Standards 21:
   concurrent accounting, bounded lifecycle, whole-chain reduced-budget proof and
   actual-default 600 boundary, including audit suppression after refusal.
 
-Register before code; keep each status pending until its actual owner tests run.
+Register before code; keep each status **Registered** until its actual owner tests run.
 Do not claim a source scan proves issuer validation, a supplied factory attempt
 proves JWT handling, or a context-only stub proves database isolation.
 
@@ -366,11 +494,21 @@ proves JWT handling, or a context-only stub proves database isolation.
 - [Identity architecture](../architecture/13-identity-and-auth.md),
   [API design](../standards/04-api-design.md),
   [Security Standards](../standards/11-security.md),
+  [Observability Standards](../standards/10-observability.md),
+  [Audit Coverage](../standards/18-audit-coverage.md),
   [Documentation Standards](../standards/13-documentation.md),
   [Architecture test catalogue](../standards/21-architecture-tests-catalogue.md),
+  [API Gateway architecture](../architecture/30-api-gateway.md),
+  [Tenancy module](../modules/tenancy/README.md),
+  [Tenancy audit matrix](../modules/tenancy/audit.md),
   [Glossary](../glossary.md).
 - [ASP.NET Core JWT bearer guidance](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/configure-jwt-bearer-authentication?view=aspnetcore-10.0),
   [10.0.12 handler](https://github.com/dotnet/aspnetcore/blob/v10.0.12/src/Security/Authentication/JwtBearer/src/JwtBearerHandler.cs),
+  [10.0.12 JWT log events](https://github.com/dotnet/aspnetcore/blob/v10.0.12/src/Security/Authentication/JwtBearer/src/LoggingExtensions.cs),
+  [10.0.12 base handler](https://github.com/dotnet/aspnetcore/blob/v10.0.12/src/Security/Authentication/Core/src/AuthenticationHandler.cs),
   [10.0.12 options](https://github.com/dotnet/aspnetcore/blob/v10.0.12/src/Security/Authentication/JwtBearer/src/JwtBearerOptions.cs).
 - [Keycloak 26.6.2 token manager](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java),
   [26.6.2 protocol factory](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/OIDCLoginProtocolFactory.java).
+- [Keycloak 26.6.2 JWT encoder](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/jose/jws/DefaultTokenManager.java),
+  [26.6.2 JWS builder](https://github.com/keycloak/keycloak/blob/26.6.2/core/src/main/java/org/keycloak/jose/jws/JWSBuilder.java),
+  [RFC 7515 § 4](https://www.rfc-editor.org/rfc/rfc7515#section-4).
