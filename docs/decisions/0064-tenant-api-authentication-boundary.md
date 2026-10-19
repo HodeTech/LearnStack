@@ -308,9 +308,12 @@ No email, raw subject, roles, token or privileged configuration is returned.
 The projection has the same public visibility/host scope as the anonymous site.
 
 Before calling any configuration/settings reader, the query independently
-requires `Origin == HostAndClaim`, a valid non-system actor and matching,
-initialized `HostScope.TenantId`. A nonnull host organization must match the
-resolved organization. Missing/mismatched provenance or `ClaimAndMembership`
+requires `Origin == HostAndClaim`, a valid non-system actor and matching real
+resolved/host tenant IDs: initialized, nonnil and not the platform sentinel.
+Nonnull organization IDs must be initialized and nonnil, and a nonnull host
+organization must match the resolved organization. Initialization alone is not
+real identity; mirror the existing host-scope guard's UUID checks.
+Missing/mismatched provenance or `ClaimAndMembership`
 returns `Result.Fail(not_found)` without invoking a reader, even after Phase 03
 provides a live membership reader. No host scope is synthesized from JWT claims.
 Test that future row-14 success, including a planted apparently matching scope,

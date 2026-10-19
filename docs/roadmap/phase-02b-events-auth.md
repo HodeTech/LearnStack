@@ -11619,6 +11619,20 @@ byte-comparison of all pre-existing ADRs plus both earlier P5 review receipts.
 Two new independent review rounds remain pending. No acceptance, runtime, realm,
 migration, grant or authorization-domain change is made by this follow-up.
 
+### Revised proposal review round 1 (2026-10-19)
+
+Two fresh independent reviewers, both at xhigh effort, inspected
+`c94abe1b..5e8539c9` against the actual code, Accepted clauses and pinned vendor
+sources. Both found no verified actionable finding. One implementation detail
+is now explicit: initialized Vogen identifiers can still contain nil UUIDs, so
+the exact query mirrors the existing host guard's nonnil/nonsentinel checks as
+well as profile validation. This does not introduce a new authority or origin.
+
+The contract review reran all seven ADR parser controls and whitespace checks;
+the security review inspected sources and diff without rerunning runtime tests.
+Neither review is maintainer acceptance or proof of the future implementation.
+The second fresh independent revision review round remains pending.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile
