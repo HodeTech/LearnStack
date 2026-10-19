@@ -7,6 +7,7 @@ using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Domain;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
@@ -78,6 +79,62 @@ public sealed class CustomizationCommandTests
             items ?? [new TaxonomyItemInput("beginner", Label("Beginner"), 0)]);
 
     // ── The write path ────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task A_new_custom_key_refuses_at_the_plan_ceiling_without_a_write_or_generation_bump()
+    {
+        var (sender, stores) = Build(features: new ContentTypeFeatures(1));
+        (await sender.Send(RegisterContentType(key: "first"))).IsSuccess.Should().BeTrue();
+        stores.Writes.Clear();
+        stores.Coordination.Clear();
+
+        var refused = await sender.Send(RegisterContentType(Guid.CreateVersion7(), "second"));
+
+        refused.Error!.Code.Should().Be("limit_exceeded");
+        refused.Error.Message.Params.Should().BeEquivalentTo(new Dictionary<string, string>
+        {
+            ["limitKey"] = "limits.max_custom_content_types",
+            ["limit"] = "1",
+        });
+        stores.Writes.Should().BeEmpty();
+        stores.Coordination.Should().Equal("content-type:quota-lock", "content-type:lock:second", "content-type:quota-read:second");
+    }
+
+    [Fact]
+    public async Task Revisions_share_a_slot_and_remain_writable_even_after_the_limit_is_zero()
+    {
+        var stores = new RecordingStores();
+        using var first = Provider(stores, features: new ContentTypeFeatures(1));
+        (await first.GetRequiredService<ISender>().Send(RegisterContentType(key: "first"))).IsSuccess.Should().BeTrue();
+        using var reduced = Provider(stores, features: new ContentTypeFeatures(0));
+        var sender = reduced.GetRequiredService<ISender>();
+
+        (await sender.Send(RegisterContentType(Guid.CreateVersion7(), "first", 2))).IsSuccess.Should().BeTrue();
+        (await sender.Send(RegisterContentType(Guid.CreateVersion7(), "second"))).Error!.Code.Should().Be("limit_exceeded");
+        stores.ContentTypes.Values.Should().HaveCount(2).And.OnlyContain(row => row.Key == "first");
+    }
+
+    [Theory]
+    [InlineData(-1, false)]
+    [InlineData(0, true)]
+    public async Task Either_unlimited_contract_removes_the_custom_key_ceiling(long limit, bool unlimited)
+    {
+        var (sender, stores) = Build(features: new ContentTypeFeatures(limit, unlimited));
+        foreach (var key in new[] { "first", "second", "third" })
+            (await sender.Send(RegisterContentType(Guid.CreateVersion7(), key))).IsSuccess.Should().BeTrue();
+        stores.ContentTypes.Should().HaveCount(3);
+        stores.Coordination.Should().NotContain(value => value.StartsWith("content-type:quota-read:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task The_builtin_and_its_authored_revisions_use_no_custom_slot_at_zero_allowance()
+    {
+        var (sender, stores) = Build(features: new ContentTypeFeatures(0));
+        (await sender.Send(new InitializeTenantContentTypeDefaultCommand())).IsSuccess.Should().BeTrue();
+        (await sender.Send(RegisterContentType(Guid.CreateVersion7(), "card", 2))).IsSuccess.Should().BeTrue();
+        (await sender.Send(RegisterContentType(Guid.CreateVersion7(), "custom"))).Error!.Code.Should().Be("limit_exceeded");
+        stores.ContentTypes.Values.Should().HaveCount(2).And.OnlyContain(row => row.Key == "card");
+    }
 
     [Fact]
     public async Task Initialization_creates_the_complete_active_content_type_with_a_generated_id_in_one_write()
@@ -1320,10 +1377,11 @@ public sealed class CustomizationCommandTests
     // ── Wiring ────────────────────────────────────────────────────────────
 
     private static (ISender Sender, RecordingStores Stores) Build(
-        bool resolved = true, bool admitSchemas = true, IJsonSchemaValidator? gate = null)
+        bool resolved = true, bool admitSchemas = true, IJsonSchemaValidator? gate = null,
+        IFeatureFlags? features = null)
     {
         var stores = new RecordingStores();
-        return (Provider(stores, resolved, admitSchemas, gate).GetRequiredService<ISender>(), stores);
+        return (Provider(stores, resolved, admitSchemas, gate, features).GetRequiredService<ISender>(), stores);
     }
 
     /// <summary>A gate that admits, and reports the occurrences it was given.</summary>
@@ -1354,7 +1412,7 @@ public sealed class CustomizationCommandTests
 
     private static ServiceProvider Provider(
         RecordingStores? stores = null, bool resolved = true, bool admitSchemas = true,
-        IJsonSchemaValidator? gate = null)
+        IJsonSchemaValidator? gate = null, IFeatureFlags? features = null)
     {
         // MediatR and FluentValidation scan the same assembly the composition root
         // hands them, so a handler or validator this container cannot find is one the
@@ -1370,6 +1428,7 @@ public sealed class CustomizationCommandTests
         services.AddSingleton<ITenantLevelTaxonomyStore>(stores);
         services.AddSingleton<ITenantLevelTaxonomyCatalog>(stores);
         services.AddSingleton<ICustomizationGenerationStore>(stores);
+        services.AddSingleton(features ?? new ContentTypeFeatures(5));
         services.AddSingleton<IAuditSubject>(stores);
         services.AddSingleton(gate ?? new StubGate(admitSchemas));
         services.AddSingleton<IClock>(Clock);
@@ -1400,6 +1459,20 @@ public sealed class CustomizationCommandTests
         public List<string> Writes { get; } = [];
 
         public List<string> Coordination { get; } = [];
+
+        public Task LockRegistrationsAsync(CancellationToken cancellationToken)
+        {
+            Coordination.Add("content-type:quota-lock");
+            return Task.CompletedTask;
+        }
+
+        public Task<ContentTypeQuotaUsage> ReadQuotaUsageAsync(string key, CancellationToken cancellationToken)
+        {
+            Coordination.Add("content-type:quota-read:" + key);
+            var keys = ContentTypes.Values.Where(root => root.DeletedAt == null && root.Key != BuiltInCustomizations.Card.Key)
+                .Select(root => root.Key).Distinct(StringComparer.Ordinal).ToArray();
+            return Task.FromResult(new ContentTypeQuotaUsage(keys.LongLength, keys.Contains(key, StringComparer.Ordinal)));
+        }
 
         Task ITenantContentTypeStore.LockConceptAsync(string key, CancellationToken cancellationToken)
         {
@@ -1604,6 +1677,21 @@ public sealed class CustomizationCommandTests
             }
 
             throw new AggregateConflictException("duplicate key value", constraint);
+        }
+    }
+
+    private sealed class ContentTypeFeatures(long limit, bool unlimited = false) : IFeatureFlags
+    {
+        public Task<bool> IsEnabledAsync(FeatureKey key, CancellationToken ct = default)
+        {
+            key.Should().Be(FeatureKeys.UnlimitedContentTypes);
+            return Task.FromResult(unlimited);
+        }
+
+        public Task<long> GetLimitAsync(LimitKey key, CancellationToken ct = default)
+        {
+            key.Should().Be(LimitKeys.MaxCustomContentTypes);
+            return Task.FromResult(limit);
         }
     }
 

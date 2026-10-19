@@ -19,6 +19,7 @@ public sealed class HttpStatusMapTests
     [InlineData("unauthorized", 401)]
     [InlineData("forbidden", 403)]
     [InlineData("feature_disabled", 403)]
+    [InlineData("limit_exceeded", 403)]
     [InlineData("not_found", 404)]
     [InlineData("tenant_mismatch", 404)]
     [InlineData("concurrency_conflict", 409)]

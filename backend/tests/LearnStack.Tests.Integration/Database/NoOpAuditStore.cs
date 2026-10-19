@@ -31,6 +31,10 @@ internal sealed class NoOpAuditStore : IAuditStore
     public Task WriteBestEffortAsync(AuditEntryDraft entry, CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
+    public Task WriteJobTerminalAsync(AuditEntryDraft entry, JobTerminalTransition transition,
+        DbConnection connection, DbTransaction transaction,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException("The job-terminal path has its own cases.");
+
     public Task WriteEventTerminalAsync(
         AuditEntryDraft entry,
         EventTerminalTransition transition,

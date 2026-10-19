@@ -226,6 +226,16 @@ read/selection budget in P02d-3. The
 [accepted package](../../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
 records the tests and step plan.
 
+### Job lifecycle projection
+
+Tenancy declares the status meanings for ADR-0047's closed job lifecycle
+projection. The framework reads only the minimal columns allowed by
+[Database Standards](../../standards/05-database.md#job-lifecycle-projection);
+tenantless orchestration constructs no Tenancy service and accepts no arbitrary
+tenant selector. The additive Tenancy migration owns this SELECT-only grant.
+The [Step 8 record](../../roadmap/phase-02b-events-auth.md#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18)
+owns implementation and pending complete qualification.
+
 ## Entity-relationship diagram
 
 Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain` and
@@ -506,7 +516,10 @@ transport-owned inbox and independent delivery ledger. The stable identities are
 `customization.initialize-content-type-default.v1` for `card@1` content type and
 `customization.initialize-taxonomy-default.v1` for `plain@1` taxonomy. The
 [Step 5 record](../../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
-owns validation/review status; neither subscription is a placeholder.
+records validation and reviews; neither subscription is a placeholder. P02b-3 is
+complete and merged through PR #31; its
+[merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+owns final verification.
 
 | Topic | Payload | Publisher | Consumers | Phase |
 |---|---|---|---|---|

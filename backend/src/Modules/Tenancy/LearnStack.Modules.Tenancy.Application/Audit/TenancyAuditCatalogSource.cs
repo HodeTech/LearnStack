@@ -83,6 +83,8 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
             .DeclareOffPath(
                 "platform.delivery.dead_letter", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
+                "platform.job.dead_letter", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
                 "tenancy.tenant_assertion.reject", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "tenancy.tenant_assertion.anonymous_burst",

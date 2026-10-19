@@ -14,7 +14,7 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// Modules <strong>never</strong> write to this accessor. Population is
 /// owned by the resolution sites listed in ADR-0032 § Sub-decision 10:
 /// <c>TenantResolverMiddleware</c> (HTTP), <c>HubCorrelationMiddleware</c>
-/// (<c>/api/internal/*</c>), Hangfire <c>JobActivator</c> (background jobs),
+/// (<c>/api/internal/*</c>), <c>JobExecutor</c> (background jobs),
 /// outbox / inbox handler scope (integration events).
 /// </para>
 /// <para>

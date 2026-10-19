@@ -113,6 +113,25 @@ Also in scope:
 - Whether a customization change owes an integration event, per
   [the Customization spec § Integration-event catalogue](../modules/customization/README.md#integration-event-catalogue).
 
+### Content-type quota accounting — accepted (2026-10-19)
+
+**Accepted — 2026-10-19, @cemil.** The maintainer approved the accounting below
+before implementation. The existing registration command did not enforce
+`LimitKeys.MaxCustomContentTypes`; the registered key alone was not a write-time
+quota. The correction implements this rule in that shared writer.
+
+The rule counts distinct, nondeleted, tenant-authored content-type keys.
+Schema revisions share one slot; the built-in `card` definition uses none. A soft
+deletion frees a slot only when no nondeleted revision of that custom key remains.
+The unlimited entitlement or a limit of `-1` removes the ceiling; zero permits
+no new custom key. Existing revisions remain writable at the ceiling. A new key's
+count and insert serialize under one tenant-wide transaction advisory lock;
+per-key locks alone cannot prevent two different keys exceeding the quota.
+
+Implementation must include refusal/allowance controls, revision/default/deletion
+accounting, tenant isolation and a real concurrent PostgreSQL count/insert proof.
+Approval alone does not claim runtime enforcement or passing qualification.
+
 ### Customization Key Shape and Immutable Schema Versions
 
 [ADR-0013](../decisions/0013-page-block-schema-versioning.md) requires immutable
@@ -328,6 +347,19 @@ roadmap never names a phase that builds any of it — while
 - Transcoding is a per-tenant resource cost. Concurrent transcode jobs per tenant are
   bounded, and the bound is a `LimitKey` so it becomes plan-gated the moment
   [Phase 02c](phase-02c-hub-foundation.md) supplies a real entitlement projection.
+
+**Runtime prerequisite acceptance — 2026-10-15.** The maintainer accepts expanded
+H1 infrastructure for P02b-4 under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations).
+Implementation remains pending. Its accepted contract supplies prepare/execute/finalize,
+dedicated dispatch slots, tenant reservations and recurrence/fan-out. This phase
+supplies ffmpeg/process-tree
+supervision, stable operation/artifact reconciliation and positive quiescence
+evidence, media definitions/recurrences and its coordinated production LimitKey.
+CPU/memory/process budgets are this phase's responsibility; dedicated queue slots
+alone do not isolate those resources. Prove actual media cancellation, stale-output
+rejection, tenant limits and nightly quota/orphan/source-retention flows before
+exit. This handoff claims no shipped P4 runtime or media acceptance proof.
 
 ### Search — the port and its PostgreSQL default
 

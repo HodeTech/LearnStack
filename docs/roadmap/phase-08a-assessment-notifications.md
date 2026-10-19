@@ -20,7 +20,7 @@ reader and no later phase has to guess:
 |---|---|---|
 | Outbox — `outbox_messages` table, `OutboxFlushBehavior` | [Phase 02a](phase-02a-kernel-tenancy.md) | Nothing |
 | Outbox dispatcher — polling, retry, backoff, dead-letter, inbox guard, `IEventBus` transport | [Phase 02b](phase-02b-events-auth.md) | Event types, topics, and idempotent consumers |
-| Hangfire — host, Postgres storage, queue policy, tenant-aware job activator, enqueue-time `tenant_id` guard | [Phase 02b](phase-02b-events-auth.md) | Job definitions that run on it |
+| Background jobs — typed scheduling, host/storage, restored authority, retry/audit, external/capacity/recurrence foundation under Accepted ADR-0047 (implementation pending) | [Phase 02b](phase-02b-events-auth.md) | Job/provider definitions and declared queue/profile assignments |
 | Scoring / completion DSL engine — ADR-0025, sandbox, evaluator | [Phase 05](phase-05-education-learning-content.md) | Callers, answer maps, and result-band projection |
 
 Phase 08a writes **no** dispatcher, **no** job host, and **no** expression evaluator. If
@@ -137,8 +137,9 @@ and an unread template store is a schema nobody validates.
   in-app are placeholders behind the same port shape.
 - Notification preference per user, respected before dispatch.
 - Dispatch runs as a Hangfire job on the host wired in
-  [Phase 02b](phase-02b-events-auth.md) — this phase defines the job, its queue and its
-  retry policy, not the runner.
+  [Phase 02b](phase-02b-events-auth.md) — this phase defines the job, its declared
+  queue/profile assignment and provider-failure translation, inheriting the runner's
+  retry budgets rather than introducing a second policy.
 - Delivery status, with failures visible rather than swallowed.
 - Template resolution via `TenantTemplateLibrary`, above.
 
@@ -154,24 +155,36 @@ and an unread template store is a schema nobody validates.
 
 Each use case is driven by an integration event consumed from the outbox, not by a direct
 call from the originating module. The producing module enqueues; Notifications consumes.
-Consumers are idempotent through the `IInboxGuard` from
-[Phase 02b](phase-02b-events-auth.md) — at-least-once delivery means "enrollment
-confirmed" can arrive twice, and a learner must not receive it twice.
+The transport claims the shared inbox before constructing consumers, under
+[Phase 02b](phase-02b-events-auth.md). That deduplicates event handling; provider
+idempotency/reconciliation must separately prevent duplicate external delivery.
 
 ### Background Jobs
+
+**P02b-4 acceptance update — 2026-10-15.** The maintainer accepts expanded H1:
+stock Hangfire wakeups with LearnStack-owned submission, retries/audit, external
+stages, capacity and recurrence/fan-out under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
+P02b-4 implementation remains pending. This phase supplies notification/expiry
+definitions and chooses declared queues/profiles, not a second retry policy or
+activator. Provider sends require stable logical-operation idempotency and known
+effect reconciliation; inbox/event dedup alone cannot prove an email was sent once.
+The accepted typed job obligations replace the old payload/base-class spellings;
+P02b-4 still owes their runtime enforcement.
 
 Additions to the existing host, not a new one:
 
 - Notification dispatch job.
 - Attempt-expiry job for abandoned attempts.
-- Job-level retry policy and dead-letter state for this phase's jobs.
+- Job definitions inheriting P02b-4 retry budgets and audited dead-letter state.
 - Job observability: queue depth, execution duration, and failure counts surfaced
   through the existing OpenTelemetry pipeline.
 
-Tenant-aware job payloads, the job activator, the enqueue-time `tenant_id` guard, and the
-`Hangfire_Job_Payloads_Include_TenantId` architecture test all come from
-[Phase 02b](phase-02b-events-auth.md). This phase's jobs inherit them and add no
-infrastructure.
+Typed transactional submission, exact tenant/org restoration, profile/capacity
+admission and the replacement BackgroundJob_* obligations are accepted by
+[P02b-4](phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
+Their implementation/proofs remain pending; this phase depends on that completed
+foundation and adds no runner.
 
 ## Deliverables
 
@@ -228,9 +241,10 @@ infrastructure.
   loses tenant context the first time it runs unattended.
 - **Templates treated as configuration rather than content.** A template is user-visible
   text with a locale and an audit trail; editing it in a config file bypasses both.
-- **Running background jobs without tenant context.** Mitigated by the Phase 02b activator
-  and enqueue guard — provided this phase's jobs use the standard payload shape rather
-  than passing ids by hand.
+- **Running background jobs without tenant context.** Mitigated by Phase 02b's
+  trusted typed submission and `JobExecutor` restoration from the authoritative
+  row. This phase's definitions use that runtime
+  ([ADR-0047](../decisions/0047-transactional-background-job-runtime.md)).
 
 ## Phase Exit Decision
 

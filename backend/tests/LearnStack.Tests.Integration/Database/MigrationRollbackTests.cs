@@ -49,8 +49,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
-        (await CountAsync(connection, TablesQuery)).Should().Be(28L,
-            "eight tenancy tables, five platform tables, four customization tables, "
+        (await CountAsync(connection, TablesQuery)).Should().Be(47L,
+            "eight tenancy tables, twenty-four platform tables, four customization tables, "
             + "two audit tables, four Education tables, and five history tables");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");
@@ -61,6 +61,10 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
             "each Education parent relation has its own invoker scope check");
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L,
             "fn_inbox_messages_immutable backs the shared inbox append-only trigger");
+
+        (await CountAsync(connection, JobFunctionQuery)).Should().BeGreaterThan(0,
+            "the new job guards must be installed before their reversal is tested");
+        (await CountAsync(connection, VendorSequenceQuery)).Should().Be(9L);
 
         await _fixture.RollBackAsync();
 
@@ -78,9 +82,12 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, PolicyQuery)).Should().Be(0L);
 
+        (await CountAsync(connection, JobFunctionQuery)).Should().Be(0L);
+        (await CountAsync(connection, VendorSequenceQuery)).Should().Be(0L);
+
         // A successful Down must also leave a state that can be installed again.
         await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
-        (await CountAsync(connection, TablesQuery)).Should().Be(28L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(47L);
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L);
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
@@ -95,6 +102,15 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
                 .Should().Be(1L, "reapplied constraints and policies must admit a real app write and scoped read");
         }
     }
+
+    private const string JobFunctionQuery =
+        "SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace "
+        + "AND (proname LIKE 'fn_background_job%' OR proname LIKE 'fn_hangfire%')";
+
+    private const string VendorSequenceQuery =
+        "SELECT count(*) FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relkind = 'S' "
+        + "AND relname IN ('aggregatedcounter_id_seq','counter_id_seq','hash_id_seq','job_id_seq',"
+        + "'jobparameter_id_seq','jobqueue_id_seq','list_id_seq','set_id_seq','state_id_seq')";
 
     private const string TablesQuery =
         "SELECT count(*) FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relkind = 'r'";

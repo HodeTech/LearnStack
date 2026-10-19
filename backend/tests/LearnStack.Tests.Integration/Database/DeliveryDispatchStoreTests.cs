@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Data.Common;
 using System.Text.Json.Nodes;
 using FluentAssertions;
@@ -612,7 +613,7 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
         }
 
         public DeliveryDispatchStore Store(NpgsqlDataSource? source = null, Func<IAuditStore, IAuditStore>? decorate = null) =>
-            new(new Lazy<NpgsqlDataSource>(() => source ?? Dispatch), Registry(), new DeliveryDispatchOptions(),
+            new(new PrivilegedDataSource(() => source ?? Dispatch), Registry(), new DeliveryDispatchOptions(),
                 new SystemGuidFactory(), new FixedClock(Occurred), decorate is null
                     ? _provider.GetRequiredService<IServiceScopeFactory>()
                     : new DecoratingScopes(_provider.GetRequiredService<IServiceScopeFactory>(), decorate));
@@ -788,6 +789,8 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
     private sealed class AuditDecorator(IAuditStore inner,
         Func<AuditEntryDraft, EventTerminalTransition, DbConnection, DbTransaction, CancellationToken, Task> terminal) : IAuditStore
     {
+        public Task WriteJobTerminalAsync(AuditEntryDraft entry, JobTerminalTransition transition, DbConnection connection,
+            DbTransaction transaction, CancellationToken token = default) => inner.WriteJobTerminalAsync(entry, transition, connection, transaction, token);
         public Task WritePendingAsync(IUnitOfWork unit, CancellationToken token = default) => inner.WritePendingAsync(unit, token);
         public Task WriteStandaloneAsync(AuditEntryDraft entry, CancellationToken token = default) => inner.WriteStandaloneAsync(entry, token);
         public Task WriteBestEffortAsync(AuditEntryDraft entry, CancellationToken token = default) => inner.WriteBestEffortAsync(entry, token);

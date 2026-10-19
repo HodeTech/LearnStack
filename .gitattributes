@@ -7,3 +7,23 @@
 # kernel then looks for an interpreter named `bash\r`. `scripts/seed.sh` is the one a
 # developer runs first, so it would be the first thing to break on a Windows checkout.
 *.sh text eol=lf
+
+# These pinned upstream inputs are verified byte-for-byte by ADR-0047's source/
+# distribution controls. Preserve their original LF/CRLF, BOMs and licence text
+# on every checkout; first-party guards, manifests and documentation stay normal.
+backend/src/LearnStack.Infrastructure/Jobs/HangfireSql/Install.v*.sql -text
+third-party/hangfire/core/corresponding-source.tar.gz -text
+third-party/hangfire/postgres/corresponding-source.tar.gz -text
+third-party/hangfire/core/COPYING -text
+third-party/hangfire/core/COPYING.LESSER -text
+third-party/hangfire/core/LICENSE.md -text
+third-party/hangfire/postgres/COPYING -text
+third-party/hangfire/postgres/COPYING.LESSER -text
+third-party/hangfire/postgres/LICENSE.md -text
+third-party/hangfire/dependency-notices/Dapper-2.0.123-LICENSE.txt -text
+third-party/hangfire/dependency-notices/Dapper.AOT-1.0.48-LICENSE.txt -text
+
+# Original upstream whitespace is part of the verified notice/licence bytes.
+third-party/hangfire/core/NOTICES -text -whitespace
+third-party/hangfire/dependency-notices/Newtonsoft.Json-13.0.4-LICENSE.md -text -whitespace
+third-party/hangfire/dependency-notices/Apache-2.0.txt -text -whitespace

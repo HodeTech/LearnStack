@@ -1,0 +1,164 @@
+using LearnStack.Application.Messaging;
+using LearnStack.Application.Jobs;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
+using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Time;
+using Npgsql;
+using NpgsqlTypes;
+
+namespace LearnStack.Infrastructure.Jobs;
+
+/// <summary>Persists module-owned intent on the existing announced producer transaction.</summary>
+public sealed class PostgresBackgroundJobScheduler(
+    IUnitOfWork unitOfWork, ProducerExecution producer, BackgroundJobDefinitionRegistry registry,
+    IGuidFactory ids, IClock clock, BackgroundJobRuntimeOptions options) : IBackgroundJobScheduler
+{
+    private const string InsertSql =
+        """
+        INSERT INTO background_jobs (
+            id, tenant_id, organization_id, definition_key, profile, queue, capacity_group,
+            parameters, original_due_at, traceparent, causal_actor_user_id, causation_event_id, parent_job_id, recipient_id)
+        VALUES (
+            @id, @tenant_id, @organization_id, @definition_key, @profile, @queue, @capacity_group,
+            @parameters, @original_due_at, @traceparent, @causal_actor_user_id, @causation_event_id, @parent_job_id, @recipient_id)
+        """;
+
+    /// <inheritdoc />
+    public Task<BackgroundJobId> EnqueueAsync<TParameters>(
+        BackgroundJobKey<TParameters> definition, TParameters parameters,
+        CancellationToken cancellationToken = default) where TParameters : IBackgroundJobParameters =>
+        SubmitAsync(definition, parameters, null, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<BackgroundJobId> ScheduleAsync<TParameters>(
+        BackgroundJobKey<TParameters> definition, TParameters parameters, DateTimeOffset dueAt,
+        CancellationToken cancellationToken = default) where TParameters : IBackgroundJobParameters =>
+        SubmitAsync(definition, parameters, dueAt, cancellationToken);
+
+    /// <summary>The sole occurrence-input path derives every routing fact from its bound command.</summary>
+    internal async Task<BackgroundJobId> SubmitRecipientAsync(SubmitBackgroundJobRecipientCommand request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Completion.RequireOwner(unitOfWork);
+        cancellationToken.ThrowIfCancellationRequested();
+        var claim = request.Claim;
+        var origin = producer.CaptureJobOrigin(unitOfWork);
+        options.Validate();
+        if (!registry.TryGet(claim.DefinitionKey, out var definition)
+            || definition.Readiness != BackgroundJobDefinitionReadiness.Active
+            || definition.ParameterType != typeof(BackgroundJobOccurrenceParameters)
+            || origin.OperationType != claim.DeclarationType
+            || origin.OperationType.Assembly != definition.ProfileRegistration.RootRequestType.Assembly
+            || origin.Announcement.TenantId != claim.TenantId || origin.Announcement.OrganizationId != claim.OrganizationId
+            || (definition.Scope == BackgroundJobScope.TenantWide ? claim.OrganizationId is not null : claim.OrganizationId is null)
+            || origin.CausalActor is not null || origin.ParentJobId is not null || origin.IncomingEventId is not null)
+            throw new InvalidOperationException("Recipient submission must retain its registered module and exact stored route.");
+        var json = BackgroundJobPayloadContract.Serialize(new BackgroundJobOccurrenceParameters(claim.OccurrenceId),
+            typeof(BackgroundJobOccurrenceParameters), BackgroundJobPayloadKind.Parameters);
+        producer.RequireJobOrigin(origin, unitOfWork);
+        request.Completion.RequireOwner(unitOfWork);
+        var rawId = ids.NewUuidV7();
+        if (rawId == Guid.Empty || rawId.Version != 7) throw new InvalidOperationException("The job identity factory must return a UUIDv7.");
+        request.Completion.RequireOwner(unitOfWork);
+        var id = BackgroundJobId.From(rawId);
+        await InsertAsync(definition, id, json, claim.DueAt, origin, claim.RecipientId, cancellationToken).ConfigureAwait(false);
+        request.Completion.RecordChild(unitOfWork, id, existing: false);
+        return id;
+    }
+
+    private async Task<BackgroundJobId> SubmitAsync<TParameters>(
+        BackgroundJobKey<TParameters> key, TParameters parameters, DateTimeOffset? dueAt,
+        CancellationToken cancellationToken) where TParameters : IBackgroundJobParameters
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        cancellationToken.ThrowIfCancellationRequested();
+        // Check enrollment before payload access or Connection's lazy-open getter.
+        var origin = producer.CaptureJobOrigin(unitOfWork);
+        options.Validate();
+        if (!BackgroundJobNames.Definition(key.Value) || !registry.TryGet(key.Value, out var definition)
+            || definition.ParameterType != typeof(TParameters)
+            || parameters.GetType() != definition.ParameterType)
+            throw new ArgumentException("Job submission requires its exact declared key and parameter type.", nameof(key));
+
+        var operationAssembly = origin.OperationType.Assembly;
+        if (operationAssembly != definition.ProfileRegistration.RootRequestType.Assembly
+            && operationAssembly != definition.ParameterType.Assembly)
+            throw new InvalidOperationException("Only an enrolled operation of the owning module may submit this job.");
+
+        var announcement = origin.Announcement;
+        if (announcement.TenantId.Value == Guid.Empty || announcement.TenantId == TenantId.PlatformSentinel
+            || (definition.Scope == BackgroundJobScope.TenantWide ? announcement.OrganizationId is not null
+                : announcement.OrganizationId is null))
+            throw new InvalidOperationException("The job scope must exactly match the live tenant and organization announcement.");
+
+        // A declared Pending definition may accumulate intent; it cannot be started.
+        var json = BackgroundJobPayloadContract.Serialize(parameters, definition.ParameterType,
+            BackgroundJobPayloadKind.Parameters);
+        producer.RequireJobOrigin(origin, unitOfWork);
+        var due = (dueAt ?? clock.UtcNow).ToUniversalTime();
+        producer.RequireJobOrigin(origin, unitOfWork);
+        // PostgreSQL stores microseconds. Normalize before insertion so the same
+        // immutable due fact is reconstructed by admission and later handoffs.
+        due = new DateTimeOffset(due.Ticks - due.Ticks % TimeSpan.TicksPerMicrosecond, TimeSpan.Zero);
+        var rawId = ids.NewUuidV7();
+        producer.RequireJobOrigin(origin, unitOfWork);
+        if (rawId == Guid.Empty || rawId.Version != 7)
+            throw new InvalidOperationException("The job identity factory must return a UUIDv7.");
+        var id = BackgroundJobId.From(rawId);
+
+        return await InsertAsync(definition, id, json, due, origin, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<BackgroundJobId> InsertAsync(BackgroundJobDefinitionDescriptor definition, BackgroundJobId id,
+        string json, DateTimeOffset due, ProducerExecution.JobOrigin origin, BackgroundJobRecipientId? recipient,
+        CancellationToken cancellationToken)
+    {
+        var announcement = origin.Announcement;
+
+        if (unitOfWork.Transaction is not NpgsqlTransaction transaction
+            || unitOfWork.Connection is not NpgsqlConnection connection
+            || !ReferenceEquals(transaction.Connection, connection))
+            throw new InvalidOperationException("Job persistence requires the ambient Npgsql connection and transaction.");
+
+        await using var command = new NpgsqlCommand(InsertSql, connection, transaction)
+        { CommandTimeout = (int)Math.Ceiling(options.SqlTimeout.TotalSeconds) };
+        command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, id.Value);
+        command.Parameters.AddWithValue("tenant_id", NpgsqlDbType.Uuid, announcement.TenantId.Value);
+        command.Parameters.AddWithValue("organization_id", NpgsqlDbType.Uuid,
+            (object?)announcement.OrganizationId?.Value ?? DBNull.Value);
+        command.Parameters.AddWithValue("definition_key", NpgsqlDbType.Text, definition.Key);
+        command.Parameters.AddWithValue("profile", NpgsqlDbType.Text,
+            definition.Profile == BackgroundJobExecutionProfile.Transactional ? "transactional" : "external");
+        command.Parameters.AddWithValue("queue", NpgsqlDbType.Text, definition.Queue);
+        command.Parameters.AddWithValue("capacity_group", NpgsqlDbType.Text, (object?)definition.CapacityGroup ?? DBNull.Value);
+        command.Parameters.AddWithValue("parameters", NpgsqlDbType.Text, json);
+        command.Parameters.AddWithValue("original_due_at", NpgsqlDbType.TimestampTz, due);
+        command.Parameters.AddWithValue("traceparent", NpgsqlDbType.Text, origin.Traceparent);
+        command.Parameters.AddWithValue("causal_actor_user_id", NpgsqlDbType.Uuid, (object?)origin.CausalActor?.Value ?? DBNull.Value);
+        command.Parameters.AddWithValue("causation_event_id", NpgsqlDbType.Uuid, (object?)origin.IncomingEventId ?? DBNull.Value);
+        command.Parameters.AddWithValue("parent_job_id", NpgsqlDbType.Uuid, (object?)origin.ParentJobId?.Value ?? DBNull.Value);
+        command.Parameters.AddWithValue("recipient_id", NpgsqlDbType.Uuid, (object?)recipient?.Value ?? DBNull.Value);
+
+        producer.RequireJobOrigin(origin, unitOfWork);
+        if (!ReferenceEquals(unitOfWork.Transaction, transaction))
+            throw new InvalidOperationException("The producer transaction changed before job INSERT.");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(options.SqlTimeout);
+        try
+        {
+            await command.ExecuteNonQueryAsync(deadline.Token).ConfigureAwait(false);
+        }
+        catch
+        {
+            // A caught statement failure must not turn into a successful owner
+            // result. No successful-production receipt is recorded for this path.
+            unitOfWork.MarkRollbackOnly();
+            throw;
+        }
+
+        producer.RecordProducedWork();
+        return id;
+    }
+}

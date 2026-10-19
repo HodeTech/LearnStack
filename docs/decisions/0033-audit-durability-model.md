@@ -788,3 +788,16 @@ amendments remain intact. Acceptance authorizes implementation, not delivery.
 - [ADR-0035 Demand-Gated Infrastructure](0035-demand-gated-infrastructure.md)
 - [Audit Coverage Standards](../standards/18-audit-coverage.md)
 - [Audit Subsystem](../architecture/31-audit-subsystem.md)
+
+## Amendment 10 — Same-transaction job terminal audit (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#attempts-terminal-audit-and-diagnostics)
+adds the job-specific sixth write beside this ADR's three writes, Amendment 2's
+fourth and Amendment 9's event-terminal fifth. `WriteJobTerminalAsync` accepts
+only the actual fenced job-row witness and live connection/transaction; terminal
+state and its MUST row commit together or both roll back.
+
+The two closed callers are app-role failure finalization and confined bypass
+terminalization. Uncertain COMMIT is durably reconciled before retry. Existing five
+write contracts, standalone restrictions, MUST durability and classification remain.
+P02b-4 implements/proves the seam; acceptance claims no terminal-audit runtime.

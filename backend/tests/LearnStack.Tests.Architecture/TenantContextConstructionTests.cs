@@ -11,7 +11,7 @@ namespace LearnStack.Tests.Architecture;
 /// where <see href="../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
 /// put them.
 /// </summary>
-public sealed class TenantContextConstructionTests
+public sealed partial class TenantContextConstructionTests
 {
     private static readonly Assembly Kernel = typeof(TenantContext).Assembly;
 
@@ -164,10 +164,10 @@ public sealed class TenantContextConstructionTests
         // ADR-0036 § Rules, as corrected by its Amendment 2: the member is
         // `ITenantContextAccessor.Current`, and writes to it have exactly four
         // callers — TenantResolverMiddleware (HTTP), HubCorrelationMiddleware
-        // (/api/internal/*), the Hangfire JobActivator (jobs) and the outbox / inbox
+        // (/api/internal/*), the JobExecutor (jobs) and the outbox / inbox
         // handler scope (integration events). HTTP and the acceptance/execution
-        // halves of the integration-event scope exist today; the rule is written
-        // over the whole set so the third to arrive is a deliberate edit here rather
+        // halves of the integration-event scope and the job executor exist today;
+        // the rule is written over the whole set so the next writer is a deliberate edit here rather
         // than a silent addition there.
         //
         // The needle is receiver-agnostic — a future `Activity.Current =` anywhere in
@@ -199,11 +199,36 @@ public sealed class TenantContextConstructionTests
                 "LearnStack.Api/Tenancy/TenantResolverMiddleware.cs",
                 "LearnStack.Infrastructure/Messaging/InProcessEventBus.cs",
                 "LearnStack.Infrastructure/Messaging/DeliveryExecutor.cs",
+                "LearnStack.Infrastructure/Jobs/JobExecutor.cs",
+                "LearnStack.Infrastructure/Jobs/JobExecutor.Business.cs",
+                "LearnStack.Infrastructure/Jobs/JobExecutor.CapacityCleanup.cs",
+                "LearnStack.Infrastructure/Jobs/JobExecutor.ExternalRead.cs",
+                "LearnStack.Infrastructure/Jobs/JobExecutor.ExternalCheckpoints.cs",
+                "LearnStack.Infrastructure/Jobs/JobExecutor.External.cs",
+                "LearnStack.Infrastructure/Jobs/JobExecutor.Recipients.cs",
             ],
-            "two of the four logical writers have landed — HTTP and the integration-event "
-            + "acceptance/execution scopes. HubCorrelationMiddleware and the "
-            + "Hangfire JobActivator are later phases, and a fifth writer is how a "
+            "three of the four logical writers have landed — HTTP, jobs and the integration-event "
+            + "acceptance/execution scopes; all JobExecutor partials belong to one logical writer. "
+            + "HubCorrelationMiddleware belongs to its later phase; a fifth writer is how a "
             + "request runs under a tenant nothing resolved");
+    }
+
+    [Fact]
+    public void Tenant_writer_scan_does_not_authorize_another_job_partial_or_an_equality_read()
+    {
+        var sourceRoot = Path.Combine(Path.GetTempPath(), "learnstack-tenant-writer-" + Guid.NewGuid().ToString("N"));
+        const string unexpected = "LearnStack.Infrastructure/Jobs/JobExecutor.Unapproved.cs";
+        var path = Path.Combine(sourceRoot, unexpected);
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, "if (accessor.Current == null) return;");
+            SourceScan.FilesContaining(sourceRoot, ".Current =", except: null, notFollowedBy: '=').Should().BeEmpty();
+            File.WriteAllText(path, "accessor.Current = context;");
+            SourceScan.FilesContaining(sourceRoot, ".Current =", except: null, notFollowedBy: '=').Should().Equal([unexpected],
+                "a new physical writer is visible even when it borrows the approved logical executor's filename prefix");
+        }
+        finally { if (Directory.Exists(sourceRoot)) Directory.Delete(sourceRoot, recursive: true); }
     }
 
     [Fact]
@@ -220,11 +245,8 @@ public sealed class TenantContextConstructionTests
         // Leg 1 — the SQL. Every organizations read in the source names both key
         // columns. Scanned rather than reflected: a raw command's text is a string
         // literal, which is exactly what a type-reference scan cannot see.
-        var reads = SourceScan.FilesContaining(SourceScan.SourceRoot, "FROM organizations", except: null);
-
-        reads.Should().BeEquivalentTo(
-            ["LearnStack.Infrastructure/MultiTenancy/OrganizationScopeValidator.cs"],
-            "a second raw reader of this table is a second place the composite key can be missed");
+        OrganizationReadOffenders(OrganizationSources()).Should().BeEmpty(
+            "ordinary reads keep both keys; only ADR-0047's exact bounded lifecycle enumeration is an exception");
 
         var validator = File.ReadAllText(Path.Combine(
             SourceScan.SourceRoot,

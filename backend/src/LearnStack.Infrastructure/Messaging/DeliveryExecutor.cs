@@ -1,3 +1,4 @@
+using LearnStack.Application.Jobs;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -30,6 +31,7 @@ public sealed class DeliveryExecutor(
     public Task<DeliveryExecutionResult> ExecuteAsync(
         DeliveryClaim claim, DeliveryCommitGate gate, CancellationToken cancellationToken = default)
     {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(claim);
         ArgumentNullException.ThrowIfNull(gate);
         if (!gate.TryStartExecution())
@@ -41,6 +43,7 @@ public sealed class DeliveryExecutor(
     public async Task<DeliveryExecutionResult> ExecuteControlledAsync(
         DeliveryClaim claim, DeliveryExecutionControl control)
     {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(claim);
         ArgumentNullException.ThrowIfNull(control);
         // Reuse rejection must not finish or dispose a different live invocation.
@@ -143,7 +146,7 @@ public sealed class DeliveryExecutor(
                         var response = await audit.ExecuteAsync(subscription.HandlerType, null,
                             () => transaction.ExecutePreparedDeliveryAsync(prepared, completion, claim.EventId,
                                 () => InvokeAsync(services, subscription, envelope.Event, cancellationToken),
-                                cancellationToken), cancellationToken).ConfigureAwait(false);
+                                operationType: subscription.HandlerType, cancellationToken: cancellationToken), cancellationToken).ConfigureAwait(false);
                         if (response.IsFailure) outcome = DeliveryExecutionOutcome.Refused;
                     }
                     else
@@ -151,7 +154,7 @@ public sealed class DeliveryExecutor(
                         // A durable inbox duplicate bypasses classification and
                         // construction, but still completes this claim under its fence.
                         await transaction.ExecutePreparedDeliveryAsync(prepared, completion, claim.EventId,
-                            () => Task.FromResult(Result<None>.Ok(None.Value)), cancellationToken).ConfigureAwait(false);
+                            () => Task.FromResult(Result<None>.Ok(None.Value)), cancellationToken: cancellationToken).ConfigureAwait(false);
                     }
                 }
             }

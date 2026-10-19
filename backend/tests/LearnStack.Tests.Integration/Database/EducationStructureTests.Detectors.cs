@@ -77,7 +77,8 @@ public sealed partial class EducationStructureTests
         }
 
         var applied = await ReadForeignKeysAsync(connection, transaction);
-        foreach (var key in applied.Where(key => !declarations.Any(item => item.Child == key.Child && item.Parent == key.Parent)))
+        foreach (var key in applied.Where(key => !declarations.Any(item => item.Child == key.Child && item.Parent == key.Parent)
+            && !IsDeclaredJobRelation(key)))
         {
             offenders.Add($"{key.Child}: undeclared applied relation");
         }
@@ -87,9 +88,10 @@ public sealed partial class EducationStructureTests
             SELECT c.relname, n.nspname, f.prosrc,
                    (NOT f.prosecdef AND f.proconfig = ARRAY['search_path=pg_catalog']
                     AND f.pronargs = 0 AND l.lanname = 'plpgsql'
-                    AND t.tgenabled IN ('O', 'A') AND t.tgtype = 23
+                    AND t.tgenabled IN ('O', 'A')
                     AND t.tgqual IS NULL AND t.tgnargs = 0
-                    AND cardinality(t.tgattr::smallint[]) = 0)::text
+                    AND cardinality(t.tgattr::smallint[]) = 0)::text,
+                   f.proname, t.tgtype::text, t.tgdeferrable::text, t.tginitdeferred::text
             FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
             JOIN pg_proc f ON f.oid = t.tgfoid
             JOIN pg_namespace n ON n.oid = f.pronamespace
@@ -116,13 +118,15 @@ public sealed partial class EducationStructureTests
             }
 
             if (!triggers.Any(trigger => trigger[0] == relation.Child && trigger[1] == "public"
-                && trigger[3] == "true" && IsParentGuardBody(trigger[2], relation)))
+                && trigger[3] == "true" && trigger[5] == "23" && trigger[6] == "false" && trigger[7] == "false"
+                && IsParentGuardBody(trigger[2], relation)))
             {
                 offenders.Add($"{relation.Child}: parent guard");
             }
         }
 
-        return offenders.Order(StringComparer.Ordinal).ToList();
+        offenders.AddRange(await JobParentGuardOffendersAsync(applied, triggers));
+        return offenders.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
     }
 
     /// <summary>
@@ -302,11 +306,11 @@ public sealed partial class EducationStructureTests
         properties.Select(property => property.GetColumnName());
 
     private sealed record ForeignKey(string Child, string Parent, string Name, string ChildColumns,
-        string ParentColumns, string DeleteAction, bool Validated, string Definition);
+        string ParentColumns, string DeleteAction, bool Validated, bool Deferred, string Definition);
 
     private static bool ValidForeignKey(ForeignKey key, ParentRelation relation) =>
         key.ChildColumns == $"tenant_id,{relation.ParentId}"
-        && key.ParentColumns == "tenant_id,id" && key.Validated;
+        && key.ParentColumns == "tenant_id,id" && key.Validated && !key.Deferred;
 
     private static async Task<List<ForeignKey>> ReadForeignKeysAsync(
         DbConnection connection, DbTransaction? transaction) =>
@@ -325,11 +329,11 @@ public sealed partial class EducationStructureTests
                     JOIN pg_attribute a ON a.attrelid = f.conrelid AND a.attnum = k.attnum ORDER BY k.position), ','),
                 array_to_string(ARRAY(SELECT a.attname FROM unnest(f.confkey) WITH ORDINALITY k(attnum, position)
                     JOIN pg_attribute a ON a.attrelid = f.confrelid AND a.attnum = k.attnum ORDER BY k.position), ','),
-                f.confdeltype::text, (f.convalidated AND NOT f.condeferrable)::text, pg_get_constraintdef(f.oid)
+                f.confdeltype::text, f.convalidated::text, f.condeferrable::text, pg_get_constraintdef(f.oid)
             FROM pg_constraint f JOIN scoped child ON child.oid = f.conrelid
             JOIN scoped parent ON parent.oid = f.confrelid WHERE f.contype = 'f'
             """))
-        .Select(row => new ForeignKey(row[0], row[1], row[2], row[3], row[4], row[5], row[6] == "true", row[7]))
+        .Select(row => new ForeignKey(row[0], row[1], row[2], row[3], row[4], row[5], row[6] == "true", row[7] == "true", row[8]))
         .ToList();
 
     private static async Task<List<string[]>> RowsAsync(

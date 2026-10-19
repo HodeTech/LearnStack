@@ -27,7 +27,7 @@ public sealed class OutboxProductionCompositionTests
         services.AddLearnStackOutboxDispatcher(configuration);
 
         services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
-                && descriptor.ImplementationType == typeof(OutboxProcessor))
+                && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType) == typeof(OutboxProcessor))
             .Should().ContainSingle("mandatory execution must not depend on a configuration toggle");
         using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations

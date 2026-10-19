@@ -24,7 +24,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// </para>
 /// </remarks>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class DatabaseRoleTests : IClassFixture<PostgresFixture>
+public sealed partial class DatabaseRoleTests : IClassFixture<PostgresFixture>
 {
     private readonly PostgresFixture _postgres;
 

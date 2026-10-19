@@ -1,0 +1,3 @@
+# Preserve the exact upstream bytes used by the embedded-dependency verifier.
+cronos/LICENSE -text
+cronos/corresponding-source.tar.gz -text

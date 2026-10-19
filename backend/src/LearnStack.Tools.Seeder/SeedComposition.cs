@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Jobs;
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
@@ -239,6 +240,7 @@ public static class SeedComposition
         // default answers truthfully for that host rather than approximating the API's.
         services.AddSingleton(reservedHosts ?? NoReservedHosts.Instance);
         services.AddSingleton<IHostResolutionInvalidator>(NullHostResolutionInvalidator.Instance);
+        services.AddLearnStackBackgroundJobContracts();
         services.AddLearnStackMediatRPipeline(
             typeof(ITenantWriteStore).Assembly,
             typeof(ITenantContentTypeStore).Assembly,

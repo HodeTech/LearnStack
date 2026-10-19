@@ -1,6 +1,7 @@
 using System.Runtime.ExceptionServices;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
@@ -50,6 +51,7 @@ public sealed class AuditExecutionCoordinator(
     {
         ArgumentNullException.ThrowIfNull(operationType);
         ArgumentNullException.ThrowIfNull(next);
+        var jobSourceOwner = JobApplicationSourceOwner.Current;
 
         // Unregistered is the rejection, and it happens BEFORE the handler runs: an
         // operation nobody classified is a deployment defect, and letting it commit while
@@ -58,8 +60,12 @@ public sealed class AuditExecutionCoordinator(
         // silent — which is why TryGet and not a count of entries tells them apart.
         if (!catalog.TryGet(operationType, out var registration))
         {
-            LogUnclassified(logger, tenantContext is EventTenantContext
-                ? "delivery" : operationType.FullName ?? operationType.Name, null);
+            LogUnclassified(logger, tenantContext switch
+            {
+                EventTenantContext => "delivery",
+                JobTenantContext => "job",
+                _ => operationType.FullName ?? operationType.Name,
+            }, null);
 
             return Result.FailFor<TResponse>(AuditErrors.UnclassifiedOperation);
         }
@@ -79,6 +85,7 @@ public sealed class AuditExecutionCoordinator(
         try
         {
             await DeclareAsync(provisioning, registration, cancellationToken).ConfigureAwait(false);
+            jobSourceOwner?.RequireBusinessReady();
 
             var response = await next().ConfigureAwait(false);
 
@@ -265,7 +272,7 @@ public sealed class AuditExecutionCoordinator(
     // A nested command shares this context, so its failure cannot leak payloads
     // through a provider/composer exception before the transport sees the fault.
     private Exception? DiagnosticException(Exception failure) =>
-        tenantContext is EventTenantContext ? null : failure;
+        AsyncExecutionDiagnostics.IsTrusted(tenantContext) ? null : failure;
 
     /// <summary>
     /// Parks one intent per audited <c>(resource, operation)</c>.
@@ -350,8 +357,15 @@ public sealed class AuditExecutionCoordinator(
                 entry.EntityType,
                 clock.UtcNow)
             {
-                CausationId = tenantContext is EventTenantContext delivery ? delivery.EventId : null,
-                CausalActorUserId = tenantContext is EventTenantContext ? tenantContext.CausalActorUserId : null,
+                CausationId = tenantContext switch
+                {
+                    EventTenantContext delivery => delivery.EventId,
+                    JobTenantContext job => job.IncomingEventId,
+                    _ => null,
+                },
+                CausalActorUserId = tenantContext is EventTenantContext or JobTenantContext ? tenantContext.CausalActorUserId : null,
+                JobId = (tenantContext as JobTenantContext)?.JobId,
+                ParentJobId = (tenantContext as JobTenantContext)?.ParentJobId,
             });
         }
     }
@@ -367,7 +381,7 @@ public sealed class AuditExecutionCoordinator(
     /// </remarks>
     private static AuditOutcome OutcomeOf(Error error) => error.Code switch
     {
-        "forbidden" or "resource_scope_violation" or "feature_disabled" => AuditOutcome.Denied,
+        "forbidden" or "resource_scope_violation" or "feature_disabled" or "limit_exceeded" => AuditOutcome.Denied,
         _ => AuditOutcome.Failed,
     };
 

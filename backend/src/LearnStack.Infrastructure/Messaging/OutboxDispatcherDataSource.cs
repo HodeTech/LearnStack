@@ -2,7 +2,7 @@ using Npgsql;
 
 namespace LearnStack.Infrastructure.Messaging;
 
-/// <summary>Builds the grant-bounded pool reserved for outbox dispatch.</summary>
+/// <summary>Builds the shared grant-bounded pool for confined background infrastructure.</summary>
 public static class OutboxDispatcherDataSource
 {
     public const string ConnectionName = "OutboxDispatcher";
@@ -57,6 +57,20 @@ public static class OutboxDispatcherDataSource
                 $"ConnectionStrings:{ConnectionName} must name the dispatcher role. See .env.example.");
         }
 
+        // Startup GUCs are reset-safe: Npgsql's RESET ALL restores these values
+        // on warm pool reuse. Idle cleanup also reaps aborted backend sessions;
+        // it does not prove a response-withholding proxy released the client I/O.
+        parsed.Options = "-c statement_timeout=5000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=5000";
+        parsed.Timeout = 5;
+        parsed.CommandTimeout = 5;
+        parsed.CancellationTimeout = 1000;
+        parsed.Enlist = false;
+        parsed.Multiplexing = false;
+        parsed.NoResetOnClose = false;
+        parsed.IncludeErrorDetail = false;
+        parsed.LogParameters = false;
+        parsed.PersistSecurityInfo = false;
+
         return parsed;
     }
 
@@ -65,7 +79,8 @@ public static class OutboxDispatcherDataSource
 
     private static async Task RequireConfinedRole(NpgsqlConnection connection, bool async)
     {
-        await using var command = connection.CreateCommand();
+        var command = connection.CreateCommand();
+        await using var ownedCommand = command.ConfigureAwait(false);
         command.CommandTimeout = 5;
         command.CommandText =
             """
@@ -92,7 +107,7 @@ public static class OutboxDispatcherDataSource
         command.Parameters.AddWithValue("role", Role);
 
         var confined = async
-            ? await command.ExecuteScalarAsync()
+            ? await command.ExecuteScalarAsync().ConfigureAwait(false)
             : command.ExecuteScalar();
 
         if (confined is not true)

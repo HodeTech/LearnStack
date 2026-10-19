@@ -272,6 +272,20 @@ then. If `pg_partman` wins, that is a new ADR superseding this one — not an ed
 in [ADR-0033](0033-audit-durability-model.md), not the one in ADR-0016, which declares
 a primary key twice and is rejected by PostgreSQL.
 
+
+### Amendment 3 — Typed runtime handoff for future audit jobs (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations)
+bounds **Implementation Notes**' direct `RecurringJob.AddOrUpdate` registration
+for `learnstack:audit:partition-management`. Future audit-job registration uses
+the typed runtime boundary when its privileged executor is separately accepted.
+The ordinary P02b-4 runtime refuses PlatformMaintenance and supplies no audit
+DDL/retention executor.
+
+Hangfire selection, partition algorithm/cadence/retention and this ADR's Phase 11
+ownership remain. The earlier schedule/partitioning amendment remains intact;
+P02b-4 acceptance implements no partitioning, purge or privileged maintenance.
+
 ## References
 
 - [ADR-0016 Audit Log Subsystem](0016-audit-log-subsystem.md) — establishes

@@ -1,6 +1,8 @@
+using LearnStack.Infrastructure.Persistence;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.MultiTenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,8 +27,7 @@ public sealed partial class OutboxDispatchConventionTests
     private const string BoundaryPlatform = "LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope";
     private const string BoundaryBus = "LearnStack.SharedKernel.Messaging.IEventBus";
     private const string BoundaryTransport = "LearnStack.Infrastructure.Messaging.InProcessEventBus";
-    private const string BoundaryDataSource = "Npgsql.NpgsqlDataSource";
-    private const string BoundaryLazySource = "System.Lazy`1<Npgsql.NpgsqlDataSource>";
+    private const string BoundaryGuardedSource = "LearnStack.Infrastructure.Persistence.PrivilegedDataSource";
     private const string BoundaryTask = "System.Threading.Tasks.Task";
     private const string BoundaryBooleanTask = "System.Threading.Tasks.Task`1<System.Boolean>";
     private const string BoundaryCancellation = "System.Threading.CancellationToken";
@@ -41,7 +42,7 @@ public sealed partial class OutboxDispatchConventionTests
     public void LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor()
     {
         using var census = ProductionCensus.Read();
-        CredentialOffenders(census).Should().BeEmpty(
+        EvaluateDetector(census, CredentialOffenders).Should().BeEmpty(
             "Fix: confine each keyed source to its exact production registration, lazy factory and consumer; "
             + "the platform key never authorizes the dispatcher or its helpers");
     }
@@ -54,116 +55,121 @@ public sealed partial class OutboxDispatchConventionTests
             + "whose private PublishAsync is the sole production IEventBus publisher; producers use IOutbox");
     }
 
-    [Fact]
-    public void Credential_census_rejects_generic_direct_delegate_async_and_extra_helper_resolution()
+    public sealed partial class JobAuthorityMutationTests
     {
-        using var census = ProductionCensus.Read();
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
-        var extensions = typeof(ServiceProviderKeyedServiceExtensions).GetMethods()
-            .Where(method => method.Name is "GetRequiredKeyedService" or "GetKeyedService" or "GetKeyedServices")
-            .ToArray();
-        var targets = extensions.Concat(typeof(IKeyedServiceProvider).GetMethods())
-            .Concat(typeof(ServiceProvider).GetMethods().Where(method => method.Name is "GetRequiredKeyedService" or "GetKeyedService"));
-        foreach (var target in targets)
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "extra keyed resolution through " + target.DeclaringType!.Name + "." + target.Name + "/" + opcode,
-                    () => AddCallProbe(application, "CredentialCaller", application.ImportReference(target), opcode), CredentialOffenders);
 
-        var resolver = application.ImportReference(extensions.First());
-        AssertMutation(census, "a cross-assembly async keyed resolver", () =>
-            AddAsyncCallProbe(application, "AsyncCredentialCaller", resolver), CredentialOffenders);
-        AssertMutation(census, "an unrelated helper on the sanctioned composition type", () =>
+        [Fact]
+        public void Credential_census_rejects_generic_direct_delegate_async_and_extra_helper_resolution()
         {
-            var type = census.Types[(BoundaryApi, BoundaryComposition)];
-            var method = AddCall(type, "UnrelatedCredentialHelper", resolver, OpCodes.Call);
-            return () => type.Methods.Remove(method);
-        }, CredentialOffenders);
-        AssertMutation(census, "a generated-name impersonation of the composition root", () =>
-        {
-            var type = census.Types[(BoundaryApi, BoundaryComposition)];
-            var generated = new TypeDefinition(string.Empty, "<AddLearnStackOutboxDispatcher>d__999", TypeAttributes.NestedPrivate,
-                type.Module.TypeSystem.Object);
-            type.NestedTypes.Add(generated);
-            AddCall(generated, "MoveNext", resolver, OpCodes.Call);
-            return () => type.NestedTypes.Remove(generated);
-        }, CredentialOffenders);
-        AssertMutation(census, "AnyKey enumeration even inside a sanctioned root", () =>
-        {
-            var type = census.Types[(BoundaryApi, BoundaryComposition)];
-            var method = AddCall(type, "AnyCredential", type.Module.ImportReference(typeof(KeyedService)
-                .GetProperty(nameof(KeyedService.AnyKey))!.GetMethod!), OpCodes.Call);
-            return () => type.Methods.Remove(method);
-        }, CredentialOffenders);
-        AssertMutation(census, "an outbox credential indexer in another production assembly", () =>
-            AddStringProbe(application, "CredentialIndexer", "ConnectionStrings:OutboxDispatcher"), CredentialOffenders);
-        AssertMutation(census, "an outbox environment credential in another production assembly", () =>
-            AddStringProbe(application, "CredentialEnvironment", "ConnectionStrings__OutboxDispatcher"), CredentialOffenders);
-        foreach (var alias in new[] { "OUTBOXDISPATCHER", "CONNECTIONSTRINGS:OUTBOXDISPATCHER", "CONNECTIONSTRINGS__OUTBOXDISPATCHER" })
-            AssertMutation(census, "a case-insensitive configuration alias " + alias, () =>
-                AddStringProbe(application, "UppercaseCredentialAlias", alias), CredentialOffenders);
-        foreach (var subject in new[] { (BoundaryApi, BoundaryWorker), (InfrastructureAssembly, Store) })
-            foreach (var opcode in new[] { OpCodes.Ldfld, OpCodes.Ldflda })
-                AssertMutation(census, "an extra privileged-source forwarding helper using " + opcode, () =>
-                {
-                    var type = census.Types[subject];
-                    var source = type.Fields.Single(field => field.Name == "_source");
-                    var method = new MethodDefinition("ForwardSource", MethodAttributes.Private, type.Module.TypeSystem.Void);
-                    method.Body.Instructions.Add(Instruction.Create(opcode, source));
-                    method.Body.Instructions.Add(Instruction.Create(OpCodes.Pop));
-                    method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
-                    type.Methods.Add(method);
-                    return () => type.Methods.Remove(method);
-                }, CredentialOffenders);
-        var store = census.Types[(InfrastructureAssembly, Store)];
-        var storeConstructor = store.Methods.Single(method => method.IsConstructor && !method.IsStatic);
-        AssertMutation(census, "a second consumer constructing the privileged store", () =>
-            AddCallProbe(application, "AdditionalStoreConsumer", storeConstructor, OpCodes.Newobj), CredentialOffenders);
-        var resolveStore = typeof(ServiceProviderServiceExtensions).GetMethods().Single(method => method.Name == "GetRequiredService"
-            && method.IsGenericMethodDefinition && method.GetParameters().Length == 1).MakeGenericMethod(typeof(OutboxDispatchStore));
-        AssertMutation(census, "an unkeyed locator escaping through the privileged store", () =>
-            AddCallProbe(application, "LocatedStoreConsumer", application.ImportReference(resolveStore), OpCodes.Call), CredentialOffenders);
-        AssertMutation(census, "an unrelated helper on the approved worker using the privileged store", () =>
-        {
-            var worker = census.Types[(BoundaryApi, BoundaryWorker)];
-            var method = AddCall(worker, "UnrelatedStoreConsumer", store.Methods.Single(method => method.Name == "TryClaimAsync"), OpCodes.Call);
-            return () => worker.Methods.Remove(method);
-        }, CredentialOffenders);
-        var boundaryWorker = census.Types[(BoundaryApi, BoundaryWorker)];
-        foreach (var name in new[] { "ExecuteAsync", "ClaimNextAsync", "DispatchAsync", "DispatchNormalAsync", "RefreshAsync" })
-            AssertMutation(census, "a public store-forwarding overload borrowing the approved worker name " + name, () =>
-                AddBoundaryFieldGetter(boundaryWorker, name, "_store"), CredentialOffenders);
-        AssertMutation(census, "a public raw-source overload borrowing the approved worker name StartAsync", () =>
-            AddBoundaryFieldGetter(boundaryWorker, "StartAsync", "_source"), CredentialOffenders);
-        foreach (var name in new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync" })
-            AssertMutation(census, "a public raw-source overload borrowing the approved store name " + name, () =>
-                AddBoundaryFieldGetter(store, name, "_source"), CredentialOffenders);
-        foreach (var method in new[] { boundaryWorker.Methods.Single(item => item.Name == "StartAsync"),
+            using var census = ProductionCensus.Read();
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
+            var extensions = typeof(ServiceProviderKeyedServiceExtensions).GetMethods()
+                .Where(method => method.Name is "GetRequiredKeyedService" or "GetKeyedService" or "GetKeyedServices")
+                .ToArray();
+            var targets = extensions.Concat(typeof(IKeyedServiceProvider).GetMethods())
+                .Concat(typeof(ServiceProvider).GetMethods().Where(method => method.Name is "GetRequiredKeyedService" or "GetKeyedService"));
+            foreach (var target in targets)
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "extra keyed resolution through " + target.DeclaringType!.Name + "." + target.Name + "/" + opcode,
+                        () => AddCallProbe(application, "CredentialCaller", application.ImportReference(target), opcode), CredentialOffenders);
+
+            var resolver = application.ImportReference(extensions.First());
+            AssertMutation(census, "a cross-assembly async keyed resolver", () =>
+                AddAsyncCallProbe(application, "AsyncCredentialCaller", resolver), CredentialOffenders);
+            AssertMutation(census, "an unrelated helper on the sanctioned composition type", () =>
+            {
+                var type = census.Types[(BoundaryApi, BoundaryComposition)];
+                var method = AddCall(type, "UnrelatedCredentialHelper", resolver, OpCodes.Call);
+                return () => type.Methods.Remove(method);
+            }, CredentialOffenders);
+            AssertMutation(census, "a generated-name impersonation of the composition root", () =>
+            {
+                var type = census.Types[(BoundaryApi, BoundaryComposition)];
+                var generated = new TypeDefinition(string.Empty, "<AddLearnStackOutboxDispatcher>d__999", TypeAttributes.NestedPrivate,
+                    type.Module.TypeSystem.Object);
+                type.NestedTypes.Add(generated);
+                AddCall(generated, "MoveNext", resolver, OpCodes.Call);
+                return () => type.NestedTypes.Remove(generated);
+            }, CredentialOffenders);
+            AssertMutation(census, "AnyKey enumeration even inside a sanctioned root", () =>
+            {
+                var type = census.Types[(BoundaryApi, BoundaryComposition)];
+                var method = AddCall(type, "AnyCredential", type.Module.ImportReference(typeof(KeyedService)
+                    .GetProperty(nameof(KeyedService.AnyKey))!.GetMethod!), OpCodes.Call);
+                return () => type.Methods.Remove(method);
+            }, CredentialOffenders);
+            AssertMutation(census, "an outbox credential indexer in another production assembly", () =>
+                AddStringProbe(application, "CredentialIndexer", "ConnectionStrings:OutboxDispatcher"), CredentialOffenders);
+            AssertMutation(census, "an outbox environment credential in another production assembly", () =>
+                AddStringProbe(application, "CredentialEnvironment", "ConnectionStrings__OutboxDispatcher"), CredentialOffenders);
+            foreach (var alias in new[] { "OUTBOXDISPATCHER", "CONNECTIONSTRINGS:OUTBOXDISPATCHER", "CONNECTIONSTRINGS__OUTBOXDISPATCHER" })
+                AssertMutation(census, "a case-insensitive configuration alias " + alias, () =>
+                    AddStringProbe(application, "UppercaseCredentialAlias", alias), CredentialOffenders);
+            foreach (var subject in new[] { (BoundaryApi, BoundaryWorker), (InfrastructureAssembly, Store) })
+                foreach (var opcode in new[] { OpCodes.Ldfld, OpCodes.Ldflda })
+                    AssertMutation(census, "an extra privileged-source forwarding helper using " + opcode, () =>
+                    {
+                        var type = census.Types[subject];
+                        var source = type.Fields.Single(field => field.Name == "_source");
+                        var method = new MethodDefinition("ForwardSource", MethodAttributes.Private, type.Module.TypeSystem.Void);
+                        method.Body.Instructions.Add(Instruction.Create(opcode, source));
+                        method.Body.Instructions.Add(Instruction.Create(OpCodes.Pop));
+                        method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                        type.Methods.Add(method);
+                        return () => type.Methods.Remove(method);
+                    }, CredentialOffenders);
+            var store = census.Types[(InfrastructureAssembly, Store)];
+            var storeConstructor = store.Methods.Single(method => method.IsConstructor && !method.IsStatic);
+            AssertMutation(census, "a second consumer constructing the privileged store", () =>
+                AddCallProbe(application, "AdditionalStoreConsumer", storeConstructor, OpCodes.Newobj), CredentialOffenders);
+            var resolveStore = typeof(ServiceProviderServiceExtensions).GetMethods().Single(method => method.Name == "GetRequiredService"
+                && method.IsGenericMethodDefinition && method.GetParameters().Length == 1).MakeGenericMethod(typeof(OutboxDispatchStore));
+            AssertMutation(census, "an unkeyed locator escaping through the privileged store", () =>
+                AddCallProbe(application, "LocatedStoreConsumer", application.ImportReference(resolveStore), OpCodes.Call), CredentialOffenders);
+            AssertMutation(census, "an unrelated helper on the approved worker using the privileged store", () =>
+            {
+                var worker = census.Types[(BoundaryApi, BoundaryWorker)];
+                var method = AddCall(worker, "UnrelatedStoreConsumer", store.Methods.Single(method => method.Name == "TryClaimAsync"), OpCodes.Call);
+                return () => worker.Methods.Remove(method);
+            }, CredentialOffenders);
+            var boundaryWorker = census.Types[(BoundaryApi, BoundaryWorker)];
+            foreach (var name in new[] { "ExecuteAsync", "ClaimNextAsync", "DispatchAsync", "DispatchNormalAsync", "RefreshAsync" })
+                AssertMutation(census, "a public store-forwarding overload borrowing the approved worker name " + name, () =>
+                    AddBoundaryFieldGetter(boundaryWorker, name, "_store"), CredentialOffenders);
+            AssertMutation(census, "a public raw-source overload borrowing the approved worker name StartAsync", () =>
+                AddBoundaryFieldGetter(boundaryWorker, "StartAsync", "_source"), CredentialOffenders);
+            foreach (var name in new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync" })
+                AssertMutation(census, "a public raw-source overload borrowing the approved store name " + name, () =>
+                    AddBoundaryFieldGetter(store, name, "_source"), CredentialOffenders);
+            foreach (var method in new[] { boundaryWorker.Methods.Single(item => item.Name == "StartAsync"),
                      store.Methods.Single(item => item.Name == "ReadSnapshotAsync") })
-        {
-            AssertMutation(census, "a changed source-reader visibility", () =>
-                ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
-                    (method.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Private), CredentialOffenders);
-            AssertMutation(census, "a static source reader replacing its approved instance binding", () =>
-                ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
-                    method.Attributes | MethodAttributes.Static), CredentialOffenders);
-            AssertMutation(census, "a changed source-reader return type", () =>
             {
-                var original = method.ReturnType;
-                method.ReturnType = method.Module.TypeSystem.Object;
-                return () => method.ReturnType = original;
-            }, CredentialOffenders);
-            AssertMutation(census, "a changed source-reader parameter type", () =>
-            {
-                var parameter = method.Parameters[0];
-                var original = parameter.ParameterType;
-                parameter.ParameterType = method.Module.TypeSystem.Int32;
-                return () => parameter.ParameterType = original;
-            }, CredentialOffenders);
+                AssertMutation(census, "a changed source-reader visibility", () =>
+                    ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
+                        (method.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Private), CredentialOffenders);
+                AssertMutation(census, "a static source reader replacing its approved instance binding", () =>
+                    ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
+                        method.Attributes | MethodAttributes.Static), CredentialOffenders);
+                AssertMutation(census, "a changed source-reader return type", () =>
+                {
+                    var original = method.ReturnType;
+                    method.ReturnType = method.Module.TypeSystem.Object;
+                    return () => method.ReturnType = original;
+                }, CredentialOffenders);
+                AssertMutation(census, "a changed source-reader parameter type", () =>
+                {
+                    var parameter = method.Parameters[0];
+                    var original = parameter.ParameterType;
+                    parameter.ParameterType = method.Module.TypeSystem.Int32;
+                    return () => parameter.ParameterType = original;
+                }, CredentialOffenders);
+            }
+            var dispatch = boundaryWorker.Methods.Single(method => method.Name == "DispatchAsync");
+            AssertMutation(census, "a public store-consumer method replacing its private binding", () =>
+                ChangeAttributes(() => dispatch.Attributes, value => dispatch.Attributes = value,
+                    (dispatch.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), CredentialOffenders);
         }
-        var dispatch = boundaryWorker.Methods.Single(method => method.Name == "DispatchAsync");
-        AssertMutation(census, "a public store-consumer method replacing its private binding", () =>
-            ChangeAttributes(() => dispatch.Attributes, value => dispatch.Attributes = value,
-                (dispatch.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), CredentialOffenders);
+
     }
 
     [Fact]
@@ -194,50 +200,41 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var key in new[] { OutboxDispatcherDataSource.Key, PlatformAdminScope.PlatformDataSourceKey })
         {
             var descriptor = BoundaryRegistrations().Single(item => item.IsKeyedService && Equals(item.ServiceKey, key)
-                && item.ServiceType == typeof(Lazy<NpgsqlDataSource>));
+                && item.ServiceType == typeof(PrivilegedDataSource));
             var factory = FindRuntimeMethod(census, descriptor.KeyedImplementationFactory!.Method)!;
             var leafReference = DelegateTargets(factory).Single();
             var leaf = census.Types[Key(leafReference.DeclaringType)].Methods.Single(method => MethodId(method) == MethodId(leafReference));
-            var call = leaf.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method && IsKeyedResolution(method));
-            AssertMutation(census, "a lazy callback substituting the other key", () =>
-                ReplaceInstruction(call.Previous!, OpCodes.Ldstr, key == OutboxDispatcherDataSource.Key
-                    ? PlatformAdminScope.PlatformDataSourceKey : OutboxDispatcherDataSource.Key), CredentialOffenders);
+            var call = leaf.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                && method.ReturnType.FullName == "Npgsql.NpgsqlDataSource");
+            var wrong = key == OutboxDispatcherDataSource.Key
+                ? census.Types[(BoundaryApi, BoundaryPersistence)].Methods.Single(method => method.Name == "BuildPlatformDataSource")
+                : census.Types[(InfrastructureAssembly, BoundarySource)].Methods.Single(method => method.Name == "Build");
+            AssertMutation(census, "a facade callback constructing the other privileged pool", () =>
+                ReplaceInstruction(call, OpCodes.Call, wrong), CredentialOffenders);
             var captured = (FieldReference)call.Previous!.Operand;
-            var assignment = factory.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
+            var credentialOwner = census.Types[(BoundaryApi, key == OutboxDispatcherDataSource.Key ? BoundaryComposition : BoundaryPersistence)]
+                .Methods.Single(method => method.Name == (key == OutboxDispatcherDataSource.Key ? "AddLearnStackOutboxDispatcher" : "AddLearnStackPersistence"));
+            var assignment = credentialOwner.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
                 && instruction.Operand is FieldReference field && field.FullName == captured.FullName);
-            AssertMutation(census, "a factory capturing a different key instead of its registered key", () =>
-                ReplaceInstruction(assignment.Previous!, OpCodes.Ldstr, "unrelated-key"), CredentialOffenders);
-            var provider = (FieldReference)call.Previous.Previous!.Previous!.Operand;
-            foreach (var field in new[] { captured, provider })
+            AssertMutation(census, "a facade capturing a different credential instead of its declared read", () =>
+                ReplaceInstruction(assignment.Previous!, OpCodes.Ldstr, "synthetic-unrelated-credential"), CredentialOffenders);
+            foreach (var method in new[] { leaf, factory })
             {
-                AssertMutation(census, "the real lazy callback overwriting captured " + field.Name, () =>
-                    InsertCaptureMutation(leaf, field, address: false), CredentialOffenders);
-                AssertMutation(census, "the actual factory overwriting captured " + field.Name + " after its original assignment", () =>
-                    InsertCaptureMutation(factory, field, address: false, afterCapture: true), CredentialOffenders);
-                AssertMutation(census, "a closure helper overwriting captured " + field.Name, () =>
-                {
-                    var helper = new MethodDefinition("RewriteCapturedField", MethodAttributes.Private, leaf.Module.TypeSystem.Void);
-                    helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
-                    leaf.DeclaringType.Methods.Add(helper);
-                    var undo = InsertCaptureMutation(helper, field, address: false);
-                    return () => { undo(); leaf.DeclaringType.Methods.Remove(helper); };
-                }, CredentialOffenders);
-                AssertMutation(census, "the real lazy callback exposing the address of captured " + field.Name, () =>
-                    InsertCaptureMutation(leaf, field, address: true), CredentialOffenders);
-                var parameter = factory.Parameters[field == captured ? 1 : 0];
-                foreach (var opcode in new[] { OpCodes.Starg, OpCodes.Starg_S, OpCodes.Ldarga, OpCodes.Ldarga_S })
-                    AssertMutation(census, "the actual factory mutating or exposing its " + parameter.Name + " argument through " + opcode, () =>
-                    {
-                        var address = opcode == OpCodes.Ldarga || opcode == OpCodes.Ldarga_S;
-                        var replacement = parameter.ParameterType.FullName == "System.Object"
-                            ? Instruction.Create(OpCodes.Ldstr, PlatformAdminScope.PlatformDataSourceKey) : Instruction.Create(OpCodes.Ldnull);
-                        var inserted = address
-                            ? new[] { Instruction.Create(opcode, parameter), Instruction.Create(OpCodes.Pop) }
-                            : [replacement, Instruction.Create(opcode, parameter)];
-                        for (var index = 0; index < inserted.Length; index++) factory.Body.Instructions.Insert(index, inserted[index]);
-                        return () => { foreach (var instruction in inserted) factory.Body.Instructions.Remove(instruction); };
-                    }, CredentialOffenders);
+                AssertMutation(census, "the actual facade callback overwriting its captured credential", () =>
+                    InsertCaptureMutation(method, captured, address: false), CredentialOffenders);
+                AssertMutation(census, "the actual facade callback exposing its captured credential address", () =>
+                    InsertCaptureMutation(method, captured, address: true), CredentialOffenders);
             }
+            AssertMutation(census, "a closure helper overwriting the captured credential", () =>
+            {
+                var helper = new MethodDefinition("RewriteCapturedCredential", MethodAttributes.Private, leaf.Module.TypeSystem.Void);
+                helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                leaf.DeclaringType.Methods.Add(helper);
+                var undo = InsertCaptureMutation(helper, captured, address: false);
+                return () => { undo(); leaf.DeclaringType.Methods.Remove(helper); };
+            }, CredentialOffenders);
+            AssertMutation(census, "the original credential owner overwriting its captured value after assignment", () =>
+                InsertCaptureMutation(credentialOwner, captured, address: false, afterCapture: true), CredentialOffenders);
         }
 
         var root = census.Types[(BoundaryApi, BoundaryComposition)].Methods.Single(method => method.Name == "AddLearnStackOutboxDispatcher");
@@ -267,7 +264,7 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var name in new[] { "UnrelatedLiteral", "UnrelatedDynamic", "Dictionary", "CredentialDiagnostic" })
         {
             var undo = AddCompiledCredentialProbe(application, name);
-            try { CredentialOffenders(census).Should().BeEmpty("Fix: unrelated configuration, dictionary indexers and diagnostics remain valid"); }
+            try { EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("Fix: unrelated configuration, dictionary indexers and diagnostics remain valid"); }
             finally { undo(); }
         }
     }
@@ -311,7 +308,7 @@ public sealed partial class OutboxDispatchConventionTests
         IServiceCollection services = BoundaryRegistrations();
         RegistrationOffenders(services).Should().BeEmpty("Fix: the real production composition must be the clean control");
         var descriptor = services.Single(item => item.IsKeyedService && Equals(item.ServiceKey, OutboxDispatcherDataSource.Key)
-            && item.ServiceType == typeof(NpgsqlDataSource));
+            && item.ServiceType == typeof(PrivilegedDataSource));
         services.Remove(descriptor);
         RegistrationOffenders(services).Should().NotBeEmpty("Fix: a missing privileged source must fail");
         services.Add(descriptor);
@@ -320,12 +317,12 @@ public sealed partial class OutboxDispatchConventionTests
         services.Remove(descriptor);
         services.Remove(descriptor);
         var wrongKey = new ServiceCollection();
-        wrongKey.AddKeyedSingleton<NpgsqlDataSource>("unrelated-key", (_, _) => throw new InvalidOperationException("Never resolved"));
+        wrongKey.AddKeyedSingleton<PrivilegedDataSource>("unrelated-key", (_, _) => throw new InvalidOperationException("Never resolved"));
         services.Add(wrongKey.Single());
         RegistrationOffenders(services).Should().NotBeEmpty("Fix: a renamed privileged source must fail");
         services.Remove(wrongKey.Single());
         var scoped = new ServiceCollection();
-        scoped.AddKeyedScoped<NpgsqlDataSource>(OutboxDispatcherDataSource.Key, (_, _) => throw new InvalidOperationException("Never resolved"));
+        scoped.AddKeyedScoped<PrivilegedDataSource>(OutboxDispatcherDataSource.Key, (_, _) => throw new InvalidOperationException("Never resolved"));
         services.Add(scoped.Single());
         RegistrationOffenders(services).Should().NotBeEmpty("Fix: a non-singleton privileged source must fail");
         services.Remove(scoped.Single());
@@ -398,7 +395,7 @@ public sealed partial class OutboxDispatchConventionTests
         AddCall(type, "CallUnrelatedPublisher", unrelated, OpCodes.Call);
         try
         {
-            CredentialOffenders(census).Should().BeEmpty("Fix: both distinct production keys and ordinary unkeyed resolution remain valid");
+            EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("Fix: both distinct production keys and ordinary unkeyed resolution remain valid");
             PublicationOffenders(census).Should().BeEmpty("Fix: unrelated methods named PublishAsync are not event-bus publication");
         }
         finally { module.Types.Remove(type); }
@@ -468,10 +465,8 @@ public sealed partial class OutboxDispatchConventionTests
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
         var expected = new[]
         {
-            PlatformAdminScope.PlatformDataSourceKey + ":" + typeof(NpgsqlDataSource),
-            PlatformAdminScope.PlatformDataSourceKey + ":" + typeof(Lazy<NpgsqlDataSource>),
-            OutboxDispatcherDataSource.Key + ":" + typeof(NpgsqlDataSource),
-            OutboxDispatcherDataSource.Key + ":" + typeof(Lazy<NpgsqlDataSource>),
+            PlatformAdminScope.PlatformDataSourceKey + ":" + typeof(PrivilegedDataSource),
+            OutboxDispatcherDataSource.Key + ":" + typeof(PrivilegedDataSource),
         };
         var keyed = services.Where(descriptor => descriptor.IsKeyedService).ToArray();
         CheckSet(offenders, "keyed production registrations", keyed.Select(descriptor =>
@@ -490,12 +485,14 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "production assemblies", census.Modules.Select(module => module.Assembly.Name.Name), ProductionAssemblies.Names());
         foreach (var subject in new[] { (BoundaryApi, BoundaryComposition), (BoundaryApi, BoundaryPersistence),
                      (BoundaryApi, BoundaryWorker), (BoundaryApi, DeliveryWorker), (InfrastructureAssembly, DeliveryStore), (InfrastructureAssembly, BoundaryPlatform),
-                     (InfrastructureAssembly, BoundarySource), (InfrastructureAssembly, Store) })
+                     (InfrastructureAssembly, BoundarySource), (InfrastructureAssembly, Store), (InfrastructureAssembly, JobRoutingStore),
+                     (InfrastructureAssembly, JobRuntimeRegistration), (InfrastructureAssembly, JobRuntime) })
             if (!types.ContainsKey(subject)) offenders.Add("Missing credential subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
 
         var outboxRoot = types[(BoundaryApi, BoundaryComposition)].Methods.Single(method => method.Name == "AddLearnStackOutboxDispatcher");
         var platformRoot = types[(BoundaryApi, BoundaryPersistence)].Methods.Single(method => method.Name == "AddLearnStackPersistence");
+        var runtimeRoot = types[(InfrastructureAssembly, JobRuntimeRegistration)].Methods.Single(method => method.Name == "AddLearnStackBackgroundJobRuntime");
         var roots = new[] { (Root: outboxRoot, Key: OutboxDispatcherDataSource.Key),
             (Root: platformRoot, Key: PlatformAdminScope.PlatformDataSourceKey) };
         var expectedResolvers = new List<string>();
@@ -512,19 +509,14 @@ public sealed partial class OutboxDispatchConventionTests
                 expectedFactories.Add(MethodId(root));
                 if (!DelegateTargets(root).Any(target => MethodId(target) == MethodId(factory)))
                     offenders.Add(MethodId(root) + ": must directly register its actual factory " + MethodId(factory));
-                if (descriptor.ServiceType == typeof(NpgsqlDataSource))
-                {
-                    if (key == OutboxDispatcherDataSource.Key) outboxBuildFactory = factory;
-                    continue;
-                }
-
                 var leaves = DelegateTargets(factory).ToArray();
                 if (leaves.Length != 1 || !types.TryGetValue(Key(leaves[0].DeclaringType), out var leafType))
-                { offenders.Add(MethodId(factory) + ": requires one actual lazy delegate"); continue; }
+                { offenders.Add(MethodId(factory) + ": requires one actual private pool factory delegate"); continue; }
                 var leaf = leafType.Methods.SingleOrDefault(method => MethodId(method) == MethodId(leaves[0]));
-                if (leaf is null) { offenders.Add("Missing lazy delegate: " + leaves[0].FullName); continue; }
-                expectedResolvers.Add(MethodId(leaf));
-                CheckCapturedKeyResolver(offenders, census, factory, leaf);
+                if (leaf is null) { offenders.Add("Missing pool delegate: " + leaves[0].FullName); continue; }
+                if (key == OutboxDispatcherDataSource.Key) outboxBuildFactory = leaf;
+                CheckCapturedPoolFactory(offenders, census, root, factory, leaf, key);
+
             }
 
             // Pin registration keys independently from callback keys. A changed key in
@@ -533,10 +525,10 @@ public sealed partial class OutboxDispatchConventionTests
                 .Where(instruction => instruction.Operand is string value
                     && (value == OutboxDispatcherDataSource.Key || value == PlatformAdminScope.PlatformDataSourceKey)
                     && instruction.Next?.Operand is not MethodReference { Name: "GetConnectionString" })
-                .Select(instruction => (string)instruction.Operand), [key, key]);
+                .Select(instruction => (string)instruction.Operand), [key]);
             var keyCalls = MethodOperands(root).Where(IsKeyedRegistration).ToArray();
             CheckSet(offenders, MethodId(root) + " registration service types", keyCalls.Select(GenericService),
-                [BoundaryDataSource, BoundaryLazySource]);
+                [BoundaryGuardedSource]);
         }
 
         var storeDescriptor = services.Single(descriptor => !descriptor.IsKeyedService && descriptor.ServiceType == typeof(OutboxDispatchStore));
@@ -547,7 +539,7 @@ public sealed partial class OutboxDispatchConventionTests
             expectedResolvers.Add(MethodId(storeFactory));
             if (!DelegateTargets(outboxRoot).Any(target => MethodId(target) == MethodId(storeFactory)))
                 offenders.Add("Dispatcher store factory must be registered by the outbox root");
-            CheckLiteralKeyResolver(offenders, storeFactory, BoundaryLazySource, OutboxDispatcherDataSource.Key);
+            CheckLiteralKeyResolver(offenders, storeFactory, BoundaryGuardedSource, OutboxDispatcherDataSource.Key);
         }
 
         var deliveryDescriptor = services.Single(descriptor => !descriptor.IsKeyedService
@@ -559,10 +551,36 @@ public sealed partial class OutboxDispatchConventionTests
             expectedResolvers.Add(MethodId(deliveryFactory));
             if (!DelegateTargets(outboxRoot).Any(target => MethodId(target) == MethodId(deliveryFactory)))
                 offenders.Add("Delivery store factory must be registered by the outbox root");
-            CheckLiteralKeyResolver(offenders, deliveryFactory, BoundaryLazySource, OutboxDispatcherDataSource.Key);
+            CheckLiteralKeyResolver(offenders, deliveryFactory, BoundaryGuardedSource, OutboxDispatcherDataSource.Key);
         }
 
         var sites = CallSites(census).ToArray();
+        var routingDescriptor = services.Single(descriptor => !descriptor.IsKeyedService
+            && descriptor.ServiceType == typeof(PostgresBackgroundJobRoutingStore));
+        var routingFactory = routingDescriptor.ImplementationFactory is { } implementationFactory
+            ? FindRuntimeMethod(census, implementationFactory.Method) : null;
+        if (routingFactory is null || routingDescriptor.Lifetime != ServiceLifetime.Singleton)
+            offenders.Add("Missing actual singleton job-routing store factory");
+        else
+        {
+            expectedResolvers.Add(MethodId(routingFactory));
+            if (!DelegateTargets(runtimeRoot).Any(target => MethodId(target) == MethodId(routingFactory)))
+                offenders.Add("Job-routing store factory must be registered by the closed runtime registration");
+            CheckLiteralKeyResolver(offenders, routingFactory, BoundaryGuardedSource, OutboxDispatcherDataSource.Key);
+        }
+        var runtimeDescriptor = services.Single(descriptor => !descriptor.IsKeyedService
+            && descriptor.ServiceType == typeof(BackgroundJobRuntime));
+        var runtimeFactory = runtimeDescriptor.ImplementationFactory is { } createRuntime
+            ? FindRuntimeMethod(census, createRuntime.Method) : null;
+        if (runtimeFactory is null || runtimeDescriptor.Lifetime != ServiceLifetime.Singleton)
+            offenders.Add("Missing actual singleton job-runtime factory");
+        else
+        {
+            expectedResolvers.Add(MethodId(runtimeFactory));
+            if (!DelegateTargets(runtimeRoot).Any(target => MethodId(target) == MethodId(runtimeFactory)))
+                offenders.Add("Job-runtime factory must be registered by the closed runtime registration");
+            CheckLiteralKeyResolver(offenders, runtimeFactory, BoundaryGuardedSource, OutboxDispatcherDataSource.Key);
+        }
         CheckSet(offenders, "keyed resolver callers", sites.Where(site => IsKeyedResolution(site.Target)).Select(site => site.Owner), expectedResolvers);
         CheckSet(offenders, "keyed registration callers", sites.Where(site => IsKeyedRegistration(site.Target)).Select(site => site.Owner), expectedFactories);
         CheckSet(offenders, "outbox pool construction", sites.Where(site => site.Target.DeclaringType.FullName == BoundarySource
@@ -614,17 +632,17 @@ public sealed partial class OutboxDispatchConventionTests
         var workerConstructor = BoundaryWorkerConstructor(offenders, worker);
         var scopeConstructor = types[(InfrastructureAssembly, BoundaryPlatform)].Methods.Single(method => method.IsConstructor && !method.IsStatic);
         CheckSet(offenders, "keyed parameter bindings", injections,
-            [workerConstructor + ":" + BoundaryLazySource + ":" + OutboxDispatcherDataSource.Key,
-             MethodId(scopeConstructor) + ":" + BoundaryLazySource + ":" + PlatformAdminScope.PlatformDataSourceKey,
-             DeliveryWorkerConstructor(offenders, types[(BoundaryApi, DeliveryWorker)]) + ":" + BoundaryLazySource + ":" + OutboxDispatcherDataSource.Key]);
+            [workerConstructor + ":" + BoundaryGuardedSource + ":" + OutboxDispatcherDataSource.Key,
+             MethodId(scopeConstructor) + ":" + BoundaryGuardedSource + ":" + PlatformAdminScope.PlatformDataSourceKey,
+             DeliveryWorkerConstructor(offenders, types[(BoundaryApi, DeliveryWorker)]) + ":" + BoundaryGuardedSource + ":" + OutboxDispatcherDataSource.Key]);
         CheckSourceFieldAccess(offenders, census, worker, workerConstructor,
             [RequireBoundaryMethod(offenders, worker, "StartAsync", BoundaryTask, MethodAttributes.Public, BoundaryCancellation)]);
         var store = types[(InfrastructureAssembly, Store)];
         var storeConstructor = RequireBoundaryMethod(offenders, store, ".ctor", "System.Void", MethodAttributes.Public,
-            BoundaryLazySource, "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
+            BoundaryGuardedSource, "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
             "LearnStack.Infrastructure.Messaging.OutboxDispatchOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory",
             "LearnStack.SharedKernel.Time.IClock", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory");
-        CheckSourceFieldAccess(offenders, census, store, storeConstructor,
+        string[] storeAcquisitions =
         [
             RequireBoundaryMethod(offenders, store, "AcquireAsync", "System.Threading.Tasks.Task`1<" + BoundaryClaim + ">", MethodAttributes.Private,
                 "LearnStack.Infrastructure.Messaging.OutboxClaimKind", "System.String", BoundaryStrings, BoundaryCancellation),
@@ -635,9 +653,16 @@ public sealed partial class OutboxDispatchConventionTests
             RequireBoundaryMethod(offenders, store, "IsDurablyTerminalAsync", BoundaryBooleanTask, MethodAttributes.Private, "System.Guid"),
             RequireBoundaryMethod(offenders, store, "ReadSnapshotAsync", "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Messaging.OutboxQueueSnapshot>",
                 MethodAttributes.Public, BoundaryStrings, BoundaryCancellation),
-        ]);
+        ];
+        var storeReader = RequireBoundaryMethod(offenders, store, "OpenConnectionAsync",
+            "System.Threading.Tasks.ValueTask`1<" + Store + "/OwnedConnection>", MethodAttributes.Private, BoundaryCancellation);
+        CheckSourceFieldAccess(offenders, census, store, storeConstructor, [storeReader]);
+        CheckCleanupConnectionOwner(offenders, census, store, storeReader, storeAcquisitions);
         if (storeFactory is not null) CheckStoreConsumers(offenders, census, outboxRoot, storeFactory);
         CheckDeliveryCredentials(offenders, census, outboxRoot, deliveryFactory);
+        CheckJobRoutingCredentials(offenders, census, runtimeRoot, routingFactory);
+        CheckPrivilegedAcquisitions(offenders, census);
+        offenders.UnionWith(RuntimeLifetimeOffenders(census));
         return offenders;
     }
 
@@ -663,7 +688,8 @@ public sealed partial class OutboxDispatchConventionTests
             RequireBoundaryMethod(offenders, worker, "RefreshAsync", BoundaryTask, MethodAttributes.Private, "System.Boolean", BoundaryCancellation),
         };
         CheckSet(offenders, "privileged store consumers", owners,
-            workerMethods.Concat([MethodId(composition), MethodId(factory)]));
+            workerMethods.Concat([MethodId(composition), MethodId(factory)]).Concat(CleanupOwnerConsumerIds(census, Store))
+                .Concat(MessagingStoreConsumerIds(Store)));
         // Only an attribute-linked Store state machine may carry its own captured
         // instance. A similarly named nested type gains no authority from its name.
         var stateMachines = OwnedBodies(census).Where(item => item.Body.Name == "MoveNext" && item.Body != item.Owner
@@ -675,9 +701,11 @@ public sealed partial class OutboxDispatchConventionTests
             && !(stateMachines.Contains(Key(field.DeclaringType)) && field.Name == "<>4__this"
                 && field.FieldType.FullName == Store)).ToArray();
         CheckSet(offenders, "privileged store fields", fields.Select(field => TypeId(field.DeclaringType) + ":" + field.Name),
-            [TypeId(worker) + ":_store"]);
+            [TypeId(worker) + ":_store", InfrastructureAssembly + ":" + Store + "/OwnedConnection:<owner>P",
+             BoundaryApi + ":" + MessagingLifetime + ":_outboxStore"]);
         foreach (var field in fields)
-            if (!field.IsPrivate || !field.IsInitOnly) offenders.Add(field.FullName + ": store capability must remain private and readonly");
+            if (!field.IsPrivate || !field.IsInitOnly && !(field.DeclaringType.FullName == Store + "/OwnedConnection" && field.Name == "<owner>P"))
+                offenders.Add(field.FullName + ": store capability must remain private and readonly or the exact construction-only cleanup capture");
     }
 
     private static bool ReferencesStore(MethodDefinition method)
@@ -706,7 +734,7 @@ public sealed partial class OutboxDispatchConventionTests
     {
         var fields = type.Fields.Where(field => field.Name == "_source").ToArray();
         if (fields.Length != 1 || !fields[0].IsPrivate || !fields[0].IsInitOnly || fields[0].IsStatic
-            || fields[0].FieldType.FullName != BoundaryLazySource)
+            || fields[0].FieldType.FullName != BoundaryGuardedSource)
         { offenders.Add(TypeId(type) + ": requires its private readonly lazy source"); return; }
         // Close forwarding of an already injected capability as well as fresh keyed
         // resolution. Exact access counts also catch another use in an allowed method.
@@ -720,7 +748,7 @@ public sealed partial class OutboxDispatchConventionTests
 
     private static string BoundaryWorkerConstructor(SortedSet<string> offenders, TypeDefinition worker) =>
         RequireBoundaryMethod(offenders, worker, ".ctor", "System.Void", MethodAttributes.Public,
-            BoundaryLazySource, Store, "LearnStack.Infrastructure.Messaging.OutboxEnvelopeReader",
+            BoundaryGuardedSource, Store, "LearnStack.Infrastructure.Messaging.OutboxEnvelopeReader",
             "LearnStack.Infrastructure.Messaging.OutboxEventRegistry", "LearnStack.Infrastructure.Messaging.OutboxDispatchOptions",
             "System.TimeProvider", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory", "LearnStack.Api.Messaging.OutboxObservation",
             "Microsoft.Extensions.Logging.ILogger`1<" + BoundaryWorker + ">");
@@ -739,51 +767,30 @@ public sealed partial class OutboxDispatchConventionTests
         return expected;
     }
 
-    private static void CheckCapturedKeyResolver(SortedSet<string> offenders, ProductionCensus census,
-        MethodDefinition factory, MethodDefinition leaf)
+    private static void CheckCapturedPoolFactory(SortedSet<string> offenders, ProductionCensus census,
+        MethodDefinition root, MethodDefinition factory, MethodDefinition leaf, string key)
     {
-        // Recognize this one compiler-emitted closure: (provider, key) =>
-        // new Lazy<NpgsqlDataSource>(() => provider.GetRequiredKeyedService<NpgsqlDataSource>(key)).
-        // No general dataflow interpreter or generated-name permission is involved.
-        var calls = leaf.Body.Instructions.Where(instruction => instruction.Operand is MethodReference call && IsKeyedResolution(call)).ToArray();
-        var call = calls.Length == 1 ? calls[0] : null;
-        var keyField = call?.Previous?.Operand as FieldReference;
-        var providerField = call?.Previous?.Previous?.Previous?.Operand as FieldReference;
-        if (call?.Operand is not MethodReference target || target.Name != "GetRequiredKeyedService"
-            || GenericService(target) != BoundaryDataSource || keyField is null || providerField is null
-            || call.Previous!.OpCode != OpCodes.Ldfld || call.Previous.Previous!.OpCode != OpCodes.Ldarg_0
-            || call.Previous.Previous.Previous!.OpCode != OpCodes.Ldfld
-            || !CapturesParameter(census, factory, keyField, 1) || !CapturesParameter(census, factory, providerField, 0))
-            offenders.Add(MethodId(leaf) + ": lazy resolver must forward its own registered key and provider unchanged");
-    }
-
-    private static bool CapturesParameter(ProductionCensus census, MethodDefinition factory, FieldReference field, int parameter)
-    {
-        var argument = factory.Parameters[parameter];
-        if (factory.Body.Instructions.Any(instruction => instruction.Operand is ParameterDefinition target && target == argument
-            && (instruction.OpCode == OpCodes.Starg || instruction.OpCode == OpCodes.Starg_S
-                || instruction.OpCode == OpCodes.Ldarga || instruction.OpCode == OpCodes.Ldarga_S))) return false;
-        // The matching original capture is insufficient: a later callback/helper
-        // write can replace the key or provider while preserving that instruction.
-        // Close every direct write and address escape of this exact captured field.
-        var mutations = census.Types.Values.SelectMany(type => type.Methods).Where(method => method.HasBody)
-            .SelectMany(method => method.Body.Instructions.Where(instruction =>
-                    instruction.Operand is FieldReference assigned && SameType(assigned.DeclaringType, field.DeclaringType)
-                    && assigned.Name == field.Name && (instruction.OpCode == OpCodes.Stfld || instruction.OpCode == OpCodes.Stsfld
-                        || instruction.OpCode == OpCodes.Ldflda || instruction.OpCode == OpCodes.Ldsflda))
+        var calls = MethodOperands(leaf).Where(method => method.ReturnType.FullName == "Npgsql.NpgsqlDataSource").ToArray();
+        var expectedType = key == OutboxDispatcherDataSource.Key ? BoundarySource : BoundaryPersistence;
+        var expectedMethod = key == OutboxDispatcherDataSource.Key ? "Build" : "BuildPlatformDataSource";
+        if (calls.Length != 1 || calls[0].DeclaringType.FullName != expectedType || calls[0].Name != expectedMethod)
+            offenders.Add(MethodId(leaf) + ": must construct only its declared guarded role pool");
+        var builds = leaf.Body.Instructions.Where(instruction => instruction.Operand is MethodReference method
+            && method.ReturnType.FullName == "Npgsql.NpgsqlDataSource").ToArray();
+        var capture = builds.Length == 1 ? builds[0].Previous?.Operand as FieldReference : null;
+        if (capture is null || capture.FieldType.FullName != "System.String")
+        { offenders.Add(MethodId(leaf) + ": pool must use its captured credential unchanged"); return; }
+        var writes = census.Types.Values.SelectMany(type => type.Methods).Where(method => method.HasBody)
+            .SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is FieldReference field
+                && field.FullName == capture.FullName && instruction.OpCode is var opcode
+                && (opcode == OpCodes.Stfld || opcode == OpCodes.Stsfld || opcode == OpCodes.Ldflda || opcode == OpCodes.Ldsflda))
                 .Select(instruction => (Method: method, Instruction: instruction))).ToArray();
-        return mutations.Length == 1 && mutations[0].Method == factory && mutations[0].Instruction.OpCode == OpCodes.Stfld
-            && LoadsArgument(mutations[0].Instruction.Previous, parameter + (factory.HasThis ? 1 : 0));
+        if (writes.Length != 1 || writes[0].Method != root || writes[0].Instruction.OpCode != OpCodes.Stfld
+            || writes[0].Instruction.Previous?.Operand is not MethodReference read || !IsConnectionStringRead(read))
+            offenders.Add(MethodId(leaf) + ": the declared credential read must be the sole immutable capture");
+        if (MethodOperands(factory).Count(method => method.Name == ".ctor" && method.DeclaringType.FullName == BoundaryGuardedSource) != 1)
+            offenders.Add(MethodId(factory) + ": requires exactly its owning privileged facade construction");
     }
-
-    private static bool LoadsArgument(Instruction? instruction, int index) => instruction is not null && (index switch
-    {
-        0 => instruction.OpCode == OpCodes.Ldarg_0,
-        1 => instruction.OpCode == OpCodes.Ldarg_1,
-        2 => instruction.OpCode == OpCodes.Ldarg_2,
-        3 => instruction.OpCode == OpCodes.Ldarg_3,
-        _ => false,
-    });
 
     private static void CheckLiteralKeyResolver(SortedSet<string> offenders, MethodDefinition owner, string service, string key)
     {

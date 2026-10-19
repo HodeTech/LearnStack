@@ -216,7 +216,7 @@ public sealed partial class OutboxDispatchConventionTests
         {
             var services = ObservationServices();
             var worker = services.Single(item => item.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)
-                && item.ImplementationType == typeof(DeliveryProcessor));
+                && HostedAliasIdentity(item) == DeliveryWorker);
             if (change == "missing") services.Remove(worker);
             else services.Add(worker);
             DeliveryRegistrationOffenders(services).Should().NotBeEmpty("mandatory subscriber worker " + change + " must fail");
@@ -438,7 +438,7 @@ public sealed partial class OutboxDispatchConventionTests
 
     private static string DeliveryWorkerConstructor(SortedSet<string> offenders, TypeDefinition worker) =>
         RequireBoundaryMethod(offenders, worker, ".ctor", "System.Void", MethodAttributes.Public,
-            BoundaryLazySource, DeliveryStore, DeliveryExecutorType,
+            BoundaryGuardedSource, DeliveryStore, DeliveryExecutorType,
             "LearnStack.Infrastructure.Messaging.OutboxEventRegistry", "LearnStack.Infrastructure.Messaging.DeliveryDispatchOptions",
             "System.TimeProvider", DeliveryObserver, "Microsoft.Extensions.Logging.ILogger`1<" + DeliveryWorker + ">");
 
@@ -452,10 +452,10 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSourceFieldAccess(offenders, census, worker, workerConstructor,
             [RequireBoundaryMethod(offenders, worker, "StartAsync", BoundaryTask, MethodAttributes.Public, BoundaryCancellation)]);
         var storeConstructor = RequireBoundaryMethod(offenders, store, ".ctor", "System.Void", MethodAttributes.Public,
-            BoundaryLazySource, "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
+            BoundaryGuardedSource, "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
             "LearnStack.Infrastructure.Messaging.DeliveryDispatchOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory",
             "LearnStack.SharedKernel.Time.IClock", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory");
-        CheckSourceFieldAccess(offenders, census, store, storeConstructor,
+        string[] storeAcquisitions =
         [
             RequireBoundaryMethod(offenders, store, "AcquireAsync", "System.Threading.Tasks.Task`1<" + DeliveryClaimType + ">", MethodAttributes.Private,
                 "LearnStack.Infrastructure.Messaging.DeliveryClaimKind", "System.String", BoundaryStrings, BoundaryCancellation),
@@ -468,7 +468,11 @@ public sealed partial class OutboxDispatchConventionTests
                 MethodAttributes.Public, BoundaryStrings, BoundaryCancellation),
             RequireBoundaryMethod(offenders, store, "ReplayAsync", BoundaryBooleanTask, MethodAttributes.Public,
                 "System.Guid", "System.String", "System.Guid", BoundaryCancellation),
-        ]);
+        ];
+        var storeReader = RequireBoundaryMethod(offenders, store, "OpenConnectionAsync",
+            "System.Threading.Tasks.ValueTask`1<" + DeliveryStore + "/OwnedConnection>", MethodAttributes.Private, BoundaryCancellation);
+        CheckSourceFieldAccess(offenders, census, store, storeConstructor, [storeReader]);
+        CheckCleanupConnectionOwner(offenders, census, store, storeReader, storeAcquisitions);
         var expected = new[]
         {
             workerConstructor,
@@ -483,14 +487,18 @@ public sealed partial class OutboxDispatchConventionTests
             .Where(item => item.Owner.DeclaringType.FullName != DeliveryStore && ReferencesCapability(item.Body, DeliveryStore))
             .Select(item => MethodId(item.Owner)).Concat(types.Values.SelectMany(type => type.Methods)
                 .Where(method => !method.HasBody && method.DeclaringType.FullName != DeliveryStore && ReferencesCapability(method, DeliveryStore))
-                .Select(MethodId)).Distinct(StringComparer.Ordinal), expected);
+                .Select(MethodId)).Distinct(StringComparer.Ordinal), expected.Concat(CleanupOwnerConsumerIds(census, DeliveryStore))
+                    .Concat(MessagingStoreConsumerIds(DeliveryStore)));
         var stateMachines = OwnedBodies(census).Where(item => item.Body != item.Owner && item.Owner.DeclaringType.FullName == DeliveryStore)
             .Select(item => Key(item.Body.DeclaringType)).ToHashSet();
         var fields = types.Values.SelectMany(type => type.Fields).Where(field => field.FieldType.FullName == DeliveryStore
             && !(stateMachines.Contains(Key(field.DeclaringType)) && field.Name == "<>4__this")).ToArray();
         CheckSet(offenders, "privileged delivery store holders", fields.Select(field => TypeId(field.DeclaringType) + ":" + field.Name),
-            [TypeId(worker) + ":_store"]);
-        if (fields.Any(field => !field.IsPrivate || !field.IsInitOnly)) offenders.Add("Delivery store holders must be private readonly");
+            [TypeId(worker) + ":_store", InfrastructureAssembly + ":" + DeliveryStore + "/OwnedConnection:<owner>P",
+             BoundaryApi + ":" + MessagingLifetime + ":_deliveryStore"]);
+        if (fields.Any(field => !field.IsPrivate || !field.IsInitOnly
+                && !(field.DeclaringType.FullName == DeliveryStore + "/OwnedConnection" && field.Name == "<owner>P")))
+            offenders.Add("Delivery store holders must be private readonly or the exact construction-only cleanup capture");
     }
 
     private static bool ReferencesCapability(MethodDefinition method, string capability)

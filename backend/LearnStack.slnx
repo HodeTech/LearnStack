@@ -59,6 +59,7 @@
     <Project Path="src/Modules/Education/LearnStack.Modules.Education.Infrastructure/LearnStack.Modules.Education.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/LearnStack.Tests.JobLifecycleProbe/LearnStack.Tests.JobLifecycleProbe.csproj" />
     <Project Path="tests/LearnStack.Tests.Unit/LearnStack.Tests.Unit.csproj" />
     <Project Path="tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj" />
     <Project Path="tests/LearnStack.Tests.Architecture/LearnStack.Tests.Architecture.csproj" />

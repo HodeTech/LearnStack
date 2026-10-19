@@ -1,3 +1,5 @@
+using LearnStack.Tests.Unit.Application.Jobs;
+using LearnStack.Infrastructure.Persistence;
 using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.MultiTenancy;
@@ -50,6 +52,19 @@ public sealed class PlatformAdminGateTests
 
         await act.Should().ThrowAsync<PlatformAdminScopeDeniedException>();
         dataSource.IsValueCreated.Should().BeFalse("the gate runs before the credential");
+    }
+
+    [Fact]
+    public async Task Ordinary_job_is_refused_even_by_a_permissive_platform_gate_before_credential_resolution()
+    {
+        var fixture = new BackgroundJobExecutionAdmissionTests.Fixture();
+        var gate = new PermissiveGate();
+        var scope = Build(gate, out var source);
+        using var admission = fixture.Enter();
+        var enter = async () => await scope.EnterAsync("test:ordinary-job");
+        await enter.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Ordinary background-job*");
+        source.IsValueCreated.Should().BeFalse();
+        gate.Calls.Should().Be(0, "ordinary admission refuses before the permissive platform gate");
     }
 
     [Theory]
@@ -133,10 +148,10 @@ public sealed class PlatformAdminGateTests
 
     private static PlatformAdminScope Build(
         IPlatformAdminGate gate,
-        out Lazy<NpgsqlDataSource> dataSource,
+        out PrivilegedDataSource dataSource,
         IAuditCatalog? catalog = null)
     {
-        dataSource = new Lazy<NpgsqlDataSource>(() => throw new InvalidOperationException(
+        dataSource = new PrivilegedDataSource(() => throw new InvalidOperationException(
             "ConnectionStrings:PlatformAdmin is not configured in this test."));
 
         // The catalogue is real and built from the shipped Tenancy source, because the
@@ -156,8 +171,11 @@ public sealed class PlatformAdminGateTests
 
     private sealed class PermissiveGate : IPlatformAdminGate
     {
-        public ValueTask<bool> IsPermittedAsync(
-            string reason, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(true);
+        public int Calls { get; private set; }
+        public ValueTask<bool> IsPermittedAsync(string reason, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return ValueTask.FromResult(true);
+        }
     }
 }

@@ -215,9 +215,12 @@ Resource fairness is a separate mechanism and this phase builds it.
   execution rather than cancelled after it has already consumed resources. This applies
   first and hardest to queries the platform did not write — see the `data_source` limit
   below — and second to any endpoint that accepts a caller-supplied filter or sort.
-- **Hangfire queue fairness and per-tenant concurrency limits.** Every job payload
-  already carries a tenant id (`Hangfire_Job_Payloads_Include_TenantId`), which is what
-  makes fairness implementable. A tenant that enqueues fifty thousand notification jobs
+- **Hangfire queue fairness and per-tenant concurrency limits.** Authoritative
+  LearnStack job rows carry the trusted tenant identity under
+  [ADR-0047](../decisions/0047-transactional-background-job-runtime.md); vendor
+  wakeups contain opaque references. P02b-4 already supplies tenant capacity
+  reservations and independent pools. A tenant that enqueues fifty thousand
+  notification jobs
   must not delay every other tenant's jobs behind them. The work: a per-tenant concurrency
   cap, a fair-share dispatch order across tenants rather than strict FIFO across the whole
   queue, a bounded per-tenant queue depth with a defined rejection behaviour when it is
@@ -298,6 +301,25 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
 
 ### Reliability
 
+- **Process supervision and crash recovery.** Select and qualify deployment-specific
+  supervision, normal shutdown grace, a hard-termination backstop, bounded restart/
+  backoff and crash-loop alerts/runbooks. Preserve
+  [ADR-0059's host/exit boundary](../decisions/0059-owned-hangfire-server-generations.md#host-shutdown-bounds-and-observation);
+  [ADR-0060's fatal remedy](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
+  is Accepted — 2026-10-16; its runtime qualification remains P02b-4 work.
+  P02b-4 promises no automatic supervisor restart.
+  A restarted API supplies no positive external quiescence or reservation release.
+- **Production crash diagnostics.** Own runtime and OS crash-collector/dump policy:
+  default enablement, secret exposure, access, storage, export and retention/deletion.
+  Runtime dump switches alone do not control Linux core collectors or other OS
+  crash reporting. Qualify the actual deployment policy before production use;
+  P02b-4's isolated proof-child controls do not establish it.
+- **Job-worker process boundary.** Revisit API-hosted workers when measured shared
+  failure/resource contention violates the approved availability target or independent
+  worker scaling is required. This phase owns the topology decision and credential/
+  shutdown/diagnostic proofs; if the trigger fires earlier, that consumer phase must
+  obtain a new ADR before extracting a worker service. No separate worker host or
+  Dapr requirement is implied merely by proposing this decision task.
 - Health checks and readiness / liveness endpoints. `GET /readyz` is promised by
   [API Standards § Health Endpoints](../standards/04-api-design.md) and served by no
   phase before this one — the API maps `/healthz` only — so this is where it lands, with
@@ -532,6 +554,9 @@ same `ILiveClassProvider`.
   partitioning, query cost ceiling, Hangfire fair-share dispatch with per-tenant
   concurrency caps, and bounded `data_source` queries.
 - Production deployment pipeline, staging environment, rollback path.
+- Qualified process supervision/restart/backoff, shutdown/termination and crash-dump
+  policies, with crash-loop alerting and a recovery runbook. Record the worker-process
+  topology decision against measured shared-failure/scaling triggers.
 - Security baseline and the expanded tenant + organization isolation regression suite.
 - Observability baseline: dashboards, alerts, and per-tenant resource metrics.
 - Backup and restore process with a completed drill.
@@ -547,6 +572,11 @@ same `ILiveClassProvider`.
 
 ## Completion Criteria
 
+- The selected process topology passes an actual crash/restart and crash-loop drill
+  under its deployment supervisor, including finite shutdown waiting, diagnostic/dump
+  access and artifact handling. Recovery preserves uncertain jobs and reservations;
+  neither API restart nor missing/orphan child processes release external occupancy.
+  The worker-host separation decision and any fired trigger have an explicit owner.
 - Every `DeploymentMode` value has an integration suite that runs a full user journey in
   CI, and the documented support claim matches what those suites prove.
 - A second application instance can be started without a correctness regression:

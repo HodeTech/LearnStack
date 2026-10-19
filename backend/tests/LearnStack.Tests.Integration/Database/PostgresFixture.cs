@@ -13,13 +13,14 @@ namespace LearnStack.Tests.Integration.Database;
 /// <c>LearnStack.Tests.Integration</c> holds two kinds of test. The
 /// <c>WebApplicationFactory</c> HTTP tests need no Docker and run in the
 /// <c>backend</c> job with everything else. Anything carrying this trait needs a
-/// real Docker socket and runs in <c>backend-integration</c>.
+/// real Docker socket and runs in one of the two Docker execution jobs.
 /// </para>
 /// <para>
 /// <b>The two filters are exact complements.</b> `backend` runs
-/// <c>--filter "Requires!=Docker"</c> and `backend-integration` runs
-/// <c>--filter "Requires=Docker"</c>, so every test in the assembly runs in
-/// exactly one of them. No count is written here on purpose: one was, and it
+/// <c>--filter "Requires!=Docker"</c>. The integration aggregate requires both
+/// Docker partitions: <c>NativeCrashProof=true</c> and its complement. Together
+/// they cover <c>Requires=Docker</c>, so every test runs exactly once.
+/// No count is written here on purpose: one was, and it
 /// went stale in the same commit that added a test.
 /// </para>
 /// <para>
@@ -37,6 +38,16 @@ internal static class RequiresDocker
 {
     public const string Key = "Requires";
     public const string Value = "Docker";
+}
+
+/// <summary>
+/// ADR-0062's native proof partition. The architecture census restricts this
+/// trait to the two complete proof classes; CI checks actual discovered case IDs.
+/// </summary>
+internal static class NativeCrashProof
+{
+    public const string Key = "NativeCrashProof";
+    public const string Value = "true";
 }
 
 /// <summary>
@@ -83,6 +94,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     // test a database no deployment uses.
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18.4-alpine")
         .WithDatabase(Database)
+        // Qualification can hold the supported job application (128) and
+        // privileged (158) source boundaries together, plus fixture observers.
+        .WithCommand("-c", "max_connections=300")
         .WithUsername("postgres")
         .WithPassword("postgres")
         .WithEnvironment("LEARNSTACK_MIGRATION_PW", MigrationPassword)
@@ -129,6 +143,14 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public async Task DisposeAsync() => await _container.DisposeAsync();
 
+    // Outage qualification creates its own local fixture. Never call these on
+    // SchemaFixture.Postgres: pausing that shared container would affect other proofs.
+    internal Task PauseOwnedServerAsync(CancellationToken cancellationToken = default) =>
+        _container.PauseAsync(cancellationToken);
+
+    internal Task UnpauseOwnedServerAsync(CancellationToken cancellationToken = default) =>
+        _container.UnpauseAsync(cancellationToken);
+
     /// <summary>
     /// Runs the roles script a second time against the already-provisioned
     /// cluster, so a test can assert that a re-run is a no-op rather than an error.
@@ -153,14 +175,43 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// </remarks>
     public async Task ExecuteAsSuperuserAsync(string sql)
     {
-        var result = await _container.ExecAsync(
-            ["psql", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", Database, "-c", sql]);
-
-        if (result.ExitCode != 0)
+        const int timeoutSeconds = 30;
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+        var connectionString = new NpgsqlConnectionStringBuilder(_container.GetConnectionString())
         {
-            throw new InvalidOperationException(
-                $"Superuser statement failed (exit {result.ExitCode}): {sql}{Environment.NewLine}"
-                + $"{result.Stderr}{Environment.NewLine}{result.Stdout}");
+            // This helper retains the container superuser privately. Every call
+            // owns a physical connection, outside any caller's ambient transaction.
+            Pooling = false,
+            Enlist = false,
+            Timeout = timeoutSeconds,
+            CommandTimeout = timeoutSeconds,
+            CancellationTimeout = 2000,
+        }.ConnectionString;
+        try
+        {
+            await using var connection = new NpgsqlConnection(connectionString);
+            await connection.OpenAsync(deadline.Token);
+            // Keep each caller's SQL intact, including its existing statement batch.
+            // Do not start a transaction: CREATE/DROP DATABASE must remain legal.
+            await using var command = new NpgsqlCommand(sql, connection)
+            {
+                CommandTimeout = timeoutSeconds,
+            };
+            await command.ExecuteNonQueryAsync(deadline.Token);
+        }
+        catch (PostgresException exception)
+        {
+            // Provider-role setup contains a generated password. Never include
+            // SQL, connection strings or provider error text in the test receipt.
+            throw new InvalidOperationException($"Superuser statement failed (SQLSTATE {exception.SqlState}).");
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("Superuser statement exceeded its execution budget.");
+        }
+        catch (NpgsqlException)
+        {
+            throw new InvalidOperationException("Superuser statement connection failed.");
         }
     }
 

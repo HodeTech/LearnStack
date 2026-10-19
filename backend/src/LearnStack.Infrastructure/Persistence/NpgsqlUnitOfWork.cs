@@ -1,5 +1,8 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.ExceptionServices;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.Extensions.Logging;
 using LearnStack.SharedKernel.Tenancy;
@@ -50,6 +53,9 @@ public sealed class NpgsqlUnitOfWork(
     private readonly ILogger<NpgsqlUnitOfWork> _logger =
         logger ?? throw new ArgumentNullException(nameof(logger));
 
+    private readonly JobApplicationSourceOwner? _jobSourceOwner = JobApplicationSourceOwner.Current;
+    private bool _jobMainBound;
+
     private NpgsqlConnection? _connection;
     private DbTransaction? _transaction;
     private DbTransaction? _completedTransaction;
@@ -85,14 +91,17 @@ public sealed class NpgsqlUnitOfWork(
     {
         get
         {
+            JobApplicationSourceOwner.RefuseExternalEntry();
             ObjectDisposedException.ThrowIf(_disposed, this);
 
             if (_connection is null)
             {
+                BindJobMainUnit();
                 // Synchronous, and reached only by a caller that touches the
                 // connection before opening a transaction. The ordinary path is
                 // BeginTransactionAsync, which opens it asynchronously first.
                 _connection = _dataSource.CreateConnection();
+                _jobSourceOwner?.HoldMainConnection(this, _connection);
                 _connection.Open();
             }
 
@@ -100,7 +109,14 @@ public sealed class NpgsqlUnitOfWork(
         }
     }
 
-    public DbTransaction? Transaction => _transaction;
+    public DbTransaction? Transaction
+    {
+        get
+        {
+            JobApplicationSourceOwner.RefuseExternalEntry();
+            return _transaction;
+        }
+    }
 
     public bool HasActiveTransaction => _transaction is not null;
 
@@ -112,6 +128,7 @@ public sealed class NpgsqlUnitOfWork(
     public async Task<IUnitOfWorkScope> BeginTransactionAsync(
         TransactionMode mode, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (_rollbackOnly)
@@ -142,7 +159,12 @@ public sealed class NpgsqlUnitOfWork(
             try
             {
                 await DisposeCompletedTransactionAsync();
-                _connection ??= _dataSource.CreateConnection();
+                BindJobMainUnit();
+                if (_connection is null)
+                {
+                    _connection = _dataSource.CreateConnection();
+                    _jobSourceOwner?.HoldMainConnection(this, _connection);
+                }
 
                 if (_connection.State != System.Data.ConnectionState.Open)
                 {
@@ -152,6 +174,7 @@ public sealed class NpgsqlUnitOfWork(
                 _transaction = mode == TransactionMode.ReadOnly
                     ? await _connection.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken)
                     : await _connection.BeginTransactionAsync(cancellationToken);
+                _jobSourceOwner?.HoldMainTransaction(this, _transaction);
 
                 checked { _generation++; }
 
@@ -198,6 +221,7 @@ public sealed class NpgsqlUnitOfWork(
     public async Task SetTenantContextAsync(
         ITenantContext context, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(context);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -300,6 +324,7 @@ public sealed class NpgsqlUnitOfWork(
     public async Task SetProvisioningTenantContextAsync(
         TenantId tenantId, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (_transaction is null)
@@ -398,6 +423,7 @@ public sealed class NpgsqlUnitOfWork(
 
     public Task CommitAsync(CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureFrameOpen();
 
@@ -406,6 +432,7 @@ public sealed class NpgsqlUnitOfWork(
 
     public Task RollbackAsync(CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         // No EnsureFrameOpen. A rollback is the cleanup path: on a unit a faulted
@@ -422,10 +449,13 @@ public sealed class NpgsqlUnitOfWork(
 
     public void MarkRollbackOnly()
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
         _rollbackOnly = true;
     }
 
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "Actual connection cleanup runs after every failure, then the original failure is rethrown outside finally.")]
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
@@ -439,6 +469,8 @@ public sealed class NpgsqlUnitOfWork(
         // A scope that ended with a live transaction has failed: committing here
         // would commit work nobody claimed was finished.
         var swallowedCommit = _commitRequested && _transaction is not null;
+        ExceptionDispatchInfo? cleanupFailure = null;
+        var connectionCleanupSucceeded = true;
 
         try
         {
@@ -449,6 +481,10 @@ public sealed class NpgsqlUnitOfWork(
 
             await DisposeCompletedTransactionAsync();
         }
+        catch (Exception failure)
+        {
+            cleanupFailure = ExceptionDispatchInfo.Capture(failure);
+        }
         finally
         {
             // In a finally: a rollback that throws — a connection already broken
@@ -456,10 +492,19 @@ public sealed class NpgsqlUnitOfWork(
             // strand the connection outside the pool for the rest of the process.
             if (_connection is not null)
             {
-                await _connection.DisposeAsync();
-                _connection = null;
+                try { await _connection.DisposeAsync(); }
+                catch (Exception failure)
+                {
+                    connectionCleanupSucceeded = false;
+                    _jobSourceOwner?.ReportMainCleanup(this, succeeded: false);
+                    cleanupFailure ??= ExceptionDispatchInfo.Capture(failure);
+                }
+                if (connectionCleanupSucceeded) _connection = null;
             }
+            if (_jobMainBound && connectionCleanupSucceeded)
+                _jobSourceOwner!.ReportMainCleanup(this, succeeded: true);
         }
+        cleanupFailure?.Throw();
 
         if (swallowedCommit)
         {
@@ -514,9 +559,11 @@ public sealed class NpgsqlUnitOfWork(
             try
             {
                 await transaction.DisposeAsync();
+                _jobSourceOwner?.ReportMainTransactionCleanup(this, transaction, succeeded: true);
             }
             catch
             {
+                _jobSourceOwner?.ReportMainTransactionCleanup(this, transaction, succeeded: false);
                 // Connection cleanup remains owned by this unit.
             }
             throw;
@@ -525,6 +572,14 @@ public sealed class NpgsqlUnitOfWork(
         // The caller can now record definitive durability before awaiting cleanup.
         // Only one completed transaction can remain: Begin cleans it before reuse.
         _completedTransaction = transaction;
+    }
+
+    private void BindJobMainUnit()
+    {
+        if (!ReferenceEquals(_jobSourceOwner, JobApplicationSourceOwner.Current))
+            throw new InvalidOperationException("A job physical connection belongs to its original application-source owner.");
+        _jobSourceOwner?.BindMainUnit(this);
+        _jobMainBound = _jobSourceOwner is not null;
     }
 
     private async ValueTask DisposeCompletedTransactionAsync()
@@ -536,9 +591,11 @@ public sealed class NpgsqlUnitOfWork(
         try
         {
             await completed.DisposeAsync();
+            _jobSourceOwner?.ReportMainTransactionCleanup(this, completed, succeeded: true);
         }
         catch
         {
+            _jobSourceOwner?.ReportMainTransactionCleanup(this, completed, succeeded: false);
             // Prior COMMIT remains definitive; only reuse of an unclean unit is
             // refused. Delivery's acknowledged receipt is already recorded.
             _rollbackOnly = true;
@@ -561,6 +618,8 @@ public sealed class NpgsqlUnitOfWork(
         await RollbackCoreAsync();
     }
 
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "Transaction disposal runs after rollback failure, then the original failure is rethrown outside finally.")]
     private async Task RollbackCoreAsync()
     {
         var transaction = _transaction;
@@ -574,6 +633,7 @@ public sealed class NpgsqlUnitOfWork(
             return;
         }
 
+        ExceptionDispatchInfo? cleanupFailure = null;
         try
         {
             // CancellationToken.None: a rollback is the cleanup path, and
@@ -581,10 +641,24 @@ public sealed class NpgsqlUnitOfWork(
             // about to go back to the pool.
             await transaction.RollbackAsync(CancellationToken.None);
         }
+        catch (Exception failure)
+        {
+            cleanupFailure = ExceptionDispatchInfo.Capture(failure);
+        }
         finally
         {
-            await transaction.DisposeAsync();
+            try
+            {
+                await transaction.DisposeAsync();
+                _jobSourceOwner?.ReportMainTransactionCleanup(this, transaction, succeeded: true);
+            }
+            catch (Exception failure)
+            {
+                _jobSourceOwner?.ReportMainTransactionCleanup(this, transaction, succeeded: false);
+                cleanupFailure ??= ExceptionDispatchInfo.Capture(failure);
+            }
         }
+        cleanupFailure?.Throw();
     }
 
     private void EnsureFrameOpen()
@@ -628,6 +702,7 @@ public sealed class NpgsqlUnitOfWork(
 
         public Task CompleteAsync(CancellationToken cancellationToken = default)
         {
+            JobApplicationSourceOwner.RefuseExternalEntry();
             if (IsStale())
             {
                 // Not an error: this frame's transaction ended, and whatever
@@ -658,6 +733,12 @@ public sealed class NpgsqlUnitOfWork(
 
         public Task FailAsync(CancellationToken cancellationToken = default)
         {
+            JobApplicationSourceOwner.RefuseExternalEntry();
+            return FailOwnedAsync();
+        }
+
+        private Task FailOwnedAsync()
+        {
             if (IsStale() || AlreadyResolved())
             {
                 return Task.CompletedTask;
@@ -673,18 +754,19 @@ public sealed class NpgsqlUnitOfWork(
                 // exception with one about bookkeeping. CompleteAsync is where the
                 // same condition is loud, because there it would otherwise be
                 // reported as success.
-                unitOfWork.MarkRollbackOnly();
+                unitOfWork._rollbackOnly = true;
                 return unitOfWork.RollbackCoreAsync();
             }
 
-            return unitOfWork.RollbackAsync(cancellationToken);
+            return unitOfWork._depth == 0 || unitOfWork._transaction is null
+                ? Task.CompletedTask : unitOfWork.RollbackFrameAsync();
         }
 
         public async ValueTask DisposeAsync()
         {
-            // Through FailAsync, never frame-blind rollback. A stale frame cannot
-            // roll back or clean resources belonging to a later generation.
-            await FailAsync(CancellationToken.None);
+            // Disposal owns rollback cleanup even under external denial. It
+            // cannot create operational authority or resolve a later generation.
+            await FailOwnedAsync();
             if (IsOwner && !IsStale()) await unitOfWork.DisposeCompletedTransactionAsync();
         }
 

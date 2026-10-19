@@ -49,11 +49,21 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       Packet 6 ships the first Docker-bound test and is therefore the packet that
       has to split them. The job carries no `vars.ENABLE_*` gate and no placeholder
       step, so it runs on every pull request. **Required since P02d-1,
-      2026-09-14.** The check cannot pass empty: both backend jobs
-      end with `scripts/assert-tests-ran.py`, which fails a run whose filter matched
-      no test — `dotnet test --filter` exits 0 when nothing matches, and a renamed
-      `Requires=Docker` trait would otherwise leave the whole Docker suite unrun
-      behind a green check.
+      2026-09-14.** ADR-0062 retains this exact required name on a fail-closed
+      aggregate of ordinary Docker and isolated native-proof executions. Both
+      must succeed with complete, nonempty, zero-skip case results matching their
+      complementary discovery manifests. Missing/failed/canceled work cannot
+      pass through the aggregate. ADR-0063 adds finite ordinary shards and a
+      base/Architecture aggregate under the unchanged backend name. Both
+      aggregates independently verify current-attempt job/API/artifact evidence,
+      exact assigned case unions and complete TRX. Base retains normal Release
+      build, format and Hangfire distribution/source/replacement gates. A filter
+      alone exits 0 when nothing matches. Use **Re-run all jobs**; successful
+      siblings from earlier attempts cannot satisfy the current aggregate.
+      The [testing standard](../docs/standards/06-testing.md#complete-bounded-ci-assignments)
+      owns assignment, authority and qualification requirements. All seven
+      context names, GitHub Actions app binding and strict up-to-date checking
+      remain unchanged.
     - `openapi diff` — **required since P02d-4, 2026-10-04.** The always-running
       job uses pinned policy fixtures, verified base/head snapshots and actual
       first-baseline proof. Its real PR run passed before activation. API read-back

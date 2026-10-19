@@ -43,7 +43,10 @@ bounded observation. Step 5 activates both real defaults and semantic Seeder han
 records the earlier immediate-invocation baseline. The producer/consumer diagrams
 and examples below describe the delivered ADR-0046 runtime. The
 [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-owns production enforcement, validation and review/PR status.
+records production enforcement, validation and reviews. P02b-3 is complete and
+merged through PR #31; its
+[merge closeout](../roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+owns final verification.
 
 The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
 and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
@@ -73,7 +76,8 @@ subscriptions are Active with Step 5 initialization and semantic Seeder handoff.
 [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 records that step's validation and reviews; the
 [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-owns current enforcement, validation and review/PR status. Numerical
+records enforcement, validation and reviews; the merge closeout above owns final
+CI/merge verification. Numerical
 runtime bounds live in the package, canonical DDL/grants in Standards 05 and
 metric names in Standards 10.
 
@@ -142,8 +146,11 @@ dispatcher execution; both independent review rounds are complete.
 ### Why the `learnstack_outbox_admin` role bypasses RLS — and what bounds the bypass
 
 One API-host BackgroundService schedules every tenant. The existing bypass role
-uses its own named keyed, lazy data source; no Seeder/web forwarding or app-role
-membership is allowed. Configuration validates the exact username without
+uses its own named keyed, lazy data source behind `PrivilegedDataSource`; no
+Seeder/web forwarding or app-role membership is allowed. P02b-4 Step 1 makes the
+private pool inaccessible as a raw keyed service and checks ordinary-job admission
+on every connection acquisition, including pool reuse, under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md). Configuration validates the exact username without
 connecting or disclosing parse input. Step 3 implements mandatory worker-startup
 resolution and connectivity checks; both independent review rounds are complete.
 Every new physical connection verifies exact session/current role, bounded
@@ -693,6 +700,121 @@ remain inbox deduplicated; a completed inbox is never reset. Phase 03 owns opera
 permission, HTTP routes and the separately decided producer replay contract.
 P02b-8 owns erasure inventory, Phase 03 privileged redaction and Phase 11
 retention purge.
+
+## Background job transport and maintenance
+
+Accepted [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
+owns H1: stock Hangfire carries opaque wakeups, while LearnStack's transactional
+job/attempt records own business intent, tenant/organization authority and
+completion. [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md)
+and [ADR-0047 Amendment 1](../decisions/0047-transactional-background-job-runtime.md#amendment-1--maintenance-replacement-and-additive-ownership-seams-2026-10-16)
+own the accepted maintenance configuration replacement and additive ownership seams.
+Only the exact stock aggregator/history filter are suppressed through public hooks;
+stock expiration, heartbeat, state counters and required admission/retry filters
+remain. One API-instance expiration owner is shared across pools with finite caller
+wait, retained actual work/resources, paced completion and one shared shutdown
+budget. Retained maintenance makes unmapped `jobs` health unhealthy with a separate
+fixed maintenance dimension; Phase 11 owns readiness routing and alert policy.
+
+**Accepted server lifecycle — 2026-10-16.**
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md) adds public
+stock composition, one actual generation per pool and replacement only after
+actual stock/LearnStack cleanup. Shared fetched-job heartbeat and expiration
+outlive pool-local drain under independent API-instance ownership. This adds
+no business cancellation or quiescence signal. During generation-control drain,
+unrelated tenants in the same pool can stay blocked with spare capacity and
+below four retained overruns after storage recovery; healthy other pools remain
+independent subject to shared dependencies. The exact two-clause supersession
+is disclosed in [ADR-0047 Amendment 2](../decisions/0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16);
+[ADR-0058 Amendment 2](../decisions/0058-bounded-stock-hangfire-maintenance.md#amendment-2--independent-shared-component-ownership-2026-10-16)
+adds ownership navigation only. The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+is authorized. Implementation and full-step review corrections are locally complete;
+the [Step 4 record](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+owns qualification of the shipped lifecycle/API composition and review dispositions.
+
+**Accepted exceptional boundary — 2026-10-16.**
+Accepted [ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
+adds a whole-API failure boundary to H1's ordinary per-pool ownership. Its exact
+trigger, global start gates, durable uncertainty and qualification requirements
+are carried by [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire).
+Step 4 owns implementation; acceptance provides no activated worker or crash proof.
+Accepted [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md)
+adds only the named disposable native CI provisioning/partition authority;
+[its CI record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+owns implementation, reviews and hosted qualification. The closed CI launcher
+requires complete complementary case results behind the existing integration
+aggregate; a successful native partition alone cannot pass it. Native children retain
+all independent preconditions; local/shared machines gain no host-change authority.
+
+The current Step 4 API composition uses
+[`BackgroundJobRuntime`](../glossary.md#background-jobs) to own bootstrap, pool
+generations, shared components and the bridge. Its hosted service binds the actual
+singleton outbox/delivery processors before startup. The shared source outlives a
+finite host wait until jobs and both processors positively finish privileged
+source use; a connection-cleanup fault retains its concrete owner and closes that
+SQL lane. Application callback completion is a separate ownership concern.
+Step 9 adds required [job observation](../glossary.md#background-jobs), shared with
+Seeder without resolving the API runtime. Its observable collectors bind the
+concrete facade once and materialize memory snapshots; the serialized control
+reader supplies durable status aggregates after acknowledged rollback/cleanup.
+Unknown durable work remains visible with empty local registries, and failed
+refresh retains the last sample with explicit unhealthy freshness. Observation
+supplies no source release, business completion or external-quiescence authority.
+The [metric inventory](../standards/10-observability.md#required-metrics) and
+[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+record the implemented observable, stage, trace, lease-loss and control signals,
+their source-specific qualification, full review status and remaining packet/CI
+qualification.
+[Database Standards](../standards/05-database.md#shared-dispatcher-source-lifetime-and-capacity)
+owns the source-release contract and current physical floor; adding later SQL
+lanes requires requalification.
+
+Step 5 extends the same facade with independently bounded renewal, retry/recovery
+and terminal lanes. A confirmed start publishes immutable authority before
+business work; the existing ordinary transaction owner binds root, unit,
+announcement and final row/time fence. Business state, child jobs, outbox and MUST
+audit commit with completion. The sixth audit seam binds actual returned terminal
+identity to the same connection/transaction. Known rollback and unknown COMMIT
+remain distinct; a locked header precedes a fresh attempt-ledger read.
+
+The stable lazy application source now has a single disposal owner, sharing the
+job/messaging release witnesses. Job main/auxiliary operation bounds retain
+abandoned loaders and failed cleanup; independent HTTP/delivery headroom is not
+implied. The [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-5--transactional-owner-and-terminal-audit-2026-10-16)
+owns implementation, qualification and review status. Step 6 adds tenant/group
+capacity admission and atomic reservation release. A failed transactional
+invocation must positively join its original source and private callbacks before
+the exact same-source cleanup checkpoint; distinct recovery authority is required.
+Missing local cleanup parks unresolved occupancy for paced probes. Its
+[record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+owns passing local qualification and both completed full reviews. Step 7 external
+execution and recovery are complete after both full reviews and verified
+corrections; its
+[closeout](../roadmap/phase-02b-events-auth.md#step-7-full-review-round-2-2026-10-17)
+owns the source-specific receipts. Step 8 durable recurrence and restricted
+recipient submission are locally complete after both full reviews and verified
+corrections; its
+[record](../roadmap/phase-02b-events-auth.md#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18)
+owns final qualification. Production recurrence and business registries stay empty.
+
+[Database Standards](../standards/05-database.md#background-jobs) owns canonical
+storage/grants and reset-safe source deadlines, including five-second idle-session
+cleanup. [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire)
+carries the selected maintenance/lifecycle policy. Neither server deadlines nor
+cleanup establish a whole-pass or client-socket termination guarantee. Approximate
+vendor totals are not authoritative business outcomes; fewer live rows do not
+promise bounded disk/backlog or recovery rate. Phase 11 owns operational retention,
+space and measured production capacity.
+
+The [Step 2 closeout](../roadmap/phase-02b-events-auth.md#step-2-final-proof-and-closeout)
+owns completed schema/bootstrap/source qualification. The
+[Step 3 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
+owns submission and app-role admission implementation/review status;
+the [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+owns completed facade/source-lifetime implementation and qualification. Step 9
+implements full observation/enforcement and locally qualifies both extended
+canonical obligations. Its record owns full-review, local packet-closeout and
+real PR-head CI qualification status.
 
 ## Service extraction readiness
 

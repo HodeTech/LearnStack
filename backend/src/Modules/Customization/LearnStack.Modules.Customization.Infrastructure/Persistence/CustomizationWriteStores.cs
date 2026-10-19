@@ -1,5 +1,6 @@
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
+using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Projections;
 using Microsoft.EntityFrameworkCore;
@@ -41,6 +42,19 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence;
 /// </remarks>
 public sealed class TenantContentTypeStore(CustomizationDbContext db, CustomizationReadState reads) : ITenantContentTypeStore
 {
+    public Task LockRegistrationsAsync(CancellationToken cancellationToken = default) =>
+        CustomizationConceptHistory.LockRegistrationsAsync(db, cancellationToken);
+
+    public async Task<ContentTypeQuotaUsage> ReadQuotaUsageAsync(string key, CancellationToken cancellationToken = default)
+    {
+        CustomizationKey.EnsureValid(key, nameof(key));
+        var customKeys = db.TenantContentTypes
+            .Where(row => row.DeletedAt == null && row.Key != BuiltInCustomizations.Card.Key)
+            .Select(row => row.Key).Distinct();
+        return new(await customKeys.LongCountAsync(cancellationToken),
+            await customKeys.AnyAsync(existing => existing == key, cancellationToken));
+    }
+
     public Task LockConceptAsync(string key, CancellationToken cancellationToken = default) =>
         CustomizationConceptHistory.LockAsync(db, taxonomy: false, key, cancellationToken);
 

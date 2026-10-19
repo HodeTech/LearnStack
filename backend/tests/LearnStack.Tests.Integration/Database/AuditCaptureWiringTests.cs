@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Jobs;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Audit;
@@ -182,6 +183,7 @@ public sealed class AuditCaptureWiringTests
         services.AddScoped<ISaveChangesInterceptor, HarmlessInterceptor>();
 
         services.AddLogging();
+        services.AddLearnStackBackgroundJobContracts();
         services.AddLearnStackMediatRPipeline();
         services.AddSingleton<ITenantContextAccessor>(
             new StaticTenantContextAccessor(new WiringContext()));

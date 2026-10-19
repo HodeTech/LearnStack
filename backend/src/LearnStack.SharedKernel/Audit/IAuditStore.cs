@@ -4,7 +4,7 @@ using LearnStack.SharedKernel.Persistence;
 namespace LearnStack.SharedKernel.Audit;
 
 /// <summary>
-/// The only sanctioned way to put a row in <c>audit_log</c>. Five writes, and
+/// The only sanctioned way to put a row in <c>audit_log</c>. Six writes, and
 /// <b>no update</b>.
 /// </summary>
 /// <remarks>
@@ -138,6 +138,15 @@ public interface IAuditStore
     Task WriteEventTerminalAsync(
         AuditEntryDraft entry,
         EventTerminalTransition transition,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Inserts the job terminal MUST row on its actual transition's live transaction.</summary>
+    /// <remarks>This closed sixth seam opens and commits no transaction. A refused draft or failed write rolls back the terminal state with its audit.</remarks>
+    Task WriteJobTerminalAsync(
+        AuditEntryDraft entry,
+        JobTerminalTransition transition,
         DbConnection connection,
         DbTransaction transaction,
         CancellationToken cancellationToken = default);

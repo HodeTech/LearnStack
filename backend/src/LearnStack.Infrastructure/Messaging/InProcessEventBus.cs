@@ -1,3 +1,4 @@
+using LearnStack.Application.Jobs;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,6 +22,7 @@ public sealed class InProcessEventBus(
         IntegrationEventEnvelope envelope,
         CancellationToken cancellationToken = default)
     {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(envelope);
         cancellationToken.ThrowIfCancellationRequested();
         var serialized = OutboxEventContract.Serialize(envelope.Event);

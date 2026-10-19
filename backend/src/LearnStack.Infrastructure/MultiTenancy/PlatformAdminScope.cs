@@ -1,3 +1,5 @@
+using LearnStack.Application.Jobs;
+using LearnStack.Infrastructure.Persistence;
 using System.Data.Common;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -51,7 +53,7 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// </remarks>
 public sealed class PlatformAdminScope(
     IPlatformAdminGate gate,
-    [FromKeyedServices(PlatformAdminScope.PlatformDataSourceKey)] Lazy<NpgsqlDataSource> dataSource,
+    [FromKeyedServices(PlatformAdminScope.PlatformDataSourceKey)] PrivilegedDataSource dataSource,
     IAuditCatalog catalog,
     IServiceScopeFactory scopeFactory,
     IClock clock,
@@ -78,7 +80,7 @@ public sealed class PlatformAdminScope(
 
     private readonly IPlatformAdminGate _gate = gate ?? throw new ArgumentNullException(nameof(gate));
 
-    private readonly Lazy<NpgsqlDataSource> _dataSource =
+    private readonly PrivilegedDataSource _dataSource =
         dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
     private readonly IAuditCatalog _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
@@ -111,6 +113,7 @@ public sealed class PlatformAdminScope(
         [CallerLineNumber] int callerLine = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
 
         // 1. The gate, before anything opens. ADR-0036 asks for the permission to be
         //    "checked before the scope opens", and a check after the connection exists
@@ -133,10 +136,10 @@ public sealed class PlatformAdminScope(
                 + "declared off-path by the Tenancy source (ADR-0044 § 10).");
         }
 
-        // 3. The credential. Touching Value here is where an absent
+        // 3. The credential. Opening through the guarded facade here is where an absent
         //    ConnectionStrings:PlatformAdmin surfaces — on entry, at the first call, with
         //    a message naming the key rather than a container error naming a type.
-        var connection = await _dataSource.Value.OpenConnectionAsync(cancellationToken);
+        var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         NpgsqlTransaction? transaction = null;
 
         try

@@ -337,16 +337,20 @@ Architecture tests:
 Each `LimitKey` in the catalog declares a `LimitEnforcement` (`Soft` | `Hard`):
 
 - **Hard** — the gated operation refuses with `403 ProblemDetails`
-  `type=urn:learnstack:errors:limit-exceeded` when the limit is `> 0` and current usage
-  has reached it. `-1` never refuses and `0` refuses outright. Example: `MaxUsers`.
+  `type=https://errors.learnstack.dev/limit_exceeded` when the limit is `> 0`
+  and current usage has reached it. `-1` never refuses and `0` refuses outright.
+  Example: `MaxUsers`.
 - **Soft** — the operation succeeds; a banner is surfaced and a Hub-side
   `usage.alert.soft_limit_reached` event is emitted to the Hub via
   `POST /api/v1/usage/report`. Example: `ClassroomMinutesPerMonth`.
 
-Packet 9 shipped the descriptor and the read; the **enforcement path** — the `403` and the
-usage signal — lands in [Phase 02c](../roadmap/phase-02c-hub-foundation.md), the first
-phase in which `IUsageReporter` and `POST /api/v1/usage/report` exist for a soft limit to
-report to. Each individual gate ships with the feature it gates, never speculatively.
+Packet 9 shipped the descriptor and the read. The first hard authoring gate is
+the [approved content-type quota](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19):
+it returns `403 limit_exceeded` through the standard Result/Problem Details mapping.
+The soft-limit reporting path remains
+[Phase 02c](../roadmap/phase-02c-hub-foundation.md) work, the first phase in which
+`IUsageReporter` and `POST /api/v1/usage/report` exist for it. Each individual gate
+ships with the feature it gates, never speculatively.
 
 The frontend's `useLimit(key)` hook surfaces both `current` / `limit` and the
 enforcement mode so the UI can present the right message.

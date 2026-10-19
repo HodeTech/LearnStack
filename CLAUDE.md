@@ -202,8 +202,8 @@ delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3's
 is Accepted — 2026-10-13. Six implementation steps, each with commit and two
 independent review rounds, deliver durable acceptance, shared inbox/ledger,
 independent retries, both real defaults and Seeder handoff. Implementation is
-locally complete; Step 1 implements shared storage and privilege proofs, and both
-independent review rounds are complete. Its
+complete and merged through PR #31 on 2026-10-15. Step 1 implements shared
+storage and privilege proofs; both independent review rounds are complete. Its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-1--shared-storage-and-privileges-2026-10-13)
 owns verification and review status. Step 2 implements durable acceptance and
 inbox primitives; its
@@ -222,14 +222,19 @@ subscriptions are Active. Step 6 implements production-census enforcement and
 full packet closeout; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 owns completed validation/review receipts and PR/CI handoff. All six steps
-completed both independent review rounds; P02b-3 implementation is locally
-complete. The
+completed both independent review rounds. The
 [external review follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-3-external-review-follow-up-2026-10-15)
-records verified corrections and two further independent review rounds on the
-same unmerged branch; the
+records verified corrections and two further independent review rounds; the
 [second follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-3-second-external-review-follow-up-2026-10-15)
-owns subsequent remediation status. PR review and merge remain pending;
-P02b-4's background-job decision pass is next. Phase 06 retains the full
+records subsequent runtime/proof corrections and their completed reviews. The
+[P02b-3 merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+owns final source/merge and CI verification.
+P02b-4's transactional job infrastructure is implemented under Accepted ADR-0047
+and its lifecycle decisions. ADR-0062/0063 supply the bounded CI implementation.
+The [live Phase 02b status](docs/roadmap/phase-02b-events-auth.md) owns current remediation,
+review and final-source A/B qualification; new source requires both complete
+assignments. Production business and recurrence definitions remain empty.
+Phase 06 retains the full
 renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -436,10 +441,11 @@ Then read the phase that is live and the one it stands on:
   dispatch and observation, with both independent review rounds complete. Step 4
   enforcement and local closeout are complete; all four steps completed both
   independent review rounds. P02b-2 is complete and merged through PR #30 on
-  2026-10-13; its merge closeout above owns final verification. P02b-3 Steps 1–6
-  completed both review rounds; Step 6 owns the PR/CI handoff. P02b-4's
-  background-job decision pass follows maintainer review of the current packet.
-  Each later packet accepts its gates first.
+  2026-10-13; its merge closeout above owns final verification. P02b-3 is complete
+  and merged through PR #31 on 2026-10-15; all six steps and correction bundles
+  completed both review rounds. Its merge closeout above owns final verification.
+  The linked phase status owns current P02b-4 remediation, reviews and final-source
+  qualification. P02b-5–8 remain pending; each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency

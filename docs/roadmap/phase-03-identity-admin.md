@@ -296,6 +296,16 @@ refresh token storage, or brute-force protection — those are Keycloak responsi
   `tenancy.killswitch.toggle`, `(off-path)` `(planned)`, MUST, in the
   [Tenancy matrix](../modules/tenancy/audit.md).
 
+- **Audited job quarantine inspection and reconciliation.** ADR-0047 assigns this
+  phase the operator permission, evidence review and recovery surface. P02b-4
+  deliberately freezes quarantined job/attempt and recurrence/control facts for
+  every current role. Before implementing recovery, settle its bounded decision
+  and add a new migration for the exact trigger transitions and grants; preserve
+  immutable recorded evidence. Capacity release requires positive completion,
+  no-start or quiescence proof. Operator authority, elapsed time and a missing
+  worker alone cannot release reservations or authorize another external start
+  ([ADR-0047](../decisions/0047-transactional-background-job-runtime.md#external-profile-and-quiescence)).
+
 Authorization is the third layer, not the first. A permission check that passes still
 runs under the tenant's `ITenantContext` and under Row Level Security; a deny is a
 better error message, not the isolation boundary.

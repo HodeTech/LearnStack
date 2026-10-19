@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Validation;
 
@@ -9,8 +10,8 @@ namespace LearnStack.Modules.Customization.Application.Customization;
 /// </summary>
 /// <remarks>
 /// The top-level code stays a cross-cutting one — <c>validation_failed</c>,
-/// <c>not_found</c>, <c>business_rule_violation</c>, <c>concurrency_conflict</c>
-/// and <c>tenant_mismatch</c> are the five this module emits — because
+/// <c>not_found</c>, <c>business_rule_violation</c>, <c>concurrency_conflict</c>,
+/// <c>limit_exceeded</c> and <c>tenant_mismatch</c> are the six this module emits — because
 /// <c>HttpStatusMap</c> is a closed table and a module-specific key there falls
 /// through to <c>500</c>: the one answer a refusal must never give. What is
 /// module-specific goes in the field entry, where a client reads it.
@@ -117,6 +118,21 @@ internal static class CustomizationFailures
     /// <summary>An ordinary business-rule refusal, naming the field to change.</summary>
     internal static Result<T> BusinessRule<T>(string field, string reason) =>
         Field<T>(BusinessRuleViolation, field, reason);
+
+    internal static Result<T> ContentTypeLimit<T>(long limit)
+    {
+        var message = new LocalizedMessage("lockey_limit_exceeded", new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["limitKey"] = LimitKeys.MaxCustomContentTypes.Value,
+            ["limit"] = limit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        });
+        return Result<T>.Fail(new Error(message, new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+        {
+            // Problem Details projects parameters from field messages, so the
+            // refusal names the ceiling on the actual wire as well as the Result.
+            ["Key"] = [message],
+        }));
+    }
 
     internal static Result<T> Field<T>(string code, string field, string reason) =>
         Result.FailFor<Result<T>>(new Error(

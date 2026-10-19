@@ -61,6 +61,7 @@ public sealed class OrganizationScopeValidator(Lazy<NpgsqlDataSource> dataSource
         OrganizationId organizationId,
         CancellationToken cancellationToken = default)
     {
+        LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner.RefuseUnrelatedRead();
         // Refused before a connection is opened. Vogen validates the SHAPE of an id,
         // not that it names anything: TenantId.From(Guid.Empty) is a legal,
         // initialized id — measured — and the domain already refuses the all-zero

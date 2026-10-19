@@ -189,7 +189,7 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
         (await response.Content.ReadAsStringAsync()).Trim('"').Should().Be(
             PostgresErrorCodes.ReadOnlySqlTransaction);
 
-        var dataSource = _fixture.Services.GetRequiredService<NpgsqlDataSource>();
+        var dataSource = _fixture.Services.GetRequiredService<Lazy<NpgsqlDataSource>>().Value;
         var context = TenantContextFactory.Create(new TenantResolutionAttempt
         {
             HostTenantId = SeedData.English.TenantId,

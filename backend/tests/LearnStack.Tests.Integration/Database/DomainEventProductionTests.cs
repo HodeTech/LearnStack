@@ -777,7 +777,7 @@ public sealed class DomainEventProductionTests(SchemaFixture schema)
             await unit.SetTenantContextAsync(new ActingContext());
             using var invocation = (ProducerExecution.Invocation)typeof(ProducerExecution)
                 .GetMethod("BeginInvocation", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .Invoke(services.GetRequiredService<ProducerExecution>(), [true, null, null])!;
+                .Invoke(services.GetRequiredService<ProducerExecution>(), [true, null, null, null, null])!;
             source = Source(services);
             var db = services.GetRequiredService<CustomizationDbContext>();
             db.Add(source);

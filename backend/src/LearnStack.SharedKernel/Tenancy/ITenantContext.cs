@@ -6,13 +6,13 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// Tenant + organization + user context handed to MediatR
 /// handlers, EF interceptors, and the audit pipeline. Populated at scope
 /// start by <c>TenantResolverMiddleware</c> (HTTP), <c>HubCorrelationMiddleware</c>
-/// (<c>/api/internal/*</c>), the Hangfire <c>JobActivator</c> (background jobs),
+/// (<c>/api/internal/*</c>), the <c>JobExecutor</c> (background jobs),
 /// and the outbox / inbox handler scope (integration events). Modules never
 /// write to this contract — they read it through DI.
 /// </summary>
 /// <remarks>
 /// Phase 02a Packet 3 ships the contract. The real population sites land in
-/// Packet 7 (<c>TenantResolverMiddleware</c>) and Phase 02b (Hangfire + outbox
+/// Packet 7 (<c>TenantResolverMiddleware</c>) and Phase 02b (job runtime + outbox
 /// handler scope). Pre-population, the ambient context resolves to a
 /// composition-root-provided <c>UnresolvedTenantContext</c> singleton whose
 /// <see cref="IsResolved"/> is <c>false</c>.

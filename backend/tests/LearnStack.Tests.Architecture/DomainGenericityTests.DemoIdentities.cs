@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Tools.Seeder;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
@@ -213,6 +214,17 @@ public sealed partial class DomainGenericityTests
         Action tooManySymbols = () => _ = DemoLiteralViolations("Probe.cs", excessive, vocabulary);
         tooManySymbols.Should().Throw<InvalidOperationException>("an excessive census must fail rather than omit configurations");
         DemoLiteralViolations("Probe.json", JsonSerializer.Serialize(new { value = identity }), vocabulary).Should().ContainSingle();
+        BackendDemoSourceKind(Path.Combine(project, "Embedded.sql"), generated).Should().Be(1);
+        DemoLiteralViolations("Probe.sql", "SELECT '" + identity.Replace("'", "''", StringComparison.Ordinal) + "';", vocabulary)
+            .Should().ContainSingle("embedded SQL must not bypass the production literal census");
+        DemoLiteralViolations("Probe.sql", "SELECT $value$" + identity + "$value$;", vocabulary).Should().ContainSingle();
+        DemoLiteralViolations("Probe.sql", "DO $$ BEGIN PERFORM '" + id + "'; END $$;", vocabulary).Should().ContainSingle();
+        DemoLiteralViolations("Probe.sql", "SELECT '" + json.Replace("'", "''", StringComparison.Ordinal) + "';", vocabulary)
+            .Should().ContainSingle("JSON inside a SQL string remains source data");
+        DemoLiteralViolations("Probe.sql", "-- '" + identity + "'\n/* '" + identity + "' */ SELECT 'generic';", vocabulary)
+            .Should().BeEmpty("ordinary SQL comments remain outside the exact-literal policy");
+        Action escapedSql = () => _ = DemoLiteralViolations("Probe.sql", "SELECT E'\\u0041';", vocabulary);
+        escapedSql.Should().Throw<InvalidOperationException>("unmodeled SQL escape decoding must fail instead of omitting values");
         DemoLiteralViolations("Probe.cs", "// " + identity + "\nclass Probe { string Value = \"generic\"; }", vocabulary).Should().BeEmpty();
         foreach (var value in vocabulary.PlatformValues)
         {
@@ -284,10 +296,45 @@ public sealed partial class DomainGenericityTests
         var ids = vocabulary.Values.Where(row => row.Kind == "id").Select(row => Guid.Parse(row.Value)).ToHashSet();
         var strings = vocabulary.Values.Where(row => row.Kind != "id").Select(row => row.Value)
             .Except(vocabulary.PlatformValues, StringComparer.Ordinal).ToHashSet(StringComparer.Ordinal);
-        return (Path.GetExtension(path) == ".json" ? JsonValues(source) : CSharpValues(source))
+        return (Path.GetExtension(path) switch
+        {
+            ".json" => JsonValues(source),
+            ".sql" => SqlLiteralValues(source),
+            _ => CSharpValues(source),
+        })
             .Where(value => strings.Contains(value) || Guid.TryParse(value, out var id) && ids.Contains(id))
             .Distinct(StringComparer.Ordinal).ToArray();
     }
+
+    // This exact-literal fence is deliberately not a SQL validator or arbitrary
+    // dataflow analysis. The real migrations validate syntax. Dollar-quoted
+    // function bodies are both literal values and recursively inspected SQL;
+    // escape-string forms fail closed until their decoding is modeled.
+    private static IEnumerable<string> SqlLiteralValues(string source)
+    {
+        foreach (Match match in SqlSourceTokens().Matches(source))
+        {
+            if (match.Groups["escape"].Success)
+                throw new InvalidOperationException("Unmodeled SQL escape string; Fix: extend the decoded literal census before using it.");
+            string value;
+            if (match.Groups["dollar"].Success)
+            {
+                value = match.Groups["dollar"].Value;
+                foreach (var nested in SqlLiteralValues(value)) yield return nested;
+            }
+            else if (match.Groups["value"].Success)
+                value = match.Groups["value"].Value.Replace("''", "'", StringComparison.Ordinal);
+            else continue;
+            yield return value;
+            string[] json;
+            try { json = value.TrimStart().StartsWith('{') || value.TrimStart().StartsWith('[') ? JsonValues(value).ToArray() : []; }
+            catch (JsonException) { json = []; }
+            foreach (var nested in json) yield return nested;
+        }
+    }
+
+    [GeneratedRegex(@"--[^\r\n]*|/\*[\s\S]*?\*/|(?<escape>\b[Ee]|[Uu]&)?'(?<value>(?:''|[^'])*)'|\$(?<tag>[A-Za-z_][A-Za-z0-9_]*|)\$(?<dollar>[\s\S]*?)\$\k<tag>\$", RegexOptions.CultureInvariant)]
+    private static partial Regex SqlSourceTokens();
 
     private static IEnumerable<string> CSharpValues(string source)
     {

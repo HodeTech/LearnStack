@@ -196,43 +196,16 @@ stateDiagram-v2
 
 ## 4. Phone-home refresh
 
-`SelfHostedOnline` and SaaS / Dedicated all phone home daily. Hangfire recurring job:
+`SelfHostedOnline` and SaaS / Dedicated phone home daily once the
+[Phase 02c trigger](../roadmap/phase-02c-hub-foundation.md) delivers the Hub adapter.
+The feature registers a typed recurrence and tenant-bound child definition through
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md#durable-recurrence-and-recipient-admission).
+P02b-4 delivers the infrastructure with no production phone-home definition.
+`JobExecutor` restores the child's trusted tenant context; the refresh goes through
+the named Hub adapter and `IEntitlementProvider.RefreshAsync`.
 
-```csharp
-public sealed class LicenseRefreshJob : LearnStackJob<LicenseRefreshJobParams>
-{
-    protected override async Task ExecuteAsync(LicenseRefreshJobParams parameters, CancellationToken ct)
-    {
-        try
-        {
-            var refreshed = await _hubClient.RefreshAsync(parameters.TenantId, ct);
-
-            // The generation guard lives inside the write statement, never in the job:
-            // a strictly older push leaves every column unchanged and reports
-            // IgnoredAsStale (ADR-0045 § 1 + Amendment 1 § 3).
-            var outcome = await _entitlements.RefreshAsync(refreshed, ct);
-            if (outcome is EntitlementRefreshOutcome.Applied)
-            {
-                await _eventBus.PublishAsync(new EntitlementUpdatedIntegrationEvent
-                {
-                    TenantId = parameters.TenantId,
-                    Generation = refreshed.Generation
-                }, ct);
-                _logger.LogInformation("Entitlement refreshed for tenant {TenantId} to gen {Gen}",
-                    parameters.TenantId, refreshed.Generation);
-            }
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogWarning(ex, "Phone-home failed for tenant {TenantId}; grace period continues",
-                parameters.TenantId);
-            // Grace period enforcement happens at read time in IEntitlementProvider.
-        }
-    }
-}
-```
-
-`_entitlements` is the registered `IEntitlementProvider`. `platform_entitlement_cache`
+The refresh writer is the registered `IEntitlementProvider`.
+`platform_entitlement_cache`
 is read and written by an `IEntitlementProvider` implementation and by nothing else
 ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)), so this
 job never writes the table behind the provider that owns it. The push path goes through
@@ -244,9 +217,9 @@ at the same generation therefore re-applies the same bytes — the Hub is the si
 writer and bumps by one per recompute — while a strictly older push is a no-op rather
 than a downgrade.
 
-**Jitter**: in a SaaS deployment with many tenants, the daily refresh would otherwise all
-hit Hub at the same time. The job adds a random 0-119 minute offset per tenant when first
-enqueued.
+**Jitter:** the typed recurrence uses ADR-0047's deterministic recipient jitter
+within the existing 0–119 minute refresh window, so tenants do not all call the
+Hub at once.
 
 ## 5. Entitlement read path and grace enforcement
 

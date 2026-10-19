@@ -161,6 +161,15 @@
     <PackageVersion Include="Scalar.AspNetCore" Version="2.16.20" />
   </ItemGroup>
 
+  <!-- ADR-0047: stock wakeup transport. Pins qualify together with Npgsql 10 and
+       Hosting 10; the umbrella Hangfire/SQL Server package is deliberately absent. -->
+  <ItemGroup Label="Phase 02b Packet 4 (in use)">
+    <PackageVersion Include="Hangfire.Core" Version="1.8.25" />
+    <PackageVersion Include="Hangfire.NetCore" Version="1.8.25" />
+    <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
   <!--
     Roslyn host packages — the analyzers under backend/analyzers/ compile against them, and
     the unit and architecture suites run those analyzers over real source.

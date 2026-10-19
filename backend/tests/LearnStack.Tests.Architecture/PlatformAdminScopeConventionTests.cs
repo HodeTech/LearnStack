@@ -36,6 +36,8 @@ public sealed class PlatformAdminScopeConventionTests
         "LearnStack.Api/Composition/OutboxCompositionExtensions.cs";
     private const string OutboxWorkerFile = "LearnStack.Api/Messaging/OutboxProcessor.cs";
     private const string DeliveryWorkerFile = "LearnStack.Api/Messaging/DeliveryProcessor.cs";
+    private const string JobRuntimeRegistrationFile =
+        "LearnStack.Infrastructure/Jobs/BackgroundJobRuntimeRegistration.cs";
 
     [Fact]
     public void Platform_DataSource_Resolved_Only_By_PlatformAdminScope()
@@ -58,7 +60,7 @@ public sealed class PlatformAdminScopeConventionTests
             .ToList();
 
         resolvers.Should().BeEquivalentTo(
-            [ScopeFile, CompositionFile, OutboxCompositionFile, OutboxWorkerFile, DeliveryWorkerFile],
+            [ScopeFile, OutboxCompositionFile, OutboxWorkerFile, DeliveryWorkerFile, JobRuntimeRegistrationFile],
             "the platform scope and the separately confined dispatcher are the only "
             + "credential consumers, alongside their composition roots");
 
@@ -76,6 +78,11 @@ public sealed class PlatformAdminScopeConventionTests
             .Should().Be(OutboxDispatcherDataSource.Key,
                 "the subscriber scheduler reuses only the confined dispatcher credential");
         File.ReadAllText(Path.Combine(SourceScan.SourceRoot, DeliveryWorkerFile))
+            .Should().NotContain("PlatformAdmin");
+
+        // ADR-0047's closed job factories resolve the dispatcher key only;
+        // the companion compiled credential census pins each exact caller/key.
+        File.ReadAllText(Path.Combine(SourceScan.SourceRoot, JobRuntimeRegistrationFile))
             .Should().NotContain("PlatformAdmin");
 
         // Leg 2 — IConfiguration.GetConnectionString is called in exactly one file under

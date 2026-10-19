@@ -1,17 +1,65 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Current status — 2026-10-15.** P02b-0 through P02b-2 are complete.
+**Current status — 2026-10-19.** P02b-0 through P02b-3 are complete.
 P02b-2 is merged through [PR #30](https://github.com/HodeTech/LearnStack/pull/30);
 its [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
-P02b-3's [decision package](#p02b-3-decision-package-2026-10-13) is Accepted;
-All six steps completed implementation and both independent review rounds.
-[Step 6](#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13) owns
-validation and PR/CI handoff; PR review and merge remain pending.
+P02b-3 is merged through [PR #31](https://github.com/HodeTech/LearnStack/pull/31);
+its [merge closeout](#p02b-3-merge-and-closeout-2026-10-15) owns final verification.
+All six steps and the verified review corrections are delivered, with both
+independent review rounds complete.
 The [external review follow-up](#p02b-3-external-review-follow-up-2026-10-15)
 records verified corrections and dispositions against the reviewed PR head.
 The [second follow-up](#p02b-3-second-external-review-follow-up-2026-10-15)
 owns the subsequent runtime and proof corrections.
-P02b-4–8 remain unimplemented.
+P02b-4's [decision package](#p02b-4-decision-package-2026-10-15) and ADR-0047 are
+Accepted — 2026-10-15. Nine implementation steps are authorized on `development`;
+P02b-4 Step 1 implements contracts and ordinary execution guards; its
+[record](#p02b-4-step-1--contracts-and-authority-2026-10-16) owns validation and
+review status. Step 2 is complete under ADR-0058, Accepted — 2026-10-16;
+its [closeout](#step-2-final-proof-and-closeout) records both fresh review rounds,
+critical-fix verification and passing regression. Step 3 submission/admission is
+complete; its [record](#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
+owns both review rounds and passing 4,152-case backend verification. Step 4's
+[lifecycle acceptance](#maintainer-acceptance-and-step-4-adaptation-2026-10-16) and
+ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
+composition qualification under Accepted ADR-0060; business execution stays Step 5.
+The [required-startup qualification](#step-4-required-startup-qualification-2026-10-16)
+records ADR-0060's reviewed revision; its
+[acceptance](#adr-0060-acceptance-and-step-4-continuation-2026-10-16) on 2026-10-16
+authorizes dependent fatal/lifecycle implementation. The
+[Step 4 closeout](#full-step-4-round-2-correction-validation-and-closeout-2026-10-16)
+records passing qualification and both full review rounds with verified corrections.
+Steps 4–6 are locally complete after both full review rounds and verified
+corrections. The [Step 6 record](#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+owns capacity delivery and final local qualification. Step 7 external stages are
+committed under Accepted ADR-0061; both full review rounds and verified corrections
+are complete. Its
+[record](#p02b-4-step-7--external-stages-and-recovery-2026-10-17) owns current evidence.
+Step 8 durable recurrence and restricted fan-out is locally complete after both
+full review rounds and verified corrections; its
+[closeout](#step-8-full-review-round-2-2026-10-18) owns final qualification. Step 9
+enforcement and P02b-4 are locally complete; the
+[local closeout](#p02b-4-local-closeout-2026-10-18) owns exact qualification and
+remaining PR/CI/merge work. P02b-5–8 remain pending. Production business and
+recurrence definitions remain empty.
+[ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md) is Accepted —
+2026-10-18. Its [CI acceptance](#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+records the bounded native provisioning/partition implementation and follow-up
+reviews. [PR #32](https://github.com/HodeTech/LearnStack/pull/32) owns live
+exact-head hosted qualification and review status.
+[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) is Accepted —
+2026-10-18. Its [acceptance record](#adr-0063-acceptance-and-implementation-2026-10-18)
+owns the three authorized CI steps and actual two-assignment qualification.
+Steps 1 and 2 are locally complete after both reviews and verified corrections.
+Step 3 source enforcement has completed both full reviews and verified
+corrections; its [record](#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
+owns dated hosted failures and verified corrections. PR #32 owns live final-source
+two-assignment qualification; earlier receipts retain their source-specific state.
+Acceptance is not packet/PR closeout. The
+[review correction record](#p02b-4-review-corrections-2026-10-19) owns the current
+source corrections and evidence-availability qualification. Both final-source
+layouts require independent reconstruction and retained evidence; PR #32
+carries live results and current artifact availability.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -121,10 +169,11 @@ At the [P02b-0 entry audit](#p02b-0-entry-verification-2026-10-12), `IOutbox`
 and step 7's implementation were absent. P02b-1 Step 2 now supplies immediate
 enqueue and the enrollment/invariant guard. P02b-2 Step 3 implements the
 API-host `OutboxProcessor` BackgroundService, with both independent review
-rounds complete. Still absent are `IInboxGuard`, `inbox_messages`, Hangfire and its
-package pins, and the realm's protocol mappers. Packet 5 documented a planned
-`IInboxGuard` seam in comments, without an interface declaration. P02b-3 owns its
-shared transport implementation and table under ADR-0046.
+rounds complete. P02b-3 delivers `IInboxGuard` and `inbox_messages` as shared
+transport infrastructure under ADR-0046. P02b-4 Step 2 delivers the Hangfire pins
+and guarded storage; Step 4 retains vendor worker activation. The realm's
+protocol mappers remain P02b-5 work. Packet 5's earlier `IInboxGuard` references
+were planned comments, not an interface declaration.
 
 ### What this phase is not
 
@@ -257,8 +306,11 @@ Decisions made or referenced in this phase:
   (the killswitch precedent for a mechanism shipped without its operator surface)
 - [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) is Accepted
   with its bounded delivery supersessions and separate additive audit seam.
-  ADR-0047 (job runtime) remains undrafted in
-  [Open ADR Drafts](../decisions/README.md#open-adr-drafts).
+  [ADR-0047](../decisions/0047-transactional-background-job-runtime.md) and
+  [P02b-4's package](#p02b-4-decision-package-2026-10-15) are Accepted — 2026-10-15;
+  all nine implementation steps are locally complete; the
+  [local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification and
+  remaining PR/CI/merge work.
 
 ## Scope
 
@@ -274,8 +326,8 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-0** | Phase entry: every premise the register below cites re-verified against `HEAD` — the code, the corpus, the Hub repository — and the register corrected where Phase 02d moved it. It drafts no record: each gate closes in the decision pass of the first packet it shapes, and each glossary headword this phase needs — `inbox`, outbox lease, dead letter, audit frame, job activator, integration-event consumer — is written in the pass whose gate fixes its meaning | [Phase 02d](phase-02d-walking-skeleton.md) exits |
 | **P02b-1** | **Complete and merged — [PR #29 closeout](#p02b-1-merge-and-closeout-2026-10-12).** Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
 | **P02b-2** | **Complete and merged — [PR #30 closeout](#p02b-2-merge-and-closeout-2026-10-13).** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
-| **P02b-3** | **Implementation and both review rounds complete** ([Step 6](#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)); PR review and merge pending. Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
-| **P02b-4** | Background jobs: the runner, its storage, the tenant-context hook, the enqueue guard, no job definition | G9 Accepted; P02b-3 |
+| **P02b-3** | **Complete and merged — [PR #31 closeout](#p02b-3-merge-and-closeout-2026-10-15).** Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
+| **P02b-4** | **Locally complete — [local closeout](#p02b-4-local-closeout-2026-10-18).** Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; all nine implementation steps and their review gates delivered; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
 | **P02b-5** | API authentication: JwtBearer wiring and its insertion order, claim population, the host/JWT cross-check through the existing recorder, token-keyed rate limits, the 401 rows, one authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: the shared client scope, the mappers, the user-profile declaration, UUID attributes agreeing with `SeedData`, the warm-realm reconciler, the Keycloak test fixture | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
 | **P02b-7** | BFF session: Auth.js, the cookie session, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
@@ -302,15 +354,15 @@ premise a row cites is re-verified at that pass rather than trusted.
 
 | # | Question | Leaning | Vehicle | Blocks | Status |
 |---|---|---|---|---|---|
-| G1 | What is the subscriber's fate when its handler exhausts retries, and what is the inbox table — one shared or per module, keyed `event_id` or `(tenant_id, consumer, event_id)`, claimed by the handler or by the transport? Three arms travel with it: the class of consumer whose effect cannot share the inbox transaction (an external call, the platform-scope erasure handler the Audit spec already carries) and what "effectively once" means for it; whether an event without the organization marker is delivered tenant-wide regardless of the producing request's organization; and whether the inbox entity joins [ADR-0044 § 7](../decisions/0044-audit-write-path.md)'s named audit-capture exclusion list once a delivery declares intents | One shared tenant-owned `inbox_messages` keyed by tenant/stable subscription/event, transport-claimed before construction; a separate delivery ledger owns retries, terminal state and targeted replay; completion shares the business/audit/outbox transaction | **ADR-0046** + a dated **ADR-0006 Amendment** (or an explicit supersession note in ADR-0046 naming Amendment 1's consumer-side paragraph, which fixes the per-module inbox) + a dated **ADR-0010 Amendment**, because its § Idempotency makes two things mandatory that the shared-table leaning changes — the inbox is "the module's **own** inbox table", and the guard is called by the consumer — + the `Integration_Event_Handlers_Use_InboxGuard` assertion re-written in the same record to name whoever ends up owning the call, since a transport-claimed delivery fails a structural rule that looks for the call inside the handler + Database Standards § Inbox + an ADR-0041 erratum beside ADR-0023's minting list | P02b-2 (the record and its amendments: the dispatcher's retry state and a failed delivery's next attempt are one state machine), P02b-3 (Database Standards § Inbox and the ADR-0023 erratum) | Accepted — 2026-10-12; decision/amendments delivered; P02b-3 Steps 1–6 implement subscriber runtime, inbox, defaults and production enforcement; Step 6 record owns PR/CI status |
+| G1 | What is the subscriber's fate when its handler exhausts retries, and what is the inbox table — one shared or per module, keyed `event_id` or `(tenant_id, consumer, event_id)`, claimed by the handler or by the transport? Three arms travel with it: the class of consumer whose effect cannot share the inbox transaction (an external call, the platform-scope erasure handler the Audit spec already carries) and what "effectively once" means for it; whether an event without the organization marker is delivered tenant-wide regardless of the producing request's organization; and whether the inbox entity joins [ADR-0044 § 7](../decisions/0044-audit-write-path.md)'s named audit-capture exclusion list once a delivery declares intents | One shared tenant-owned `inbox_messages` keyed by tenant/stable subscription/event, transport-claimed before construction; a separate delivery ledger owns retries, terminal state and targeted replay; completion shares the business/audit/outbox transaction | **ADR-0046** + a dated **ADR-0006 Amendment** (or an explicit supersession note in ADR-0046 naming Amendment 1's consumer-side paragraph, which fixes the per-module inbox) + a dated **ADR-0010 Amendment**, because its § Idempotency makes two things mandatory that the shared-table leaning changes — the inbox is "the module's **own** inbox table", and the guard is called by the consumer — + the `Integration_Event_Handlers_Use_InboxGuard` assertion re-written in the same record to name whoever ends up owning the call, since a transport-claimed delivery fails a structural rule that looks for the call inside the handler + Database Standards § Inbox + an ADR-0041 erratum beside ADR-0023's minting list | P02b-2 (the record and its amendments: the dispatcher's retry state and a failed delivery's next attempt are one state machine), P02b-3 (Database Standards § Inbox and the ADR-0023 erratum) | Accepted — 2026-10-12; decision/amendments delivered; P02b-3 Steps 1–6 implement subscriber runtime, inbox, defaults and production enforcement; complete and merged; [merge closeout](#p02b-3-merge-and-closeout-2026-10-15) owns final verification |
 | G2 | Does `IOutbox.EnqueueAsync` write the row immediately on the ambient transaction, or buffer for `OutboxFlushBehavior` at step 7 — and what is the flush point for the two paths that have no step 7? | Immediate write, with the behavior asserting no buffered message survives the handler | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) bounded supersession of ADR-0032 Sub-decision 2's step-7 completion role, with a dated supersession disclosure in ADR-0032 under this acceptance; phase-doc + [Events and Outbox § Producer pattern](../architecture/15-event-and-outbox.md#producer-pattern) | P02b-1 | Accepted — immediate enqueue/owner completion |
 | G3 | What replaces the unconditional same-key publish-order promise — a scoped bound, or strict per-key head-of-line blocking — and is the key's derivation checkable structurally, given that [§ Ordering](../architecture/15-event-and-outbox.md#ordering) admits an aggregate id or a deliberately declared tenant-wide key and nothing else? | Scope it: no column in `outbox_messages` carries an unconditional per-key guarantee, so the honest bound is one processor, no failure, deterministic eligible selection; no enqueue/commit-order guarantee | Derivation: [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md). Ordering: Accepted ADR-0046 and the P02b-2 package, followed by [§ Ordering](../architecture/15-event-and-outbox.md#ordering) alignment under this acceptance | P02b-1 (whether the key's derivation is checked structurally: the first event declares a key), P02b-2 (the ordering bound) | Derivation and ordering Accepted; scoped ordering runtime [implemented in P02b-2](#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state |
 | G4 | What counts as an attempt, what is `MaxAttempts` bound to, and what marker keeps a terminal row terminal as the clock advances? | Six attempts (one immediate plus the five documented delays) and an explicit terminal column, because a pushed-out `available_after` stops being terminal and never leaves the pending gauge | Accepted ADR-0046 + dated ADR-0006 disclosure under this acceptance; Database Standards § Outbox DDL, index and grant edits | P02b-2 | Accepted — 2026-10-12; producer attempts/terminal state [implemented](#p02b-2-step-2--durable-transitions-and-terminal-audit-2026-10-12) |
 | G5 | Does the stored event identity stay the assembly-qualified type name with declared compatibility mappings, and what happens to an unresolvable type, a retired type and an event with no subscriber? And what is the **row's** identity — a surrogate `id` plus an `event_id` column, or `EventId` as the key — given that two documents list an `event_id` the canonical DDL does not have? | Keep the type identity, add a bounded resolver reading through `PayloadJsonOptions` and declared mappings; dead-letter a retired type at once rather than spending its attempt budget; reconcile the row's column list in one direction | Stored identities: [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) bounded supersession of ADR-0032 Sub-decision 12 and the Phase 02b deliverables table in Implementation Notes, with a dated supersession disclosure under this acceptance; Database Standards alignment. ADR-0046 accepts declared resolution, Pending holds and intentional absence; dispatch runtime remains P02b-2 | P02b-1 (the stored type identity and the row's identity, both written at enqueue), P02b-2 (unresolvable, retired and unsubscribed types) | Stored identities and resolution outcomes Accepted; resolver/readiness runtime [implemented](#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12); both real durable subscriptions Active in P02b-3 Step 5 |
 | G6 | When the unit-of-work owner is not an `AuditLogBehavior`, who performs the four owner-side audit acts and enters the outermost audit frame — and does a state-mutating delivery declare its own intents, keyed by handler type? | The transport opens the outermost frame beside its transaction; a delivery declares its own intents and an unregistered handler is refused as an unregistered request is | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md): bounded ADR-0040 nested-failure supersession; separately enumerated additive UoW read-seam amendment; clarifying ADR-0044/0033 common-owner amendments. G1-dependent production delivery/inbox implementation remains P02b-3 | P02b-1, P02b-3 | Producer/common owner delivered; delivery/inbox contract Accepted; common owner and execution implemented by P02b-3 Steps 2–3 |
-| G7 | For a dead-letter transition: what class, what `OperationType`, what slug, on which transaction, in what order against the state change, with what failure posture — and may a second non-MediatR caller reach `IAuditStore.WriteStandaloneAsync`? | MUST `security-event`; producer `platform.outbox.dead_letter` and reserved P3 `platform.delivery.dead_letter`; fenced terminal transition and audit INSERT on the same short transaction through a narrow fifth write seam; failed audit retries terminalization without publication | Accepted ADR-0046 + bounded ADR-0044 audit-grant replacement, separate additive fifth-writer seam amendment and ADR-0033 same-transaction clarification under this acceptance; `DeclareOffPath` registration and Audit Coverage baseline | P02b-2 (the producer dead-letter row its criteria assert), P02b-3 | Accepted — 2026-10-12; producer terminal audit [implemented](#p02b-2-step-2--durable-transitions-and-terminal-audit-2026-10-12); subscriber terminal audit implemented by P02b-3 Step 4 |
-| G8 | Does the dispatcher's `BYPASSRLS` use carry a per-invocation `security-event` row, or is it exempt — and on what written terms? | Exempt, on three terms: the bypass is grant-bounded and code-path-confined, dispatch attempts are logged rather than audited, and the dead-letter transitions are the audited events | Accepted ADR-0046 explicitly replaces the routine-dispatch coverage rule and bounds the ADR-0003 grant extension; dated disclosures under this acceptance, not an ADR-0041 correction | P02b-2 | Accepted — 2026-10-12; confined dispatcher exception/census [implemented](#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state |
-| G9 | Which record decides the background-job runtime — its storage under the closed four-role model, the single tenant-context writer, the job frame's transaction owner, the enqueue-site rule *and who may enqueue whose job type*, the retry contract (whose class, slug and posture adopt **G7**'s), the tenantless platform-job class a purge needs, the ADR-0035 classification, the queue grammar, and the package pins with their licence verdict? | One record answering all of it; a job reaches the database only through `ISender`, which leaves ADR-0040's closed setter set at eight | **ADR-0047** + a dated ADR-0003 Amendment for the storage + a dated **ADR-0036 Amendment** (or an erratum) if the job-path writer is not the `JobActivator` its § Rules names in the closed four-caller set, then Standards 05 and Standards 20 | P02b-4 | Open |
+| G7 | For a dead-letter transition: what class, what `OperationType`, what slug, on which transaction, in what order against the state change, with what failure posture — and may a second non-MediatR caller reach `IAuditStore.WriteStandaloneAsync`? | MUST `security-event`; producer `platform.outbox.dead_letter` and reserved P3 `platform.delivery.dead_letter`; fenced terminal transition and audit INSERT on the same short transaction through a narrow fifth write seam; failed audit retries terminalization without publication | Accepted ADR-0046 + bounded ADR-0044 audit-grant replacement, separate additive fifth-writer seam amendment and ADR-0033 same-transaction clarification under this acceptance; `DeclareOffPath` registration and Audit Coverage baseline | P02b-2 (the producer dead-letter row its criteria assert), P02b-3 | Accepted — 2026-10-12; producer terminal audit [implemented](#p02b-2-step-2--durable-transitions-and-terminal-audit-2026-10-12); subscriber terminal audit implemented by P02b-3 Step 4; job part Accepted — 2026-10-15 under ADR-0047: `platform.job.dead_letter`, actual-row sixth write and same-transaction MUST audit; job terminal/MUST audit implemented; [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification and remaining PR/CI/merge work |
+| G8 | Does the dispatcher's `BYPASSRLS` use carry a per-invocation `security-event` row, or is it exempt — and on what written terms? | Exempt, on three terms: the bypass is grant-bounded and code-path-confined, dispatch attempts are logged rather than audited, and the dead-letter transitions are the audited events | Accepted ADR-0046 explicitly replaces the routine-dispatch coverage rule and bounds the ADR-0003 grant extension; dated disclosures under this acceptance, not an ADR-0041 correction | P02b-2 | Accepted — 2026-10-12; confined dispatcher exception/census [implemented](#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state; job/recurrence part Accepted — 2026-10-15 under ADR-0047, conditional on exact grants/censuses, diagnostics, observation and terminal MUST audit; job/recurrence confinement, diagnostics, observation and terminal MUST controls implemented; [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification and remaining PR/CI/merge work |
+| G9 | Which record decides the background-job runtime — its storage under the closed four-role model, the single tenant-context writer, the job frame's transaction owner, the enqueue-site rule *and who may enqueue whose job type*, the retry contract (whose class, slug and posture adopt **G7**'s), the tenantless platform-job class a purge needs, the ADR-0035 classification, the queue grammar, and the package pins with their licence verdict? | One record answering all of it; business execution uses the existing announced request owner through `ISender`, retaining the eight setters; the chosen storage/scheduler authority is separately explicit | **ADR-0047** + a dated **ADR-0003 Amendment** for any schema/role/grant-confinement extension (not merely a new tenant table under the existing policy) + a dated **ADR-0036 Amendment** disclosing the selected context-writer contract; then Standards 05/20. A decision change is not an erratum | P02b-4 | Accepted — 2026-10-15 under ADR-0047 and the nine-step P02b-4 package; bounded prior-ADR Amendments accompany acceptance; runtime and all nineteen canonical obligations implemented; [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification and remaining PR/CI/merge work |
 | G10 | Does the active tenant travel as a scalar `tenant_id` claim, a `memberships` array, or both — and what value does `UserId` hold? | The scalar claim, whose 02b source is an admin-set user attribute; a second UUID-valued `user_id` attribute for the actor, with `sub` staying Keycloak's subject | Phase-doc: [ADR-0036 § What is out of scope](../decisions/0036-tenant-resolution-trusted-inputs.md#what-is-out-of-scope-and-what-is-not) hands the shape to this phase by name. Reconcile `architecture/13`'s array sketch in the same change | P02b-5 | Open |
 | G11 | Which [ADR-0036 matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) rows resolve in this phase, given that row 10 consults a reader that denies everyone — and what row covers a signature-valid token carrying no `tenant_id` claim on a tenant host? | Either mint `organization_id` scoped to the host's organization, which makes row 10 need no membership read, or declare the organization host's authenticated 404 and test it as the expected outcome | A dated **ADR-0036** amendment plus errata beside § Staging across packets and the 2026-09-02 erratum, both of which assign row 10 to this phase without noting that its `M covers (T, O)` term is denied until Phase 03 — which groups it with rows 7 and 14 rather than with 6 and 9 | P02b-5 | Open |
 | G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? Native HTTPS on retained `*.learnstack.local` hosts, with manual hosts/trust setup, is delivered by Phase 02d and re-verified by P02b-0 | A confidential BFF client with one redirect URI per seed host, retaining native HTTPS and `Secure` cookies; and an idempotent reconciler inside `make seed` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-0 re-verifies [Phase 02d G32](phase-02d-walking-skeleton.md#the-decision-register), ADR-0053/0054 and ADR-0055; P02b-5 (which client the BFF redeems the code with: the API pins `azp` against it), P02b-6 | Open |
@@ -318,8 +370,8 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject. The early anonymous stage already runs before authentication: P02d-5 delivers 60/min per canonical direct or authenticated-hop visitor IP plus 600/min peer acquisitions/allocations under ADR-0053 and ADR-0054. Exhausted known visitors refuse before peer debit; unknown visitor allocation remains peer-gated. These remain IP/peer quotas, not token quotas; a request they reject never reaches the token stage. Re-verify the [P5 remediation decision](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09) before choosing authenticated accounting, preserving pre-classification protection against unknown-host abuse | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 (the token-keyed stage and the early stage's treatment of validated callers); G34's anonymous-hop policy and ADR-0054's bounded accounting replacement are Accepted and delivered in P02d-5 | Open |
 | G15 | What initiates a replay in this phase? | Targeted internal subscriber replay in P02b-3; producer/operator reset and fencing require a separate Phase 03 contract | Phase-doc; the URL space is its own decision record, per ADR-0036 | — (answered in § The consumer side; recorded so the question travels with the deferral) | Accepted — internal subscriber replay implemented by P02b-3 Step 4; operator contract Phase 03 |
 | G16 | What is `LS0002`'s rule name, which project trees does it run over, what does it inspect, and what escalates it to Error? | The name and scope recorded the way Amendment 1 recorded `LS0001`, with the scope reaching the assemblies that actually handle tokens | A dated **ADR-0032** amendment + a catalogue entry + an `AnalyzerReleases` row | P02b-8 | Open |
-| G17 | What are the label sets for the event and job metrics, is the tenant axis permitted, and is it spelled `tenant` or `tenant_id`? | One note in the document that owns metric names, no raw tenant label on a per-event series, and an oldest-eligible-row age metric separate from the pending count | [Observability Standards § Required Metrics](../standards/10-observability.md#required-metrics) edit | P02b-2 (the first series ships there, and a label added afterwards touches every emitter already written) | Event metrics Accepted — 2026-10-12; runtime/guards [implemented](#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state; job metrics pending P02b-4 |
-| G18 | May an integration-event payload or a job argument carry personal data, what may `last_error` contain, and do the four new durable stores enter the erasure scope? | Identifiers only, a sanitized and length-bounded failure descriptor, and the stores named in the erasure inventory | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) decides the new producer payload/NULL JSON metadata policy and application byte cap; a dated ADR-0038 cross-reference under this acceptance. [Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten), P02b-8 and Phase 11 retain erasure ownership | P02b-1 (the payload rule: the first payload ships there), P02b-2 (the `last_error` rule and its DDL bound), P02b-8 (the erasure inventory) | Payload and failure descriptors Accepted and implemented; erasure inventory open P02b-8 |
+| G17 | What are the label sets for the event and job metrics, is the tenant axis permitted, and is it spelled `tenant` or `tenant_id`? | One note in the document that owns metric names, no raw tenant label on a per-event series, and an oldest-eligible-row age metric separate from the pending count | [Observability Standards § Required Metrics](../standards/10-observability.md#required-metrics) edit | P02b-2 (the first series ships there, and a label added afterwards touches every emitter already written) | Event metrics Accepted — 2026-10-12; runtime/guards [implemented](#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state; job label/observation contract Accepted — 2026-10-15 under ADR-0047; job instruments/guards implemented; [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification and remaining PR/CI/merge work |
+| G18 | May an integration-event payload or a job argument carry personal data, what may `last_error` contain, and do the four new durable stores enter the erasure scope? | Identifiers only, a sanitized and length-bounded failure descriptor, and the stores named in the erasure inventory | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) decides the new producer payload/NULL JSON metadata policy and application byte cap; a dated ADR-0038 cross-reference under this acceptance. [Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten), P02b-8 and Phase 11 retain erasure ownership | P02b-1 (the payload rule: the first payload ships there), P02b-2 (the `last_error` rule and its DDL bound), P02b-8 (the erasure inventory) | Payload and failure descriptors Accepted and implemented; job identifier-only payload/checkpoint and failure-descriptor bounds Accepted — 2026-10-15 under ADR-0047; job payload/checkpoint/failure bounds implemented; [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification; erasure inventory open P02b-8 |
 | G19 | Where do the sample flow's publisher and consumer live — a fixture pair in the integration assembly, or a real event a shipped module consumes? | A real event between two shipped domain modules, because a test-assembly-only consumer leaves every module-scoped sweep with zero subjects | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) and the P02b-1 package; reconcile Tenancy/Customization/Audit specs under this acceptance. ADR-0046 accepts distinct subscription deduplication and envelope delivery scope; P02b-3 implements the two effects and Seeder handoff. The provisioning publisher must prove enqueue from its transaction announcement while ambient context remains unresolved | P02b-1 | Flow and delivery contract Accepted; subscriptions/semantic Seeder handoff implemented by P02b-3 Step 5 |
 | G20 | What does an anonymous request to a **routed non-public** request type on a live tenant host answer — and does the catalogued `Backend_RequiresJwt_OnAllAuthenticatedRoutes` narrow to a surface outside tenant resolution? A second half rides with it: the shipped assertion middleware says that from this phase the refusal code differs by caller, `tenant_mismatch` for an authenticated one and `not_found` for an anonymous one, written by the middleware itself | The matrix wins on a tenant host — [row 2](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) answers 404, byte-identical to an unknown host's, and the 401 rule narrows to the surface where a 401 discloses nothing | The dated **ADR-0036** amendment G11 needs + a catalogue edit to that rule's Asserts line | P02b-5 | Open |
 
@@ -3439,6 +3491,6708 @@ correction-head CI; its exact source and artifacts must be inspected before the
 PR description records success. Maintainer review and merge remain pending;
 this correction starts no P02b-4 work.
 
+### P02b-3 merge and closeout (2026-10-15)
+
+The maintainer merged [PR #31](https://github.com/HodeTech/LearnStack/pull/31) at
+2026-10-15 16:45:06 UTC. GitHub records final PR source
+`0fa7dc869d5b0f704a2d05313226d3d1b0f98510` and squash merge
+`ed60157c14d33fad926fd201b49c08e2d24eed1f`, whose parent is previous main
+`6a277770e46a7f4ea3574d9d6891d1802cb8fa90`. Source and squash merge have the
+identical tree `57cab77ffb486689de18abbf741b6186dcf7de6f`. Development incorporates
+the main merge without switching branches or rewriting published history.
+
+All seven required checks pass in the
+[final PR run](https://github.com/HodeTech/LearnStack/actions/runs/38755136480)
+for that source; CodeRabbit also reports success. The tested synthetic merge is
+`a131ca6b59f750c69d4465b46a0bd1a5717dcd0a`. The seven required contexts and strict
+up-to-date protection were re-read from GitHub after merge and remain enabled.
+Verified artifacts record:
+
+- **3,745 backend passes**, zero failures/skips: 1,864 unit, 312 architecture,
+  four contract, 176 Docker-free integration and 1,389 Docker integration cases.
+  All ten alias/progress PostgreSQL regressions pass on this exact source.
+- **1,616 guarded frontend passes**: 1,556 web and 60 SDK, zero
+  failures/skips/todos; lint, typecheck, builds and native-ingress proofs pass.
+- Exactly 27 matching Lighthouse JSON/HTML report pairs across nine URLs, with
+  matching source/checkout identities and report digests. Automated accessibility
+  is 1 throughout, CLS is 0 and normalized initial JS gzip is at most 106,554
+  bytes. Proof finishes in 649.646 seconds within the 12-minute bound; owned
+  cleanup passes. Nine timing advisories remain warnings, not production p95.
+
+These are final PR-head results, not a new post-merge or local full-stack run.
+**P02b-3 is closed.** All six steps and verified review corrections are delivered:
+durable acceptance, shared inbox/ledger, independent retries and terminal MUST
+audit, fenced business completion, both Active defaults and semantic Seeder
+handoff, plus production-census enforcement. Compatible-alias retries preserve
+retained envelopes; rotating acquisition keeps unrelated eligible producer and
+subscriber work progressing during terminal-audit failures. Each step and
+correction bundle retains its two independent review rounds above. Earlier dated
+receipts keep their pre-merge wording; this closeout changes no Accepted ADR.
+Publication remains at least once. Phase 02b remains in progress.
+
+**Next: P02b-4 decision pass.** G9 and reserved, undrafted ADR-0047 must settle
+job storage under the four-role model, tenant-context and transaction ownership,
+safe enqueue, retries/terminal audit, queue/job identity, the adapter's demand
+gate, and package/licence choices before runtime implementation. The
+[background-job scope](#background-jobs) owns these questions; no job definition
+or dashboard route belongs to that packet.
+
+API authentication, realm reconciliation, BFF sessions and phase-exit enforcement
+remain P02b-5–8 in the [packet table](#packets-and-decision-gates). P02b-8 owns
+retained-envelope erasure inventory. Operator replay permissions/routes, audited
+recovery and privileged erasure execution remain Phase 03; broker adapters,
+mapped readiness, retention/purge grants and production measurements remain
+Phase 11. This documentation closeout starts no later packet or new decision.
+
+**Documentation-only closeout validation.** Five local Release corpus controls
+and seven ADR lifecycle/workflow controls pass, zero failures/skips. Relative
+links/fragments, added prose wrapping and whitespace checks pass. Every earlier
+P02b delivery/review receipt and every ADR file is byte-preserved against the
+accepted PR source. Only 11 Markdown files change; runtime suites are not rerun
+locally for this closeout. The final PR artifacts above supply their evidence.
+
+### P02b-4 decision package (2026-10-15)
+
+**Accepted — 2026-10-15, @cemil.** The maintainer approves **H1: stock Hangfire
+plus an authoritative LearnStack job record**, expanded P4 infrastructure,
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md), its bounded
+supersessions/additive seams and all nine implementation steps below.
+Acceptance and dated prior-ADR disclosures commit before runtime, package,
+migration or grant changes. Development stays on `development`; prior Accepted
+ADR bodies/metadata and P02b-0–3 receipts remain unchanged. Runtime, dependencies,
+storage/grants, enforcement and production job proofs remain unimplemented.
+
+#### Problem and scope
+
+Ship reusable durable tenant job infrastructure covering short transactional work,
+long external prepare/execute/finalize, isolated dispatch slots, cross-instance
+per-tenant admission, and recurrence/tenantless fan-out. Hangfire carries opaque
+wakeup/tick references; LearnStack is the only business job authority. No dashboard,
+production job/recurrence, ffmpeg implementation, Hub endpoint or privileged
+maintenance executor is added. P02b-5–8 authentication/session work is separate.
+
+The [ADR workload envelope](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations)
+owns mechanism/feature boundaries. Phase 04 keeps real media providers, process/
+resource limits, artifacts and coordinated concurrency keys; triggered 02c keeps
+phone-home definitions; 08a/08b keep notification/reminder domain semantics; 11
+keeps licence operational surround and privileged audit DDL/purge. These feature
+owners no longer need to invent the selected P4 long-operation/fan-out foundation.
+
+#### Verified premises and document review actions
+
+Current transaction/producer/context/audit/entitlement seams and first consumers
+were traced after the P02b-3 closeout. Three read-only design inspections cover H1
+handoff (GPT-6-astra xhigh), external/capacity (GPT-6.1-sol xhigh) and recurrence/
+privilege/schema (GPT-6.1-sol xhigh). They supplement, not replace, the earlier
+comparison experiments and correction reviews recorded below. No runtime proof
+is claimed by these source/design inspections.
+
+| Verified gap | H1 contract/action |
+|---|---|
+| Vendor enqueue/state commits separately | Immediate authoritative INSERT + durable generation-fenced handoff/repair; callback never depends on ACK having arrived |
+| Wakeup duplication can become later retry | JobId plus wake generation; only business transition advances generation; resend retains it |
+| Stock retry count differs from six committed starts | Separate app-role admission/start receipt; capacity/duplicate/deferred work spends no attempt |
+| Current request owner has no job participant | Closed root/stage/recipient participants, exact mode mapping and existing eight setters |
+| Ambient/SystemActor is not a privilege boundary | Sticky positive request admission, root/nested/direct Platform/provisioning denial and separate bypass/admin-entry guards |
+| Long ffmpeg does not fit a DB transaction | Durable plan/execute-intent/outcome checkpoints; external execution/reconciliation with no business UoW |
+| Lease expiry does not stop provider work | Positive quiescence or quarantine; unresolved reservations never expire into free capacity |
+| Organization-scoped capacity misses other orgs | Tenant-wide control mutex/reservations; plan/operational ceiling applies across orgs/instances |
+| Framework can enumerate no tenant today | Named minimal lifecycle projection grant, bounded durable recipients and actual-row witness admission; no caller tenant selector |
+| Recurrence revision can duplicate a logical slot | Unique recurrence-key/UTC-slot independent of revision, monotonic activation, stable jitter and checkpoint/recipient atomicity |
+| Filters can be bypassed on vendor fallback | Migration-owned below-filter state/metadata guards and bounded log provider, pinned real-worker dirty controls |
+| Whole-schema tests assume every table is app-readable/RLS tenant data | Exact table classes, expected vendor/control 42501 denial, no unclassified-table exclusions |
+| No general runtime was Accepted | H1 retains audit-maintenance Hangfire choice; exact bounded identity/context/storage changes get dated Amendment navigation |
+
+#### Accepted decisions
+
+| Gate/contract | Accepted H1 contract | Vehicle |
+|---|---|---|
+| G9 runtime/storage | Pinned stock Hangfire wakeups, authoritative tenant/org job row, exact public vendor-control class and four roles | ADR-0047; ADR-0003 Amendment for grant/confinement extension; canonical Standards 05/20 on implementation |
+| G9 ownership/submit | Typed own-module definitions, exact writable announcement, identifier-only frozen payload, immediate INSERT/ancestral receipt | ADR-0047; ADR-0057 extension and source guards |
+| G9 context/owner | JobExecutor alone; sticky ordinary ceiling; exact ISender roots/framework requests; staged owner participants | ADR-0036/0032 replacements; additive ADR-0040 and closed ADR-0052 mode extension |
+| G7 job part | Sixth WriteJobTerminalAsync, actual job-row witness, terminal state/MUST audit atomic | ADR-0044/0033/0046 navigation; Tenancy platform.job.dead_letter catalogue/matrix |
+| G8 job/recurrence part | Conditional routing/status exemption with exact grants/censuses, bounded diagnostics, metrics/health and terminal MUST | ADR-0046 / Standards 18 Required Behaviours extension; no general background/privileged exemption |
+| G9 profiles/capacity | Short transactional or staged external execution; renewable authority, positive quiescence, tenant reservations and disjoint pools | ADR-0047; real role/capacity/stale-effect proofs |
+| G9 recurrence/fan-out | UTC interval/daily, CoalesceLatest, durable slot/jitter, minimal lifecycle reader and restricted recipient producer | ADR-0047; exact Standards 05 enumeration exception and ADR-0057 producer origin |
+| G9 retry/readiness | Six normal starts; separate six finalize starts/recovery probe bounds; unknown/Pending defer, explicit retired tombstone | Standards 09/20, ADR-0047 mixed-version/capability queues |
+| G17 labels/observation | Finite definition/profile/recurrence/group categories, no tenant/org/job/trace labels; memory snapshots | Standards 10 with first emitters |
+| G18 job payload/diagnostics | Identifier-only 262,144-byte parameters, 65,536-byte plan/outcome checkpoints and 256-byte failure descriptors; durable-store erasure inventory remains P02b-8 | ADR-0047; bounds/guards with implementation, retention/purge authority remains Phase 11 |
+| Dependency/licence | Core/NetCore 1.8.25, PostgreSql 1.21.1, Newtonsoft 13.0.4; stock shared assemblies, concrete graph/notices/source/relinking qualification | ADR-0047 and implementation packaging evidence; outside ADR-0035 gated set |
+
+G9 and the new job parts of G7/G8/G17/G18 are Accepted — 2026-10-15.
+Existing G7/G8/event accepted dates and receipts are preserved. At implementation,
+production business and recurrence registries independently assert zero definitions;
+nonempty real runtime subjects and fixture-only definitions carry enforcement and
+behavior proofs. Acceptance claims no passing runtime census or production proof.
+
+#### Runtime bounds and observation
+
+Bounds below are accepted inputs for this expanded H1 contract. Invalid values or
+relationships refuse startup before workers; SQL/database time and actual task
+ownership remain authoritative.
+
+| Bound | Accepted value |
+|---|---|
+| Independent stock server pools | Transactional 1, external 2, control 1 workers by default; finite dedicated feature pools, at most 8 pools/64 queues, 1–16 workers per pool, sum at most 32 per API instance |
+| Operational tenant/group ceiling | Positive 1–1,024, default 1; optional Hard LimitKey intersects it; no tenant-supplied pool/group |
+| Retained actual overruns/cleanup | Stop-new-start threshold 4 per pool; atomic accounting, retain every admitted task; hard bound configured workers + 4, at most 20 per pool; other pools progress |
+| Outstanding synchronous bridge calls | At most 4; wait at most 10 s, retain actual operation; do not block other control lanes |
+| SQL and external reconciliation probe | SQL positive, at most 5 s/default 5 s; provider probe positive, at most 30 s/default 10 s |
+| Short root/prepare/finalize | Positive, at most 5 min/default 30 s; no long external operation inside |
+| External run wait | Positive, at most 24 h/default 1 h; immutable per-attempt deadline |
+| Lease / renewal | Lease 15 s–10 min/default 60 s; renewal 1–60 s/default 15 s; lease > twice renewal + twice SQL timeout + 5 s |
+| Quiescence cancellation grace | Positive, at most 30 s/default 30 s; expiry never releases an unproved reservation |
+| Control poll / snapshot | Poll 50 ms–1 s/default 200 ms; snapshot 1–60 s/default 5 s; successful work does not force scans |
+| Handoff repair grace / batch | 15–300 s/default 60 s; at most 100 rows per quantum; same-generation resend |
+| Recovery probe cadence / unsuccessful budget | 5–300 s/default 30 s; 6 unsuccessful probes then quarantine; Running probes bounded by attempt deadline/grace |
+| Shared shutdown joins | Positive, at most 30 s/default 30 s across pools and bridge; no per-task reset |
+| Progress heartbeat deadline | At least lease + 15 s, at most 15 min/default 75 s; renewal/control progress counts, not long work completion |
+| Parameter / plan / outcome / failure descriptor | 262,144 / 65,536 / 65,536 / 256 UTF-8 bytes |
+| Recurrence interval / fan-out page | 1 min–366 days, UTC anchor; jitter 0–min(period, 2 h); at most 100 routes/page |
+
+A plan cap is resolved through IFeatureFlags, capped by a positive operational
+ceiling. -1 means operational ceiling, 0 means no new admission, invalid/Soft/
+undeclared keys fail safely. No Media LimitKey is invented by this packet.
+
+Standards 10 owns final names/label inventory. Job observation includes pending,
+oldest eligible, deferred, retained/quarantined/reserved capacity, bridge repair,
+finalize/failure/lease loss, fan-out progress and heartbeat signals. Confirmed
+failure differs from unknown outcome. Register jobs health, unmapped; preserve
+healthz liveness and Phase 11 readyz/production-alert ownership. Normal valid
+long-running work is healthy; stale/faulted/retained/quarantined work is not.
+
+#### Approved implementation steps
+
+Every step commits its implementation/validation, runs two fresh independent
+review-agent rounds, verifies/fixes findings and commits corrections, then advances
+automatically. Critical authority/state-machine reviews use GPT-6-astra xhigh;
+independent proof/composition/corpus lenses use GPT-6.1-sol high/xhigh. Each round
+uses new reviewers. A new decision outside this accepted package returns to the
+maintainer before dependent work. Development stays on `development` throughout.
+
+1. **Acceptance and typed contracts.** Commit final acceptance/dated Amendment
+   disclosures first, then add scheduling/profile/recurrence/identity contracts,
+   closed registries, request-scope admission and Jobs project boundaries. Register
+   canonical catalogue obligations without claiming enforcement before it ships.
+2. **Storage, dependencies and guarded bootstrap.** Add exact pins/graph/notices;
+   Platform migrations for authoritative/control/capacity/recipient and stock
+   vendor schema, immutable/transition/metadata guards, RLS/grants/indexes and
+   canonical Standards 05. Prove fresh/Down, every-table classes, expected 42501,
+   exact role/source guard, schema 23, below-filter containment, bounded vendor SQL
+   and real index plans; keep the unguarded notification reconnect path disabled.
+3. **Submission and app-role admission.** Implement trusted producer stamping,
+   immediate INSERT/receipts, routing leases, scoped read-only envelope validation
+   and separate committed start receipts. Prove rollback/absorbed refusal,
+   getter/stale/read-only attacks, exact org/module scope, unknown/deferred readiness
+   and no handler construction before admission. Capacity integration follows step 6.
+4. **H1 wakeups and independent pools.** Implement bridge/reconciler, exact two
+   wrapper targets, generation fencing, guarded native connection factory and
+   disjoint server queues/pools. Prove real pinned worker create/init/ACK crashes,
+   duplicates/early/stale callbacks, vendor loss/fallback, malformed invocation,
+   bootstrap refusal, retained synchronous calls and construction-only fixture wiring.
+5. **Transactional owner and terminal audit.** Add root participant/gate, scoped
+   ordinary ceiling, async attribution and fair retry/recovery/terminal control.
+   Prove business/outbox/jobs/audit/completion atomically, lock-wait expiry,
+   Result/exception parity, uncertain COMMIT, no seventh start, actual-row sixth
+   audit seam substitutions, and terminal-audit backlog progress beyond a lease.
+6. **Tenant capacity reservations.** Implement group mutex/reservations and optional
+   Hard LimitKey resolution. Prove two instances/orgs share a tenant cap, capacity
+   refusal spends no attempt, unlimited/zero/downgrade/fault cases, exact app grants
+   and no TTL release of unresolved external occupancy; keep independent pools live.
+7. **External prepare/execute/finalize.** Implement immutable stage/attempt receipts,
+   confirmed ExecuteIntent, no-UoW external adapter, renewal, typed reconciliation,
+   quiescence proof/quarantine and bounded finalization. Prove each crash/unknown
+   COMMIT boundary, provider accepted-before-ACK, paused-old-start/NotFound traps,
+   stale outcomes/revisions, simultaneous overruns/cleanup saturation, no seventh
+   effect and domain known-failure/terminal behavior without rerunning external work.
+8. **Durable recurrence and restricted fan-out.** Implement frozen monotonic manifests,
+   UTC slots/CoalesceLatest/jitter, minimal lifecycle projection, atomic pages/
+   recipients and witness-bound app submission. Prove mixed revisions/ticks,
+   suspended licence targets, cohort bounds, NULL-org dedup, forged/cross-tenant
+   witnesses, child acknowledgement loss, target scope/parameter binding, bounded
+   fairness and no general selector.
+9. **Enforcement and packet closeout.** Finish full observation, exact production
+   censuses/planted violations, all carrier/feature/skill handoffs and the new job
+   skill. Run complete backend/frontend/demo regression and packaging/boot proof;
+   open the development → main PR with exact evidence. Real CI and maintainer merge
+   remain separate from local completion; zero production business definitions.
+
+#### Expanded H1 proposal review
+
+The final contract is drafted against the selected H1/expanded direction. The
+historical receipts below approve only their earlier document revisions; they do
+not substitute for two fresh reviews of this route-specific proposal. Current
+review/validation evidence is appended here after it actually runs.
+
+Round 1 reviewed proposal commit `fa539176` with three fresh independent reviewers:
+GPT-6-astra xhigh (state/authority), GPT-6.1-sol xhigh (external/capacity) and
+GPT-6.1-sol xhigh (recurrence/corpus). All approve the Proposed documentation;
+none accepts the ADR or authorizes runtime. The state reviewer found one minor
+carrier omission: Standards 01/17 now explicitly distinguish the authoritative
+tenant envelope from opaque vendor wakeups/ticks. No confirmed lifecycle,
+unknown-COMMIT, generation, terminal-audit or ordinary-authority defect was found.
+
+Self-review additionally pins the disabled stock notification reconnect path and
+server-side SQL deadlines, including the counter aggregator's unlimited driver
+timeout. It makes future-due handoff checks and recurrence target parameter/scope
+binding explicit. These are proposal clarifications, not runtime changes or proof.
+Local validation passes five Release corpus tests, seven ADR workflow controls,
+1,059 local links and 321 fragments, added prose wrapping and whitespace checks.
+Prior ADR files and P02b-0–3 receipts remain byte-preserved against `71568e78`.
+Fresh Round 2 reviewed the corrected complete proposal before final approval.
+
+Round 2 paired new GPT-6-astra xhigh (architecture/security/state) and GPT-6.1-sol
+xhigh (corpus/recurrence/proof) reviewers on `29cc4c15` and the correction captured
+by `40c9f9b8`. The latter fixes the retained-overrun bound: four is the atomic
+stop-new-start threshold; already admitted workers may overrun together and must
+remain owned, with a conservative workers-plus-four bound. Both reviewers verified
+that correction and approve the Proposed documentation with no remaining required
+findings. Simultaneous-overrun behavior is an explicit implementation proof duty.
+
+Final local checks again pass five Release corpus tests, seven ADR workflow tests,
+1,059 links and 321 fragments with zero errors, prose/whitespace and preserved
+historical records. All eleven changed files are Markdown; no runtime/dependency/
+migration/grant change or job production proof is claimed. Final maintainer
+acceptance of ADR-0047 and this nine-step package remains required before runtime.
+
+#### Maintainer acceptance (2026-10-15)
+
+The maintainer explicitly approves the final ADR-0047 and this nine-step package.
+G9 and the new job parts above are Accepted. Dated numbered Amendments in the
+fifteen named prior ADRs disclose only the bounded replacements/additions; every
+original byte, acceptance metadata and earlier amendment remains preserved.
+The decisions index, glossary, current status carriers and first-consumer handoffs
+now distinguish this accepted contract from pending implementation.
+
+The review/validation receipts above remain evidence of their Proposed revisions;
+their pending-approval statements are historical. This acceptance creates no
+runtime, dependency, migration, grant or enforcement evidence. The acceptance
+commit precedes every implementation change; each later step owes its own
+validation and two fresh independent review rounds.
+
+#### Earlier proposal and correction receipts (historical)
+
+These dated receipts precede the H1/expanded selection above. Their then-current
+open-choice/scope statements describe those revisions, not this final proposal.
+
+#### Decision review and approval readiness
+
+The following receipts describe the earlier proposal reviews, not final current
+readiness. The subsequent workload/corpus review reopens the gaps named above;
+earlier review agreement does not select a runtime or override maintainer findings.
+
+Two fresh independent review rounds inspected the Proposed ADR/package against
+current source and Accepted records. Each round paired GPT-6-astra xhigh for
+transaction/security architecture with GPT-6.1-sol xhigh for corpus/proof coverage.
+The original three scoping inspections are separate from those four reviews.
+
+- Round 1 corrections: explicit TenantWide/Organization declarations and exact
+  announcement matching; closed transient/permanent outcomes; finite option
+  maxima; trusted direct-consumer operation identity; named ADR-0040/0052
+  framework read-only extension. Both reviewers rechecked the revised clauses
+  and found no remaining approval-blocking issue.
+- Round 2 corrections: explicit conditional G8 job-scheduler bypass exemption,
+  ADR-0020's licence-job vendor/identity handoff and first-triggered 02c/08a
+  recurrence ownership, with architecture 24/26 included. Follow-up inspection
+  confirmed the blocking issues were closed. Related source checks also name
+  ADR-0015's exact dashboard bullet, app-side UUIDv7 identity and the unaffected
+  Hub/superseded-record boundaries. The package's earlier queue summary was
+  aligned with the same recurrence answer.
+
+Local validation passes: five Release corpus controls, seven ADR status/workflow
+controls, relative links/fragments, added prose wrapping and whitespace checks.
+All earlier P02b delivery/review receipts and every prior ADR file are byte-preserved
+against `71568e78`. These are document/source checks; no job runtime exists and
+no runtime acceptance proof is claimed. Maintainer approval remains pending.
+
+#### Hangfire comparison follow-up (2026-10-15)
+
+The maintainer requested this assessment rather than accepting the initial
+PostgreSQL proposal. The [expanded ADR comparison](../decisions/0047-transactional-background-job-runtime.md#hangfire-alternative-assessment-2026-10-15)
+owns alternatives, trade-offs, package/source pins and evidence limits. Stock
+Hangfire plus an authoritative job record is viable; public transaction-aware
+storage customization is also physically feasible. Neither is accepted here.
+
+Three research agents inspected exact upstream/package sources, current owner
+contracts, dependencies, storage privileges and lifecycle boundaries. Isolated
+database experiments passed eighteen focused cases on fresh PostgreSQL 18.4;
+the owned container was removed and no existing service/database was touched.
+The native transaction spike used SDK 10.0.302 outside the repository, not pinned
+10.0.112. Separate exact-version invocation probes and .NET 10 dependency/basic
+load checks are recorded in the ADR. These do not prove production audit, RLS,
+worker/retry/cancellation or complete provider support.
+
+Two fresh reviewers, GPT-6-astra xhigh and GPT-6.1-sol high, checked the revised
+comparison against sources and experiments. Both approved the evidence/framing
+without required corrections; neither approved runtime implementation. Local
+document/corpus/ADR controls pass. Runtime choice and final acceptance still
+belong to the maintainer; a Hangfire choice revises the detailed design and steps
+before any implementation.
+
+#### Workload and corpus correction pass (2026-10-15)
+
+Verified the maintainer's findings against current code and the original
+authorities. Three read-only inspections covered early-consumer workloads
+(GPT-6-astra xhigh), runtime correctness (GPT-6.1-sol xhigh) and corpus/governance
+(GPT-6.1-sol high). These are source/document inspections, not new runtime tests.
+
+- Phase 04 already requires long ffmpeg work, its own capacity and a tenant limit.
+  The single transactional lane does not deliver that. The ADR now names the
+  separate external prepare/execute/finalize contract and an explicit first-use
+  gate, with a maintainer scope choice before route-specific acceptance.
+- Phase 04's nightly media lifecycle can precede 02c/08a recurrence. Its trigger,
+  restricted tenant enumeration and isolated tenant submissions are distinct from
+  Phase 11's privileged audit DDL/purge. Phone-home's 02c ownership exists in
+  ADR-0020 Implementation notes; its missing phase-plan entry is restored.
+- The candidate now uses unlocked preflight and a final lock/time recheck, an
+  ordered Result/exception retry table, deferred unknown/Pending definitions and
+  explicit retirement, plus a SystemActor Platform ceiling for root/nested/direct
+  execution. Strict org admission and role/column/index proof duties are explicit.
+- Corrected exact authority locators, dated Amendment terminology, the implemented
+  credential-rule widening obligation, conditional consequences and the decisions
+  index. Proposed glossary terms precede implementation. Quartz.NET is a documented
+  candidate requiring its own qualification; no unsupported rejection is made.
+- Skipped the alleged missing Date/Deciders violation: neither canonical template
+  requires those fields. The existing Draft date is honest Proposed metadata.
+  Kept PreparedDeliveryOwner delivery-specific; participant and commit gate are
+  separately named. Long URLs/tables remain exempt from prose-width limits.
+
+No Accepted decision, runtime, migration, grant or previously completed delivery
+receipt is changed. This pass prepares the choice; it does not accept or implement
+one.
+
+Correction review round 1 paired fresh GPT-6-astra xhigh (architecture/security)
+and GPT-6.1-sol high (corpus/proof) reviewers over the corrections after `46ca923c`.
+Both approved the Proposed documentation correction with no required findings;
+neither approved a runtime or workload-scope selection. Local validation passes:
+five Release corpus tests, seven ADR status/workflow controls, 1,035 local links
+and 323 fragments, prose wrapping and `git diff --check`. All prior ADR files and
+P02b-0–3 receipts remain byte-preserved against `71568e78`. These checks run on
+documentation; no new runtime proof is claimed.
+
+Correction commit `ec1a5520` was reviewed in a fresh second round by GPT-6.1-sol
+xhigh (architecture/security) and GPT-6-astra high (corpus/evidence). The corpus
+review found one wrong section locator for ADR-0017's Jobs row; the linked
+Defense-in-depth heading replaces it, and focused reinspection verified the fix.
+Both reviewers approve the documentation correction with no remaining required
+findings. Final local link/fragment checks count 1,036 / 324 with zero errors;
+earlier ADRs/receipts and the docs-only scope remain verified. Runtime selection,
+workload scope and final route-specific ADR approval remain pending.
+
+#### Validation and carrier ownership
+
+Use the existing provider/migration/MediatR/audit/architecture/integration workflows
+and run-tests-locally. Test real PostgreSQL, guarded roles and the actual pinned
+Hangfire workers; no EF in-memory substitute establishes isolation/atomicity.
+Stage dependencies/feature definitions stay explicit; no mock production job.
+
+Acceptance/implementation reconciles ADR-0003/0010/0015/0017/0020/0023/0028/0032/
+0033/0036/0040/0044/0046/0052/0057 through dated Amendment navigation/additions,
+plus ADR-0047 and the index. Standards 01/02/05/06/09/10/11/15/17/18/20/21/index receive
+only implemented current rules; canonical DDL stays 05, metrics 10, proof names 21.
+Standards 01/17 distinguish the tenant-bearing authoritative job envelope from
+opaque vendor wakeups and tenantless ticks without weakening business isolation.
+Architecture 04/09/16/24/25/26/29/30/31/33, Tenancy audit/permission specs, glossary,
+root guidance/readmes, compose/launcher fixture wiring and applicable/new skills
+must follow the same delivered boundary. Phase 02c/04/08a/08b/11 handoffs keep
+business definitions/provider/privilege owners explicit. Hub endpoints are unchanged.
+
+P02b-8 inventories job/attempt/plan/outcome/reservation/recipient copies and vendor
+control metadata for erasure. Phase 11 owns actual retention/purge authority and
+intervals; stock vendor expiry deletes control metadata only, never authoritative
+business intent. Phase 03 owns operator replay/reconciliation/permission/runbook;
+no recovery route or unsafe reservation-release switch is exposed by P4.
+
+### P02b-4 Step 1 — contracts and authority (2026-10-16)
+
+**Complete — both fresh independent review rounds pass.**
+The acceptance commit is `affa0aca`; this step follows it on `development`.
+
+SharedKernel supplies typed job/attempt/occurrence/recipient identities, the typed
+scheduler port, immutable definition/profile/request/capacity/recurrence metadata
+and external Execute/Reconcile/finalization contracts. Frozen registries validate
+module ownership, exact roots/nested requests, profile/queue/pool bindings, finite
+readiness and recurrence scope. Identifier-only parameter/plan/outcome serialization
+uses closed DTO shapes, canonical round-trips and frozen options/resolver state.
+No production business or recurrence definition is added.
+
+Application admission holds an immutable positive request ceiling independently of
+later accessor changes. Exact framework pre-reads select physical ReadOnly through
+the existing pipeline. Direct privileged/delivery/admin entry refuses even through
+a fresh service scope or permissive platform gate. A guarded lazy bypass-source
+facade checks every synchronous/asynchronous connection acquisition, including warm
+pools, and owns cleanup. API/Seeder register the same empty job catalogues; neither
+registration activates a scheduler, vendor, migration or worker.
+
+Two architecture methods pin the current admission/credential callsites with
+planted violations. The nineteen complete ADR-0047 obligations remain Registered;
+these slice proofs do not claim the later runtime is implemented. Existing exact
+credential/context/owner censuses stay enforced. The catalogue counts 221 methods.
+
+Initial Release validation passes the solution build with CI warnings-as-errors,
+1,979 unit, four contract, 176 Docker-free and 1,389 Docker integration tests, with
+zero skips. The first full architecture run reports 312 passed and two stale
+expectations: the published method count and TransactionBehavior constructor pin.
+Both are corrected without widening module/DbContext permissions; an architecture
+rebuild and six focused corpus/constructor reruns pass. This gives 314 unique
+passing architecture cases and 3,862 unique passing backend cases across the
+full runs and focused corrections; it is not a second full architecture run.
+Formatting passes for all 67 changed C# files. The documentation check resolves
+2,506 local links and 590 fragments, with no wrapping/whitespace errors. Every
+ADR/index remains byte-identical to acceptance commit `affa0aca`; earlier delivery
+and proposal-review receipts stay preserved. Both fresh independent review rounds
+remain pending; later receipts record their actual results.
+
+#### Step 1 review round 1
+
+Two fresh independent reviewers inspect `affa0aca..94b126b4`: GPT-6-astra xhigh
+for authority/lifecycle/credential confinement and GPT-6.1-sol xhigh for contracts,
+registries/serialization/recurrence and corpus evidence. Both request changes for
+one independently reproduced Major each; neither finds a Platform escape or a
+current production job caller.
+
+- A retained already-entered nested request can have an open top frame after its
+  root closes. The common request/owner admission now checks every ancestor, while
+  preserving awaited nesting and framework owner entry with no current request.
+  Real ISender regression proves refusal before handler construction; its dirty
+  case fails before the correction and its awaited positive control passes.
+- A handwritten getter/init accessor can change the returned identifier after the
+  canonical reads. Closed identifier DTOs now require compiler-generated automatic
+  getters and init setters, preserving positional/nonpositional auto-properties
+  and constructor round-trip checks. Three dirty registration/read cases fail
+  before the correction and pass afterward. This is an immutable DTO convention,
+  not an arbitrary CLR-code sandbox.
+
+Root verifies both findings, adds six regression cases and applies the minimal
+corrections. The corrected solution builds Release with CI warnings-as-errors;
+1,985 unit, all 314 architecture, four contract and 176 Docker-free integration
+cases pass with zero failures/skips. The 1,389-case Docker run above covers the
+initial implementation; it is not rerun for these nonactivated job guards. No
+vendor/schema/production definition is introduced. A fresh second review round
+follows the correction commit before Step 2 starts.
+
+#### Step 1 review round 2 and closeout
+
+Fresh GPT-6-astra xhigh (authority/lifecycle/security) and GPT-6.1-sol xhigh
+(contracts/registries/tests/corpus) reviewers inspect the complete corrected range
+`affa0aca..bf433085`. Both approve Step 1 with no remaining required findings.
+The authority reviewer independently passes 168 focused unit and 78 architecture
+cases; the contracts reviewer passes 168 focused unit and 14 architecture cases.
+All use existing Release binaries with zero failures/skips. These overlapping
+checks are not added to the complete-suite counts above.
+
+Both verify the ancestry/accessor corrections, unchanged Accepted ADRs, exact
+credential/owner boundaries and the honest zero-runtime-subject scope. Recurrence
+precision is a named next-step constraint: before Step 2 fixes PostgreSQL storage
+representation, reject sub-microsecond manifest facts before fingerprinting.
+No production job or recurrence is activated to satisfy a census.
+
+The implementation commit is `94b126b4`; verified Round 1 corrections are
+`bf433085`. Both fresh rounds and the validation recorded above are complete.
+Step 2 now proceeds under the already accepted nine-step package. Remaining
+runtime/dependency/storage/worker guarantees are not delivered by this closeout.
+
+### P02b-4 Step 2 — storage and guarded vendor bootstrap (2026-10-16)
+
+**Complete — both fresh review rounds and critical-fix verification passed.**
+This step follows the completed Step 1 on `development` under Accepted ADR-0047.
+
+Two Platform migrations introduce seven authoritative job/control tables and the
+pinned stock Hangfire version-23 inventory. Standards 05 owns their canonical
+DDL/grants and the explicit vendor-control table class. Existing schema sweeps
+enumerate all public tables, classify expected application SELECT denial, and
+continue actual tenant/organization isolation checks as `learnstack_app`.
+
+The vendor connection factory crosses the existing guarded lazy source on every
+acquisition. Reset-safe server statement/lock deadlines bound SQL execution;
+Accepted ADR-0058 requires finite enabled driver I/O and adds five-second
+idle-session cleanup. The post-acceptance implementation and real source/reset
+proofs are recorded below. Bootstrap verifies version, guard bodies/triggers,
+exact grants and
+metadata before constructing the provider. No production wrapper, scheduler
+or worker is activated by this step. Runtime admission, business completion,
+external execution and recurrence remain Steps 3–9.
+
+Recurrence facts now reject sub-microsecond precision before fingerprinting so
+durable PostgreSQL reconstruction cannot silently change a declared manifest.
+The dependency graph, corresponding-source/notice kit and copied publish output
+are part of this step's validation. Passing evidence and review dispositions are
+recorded after the actual checks; source-only inspection is not a runtime proof.
+
+**New qualification boundary.** The exact stock counter component overrides the
+driver timeout with zero. PostgreSQL statement/lock deadlines pass blocked-SQL
+checks, but a response-withholding proxy leaves the actual component pending.
+[ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md) is Accepted —
+2026-10-16 for the selective maintenance configuration and ownership controls
+reviewed in the [reassessment](#step-2-maintenance-reassessment). The earlier
+socket-exception proposal is withdrawn. The
+[acceptance receipt](#step-2-maintenance-acceptance-2026-10-16) records the approved
+boundary; Step 4 runtime qualification remains pending. This step
+claims no Step 4 runtime qualification. Source/reset and schema validation pass
+after acceptance as recorded below; formal Step 2 review closeout remains pending.
+
+#### Step 2 counter-maintenance decision review
+
+The isolated exact-pin response-loss experiment is independently repeated by the
+root agent on PostgreSQL 18.4: the actual stock counter task is still pending at
+eight seconds; closing the owned proxy sockets settles it with NpgsqlException.
+Both disposable containers/proxies are cleaned up. This proves the missing
+driver bound, not the proposed replacement ownership behavior.
+
+A fresh GPT-6-astra xhigh reviewer requests two corrections to Proposed ADR-0058:
+name both read/write I/O, and pace held/not-due returns because stock Core
+immediately reinvokes successful components. Root verifies and incorporates both.
+The shared pool minimum and real disposal/late-cleanup proofs address the same
+review's availability caveat. A new GPT-6.1-sol xhigh reviewer independently
+approves the corrected whole proposal with no required findings after checking
+the exact Core/provider/Npgsql source and governance. Neither review claims
+passing runtime tests for the unimplemented maintenance owner.
+
+#### Step 2 maintenance reassessment
+
+The maintainer returns Request changes, not acceptance, on 2026-10-16. The
+initial proposal/reviews above are historical receipts; they do not close the new
+findings. Two independent source/research agents, GPT-6.1-sol xhigh and
+GPT-6-astra xhigh, verify the exact pinned Core/provider/Npgsql sources. Root
+independently reproduces PostgreSQL 18.4 timeout behavior.
+
+| Review issue | Verified disposition |
+|---|---|
+| Supersession/additive scope conflated | Valid. Revised Proposed ADR-0058 distinguishes selective configuration replacement from additive ownership/health/test seams; its former socket exception is withdrawn. Acceptance will name both in ADR-0047's dated amendment. |
+| Suppression loses all counter maintenance | False rejection premise in the earlier draft. Stock expiration deletes expired counters and compacts the two nonexpiring state totals; removal is now the proposed alternative. |
+| Expiration's five-minute wait and minimum-two sizing | Valid distinction. Retry-loop/whole-pass occupancy differs from per-command I/O. Two was never a topology capacity proof; that proposed rule is withdrawn. Step 4 must enumerate and qualify the actual supported acquisition floor. |
+| Aborted transaction retains former row locks | Not reproduced. A positive active lock is released on abort; a concurrent update succeeds before the timeout response is read. Idle-aborted session occupancy remains real and is tested separately. |
+| Missing interval/inventory/proof specificity | Valid. Revised proposal pins exact component/filter inventories and the expiration interval, assigns enforcement to Step 4, and maps proofs to the two existing canonical rules. |
+| Incorrect timeout anchor/ambiguous defaults | Corrected. The source link names Npgsql's actual timeout selection; driver defaults, statements and invocation waits are distinguished. |
+
+The proposed direction suppresses only stock `CountersAggregator` and optional
+`StatisticsHistoryAttribute`, preserving stock expiration/heartbeat and every
+finite command/socket requirement. Expiration still needs single-flight retained
+ownership: cancellation does not enter its synchronous SQL or lock-acquisition
+loops. Healthy pass pacing, shared shutdown and independent progress remain
+pending actual-runtime obligations, not consequences assumed from suppression.
+No production owner, filter removal or new source deadline is activated here.
+
+**Reproducible qualification commands** (Python 3, Docker and .NET 10):
+
+```bash
+python3 third-party/hangfire/qualification/probe-maintenance.py
+python3 third-party/hangfire/qualification/probe-pg-timeouts.py
+```
+
+The first command builds only a disposable exact-package project and starts an
+owned random-loopback PostgreSQL 18.4 container. It invokes actual stock
+`ExpirationManager.Execute`, the public filter-removal hook and actual stock
+aggregation through an ACKing response-withholding proxy. The second uses the
+PostgreSQL simple-query protocol to withhold client reads while an independent
+observer inspects backend/lock state. Both use synthetic data, finite waits and
+owned cleanup. They touch no development database or shared repository binaries.
+Neither substitutes for `learnstack_outbox_admin`/real worker/owner proofs.
+
+**Measured counter footprint.** Exact stock version-23 schema, default indexes,
+fresh/truncated table per case and autovacuum disabled for repeatable sizing.
+The denominator is vendor transitions between cleanup passes, not business jobs.
+Bytes are `pg_total_relation_size(counter)` including relation/index overhead;
+they exclude WAL, replication, other vendor tables and production bloat.
+
+| Transitions | One-row ordinary success | Two-row transition envelope |
+|---:|---:|---:|
+| 1,000 | 1,000 rows / 172,032 B | 2,000 rows / 286,720 B |
+| 10,000 | 10,000 rows / 1,048,576 B | 20,000 rows / 2,007,040 B |
+| 100,000 | 100,000 rows / 9,650,176 B | 200,000 rows / 19,210,240 B |
+
+The actual stock expiration pass reduces those six cases to one/two live rows
+and preserves the tested positive totals. Ordinary VACUUM does not shrink the
+previously allocated footprint in these cases. Stock delete-then-insert compaction
+is not atomic, can lose a subtotal and drops nonpositive raw sums; this experiment
+does not prove exact statistics accounting. Removal loses new vendor timelines.
+Cleanup outages and retained snapshots can grow backlog/disk, and failed vendor
+wakeups have their own nonexpiring retention. No bounded-disk or recovery-rate
+claim is made.
+
+The actual aggregator remains pending at eight seconds despite requested
+cancellation and five-second server/driver defaults. Releasing its proxy sockets
+settles the owned task with a driver failure; this proves the removed path's
+qualification gap, not a passing replacement owner. PostgreSQL's active lock
+control holds one relation lock; the aborted state holds zero and an independent
+update succeeds. Two 350 ms statements pass a 500 ms per-statement limit; a
+500 ms idle-in-transaction limit terminates the remaining aborted backend.
+Idle cleanup is session hygiene, not a guarantee that an ACKing proxy releases
+its client socket.
+
+Standards 20's existing `hangfire`-schema drift is independently corrected against
+Accepted ADR-0047 (`public`). Proposed ADR-0058 changes remain approval-gated;
+the two fresh proposal review rounds and their dispositions are recorded after
+they actually run.
+
+**Revised proposal Round 1.** A fresh GPT-6-astra xhigh reviewer approves the
+whole revised proposal, carrier edits and qualification artifacts with no
+remaining findings. The initial component-name mismatch is corrected to the
+actual `PostgreSqlHeartbeatProcess` type. Root reruns both committed-source
+experiments successfully: all six footprint cases, expired/future controls,
+public selective component/filter removal, eight-second blackhole retention and
+late cleanup, and all PostgreSQL timeout/lock controls pass. Both owned containers
+and temporary projects are removed. The reviewer independently checks 450 local
+links/fragments, Python syntax and scoped whitespace. This is proposal review,
+not either formal Step 2 runtime/schema review or maintainer acceptance.
+
+**Revised proposal Round 2.** A new GPT-6.1-sol xhigh reviewer independently
+approves `f5dd3a44..446d0a5f` plus the qualification-source formatting and protected
+timeout-probe cleanup edits, with zero required findings/nits. Both isolated
+commands pass again in that review, including all six footprint measurements,
+selective component/filter controls, actual expiration and the PostgreSQL
+abort/session controls. Owned teardown completes. The probe's non-whitespace C#
+characters are unchanged by formatting; folder-based format verification passes.
+Neither reviewer modifies files or uses proposal approval as runtime acceptance.
+
+Seven ADR-parser controls pass and ADR-0058 parses as Proposed. The changed-doc
+audit checks 37 Markdown files, 2,673 local links and 621 fragments with zero
+errors; whitespace is clean. Accepted ADR bodies remain byte-identical to the
+P02b-4 acceptance commit `affa0aca`. These decision experiments are not added to
+backend regression counts. Both fresh proposal rounds are complete; maintainer
+acceptance and Step 2/4 runtime qualification remain pending.
+
+#### Step 2 maintenance acceptance (2026-10-16)
+
+The maintainer explicitly approves the revised ADR-0058. Its status is Accepted —
+2026-10-16. ADR-0047 Amendment 1 records the maintenance configuration replacement
+and additive ownership seams without rewriting its body or acceptance metadata.
+The dated proposal/reassessment/review receipts above retain their original
+as-of state; this receipt closes only their maintainer-acceptance gate.
+
+The approved configuration suppresses only exact stock `CountersAggregator` and
+`StatisticsHistoryAttribute`, preserving stock expiration/heartbeat, state counters
+and required admission/retry filters. Finite enabled command/socket bounds remain;
+there is no unlimited-command exception. The shared source gains reset-safe
+`idle_in_transaction_session_timeout=5000`, with no shared `transaction_timeout`.
+At this acceptance receipt the new setting is authorized, not implemented;
+source/reset, successful outbox/delivery and real aborted-idle proofs remain Step 2
+work. Full Step 2 validation and both fresh runtime/schema review rounds remain
+pending.
+
+Step 4 owns exact component/filter selection, one shared expiration owner,
+one-millisecond internal interval, completion-based one-hour cadence, bounded
+wait/cleanup, shared shutdown and truthful retained-maintenance health. It also
+owns the final simultaneous physical-acquisition census, enforced supported
+configuration/floor and independent progress under contention. No minimum-two or
+nonpooled prohibition is accepted. Step 9 owns full observation/enforcement and
+regression. Standards 05/20/21 and the Events and Outbox architecture carry the
+accepted policy; the existing bootstrap and independent-capacity obligations
+remain Registered. Acceptance claims no implemented maintenance owner, runtime
+proof, packet closeout or production-capacity/disk guarantee.
+
+#### Step 2 implementation and validation after acceptance
+
+ADR-0058 is accepted in `14bf9c42` before its dependent runtime edits. The shared
+guarded source now sends reset-safe five-second statement, lock and idle-session
+deadlines. Explicit bootstrap refuses disabled/excessive idle deadlines. Real
+`learnstack_outbox_admin` sessions prove cold settings, the same physical backend
+after pool reset, idle and aborted-idle termination while the transaction remains
+checked out, and healthy reacquisition. Dirty zero/5,001 ms startup controls fail
+bootstrap beside a healthy production-source control. Existing outbox/delivery
+store and execution proofs pass with the new shared-source setting.
+
+The two Platform migrations and canonical Standards 05 deliver seven raw
+authoritative/control tables and stock vendor schema 23 with exact four-role
+grants. Tenant/org scope, immutable envelopes/checkpoints, reservation evidence,
+recurrence slots/recipients, six-stage ceilings, schema rollback/reapply and actual
+ordered locking index plans have real PostgreSQL controls. Whole-schema discovery
+classifies all 47 public tables, including five migration histories, rather than
+omitting denied control/vendor tables. App SELECT denial requires actual `42501`.
+The genericity source census now classifies embedded production SQL and decodes
+its literals; Docker-trait discovery resolves partial declarations structurally.
+The existing Education parent-constraint sweep includes the seven new raw job
+relations with explicit guard/FK dirty controls instead of excluding them.
+
+**Validation before the final column-grant correction:** Release CI-style build passes
+with zero warnings/errors; formatting and whitespace pass. Unit 1,995,
+architecture 315, contract 4, Docker-free integration 176 and complete Docker
+integration 1,552 pass: **4,042 backend cases, zero failures/skips**. The focused
+197-case source/outbox/delivery run also passes and overlaps the complete run;
+it is not added to that total. TRX runner checks confirm each assembly ran and
+none skipped. Earlier failed intermediate runs and their corrected focused
+receipts are superseded by this fresh full run. The final self-review correction
+also refuses column-level `GRANT OPTION` during bootstrap. Its subsequent Release
+build passes with zero warnings/errors and all 34 Hangfire storage cases pass,
+including the new dirty grant and restored-role control. A fresh full run of the
+correction commit is recorded with the independent reviews after it completes.
+
+Framework-dependent API publish passes the actual graph/source/notice verifier:
+four vendor assemblies match original NuGet bytes, both exact corresponding-source
+archives and eleven licence/notice files verify. Ten planted distribution defects
+refuse and explicit recipient-replacement inspection succeeds. Hosting 10.0.12
+is verified in the referenced Infrastructure graph; API/publish use the shared
+framework. The actual local host is .NET/ASP.NET Core 10.0.10, not an inferred
+NuGet patch. The pinned provider SQL resources remain byte-identical upstream.
+The complete Apache 2.0 text accompanies its original Dapper/Core notices.
+Narrow stock-byte Git attributes preserve upstream line endings/notice whitespace;
+forced `autocrlf=true` checkout verifies all 32 SQL/licence/notice input hashes.
+First-party whitespace checks remain enabled.
+
+No worker, wrapper, production definition or recurrence is activated here.
+Step 4 still owns selective component/filter suppression, the retained expiration
+owner, enabled-path response-loss and supported-pool-boundary progress controls;
+Step 9 owns complete enforcement. Those obligations remain Registered. The
+full Step 2 implementation is now committed for its first fresh review round;
+both round dispositions and verified fixes are recorded after they run.
+
+#### Step 2 review round 1 and verified corrections
+
+Three fresh reviewers examine `1b4ec7f4..583374f5`: GPT-6-astra/xhigh owns
+schema/isolation/state/indexes; GPT-6.1-sol/xhigh separately owns the vendor/source
+boundary and the proof/corpus lens. Their formal reports precede their authorized
+fix work. Root verifies four required findings against the implementation:
+
+- **Eligibility proof:** volatile candidate clocks scan 6,000 future rows when
+  fewer than ten rows are due. Stable statement-time cutoffs now supply actual
+  index bounds. Four migrated-schema controls cover zero/five due rows and detect
+  the old volatile scan; live post-lock lease checks remain separately required.
+- **Stored metadata:** a guard re-enabled after an invalid durable write did not
+  make the old partial startup scan reject every closed field. Shared read-only
+  predicates now serve post-redaction writes and startup, covering every vendor
+  metadata store. Twenty-six committed-drift/restored controls exercise them.
+- **Stock shape:** names/version alone accepted a missing unique key required by
+  stock `ON CONFLICT`. Startup now checks 58 column facts, 17 keys/constraints,
+  29 index definitions and nine sequence configurations/associations. Eleven
+  dirty/restored controls cover types/defaults/nullability/keys/indexes/sequences.
+- **Embedded material:** stock Core merges Cronos 0.11.1. Its exact MIT notice and
+  corresponding source are now in the kit, independently pinned to source commit
+  `b2050abdf910bf5c3b7262d1a09d2c04c0f56f58`, with five new failure controls.
+
+The live decisions index also distinguishes delivered source/reset proofs from
+pending Step 4 ownership and Step 9 enforcement. Accepted ADR bodies and earlier
+proposal/delivery receipts remain unchanged.
+
+Correction validation passes: Release build with zero warnings/errors; **193
+focused PostgreSQL cases**, zero failures/skips, in the final focused TRX. The
+actual fresh API publish verifies three source archives, twelve licence/notice
+files and original stock assemblies; fifteen planted defects refuse and recipient
+replacement inspection passes. Canonical guard SQL matches its embedded resource;
+first-party links/fragments, history preservation and whitespace pass.
+
+The first full correction-head Docker rerun was interrupted when its existing
+container stopped along with unrelated running containers. It is not passing
+regression evidence. Full regression is rerun after this correction commit and
+recorded with fresh Round 2. No worker/business activation is claimed here.
+
+#### Step 2 review round 2 and external-outcome corrections
+
+Three new reviewers independently examine `1b4ec7f4..a593cd22`: GPT-6-astra/xhigh
+owns storage/state/isolation; two GPT-6.1-sol/xhigh reviewers separately own the
+vendor/source and proof/corpus lenses. The latter two approve their code/proof
+scope. Root verifies the corpus review's stale live CLAUDE entry and reconciles it
+with the other status carriers, preserving dated historical receipts.
+
+The storage reviewer reproduces a prohibited second ExecuteIntent after a durable
+successful external outcome using real app/dispatcher roles with guards enabled.
+Root also verifies that quiescence without a known outcome was incorrectly enough
+for retry/release/terminalization. The correction now:
+
+- refuses a new normal cycle after success or selected finalization;
+- requires known outcome plus quiescence, or positive no-start, for a prior normal
+  attempt, excluding only the newly inserted receipt during its own admission;
+- keeps unknown effects from pending/finalize/terminal transitions and reservation
+  release, retaining occupancy;
+- preserves failed/cancelled retry and separately counted finalize stages.
+
+Five real-role regression cases distinguish success, failed, cancelled, selected
+failure finalization and unknown effect. The original twelve-receipt positive
+fixture now records retryable known failures before its last successful normal
+attempt. An independent scratch PostgreSQL control observes the old Unknown path
+commit a second ExecuteIntent, then verifies the corrected refusals and both
+known-failure positive controls. Its owned containers are removed.
+
+**Validation boundary:** the preceding Release binaries pass Unit 1,995,
+architecture 315, contract 4, Docker-free integration 176 and Docker integration
+1,594: **4,084 cases**, zero failures/skips. The final outcome correction then
+passes a fresh Release build with zero warnings/errors and **198 focused
+PostgreSQL cases**, zero failures/skips. Full canonical DDL equality and first-party
+link/fragment/history/whitespace checks pass. Fresh final-binary regression and an
+additional independent critical-fix review follow the correction commit; neither
+is claimed complete in this receipt.
+
+#### Step 2 final proof and closeout
+
+Initial implementation is `583374f5`; Round 1 verified corrections are
+`a593cd22`; Round 2 outcome corrections are `5d55ee78`. A new GPT-6-astra/xhigh
+reviewer independently approves `a593cd22..5d55ee78` with no confirmed findings.
+It traces first/next admission, known/unknown effects, finalize, terminal and
+reservation paths, SQL-null behavior and exact refusal-message controls; canonical
+SQL parity and whitespace pass. This is source review, not a claimed test rerun.
+
+Fresh final binaries from `5d55ee78` pass **4,089 backend cases**: Unit 1,995,
+architecture 315, contract 4, Docker-free integration 176 and complete Docker
+integration 1,599, zero failures/skips. The final focused 198-case run overlaps
+that total. TRX runner checks require all four assemblies and zero unexecuted cases.
+Release CI-style build has zero warnings/errors; formatting passes. These fresh
+receipts supersede the interrupted Docker rerun and earlier regression heads.
+
+The final API publish independently verifies three complete source archives,
+twelve licence/notice files, the actual package/framework graphs and original
+stock assemblies. Fifteen planted defects refuse; recipient replacement inspection
+passes. A forced `autocrlf=true` checkout preserves all 36 upstream SQL/material/
+archive hashes. Canonical SQL/resource equality, first-party links/fragments,
+Accepted ADR/history preservation and whitespace pass. Owned test/probe containers
+and proxies are cleaned up; the two previously running Saydin services are running.
+
+Both required fresh Step 2 review rounds, all verified corrections and the extra
+critical-fix review are complete. No unresolved finding remains in this step.
+Step 3 now owns submission and app-role admission. Step 4 still owns actual worker/
+component/filter/maintenance/pool qualification; Step 9 owns full observation and
+enforcement. Both extended ADR-0058 catalogue obligations remain Registered.
+No production job definition, recurrence or worker is activated by Step 2.
+
+### P02b-4 Step 3 — submission and app-role admission (2026-10-16)
+
+**Step 3 complete; both fresh independent review rounds passed.**
+Accepted ADR-0047 and the approved Step 3 plan govern this work; no new decision
+or worker activation is implied by this record.
+
+Submission stamps the actual typed producer operation, live announcement and
+physical transaction. The ordinary scheduling port accepts only its declared
+parameter type and owning module, requires exact tenant/organization scope,
+and inserts intent on that same transaction. Serialization and injected clock/ID
+operations cannot borrow stale enrollment. Successful INSERT adds a sticky
+produced-work receipt; the existing owner remains responsible for commit.
+
+Routing claims are separate from business attempts. An opaque returned-row claim
+authorizes only the exact framework read/start requests. App-role envelope
+validation uses a physically read-only frame before installing the verified
+Ambient/SystemActor context. A separate writable start frame locks/rechecks the
+row and can authorize later execution only through an acknowledged-commit
+receipt. Unknown COMMIT is not activation authority; acknowledged commit remains
+distinguishable from subsequent cleanup failure.
+
+The committed proof set covers real app-role isolation, immutable routing facts,
+read-only validation, unknown/Pending/early/stale callbacks, concurrent starts,
+lock-wait expiry, absorbed producer refusal and uncertain commit. No business
+request/handler may be constructed by admission. Capacity-bound/external starts
+remain deferred until their approved implementation steps.
+
+The first full run exposes three obsolete proof expectations: synthetic request
+metadata is no longer allowed to select physical read-only mode; failed audit
+rows remain durable after rollback; organization-scoped audit reads need the
+same organization announcement. The corrected expectations retain all business/
+job rollback assertions. A planted overload also exposes a detector exception;
+explicit declaration-count diagnostics now distinguish the violation from a
+clean production baseline.
+
+Root independently reproduces DI stopping disposal after the first throwing
+async disposable. The executor retains each actual unit before handler resolution
+and awaits its cleanup if scope disposal faults, while keeping context/authority
+installed. Physical connection-close controls pass for failed pre-read cleanup
+and post-acknowledgement start cleanup. Activity observer faults also preserve
+acknowledged receipts and restoration.
+
+Release CI-style build has zero warnings/errors. All **38 focused PostgreSQL
+cases pass**, zero failures/skips, including real physical generation substitution
+at constructor/clock/ID callbacks, read-only RLS and write-refusal controls,
+forced concurrent starts, lock-wait expiry, dropped COMMIT acknowledgement and
+cleanup faults. Typed Pending submission commits backlog but cannot route/start.
+Unit 2,018, contract 4 and Docker-free integration 176 pass; the complete
+architecture suite separately passes 315 cases, including dirty/clean capability
+controls. Full solution formatting verifies 972 files without changes; seven ADR
+parser controls and local link/fragment/history/whitespace checks pass.
+The final combined Docker-free receipt and complete Docker regression remain
+pending in this receipt. Neither formal review round is claimed by self-review.
+
+#### Step 3 review round 1 and verified corrections
+
+Initial implementation is `63a7f4ac`. Three fresh independent reviewers inspect
+`483463fa..63a7f4ac`: GPT-6-astra/xhigh for authority/transaction boundaries,
+GPT-6-astra/xhigh for PostgreSQL/admission/concurrency, and GPT-6.1-sol/xhigh
+for proof/census/composition/corpus. Authority and proof reviews approve with
+no findings. Storage requests one verified correction: submission inherits
+the general app source's 30-second or unlimited command timeout, violating
+the accepted positive SQL budget of at most five seconds.
+
+The storage reviewer independently reproduces the pinned-driver defaults and
+real PostgreSQL blocked-INSERT behavior in a private disposable database. Root
+confirms the actual production command and accepted bound. Submission now validates
+the existing runtime options, applies an explicit command timeout and links its
+SQL cancellation deadline. Successful INSERT alone records produced work;
+statement failure still poisons the same owner. The same source review also
+identifies that announcement/COMMIT surrounding framework commands needs a bound;
+the executor gives each exact read/start frame its own SQL deadline, retained
+through actual cleanup. Unknown COMMIT still creates no activation receipt.
+
+The combined Docker-free run passes all four assemblies: Unit 2,018,
+architecture 315, contract 4 and integration 176 — **2,513 cases**, zero failures
+or skips, with runner nonempty/zero-skip validation. The initial complete Docker
+run executes 1,637 cases: 1,636 pass and one old domain-event cleanup test fails
+because its reflection call still supplies three producer-enrollment arguments
+after the signature gained two optional attribution arguments. Root checks every
+reflection reference and adapts that test to five arguments without changing its
+cleanup/rollback assertions. This failed run is not a passing regression receipt.
+
+The corrected Release build passes with zero warnings/errors. All 66 focused
+PostgreSQL cases pass, zero failures/skips: the 40 Step 3 cases include a real
+FK-lock-blocked INSERT and a live session withholding the actual start COMMIT
+acknowledgement; the other 26 cover domain-event production and the adapted
+reflection call. The timeout controls use an unlimited actual app command default,
+prove the production deadline wins before their independent proof timeout, and
+retain poisoning, no-false-receipt, physical cleanup and restoration assertions.
+Unit 2,018 and contract 4 pass again. The combined full backend rerun remains
+in progress; no empty-filter run is counted as evidence. Round 2 has not started.
+No runtime outside the approved Step 3 boundary is added.
+
+
+#### Step 3 review round 2 and final closeout
+
+Three new independent reviewers inspect the complete `483463fa..0ddcb3e7`
+implementation and its `63a7f4ac..0ddcb3e7` correction: GPT-6-astra/xhigh for
+application authority/owner boundaries, GPT-6-astra/xhigh for PostgreSQL/storage,
+and GPT-6.1-sol/xhigh for proof/census/composition/corpus. All approve with zero
+verified Blocker, Major or Minor findings. They inspect actual source and existing
+receipts without shared builds or repository edits; their source reviews do not
+claim independent test execution or a completed full regression.
+
+Root's final CI-split regression at runtime head `0ddcb3e7` passes Unit **2,018**,
+architecture **315**, contract **4**, Docker-free integration **176** and Docker
+integration **1,639** — **4,152 backend cases**, zero failures/skips. The correct
+`Requires=Docker` run includes the forty Step 3 PostgreSQL cases; the focused
+66-case receipt additionally repeats all 26 domain-event production controls.
+Every counted assembly/slice passes the nonempty/zero-skip runner assertion.
+Release build remains zero warnings/errors; formatting, seven ADR parser controls,
+local links/fragments, prior-ADR/history preservation and whitespace pass.
+
+A mistaken `Category` filter mixed HTTP and Docker tests in one integration
+process, exposing startup/Activity assertions; that run was canceled and is not
+passing evidence. An empty filter was also rejected by the runner and is not
+counted. The exact `Requires` slices above replace those commands without
+weakening production code or test assertions. The earlier reflection-signature
+failure remains recorded in round 1; its corrected domain-event test passes.
+
+Both required review rounds and every verified correction are complete. Step 4
+owns stock workers, bridge/repair, component/filter selection, expiration ownership
+and supported-pool qualification. Step 5 owns business completion/retry/terminal
+execution; capacity/external/recurrence and full enforcement retain their approved
+Steps 6–9. No production business definition, recurrence, worker or dashboard is
+activated by Step 3. Work remains on `development`; no push, PR or CI-head success
+is implied by this local step closeout.
+
+### P02b-4 Step 4 — server-generation decision (2026-10-16)
+
+**Current authority:** [maintainer acceptance and the Step 4 adaptation](#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+below accept ADR-0059 on 2026-10-16. The following preparation and review receipts
+retain their original pre-acceptance state; implementation is in progress and full
+production qualification remains pending.
+
+**Preparation only; ADR-0059 Proposed, approval pending.** Step 3 closes at
+`def48a1a`, with runtime `0ddcb3e7` and both required fresh review rounds complete.
+The complete H1/expanded implementation remains authorized, but the newly exposed
+server-lifecycle choice needs explicit approval: ADR-0047/0058 select H1 and
+retention, but do not select a constructor or automatic-restart policy.
+No dependent worker, maintenance or restart runtime is activated here.
+
+Exact-pin source inspection exposes a lifecycle qualification gap: Core links
+child shutdown to its restart token, catches canceled joins and disposes live
+children before announcing a replacement. `ShutdownTimeout=Infinite` alone does
+not fix automatic restart. A connection-floor calculation based only on one
+configured generation is therefore conditional, not an accepted/proven number.
+The stock missing-server and sustained-heartbeat-failure paths both matter.
+
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md) proposes an
+owner per pool, public stock process composition, synchronous context capture,
+classified heartbeat retries and replacement only after actual stock/LearnStack
+cleanup. An affected pool can remain unhealthy/stopped while its work is unresolved;
+healthy pools remain independent. Host stop retains the existing one finite
+external budget. Stock SQL/binaries, roles/grants, job attempts, reservations and
+business authority are unchanged. A restart never supplies external quiescence.
+
+The decision-support probe uses actual pinned Core 1.8.25 dispatcher/server code,
+provider 1.21.1 loaded identity and the repository's pinned Npgsql/Newtonsoft graph,
+with fake storage to force lifecycle events. It uses no production credential,
+existing service/database or shared repository build output. The launcher builds
+in an owned temporary directory and takes versions from the central package file:
+
+```sh
+python3 scripts/probe-hangfire-lifecycle.py
+```
+
+| Probe | Required distinction |
+|---|---|
+| Stock restart | Second generation while first actual work remains live; old context token handles are disposed despite infinite internal shutdown |
+| Fault before synchronous capture | Actual required watchdog is held; stop occurs first; capture still executes, supplied workers stay closed, no early disposal/replacement |
+| Fault after worker start | One actual generation remains owned through finite caller wait; release precedes shutdown witness and actual join |
+| Managed supplied-builder fault | Guarded failure requests draining, retains earlier actual work and skips later builders |
+| Raw supplied-builder fault | Dirty control reproduces early joined outer owner and disposed tokens while actual work remains live |
+| Direct process-exit callback | Dirty child remains live inside Core cancellation after the finite host wait; parent terminates and joins it |
+| Closed process-exit relay | Actual Core exit runs without joining the held private callback/stock process; child exits zero, without a cleanup/quiescence claim |
+
+These are assertion-bearing isolated feasibility controls, not LearnStack's
+production worker/PostgreSQL regression or implemented catalogue enforcement.
+Generic heartbeat retries, multiple pools, partial-resource construction,
+source disposal, actual wrapper/business cleanup and restart-after-cleanup still
+owe real production controls. Fatal memory/thread-start failures are not qualified
+by the controlled managed-builder experiment. Missing context or elapsed waiting
+cannot be interpreted as successful cleanup.
+
+#### Proposal review round 1 and verified corrections
+
+Two fresh independent reviewers inspect `def48a1a..f8ff691f`: GPT-6 Astra with
+xhigh effort covers lifecycle/authority; GPT-6.1 Sol with xhigh effort covers
+proofs/corpus/governance. The proof reviewer independently builds/runs all five
+initial controls, checks links/history and interrupts the actual launcher to
+verify owned-child cleanup. It approves without a finding. The lifecycle reviewer
+confirms two Major decision gaps; root verifies both against pinned vendor source:
+
+- The cached provider fetched-job heartbeat cannot belong to the replaceable
+  control generation. The revision gives shared stock heartbeat/expiration an
+  API-instance owner independent of every pool; all Core servers exclude provider
+  component hosting. Control-pool-held-drain/healthy-pool renewal becomes an
+  explicit real-production proof obligation.
+- Core's synchronous process-exit cancellation is a separate boundary from the
+  finite host wait. The revision selects zero last-chance wait and a closed,
+  asynchronous cancellation relay, requires child-process qualification and
+  forbids treating exit/forced token signals as cleanup or external quiescence.
+
+The lifecycle reviewer then provides isolated exit-control implementation help;
+that support is not a fresh review of the revision. Root inspects/integrates it
+and independently passes all seven committed controls with zero build warnings
+or errors. The unsafe direct callback stays held until parent-owned termination;
+the positive observer confirms actual Core exit while private work remains held.
+Every child is joined before its temporary build tree is removed. These remain
+narrow feasibility controls, not production qualification. ADR-0047/0058 are
+byte-preserved; acceptance and all dependent Step 4 runtime remain pending.
+
+Root also interrupts the launcher while its unsafe exit callback is held:
+launcher exit 143, the actual child is gone and the owned temporary tree is
+removed. Five Release corpus controls and seven ADR parser controls pass; the
+first-party sweep checks 37 Markdown files, 2,708 local links and 643 fragments
+without errors and preserves all prior authorized history. These are focused
+proposal checks; the full 4,152-case Step 3 result is not rerun or relabelled.
+
+#### Proposal review round 2 and approval-readiness closeout
+
+Two new independent reviewers inspect `def48a1a..878bcd49` after the verified
+first-round corrections: GPT-6 Astra with xhigh effort covers lifecycle/authority;
+GPT-6.1 Sol with xhigh effort covers proofs/governance. Both approve the Proposed
+change with no Blocker, Major or Minor finding. Each independently builds/runs all
+seven isolated controls with zero warnings/errors. The lifecycle reviewer verifies
+committed source archive hashes and extracted bytes. The proof reviewer also
+interrupts the actual unsafe-callback child and forces the external watchdog;
+both paths join the real child and remove the owned temporary tree. A watchdog
+failure is not reported as a successful experiment.
+
+The initial proposal/probes are `f8ff691f`; verified first-round corrections and
+exit controls are `2103f059`; the primary status pointers are `878bcd49`. Root
+reads both final reports and execution logs, verifies focused final results of
+five Release corpus controls and seven ADR parser controls, and repeats the
+37-file sweep: 2,711 local links, 646 fragments, zero errors. All 53 previously
+Accepted ADRs are byte-identical across this proposal range. No full backend,
+production PostgreSQL/worker or multi-pool result is inferred from these checks.
+
+Proposal review is complete; ADR-0059 remains Proposed pending maintainer
+acceptance. This closeout changes only the review receipt, not the reviewed
+policy/probes. The user's requirement to approve new ADRs before dependent
+implementation remains the gate. Step 4's real qualification and Steps 5–9 are
+pending; no worker, maintenance owner or replacement policy is activated here.
+
+
+#### External proposal review and verified revision (2026-10-16)
+
+The maintainer's response to the approval request is a review, not acceptance.
+Root verifies its findings against `b49998d9`, the Accepted records and pinned
+Core/provider source, with separate lifecycle, storage-surface and options support
+investigations. Those investigators are not the fresh review rounds below.
+ADR-0059 remains Proposed and no dependent runtime is authorized by this revision.
+
+| Finding | Verified disposition |
+|---|---|
+| B1 outer retry/repeat owner | Valid. Core retries failed announcement before capture and repeats normal server return independently of heartbeat. Add a preallocated owner, lazy complete lifecycle boundary, one-shot announcement and terminal stop fence including removal/acquisition/disposal. |
+| B2 concrete seam and surface | Valid. Name the per-pool `JobStorage` / `JobStorageConnection` decorators, lazy acquisition and in-boundary lifecycle disposal. Preserve extended capabilities, actual transactions/fetched jobs and shared inventory; pin the obsolete API/upgrade and real-provider parity gates. |
+| B3 StopTimeout and running work | Valid. Fix both stop/shutdown timers to Infinite. Local drain closes fetch/admission without canceling admitted private work; host stop has a separate retained asynchronous cancellation signal. Pre-admission wakeups may requeue. |
+| B4 availability and alternatives | Valid tradeoff. Document shared-outage/all-pool drain and whole-pool blocking despite a spare slot or storage recovery. Compare no replacement and bounded two-generation shared budgets honestly; current probes do not disprove qualified overlap. Retain the proposed one-generation choice for approval. |
+| B5 delayed/recurring dependency | Valid. Control drain stops native timers. Require independent same-generation bridge repair in Step 4 and missing-tick durable occurrence recovery in Step 8, without inventing a universal latency SLA. |
+| B6 fixed options/metadata/margin | Valid. Pin server intervals, four-minute heartbeat cutoff below five-minute expiry, one-second pacing/five-second owner backoff and exact Queues/WorkerCount dictionary values. Step 4 startup validates these constants; they are not silently new public options. |
+| B7 replacement classification | Valid. Earlier ADRs selected stock pools/retention, not a convenience constructor or automatic-restart policy. Correct the Proposed ADR/live summary to an additive lifecycle decision; accepted history is untouched. |
+| B8 census/catchability | Valid. Name forbidden facade/registration paths and exact production capability scans. Catchability matches the pinned Core exact-type OOM/StackOverflow exclusions; require actual managed fault premises and closed diagnostic callbacks, not arbitrary throwing/blocking observers. |
+| B9 upstream issue | Suggestion, not an implementation requirement or authorization to publish. No public issue is filed; a concrete qualified upstream change remains an alternative, not assumed available evidence. |
+
+The second report's smaller terminology/reference notes are also verified:
+distinguish per-server metadata from storage-wide fetched-job heartbeat, separate
+component/filter suppression, label the finite pool observation dimension without
+mapping readiness, correct cancellation-timer wording and explain the whole-pass
+heartbeat wait. Add the Database/Observability/Events and Outbox references.
+
+Root integrates twelve additional isolated actual-Core controls into the same
+owned launcher, alongside the original seven. The current builder/exit controls
+use infinite stop timeout; exit cancellation now receives an explicit host signal,
+not the pool-local stopping token. All nineteen pass with zero build warnings or
+errors. The new controls distinguish:
+
+- Raw announcement failure and normal-return repetition from stop-fenced variants.
+- Announcement acquisition/disposal and removal/acquisition/disposal failures,
+  including faults held before owner handle publication and without capture.
+- An actual caught non-InvalidOperation managed builder fault, with no later start
+  and earlier actual work/tokens retained; the premise cannot be skipped by stop.
+- Infinite versus finite StopTimeout while actual work stays live, followed by
+  an independent host signal with its real cancellation/relay tasks held and joined.
+
+The normal-return pair deliberately allows a stock heartbeat restart with no held
+old work to isolate outer repetition/removal fencing. It does not qualify supported
+heartbeat containment. Fake lifecycle resources and held `IBackgroundProcess`
+work prove neither real PostgreSQL/Worker cancellation nor partial mandatory
+thread construction, complete provider parity, common-outage/multiple-pool repair
+or actual replacement. All remain named production activation gates. The earlier
+seven-control review receipts retain their as-of scope; they are not retrospectively
+expanded to cover this external revision.
+
+Root's isolated whitespace/Release verification passes after integration;
+all nineteen distinct controls pass, along with five Release corpus cases and
+seven ADR parser controls. The first-party history/link sweep is clean. These
+checks do not rerun or relabel the earlier full 4,152-case Step 3 evidence.
+
+#### External revision review round 1
+
+Two fresh independent reviewers inspect `b49998d9..1853b48f`: GPT-6 Astra with
+xhigh effort covers lifecycle/authority; GPT-6.1 Sol with xhigh effort covers
+proofs/governance. Both independently pass all nineteen controls with zero
+warnings/errors. Lifecycle reports no finding; proofs reports no Blocker/Major
+and one Minor historical evidence-count error, verified and corrected below.
+The proof reviewer also removes the actual managed exception in an isolated
+mutant: the builder control turns red. Missing receipts, startup failure and
+silent watchdog expiry are rejected; the actual timed-out child is joined.
+Root reads both final reports/logs. These reviews do not certify production gates.
+
+**Evidence-count correction — 2026-10-16.** The earlier proposal round-2 receipt's
+“53 previously Accepted ADRs” is incorrect. Root and the new proof reviewer use
+`scripts/adr-status.py`'s canonical `lifecycle()` parser, not a text occurrence
+count: both `def48a1a` and `b49998d9` contain 51 currently Accepted canonical ADRs,
+all byte-identical at `1853b48f`. The older receipt remains as-of text; this dated
+correction replaces its denominator, not the byte-preservation result. It does
+not claim the original reviewer ran this corrected count. ADR-0059 is Proposed.
+
+#### External revision review round 2 and availability correction
+
+Two new independent reviewers inspect `b49998d9..b4a6fec0`: GPT-6 Astra with
+xhigh effort covers lifecycle/authority; GPT-6.1 Sol with xhigh effort covers
+proofs/governance. Both independently pass all nineteen controls with zero
+warnings/errors and reproduce the canonical 51-ADR count/byte preservation.
+The proof reviewer independently rejects missing receipts, startup failure and
+watchdog expiry, joins the real child and turns the managed-fault mutant red.
+
+Both initially report a clean proposal. Root's final cross-check then identifies
+an additional governance conflict: ADR-0047's unrelated-tenant progress promises
+are broader than ADR-0059's whole-pool drain below four retained overruns. The
+lifecycle reviewer independently confirms it and appends one Major, explicitly
+narrowing its earlier verdict before acceptance. Root verifies the actual clauses;
+their exception cannot be assumed implicit merely because the older contract
+already had a four-overrun threshold.
+
+The correction keeps constructor/restart composition additive, but names a
+bounded availability supersession of ADR-0047's Tenant capacity and independent
+pools / Lifecycle and observation progress clauses. Same-pool unrelated tenants
+may wait during generation-control draining despite a spare slot after storage
+recovery and below four overruns. Healthy other pools, hard bounds, reservations
+and independent orchestration are preserved. Acceptance will disclose this precise
+change in ADR-0047; ADR-0058's ownership note remains additive. Prior Accepted bytes
+are untouched. This correction changes classification/explicit contractual scope,
+not the already stated single-generation behavior or the nineteen probe sources.
+
+#### External revision focused verification and approval-readiness closeout
+
+Two new independent reviewers inspect `b4a6fec0..35b6985d`: GPT-6 Astra with
+xhigh effort covers governance and normative scope; GPT-6.1 Sol with xhigh effort
+covers corpus/history and evidence mechanics. Both confirm the earlier Major is
+resolved without widening the affected-pool exception. The first reviewer flags
+one Minor in `71221799`: the four-overrun threshold stops new starts, not actual
+retention. Root verifies/fixes it in `35b6985d`; that reviewer preserves its first
+report and appends exact-head verification. Both final focused verdicts approve
+with no unresolved findings in their stated scope.
+
+Root reads both final reports and verifies five Release corpus controls, seven
+ADR parser controls and the first-party history/link sweep: 37 Markdown files,
+2,716 local links, 648 fragments, zero errors. The canonical lifecycle parser
+reproduces 51 Accepted ADRs at `def48a1a`, `b49998d9`, `b4a6fec0` and `1853b48f`,
+all byte-identical in the final tree. ADR-0059 remains Proposed. The final
+classification/wording corrections change only Markdown; the nineteen-control
+sources are unchanged since `1853b48f`, so their existing passing receipts are
+preserved without claiming a new runtime run. Diff/prose-width checks pass.
+
+The external revision is `1853b48f`; first-round/count correction receipt is
+`b4a6fec0`; bounded availability disclosure is `71221799`; retention precision
+is `35b6985d`. The initial clean round-2 verdict and its later Major addendum
+remain explicitly recorded above. This final receipt changes no reviewed policy
+or probe. It is neither maintainer acceptance nor real production qualification.
+
+The revised ADR and Step 4 adaptation are ready for maintainer approval under
+the user's new-ADR gate. Same-pool blocking during generation-control drain,
+including below four overruns after storage recovery, is an explicit decision
+for that approval. Step 4's real worker/PostgreSQL, startup/resource, wrapper
+parity, multi-pool and exit controls remain mandatory before activation; Steps
+5–9 remain pending. Work stays on `development`; no dependent runtime, push,
+PR or current-head CI result is implied by this proposal closeout.
+
+#### Maintainer acceptance and Step 4 adaptation (2026-10-16)
+
+**Accepted — 2026-10-16, @cemil.** The maintainer explicitly approves revised
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md) and the Step 4
+adaptation reviewed at `0db27eb6` on `development`. This closes the new-ADR
+approval gate and authorizes dependent implementation after the acceptance
+commit. It completes no implementation step or production activation proof.
+The nineteen-control experiment and earlier review/validation receipts retain
+their recorded scope; acceptance neither reruns them nor expands their claims.
+
+The accepted change has two distinct parts:
+
+- **Additive lifecycle integration:** public stock process composition, one
+  actual generation per pool, synchronous context capture, closed storage and
+  lifecycle disposal fences, classified metadata-heartbeat retry, sole owner
+  replacement after actual stock/LearnStack cleanup, separate shared component
+  ownership and a qualified closed process-exit relay.
+- **Bounded availability supersession:** only the two ADR-0047 progress clauses
+  quoted in ADR-0059 are qualified during generation-control drain. Unrelated
+  tenants in the same pool can remain blocked after storage recovery, with a
+  spare slot and below four retained overruns, until actual cleanup completes.
+  Healthy other pools remain independent subject to common dependencies.
+  Four overruns still stop new starts in an otherwise serviceable generation;
+  actual retention continues. Hard bounds, fair independent orchestration,
+  attempts, reservation ownership and positive quiescence remain unchanged.
+
+[ADR-0047 Amendment 2](../decisions/0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16)
+discloses both parts. [ADR-0058 Amendment 2](../decisions/0058-bounded-stock-hangfire-maintenance.md#amendment-2--independent-shared-component-ownership-2026-10-16)
+is additive component-ownership navigation only. Both preserve the prior
+Accepted bodies, acceptance metadata and earlier amendments. No whole-record
+supersession or ADR-0041 fact correction is selected.
+
+**Adapted Step 4:** the original H1 wakeup/bridge/wrapper/pool work remains in
+scope, with ADR-0058's component/filter and maintenance obligations. ADR-0059
+adds the public compositor and complete concrete storage/connection surface,
+one-shot announcement/removal stop fences, exact fixed options/queue metadata,
+local drain without business cancellation, retained actual stock/LearnStack
+joins and API-instance shared fetched-job heartbeat/expiration hosting.
+The closed diagnostic observer, cancellation relay and process-exit boundary
+must be qualified before worker activation; unresolved startup/resource cleanup
+refuses activation and reopens the decision, rather than granting replacement.
+
+Real pinned worker/PostgreSQL controls remain mandatory for full provider-surface
+parity and capability census; acquisition/disposal/startup and heartbeat faults;
+nonoverlap and no early token/resource disposal; control-pool drain with healthy
+pool renewal and due delayed-handoff repair; common outage/recovery with a held
+operation and a spare slot still closed; host stop/backoff/late completion; and
+direct-callback versus closed-relay process exit. The final simultaneous physical
+acquisition census must enforce its qualified supported configuration/floor and
+prove progress at that boundary; no guessed numeric floor is accepted.
+
+Step 8 retains missing-native-tick recurrence/CoalesceLatest qualification.
+Steps 5–9 retain business completion/terminal audit, tenant capacity, external
+effects, recurrence and final enforcement under their existing approved scope.
+The nine-step sequence and two fresh independent review rounds per step remain
+authorized. Phase 03 operator recovery and Phase 11 readiness/supervision remain
+with those owners.
+
+**Carrier inventory at acceptance:**
+
+| Carrier | Acceptance effect / remaining implementation owner |
+|---|---|
+| [Standards 05](../standards/05-database.md#background-jobs) | Existing canonical schema/grants/source deadlines remain unchanged. Step 4 must qualify every concrete connection/compositor acquisition lane and the supported pool boundary; this acceptance adds no DDL or grant |
+| [Standards 10](../standards/10-observability.md#health-checks) | Accepted lifecycle observation reference only. Step 4 supplies truthful drain/heartbeat/shared-component health; Step 9 owns final instruments/censuses. No new emitter or mapped readiness is claimed |
+| [Standards 20](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire) | Accepted lifecycle and bounded availability reference; implementation/activation remain pending |
+| [Standards 21](../standards/21-architecture-tests-catalogue.md) | ADR-0059 extends the existing bootstrap, independent-capacity and credential-confinement obligations by reference; all three remain Registered. Step 4 supplies real subjects/controls; Step 9 closes enforcement. No rule, method or Implemented count changes |
+| [Events and Outbox architecture](../architecture/15-event-and-outbox.md#background-job-transport-and-maintenance) | Accepted server/component ownership and availability reference; delivered Steps 1–3 and pending Steps 4–9 remain distinct |
+
+This documentation-only acceptance precedes dependent runtime changes. It
+claims no new worker, maintenance owner, production qualification, full backend
+rerun, CI result or packet closeout. Earlier pending-approval wording is dated
+history; current implementation and activation remain pending.
+
+#### Step 4 required-startup qualification (2026-10-16)
+
+ADR-0059 acceptance commits at `6c52eaa1` before dependent work. Root verifies
+two independent source/design inspections (GPT-6-astra xhigh and GPT-6.1-sol
+xhigh) against pinned Core and official .NET 10.0.10 source. Normal lifecycle
+containment is implementable, but the literal required-startup join-before-dispose
+obligation remains unqualified through the current public seams.
+
+Core starts metadata heartbeat and prepends private watchdog/cancellation builders
+before supplied capture. If required construction throws, it skips the child join
+and disposes prior controls before removal reaches the storage fence. Keeping that
+uncaptured generation retained prevents replacement, but cannot undo disposal.
+.NET distinguishes exact native-create OOM from a later initialization wrapper;
+Core's exact exception predicate does not itself exclude ThreadStartException.
+The identified Unix path concerns stack/TLS/runtime resource initialization.
+No genuine Linux resource-failure experiment, ordinary SQL/configuration
+counterexample or frequency estimate is claimed. A hostile global logger or
+invalid input is not a supported-production counterexample.
+
+[ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md) proposes the narrow
+fatal-process alternative: after prevalidation, unowned constructor/required
+startup failure closes starts/replacement and terminates the entire API without
+a graceful-cleanup claim. This interrupts unrelated pools/HTTP traffic; durable
+attempts, external uncertainty and reservations remain authoritative. Normal
+announcement/database faults, captured builders, local drain and host stop retain
+ADR-0059's policy. The proposal neither accepts itself nor authorizes termination
+runtime. It applies ADR-0059's existing decision-reopening gate.
+
+Independent bridge, closed diagnostics, selective component/filter inventory and
+storage/parity work continue under the Accepted contracts. They do not qualify
+the complete server owner or activate workers. New proposal review receipts and
+actual implementation/test results will be recorded after they occur; no new
+passing production test, full Step 4 completion or current-head CI is implied.
+
+##### Required-startup proposal review round 1
+
+Two fresh independent reviewers inspect `6c52eaa1..34be14e6`: GPT-6-astra xhigh
+covers policy/lifecycle and GPT-6.1-sol xhigh covers proofs/governance. Both
+approve the Proposed documentation for maintainer consideration with no
+Blocker/Major, independently identifying one Minor: the consequence's “rare”
+frequency qualifier is unsupported. Root verifies/removes it, preserving the
+explicit absence of a genuine resource-failure experiment or likelihood estimate.
+The source-based state trigger, entire-host consequence, bounded supersession
+and pending implementation/proof gates remain unchanged.
+
+Root reads both final reports. Seven ADR parser controls, the six-file link/
+fragment sweep and diff/prose checks pass; all 52 baseline Accepted ADRs remain
+byte-identical. These are proposal checks, excluding the uncommitted independent
+bridge/wrapper/diagnostic slice. A new second review round follows this correction;
+ADR-0060 remains Proposed and no fatal-process runtime is authorized.
+
+##### Required-startup proposal review round 2
+
+Two new independent reviewers inspect `6c52eaa1..ac5a1cd3`: GPT-6-astra xhigh
+covers policy/lifecycle and GPT-6.1-sol xhigh covers proofs/governance. Both
+approve the Proposed documentation for maintainer consideration with zero
+Blocker/Major/Minor/Suggestion findings. Root reads both complete final reports.
+The proof review independently checks all 52 baseline Accepted ADRs byte-for-byte,
+ADR-0059 Accepted/ADR-0060 Proposed, 706 local links and 295 fragments with no
+missing targets, unchanged catalogue bytes/counts, added prose/private-reference
+checks and clean diff whitespace. Neither review runs shared builds, database
+experiments or production qualification; no genuine Linux resource-failure or
+frequency claim is introduced.
+
+The proposal is ready for maintainer consideration. Its entire-API interruption,
+operator restart and absence of graceful cleanup remain explicit costs; fatal
+runtime and activation still require acceptance. Independent Step 4 foundation
+validation proceeds under the existing Accepted decisions and is recorded
+separately. Steps 4–9 remain incomplete; no push, PR or current-head CI is claimed.
+
+##### Independent Step 4 foundation slice (2026-10-16)
+
+This slice implements the already-authorized H1 transport and public storage
+boundary while ADR-0060 remains Proposed. It does not implement fatal termination,
+compose Core generations, host shared maintenance or activate API workers.
+Full Step 4 and Steps 5–9 remain pending under their accepted ownership.
+
+- The bridge claims committed intent in a short privileged transaction, retains
+  at most four actual synchronous stock-client calls on background threads and
+  suppresses ambient execution context/culture. Vendor IDs remain hints; absent,
+  failed or succeeded vendor rows permit same-generation repair without spending
+  business attempts. ACK/deferral locks the actual row before rechecking current
+  database-time lease/token/generation fences; callback admission may precede ACK.
+  Host stop closes acquisition and retains actual calls through late completion.
+- Exact opaque wrappers and a five-token resolver reject arbitrary CLR lookup.
+  The closed activator binds a registered pool, invocation and single-use scope;
+  it reaches Step 3's framework admission only. Business completion stays Step 5;
+  recurrence materialization stays Step 8 and cannot currently report success.
+- Concrete pool storage/connection wrappers preserve the complete pinned public
+  surface, provider features, extended casts, transactions, fetched jobs and locks.
+  Only announcement, metadata heartbeat and removal enter the closed lifecycle
+  operation. Failed disposal remains retained; this is no proof of the pending
+  complete generation owner or every physical provider cleanup outcome.
+- Fail-closed component/filter inventories retain exact stock instances and required
+  filters while suppressing the counter aggregator/history. Vendor diagnostics use
+  fixed memory-only counters without evaluating messages or invoking observers.
+  Existing capability, authority, transaction and parallelism censuses enumerate
+  the new exact callers and retain their planted extra/missing-site controls.
+
+Real delayed creation exposed a predicate mismatch: stock explicit-queue scheduling
+stores `queue:id` in the `schedule` set, while the prior guard admitted only numeric
+IDs. The fix preserves immutable queue binding, restricts the added form to that
+key and bounded queue/ID grammar, and reconciles the canonical SQL. An additive
+Platform migration supports already-installed stores; reverse/reapply, malformed
+and wrong-key controls exercise the boundary. Fixture corrections preserve the
+actual ACK-after-lock-expiry and below-filter redaction assertions, and replace the
+old missing-wrapper assumption with a positive load of the now-present wrapper.
+Earlier recorded Step 2/3 evidence is unchanged.
+
+**Initial slice validation:** Release warning-as-error build passes with zero
+warnings/errors. Unit 2,056, Architecture 315, Contract 4, Docker-free HTTP
+integration 176 and focused real-PostgreSQL bridge/parity/storage/rollback 94
+pass: 2,645 tests, zero failures/skips. TRX counters are checked directly and by
+the guarded test receipt. Seven ADR parser controls and a three-file sweep of
+533 local links / 193 fragments pass. C# formatting and diff whitespace pass.
+This is a focused slice receipt, not a full backend/renderer/demo/CI rerun.
+
+The first runs found the queued-schedule guard mismatch, a completed-locker
+rollback in the proof, an inadmissible RetryCount test value and the old absent
+wrapper assumption. The corrected PostgreSQL set passes in full. Initial
+architecture failures identify only newly sanctioned caller inventories; exact
+entries and forwarding/removal mutants now pass the full architecture assembly.
+No failing check is skipped or broadened to allow arbitrary callers.
+
+Two fresh independent slice-review rounds follow the initial implementation
+commit. They do not close full Step 4's real generation, maintenance,
+cancellation/exit, multi-pool progress or connection-floor gates.
+
+##### Independent foundation review corrections (2026-10-16)
+
+The initial foundation review was interrupted before final reports; it is not
+counted as a completed round. A resumed independent GPT-6-astra xhigh R1 inspects
+the complete committed slice and surrounding runtime/census paths. It verifies
+one Major: raw filter concatenation bypasses stock precedence and lets the global
+retry execute before the wrapper's zero-retry attribute. The separately identified
+bridge-source forwarding gap also needs exact capability enforcement.
+
+Commit `9db4822d` uses the stock filter-provider collection, preserves the admitted
+global instances and pins the bridge store's signatures, source captures,
+acquisitions, consumers and holders. Actual StateMachine controls distinguish
+failed-state retention from the raw-concatenation retry/schedule outcome. Two
+fresh independent R2 reviewers (GPT-6-astra xhigh runtime and GPT-6.1-sol xhigh
+proof/security) inspect the corrections. The proof reviewer finds one further
+Major: a pre-creation global retry registered at order 100 wins stock precedence.
+Root verifies it and refuses nonstock retry registration order before changing
+history; both wrappers now have effective-filter and actual state-election controls.
+Both reviewers independently verify the final fix with zero remaining findings.
+
+Before the last two-line registration guard, Release build, Unit 2,058,
+Architecture 317 and focused real-PostgreSQL 93 pass, with zero failures/skips.
+After that guard and its added controls, Release build remains warning/error-free,
+all 2,061 unit cases and four targeted credential/catalogue architecture cases
+pass. Direct TRX counters and the guarded runner confirm execution and zero skips.
+Pre-commit formatting leaves all four reviewed C# hashes unchanged. This is not a
+new full backend/renderer/demo/CI receipt; no fatal runtime or worker is activated.
+Full Step 4's complete-runtime review and qualification gates remain open.
+
+##### ADR-0060 external-review revision (2026-10-16)
+
+The maintainer requests changes to the Proposed record. The earlier two clean
+proposal-review receipts remain historical; they do not close these later verified
+gaps or authorize fatal runtime. Root rechecks pinned Core and official .NET source,
+reads two independent state/policy analyses and revises the proposal before seeking
+new approval. No genuine Linux resource failure, new runtime experiment or incidence
+estimate is claimed.
+
+The revised file is
+[ADR-0060: Fatal Hangfire Startup and Unsafe Unwind](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md).
+Renaming the Proposed file reflects its explicit before/after-capture scope; earlier
+record links resolve forward to that current proposal. All Accepted ADR bodies,
+metadata and prior amendments remain unchanged.
+
+| Verified review gap | Revision / deliberate boundary |
+|---|---|
+| M1: fatal rationale relied on the old cleanup promise | Quarantine remains a viable policy alternative. Fatal is a conservative integrity/visible-failure preference with the whole-API cost, not technical necessity or proof that private controls execute business work |
+| M2: Phase 11 ownership was absent from its roadmap | Reliability scope, deliverables and completion now explicitly own supervision/restart/backoff/crash-loop, termination/dump policies and the triggered worker-process topology decision; no present supervisor is claimed |
+| M3: constructor predicate exceeded proved live-thread cases | Entire prevalidated constructor failure is explicitly conservative, including pre-thread false positives; no private instruction boundary is inferred from exception type/text |
+| M4: capture did not cover Core post-builder/notification unwind | Separate progress and conditional normal-join facts; owned disposal, removal, second-announcement and outer-completion observations cover skipped waiting/removal. Closed logger/timer/final-exit premises must be qualified before activation |
+
+The revision also names process-wide starts/ExecuteIntent gates and earlier-admission
+uncertainty, host-stop versus final-teardown priority, retained unhealthy stalled
+startup under the existing ProgressTimeout, finite pool/stage diagnostics, runtime/
+Linux resource/collector dump prerequisites and orphan process-tree consequences.
+Exact ADR-0059 qualification/availability clauses and its Option 4 are disclosed;
+three existing canonical test obligations receive explicit prospective assignments.
+No new rule/count/status or caller enforcement is declared implemented.
+
+The suggested automatic exact-OOM crash outcome is not established and is not used
+as a policy argument. Existing API blast-radius, manual-restart, dump-risk and durable
+reservation disclosures were already present; their concrete controls/owners are
+strengthened rather than presented as newly discovered guarantees. Synthetic fault
+placement remains distinct from real stock and genuine resource evidence. Proposed
+and Accepted policies are not silently conflated.
+
+The independent foundation corrections above own their source capability and
+filter proof/review receipt. Neither workstream completes Step 4 or permits
+fatal activation. The following records own the proposal's fresh reviews.
+
+**Revision review round 1:** two fresh independent reviewers (GPT-6-astra xhigh
+lifecycle and GPT-6.1-sol xhigh governance/proofs) inspect the frozen eight-document
+revision against `422519b0`. Both request changes for one Major and one Minor.
+Root reads both full reports, verifies ADR-0047's preserved other-pool progress
+clauses/Amendment 2 and adds its prospective dated bounded disclosure alongside
+ADR-0059. The second-announcement fatal predicate now requires missing normal
+child-join evidence, preserving nonfatal post-join cleanup. Known pre-child refusal
+precedence and complete-boundary announcement confirmation are explicit.
+
+Both independently confirm the state-model, conservative/quarantine tradeoff,
+Phase 11 owners, dump/collector prerequisites and pending proof limits. Static
+checks preserve all 52 Accepted ADRs; the governance review independently checks
+1,290 local targets / 394 applicable fragments with no errors. Root's parser and
+whitespace checks pass. No reviewer runs shared tests or resource experiments.
+The independent bridge fix adds two architecture methods (222 → 224), without any
+rule/status/Implemented-count promotion; its execution receipt is separate.
+A fresh second revision review follows these corrections; approval remains pending.
+
+**Revision review round 2:** fresh independent GPT-6-astra xhigh lifecycle and
+GPT-6.1-sol xhigh governance/proof reviewers approve the corrected eight-document
+proposal with zero findings. Both recheck the frozen hashes and all 52 unchanged
+Accepted ADR files; the governance reviewer verifies the four exact authority
+quotes, unique Registered proof names and unchanged Implemented-rule count.
+Root reads both full reports and reruns seven ADR parser controls, the changed-doc
+sweep (1,291 local links / 395 fragments, zero errors) and whitespace checks.
+No reviewer executes a resource, fatal-child, worker or PostgreSQL experiment.
+These are proposal-review receipts, not maintainer acceptance or runtime proof.
+The revised ADR-0060 remains Proposed; dependent fatal implementation still waits
+for approval, and real lifecycle qualification precedes activation.
+
+
+##### ADR-0060 acceptance and Step 4 continuation (2026-10-16)
+
+The maintainer approves the revised ADR-0060 at `189f3bcf` and explicitly requests
+implementation. Acceptance precedes dependent runtime commits on `development`.
+It selects the conservative opaque-construction/unsafe-unwind fatal policy after
+comparing viable quarantine, including before-thread false positives and the
+whole-API/healthy-pool availability cost. Stalled startup remains retained unhealthy
+ownership, not timeout-based fatal selection. No exit releases durable uncertainty
+or reservations; earlier-admission effects remain authoritative.
+
+The acceptance carrier commit adds dated bounded supersession amendments to
+ADR-0047 and ADR-0059, keeps their bodies/metadata intact, moves ADR-0060 into the
+Active index and reconciles current front doors, Standards 20/21, architecture 15
+and Phase 11's explicit operations ownership. Three existing canonical proof
+assertions are extended without changing Registered status or published counts.
+ADR-0058's ordinary maintenance contract remains unchanged.
+
+Step 4 resumes the actual generation owner, shared components, host/exit gates,
+closed fatal capability and real pinned worker/PostgreSQL qualification. It still
+must complete its implementation commit, two fresh independent full-step review
+rounds and verified fix commits before Step 5. Fatal child prerequisites must be
+qualified before launch; unsupported dump/collector settings fail, never skip.
+No acceptance receipt claims runtime delivery, production readiness or activation.
+
+Focused independent acceptance audit passes after fixing the Active-table row and
+derivation-header navigation. All 52 prior Accepted ADRs preserve their bodies;
+the two named amendments add only new lines. Seven ADR parser controls, five
+corpus architecture cases and a 1,543-local-link / 468-fragment sweep pass, with
+zero failures/skips or broken targets. Published catalogue counts/statuses remain
+unchanged. The acceptance commit contains documentation only.
+
+##### Owned generation and maintenance foundation (2026-10-16)
+
+**Implementation slice; Step 4 remains in progress.** ADR-0060 acceptance at
+`e0d39bf5` precedes this dependent runtime. `HangfireGeneration` retains actual
+construction, stop, startup observation and uncanceled Core completion separately
+from caller waiting. A synchronous context capture and Core-facing wait-entry
+marker distinguish progress from the qualified normal child-join witness.
+Successful removal/disposal is also required before cleanup is acknowledged;
+joined but unresolved cleanup stays retained. A stop that wins before Start has
+its own positive no-Core completion path.
+
+The shared component owner retains the two frozen stock components independently
+of pool drain. Native startup, invocation, actual join and cancellation callbacks
+have distinct owners. Each lane observes its five-minute wait plus one-second
+cleanup bound without releasing resources or starting another pass early.
+Expiration keeps its one-hour cadence; fetched-job heartbeat keeps stock pacing.
+
+One closed process gate arbitrates host stop, final teardown and the sole
+preallocated pool/stage fatal sink. Its final-exit callback registers before Core.
+The gated native connection factory permits normal stock cleanup during host drain
+and refuses fatal/final-teardown issuance. Bound activators/wakeups recheck the
+same generation at activation, routing and app admission. The framework scope
+retains that closed memory predicate and rechecks it after actual row-lock waits,
+before spending an attempt. No module-supplied context or transaction owner changes.
+
+Focused source feedback fixes pre-lifecycle expiration drift, stop-before-start,
+missing removal/disposal evidence and owner clock/timer failures. Ordinary provider
+failures remain contained through the real stop/child-join fence. Two new structural
+facts pin the actual fatal capability/sink and public Core constructor, with
+direct/delegate/async/overload/interface/forwarding dirty controls. The catalogue
+method total becomes 226; all 19 P4 obligations remain Registered and the
+Implemented-rule count remains 202. Per-detector body snapshots are rebuilt after
+every mutation; no process-wide mutation cache hides added or removed subjects.
+
+Validation currently records a zero-warning/error solution build, 2,083 Unit cases
+and 133 focused PostgreSQL/process cases, with zero failures/skips. The latter
+include ten real generation controls, app-role admission closure during a real row
+lock, real stock parity/bridge/admission regressions, six Linux scenarios and
+one in-memory receipt-predicate control.
+The full Architecture run and final per-detector optimization rerun each pass
+319 cases, with zero failures/skips.
+
+The Linux sidecar runs the real production sink only in an isolated .NET 10.0.10
+Arm64 child. A benign twin proves cleanup sentinels; fatal exit 134 omits them.
+The shell verifies soft/hard core limits zero and the nonpiped `core` collector
+before managed entry. Child environment is cleared, modern/legacy dumps disabled,
+root/input binaries read-only, scratch isolated and network disabled. The initial
+archive-copy setup refuses the read-only root; a read-only mount of staged proof
+binaries fixes setup without changing dump/collector policy. Actual native and
+supervisor exits, fixed diagnostics and artifact allowlists pass. These are direct
+gate/synthetic-stage controls, not genuine Core resource-failure reproduction or
+generation phase-dominance proof.
+
+The production API does not construct or activate these owners yet. Full pool
+replacement/retained LearnStack work, independent bridge/control composition,
+supported physical-acquisition boundary and remaining lifecycle/fault/exit proofs
+remain in Step 4. Its complete implementation commit and two fresh full-step
+review rounds still precede Step 5. This slice claims no new business execution,
+recurrence, readiness mapping, production recovery, CI success or packet closeout.
+
+##### Foundation review round 1 and verified corrections (2026-10-16)
+
+Two fresh independent reviewers inspect `e0d39bf5..e1e6db42`: GPT-6 Astra with
+xhigh effort covers runtime authority/lifecycle; GPT-6.1 Sol with xhigh effort
+covers proofs/corpus. Both use standards-check then code-review lenses. These
+are focused foundation reviews, not the still-required full Step 4 rounds.
+
+Root verifies one Major finding against the pinned provider source: fetched-job
+renewal catches acquisition/SQL failures internally and returns normally. The
+shared owner could incorrectly report that returned pass healthy. The correction
+binds the closed diagnostics instance, preserves swallowed faults/ownership loss
+through empty passes, and requires a clean pass containing actual renewal SQL
+before clearing known storage failure. Return/join and storage health are distinct.
+No provider message factory is evaluated and stock code/SQL remain unchanged.
+
+The real disposable-PostgreSQL regression fetches a stock wakeup, revokes only its
+renewal-column permission and proves unchanged fetched-at, recorded fault and an
+unhealthy returned/joined pass. Restoring permission must produce actual fetched-at
+progress and healthy recovery with historical faults preserved. Fixture-only
+cadence acceleration is explicit; the stock one-second pass pacing is unchanged.
+Ten shared-owner unit cases and eleven generation PostgreSQL cases pass with zero
+failures/skips. The combined bridge/generation regression passes 33 cases.
+The initial new fixture does not compile against the provider's internal Options
+property; narrow test-only reflection corrects cadence access. A ten-case run of
+the previous integration binary is excluded from the new regression evidence.
+
+The proof reviewer reports no Blocker/Major/Minor. Both verified suggestions are
+applied: the constructor-shape assertion includes public and nonpublic members;
+the foundation receipt distinguishes six Linux scenarios from its one in-memory
+predicate control. Complete Step 4 qualification/activation remains pending.
+
+##### Foundation review round 2 (2026-10-16)
+
+Two new independent reviewers inspect `e0d39bf5..28433f29`: GPT-6 Astra with
+xhigh effort covers runtime and GPT-6.1 Sol with xhigh effort covers evidence/corpus.
+Both approve the scoped foundation with no Blocker/Major/Minor. They independently
+verify the swallowed-renewal mechanism, sticky health, positive storage recovery,
+constructor census and six-Linux/one-memory proof boundary. They do not rerun the
+toolchain or substitute their source review for the recorded execution receipts.
+
+Root verifies/applies the one nonblocking suggestion: README now distinguishes
+in-progress implementation from pending full qualification/activation and points
+its current-phase link to Phase 02b. Both focused foundation review rounds are
+complete; the remaining Step 4 integration and fresh full-step rounds stay open.
+
+##### Pool replacement and framework cleanup ownership (2026-10-16)
+
+**Further implementation slice; Step 4 remains in progress.** One closed
+`HangfirePoolOwner` retains each actual generation and its supervision task.
+Replacement requires positive generation cleanup, the fixed five-second backoff
+and live owner/process gates. A startup-stalled generation stays closed even
+after its late cleanup joins; stop-before-start has a positive no-issued-work path.
+
+Generation-local work owns private cancellation sources and the actual routing
+and admission tasks. Local drain closes starts without canceling that work;
+host stop requests asynchronous cancellation independently of Core tokens.
+Cancellation callbacks and failed cleanup remain owned after wrapper return.
+Four retained entries close further starts, with workers-plus-four as the hard
+ownership bound. Real stock joins do not substitute for private-work completion.
+
+Routing publishes its opaque claim only after acknowledged COMMIT and actual
+resource cleanup. Failed cleanup retains the concrete reader, command,
+transaction and connection. Framework admission likewise carries concrete failed
+scope/unit/activity/authority/source owners in its result: a completed async task
+may clear its state-machine locals. This correction preserves the actual failed
+DI scope and unit rather than relying on the completed task alone.
+
+Bridge operations bind ownership before scheduling native startup and recheck the
+process/local gates at actual creation and SQL acquisition. Startup return, native
+end, observer return and positive cleanup have separate witnesses. Unknown startup
+or observer cleanup cannot be pruned as completed; ordinary host stop preserves
+durable late-handoff repair without a new local ACK acquisition.
+
+Validation passes a zero-warning/error solution build, 2,109 Unit cases, 74 focused
+PostgreSQL cases and the full 319-case Architecture suite, all with zero skips.
+The PostgreSQL set includes six real pool-owner cases, seven routing-cleanup cases
+and five added generation-work cases. Those cover actual routing/DI cleanup held
+past stock joins, real native admission/cancellation, delayed callbacks and exact
+failed-scope retention. Four retained entries in the threshold proof are explicitly
+synthetic framework occupancy; native refusal/restored admission are real. The
+throwing-disposable proof repairs only its synthetic fixture during teardown and
+does not introduce a production recovery API.
+
+Initial architecture runs expose the moved routing transaction's stale exact
+caller inventories and the wrapper's declared sequential-task ownership exception.
+Updating those precise owners preserves the privileged-entry checks and planted
+controls; the fresh full rerun passes. A filter selecting no tests is excluded
+from evidence. Earlier failed runs are not added to passing counts.
+
+API facade/source-lifetime integration, supported physical capacity and full Core
+phase qualification remain pending. The new Core-phase fixture's first actual run
+fails during isolated PostgreSQL setup, before arming any fault; its receipt
+predicate passes. This is setup feedback, not fatal-policy qualification. Neither
+this slice nor its tests activate workers or close full Step 4's review gates.
+
+##### Pool-cleanup slice review round 1 (2026-10-16)
+
+Two fresh independent reviewers inspect `28433f29..d9fda174`: GPT-6 Astra with
+xhigh effort covers runtime authority/lifecycle; GPT-6.1 Sol with xhigh effort
+covers evidence/corpus. Both approve the exact slice with no confirmed
+Blocker/Major/Minor. Their source reviews do not rerun the toolchain or close the
+remaining full Step 4 gates.
+
+Both reviewers identify the pre-existing ACK/deferral cleanup-fault qualification
+boundary as remaining full Step 4 work: a returned store exception alone does not
+prove positive connection cleanup. The ongoing source-lifetime integration owns
+that correction and its decisive controls. Their report artifact writes succeed;
+final readback is initially blocked while an unrelated local process burst
+prevents new shell processes. The subsequent continuation receives both complete
+reports and verifies their artifacts. No unavailable check is counted as passing.
+
+The implementation commit's normal hook initially conflicts only on formatting
+of two newly added tests while restoring its own WIP stash. Root compares both
+versions, verifies equal nonwhitespace content, keeps the formatter output and
+verifies all three tracked/five untracked pending proof files byte-for-byte.
+The second normal hook succeeds; only the verified recovered hook backup is
+removed, preserving the three pre-existing stashes.
+
+##### Pool-cleanup slice review round 2 (2026-10-16)
+
+Two new independent reviewers inspect the same exact committed
+`28433f29..d9fda174` range: GPT-6 Astra/xhigh covers runtime and
+GPT-6.1 Sol/xhigh covers tests, structural enforcement and corpus. Both approve
+with no confirmed Blocker/Major/Minor or required correction. The evidence
+reviewer independently reads the supplied build log and TRX records, confirming
+the recorded 2,109 Unit, 74 focused PostgreSQL and 319 Architecture cases with
+zero skips; this is receipt inspection, not another execution.
+
+Both review rounds are complete for this slice. They do not close full Step 4,
+review the subsequent working tree or establish worker activation. The baseline
+bridge ACK/deferral cleanup ambiguity remains assigned to source-lifetime
+integration rather than relabeled as a new slice regression.
+
+##### Source-lifetime and facade continuation (2026-10-16)
+
+An unrelated local test experiment exhausts the workstation's process limit and
+blocks shell/test startup. With explicit maintainer authorization, only that
+experiment's matching process path is terminated. The next process inventory
+contains 659 processes and no matching experiment process; commands resume.
+This environment repair is not product or CI evidence.
+
+The working implementation adds concrete connection-cleanup seals to the three
+privileged dispatch/bridge stores, a one-shot shared-source lifetime pin,
+positive messaging startup/actual-loop witnesses and the API runtime facade.
+The corrected source builds with zero warnings/errors; its then-current Unit
+assembly passes 2,161 cases with zero skips. Synthetic driver-state and cleanup
+controls prove retained ownership, not production failure incidence.
+
+The isolated Core-phase fixture progresses through PostgreSQL preparation and
+container qualification but still refuses its sanitized-output prerequisite.
+Those failed runs arm no accepted fatal-policy proof and are not counted as
+passing qualification. Full Core phase/mutation/native-exit evidence, composed
+source lifetime, supported capacity and full Step 4 reviews remain in progress.
+
+##### Core-phase and direct-facade qualification (2026-10-16)
+
+The corrected isolated fixture passes 23 cases: seventeen unchanged-vendor Core
+phase/native-exit scenarios, five actual child-only IL mutations and one separately
+labelled receipt-predicate control. The mutations remove the production sink or
+one exact constructor/capture-disposal/second-announcement/outer-completion
+observer. The same normal predicate rejects each modified child's actual result;
+a later fallback fatal call cannot conceal an observer that already returned.
+These are synthetic fault placements in real pinned Core, not genuine native
+thread/resource-exhaustion reproductions.
+
+The fixture retains strict empty-stderr, native/supervisor exit, artifact, dump,
+runtime and original-vendor-binary checks. Its earlier output refusal is optional
+GSS library discovery in the minimal Linux image; the password-only fixture now
+explicitly disables GSS encryption. Production connection settings are unchanged.
+PostgreSQL preparation has one ephemeral loopback binding, preserved and checked
+after bridge detachment; the fatal child has only the inspected internal network.
+No claim that the PostgreSQL setup port is unpublished is made.
+
+Six real-PostgreSQL facade cases pass. Actual default and maximum manifests use
+the same guarded pooled settings and live stock worker/queue metadata: 45 and
+151 connections respectively. A native framework invocation's held DI cleanup
+keeps source disposal pending beyond the caller's stop deadline; releasing actual
+cleanup permits Core removal, positive runtime completion and source closure.
+Another case holds stock expiration's actual checkout with a competing database
+lock while independent transactional admission succeeds at the supported default
+floor. These cases do not assert simultaneous saturation of all reserved lanes.
+Their two completed messaging tasks are explicit no-issued-work facts; the real
+three-owner API composition requires its separate qualification.
+
+The current Release solution build passes with zero warnings/errors and all
+2,165 Unit cases pass, zero failures/skips. Full Architecture validation and the
+composed messaging-source proof remain in progress. These receipts overlap earlier
+focused runs and are not summed into a packet total. Full Step 4 implementation,
+fresh full-step review rounds and later Steps 5–9 remain open.
+
+Two additional composed PostgreSQL cases now pass with the actual API-hosted
+jobs, outbox and delivery singletons and their exact bound completion tasks.
+Each real terminal transaction and one matching MUST SecurityEvent audit commit
+before a test-owned async disposable holds that terminal audit scope's cleanup.
+The actual connection remains checked out and actual worker completion remains
+pending through finite stop waiting and container disposal. Guarded acquisition
+still succeeds; releasing the synthetic cleanup hold lets all three actual owners
+join and the same source observer close the pool. Independent app-role reads
+confirm unchanged terminal/audit durability, then no vendor server or tagged
+backend remains. The synthetic disposable is not a driver-cleanup-fault claim.
+
+The first composed fixture run fails genuine DI validation because its custom host
+omits tenancy edge registration. The corrected fixture uses the real edge and
+literal development configuration; validation stays enabled. A discarded network
+hold design is replaced before acceptance because bounded driver cancellation
+would make its pending checkpoints depend on a narrow scheduling window.
+
+The full Architecture run exposes a detached Cecil target in a planted
+missing-subject control; local guards now record the missing declaration/scope
+instead of throwing. The already-failed unoptimized rerun is canceled and excluded
+from qualification. A per-detector scan reuses type/call-site indexes only within
+one synchronous evaluation; mutation and undo occur between disposed scans.
+The existing companion verifies fresh async-subject addition/removal and cache
+release. Its performance and the corrected full suite still await execution.
+
+##### Complete Step 4 implementation validation (2026-10-16)
+
+The current implementation passes a fresh CI-mode Release solution build with
+zero warnings/errors and all **4,403 backend cases**: 2,165 Unit, 321 Architecture,
+4 Contract and 1,913 Integration (176 HTTP and 1,737 Docker/PostgreSQL cases).
+The runner guard confirms every assembly executes and no case is skipped. The
+Docker run takes 9 minutes 55 seconds; Architecture takes 13 minutes 23 seconds.
+The latter confirms the corrected detectors and mutation-scope cache pass, not
+a measured speedup against the canceled failed run.
+
+The complete Integration run includes the Core-phase/mutation, direct-facade and
+three-owner lifetime cases described above. Their focused receipts overlap this
+run and are not added to the total. Seven ADR parser controls, 1,603 local links,
+466 fragments, added prose wrapping and whitespace checks pass. No frontend/demo
+rerun or current-head CI is claimed; full packet regression remains Step 9.
+
+This implementation is ready for the two fresh full Step 4 review rounds over
+the changes after Step 3 closeout `def48a1a`. The earlier slice reviews remain
+scoped receipts. Step 4 is not closed until both full rounds and their verified
+corrections complete; Steps 5–9 remain pending.
+
+##### Full Step 4 review round 1 (2026-10-16)
+
+Three fresh reviewers inspect `def48a1a..a1832c6e`: GPT-6 Astra/xhigh covers
+runtime/lifecycle; GPT-6.1 Sol/xhigh covers evidence/censuses; a second
+GPT-6.1 Sol/xhigh covers security/composition/corpus. They inspect the passing
+receipts without rerunning the toolchain. Four unique Major findings are verified
+against current source; the security review independently confirms the same
+metadata-heartbeat finding rather than adding another issue.
+
+- A held routing/framework cleanup has no finite wrapper-wait transition to
+  retained/unhealthy ownership. The correction reuses the existing short-work
+  wait bound and preserves actual work/callback/source ownership after return.
+- The facade drops the running generation's metadata-heartbeat fault during its
+  retry window. Aggregate health must preserve that fault before drain and reset
+  only after actual stored recovery.
+- Shared expiration/fetched-job component state/outcome and ownership facts do
+  not reach the registered health result. Fixed memory-only dimensions restore
+  those distinct observations without mapping readiness.
+- The production final-exit child holds actual Core control work but no actual
+  private cancellation callback. The isolated prototype remains decision support;
+  a combined shipped-relay positive and direct-Core-callback dirty control are
+  required in the qualified production child.
+
+Corrections and their regression qualification are in progress. The optional
+scan-cost suggestion scopes repeated type/call/body inventories to one detector
+evaluation, preserving fresh mutations/restoration and measuring the full suite
+before any performance claim. No Accepted decision changes. Step 9 retains the
+existing Standards 10/11 carrier sweep for legacy vendor-payload wording and the
+retired `Hangfire_Job_Payloads_Include_TenantId` spelling. No later step or full
+Step 4 review gate is closed by this record.
+
+The first correction run passes 33 of 35 focused PostgreSQL/Core-phase cases,
+including both real native framework expiry cases and all 24 Core-phase controls.
+Its two health failures are investigated rather than relabeled as qualification.
+One fixture fetches through a second provider whose renewal inventory is separate;
+the corrected control uses the facade's actual provider and a fixed fixture-only
+orphan queue with no native consumer. The metadata control also exposes PostgreSQL
+`query_canceled` (57014), which the pinned driver's generic transient list omits.
+The exact code now follows the already accepted timeout-retry policy; no other
+classification or retry bound changes. Both corrected health cases pass in a
+fresh 14-second run. Complete correction-head regression remains pending.
+
+##### Full Step 4 round-1 correction validation (2026-10-16)
+
+Root verifies all four findings against the current implementation and completes
+their corrections. The finite framework wait owns its actual operation before
+scheduling; expiry closes later admission and records retained ownership before
+returning the native slot. Real native controls cover held asynchronous cleanup
+and held synchronous framework execution, independent healthy admission below the
+retained threshold, and positive source/generation cleanup after release.
+
+Real PostgreSQL controls verify metadata-heartbeat timeout/recovery through the
+registered health result, distinct failed fetched-job renewal/recovery, and held
+expiration ownership. The production exit child now retains its actual private
+callback through finite host waiting and native zero exit. Its separate unsafe
+direct-Core-callback control requires supervised timeout, owned kill and actual
+join; those facts are explicitly refused by the normal-exit predicate. These are
+synthetic callback/fault controls over the shipped owners, not native resource
+failure incidence or a claim of cleanup at process exit.
+
+The corrected Release solution build passes with CI warnings-as-errors and zero
+warnings/errors. Fresh complete suites pass 2,166 unit, 321 architecture, four
+contract, 176 Docker-free integration and 1,741 Docker/PostgreSQL integration
+cases: 4,408 backend cases, zero failures/skips. The Docker suite takes 10m10s;
+the architecture suite takes 12m26s. The latter is a measured run duration, not a
+controlled speedup claim. Scoped inventory caching preserves mutation/undo and
+exception freshness controls without adding a global cache or a new rule.
+
+All 22 changed C# files are formatted. Seven ADR parser controls, 1,917 local
+links, 557 fragments, changed prose wrapping and whitespace checks pass. Earlier
+failed focused runs are excluded from the passing complete-suite total; focused
+controls overlap it and are not added again. No frontend/demo/current-head CI is
+claimed here; Step 9 owns packet-wide reruns. Round 1's verified corrections are
+qualified; a fresh full Step 4 round 2 follows their commit. Step 4 remains open
+until that round and any verified corrections complete. Steps 5–9 remain pending.
+
+##### Full Step 4 review round 2 (2026-10-16)
+
+Round-1 corrections are committed as `53ec8a4a`; normal Leakwatch/format hooks pass
+without changing the 22 validated C# source hashes. Three new independent
+reviewers inspect the complete `def48a1a..53ec8a4a` range (123 files): GPT-6
+Astra/xhigh for runtime/lifecycle and two GPT-6.1 Sol/xhigh reviewers for
+evidence/censuses and security/composition/corpus. They inspect the 4,408-case
+passing receipts without rerunning them and affirm all four first-round fixes.
+
+One unique Major qualification gap remains: ADR-0059 explicitly requires sustained
+metadata-heartbeat cutoff/reset and common database outage/recovery with an actual
+held old operation, a spare slot and fewer than four retained entries. Current
+controls prove real transient SQL recovery and separately requested drains, but
+do not compose that mandatory matrix. The runtime reviewer independently confirms
+the same gap; neither review alleges a demonstrated production-code failure.
+Root verifies the accepted obligation and missing coverage. Isolated PostgreSQL
+outage and owner-clock controls are being added before Step 4 closes; their native
+Core/SQL observations and logical clock advances remain separately labeled.
+
+The security/corpus review also verifies one Minor status mismatch: Standards 05
+and Events/Outbox architecture still describe both full reviews as pending. Their
+live summaries now delegate review dispositions to this owning record, preserving
+earlier dated receipts. No new ADR, runtime policy, grant or business definition
+is introduced by these corrections. New qualification and correction review remain
+pending; Steps 5–9 do not start until Step 4's verified findings are closed.
+
+##### Full Step 4 round-2 correction validation and closeout (2026-10-16)
+
+The two added controls exercise the shipped lifecycle with actual PostgreSQL.
+One holds the real server row, verifies transient failure without stored progress,
+then observes a stored success resetting the owner cutoff. At the renewed exact
+boundary, the owner refuses before provider acquisition or SQL. The other pauses
+only a test-owned PostgreSQL container and lets all three actual native metadata
+heartbeats fault. Owner-clock advances then drive past-cutoff drain. After real
+storage recovery, the two clean pools replace their generations and serve work;
+the affected pool retains its old actual scope cleanup despite a spare native
+slot and one retained entry. Only positive cleanup permits its one replacement
+and the pending admission. No shared fixture container is paused.
+
+These controls keep native Core heartbeat cadence and SQL/socket bounds real;
+the four-minute policy interval uses the owner's logical clock. The held scope
+is a synthetic barrier around actual native framework work. Neither test claims
+four minutes of wall-clock outage, genuine resource-exhaustion incidence,
+external-effect quiescence or production supervision.
+
+The final corrected-source focused run passes both controls. Three separately
+compiled, temporary mutations of actual production source each fail at the
+intended behavior: removed cutoff permits forbidden issuance; removed successful
+reset refuses the next valid heartbeat; replacing actual cleanup with the stock
+child join starts generation two while generation one still owns held cleanup.
+Each mutant builds successfully and executes its one expected failing case with
+zero skips. Original production bytes are restored and the CI-mode Release
+solution rebuild passes with zero warnings/errors. These expected red controls
+are not additional passing cases.
+
+A fresh independent runtime reviewer inspects the complete correction and all
+final receipts, verifies source hashes and restored production bytes, and finds
+no remaining issue. This supplements the full second round rather than replacing
+it. The status corrections in Database Standards and Events/Outbox architecture
+now link their current qualification to this owning record. No Accepted policy,
+grant, dependency, migration or production business definition changes.
+
+The final complete Docker/PostgreSQL suite passes 1,743 cases, zero failures/skips,
+in 12m33s. The unchanged non-Docker partitions retain the round-1 receipt: 2,166
+unit, 321 architecture, four contract and 176 HTTP integration cases. Together
+these cover 4,410 distinct backend cases; this is a combined receipt, not a fresh
+run of all five partitions at this correction. The two focused passes overlap
+that complete Docker suite and are not added again. Six current corpus/trait
+checks and seven ADR parser controls pass. The changed-document audit resolves
+1,919 local links and 559 fragments with zero errors; added prose wrapping and
+whitespace checks pass. None of these overlapping checks adds to the case total.
+
+Both full Step 4 reviews and all verified findings are closed. Step 4 is locally
+complete; Step 5 proceeds automatically on development with the existing approved
+transactional-owner, retry/recovery and terminal-audit scope. Steps 6–9 retain
+capacity, external effects, recurrence and packet-wide enforcement/CI. No frontend,
+demo, current-head CI or completed production business definition is claimed by
+this closeout.
+
+### P02b-4 Step 5 — transactional owner and terminal audit (2026-10-16)
+
+**Locally complete after both fresh full review rounds, verified corrections
+and independent focused fix verification.**
+The existing approved package
+owns this step; no new decision or approval is pending. Source implements the
+closed ordinary root participant, acknowledged start publication, immutable job
+attribution, final row/time fence and sticky cancellation-versus-COMMIT gate.
+Business state, child jobs, outbox/domain completion and MUST audit share the
+existing transaction owner. Positive COMMIT acknowledgement remains distinct
+from subsequent scope/source cleanup; unknown COMMIT needs a real locked probe.
+
+Independent finite renewal, retry/recovery and terminal lanes retain actual SQL,
+probe and cleanup owners. Six acknowledged starts preserve the five accepted
+backoffs; unknown/Pending definitions defer, explicit retirement terminalizes.
+The sixth audit seam binds only actual returned job-transition values and the
+same live transaction. Terminal audit failure does not advance business work.
+Source and application-pool ownership are qualified against the formulas in
+[Database Standards](../standards/05-database.md#shared-dispatcher-source-lifetime-and-capacity),
+including timed-out auxiliary loaders and separately declared shared headroom.
+
+CI-mode Release builds pass with zero warnings/errors. The complete unit run
+passes 2,212 cases with zero skips. Initial PostgreSQL qualification exposed
+reserved SQL naming, transition cleanup and two real concurrency defects:
+
+- A joined admission probe could refresh the locked job header while retaining
+  an older attempt snapshot. It now reads the immutable attempt in a fresh
+  statement after locking the header, on the same connection/transaction. The
+  restored original JOIN fails the committed-admission regression while its
+  rollback control passes; restoring the correction makes both cases pass.
+- Deferred count validation upgraded the parent lock to `FOR UPDATE`, blocking
+  renewal COMMIT behind an unrelated child's key-share lock. A forward migration
+  uses `FOR NO KEY UPDATE`, preserving count-writer serialization and applied
+  history. Real child-lock renewal and exact one-function Down/Up controls pass.
+
+Focused real PostgreSQL controls pass for business/outbox/child-job/MUST-audit
+atomicity, stale authority, lock-wait expiry, uncertain COMMIT, terminal witness
+substitution, and native terminal-audit backlog progress beyond two leases.
+Actual application and privileged sources remain retained through ignored
+cancellation, held callback and messaging cleanup controls. These overlapping
+focused receipts are not a second complete backend run.
+
+The first full architecture run records 322 passing and six failing cases out
+of 328, with zero skips. Failures identify the published method count, the same
+JobExecutor's additional partial path, exact physical transaction-owner lists
+and retained-factory scanning. Corrections preserve finite ownership and planted
+controls; four focused count/writer/parallelism reruns pass. The new orchestration
+detector indexes each evaluation's actual field instructions once, retaining every
+mutation/restoration check. The corrected complete architecture run passes all
+328 cases in 17 minutes 31 seconds. A fresh complete run also passes 2,212 unit,
+four contract and 176 Docker-free HTTP cases, all with zero skips.
+
+The complete Docker run records 1,771 passing and 39 failing cases out of 1,810
+in 13 minutes 1 second, with zero skips. All failures belong to two old fixtures:
+DeliveryExecution's observed-unit factory still resolved the removed raw source
+alias, and EducationPersistence passed the driver's password-free connection
+string view to its API composition. The former now passes the existing lazy
+source explicitly; the latter supplies original fixture configuration while
+preserving the Seeder's caller-owned source. No raw alias or second DI disposer
+is restored. After a clean Release build, both complete classes pass all 43 cases
+in 19 seconds, with zero skips. Their four overlapping earlier passes are not
+added twice. Together these runs establish 1,810 unique passing Docker cases and
+4,530 unique passing backend cases; this is not a second complete-suite rerun.
+
+Formatting, seven ADR parser controls, 1,755 local links and 500 fragments pass.
+Both fresh full review rounds follow the validated implementation commit; no
+completed review or Step 5 closeout is claimed. Steps 6–9 remain pending.
+
+#### Step 5 review round 1
+
+Three fresh independent reviewers inspected `4826b7df..9b634405`: owner,
+authority and lifetime (GPT-6-astra xhigh), control/SQL/terminal audit
+(GPT-6.1-sol xhigh), and proof/composition/corpus (GPT-6.1-sol xhigh). The last
+lens reviewed all 109 changed files and independently recalculated the composite
+TRX totals and original-JOIN mutation/restoration evidence. Two confirmed groups
+required correction; no additional Blocker or verified finding remained.
+
+- A cache caller could return while the original auxiliary task still cleaned
+  its connection. The executor froze this pending state as a permanent cleanup
+  failure, preventing eventual positive generation release. It now joins that
+  exact task without the expired caller token before deciding cleanup. Business
+  issuance closes first; framework's prior binding closes while its successful
+  admission keeps the same owner open. Genuine disposal failure stays retained.
+  Exact caller/signature controls reject extra, async, detached, missing and
+  token-taking joins. Four unit cases and native clean/dirty controls exercise
+  original loader cleanup, private callbacks, retained identity, healthy later
+  work and both requested source disposals.
+- Business COMMIT-acknowledgement loss and final lock-wait expiry previously had
+  real PostgreSQL direct-executor controls only. New pinned native-worker cases
+  stage organization, child-job, outbox and MUST-audit effects. Lost ACK retains
+  the actual identity while a fresh database probe is causally locked, then
+  resolves without a duplicate effect or vendor retry. Expired/live final-lock
+  controls prove atomic rollback/commit and the actual retry disposition.
+
+CI-mode Release builds pass with zero warnings/errors. The complete unit run
+passes 2,216 cases; the complete architecture run passes all 328 in 18 minutes
+3 seconds; 36 focused PostgreSQL cases pass, including the five new native rows.
+All report zero skips. The initial focused run passed 34 of 36; both failures
+were the new auxiliary fixture attempting a second rollback after its lock had
+already been released. Explicit lock ownership fixes teardown, and the same
+36-case rerun passes without weakening a production assertion.
+
+The actual-source control restores the old pending-cleanup snapshot temporarily.
+It builds, and both native auxiliary variants fail specifically because the
+business task completed before its original cleanup. Restoring the exact source
+bytes, rebuilding and rerunning makes both pass. Raw exception logging observed
+in two existing helpers was not established as a new Step 5 disclosure or violated decision; it was not promoted to a finding
+or bundled into this correction.
+
+The focused run overlaps 31 prior Docker cases and adds five. Combining current
+complete unit/architecture, prior contract/HTTP, and the existing corrected Docker
+receipts gives 1,815 distinct passing Docker and 4,539 distinct passing backend
+cases, using `(testId, testName)` identity. This is explicitly composite evidence,
+not another complete-suite rerun or current-head CI claim. Formatting, the
+nonempty/zero-skip runner, seven ADR parser controls and local links/fragments pass.
+
+The second full fresh review round follows the correction commit. Step 5 and
+Steps 6–9 are not declared complete by this first-round receipt.
+
+#### Step 5 review round 2
+
+Three new independent reviewers inspected the complete `4826b7df..9dbea7bf`
+range: owner/authority/lifetime (GPT-6-astra xhigh), control/SQL/terminal audit
+(GPT-6.1-sol xhigh), and proof/composition/corpus (GPT-6.1-sol xhigh). Three
+verified groups required correction; timer and control findings were independently
+corroborated. No additional Blocker or verified finding remained.
+
+- Reconciliation silently stopped at a pending/faulted job auxiliary, then cleared
+  the rolled-back MUST intents. Removing that precheck lets the actual standalone
+  writer refuse another acquisition inside its existing reporting boundary.
+  Every intent now receives the required bounded Critical, operation-only failure
+  counter and unhealthy audit signal; the original business refusal stands.
+  Native clean/dirty controls assert the absent rolled-back audit row, actual DI
+  logger/meter/health signals and unchanged held resources. A two-intent unit
+  companion proves independent reporting without resolving another source.
+- Timer disposal preceded renewal closure. A late acknowledged renewal could
+  rearm a disposed timer and cancel unrelated batch members through the shared
+  error path. Renewal now closes permanently under the publication lock before
+  disposal. A deterministic real-timer disposal-gap control keeps a second
+  execution live and forbids early identity release.
+- A positively cleaned pre-COMMIT control fault discarded its original permanent
+  business decision. The request now retains that exact decision and retries on
+  the bounded existing cadence; uncertain COMMIT and failed cleanup keep their
+  separate paths. A native worker returns one permanent refusal, hits a real SQL
+  lock timeout, retains its exact identity/request, then terminalizes with one
+  MUST audit and no second business start, including after lease expiry and a
+  duplicate native wakeup.
+
+CI-mode Release builds pass with zero warnings/errors. The complete unit run
+passes 2,218 cases; complete architecture passes 328 in 17 minutes 23 seconds;
+37 focused PostgreSQL cases pass. The control-failure proof now captures progress
+while its actual SQL is blocked, rechecks that wait, then observes a completed
+failed iteration before separately asserting the retained request/identity. After
+this test-only strengthening, a fresh clean build and the same 37-case run pass.
+All passing runs report zero skips.
+
+Three actual-source mutations compile and fail their intended assertions:
+silent audit refusal fails one unit and both native health controls; late renewal
+closure fails at the disposed real timer; discarded control decisions fail the
+retained-request assertion with zero pending outcomes. Each exact source is
+restored in a finally, rebuilt and its same regression cases pass. No mutation
+remains in the tree. Formatting, seven ADR parser controls, local links/fragments
+and the nonempty/zero-skip runner pass.
+
+
+The focused run adds one Docker case to prior corrected receipts. Current
+complete unit/architecture, prior contract/HTTP and corrected Docker receipts
+establish 1,816 distinct passing Docker and 4,542 distinct passing backend cases
+using `(testId, testName)` identity. These are composite receipts, not another
+complete-suite rerun or current-head CI. All nineteen job obligations remain
+Registered; Step 9 owns final enforcement and packet regression.
+
+The corrections are committed at `6a2ded99`. Normal hooks pass eight-file
+Leakwatch and seven-file C# formatting, with no C# byte changes after validation.
+Two new independent reviewers verify that correction and its immediate
+lifetime/authority and proof/corpus dependencies: GPT-6-astra xhigh and
+GPT-6.1-sol xhigh. Both approve without verified findings. The proof reviewer
+independently recalculates the composite counts, checks each intended mutant
+failure, and compares exact restored source bytes. They inspect recorded local
+receipts, without rerunning the toolchain or claiming current-head CI. This is
+focused correction verification, not a third full review round.
+
+Step 5 is locally complete. Step 6 proceeds under the existing approved package;
+Steps 7–9 and packet-wide regression/PR/CI remain pending.
+
+### P02b-4 Step 6 — tenant capacity reservations (2026-10-16)
+
+**Locally complete after both full review rounds and verified corrections.**
+Step 5 closes at correction `6a2ded99` after both full rounds and independent fix
+verification. Accepted ADR-0047 and the approved nine-step package own this step;
+no new capacity-policy decision or approval is pending.
+
+- App-role admission locks the tenant/group mutex, resolves an optional registered
+  Hard LimitKey and counts every unreleased reservation across organizations and
+  instances. Deferral spends no normal attempt. Existing entitlement provider/key
+  contracts and empty production definitions remain unchanged.
+- Successful business completion releases its exact reservation on the existing
+  business transaction. Failed or skipped work needs a distinct local actual
+  cleanup witness and acknowledged nonexecuting recovery authority before a
+  sequential app-role checkpoint can release occupancy. No executable receipt is
+  reconstructed after lost admission acknowledgement.
+- A forward storage change records truthful transactional cleanup separately from
+  never-started or external-quiescence evidence. The original source owner stays
+  open across sequential phases while every old binding closes permanently.
+  Missing cross-instance cleanup evidence retains occupancy in recoverable parked
+  state, permitting a live origin's eventual positive cleanup; TTL never releases.
+- Control handles each checkpoint as a bounded owned operation, preserving fair
+  service and actual stop/cleanup ownership. The existing transaction owner,
+  tenant-setter inventory and bypass reservation-write prohibition remain intact.
+
+Qualification covers two-instance/two-org caps, no-attempt refusal, unlimited/
+zero/downgrade/fault limits, atomic success/cleanup release, admission and checkpoint
+COMMIT uncertainty, held callbacks/resources, missing-witness parking, exact grants
+and source bounds. Each implementation/correction commit and both fresh review
+rounds are recorded here after they occur. Live external execution remains Step 7;
+final observation/enforcement and full packet regression remain Step 9.
+
+#### Step 6 implementation and qualification (2026-10-17)
+
+The app-role start owner locks the job, then the tenant/group mutex. A separate
+post-wait statement counts every unreleased reservation across organizations and
+instances. The registered Hard projection intersects the operational ceiling;
+missing/unlimited, zero, positive, oversized and invalid/faulted answers retain
+the accepted bounded semantics. Capacity refusal spends no attempt. No production
+job definition, entitlement key or provider is introduced.
+
+Business success releases its exact reservation on the existing business/MUST/
+outbox/child-job completion transaction. Other grouped transactional outcomes
+must join the actual admission/business, auxiliary resources, observers and
+original private cancellation callbacks before minting a local cleanup witness.
+Genuine no-start requires an atomic unused-entry seal, including receipt-less
+admission uncertainty. This witness grants neither execution nor database truth.
+
+The confined recovery owner publishes a separate nonexecuting capability only
+from acknowledged acquisition or an exact locked proof. The same original
+application-source owner then enters one fresh sequential checkpoint. Its old
+bindings remain permanently closed. Evidence and release commit together;
+unknown checkpoint COMMIT probes read the descriptor's historical attempt after
+the header lock, separately from current routing authority. Missing local cleanup
+parks occupied work with a paced probe; neither TTL nor a replacement owner
+manufactures cleanup. Stop retains and joins every issued checkpoint/callback.
+Host stop admits no fresh cleanup checkpoint; a clean local stop cannot substitute
+for cleanup evidence that never committed, so restart still retains that occupancy.
+
+Forward migration `20261016210528_add_transactional_job_capacity_cleanup` adds
+write-once transactional cleanup evidence, its exact release reason and three
+existing guard replacements. The predecessor's non-key count lock remains.
+Only the app UPDATE and dispatcher status-SELECT column budgets expand; bypass
+reservation writes remain refused. Down refuses recorded new history rather
+than erasing or relabeling it. Canonical fresh DDL comparison remains exact;
+Down/reapply accounts only for PostgreSQL's advanced physical position of that
+single dropped/readded column, preserving every other inventory fact.
+
+Exact owner, framework-request, minting, command, task/callback, source and final
+SQL-fence censuses gain closed enrolled paths and planted dirty/clean controls.
+The existing transaction owner and ADR-0040's eight logical GUC setters remain;
+the new executor partial belongs to the same ADR-0036 context writer. Its exact
+accessor-writing file is enrolled explicitly; no new logical writer is added.
+Sequential cleanup adds no simultaneous main/auxiliary checkout to the current
+acquisition inventory.
+
+Initial qualification exposed two missing SQL separators in the new checkpoint
+builder; actual native tests now fail directly through a sanitized observer fault
+signal instead of hiding the handler failure behind a timeout. Both separators
+are fixed and the same four real native cleanup/acknowledgement-loss cases pass.
+It also corrected the no-plan fixture's empty-provider assertion and the precise
+physical-column comparison above. Initial failing receipts are retained.
+
+#### Step 6 validation receipts (2026-10-17)
+
+Local CI Release build completes with zero warnings/errors. The full Unit suite
+passes 2,229 cases, Contract passes four, and integration without Docker passes
+176, with zero failures/skips. These are separate local suites, not current-head
+PR CI or full packet closeout evidence.
+
+Focused PostgreSQL qualification passes all 192 cases after the SQL separator and
+fixture corrections above. Eight additional native facade cases pass together,
+including admission and capacity-checkpoint acknowledgement loss, private callback
+retention and receipt-less genuine no-start. A first tight-budget no-start run
+reached a disposal-barrier timeout once; that cause was not reproduced. The same
+two cases and two repeated mixed eight-case runs then passed. The new no-start
+fixture now uses the accepted five-second SQL budget and a ten-second transaction
+budget, retaining every barrier and bounded failure diagnostic. This removes an
+unnecessary cold-source/role-initializer/read constraint; it does not establish the
+cause of that initial timeout.
+
+Three actual production-source mutations compile and fail their intended
+behavioral controls: counting before the real tenant/group mutex wait (two cases),
+leaving sealed unused execution permission open (one), and omitting the actual
+private cancellation-callback join (three). The initial callback observation let
+one mutant pass; the held-callback observation was strengthened, and all three now
+fail against that mutant. Every source file is restored byte for byte, freshly
+rebuilt, and the same respective controls pass. No mutation remains in production.
+
+The first full architecture run reports 330 cases, 327 passed and three failed.
+Two failures identify stale exact admission/privileged-owner caller inventories;
+the other exposes a detached-Cecil-method null dereference after the detector
+already records the forbidden target. The corrected guard enumerates the actual
+new owners and reuses the existing exact local-revalidation proof. The capacity
+detector returns its known detached-target offenders before unsafe identity
+inspection. No target filter, namespace exemption or weakened production boundary
+is added. Both corrected clean guards and their complete planted-control tests
+pass together: four cases, zero failures/skips.
+
+The corrected full architecture baseline passes all 330 cases in 1,695.7 seconds.
+The first full Docker run reports 1,848 cases: 1,847 passed and one native framework
+lifetime row timed out before reaching its real cleanup barrier. Both original
+rows subsequently pass with bounded diagnostic observations; that does not
+establish the cause of the earlier timeout. The corrected lifetime fixture keeps
+actual pinned native workers, physical SQL deadlines, held cleanup and source/
+slot/stop assertions. It parks the three polling loops, issues exact native wakeups,
+and advances only the owner observation clock after the actual barrier. This
+intentionally removes incidental bridge ACK/cold-start timing from that lifetime
+proof; separate real bridge/repair controls remain and pass with the common
+PostgreSQL-outage proof: 21 cases. Both corrected lifetime rows also pass.
+
+Two invocation-local/name-first detector filters preserve complete subjects,
+identity/signature/opcode checks, caller multiplicity and every clean/dirty/restored
+mutation. The same four complete guards pass in 311.2 seconds versus 515.3 before
+these filters. Capacity dirty control falls from 251.6 to 113.2 seconds; authority
+from 261.9 to 196.3. A source/equivalence preflight finds no actionable issue; it
+supplies no full Step 6 review credit.
+
+The final full architecture run passes **330/330** in 1331.9 seconds, and the
+fresh full Docker integration run passes **1,848/1,848** in 889.3 seconds,
+with zero failures/skips and identical case-name multisets to their baselines.
+Together with Unit, Contract and Docker-free integration, these distinct local
+suites pass **4,587** cases. Focused/negative/restoration receipts are overlapping
+proof and are not added to that total. The local timing comparisons do not prove
+the complete real CI backend job fits its 20-minute ceiling; Step 9 retains full
+packet regression and real PR CI qualification.
+
+At this qualification head, both full fresh review rounds and their verified
+corrections remained pending. All nineteen job obligations remain Registered;
+Step 9 owns complete packet enforcement/regression. External execution and
+recurrence remain Steps 7–8.
+ADR-0061 is separately Accepted in `82956666`; its dependent Step 7 implementation
+starts only after Step 6 closes its two full review rounds.
+
+#### Step 6 full review round 1 (2026-10-17)
+
+Implementation commit `caf51297` passed normal hooks with a clean tree.
+Three fresh independent reviewers inspect its complete 64-file scope and connected
+paths: two GPT-6-astra reviewers at xhigh for ownership/lifecycle and storage/
+isolation, and GPT-6-sol at xhigh for tests/corpus/performance. They inspect source
+and actual receipts; they do not rerun the toolchain or claim CI qualification.
+
+Both runtime reviewers independently confirm one Major local lifetime race. After
+an exact historical cleanup probe releases its row lock, another instance can route
+the released job to a new generation before local recovery reacquisition. A clean
+null acquisition then repeats the permanently obsolete generation, retaining the
+original invocation despite settled history. The corrected null branch reinstalls
+its exact historical cleanup descriptor when a checkpoint is already committed.
+Settlement still needs the locked original evidence plus changed routing; a live
+peer lease remains pending. The production correction is five lines and changes
+neither schema nor grants. A separate permanent-decision durability concern is not
+confirmed as a new regression against existing crash/recovery handling of decisions
+not yet recorded.
+
+Three native takeover cases cover the probe-unlock interleaving, live-other-owner
+retention and a lost recovery-acquisition COMMIT acknowledgement. The test proxy
+holds the actual historical ROLLBACK response only after PostgreSQL unlocks; an
+independent store performs real fenced routing. The live-lease control uses an
+explicit privileged fixture lease and waits for another actual locked probe before
+asserting retention. All preserve one original attempt/checkpoint and immutable
+release history, then join the original source and native slot without host stop.
+Before the final fixture strengthening, the first two cases failed the original
+implementation's final-join assertion after their positive database premises.
+Removing the re-probe correction from the final source compiles and fails all
+three current takeover controls at their missing-probe or final-join assertion.
+Exact source restoration and a fresh build pass the same three cases. This includes
+the recovery-acquisition ACK-loss entrance and preserves live-peer retention.
+
+The proof review also identifies two missing native stop windows. New controls
+stop after a real recovery ACK before checkpoint issuance, and after issuance
+while its actual private cancellation callback is held. The first observes the
+actual control loop past the issuance window while a separate stop callback keeps
+final request release held. The second observes the real app task's known rollback
+separately from the checkpoint's still-pending callback join. Neither source nor
+invocation is falsely released. Removing both issuance guards or the checkpoint's
+actual private callback join compiles and fails the respective intended assertion.
+Both production files are restored byte for byte, rebuilt, and pass those controls.
+
+Initial takeover-harness runs do not supply runtime proof: a thirty-second proxy
+lifetime obscured the primary failure, and a diagnostic run exposed a row-description
+flag reset at each ReadyForQuery before the intended ROLLBACK hold. The corrected
+proxy has a separate finite test lifetime, transaction-scoped observation and primary
+failure preservation. A read-only fixture preflight strengthens the actual second
+probe, exact peer lease fence and host-stop cancellation premises; it supplies no
+full second-round credit.
+
+The new release reason joins the existing real app-role forged-release refusal /
+removed-trigger dirty control. Standards 05's stale pending-qualification wording
+is corrected. Two further invocation-local/name-first Cecil filters preserve every
+production subject, exact signature/opcode, caller multiplicity and planted control;
+no global cache or owner exemption is added.
+
+Fresh format and CI Release build pass with zero compiler warnings/errors. The
+focused native/release set passes nine cases. Full Unit passes 2,229, Contract four,
+Docker-free integration 176, Architecture **330/330**, and Docker integration
+**1,854/1,854**, all with zero failures/skips: **4,593 distinct full-suite cases**.
+The architecture case multiset is unchanged; all 1,848 previous Docker cases remain
+and six new cases account for the difference. Focused and mutation receipts overlap
+these suites and are not added to that total. Full architecture takes
+1318.4 seconds versus 1331.9 at implementation qualification;
+full Docker takes 933.2 seconds. These are local measurements,
+not a real CI budget pass. Current-head CI remains unrun.
+
+The first-round corrections are locally qualified. The second full fresh review
+starts only after their normal local commit. All nineteen job obligations remain
+Registered; the published architecture-method count remains 237. Step 6's second
+full review gate is pending. Steps 7–9 and full packet/PR/CI closeout remain pending.
+
+#### Step 6 full review round 2 and local closeout (2026-10-17)
+
+First-round correction `d387f71f` passed normal hooks with a clean development
+branch. Three new independent reviewers inspect the complete **68-file** Step 6
+scope: GPT-6-astra at xhigh independently covers ownership/lifecycle and storage/
+isolation, and GPT-6-sol at xhigh covers proof/corpus/performance. They inspect
+source and parse actual receipts, without claiming personally executed tests or CI.
+
+Both runtime reviewers independently identify one further Major admission-lifetime
+race. A physical admission COMMIT can fail before reaching PostgreSQL, leaving no
+original attempt or reservation while its local outcome correctly remains uncertain.
+If a peer clears the expired routing token before original scope cleanup finishes,
+the old probe sees changed authority. Discarding that admission descriptor then
+retries recovery acquisition for history that cannot exist, retaining clean work.
+
+The correction makes a fresh exact admission-token history read after acquiring
+the actual job-row lock. Locked absence proves rollback independently of current
+routing. Existing original history remains distinct from a peer's later attempt;
+positive original release requires its exact reservation and corresponding immutable
+evidence. Changed authority alone never settles the request, and its unresolved
+historical descriptor remains retained. The read probe changes no peer state and
+constructs neither executable nor recovery authority. No schema, grant or source
+capacity changes are needed.
+
+The new native control drops the actual second app COMMIT request before the server
+receives it, holds real original scope disposal, and uses an independent real
+recovery store to clear expired routing. It verifies absent original attempts/
+reservations, uncertain admission with no executable receipt, no business constructor,
+and original control/source/native join without host stop. The unchanged production
+source fails at that final-join assertion; the correction passes. Four guarded
+app-role history cases distinguish absent original with/without peer admission,
+committed occupied original, and positively released original before a real second
+peer admission. The positive history setup is explicitly a storage fixture rather
+than a minted runtime cleanup witness. Peer header and occupancy remain unchanged.
+
+Two additional fresh reviewers, GPT-6-astra and GPT-6-sol at xhigh, inspect the
+complete correction and its connected owner/history/proxy controls without further
+verified findings. The targeted set passes ten cases, including actual lock wait,
+lock timeout and both existing native admission-ACK outcomes. Removing historical
+probe dispatch compiles and fails the native join plus three history assertions;
+the occupied-original control still passes. Making existing history falsely mean
+rollback separately fails that occupied-original control. Both source mutants are
+restored byte for byte with their modes, rebuilt, and the same five cases pass.
+Focused receipts and negative mutations overlap the full suite; they are not extra
+passing cases. Formatter normalization changes only test whitespace.
+
+The first full Docker receipt reports 1,858 passed and one failed among 1,859
+cases, with no skips. The common-outage fixture times out after the owned database
+pause while waiting for all three original metadata-heartbeat fault observations.
+It supplies no evidence of a failed pre-outage healthy job or a cause linked to the
+admission-history correction. A separate read-only source diagnosis establishes no
+deterministic production fault. Bounded elapsed-phase and failure-time memory-only
+pool diagnostics are added before teardown; no wait, option or assertion changes.
+The same focused scenario then passes in 38.2 seconds, with pause completed at
+0.55 seconds and all native faults observed at 35.3 seconds. This later pass does
+not establish the earlier failure's cause. Both independent correction reviewers
+inspect the diagnostics and this evidence limit. The original failed receipt is
+retained. The second complete Docker run passes that outage scenario, but the
+new native rollback case fails before the intended COMMIT drop: zero drops, one
+bridge ACK and no retained control execution. No history assertion is reached.
+Source inspection confirms a permitted setup race: bridge ACK takes the job-row
+lock, native routing can skip that lock, and the default 60-second repair grace
+exceeds this fixture's 30-second wait. The receipt does not establish that race
+as its cause. The fixture now mirrors the existing lifetime controls: park empty
+owner polling, issue an explicit stock/native wakeup, then pulse only owner polling
+for the actual original join. It asserts zero initial bridge ACKs and retains the
+real second-COMMIT drop, peer takeover, zero attempts/reservations and source refusal.
+The outage fixture similarly parks polling around its existing explicit wakeups;
+its real heartbeat cadence, 90-second bound and all lifecycle assertions remain.
+Both independent reviewers verify the actual eight-file candidate against its
+manifest without a further confirmed finding. The repeated production removal
+mutant reaches the real COMMIT drop and fails specifically at original final join;
+exact restoration passes. Both complete failed receipts remain recorded; the
+fresh complete Docker receipt below is a separate passing result.
+
+Final full format verification and CI Release build pass with zero compiler
+warnings/errors. The critical native/history/stop/release and lifecycle set passes
+**24/24**.
+The last changes affect only the two integration fixtures; the exact production
+bytes and earlier full Unit/Contract/Docker-free/architecture subjects are unchanged.
+Full Unit passes **2,229**, Contract **4**, Docker-free integration **176**,
+Architecture **330/330**, and Docker integration **1,859/1,859**, with zero failures
+or skips: **4,598 distinct full-suite cases**. Architecture names are unchanged;
+all 1,854 preceding Docker cases remain and exactly five new cases account for
+the increase. Full architecture takes 1315.5 seconds;
+full Docker takes 960.2 seconds. These local measurements
+provide no real GitHub Actions budget pass; current-head CI remains unrun.
+
+Step 6 is locally complete after both full fresh reviews, verified corrections
+and their independent verification. All nineteen background-job obligations stay
+Registered and the published architecture-method count stays 237; Step 9 owns
+complete packet enforcement/regression and real PR CI. Accepted ADR-0061 in
+`82956666` authorizes the next external-stage implementation. Steps 7–9 and full
+packet/PR/CI closeout remain pending; no production business definition is added.
+
+### P02b-4 external completed-failure proposal (2026-10-16)
+
+**Initial proposal status, before the 2026-10-17 acceptance: Proposed; the
+maintainer's first review required changes and explicit reapproval.** Current
+acceptance is recorded [below](#adr-0061-acceptance-and-step-7-contract-2026-10-17).
+Step 7 preparation identified an unanswered report-policy input: direct completed
+Failed/Cancelled reports carry outcome/quiescence, without classifying the failure
+or granting retry of the same stable logical operation. Existing guards permit
+both retry and finalization; they do not select between them.
+
+The initial [ADR-0061](../decisions/0061-known-external-job-failure-policy.md) draft
+at `8e0f982b` proposed separate failure class and same-operation permission,
+write-once status and a terminal code when transient work cannot be repeated.
+Its initial source/contract audit was against `6a2ded99`. No dependent Step 7 runtime or migration is implemented or
+authorized by this proposal. Step 6 capacity work continues under Accepted
+ADR-0047; the existing nine-step review/commit loop remains unchanged.
+
+**Initial-draft reviews at `8e0f982b`:** two fresh independent proposal reviewers
+(GPT-6-astra xhigh and GPT-6.1-sol xhigh) approve that initial draft for maintainer
+consideration without verified findings. They
+check the actual contract/guard/grant and reason carriers, the exact bounded
+supersession, restart equivalence and discriminating pending proof obligations.
+The corpus reviewer independently verifies the ADR's links/anchors, Proposed
+status and prose width. No runtime test is claimed. Maintainer acceptance still
+precedes dependent Step 7 implementation.
+
+#### ADR-0061 revision after maintainer review (2026-10-17)
+
+**Historical revision record, before acceptance below.**
+The maintainer requested changes to the initial proposal; that review was not
+approval. Source checks confirm the missing finalization/terminal policy guards,
+the app/control ownership distinction and the absence of durable cancellation
+origin. The [revised ADR](../decisions/0061-known-external-job-failure-policy.md)
+remains Proposed and supplies the complete decision and proof inventory.
+
+The new choices for reapproval are one nonzero three-state policy and Permanent
+only for Failed. Cancelled explicitly states repeatability of the same operation;
+malformed Permanent cancellation is rejected without rewriting it. Adapter truth
+must survive reconciliation, while the runtime claims no certification of external
+causality. App-owned selection, deterministic storage and actual-row-bound audit
+cover retry, finalization and terminal reasons. The ADR separately maps module
+reasons, capacity release and all seven affected Registered rules.
+
+Two new independent reviewers, GPT-6-astra xhigh and GPT-6.1-sol xhigh, approve the
+full revised proposal for maintainer consideration without Blocker/Major findings.
+Their verified Minor corrections name stored outcome kind rather than an
+identifier DTO, and publish a clearly Proposed glossary pointer now. Both reviewers
+verify those corrections without further findings. These are source/design reviews;
+no new runtime, migration or passing execution proof is claimed.
+
+Error Handling's inherited five-attempt/jitter summary is independently reconciled
+with already Accepted ADR-0047. This does not accept ADR-0061 or change its budgets.
+No Accepted ADR body is edited. Explicit maintainer acceptance and its own decision
+commit still precede dependent Step 7 implementation; Step 6 continues independently.
+
+### ADR-0061 acceptance and Step 7 contract (2026-10-17)
+
+**ADR-0061 is Accepted — 2026-10-17.** The maintainer's latest review considers
+the previous seven gaps closed and finds no acceptance blocker, conditional on
+correcting the catalogue Status step lists before the acceptance commit. This
+decision includes Storage Steps 1–2, 6–9 and Retries Steps 4–5, 7 and 9; all seven
+affected rules remain Registered, with counts unchanged. Their extended Asserts
+record pending Step 7 qualification and Step 9 enforcement, not completed proofs.
+
+[ADR-0061](../decisions/0061-known-external-job-failure-policy.md) selects the
+three-state policy, Permanent only for Failed and deterministic database retry,
+finalization and reason guards. The app owns the immutable attempt outcome/policy
+and finalization selection; actual returned row facts bind terminal audit.
+[ADR-0047 Amendment 4](../decisions/0047-transactional-background-job-runtime.md#amendment-4--known-completed-external-failure-policy-2026-10-17)
+discloses the exact completed-report input replacement and additive seams without
+rewriting the Accepted body. The decision index, glossary, Error Handling status
+and all seven catalogue assertions are synchronized in this acceptance decision.
+
+Winning owned stop closes new outcome-checkpoint and COMMIT admission even with
+a live database lease; an already admitted COMMIT retains its actual result.
+Durable confirmed outcomes win over later reports. Honored cancellation remains
+Cancelled across restart. A nonrepeatable cancellation may finally fail the same
+job during deploy through the prepared domain finalizer and atomic MUST audit;
+the Transient taxonomy supplies no promise of resumability.
+
+Step 7 now implements and qualifies this contract before external activation,
+including the forward migration and normative implementation carriers. Step 9
+closes full enforcement/regression. The nine-step sequence and two fresh
+independent implementation review rounds per step continue; the historical draft
+reviews above do not satisfy them. Step 6 capacity work remains independently
+authorized under ADR-0047. Acceptance supplies no new runtime or passing proof.
+
+### P02b-4 Step 7 — external stages and recovery (2026-10-17)
+
+**Implementation, both full review rounds and verified corrections complete.**
+The round-2 closeout below owns the final local receipts. Step 6
+closes at `0ea50b15` after both full reviews, verified corrections and 4,598 passing
+full-suite cases. Accepted ADR-0047 and ADR-0061 authorize this next step on
+`development`; no further decision or permission is pending.
+
+**Remaining closure units — 2026-10-17.** The original Step 7 scope remains
+unchanged. Its long-running implementation is now tracked by these explicit
+closure units; focused receipts below do not close the step or its full reviews:
+
+- [x] Finish no-plan terminal cleanup, exact owner handoff and atomic terminal
+  audit, including persistent reason and complete positive history guards.
+- [x] Finish finalizer rollback/retry/refusal/exhaustion and prepared uninvokable
+  terminal behavior, preserving the separate six-start finalization budget.
+- [x] Close external/transactional contention, retained cleanup, exact owner/
+  source/caller censuses and their planted violations; qualify the complete step.
+- [x] Commit Step 7 and complete both fresh independent full review rounds,
+  verified corrections and correction commits before advancing to Step 8.
+
+The foundation separates sticky process/run stop from eight finite stage COMMIT
+boundaries. Admission is prebound before SQL; physical acknowledgements survive
+stop without reopening later stages. Transactional capacity cleanup retains its
+own fresh boundary on the same process cell and original clean source. The actual
+successful result reaches the existing sole completion participant. Closed report
+factories require the explicit three-state policy; Completed is removed.
+
+An early targeted source review identifies one P1 with two stop-refusal paths that
+faulted owned tasks before their finite cleanup/publication handling. Both paths
+are corrected. Two actual source mutants independently fail the corresponding
+admission or grouped-business regression while its sibling passes. Exact source
+and modes are restored, the CI Release builds have zero compiler warnings/errors,
+and that correction's focused foundation suite passes 61 cases with zero failures/skips.
+The reviewer independently verifies the correction, actual receipts and restoration.
+These checks and that early review supply no full Step 7 review-round credit.
+Two earlier failing fixture receipts remain recorded; the diagnostic identifies
+an incorrect NeverStarted expectation, corrected to the existing positive owned
+transactional-rollback result while separately asserting unused root entry.
+
+The forward failure-policy migration and canonical guards now pass 189 actual
+PostgreSQL storage cases. Two early source-review findings are reproduced and
+corrected: terminal requests cannot set the incomplete-finalization flag before
+the actual terminal transition, and incompatible retained predecessor selection
+or outcome/release history refuses upgrade without inventing missing facts.
+Independent correction inspection verifies those fixes. External denial also
+covers pre-existing UoW frames before their state changes and the four concrete
+owner-null auxiliary loaders; their original failing controls and corrected
+receipts are retained.
+
+The original-execution checkpoint foundation adds exact app-role read, Arm and
+Outcome requests on the existing transaction coordinator. Prepare captures its
+actual successful typed result, writes the immutable canonical plan and stamps
+the original normal attempt in the same transaction. Its clean source remains
+available for the next sequential checkpoint. These paths do not activate the
+external routing engine.
+
+An early checkpoint review identifies a canonical-byte defect: JSONB parameters
+rewrote text-column payloads. Both plan and outcome now use text parameters.
+Actual PostgreSQL execution separately exposes four missing SQL-concatenation
+spaces; the initial six failures and diagnostic `42601` receipt remain recorded.
+After correction, six state/policy cases and two typed byte-boundary cases pass.
+The production Prepare and Outcome writers preserve 65,536-byte canonical JSON;
+a 65,537-byte outcome refuses before mutation and leaves occupancy retained.
+Reintroducing only the plan JSONB binding fails all eight cases, including the
+actual plan byte CHECK. Reintroducing only the outcome binding fails seven while
+the oversized-input refusal still passes. Exact source/mode restoration passes
+all eight again. Independent correction review verifies source, receipts and
+both restoration hashes; this supplies no full Step 7 review-round credit.
+
+At the earlier checkpoint snapshot, the full Unit assembly passes 2,305 cases and the
+focused PostgreSQL selection passes 349, with zero failures or skips. The latter
+includes all 189 storage cases, the eight checkpoint cases and existing physical
+owner/business/audit/helper/source controls. Its receipt validator initially
+expected 342: the expanded class filter also selects seven unchanged source-owner
+siblings. A separate exact-subject and 95-file source/hash audit confirms all
+original subjects plus those seven passing cases; no failed test is reclassified.
+Fixture-supplied admission and Audit Off business roots isolate checkpoint SQL;
+these are not provider execution or domain-MUST-audit proofs.
+
+The original Execute bridge now requires the exact command owner's physical Arm
+acknowledgement, the current Arm boundary, the original clean source and a frozen
+canonical plan. The external denial scope precedes adapter construction; the
+actual task, immutable observation and failed cleanup owners remain retained.
+An early review catches a command borrowing another command's gate acknowledgement;
+the correction and its discriminating regression are verified independently.
+
+Fresh recovery has a distinct eighteen-column status projection and never mints
+a counted start receipt. Its new lease can outlive the original attempt deadline.
+Acquisition/probe publication follows actual COMMIT acknowledgement or explicit
+probe rollback acknowledgement and successful resource cleanup. A specialized
+owner retains the originating operation, exact descriptor and process stop cell;
+all confirmations share one receipt and one source/run binding. Early review
+identifies original-cleanup substitution, duplicate receipt publication and a
+cross-process-cell edge; all three are corrected and independently verified.
+
+The corrected snapshot passes 2,331 full Unit cases and 75 focused PostgreSQL
+cases with zero failures/skips. Four actual source mutants each fail exactly their
+intended regression; baseline and every restored source pass all eight selected
+cases. Exact source hashes/modes and the receipts are independently audited.
+Two further PostgreSQL cases prove actual acquisition COMMIT-response loss with
+repeat confirmation of the same receipt, and refusal after a real token takeover.
+The complete seventeen-case external checkpoint selection passes after those
+additions. These storage/ownership checks do not claim provider execution,
+domain-MUST atomicity or full Step 7 review-round credit.
+
+The three closed app requests now distinguish original admission from fresh
+recovery authority. Original ledger identity remains separate from the current
+recovery token; an expired original deadline does not invalidate a live recovery
+lease. The read represents an absent plan explicitly and obtains causal metadata
+from the actual app-role envelope. Its provisional recovery context invents no
+trace, parent, incoming event or actor. Stored-fact parsing requires the exact
+reservation and complete canonical plan/outcome, policy, quiescence and release
+facts. Existing completed outcomes take precedence over conflicting later reports.
+
+An early app-owner review identifies a reused-plan exhaustion defect: a sixth
+normal admission stopping before Arm lacks the plan stamp required by failure
+selection. Two actual PostgreSQL regressions reproduce the exact `23514`, both
+for first no-start and for independently retained unstamped no-start history.
+The correction copies the validated immutable plan identity in the same locked
+no-start transaction, preserving any existing timestamp and release. Its first
+rerun exposes a second guard ordering issue: validated recovery finalization is
+checked before eligibility-cycle normalization clears its token. The forward
+migration and canonical guard now admit that exact app transition; normalizing
+the new cycle still clears all recovery ownership and advances generation.
+The predecessor Down body remains unchanged. Both failures remain in the receipts.
+Independent inspection approves both corrections without full-round credit.
+
+The corrected snapshot passes all 2,331 Unit cases and 275 PostgreSQL cases:
+189 storage, 26 external checkpoint, 20 capacity-admission and 40 control cases,
+with zero failures/skips and a CI Release build with zero warnings/errors.
+The checkpoint selection includes sixth-admission first/retained no-start,
+recovery success and final-failure selection, token revocation and generation
+advancement, no-plan recovery, armed no-start refusal and durable-outcome
+precedence. These remain app/storage proofs with explicit fixture admission and
+Audit Off roots; provider/native execution and domain-MUST atomicity are pending.
+
+The subsequent short-checkpoint boundary captures a conservative monotonic
+lease window from fresh SQL after the actual job lock and before writes.
+Original work also observes its immutable deadline; recovery uses only its fresh
+lease. After pending audit, the exact owner's COMMIT admission checks the elapsed
+window inside the same run lock as the stage CAS. Expiry closes the run and rolls
+back; it cannot borrow an earlier successful handler check. This adds no generic
+participant, callback or transaction entry.
+
+That boundary snapshot passes 2,333 Unit and all 32 PostgreSQL checkpoint cases.
+Six cases park the actual handler before COMMIT admission without token
+cancellation: Arm, original Outcome and recovery Outcome each have live and
+expired-lease controls. PostgreSQL time establishes expiry; assertions inspect
+actual rollback or committed intent/outcome/selection and capacity release.
+Removing only the elapsed predicate fails exactly the three expiry cases while
+all three live controls pass. Restoring exact source bytes and modes passes all
+six again; both CI Release builds have zero warnings/errors. This remains a
+targeted ownership proof, not external engine activation or full review credit.
+
+Read completion now also binds the exact canonical candidate recorded by its
+actual read-only owner. An unrelated successful result or an unchanged clone
+cannot obtain that owner's acknowledgement. Three actual PostgreSQL controls
+verify the physical read-only transaction and application role, reject missing
+or substituted candidates and accept the real recorded object. This later
+snapshot passes 2,333 Unit and all 35 checkpoint cases, with zero failures/skips
+and a CI Release build with zero warnings/errors. Executor read-handle publication
+and cleanup ownership are qualified in the subsequent snapshot below.
+
+The named executor read driver now publishes an immutable handle only from the
+exact acknowledged app-read candidate and positively completed cleanup. Recovery
+uses provisional null causal metadata during Read; its handle retains only the
+actual app-read envelope for later checkpoints. Actual held and throwing DI scope
+controls cover both original and recovery origins. A physical read acknowledgement
+survives cleanup failure, while the failed scope/unit owner stays retained and no
+handle is published.
+
+An early review reproduces a cancellation gap after registration disposal but
+before Activity cleanup, together with the pre-cancelled-entry edge. Registration
+now remains owned through all actual cleanup; a final token check closes the run
+before publication. Both original red cases fail on the intended open-run state.
+The corrected snapshot passes 2,333 Unit and all 44 PostgreSQL checkpoint cases,
+with zero failures/skips and a CI Release build with zero warnings/errors.
+Subsequent test-only Task.Run hardening first exposes a test-ordering race in
+the pre-cancelled case. Awaiting that actual task before its assertion corrects
+the test; the held-cleanup case still asserts closure before release. Both final
+cases pass after recompilation. Independent review verifies the unchanged
+production hashes, exact subjects and separate receipts, closing the focused
+finding without full Step 7 review-round credit.
+
+The named Arm, original/recovery Outcome and recovery-only NoStart drivers now
+consume that exact read handle, retain their actual sealed request and await
+scope, Activity, binding and cancellation cleanup. Original admission identity
+stays separate from fresh recovery ownership. Only the actual app-read envelope
+supplies later causal attribution; no provider report or bypass projection does.
+
+An early writer review corrects lost Activity ownership when Start throws and
+duplicate issuance borrowing an earlier gate's COMMIT history. Real observer and
+repeated-Arm cases discriminate both fixes: each source mutation fails exactly
+its intended controls, and exact source/mode restoration passes again. All four
+CI Release builds have zero warnings/errors. The first causal fixture run retains
+two pre-driver `23514` failures from a nonexistent parent; a real parent row fixes
+that fixture. Independent review audits 119 restored source hashes/modes, 2,333
+passing Unit cases and all 54 passing checkpoint cases, including ten named-writer
+cases. This is a bounded slice receipt, not external activation.
+
+Six additional cases pass in the complete sixty-case checkpoint rerun. Actual
+TCP COMMIT-response loss leaves Arm/Outcome uncertain while an outside app read
+observes the landed transaction. Stop after the real handler but before COMMIT
+records actual rollback; pre-cancelled entry and cancellation during held Activity
+cleanup close continuation without erasing historical ACK. One further passing
+case distinguishes an unissued duplicate from an earlier command's known rollback
+and then commits through a fresh gate without another counted attempt. Production
+source is unchanged from the 2,333-case Unit snapshot; the sixty-plus-one receipts
+cover 61 distinct checkpoint cases. Seven ADR-parser and five corpus checks pass.
+Provider/native integration and full Step 7 reviews remain pending.
+
+The original Execute bridge now accepts only the trusted read handle and exact
+local Arm result. Fresh Reconcile accepts only its once-bound recovery and read
+handle. Both retain the actual provider/cleanup task and external denial; stored
+outcomes or absent intent skip provider construction without fabricating a report.
+The last typed method-entry CAS remains separate from any earlier validation.
+These helpers remain unwired to native execution and current-lease control.
+
+The next snapshot passes 2,333 Unit and eleven actual PostgreSQL bridge cases.
+An early test review corrects masked ACK-isolation coverage using a real read
+and an explicitly synthetic negative result around a distinct unacknowledged
+command. It also distinguishes the first scope-only receipt from constructor
+proof: that host lacked the fixture's adapter registration. The revised test-only
+binding invokes the exact frozen, unchanged throwing constructor and records its
+actual fixed exception under external denial. All eleven revised cases pass.
+Removing both command-derived ACK checks fails only the borrowed-ACK case while
+six siblings pass; exact source/mode restoration passes all seven again. Both
+CI Release builds have zero warnings/errors. A throwing constructor proves entry
+or refusal, never successful Execute/Reconcile or native lifetime semantics.
+
+The same start-observer ownership defect is then reproduced in the admission and
+Prepare entry paths: both actual cases fail because the started Activity was lost
+before assignment. Assigning the actual object before Start corrects both paths.
+The subsequent CI Release build has zero warnings/errors; 2,333 Unit and 137
+PostgreSQL cases pass with zero failures/skips. That selection comprises all 74
+external-checkpoint cases, 23 admission, 20 business and 20 capacity-admission
+cases. It includes both original red observer cases, the revised bridge controls
+and the existing stop/cleanup/commit regressions. Full Step 7 review and native
+activation obligations remain open.
+
+The history foundation now retains an exact issued Prepare/Arm/Outcome/NoStart/
+Finalize operation, with immutable business-result receipt and gate identity.
+A separate job lock precedes its fresh, status-only 48-column original-attempt
+query. Confirmation publishes only after explicit probe ROLLBACK acknowledgement
+and actual cleanup; it never sets physical COMMIT ACK or rollback. Real lost-ACK
+controls cover Prepare, Arm, Outcome and NoStart with open and stopped runs, plus
+a closed duplicate Prepare that cannot borrow its predecessor's history.
+
+Early review corrects two unqualified Finalize classifier branches and separates
+historical Arm truth from current Execute permission. Both the outer bridge and
+last run CAS now require the exact command, current original owner and a
+conservative monotonic lease/deadline observation. Live, takeover with an open
+old run, elapsed-lease and borrowed-command controls use actual app checkpoints;
+their positive remains constructor-canary evidence, not a successful provider
+method. This snapshot passes 2,333 Unit and 127 PostgreSQL cases: 87 checkpoint,
+20 business and 20 capacity-admission, with zero failures/skips and a CI Release
+build with zero warnings/errors. An earlier Unit run retained one obsolete
+unissued-root rollback assertion; its correction preserves the independent
+positive unused-entry and capacity-cleanup controls. No full review credit or
+Finalize/native qualification follows from these bounded receipts.
+
+Additional history controls distinguish COMMIT-request loss from response loss:
+all four original checkpoint families remain Absent when COMMIT never reaches
+PostgreSQL, without inventing a physical rollback acknowledgement or reopening
+the old root. Two probe cases hold or lose the actual ROLLBACK response; a peer
+acquires the released job lock before client acknowledgement, and confirmation
+publishes only after acknowledgement and cleanup. Two later-admission cases keep
+history bound to the original stamped attempt after current identity changes.
+Replacing that query join with the current attempt fails exactly those two
+controls; all sixteen same-current controls pass. Exact source/mode restoration
+passes all eighteen. Both CI Release builds have zero warnings/errors.
+
+The wider history snapshot passes 2,333 Unit and 179 PostgreSQL cases: 99
+checkpoint, 40 control, 20 business and 20 capacity-admission. An independent
+receipt audit verifies all 130 recorded source hashes/modes, exact subjects and
+artifact hashes. These app/storage proofs do not exercise successful provider
+methods or Finalize; socket-loss cases do not independently inject every disposal
+failure.
+
+The ordinary business completion owner now also carries one conservative
+COMMIT budget from its fresh locked SQL observation. Prepare's final plan-stamp
+cleanup and transactional reservation-release cleanup consume that interval.
+The existing coordinator reaches a synchronous, exact-root wrapper; elapsed
+time is checked inside the same run lock as COMMIT admission. One-way publication
+states prevent concurrent or duplicate recording from replacing the first
+timestamp or interval. No new participant, callback or transaction owner is added.
+
+Four actual PostgreSQL controls pause the final Npgsql command after successful
+SQL/reader cleanup, with no cancellation token or runtime timer closing the run.
+Both expired-lease cases fail against the earlier implementation because it
+acknowledges COMMIT; both live controls pass. The correction passes all four.
+The final publication-state snapshot passes 2,333 Unit and 183 PostgreSQL cases:
+103 checkpoint, 40 control, 20 business and 20 capacity-admission, with zero
+failures/skips and a CI Release build with zero warnings/errors. Transactional
+admission is the production path; Prepare still uses the explicit fixture
+admission. These focused checks supply no full Step 7 review-round credit.
+
+The existing owner-boundary detector now enumerates the exact budget methods,
+callers, private publication fields, fresh SQL observations and protected COMMIT
+ordering. Its actual-subject and planted-control cases both pass. Controls include
+extra callers, deleted capabilities, changed projections, late capture, mutable
+budget reset, missing live identity and a plain-CAS bypass. This finite structural
+check supplements the actual PostgreSQL expiry controls; it does not prove every
+possible value, branch or asynchronous control flow. Full census qualification
+and both full Step 7 review rounds remain pending.
+
+The shared app reader also validates the selected normal attempt, finalization
+status and module reason. Its eleven focused cases cover completed policy rows,
+sixth-attempt repeatable failures, positive no-start history and all partial-null
+selection shapes. Projection-only dirty inputs reject mismatched identity, stamp,
+status or reason without altering guarded durable data. An earlier run retained
+one fixture failure from waiting for the original deadline instead of the lease;
+the corrected helper and expanded matrix pass. The current snapshot passes all
+2,333 Unit and 192 PostgreSQL cases: 112 checkpoint, 40 control, 20 business and
+20 capacity-admission, with zero failures/skips and a CI Release build with zero
+warnings/errors. These are reader/storage proofs, not actual Finalize execution,
+successful provider methods or the domain/terminal two-MUST atomicity proof.
+
+The actual app Finalize path now reads and cleans its selected-input owner before
+ordinary root entry, admits a separate counted finalization attempt and constructs
+the exact registered typed request. Finalize bypasses capacity admission and
+creates no reservation. Its existing business owner rechecks the actual selected
+normal facts after the job lock and retains the same monotonic COMMIT budget.
+Successful domain failure writes terminal state and its MUST row on that pair;
+the private app mint binds the actual returned row, old acquisition token, live
+unit/source/announcement and selected policy. The existing bypass mint remains
+separate. A duplicate consumed root has no new read or COMMIT history.
+
+Four actual PostgreSQL cases cover success and permanent/nonrepeatable completed
+failure. The first run passes success but refuses the three failure cases with
+`42501`: the authored UPDATE unnecessarily names a control-only incomplete flag.
+Removing that assignment and requiring the existing false value preserves the
+column grants; all four pass. Final assertions bind audit identity, generation,
+timestamp, policy and counters to actual stored facts. The corrected snapshot
+passes 2,333 Unit and 196 PostgreSQL cases: 116 checkpoint, 40 control, 20 business
+and 20 capacity-admission, with zero failures/skips and a CI Release build with
+zero warnings/errors. Normal admission, observations and the routing claim remain
+explicit fixture setup; app Finalize admission, receipt, read, root, fence and
+terminal MUST write are production paths. These cases use an Audit Off root and
+do not claim a domain mutation with two MUST rows, native provider execution,
+independent witness-substitution coverage or full Step 7 review-round credit.
+
+The physical-ACK Arm path also retains its original conservative SQL interval.
+An actual PostgreSQL control demonstrates that ACK alone previously allowed
+provider scope construction after that lease expired, without cancellation or
+a native timer; the live control passes. The corrected gate publishes its one
+immutable interval only for an issued open boundary. Both the pre-scope check and
+the final Execute CAS check elapsed time; the latter runs inside the original run
+lock. Premature or late rejected COMMIT calls cannot seed a window for a later
+unbudgeted acknowledgement. Known entry expiry reports EntryRefused, preserving
+the physical ACK and inventing no provider failure or outcome.
+
+The corrected snapshot passes 2,335 Unit and 198 PostgreSQL cases: 118 checkpoint,
+40 control, 20 business and 20 capacity-admission, with zero failures/skips and
+a CI Release build with zero warnings/errors. The unchanged throwing adapter
+canary verifies pre-scope refusal; a real held-constructor/provider-method timing
+proof remains part of the positive SDK work. Lease renewal does not extend this
+retained interval, and repeated history probes do not replace the gate's first
+confirmation. These conservative refusals are distinct from permission to execute.
+
+The separate positive SDK fixture now supplies genuine Contracts, Application and
+Infrastructure assemblies, with actual nested Tenancy commands and their MUST
+audits. Its adapter calls an independent provider database using a separate,
+unprivileged credential. Normal External routing and app admission use the actual
+opaque claim, tenant capacity mutex and counted ledger; Finalize uses its separate
+real admission. The first routing run exposed an ungranted outcome-body read;
+the corrected predicate uses the already granted outcome-kind status instead.
+No dispatcher grant is widened. Production definitions remain empty and the
+construction-only test host runs no native background worker.
+
+Eight focused PostgreSQL cases pass: four actual provider outcomes, two exact
+audit-INSERT faults and live/expired adapter-constructor barriers. A test-owned
+SQL observer records the actual top-level transaction ID, preserving savepoint
+semantics; domain state, successful business MUST, terminal state and terminal
+MUST share the Finalize transaction. Each injected MUST failure rolls that work
+back while prior Prepare/provider facts remain. The existing audit coordinator
+may separately record the failed business attempt; this is never a success row.
+The initial tuple-`xmin` assertion was invalid across EF savepoints and was
+replaced by this observer, without changing production transaction handling.
+
+The held constructor retains its actual task and scope through release and join.
+With the final run-locked Arm-window check removed, the expired case fails and
+the real provider journal records an unexpected Execute and effect; its live
+control passes. Exact source bytes and mode are restored, then all eight cases
+pass again. These cases establish actual provider-method timing and real-store
+atomicity, not native handoff, duplicate-provider acceptance or recovery. The
+2,335-case Unit run and expanded 247-case PostgreSQL regression pass on the
+corrected snapshot, with zero failures/skips and a CI Release build with zero
+warnings/errors. The old External-unavailable admission assertion is replaced by
+an exact profile/definition mismatch refusal; the genuine SDK flow supplies the
+positive External coverage. The broader run retains the existing checkpoint,
+control, business, capacity, admission and submission cases.
+
+The next native-control foundation binds the real External receipt's profile,
+normal/finalize stage, counters and selected outcome to its existing execution
+owner. Prepare acknowledgement no longer ends lease renewal. Its status-only
+renewal probe checks the exact locked job and fresh immutable ledger, before
+generic completion shortcuts. Two actual publication/control cases and seven
+passive metadata substitutions per case cover both preparing and finalizing.
+
+The Prepare case starts the real renewal lane and independently observes SQL
+lease advancement and a successful rearm of the actual System timer. Restoring
+the two old Prepare-ACK guards leaves SQL renewal working but fails that timer
+assertion. Exact source/mode restoration passes all ten SDK cases. The frozen
+150-source snapshot passes 2,335 Unit and fifty focused PostgreSQL cases (forty
+control, ten SDK), with zero failures/skips. An independent receipt audit verifies
+all source hashes/modes, artifact hashes and actual TRX subjects. A retained
+zero-match run after an initial compile failure supplies no test credit. This
+foundation does not yet prove complete native provider handoff or recovery.
+
+The existing native execution owner now retains the optional Prepare, app read,
+Arm, provider and Outcome tasks, with separate exact-family historical probes.
+It skips Prepare when admission supplies the existing-plan stage. A normal return
+closes that original run; unresolved effects retain reservations for fresh recovery.
+An acknowledged Outcome stops renewal even during held cleanup, while actual
+cleanup still gates identity release. Finalize remains a separate admission/root.
+
+Four genuine SDK cases now pass through the real facade, stock bridge and native
+worker pools, independent provider journal and fresh Finalize admission. Success,
+permanent failure and both nonrepeatable failure/cancellation preserve one normal
+and one finalize receipt, one provider Execute, and actual business/terminal MUST
+atomicity. The earlier two-case red run reached Prepare but stayed `prepared`,
+discriminating the missing native continuation from the explicit-driver proofs.
+
+A held real adapter constructor exposes the former global short-wrapper timeout.
+The existing invocation now owns one monotonic stage timer, armed before each
+possible synchronous prefix, and retains every task after wrapper return. Its
+finite mapping uses short-root, SQL, external-run and history-probe bounds. Lease
+loss, deadline and host stop close/retain before signalling wrapper return; normal
+capacity-cleanup cancellation remains separate. Actual timer disposal and private
+cancellation callbacks precede source release. Deterministic controls distinguish
+an old queued callback from the current stage and forbid refreshing elapsed work.
+
+The qualified 158-source snapshot passes 2,339 Unit and one hundred PostgreSQL
+cases: forty control, twenty-three admission, twenty business and seventeen SDK.
+The SDK selection includes all four native results, the long-constructor wait and
+host-stop/lease-loss cases that return the wrapper while actual cleanup stays held.
+The initial Unit run retained one obsolete host-stop `Running` expectation; its
+correction independently counts running plus retained ownership. Removing only
+the actual cancellation join fails the held-callback test while its three siblings
+pass. Exact source/mode restoration passes all 2,339 again. Builds have zero
+warnings/errors; no full Step 7 review or fresh native recovery is claimed.
+
+The receipt addendum includes the changed host-stop Unit fixture omitted from the
+initial 157-path inventory. It preserves the original manifest and distinguishes
+the two subsequent Unit-only corrections from unchanged production/PostgreSQL
+sources; an independent audit verifies the complete 158-path inventory.
+
+Four further genuine native cases hold actual COMMIT responses at Prepare, Arm,
+Outcome and Finalize. Their clean, exact-family historical confirmation permits
+continuation without inventing physical acknowledgement or duplicating provider
+work. The Outcome case also handles a real early wakeup while the original
+invocation remains retained: a pre-routing identity check avoids acquiring a
+routing lease that the same owner must immediately refuse. The initial red run
+fails only that Outcome control; the corrected four-case run passes.
+
+A separate actual Outcome-ACK control holds Activity cleanup after the database
+scope has closed. Its gate is acknowledged while the concrete task and invocation
+remain retained. The live control lane neither rearms the settled lease timer nor
+reports a renewal refusal; actual cleanup still precedes identity release. An
+already issued renewal batch may finish. This does not claim zero SQL after ACK
+or immediate next-stage service: a consumed early vendor hint can wait for repair.
+
+The final 160-source snapshot passes all 2,339 Unit and 261 PostgreSQL cases:
+118 checkpoint, forty control, twenty business, twenty capacity, twenty-three
+admission, eighteen submission and twenty-two genuine SDK cases. There are no
+failures/skips; CI Release builds have zero warnings/errors. The snapshot keeps
+red/green epochs and the test-only repair-grace reduction separate. Fresh native
+recovery, full architecture qualification and both full Step 7 reviews remain
+pending.
+
+Fresh recovery now carries a source-local Stopwatch observation taken before its
+actual locked SQL projection. Binding and the final typed Reconcile entry check
+the same remaining lease under the Run lock; expiry closes that Run permanently.
+Neither binding, cleanup, a held constructor nor a later probe rebases its window.
+The original attempt deadline may already have expired; it is not the new lease.
+
+A genuine SDK live/expired pair first executes against the independent provider,
+omits Outcome and then acquires fresh recovery for that exact old attempt. A held
+real adapter constructor exposes the missing final check: the red expired case
+incorrectly calls Reconcile; the correction prevents that actual method call,
+while the live control reconciles the retained effect. No extra Execute, normal
+attempt or effect is created. This is an explicitly arranged recovery route,
+not native bridge/control recovery qualification.
+
+Three additional real-socket controls hold the exact recovery probe's completed
+ROLLBACK response. A peer can acquire the released row lock before the client ACK,
+but no receipt publishes yet. Live ACK/cleanup permits the first binding; a clean
+response delayed past the observed lease publishes history but refuses binding.
+A lost response publishes nothing; a later clean first probe cannot rewrite its
+failure or physical acquisition ACK. Repeated probes retain the same receipt.
+
+All 2,342 Unit and 145 focused PostgreSQL cases pass with zero failures/skips and
+zero-warning/error Release builds. The PostgreSQL selection contains 121 checkpoint
+and twenty-four SDK cases. An Integration-only test cleanup correction then joins
+the actual probe task using its existing deadline even on failed premises; its
+three affected controls pass again. Earlier source epochs are retained separately.
+The subsequent recovery-renewal foundation preserves the original ledger token
+and expired deadline separately from the fresh recovery token. Its actual SQL
+extends only a still-live exact recovery lease; ordinary execution remains capped
+by its original deadline. Private passive evidence publishes only after physical
+COMMIT acknowledgement and actual cleanup. The Run accepts it under its own lock
+only while both windows remain live, without changing the acquisition receipt or
+resetting provider entry. Observing expiry closes the Run and current checkpoint.
+
+The actual expired-original case first fails against the old execution-only SQL.
+Four genuine SDK controls then pass: a two-tenant mixed renewal batch, lost renewal
+ACK without evidence publication, and timely/late evidence application around a
+held real Reconcile constructor. Timely application permits one Reconcile after
+the old window expires; late application cannot reopen it. These are delayed
+applications of already acknowledged evidence, not held successful network ACKs.
+Fourteen memory identity substitutions and separate binding/process/stop/order
+controls exercise the acceptance boundary without claiming SQL provenance.
+
+The frozen 164-source foundation passes 2,361 Unit and 189 focused PostgreSQL
+cases with zero failures/skips and zero-warning/error Release builds. The latter
+contains 121 checkpoint, forty control and twenty-eight SDK cases, including the
+four renewal controls. A lost ACK's later status probe proves the recovery row's
+renewal without publishing usable evidence; the ordinary mixed row is independently
+checked in the direct-ACK case. Native renewal consumption, actual cleanup-fault
+injection, native recovery handoff and retry/quarantine/finalizer failure routing
+remain pending, as do both full Step 7 review rounds.
+
+The native recovery owner now roots acquisition, exact historical confirmation,
+app read, Reconcile and checkpoint tasks before issuance, without fabricating an
+ordinary admission. Its fresh lease survives the expired original deadline;
+actual renewal evidence feeds the existing Run boundary. Two genuine SDK controls
+exercise direct/lost acquisition ACK and renewal across the first recovery window.
+They arrange parking explicitly and do not qualify automatic scheduling.
+
+NoStart's lost app COMMIT ACK now uses its exact history family. Real timer
+construction/Change controls hold the actual call while host stop closes permission;
+returned handles require actual disposal, while unreturned failed initialization
+retains ownership. Renewal keeps its old expiry visible during Change, and Join
+awaits the actual update before disposal. A clean late return can decline renewal
+without inventing failed cleanup. Held-stop controls do not prove autonomous expiry
+at a shorter deadline during an arbitrarily blocked supplied Change.
+
+The frozen 167-source correction passes 2,362 Unit and 280 PostgreSQL cases:
+121 checkpoint, forty control, twenty business, twenty capacity, twenty-three
+admission, eighteen submission and thirty-eight SDK cases. There are zero
+failures/skips; Release builds have zero warnings/errors. The new Change controls
+first fail at the actual blocked stop/late identity boundaries, then pass after
+correction. Earlier constructor/history and known-fault native epochs remain
+separate. Automatic park/bridge/disposition and both full Step 7 reviews remain
+pending.
+
+The next automatic-recovery slice adds two bounded control selections for expired
+external owners and retained unarmed recovery rows. A single eligibility cycle
+arms a finite probe and advances the wake generation once; stock handoff/repair
+retains that generation, the original normal attempt and its reservation. A
+forward migration and canonical DDL guard live-owner clearing, unarmed/reset
+transitions and unsafe downgrade. Five actual SDK controls plus canonical-schema
+parity pass, including an automatic facade recovery and both pending routing
+stages. This does not qualify every future-due, exhausted, contention or planner
+case.
+
+Its broader frozen 172-source run passes 493 of 494 PostgreSQL cases and exposes
+one native lost-Outcome-ACK history failure: a competing row lock legitimately
+returns a clean unavailable result. The correction retries only that exact clean
+unavailable history read, after actual cleanup, inside the already armed single
+history budget. It never treats unavailability as confirmation or resets the
+original origin. A separate real transaction holds the exact job lock; the socket
+observer ties the actual binary UUID/query to PostgreSQL's zero-row response.
+That causal control first fails at the missing history value and then passes.
+Seven focused history controls and all 2,362 Unit cases pass with zero skips and
+zero-warning/error Release builds. The broader failed run remains a failed
+receipt; these narrower passing controls do not imply a fresh full regression.
+
+The application-source inventory now includes external invocation owners alongside
+transactional owners. Its job-only floor is 22 by default and 118 at the maximum
+business-pool topology; unrelated arrival headroom stays separate. The shared
+privileged inventory remains 50/156 because each invocation's routing, recovery
+acquisition, confirmation and history operations are sequential and cleanup-owned.
+The maxima need separate calculations: the qualified eight-pool/four-worker
+facade fixture has privileged 156 and application 32, without claiming that
+every topology reaching privileged 156 has the same application floor.
+
+The new count/kind and immutable 21/22 startup controls first fail against the
+transactional-only calculation. After correction, 15 actual PostgreSQL cases
+and all 2,365 Unit cases pass with zero skips and zero-warning/error builds.
+Actual main/auxiliary connections fill 22/118 pools, with explicit zero/two
+unrelated headroom controls; four native normal SDK cases and automatic recovery
+use pooled application 22/privileged 50. These controls do not claim held external
+versus transactional native contention or maximum-topology native execution.
+
+Retained completed facts now have a recovery-only app selection mode. Its actual
+trusted read supplies plan/operation identity; no caller supplies a replacement
+report, payload, policy or quiescence fact. The handler re-reads canonical stored
+facts under the job lock and applies their policy. Missing facts and early
+repeatable outcomes are refused by both driver and actual handler; selection
+never rewrites outcome, quiescence, NoStart or reservation-release stamps.
+
+An existing marker alone no longer confirms a selection-only transaction.
+Outcome history requires the exact policy-derived selected normal attempt,
+status, reason and plan stamp; prepared-plan NoStart at six likewise requires its
+exhaustion selection. Actual request-loss controls first expose both false
+confirmations, then pass after correction. Actual response loss confirms the
+selection while keeping physical ACK false, including after a distinct counted
+Finalize admission advances the current header.
+
+The native recovery owner consumes those retained facts through the same held
+app checkpoint task and commit budget. A genuine SDK control first remains
+Reconciling against the old early-return branch, then reaches completion after
+the correction without another provider scope, Reconcile or Execute. Its peer
+with absent Outcome still performs one Reconcile. Thirteen focused PostgreSQL
+cases and all 2,365 Unit cases pass with zero skips; the broader checkpoint/SDK/
+control regression is still pending at this receipt. This delivers selection,
+not early-repeatable retry disposition, probe/quarantine or finalizer-fault policy.
+
+That subsequent run executes 217 PostgreSQL cases: 216 pass and one native
+nonrepeatable case remains FinalizePending at its fixed twenty-second assertion.
+Its saved receipt contains no ownership/handoff snapshot, so its exact cause is
+not retrospectively established. The source permits a successor hint to finish
+while the old acknowledged Outcome still owns actual cleanup; the default
+sixty-second repair grace exceeds that test's former wait.
+
+Two causal controls, for success and nonrepeatable failure, now hold the actual
+Outcome Activity cleanup. They observe the exact new-generation persisted vendor
+hint as Succeeded, cleared bridge/ownership fields and a future database-time
+handoff check while the old task is incomplete and routing is refused. Releasing
+the real cleanup permits same-generation repair and one Finalize, with unchanged
+normal count and independent provider counts. The NativeFlow fixture uses the
+accepted fifteen-second repair minimum and a wait derived from repair grace plus
+Finalize transaction/SQL budgets. Both causal cases and all four native flow
+cases pass together. The complete forty-six-case SDK regression then passes
+with zero skips and zero-warning/error builds. Only the two SDK test files
+changed; production and all other frozen sources remain byte-preserved. Earlier
+132 checkpoint and forty control passes, plus 2,365 Unit passes, stay tied to
+their unchanged-production epoch; this is not a fresh 218-case run. The failed
+217-case receipt stays distinct, and both full Step 7 reviews remain pending.
+
+Known-fact retry now accepts only a closed original-completed or fresh-recovery
+identity. Under the actual job lock, its status-only read validates every normal
+ordinal and positive NoStart/release or repeatable completed-outcome/quiescence
+history. The current original admission token, deadline, scope and generation
+remain distinct from a fresh recovery token. Missing or unresolved facts cannot
+return work to Pending.
+
+For a live original owner, lease shortening, private nonexecuting recovery handoff
+and fixed-backoff Pending selection share one transaction. Only the final returned
+row permits COMMIT; refusal rolls back the intermediate ownership too. A fresh
+recovery owner uses its live lease independently of the expired original deadline.
+Scheduling advances one generation without adding an attempt, rewriting evidence
+or starting provider work. The uncertainty descriptor retains the actual returned
+schedule. Its locked probe distinguishes the exact old rollback shape, committed
+same-cycle routing and a distinct later admission; no generic rollback fallback
+or executable receipt is used.
+
+The native owner retains the actual disposition and optional confirmation tasks
+through cleanup. It issues them only after a clean acknowledged or exactly
+confirmed app checkpoint; retained known recovery facts need no new provider report.
+A focused source review removed an unnecessary recovery-side control call after
+final-selecting outcomes. Twenty-eight real PostgreSQL cases pass after that
+correction, with zero skips and zero-warning/error Release builds. The twenty-one
+store cases cover all five backoffs, real COMMIT request/response loss, subsequent
+routing/admission, unresolved/nonrepeatable refusals, final-UPDATE rollback and
+positive no-plan NoStart after actual original-deadline expiry.
+
+Seven actual SDK/native cases cover Failed/Cancelled original retry with normal
+or lost Outcome ACK, plus recovery from retained facts, Reconcile and absent
+ExecuteIntent. Held actual writer cleanup forbids early disposition issuance;
+lost ACK requires its exact clean history confirmation. The subsequent counted
+attempt preserves the plan/operation, reacquires capacity and performs its own
+Execute before one fresh Finalize. Independent provider counts and domain rows
+distinguish that progress from another Prepare, duplicate effect or invented
+quiescence. The broader current regression then passes all 246 cases: 153
+checkpoint, fifty-three SDK and forty control cases. All 2,365 Unit cases also
+pass on the same frozen source with zero skips and zero-warning/error builds.
+The twenty-eight focused cases are included in that broader result. This is a
+fresh passing run, not a reinterpretation of the earlier failed 217-case receipt;
+neither full Step 7 review round is closed by these tests.
+
+The next bounded status slice validates unresolved ExecuteIntent under the same
+exact normal identity and complete positive prior history. Running preserves the
+unsuccessful-probe count; explicit failed probes increment once. The sixth failure
+or a still-unresolved deadline/grace boundary quarantines without inventing an
+outcome, releasing occupancy or admitting another normal attempt. Private lease
+shortening and paced parking remain atomic behind the existing expiry-only wake
+guard. Actual returned generation, counter, schedule and quarantine reason bind
+the separate lost-COMMIT history probe.
+
+Thirty-five focused PostgreSQL cases pass with zero skips: twenty-two new store
+cases and thirteen existing filter matches. They cover the six-probe boundary,
+Running between failures, retained occupancy, known-fact and stale-owner refusal,
+actual deadline/grace, request/response COMMIT loss, changed ownership and an
+injected final-park rollback. A fault followed by a repeatable outcome preserves
+the count through Pending; only the next real counted admission resets it.
+The initial fixture attempted to move an unowned probe schedule and was correctly
+refused by the existing guard. Its failed receipt remains separate; the corrected
+tests wait for the actual due time and leave that production guard intact.
+Independent source/artifact inspection closes this store slice only. Native
+timeout/report/callback qualification and durable quarantine-health observation
+are still in progress; neither is claimed by these store cases.
+
+The subsequent native regression executes 275 PostgreSQL cases: 273 pass and
+two fail, with zero skips. Both failures record the only Reconcile timer callback
+arriving before its owned monotonic deadline, by 1.288 ms and 1.200 ms. Discarding
+that callback loses the future wake. A preliminary 1 ms tolerance therefore
+does not qualify this path; its failed receipt is preserved separately. All
+2,377 Unit cases passed at that same source, demonstrating the missing combined
+timing coverage rather than disproving the native failures.
+
+The correction restores actual elapsed-time checks and gives an early wake one
+supplementary timer and one task under the existing invocation. That observer
+alone rearms and asynchronously disposes its timer; stage changes and closure
+signal it without calling timer operations under the state lock. Actual observer,
+timer and cancellation cleanup precede private-source release. Twenty-three
+focused Unit cases pass, including repeated early wakes, successor changes,
+held timer construction/change/disposal and refused/faulted timer operations.
+An additional nanosecond-clock control rejects premature expiry caused by
+TimeSpan conversion. The current source then passes all 2,385 Unit cases and
+all 275 PostgreSQL cases: 175 checkpoint, sixty SDK and forty control cases,
+with zero skips and zero-warning/error builds. The actual late-report tests
+assert preserved state and original job/attempt/operation identity. The earlier
+failed receipt remains separate. This adds no database connection, executable
+authority or full Step 7 review credit; it does not qualify the later durable
+health slice or remaining terminal/finalization policies.
+
+Durable quarantine health now uses a forward partial index and one status-only
+read on the existing serial control lane. Acknowledged read rollback and actual
+cleanup precede cache publication. Failed refresh retains the last good value
+with an independent fault; unknown or stale samples cannot report healthy.
+Snapshot cadence remains valid even when it exceeds the separate progress bound.
+Health getters issue no SQL and do not become admission gates.
+
+All 2,391 Unit cases pass, including six new memory/freshness controls. Eleven
+focused PostgreSQL cases also pass with zero skips and zero-warning/error builds:
+six control observations, three schema/canonical/reversal cases and two genuine
+native quarantine flows. The latter waits until quarantine is the only health
+fault; a fresh host, source, gate and runtime start with no cached sample and
+independently observe the retained quarantine. They preserve occupancy and the
+single normal admission without another Execute. The normal planner uses the
+partial index against six thousand future rows; dropping it makes the same
+detector expose the backlog scan. These focused results close no full review round.
+
+The subsequent control/SDK/facade/storage regression executes 332 cases: 328
+pass and four fail, with zero skips. Two historical recovery-migration tests
+incorrectly include a later index migration in their refused-downgrade inventory;
+EF commits each successful migration separately. They are corrected to qualify
+the recovery migration at its own boundary without weakening the full inventory
+comparison. One retained-outcome recovery case remains FinalizePending at a
+thirty-second assertion despite its sixty-second repair setting; its original
+cause is not established by that receipt. A separate facade case passes actual
+cleanup and zero retained-owner assertions, then times out awaiting a follow-on
+job. Controlled recovery-cleanup coverage and follow-on scheduling diagnostics
+are in progress; the four failures are not credited as passing qualification.
+
+The test-only correction run then passes nine PostgreSQL cases with zero skips
+and a zero-warning/error build. It covers both historical migration modes, both
+native recovery modes, both original held-Outcome cases, a new genuine stored
+recovery selection with held real cleanup and same-generation repair, and both
+auxiliary-cleanup modes. Production is unchanged from the preceding 332-case
+epoch. The diagnostic-only facade rerun does not establish the original
+follow-on timeout's cause; a source-reachable test-fixture collision between
+the old job's legitimate retry and the new job is being tested separately.
+
+The controlled old-retry-before-new-job experiment fails with the original
+call-count mapping. Exact job-id mapping alone still fails: the two fixture
+UUIDv7 ids also share the timestamp-only twelve-character slug prefix. Actual
+handler diagnostics show the new job's `business_rule_violation`, independently
+of clean source/owner release. The corrected fixture maps resources by actual
+`JobTenantContext.JobId` and uses the full UUID in each slug. Two distinct ids
+are deliberately generated at the same timestamp; the old retry commits first
+without consuming the independent job's resource, and the new job completes
+in one admission. Both clean and dirty auxiliary-cleanup cases pass with zero
+skips and a zero-warning/error build. These constructed controls explain and
+remove both fixture collision classes, without retrospectively assigning the
+earlier receipt a cause its saved observations did not capture.
+
+The no-plan terminal foundation now persists an exact finite request before
+app NoStart, reservation release or terminal audit. Its fresh locked read checks
+every normal admission and positive prior plan-free NoStart/release; committed
+plans, effects and finalization are excluded. Its dedicated lost-COMMIT probe
+binds the requested reason and immutable admission identity, preserving physical
+ACK separately from history confirmation. Actual permanent Prepare refusal at
+one/six, sixth recovery exhaustion, request/response loss, committed-plan and
+expired-owner controls pass: seven PostgreSQL cases and all 2,391 Unit cases,
+zero skips and zero-warning/error builds. This is the request/history primitive;
+terminal-purpose app cleanup, stronger terminal storage guards, native routing
+and final terminal audit integration remain pending and are not activated here.
+
+The terminal-purpose cleanup foundation adds a fresh, immutable
+`TerminalNoStart` recovery receipt. It grants only app-role NoStart and exact
+reservation release; it cannot enter Prepare, Execute, Reconcile, ordinary
+renewal or finalization. The app reads the actual causal envelope without
+constructing module parameters or requiring an Active definition, then checks
+complete normal history under the row lock. NoStart and `never_started` release
+commit atomically. A purpose/reason-bound history probe preserves the original
+physical ACK separately. All 2,396 Unit cases and thirteen focused PostgreSQL
+cases pass with zero skips and zero-warning/error builds, including first/sixth
+admissions, absent current definitions, acquisition/checkpoint COMMIT request
+and response loss, and a reservation CHECK refusal after the marker UPDATE.
+The initial failed fixture assertions remain separate receipts; the corrected
+Unit descriptor preserves the production probe's strict phase/reason check.
+The broader checkpoint/recovery regression then passes all 196 PostgreSQL cases
+with zero skips, including those thirteen focused cases. This foundation does
+not activate the native terminal lane, terminal audit or stronger terminal
+storage guards.
+
+The forward terminal-history migration freezes a non-NULL request reason and
+requires complete positive no-plan history before the first dead-letter write.
+It preserves the existing app NoStart/release guards, grants and four-role
+boundary. Its initial eighteen-case run passes twelve and fails six: five
+expose an ungranted payload-column read in the new guard, and one exposes a
+dirty-control fixture that removed existing owner-clearing housekeeping. The
+correction uses only permitted outcome metadata and restores the actual prior
+function for dirty controls. The corrected build has zero warnings/errors and
+all 217 PostgreSQL cases pass with zero skips, including canonical DDL parity,
+exact prior-function Down/reapply, first/sixth actual NoStart, malformed prior
+history, immutable reason and unadmitted retirement controls. A bounded reviewer
+verifies both fixes and finds no further defect; this is no full review-round
+credit and does not activate the terminal worker or its audit path.
+
+#### Native terminal and finalizer policy qualification (2026-10-17)
+
+The existing terminal lane now owns actual app NoStart cleanup independently of
+ordinary terminal SQL. Its main/auxiliary application-source pair raises the
+current application-pool floor to 24 and maximum supported floor to 120. Earlier
+22/118 receipts above retain their historical meaning. A speculative empty
+cleanup lookup does not increment pending outcomes. Stop joins the actual task,
+scope and callback; an expired lease never substitutes for cleanup evidence.
+
+The prepared terminal path retains plan, operation and selected outcome metadata.
+Its existing witness has a prepared 40-column returned projection alongside the
+unchanged NoPlan 13-column and app 37-column projections. A private-constructed
+24-column prepared acquisition carries the exact additional metadata. The
+forward migration requires positive complete history before stamping incomplete
+business finalization; its Down restores the exact prior transition function.
+Audit failure rolls back both terminal completion and the incomplete flag.
+
+Actual native tests verify permanent Prepare refusal, sixth NoPlan recovery and
+an already-recorded NoStart, including real cleanup-lease expiry and exactly one
+MUST audit. Native Finalize tests roll back a nested business write, then admit a
+fresh Finalize without rerunning the provider. PostgreSQL transaction identity
+is captured while live: Npgsql can recycle its transaction object, so object
+reference inequality was an invalid initial test premise. The corrected first
+qualification passes sixteen PostgreSQL cases with zero skips.
+
+A later execution deadline could discard an already-classified, positively
+cleaned Permanent Prepare or Finalize result. Both now retain that actual result
+in the existing bounded control queue; status accounting can outlive execution
+permission without reopening app/provider entry. Native timer-disposal barriers
+verify this window, host-stop refusal and actual handler cancellation returning
+RetainOwnership. Unknown status COMMIT permits only exact historical probes
+until rollback is established. Changed ownership ends the old authority without
+claiming its COMMIT succeeded. Retained terminal and finalizer history dispatch
+precedes generic probe interpretation, including copied-boundary refusals.
+
+The expanded PostgreSQL qualification passes 214 of 216 cases; two planted-history
+fixtures incorrectly ask the restored transition guard to accept damaged history
+while expiring scheduling ownership. Correcting only that setup makes both pass.
+The subsequent 42-case run passes 41; its remaining new foreign-owner fixture
+incorrectly moves an already-expired lease forward. The corrected final focused
+run passes fourteen cases with zero skips, including that refusal and a selected
+external failure followed by six real Finalize admissions, all five backoffs and
+one honest terminal MUST. Explicit fixture eligibility avoids waiting over an
+hour; these are not six native delayed wakeups. The production source also has
+2,396 passing Unit cases. All qualifying Release CI builds have zero warnings
+or errors; initial migration/import build mistakes remain separate receipts.
+
+The first complete architecture run passes 304 of 330 cases and fails 26. Exact
+caller/signature/owner guards require alignment with the new external paths;
+their nonempty subjects and planted violations remain required. This is a
+recorded failing self-check, not completed architecture qualification or either
+full review round.
+
+Uninvokable cleanup and request routing are implemented without requiring an
+Active definition or reconstructing module parameters. The candidate selector
+proves positive cleanup history before its bounded page; unresolved earlier
+rows cannot consume that page. Historical request probes retain their original
+identity, compare selected timestamps independently of session time zone and
+reject mixed specialized histories. A forward migration extends only the
+positive NoPlan terminal reasons; prepared finalization guards stay unchanged.
+
+The first foundation builds with zero warnings/errors and passes twenty-eight
+existing PostgreSQL terminal-history cases. The subsequent 257-source checkpoint
+passes all twenty-one dedicated uninvokable/invalid-envelope cases and the real
+native application-source contention case. Its 272-case PostgreSQL run passes
+271 cases and fails one index-name assertion: the normal planner legitimately
+chooses the newly added matching retirement index for a pending query. All four
+actual control-query plan cases, canonical DDL parity and full schema
+rollback/reapplication pass. The assertion correction permits only that known
+pending/retirement pair, retaining the cutoff, scan-bound and removed-index
+controls. Its focused correction run passes all thirty-two PostgreSQL cases,
+including the twenty-one uninvokable cases, all four actual control-query plans,
+the five ordinary eligibility/index-removal cases and canonical/full-rollback
+parity.
+
+At that same source checkpoint, Unit passes 2,396 cases, Contract four and
+Docker-free HTTP integration 176, all without skips. Architecture qualification
+runs all 333 cases in two complementary groups: 326 pass and seven fail. The
+failures expose stale exact-owner expectations, missing recovery-minter census
+coverage, a Cecil mutation-restoration error, a composed table projection and
+the published method count. All 1,074 external orchestration dirty/restoration
+controls pass. The first correction run passes five architecture cases, including
+the exact owner/minter baselines, terminal mutation controls, literal-SQL guard
+and corrected count. Expanded minter mutation qualification then passes; the
+owner mutation test exposes a further missing multiplicity check between the
+two identical external budget projections. Requiring both exact occurrences
+closes that false-pass control without removing either mutation.
+
+The next correction build has zero warnings/errors and Unit again passes all
+2,396 cases. Both orchestration facts pass in 4m53s, including all 1,074 external
+dirty/restoration controls. The authority and owner group passes three cases in
+6m16s, including the corrected budget mutations. Detector-local target-name and
+identity indexes preserve fresh baseline/dirty/restored scans; detached targets
+remain explicit offenders. These durations are receipts, not a controlled speedup
+measurement or evidence that the complete CI backend job fits twenty minutes.
+Step 9 retains that complete-job qualification. The first two helper analyzer
+warnings and all seven original architecture failures are closed by focused
+corrections; the original failed full run remains a separate receipt.
+
+Commit preparation identifies whitespace/encoding-only corrections in fifty
+changed files. They are applied after all running tests stop; final format/build
+and representative post-format checks then pass. The complete solution verifies
+format without changing any of its 1,268 files, and Release builds with zero
+warnings/errors. Post-format Unit passes 2,396 cases, Contract four, architecture
+seven and PostgreSQL thirty-three, including the native application-source
+contention case. The normal nonempty/zero-skip TRX guard verifies all four test
+assemblies. The 258-source SHA-256/mode manifest closes at
+`b9187ae8e90976f7b974171cb1563c5b3a4df57e070809f845f3d040678600be`.
+No complete current-head suite, PR/CI success or full review-round credit is
+claimed. The changed-document audit passes 1,377 relative links and 423 fragments;
+all seven ADR parser controls pass.
+
+The remaining Step 7 checkpoints are explicit:
+
+| Checkpoint | Current state |
+|------------|---------------|
+| External stages, durable policy, reconciliation and native terminal/finalizer paths | Implemented; earlier focused receipts above record their source-specific qualification |
+| Uninvokable retirement/invalid-envelope cleanup and candidate progress | Implemented; twenty-one dedicated cases, actual retirement-index seek and corrected alternate-index assertions pass |
+| Native application-source contention | Genuine contention regression passes with the provider task retained and an unrelated transactional job completing at the application-source floor |
+| Complete exact census and relevant backend regression | Focused implementation qualification and correction checks pass; full packet regression/CI remain Step 9 |
+| Step commit and two fresh full review rounds | Implementation committed as `6e90a52f`; both full review rounds and verified corrections complete; the round-2 correction and closeout share this commit |
+
+Both full Step 7 reviews and their verified corrections are complete.
+All nineteen packet obligations remain Registered; no
+production business definition is added. Steps 8–9 and real PR/CI closeout remain pending.
+
+#### Step 7 full review round 1 (2026-10-17)
+
+Implementation commit `6e90a52f` passes normal hooks and leaves a clean tree.
+Three fresh independent reviewers inspect the complete Step 7 range from
+`0ea50b15`: GPT-6-astra at xhigh for runtime/authority, and two GPT-6.1-sol
+reviewers at xhigh for storage/isolation/audit and proofs/composition/corpus.
+These are full source reviews, distinct from the earlier slice preflights;
+reviewers run no toolchain and supply no additional runtime or CI receipts.
+
+The unique findings are external capacity deferral, the terminal NoStart
+candidate cutoff, and required provider-causality qualification. The runtime
+review independently corroborates the capacity and causality findings, with
+no additional verified runtime defect. No new tenant/org isolation, privilege,
+policy, release or terminal-audit atomicity defect is established.
+
+External normal admission correctly refuses a full capacity group without
+inserting an attempt or reservation. Its shared control disposition still
+accepts only the transactional profile, silently leaving the external routing
+lease. A real app-admission/native-control regression fails the unchanged
+implementation at that retained routing owner. The correction admits the two
+ordinary profiles through the same exact pending/routing/token/generation/live
+lease fences; finalizer admission remains separate. The corrected real-path
+case passes, including the recorded five-second wait, genuine provider/Outcome
+release, new admission before the old lease expires, and stale-token refusal.
+The twenty-one related PostgreSQL cases and all 2,396 Unit cases also pass with
+zero skips and a zero-warning/error Release build. The original red receipt
+remains separate; these focused checks are not a complete packet rerun.
+A separate source inspection finds no actionable issue in this correction;
+it supplies no second-full-review or complete native handoff credit.
+
+The terminal NoStart candidate query used a volatile cutoff where selection
+requires a stable statement timestamp. A real migrated-schema regression seeds
+6,000 future terminal audit-backoff subjects with guarded NoStart/release history
+and 6,000 unrelated occupied subjects. The original query fails its stable-range
+assertion and records 36,000 loop-weighted plan-row visits, not distinct rows.
+Stable cutoffs alone still fail the one-due-page work bound: a flattened
+reservation EXISTS scans unrelated reservations. A local zero-offset fence keeps
+that probe correlated to each due candidate. Full positive history remains before
+LIMIT, and fresh post-lock authority checks remain unchanged.
+
+The exact corrected query passes both idle/one-due cardinalities, the stable
+index condition and fewer than 256 loop-weighted visits. Changing only its
+available-after cutoff back to the volatile clock exposes the large idle scan.
+All thirty-eight selected PostgreSQL cases, including existing control-query
+plans and terminal/history controls, pass with zero skips; three architecture
+checks pass and Release builds have zero warnings/errors. The first stable run's
+integer-only EXPLAIN JSON parser failure is retained separately and corrected to
+accept PostgreSQL's numeric row counts. The actual stable-only failures and their
+plan remain separate receipts; no measured timeout, forced planner option or
+new index/grant is claimed. Independent correction inspection finds no actionable
+issue and supplies no second-full-review credit.
+The existing provider tests preselected cancellation policy; they did not prove
+an actual runtime cancellation becoming a durable Cancelled report and surviving
+fresh-host Reconcile. Three new native cases now pass. An actually accepted
+Running operation honors the private runtime token and commits Cancelled with
+positive provider fencing in its independent database. Its stopped original
+owner joins without writing Outcome or releasing occupancy. A fresh host/source/
+Run with no original probe reconciles the same job/operation/attempt/deadline,
+checkpoints its exact policy/evidence, releases capacity and commits domain
+finalization with both MUST audits.
+
+The companion permanently fails and durably closes its provider fence before
+stop, while holding only the response across stop; fresh recovery preserves that
+independent meaning. A third, explicitly dirty adapter changes only a genuine
+Cancelled Reconcile report to Failed/Permanent. It leaves the provider journal
+unchanged, actually reaches the wrong persisted result, and is rejected by the
+same semantic assertion used by the clean companions. This proves adapter
+qualification, not generic runtime certification of external causality.
+
+Independent source inspection finds no actionable issue in the correction design.
+The three actual native cases, all 2,396 Unit cases and four Contract cases pass
+with zero skips and a zero-warning/error Release build. The initial three analyzer
+warnings are corrected by explicitly awaiting provider-owned cleanup independently
+of its already-cancelled input. The remaining seventy-one provider/SDK cases
+also pass in 8m46s. Together the two disjoint filters execute all seventy-four
+cases in that class, including genuine native, lost-reply/ACK, recovery, retry,
+finalizer, cancellation/cleanup and source-contention controls. Four architecture
+checks pass. The normal runner guard verifies nonempty execution and zero skips
+in all four assemblies; its initial suffix-only invocation is retained as an
+invocation failure, separately from the passing full-assembly-name invocation.
+
+Format verification changes zero files. The seven-document audit passes all
+1,377 relative links and 423 fragments. The final 261-source SHA-256/mode manifest
+closes at `b1404b39d54434ba1fa3233bbe9fb742cc856d828139406d61a6ed11f9df005c`;
+the corrected runner invocation has its own receipt without rewriting that manifest.
+Capacity and candidate-scan fixes are committed as `ef3cf7b4` and `1ef18e64`.
+This correction closes the three verified first-round findings; the second fresh
+full review remains pending. No complete current-head backend/CI run or packet
+obligation promotion is claimed; Steps 8–9 and the full closure gate remain open.
+
+#### Step 7 full review round 2 (2026-10-17)
+
+Three fresh independent reviewers inspect the complete Step 7 range
+`0ea50b15..d0eb7596`: GPT-6-astra xhigh covers runtime/authority and a second
+GPT-6-astra xhigh covers storage/security/audit; GPT-6.1-sol xhigh covers
+proofs/composition/corpus. Runtime and storage report no actionable findings.
+The proof review identifies one required coverage gap and one minor live-standard
+correction. These are full reviews, distinct from earlier narrow inspections.
+
+The genuine provider recovery tests did not exercise Failed/TransientNotRepeatable
+or Cancelled/TransientRepeatable through Reconcile. The existing recovery theory
+now retains its three cases and adds those two; no Fact/Theory method or catalogue
+count is added. Original Execute returns a completed report without an exception,
+but its application Outcome is deliberately absent. Fresh native recovery reads
+the same independent provider attempt before any later execution.
+
+An actual acknowledged recovered Outcome holds its cleanup before disposition.
+App-role assertions bind state, policy, operation, fingerprint, evidence and atomic
+quiescent release to the original provider journal. Repeatable cancellation has
+no premature failure selection and later spends a distinct normal admission on
+the same operation. Nonrepeatable failure commits its ordinary failure finalizer
+and exact `external_retry_forbidden` MUST audit without another Execute. Both
+new cases and all seven existing retry/recovery/ACK cases pass: nine cases, zero
+failures/skips, with a zero-warning/error Release build.
+
+A temporary Reconcile-only adapter mutation maps the two policies to different
+valid policies while leaving provider storage unchanged. Exactly the two new
+cases fail at the same stored-policy comparison; the three existing recovery
+controls pass. This is an executed adapter-protocol negative control, not runtime
+certification of provider truth. The exact fixture bytes and mode are restored
+and independently verified against the clean 261-source snapshot. The restored
+Release build has zero warnings/errors; its five-case native rerun passes with
+zero failures/skips in 1m33s. The restored-source manifest closes at
+`33ba204ead511e91fa7f0ad7c63394e07e5fa894874b5d0df14e5290f2ea46db`.
+
+The live Infrastructure standard now describes the actual stage-specific wait
+switch and correct completed Step 6 review status. Independent narrow inspection
+finds no remaining issue in the correction or the actual clean/dirty receipts.
+The initial clean source manifest closes at
+`3654d96f7cb27241deeb049fbe05e8476211bff20ba54828778617ff220ec6e6`;
+the separate expected-failure mutant receipt closes at
+`2d6ace0de47a4babd374a605e2e6fd5cc11cd7865f5f19039d63320b8159312b`.
+
+A fresh complete Architecture run on the frozen `d0eb7596` source passes all
+333 cases with zero failures/skips in 30m41s; its 261-source manifest closes at
+`bc2936a69e07c77c23afb684d7f225f9b192199f0f9e7bbd6f825bdd4200c9ad`.
+This includes the earlier seven corrected controls and preserves their original
+failing receipts. It precedes the test-only policy extension; it is not a complete
+current-head backend/CI receipt. Step 9 still owns CI-duration qualification and
+full packet regression. All nineteen obligations remain Registered. The round-2
+correction commit closes Step 7 after both full reviews and verified corrections;
+Step 8 follows under the already Accepted plan. No new maintainer decision is pending.
+
+### P02b-4 Step 8 — durable recurrence and restricted fan-out (2026-10-18)
+
+**Locally complete after both full review rounds and verified corrections.**
+The [round-2 closeout](#step-8-full-review-round-2-2026-10-18) owns final evidence.
+Step 7 closes at `69405b16` after both full
+independent review rounds and verified corrections. Accepted ADR-0047 authorizes
+this step on `development`; no new decision is pending.
+
+The implementation is organized into three closure units within the unchanged
+approved Step 8. They do not replace the implementation commit and two fresh full
+review rounds required before Step 9:
+
+- Frozen monotonic manifests, UTC slots, coalescing and bounded lifecycle pages.
+- Actual-row recipient admission, scope recheck and atomic child/recipient receipt.
+- Owned runtime/tick integration, fairness, capacity and complete fault proofs.
+
+The first foundation adds idempotent manifest registration and one locked
+materialization quantum. Two actual sources converge; obsolete or conflicting
+revisions cannot overwrite the accepted manifest. Historical slots retain their
+stored target/policy; a newer manifest cannot be materialized by an older binary.
+CoalesceLatest atomically advances to the slot after the latest due occurrence.
+Future slots enter the index only when due. Pending/unknown targets defer without
+advancing and yield to healthy work. A denied occurrence INSERT rolls back both
+occurrence and manifest progress; restoring the narrow grant permits a clean retry.
+
+The focused foundation Release build has zero warnings/errors. Thirteen existing
+recurrence Unit cases pass; the extended PostgreSQL class passes eight cases and
+the production authority census passes one, all with zero failures/skips. Its
+266-source hash/mode receipt closes at
+`09aa9ca0275c531b65d11851a3674788762a8571c499a772e5140fcb62b765d1`.
+An initial missing test-helper compilation failure remains a separate receipt;
+no tests are credited to that failed build. These focused checks do not qualify
+the remaining fan-out/runtime surface or either full Step 8 review round. No
+production recurrence or business definition is added; nineteen obligations
+remain Registered.
+
+#### Lifecycle pages and foundation preflight
+
+Tenancy declares the status meanings as closed metadata. Its additive migration
+grants exactly eight SELECT columns; real dispatcher connections reject names,
+wider reads and tenancy writes. Raw tenant/organization pages bound examined keys
+before eligibility filtering. Frozen upper keys and recipient INSERTs advance in
+one transaction; denied INSERT controls leave neither bounds nor progress behind.
+The actual tenant query seeks past a 6,000-row ineligible prefix in a 12,000-row
+fixture without rescanning it. This is a raw-key eligibility sweep, not an MVCC
+snapshot cohort. No organization query-plan result is inferred from that test.
+
+Two planted same-revision manifest conflicts initially fail at the semantic
+materialization assertions. Both materializers now require the exact local hash
+when the revisions match, while preserving supported historical targets under a
+newer local manifest. Both cases pass in the restored clean run.
+
+Two independent foundation preflights inspect runtime/isolation and proof/corpus
+surfaces. Runtime has no verified finding. Proof review identifies that executing
+the canonical grant block after applying the migration cannot detect an omitted
+grant. The corrected test starts from a verified empty lifecycle ACL, proves the
+same exact-budget assertion rejects a missing required column, then runs the
+unaltered canonical block from an empty ACL and verifies its complete budget.
+These are bounded preflights, not either full Step 8 review round.
+
+The 275-source pre-correction receipt passes 35 PostgreSQL cases and both the
+positive and planted-violation authority cases, with zero failures/skips. It closes
+at `43873ad1a6b7c95bb578b4da04d2db8b7a6818e12be89236a50c949a977863e4`.
+After the proof correction and formatting, the Release build has zero warnings/
+errors; 35 PostgreSQL cases, all 2,396 Unit cases and the positive authority case
+pass with zero failures/skips. That 275-source receipt closes at
+`04894512bcfe8c444a82a5f16b956dd2c8e217d16146f4b88f860f842aa65b6c`.
+Earlier compilation failures and the two meaningful conflict failures remain
+separate receipts. These checks do not claim full packet regression or CI success.
+Restricted child admission and owned runtime/tick integration remain within this
+same Step 8, before its implementation/review closeout.
+
+#### Recipient acquisition continuation
+
+Foundation commit `69c3998a` preserves the preceding qualification and bounded
+preflight correction. Normal hooks leave all 275 validated source hashes/modes
+unchanged. Restricted recipient acquisition is the next unit, not a new step.
+
+The actual locked recipient now yields an opaque single-use claim containing its
+stored occurrence, route, manifest, target and fresh acquisition. The compatible
+registered manifest supplies its declaration Type; no stored CLR name is resolved.
+Publication requires positive claim COMMIT acknowledgement, actual cleanup and a
+conservative remaining lease interval. Pending, unknown and same-revision
+conflicting binaries defer without publishing authority. Two independent sources
+cannot issue one live route twice; a competing application row lock is skipped.
+Acquisition itself creates no child or business execution.
+
+The 278-source qualification passes a zero-warning/error Release build, 41
+PostgreSQL cases, all 2,396 Unit cases and the positive authority case, with zero
+failures/skips. Its source/mode/artifact receipt closes at
+`cd7961e2b5873fa94b326caedacf265decffaf81cb7552591718fbe927c3eb52`.
+An earlier test assertion compilation error remains its own failed-build receipt;
+no tests are credited to it. App-role child submission, its completion gate and
+acknowledgement-loss behavior remain pending in this same Step 8. Full Step 8
+reviews and runtime/capacity enforcement remain pending.
+
+The narrow acquisition preflight finds two additional source issues: claim
+ordering includes a column absent from the pending index, and declaration-kind
+validation rejects metadata accepted at registration. The corrected query orders
+by `(available_after, id)`, matching the canonical index. A real 3,000-recipient
+zero-jitter backlog proves the actual query uses that index without sorting and
+examines a bounded quantum. Restoring the obsolete order in the same query makes
+the same detector fail and consumes the backlog before LIMIT. Interface, struct
+and open-generic manifest declarations pass the actual registration-to-claim
+flow without constructing any feature service; owning-assembly validation remains.
+
+After these corrections, the Release build has zero warnings/errors; 45
+PostgreSQL cases, all 2,396 Unit cases and the positive authority case pass with
+zero failures/skips. The 278-source receipt closes at
+`d12a0f5fdaebacf0cfb7e8d93e0df8b65cf32a7e9e107514b39e37add1e8090f`.
+Independent correction verification checks the source and hashed artifacts and
+closes both findings without a new verified issue. This remains bounded
+preflight/correction evidence, not either full Step 8 review round.
+
+#### App-role recipient submission continuation
+
+Acquisition commit `2059a7ee` preserves the preceding evidence. The closed
+recipient executor now installs the actual tenant/organization route without an
+invented child or parent identity and sends one exact framework request through
+the existing coordinator. Its participant binds the original source owner,
+physical transaction and positive tenant announcement. The app-role owner locks
+the recipient, evaluates a fresh database clock and rechecks current lifecycle
+eligibility before creating one fixed occurrence-input child.
+
+The common scheduler INSERT preserves ordinary producer checks and records
+produced work only after successful SQL; failure marks the existing owner
+rollback-only and rethrows. After owner drain and MUST audit, the participant
+checks the full immutable route, original token and live lease and writes the
+reciprocal receipt. A conservative monotonic budget covers SQL and cleanup until
+the final commit gate. Only the existing coordinator records commit ACK. The
+executor retains its source, scope and cancellation ownership through actual
+cleanup; it constructs neither the target request nor its handler.
+
+Real PostgreSQL cases cover tenant and organization success, lifecycle refusal,
+single-use replay, a closed gate and independent child-INSERT/receipt-UPDATE
+failures. Both writes commit together or neither remains. Construction controls
+exercise the actual registered target and handler separately and prove the same
+no-construction assertion rejects each. Exact production censuses enroll the new
+framework/context/source/owner path and retain the original admission restrictions.
+
+The 287-source qualification passes a zero-warning/error Release build, 75
+PostgreSQL cases, all 2,403 Unit cases and twelve focused Architecture cases, with
+zero failures/skips. Its source/mode/artifact receipt closes at
+`464b9554dac3d4b0060b8ca7021a16127741abd8b8d8518948dadf2da3fe18f2`.
+Narrow proof review identifies five planted field/constructor mutations that the
+first detector incorrectly accepts. All five fail against that original detector;
+the corrected detector checks full writer identity, opcode and exact private
+constructor/flag shape, and the same controls pass in the qualification above.
+Earlier build, SQL and detector failures remain separate receipts.
+
+Final guard additions pin the recipient executor's exact internal signature and
+currently empty production caller set. The shared INSERT proof binds its actual
+SQL invocation and await acknowledgement to the same rollback-only/rethrow catch;
+produced work must be invoked after acknowledgement and outside failure handlers.
+Ten targeted controls move, remove, delegate or detach these actual instructions.
+The earlier detector's incorrect compiled-signature assumptions remain a failed
+qualification, not a runtime finding. Independent correction inspection verifies
+both catch binding and invocation sensitivity without claiming test execution.
+
+Only that Architecture test file changes after the preceding 287-source receipt.
+Its final Release build has zero warnings/errors; all seventeen recipient
+Architecture cases and two real auxiliary-cleanup regressions pass with zero
+failures/skips. Full formatter verification reports no changes. This source/mode/
+artifact receipt closes at
+`65ba343bf9da98134a09e0e6297364d38daf752d57ef0aab2a03d3c2e6b3bd7a`.
+These are local, source-specific receipts, not current-head full backend or CI
+qualification.
+
+At this continuation's commit, historical acknowledgement-loss confirmation and
+confined skip/defer remain pending; the following record owns their delivery.
+Additional fault controls and native runtime/fairness/capacity integration remain
+pending. This is not complete Step 8 delivery or a full review round.
+No production recurrence or business definition is added. All nineteen
+obligations remain Registered; both fresh full Step 8 reviews precede Step 9.
+
+#### Recipient history and confined disposition
+
+App-role submission commit `a99e6a8a` leaves all validated source hashes/modes
+unchanged after normal hooks. A new confined operation now requires the original
+executor's positive cleanup before opening another physical source. Its original
+result has immutable authority fields and a constructor restricted to that
+executor. A locked-row observation checks the full stored route and reciprocal
+child before the old token: the accepted child wins even after token clearing or
+a later acquisition, without creating another identity or inventing the original
+COMMIT acknowledgement. A skipped lock is unavailable, never proof of absence.
+
+Without a final receipt, only the original DB-live token permits disposition.
+Current lifecycle is rechecked; a deleted/ineligible route is skipped, while a
+restored or otherwise eligible route receives bounded deferral. The final UPDATE
+repeats the complete route/token/time fence. No app grant or business attempt is
+added; this status operation publishes only after its own ACK and cleanup.
+
+Nine new PostgreSQL cases use real server-COMMIT response loss and unforwarded
+COMMIT requests, counted identity creation, actual row locks, actual replacement
+acquisition, lifecycle restoration and a throwing scoped cleanup dependency.
+They distinguish a stored child observation from the original ACK. The initial
+qualification retains one fixture failure at the forbidden live-token rewrite
+and the detector's compiled-string mismatch; neither is a runtime finding.
+The fixture now expires the lease and reacquires through the actual store.
+
+The final 289-source Release build has zero warnings/errors; 44 PostgreSQL cases
+and 22 focused Architecture cases pass with zero failures/skips. All 2,403 Unit
+cases pass before the two test-only corrections. Formatter verification reports
+no changes. The final source/mode/artifact receipt closes at
+`cbcc6cff06e17f089c4923e0819703e118454e8d68eed103288e896731e979d8`.
+Narrow independent source inspection finds no unresolved runtime/test-evidence
+issue and claims neither test execution nor full Step 8 review credit.
+Remaining admission/fault controls and native integration still precede both
+full Step 8 review rounds and Step 9. Nineteen obligations remain Registered.
+
+#### Recipient admission fault qualification
+
+History commit `f08f8bf1` preserves the preceding source qualification. Eleven
+additional PostgreSQL cases exercise corrupted actual claim facts, context
+replacement during identity creation, lease expiry after an observed row-lock
+wait, and stop after the actual receipt UPDATE but before commit admission.
+The tests check actual identity creation, SQL effects and rollback together;
+no production seam or business definition is added.
+
+Narrow independent inspection identifies that the first context-callback test
+cannot distinguish refusal before INSERT from rollback afterward. The corrected
+paired test observes an actual server-side INSERT notice. Removing only the
+post-identity context guard makes the corrupt case fail that exact assertion
+while its healthy counterpart passes. The original production bytes and mode
+are restored and verified against HEAD before rebuilding. This deliberately
+failing mutation remains a separate receipt, not a production failure.
+Independent correction inspection verifies the same assertion's failure, exact
+source restoration and passing paired cases; no further issue is identified.
+
+The restored 290-source Release build has zero warnings/errors; all 55 cases in
+the recurrence PostgreSQL class pass with zero failures/skips. Formatter
+verification reports no changes. The source/mode/artifact receipt closes at
+`022523338fa6f8ee3c3384f2b5ce878bb31b099035e16d07df338e65f995b8d0`.
+Only Integration test sources change after the preceding committed production
+qualification; Unit and Architecture suites are not repeated or claimed here.
+Native runtime, fairness and capacity integration remain pending before both
+full Step 8 review rounds. This focused qualification does not close Step 8.
+
+#### Native recurring-write serialization
+
+Recipient fault qualification is committed as `35c3e0d5`; normal hooks preserve
+its validated source hashes/modes. Actual stock recurring `Job` writes now lock
+the exact unsuperseded revision inside the vendor transaction. The explicit
+volatile trigger takes a fresh snapshot after earlier waits, and bootstrap checks
+the installed volatility with its existing body/language/search-path/ACL contract.
+A generated additive migration upgrades already-migrated stores and restores the
+preceding exact body on Down. Canonical SQL remains in Standards 05.
+
+Ten focused PostgreSQL cases use the real stock manager without starting workers.
+They cover old-over-new refusal, an unchanged Job omission, retained older hints,
+volatility-only drift, independent migration Up and canonical replacement, and
+three actual lock interleavings. The same assertions reject the KEY SHARE,
+missing-active-predicate and stale nonlocking-snapshot controls. No elapsed sleep
+establishes those barriers; the tests observe actual blocking backend identities.
+
+Narrow source review identifies that applying canonical SQL before Up would mask
+an omitted upgrade body. The corrected test first upgrades the actual old body
+through the migration alone, then independently tests canonical replacement.
+No further concrete issue is identified. Earlier SQL-cast and test transaction
+cleanup failures remain separate receipts; a subsequent build-only receipt
+grants no test pass.
+
+The final 297-source Release build has zero warnings/errors. The ten focused
+cases and the broader 143-case PostgreSQL selection pass; the broader selection
+includes those ten cases. All 2,404 Unit cases pass, with zero failures/skips.
+Formatter verification reports no changes. The source/mode/artifact receipt,
+including current SQL and canonical carriers, closes at
+`aa38ded6b0042cba7a3521bbf02ada212b6cf09ae74c4fdde3ca5deac89aaa97`.
+This is local qualification of the guard/storage unit, not full Step 8 review or
+packet-wide CI. Owned runtime/tick integration, fairness, physical capacity and
+their real fault proofs remain within Step 8. All nineteen obligations remain
+Registered; both fresh full reviews still precede Step 9.
+
+#### Runtime connection and stored quarantine qualification
+
+Guard/storage commit `c4a93deb` precedes this runtime unit. The existing facade
+now owns a recurrence child, one independent native manager flight and at most
+four actual recipient application owners. Durable registration, slot, page,
+claim and original-receipt history quanta rotate on one SQL lane. Native ticks
+only coalesce a memory signal; they construct neither recipients nor feature
+work. Exact recipient IDs remain excluded while their original task, cleanup or
+receipt history is retained. Failed cleanup supplies no replacement authority.
+
+The shared observation reads stored recurrence, occurrence and recipient
+quarantine independently of the local registry, including unknown older keys.
+Each table has a reversible partial presence index. Both observation values
+require actual reader/command cleanup and acknowledged ROLLBACK. Failed refreshes
+preserve the preceding value and make the observation unhealthy. API composition
+supplies Tenancy's existing closed lifecycle declaration as metadata.
+
+The named capacity inventory adds two privileged connections and four application
+main/auxiliary pairs; stock worker and retained-invocation bounds do not increase.
+Standards 05 owns the reconciled formulas. Real default/maximum app inventories,
+explicit unrelated headroom and actual default/maximum native facade composition
+exercise their own boundaries; this does not claim simultaneous saturation of
+every runtime lane. Existing owner/caller manifests admit only the new concrete
+recipient and recurrence callers, without widening source-acquisition authority.
+
+The initial runtime build retains three analyzer failures as a separate receipt.
+An intervening Unit run passes 2,401 cases and fails three old capacity premises;
+after their correction, all 2,404 Unit cases pass. The first two native fan-out cases
+reach completed children before their test-created ticks fail the transport's
+ambient-culture guard. The corrected test uses the real native owner's invariant
+culture boundary; that guard remains unchanged. A subsequent 311-source build has
+zero warnings/errors, 2,408 passing Unit cases and 78 passing PostgreSQL cases.
+Three new quarantine refresh cases fail because revoking a column grant cannot
+remove the existing table-level SELECT grant. Their corrected premise first
+proves actual `42501` after revoking the real grant, before awaiting health change.
+
+The final 322-source Release build has zero warnings/errors; all 2,408 Unit cases,
+twelve focused PostgreSQL cases and four focused Architecture cases pass with
+zero failures/skips. The PostgreSQL selection covers each corrected cold-runtime
+quarantine path, expired-lease exclusion, invalid exclusion sets, populated
+recipient query plans, three-index Down/Up, actual facade topologies and actual
+native transactional progress at the new app floor. Earlier passing cases include
+both tenant/organization fan-out paths, three duplicate stock ticks per path,
+reciprocal receipts and each control index's decisive 3,000-row removal control.
+The final selection does not rerun or relabel that earlier broad selection.
+Formatter verification reports no changes. Its source/mode/artifact receipt closes
+at `8722a6b2799ba23d3cc1d8271c56dc9357b649a5b684160df8a4f8beabcc08f8`.
+
+Two narrow source preflights identify the missing isolated quarantine/index proof
+and the exact existing caller enrollments, addressed above. They execute no tests
+and grant neither full Step 8 review round. Complete new-owner/tick capability
+guards and retained-work, fairness and shutdown fault qualification remain before
+both fresh full Step 8 reviews. Nineteen obligations remain Registered; Step 9 is
+pending and no packet-wide regression or CI success is claimed here.
+
+#### Actual native hold and parent-source pins
+
+Runtime commit `c500bcba` precedes this test-only qualification. An actual Npgsql
+diagnostic callback holds the stock recurring manager on its owned native thread.
+Two registered keys still produce two completed durable children. This is a
+bounded synthetic callback hold, not a network-fault reproduction or a minimum
+connection-pool proof. The fixture has explicit unrelated connection headroom.
+
+The original one-key assertion could pass with the hard native-flight guard
+removed because the same-key cooldown independently prevented replacement. A
+narrow source review identified that masking premise. Two keys now establish a
+second eligible native opportunity; the test reads the actual published owner
+under its lock and verifies that its original thread remains the sole owner.
+The first strengthened run fails only because a string assertion selects the
+wrong overload; its corrected explicit collection assertion preserves the premise.
+
+Before testing source retention, all ordinary pools, shared maintenance, bridge,
+parent control lanes and recurrence loop/cancellation relay positively join.
+The held native invocation still prevents parent completion and both actual
+source lifetimes from disposing. Releasing the callback permits actual SDK/thread
+return, parent completion and positive disposal without cleanup faults. An
+independent nested-finally join retains the original thread even when an
+assertion or parent shutdown fails.
+
+Two separate temporary source controls are decisive: removing only the hard
+native-flight guard admits the second key and fails the original-owner assertion;
+removing only the parent's recurrence completion await makes stop finish early
+and fails the finite-stop assertion. Each control builds without warnings/errors,
+fails the same test and is restored byte-for-byte with its original file mode.
+No deliberate violation is committed.
+
+The final restored 323-source Release build has zero warnings/errors. All 76
+recurrence PostgreSQL cases pass with zero failures/skips in 43 seconds, including
+the actual native hold, tenant/organization fan-out, native races, recipient
+receipts/history and stored quarantine paths. The runner's nonempty/zero-skip
+guard passes and scoped formatting reports no changes. The source receipt closes
+at `c9331866654efc91c83769cb718398416c97084897f38547a0a18f9cd2253416`.
+The narrow review supplies no full Step 8 review credit. Remaining recipient
+retention/fairness and exact capability guards still precede both full rounds.
+
+#### Actual recipient ownership, expiry and source cleanup
+
+Following `dd600e88`, the actual runtime exercises six due recurrence keys with
+four real recipient application tasks held before their handler acquires a row
+lock. Each retains its original unit, source owner and published operation.
+PostgreSQL's clock establishes natural expiry of all four 15-second leases;
+the fixture neither rewrites those leases nor substitutes local timestamps.
+Durable registration and fan-out continue while all four application slots remain
+occupied, including their timed-out actual tasks.
+
+The otherwise-eligible production selector independently ranks a retained original
+first. Three handlers then return through their real closed-gate refusal,
+rollback, cleanup and history resolution. Exact original-object eviction permits
+a fresh operation for the same ID. Another recipient commits its reciprocal child
+and completes while the remaining held row preserves its original token and
+operation. Releasing that old attempt cannot attribute a later child's ACK to it.
+All six children eventually complete through the actual runtime.
+
+Two separate source controls fail the same semantic assertions: enlarging the
+ceiling from four to five admits six wrapper entries, and removing only the SQL
+retained-ID exclusion replaces the otherwise-first held token. The rank helper
+does not assert the removed SQL spelling, and full capacity does not mask the
+exclusion check. Both controls build cleanly and are restored with exact hashes
+and file modes before final qualification.
+
+Two further cases separate a physically held original cancellation callback from
+an actual DI scope's successful asynchronous disposal. The callback case first
+proves that the executor, scope and application-source cleanup have returned;
+the cancellation relay alone remains held. The scope case instead observes a
+positive child COMMIT ACK while actual scope disposal and executor return remain
+pending. Every sibling, including any native registration, positively joins
+before the original operation and both source pins are checked. Replacing the
+all-owner cancellation join with an any-owner wait fails the callback case while
+the independent scope case still passes. The original join is restored exactly.
+
+Narrow reviews correct the exact three-history-owner eviction observation and
+the registration fixture's inline-cancellation race. Registration is itself an
+owned actual task with a finite setup wait. All barriers release before shutdown;
+nested finally blocks independently join registration cleanup and the original
+operation. These reviews grant no full Step 8 review credit.
+
+The initial application-test build records two analyzer errors, corrected without
+changing production policy. Earlier clean qualification passes the application
+case and both source-pin cases. The final restored 325-source Release build has
+zero warnings/errors; all 79 recurrence PostgreSQL cases pass with zero skips in
+1m08s. The four focused Architecture cases initially expose the stale published
+240-method count; five already-added Step 8 methods make the actual total 245.
+After that documentation correction all four pass, including Docker-trait and
+planted-trait checks, the non-skip guard and catalogue counts. The runner verifies
+nonempty execution and zero skips; explicit TRX checks separately require zero
+failures in both final runs. Scoped formatting reports no changes. The source,
+mode and artifact receipt closes at
+`c463834754105981e5babcad10d39cbf0529a6c8a4b9f3b0358ba0ae94ebec6a`.
+
+New-owner/native-manager/tick/exclusion capability guards and their planted
+controls still precede both fresh full Step 8 review rounds. Nineteen packet
+obligations remain Registered, Step 9 remains pending, and this qualification
+claims neither packet-wide regression nor CI success.
+
+#### Recurrence core capability qualification
+
+After `b72ce6ce`, a new nonempty production census closes the four concrete
+recurrence owners' constructors, startup/cancellation callbacks and parent
+completion capability. It pins exact declaring assembly, method signature,
+visibility, caller, opcode and multiplicity. The internal sealed native client's
+primary constructor has public IL visibility; the census records that actual
+shape without changing production accessibility. Null-conditional native stop
+and thread-exit calls likewise retain their exact compiled opcodes.
+
+A narrow review finds that name/count checks alone could accept a foreign
+cleanup target. Cleanup checks now require the exact trusted .NET 10 facade
+identity, full signature, instance/static shape and opcode. Actual configured
+awaiter identities preserve multiplicity, including both non-generic native
+awaits. Attached foreign capability, Thread and nested awaiter controls must fail
+the same detector; each restores the original operand before removing its
+temporary in-memory type. No assembly file or production source is mutated.
+
+Earlier guard runs record incorrect constructor/opcode premises separately;
+mutation cases failing their clean baseline receive no dirty-control credit.
+The final 326-source Release build has zero warnings/errors. Thirteen focused
+Architecture cases pass in twelve seconds with zero skips: the baseline, eleven
+clean/dirty/restored controls and the catalogue count. The two added companion
+methods bring the published count to 247. Scoped formatter verification reports
+no changes. Its source/mode/artifact receipt closes at
+`8d62c2fd3956e1bc2d182ea1dcda0f1ff61e7e00f6a5388480e971942ad4c4d2`.
+
+This qualifies the core capability slice, not semantic task-dataflow enforcement
+or the complete recurrence census. Field/holder and publication ownership,
+native SDK invocation, memory-only ticks and exclusion-list guards remain before
+both full Step 8 review rounds. Nineteen packet obligations remain Registered;
+Step 9 is pending. Neither narrow source review supplies full-round credit.
+
+#### Recurrence ownership, hint and publication guard qualification
+
+After `59a19e15`, the same two companion methods close the new owners' field
+inventories, resource types, exact access sites and whole-production holders.
+Actual async attributes identify permitted state-machine holders. Generic
+resource identities are checked recursively; same-name foreign resources and
+forwarding accessors are rejected. Each completion source retains its actual
+concrete owner. Existing physical-source, privileged-entry and rollback caller
+allowsets are unchanged.
+
+Native registration uses the exact stock manager seam, two manifest arguments,
+control queue, UTC minute hint and Relaxed misfire policy. The census includes
+the stock V2 recurrence interface. The fourteen-method tick closure admits only
+its enumerated memory calls/fields and pinned framework/vendor leaves; injected
+scheduling, indirect calls, changed tick identity or early readiness reads fail.
+This establishes a closed work surface, not an absolute latency guarantee or
+general argument/control-flow proof.
+
+Recipient selection retains its sole caller, bounded collection snapshot,
+actual UUID-array parameter and retained-ID SQL exclusion. Source-order checks
+pin publication before Start, cancellation join acknowledgement before source
+disposal, and positive completion after actual cleanup/thread-exit observation.
+The previously recorded actual PostgreSQL/retained-task controls supply the
+separate causal lifecycle evidence; structural order alone is not its substitute.
+
+Narrow independent inspections identify and verify corrections to the V2
+interface census, resource/generic identities, cancellation join acknowledgement,
+provider invocation identity and tick token. Earlier build/clean-premise errors
+are retained separately. The initial 43-case run has one passing catalogue case
+and 42 clean-baseline failures caused by an ambiguous completion-signal selector;
+none receives dirty-control credit. The corrected selector distinguishes the
+returned signal from positive owner completion.
+
+The final 330-source Release build has zero warnings/errors. All fifty focused
+Architecture cases pass in one minute ten seconds, with zero skips: the baseline,
+48 clean/dirty/restored cases and the unchanged 247-method catalogue count.
+Scoped formatter verification reports no changes; its workspace-load warning is
+not reported as a build warning. The source/mode/artifact receipt closes at
+`cc7fcc480cd9234aa9d80ef189d3a602bc32c5e10b884e5393cd797bd22c7b4a`.
+
+This completes the new guard slice. Both fresh full Step 8 review rounds remain
+before Step 9; these narrow inspections award neither round. All nineteen packet
+obligations remain Registered. No packet-wide regression or CI success is claimed.
+
+#### Step 8 full review round 1 (2026-10-18)
+
+Three fresh independent reviewers inspected `69405b16..332e7a4a`: GPT-6-astra
+xhigh covered runtime/lifecycle, GPT-6.1-sol xhigh covered persistence/authority,
+and GPT-6.1-sol high covered tests/corpus. These are full Step 8 reviews, distinct
+from the earlier narrow preflights. The reviewers ran no toolchain or database
+checks; the execution receipts below belong to the root implementer.
+
+Two Major findings and one Minor corpus correction were verified:
+
+- A stop winning before the new child's native-client binding or Start caused a
+  setup exception. The parent/facade could then retain a false cleanup failure
+  indefinitely despite no issued recurrence work. Both child entry points now
+  return neutrally for that stopped-before-setup state. Already-bound/started
+  duplicate refusals and an open nonempty owner's missing-client refusal remain.
+- PostgreSQL's finite timestamp range exceeds the CLR range. A schema-legal BC
+  activation or year-10000 anchor could repeatedly fail decoding the first due
+  row before its invalid-control branch, starving healthy work. Readers retain
+  the actual locked locator before decoding and treat unrepresentable dates as
+  absent facts, never fabricated valid values. After actual reader cleanup, the
+  exact recurrence, occurrence or recipient is quarantined without issuing work.
+  Only deterministic conversion exceptions are contained; IO/cancellation/server
+  failures retain the existing owner/cleanup path. Higher-revision registration
+  compares the prior activation in PostgreSQL instead of decoding it into CLR.
+- The live catalogue introduction still described completed Step 7 qualification
+  as pending. Both current pointers now agree with its completed record; Step 9
+  enforcement remains pending and all nineteen obligations stay Registered.
+
+The first four regressions ran against unchanged production code and failed at
+all four intended assertions, not fixture setup: two bad-date rows repeatedly
+failed without quarantine/healthy progress; two late child setup calls threw.
+That test-only receipt is
+`6613d4652759320ee077261bc6186efef597258d74d832431dc407d584d24299`.
+With the five production corrections, the same four cases pass; the first
+corrected receipt is
+`e54a9f08143b829cac78911e3291a2a7dfafe374e0a9dbee2e7548a6cb94948f`.
+Neither receipt is a current-head whole-packet regression or CI claim.
+
+The expanded qualification adds eight timestamp cases across recurrence
+materialization, occurrence paging, recipient acquisition and higher-revision
+registration, all under the real confined-role grants and unmodified guards.
+Each invalid selected row confirms ACK/cleanup, no authority/progress beyond
+quarantine, and healthy sibling progress. BC scheduled routes require BC manifest
+activation, so their absent-manifest branch does not independently qualify the
+recipient's own-date checks. A future year-10000 incumbent activation returns
+Conflict without inserting a revision; a BC incumbent permits the later valid
+revision and exact supersession/hash.
+
+Four lifecycle cases use actual owners and sources. The late setup assertions
+inspect the actual null client/native fields, unstarted flag, empty recipients
+and positively completed null-loop witness. A synchronous hold on the actual
+child monitor orders real parent Start past its admission guard before facade
+stop, then joins the original start task, parent/facade completion and both
+sources. The open/duplicate controls preserve programmer-error refusals. No
+synthetic owner/task/source replaces the real cleanup chain; the parent barrier
+is qualified on corrected code, not described as an original-code execution.
+
+The expanded Release build has zero warnings/errors. All 2,408 Unit, 91
+recurrence PostgreSQL and 57 focused Architecture cases pass with zero
+failures/skips. The Architecture run includes all 49 recurrence capability cases,
+four existing owner/recipient guards and four catalogue/skip/Docker-trait checks.
+The seven changed C# files pass formatter verification with no changes; its
+workspace-load warning is distinct from the warning-free build. The 332-source
+hash/mode receipt closes at
+`afdda5089283dd6eee49f527576466778817bf78f3a041c857d4385bccb00239`.
+The local link audit passes 1,740 links and 519 fragments. These focused checks
+do not replace Step 9's complete regression or real CI. Round 1 and its verified
+corrections are complete; a fresh full Step 8 round 2 is still required.
+
+Step 9 explicitly owns durable unknown/deployment-mismatch observation, including
+an empty-registry restart. Local registration mismatch flags alone do not qualify
+that cold durable-health surface. These corrections add no new ADR decision,
+role/grant, production business definition or general lifecycle selector.
+
+#### Step 8 full review round 2 (2026-10-18)
+
+Three new independent reviewers inspected the complete `69405b16..f687924b`
+range: GPT-6-astra xhigh (runtime/lifecycle), GPT-6.1-sol xhigh
+(persistence/authority/security), and GPT-6.1-sol high (proofs/corpus). The
+persistence lens verified no finding. Runtime and proofs independently found
+the same Major acceptance-proof gap, counted once: ADR-0059 explicitly requires
+recurrence progress while the actual control generation stays drained/held.
+The earlier native-manager-thread hold and empty-registry delayed-job repair
+proofs did not establish this composed scenario. No new Step 8 runtime defect
+was verified. These full reviews ran no toolchain/database checks.
+
+The new real-facade test preregisters a due 61-day-old, 30-day-interval manifest,
+then locks that actual row before starting the runtime. It holds the actual
+control generation's owned Invocation, requests drain, positively joins its
+normal children and verifies zero occurrences/native jobs before unlocking.
+The retention barrier is explicitly synthetic; no network/business fault is
+claimed. A coalesced occurrence skips two slots and completes one reciprocal
+recipient/child with one normal attempt while the same generation remains held.
+Three real SDK ticks remain Enqueued during drain; three actual duplicate store
+quanta add no slot. Releasing and positively joining the original generation
+permits a replacement to execute those ticks without another occurrence, child,
+normal attempt or feature execution. Actual runtime and both source lifetimes
+must confirm cleanup/disposal.
+
+A separate inherited Major parent-start race was verified against the Step 8
+base as well as current code. Facade startup could pass its final admission,
+then encounter an already stopped parent's throwing Start guard and retain a
+false cleanup failure indefinitely. This is not attributed to the new child
+race or Step 8 diff. It is corrected now within the packet: an already-started
+parent still rejects duplicates, but stop before its first start returns
+neutrally using RequestStop's actual empty-loop witness. No cleanup flag or
+completion promise is reset.
+
+The new stopped-parent leaf fails at the original guard on unchanged `f687924b`
+production, then passes with the correction. Its executed negative receipt is
+`6a01365667134f9e6ff9c03d74da65f5fa4e9eac756b7367333d54f2571a9970`.
+An initial test-only blocking-Result analyzer error is recorded separately and
+receives no execution credit. The corrected actual-facade test holds the real
+parent monitor, observes the original facade task's Starting state after its
+last admission, then calls stop before parent admission and releases the
+monitor. It joins that same startup task, facade and actual sources without
+awaiting under a monitor. A distinct already-admitted-parent case preserves
+duplicate refusal. The full facade barrier is qualified on corrected code;
+no old-code full-facade cleanup claim is made.
+
+Both focused correction reviewers approve the inspected source and causal test
+premises; these are verification of round-2 corrections, not a third full review.
+The first corrected 333-source receipt records a zero-warning/error Release
+build and four focused PostgreSQL cases passing with no skips:
+`88e67c6e998d603c87874635eee1deeac615b124732359ab8860abd82186aa12`.
+
+A deliberate, uncommitted source control couples control-generation drain to
+the shared process start gate. The same held-generation test then fails at
+post-drain durable child progress, after its actual join/row-lock premises,
+and performs its ordinary barrier/owner cleanup. That dirty receipt is
+`ba68cf1a3dd7a77c9490dc82fe1d3208c585569c88ae714cdda10c291ae968fe`.
+The generation source is restored byte-for-byte and the corrected source/mode
+inventory matches again. No mutant enters the change. The test demonstrates
+its ability to reject the forbidden dependency; it is not a production fault
+or unconditional delivery-latency guarantee.
+
+Final clean-source qualification freezes 333 changed/new C# sources and records
+a zero-warning/error Release build, 2,408 Unit cases, 94 recurrence PostgreSQL
+cases and 57 focused Architecture cases passing with zero skips. The focused
+Architecture run takes 4m12s. The final receipt is
+`268a030f9ee059860732668f78061973caf5cd6da342d5a43191a526915d9431`.
+Scoped formatter verification returns no changes. Both full Step 8 review rounds
+and verified corrections are complete; this closes Step 8 locally.
+
+Step 9 follows under the already Accepted plan. Its scope includes durable
+unknown/deployment-mismatch observation, full job metrics and health, complete
+nineteen-rule enforcement, the skill/carrier handoffs and full packet regression.
+The historical complete Architecture run exceeds the existing backend CI budget;
+Step 9 must measure and reduce repeated detector scans while preserving every
+subject and clean/dirty/restored control. No nineteen-rule promotion, complete
+backend/frontend/demo, packaging, CI-duration compliance or real PR-head CI
+success is claimed by Step 8 receipts. No maintainer decision is pending.
+
+
+### P02b-4 Step 9 — enforcement and packet closeout (2026-10-18)
+
+**Current status:** the [local closeout](#p02b-4-local-closeout-2026-10-18) owns
+completed implementation/reviews, exact qualification and remaining PR/CI/merge
+work. Earlier slices below retain their as-of evidence.
+
+**Initial status — implementation in progress.** Step 8 closes locally at
+`390515b8` after both full review rounds and verified corrections. This follows the already Accepted
+ninth step; no new maintainer decision is pending.
+
+The step's three internal closure units are:
+
+1. Complete full job observation, including bounded dimensions, memory-only
+   immutable gauges, cold durable unknown/deployment-mismatch health and distinct
+   confirmed-failure versus uncertain outcomes. Reduce repeated Architecture
+   detector scans without dropping cases, production subjects or any mutation/
+   restoration pass; the unchanged whole backend CI budget still requires proof.
+2. Match all nineteen packet obligations to actual nonempty production censuses,
+   behavioural proofs and planted controls; complete carrier/feature handoffs and
+   the shared repository background-job skill. Catalogue promotion waits for
+   complete enforcement and qualification.
+3. Run complete backend/frontend/demo regression and packaging/boot proofs,
+   commit, then run two fresh full multidimensional review rounds with verified
+   corrections and commits. Prepare the development-to-main PR with exact local
+   evidence; real PR-head CI and maintainer merge remain separate.
+
+The initial performance preflight is read-only planning, not a benchmark or full
+review. It finds repeated whole-production instruction traversals inside one
+read-only detector evaluation. A current-source four-case baseline runs before
+editing that mechanism. Any index must be fresh for every clean, dirty and
+restored evaluation, include every actual operand/owner/opcode and retain exact
+identity and multiplicity checks. No shorter filter or increased CI timeout is
+proposed. Full observation/enforcement and packet qualification remain pending.
+
+#### Initial scan and existing-boundary qualification
+
+The first slice adds complete method/field operand indexes inside one disposable
+detector evaluation. Name buckets only prefilter the existing full identity,
+opcode, order and multiplicity checks. Every clean, dirty and restored evaluation
+gets fresh indexes. Owner strings are computed after candidate selection, and
+ordinary call-site ownership is formatted only when its body contains a method
+operand. The attribute-based async-owner mapping remains unchanged.
+
+The four-case current-source baseline passes in 288.801 seconds of summed case
+time. Initial indexing passes the same four cases in 160.233 seconds; the later
+owner-string refinement records 60.062, 38.801 and 47.214 seconds for the three
+existing runtime/bridge cases, plus 3.651 seconds for the expanded cache companion.
+These are focused measurements with additional cache controls, not a complete
+workflow speedup or proof that the CI budget is met. A deliberate persistent-index
+mutant fails the actual membership comparison. A separate stale-owner-string
+mutant fails at the same method's `RenamedRun` versus cached `Run` identity. Both
+test-only mutations are restored byte-for-byte before clean qualification.
+
+The complete intermediate Architecture run executes 403 cases: 401 pass, two
+fail, and none skip, in 1,837.15 seconds of wall time. Its two failures expose
+older source guards that still reject Accepted recurrence readers/task owners.
+They do not justify broader runtime permissions. A brief native sample cannot
+attribute managed hotspots; no profiling-based attribution is claimed.
+
+The organization guard now enumerates five exact SQL subjects across four actual
+files: three composite point reads and the bounded composite inventory/bounds
+queries. It pins direct command arguments, minimal projections, tuple seeks,
+page limits and actual tenant/organization parameter bindings. The original
+validator's READ ONLY/announcement ordering and the EF primary-key ban remain.
+The parallelism guard permits only nine exact invocation spans in three retained
+recurrence owners, with method/signature/count and suppressed-flow publication
+checks; the rest of each file is still scanned. Neither change adds whole-file
+exemptions or substitutes for the separate database grants and resource proofs.
+
+Focused independent inspections identify and close reader-discovery and binding
+false passes: JOIN/interpolated/constant-concatenated readers, transformed SQL
+literals, nonexecuted bindings, protected-key overwrites and captured parameter
+rebinding. The actual-source dirty/clean companions exercise the same detectors.
+Two new companions bring the published Architecture method count to 249; all
+nineteen P02b-4 obligations remain Registered. These inspections are not either
+full Step 9 review round.
+
+The final 338-source snapshot passes a CI Release build with zero warnings/errors
+and all 39 selected Architecture cases, with zero failures/skips. The selection
+includes both corrected source guards and their companions, cache sensitivity,
+catalogue consistency and both complete orchestration mutation companions. Its
+source/artifact receipt is
+`832548288722970b30482e75a1f814e07675476210784f93d6913a7eb07f9b81`.
+The final two orchestration cases take 54.310 and 239.371 seconds, supplying the
+fresh baseline for the next bounded optimization. The unchanged twenty-minute
+whole-backend CI budget remains unqualified. Full job observation, complete
+packet regression and both full Step 9 review rounds remain pending.
+
+The next two-file slice removes eager orchestration identity formatting while
+retaining the complete declaration and field-access inventories. Actual delegate
+resolution uses a name bucket followed by the unchanged exact identity and unique
+match policy. Field owners remain actual attributed method references until the
+original name/type filters select them; string deduplication and opcode/write/
+address counts stay in their original positions. An independent companion
+compares the old/new declaration policy with foreign namesakes and overloads,
+then checks every field group and ordered occurrence before the full mutations.
+
+Both complete orchestration companions pass with zero failures/skips after a CI
+Release build with zero warnings/errors. Their summed case time changes from the
+fresh 293.681-second baseline to 191.688 seconds (33.271 and 158.417 seconds).
+This approximately 35% reduction applies only to those two companions, including
+the additional equivalence checks. The final 338-source/artifact receipt is
+`3a8555f7481c4fb74a8123676a9ab61c5141f6e71d8cdccd393db8e2962a43f6`.
+A focused independent inspection finds no correction; it supplies no full Step 9
+review credit or whole-workflow duration proof. The twenty-minute CI budget and
+the remaining observation/enforcement/packet work stay open.
+
+#### Bounded mutation-collection qualification
+
+Eight existing heavy companion Facts move into three public nested sealed
+partial classes. Each Fact still owns its independent Cecil graph and complete
+clean/dirty/restored sequence. Canonical rule Facts remain in the outer class.
+An explicit per-class collection attribute caps the Architecture assembly at two
+runner threads; neither the CI filter nor its timeout changes.
+
+All 249 source method token sequences and compiled signatures/attributes match
+before/after. Complete runner discovery preserves all 405 cases with exactly
+eight declaring-class substitutions and no missing, extra or duplicated cases.
+The first comparison omitted the custom-display NetArchTest meta case from its
+404-row namespace subset; the corrected comparison includes that unchanged case.
+A scratch actual-detector control proves distinct module/type/method/instruction
+objects, an offender in graph A with graph B clean, and both restored clean.
+The pinned xUnit factory selected by the actual assembly attribute assigns four
+distinct collection identities to the outer class and three nested classes.
+
+The 341-source snapshot passes a zero-warning/error Release build, all eight
+moved companions and six corpus/cache cases, with zero failures/skips. Scoped
+formatter verification reports no changes; a focused independent source review
+finds no correction. The source/artifact receipt is
+`21c209eaefce9e70e5bc55117b02629cfa6be7fa45a9f9bddf0c7dac0dfd1482`.
+The eight-case run takes 869.24 seconds of wall time; summed case durations are
+1,433.773 seconds. Completion-time/duration reconstruction is consistent with
+two overlapping collections. The adapter's TRX StartTime usually equals result
+receipt time, so it is not independent execution-start telemetry. These figures
+are workstation qualification, not a same-source speedup benchmark or CI proof.
+
+Repeated/full Architecture and complete backend-budget qualification remain
+pending, together with full job observation, nineteen-rule enforcement and both
+full Step 9 review rounds. No catalogue promotion or packet completion follows
+from this focused slice.
+
+#### Durable observation foundation qualification
+
+The existing serialized status-read owner now publishes one complete immutable
+aggregate after acknowledged rollback and actual resource cleanup. Frozen local
+metadata classifies unresolved jobs, relevant historical recurrence manifests,
+unfinished occurrences/recipients and unreleased reservations. The dispatcher
+reads no payload or causal envelope and receives no new grants, source, task or
+physical acquisition slot. Four independent indexed quarantine aggregates remain
+in the same statement. A failed or stale refresh retains the prior sample and
+cannot report healthy empty work.
+
+Cold native-runtime controls use genuinely empty definition and recurrence
+registries. Four isolated fixtures retain future jobs/manifests or future retry
+availability on unfinished children, without deployment-error markers. Completed
+or fully superseded parents cannot mask a missing child aggregate. Each real
+runtime reaches an otherwise healthy snapshot; only the copied deferred bit
+changes its health result. Observation leaves the durable records untouched and
+constructs no feature handler.
+
+The actual SQL hash CTE agrees with the independent .NET registry fingerprint
+for thirty-six schedule/policy/date combinations, including microsecond limits,
+unequal activation/anchor atoms, pre-epoch instants and maximum positive revision.
+Two additional revisions prove discovery of frozen history needed only by an
+actual pending occurrence. Diagnostic projections retain all production CTEs and
+bindings and run under two session timezone/display formats. Epoch-offset,
+repeated-anchor, omitted-history and removed-date-bound mutants fail their same
+assertions. The unmodified full reader also accepts the valid population.
+
+An intermediate fourteen-case cohort passes eleven cases and fails three new
+test assertions that incorrectly require a nonempty business queue in control-only
+fixtures. Explicit empty-queue versus single-job assertions correct that test
+error. The final 348-source snapshot passes a CI Release build with zero
+warnings/errors and all twenty-three selected PostgreSQL cases, with no failures
+or skips. This includes real rollback-response hold/loss, refresh grant refusal,
+last-sample preservation and actual-query partial-index removal controls. Its
+source/artifact receipt is
+`606e8b2a5945cec409c20f23d7c1c25f0ae8d0cb74d0a920848bfc336d1f951a`.
+Paired assertions in existing real admission, recovery, capacity and external
+checkpoint tests qualify status eligibility against actual stored transitions.
+They distinguish future original due time, retry availability, live/expired
+routing, execution ownership, actual retained identities, unknown/Pending/retired
+definitions and profile mismatch. Unreleased reservations remain counted after
+expiry under their declared group or fixed unknown label. Repeatable/no-start
+history admits real Normal routing after the proved backoff; selected outcomes
+admit real Finalize routing independently of the six-normal-attempt ceiling.
+These guarded state pairs do not claim independent removal tests for every
+redundant storage defense.
+
+The final eligibility cohort passes fifty-two PostgreSQL and sixteen model/health
+cases with zero failures/skips after a zero-warning/error CI Release build. Its
+348-source/artifact receipt is
+`af8b73b5899ffa0136cc0cdcd942d6cb5a003c904456be321043b760dcca7e80`.
+The six production files remain byte-identical to the focused source inspection
+and earlier three passing Architecture owner baselines. Focused inspections close
+three hash-fixture proof gaps; none supplies a full Step 9 review round.
+
+Complete metric emission, nineteen-rule enforcement, full regression/CI duration
+and both full Step 9 reviews remain in progress. No catalogue promotion or packet
+closeout is claimed by this slice.
+
+#### Native observation projection qualification
+
+The immutable runtime snapshot now projects actual running/retained work,
+generation counts and capture/join/cleanup facts from their existing owners.
+Confirmed metadata timestamps remain nullable: an actual successful announcement
+can confirm monotonic zero, while no confirmation remains absent. Returned pool
+and maintenance collections reject replacement through their collection interfaces.
+These additions introduce no scheduling, SQL, source or release authority.
+
+The first two-case PostgreSQL run passes the existing facade health case and
+rejects a new fixture that supplies a separately reconstructed topology. Using
+the host's actual frozen registry corrects the fixture without weakening the
+production identity check. A focused inspection also closes its failure-path
+cleanup gap: generation stop starts before either heartbeat or stop is awaited.
+The final 350-source cohort passes both cases with zero failures/skips after a
+zero-warning/error CI Release build. Its source/artifact receipt is
+`733c1d57536c2c870810d27bb826b2cbf614cb153609ac6db01218e3f6dcb598`.
+Three Architecture owner cases pass against the same production projection.
+The manual real metadata callback does not claim Core's scheduling-cadence proof.
+The focused inspection has no open findings and supplies no full Step 9 review
+credit. Metric emitters and complete packet qualification remain pending.
+
+#### Memory-only job metric collector qualification
+
+One required concrete observation singleton binds the actual API runtime after
+its snapshot owners initialize and before either source pin. The shared
+API/Seeder composition creates no runtime or worker. Five observable families
+project counts, exact SQL eligibility age, confirmed heartbeat age, component
+state and fixed monotonic control observations. Each callback captures one
+immutable memory snapshot and materializes its finite sparse measurements.
+The [metric inventory](../standards/10-observability.md#required-metrics) owns
+names and dimensions. Queue age remains the stored SQL sample; the earlier
+acquisition/freshness timestamp cannot extrapolate it. Retained aggregate and
+per-pool series remain distinct even for a legal pool named `none`.
+
+Actual MeterListener controls cover required DI, missing registration,
+bind-once/disposal authority, conservative freshness, missing versus confirmed
+heartbeats and complete empty-sample zeroes. Real PostgreSQL/native controls
+observe cold unknown work under empty registries, preserve prior quarantine
+samples through actual grant refusal and check complete metric identities for
+the legal `none` pool. Fifty-eight unit and ten PostgreSQL cases pass with zero
+failures/skips; their production and fixture sources remain unchanged through
+the subsequent Architecture corrections.
+
+Three new Architecture companions inspect actual singleton descriptors, consumed
+instrument/callback arguments, binding receiver/order/dominance and the transitive
+memory method graph, including reached static initializers. Balanced clean/dirty/
+restored controls reject indirect SQL, arbitrary delegates, hidden or extra Meter
+registrations, name/callback bait and skipped binding. An initial seven-case run
+passes six cases and fails a new fixture's ambiguous instance/static constructor
+selection. After that correction, a four-case run passes three and reveals an
+unreachable skipped-binding mutation: existing branch targets bypass its prefix.
+Moving the mutation onto the actual landing instruction corrects the control;
+the final three metric companions pass with zero failures/skips. The complete
+existing runtime/source-owner companion passes against the same shared walk.
+
+The final 356-source snapshot builds in CI Release with zero warnings/errors;
+its source/artifact receipt is
+`0327dabd84b0f91c0db248312f7747e0f6439756491160756bd6bfae43740100`.
+Focused collector and guard inspections close their verified findings; neither
+supplies a full Step 9 review round. Stage/event instrumentation, complete
+control-path accounting, nineteen-rule enforcement, whole regression/CI-budget
+qualification and both full Step 9 reviews remain pending.
+
+#### Actual executor stage measurement qualification
+
+Three synchronous families add execution duration, confirmed stage failure and
+uncertain write/effect observations to the five memory collectors. Seven actual
+executor owners record after their existing scope/Activity/context/authority/
+source/auxiliary/registration cleanup. Duration excludes subsequent metric
+notification and the outer native owner's later private-token cleanup; a blocked
+listener still belongs to the actual task. Each instrument contains catchable
+listener faults independently, reports observation unhealthy and preserves the
+original result. A physical acknowledgement remains successful through cleanup
+or notification faults.
+
+The private provider-issued bit records the existing typed bridge's successful
+entry CAS immediately before the actual call. It grants no execution, checkpoint,
+retry or release permission. Construction/entry faults before that point do not
+become uncertain external effects. Valid Running reports remain pending;
+explicit Unknown and issued-call faults remain distinct from provider Failed.
+Capacity cleanup without acknowledgement or uncertain COMMIT uses neutral
+`NotCommitted`, since its existing result does not distinguish refusal from
+failure. Business cancellation registration disposal now completes before its
+final classification and measurement.
+
+All 364 Jobs unit cases and 25 selected real PostgreSQL cases pass with zero
+failures/skips. The latter retain actual dropped-COMMIT-response, post-ACK scope
+and Activity faults, held cleanup, throwing metric listeners, unissued provider
+constructors, genuine provider/finalization, Running/Unknown and issued reconcile
+fault/timeout premises. Measurement assertions accompany those durable facts;
+they do not substitute for them. These cases do not independently qualify every
+capacity, recipient or stored-selection metric branch.
+
+The first seven-case Architecture cohort passes six and fails a new stage-call
+scan on a deliberately detached method reference. Narrowing to an attached exact
+observer target before formatting identity fixes that detector regression.
+Focused review also closes call-reference versus call-opcode, synchronous unit/
+numeric metadata and actual stage-root selection gaps. Balanced method-group,
+seconds-to-milliseconds and direct SQL mutations exercise those same checks.
+The hidden-Meter boundary permits only the exact instance constructor; a dirty
+actual observer static initializer proves that distinction. The final seven
+Architecture cases pass with zero failures/skips, including the complete prior
+runtime/source and orchestration companions.
+
+The final 357-source snapshot builds in CI Release with zero warnings/errors;
+its source/artifact receipt is
+`847271cf34791d5cb0d930202de07500776afac2adc5463249e0bfe7d524e616`.
+Production and unit/PostgreSQL fixture sources remain byte-identical through the
+final guard corrections. Focused implementation and guard inspections have no
+open findings in this slice and supply no full Step 9 review credit. Named-source
+tracing/Start ownership, remaining branch/lease/control instrumentation,
+nineteen-rule enforcement, whole regression/CI-budget qualification and both full
+Step 9 reviews still precede packet closeout.
+
+#### Named-source tracing and cleanup ownership qualification
+
+The required observation singleton owns `learnstack.jobs`; its finite factory
+returns an unstarted W3C Activity. All eight actual owners capture it before
+`Start`. Recipient and pre-envelope recovery reads start independent roots;
+terminalization keeps the real suppressed control lane. Trusted envelopes supply
+the other parents. Recipient startup clears the caller's context before central
+enrichment; it invents no tenant tags before the actual route context exists.
+All seven executor owners independently attempt Activity and tenant restoration,
+including a restoration callback fault after an actual COMMIT acknowledgement.
+
+Absent, refusing, propagation-only, sampled and throwing samplers preserve the
+factory contract. The first unit run detects an all-zero fallback parent;
+omitting `SetParentId` for a default parent produces a genuine root. The corrected
+373 Jobs unit and 70 real PostgreSQL cases pass with zero failures/skips. Actual
+recipient, capacity, stored-selection/no-start, recovery, held/faulted cleanup and
+lost-ACK premises accompany source/parent/measurement assertions. The first PG
+selection accidentally includes a helper-name filter and is canceled; it earns
+no full passing receipt. The replacement uses 35 exact test-method identities.
+
+The source census binds the consumed source name, readonly owner, factory and
+disposal receivers, actual retained Activity slot and Start/Dispose instructions.
+Its memory walk follows the actual factory through helpers and static
+initializers. Name bait, early Start, spare slots, hidden sources, helper SQL and
+helper Start controls pass in the corrected ten-case Architecture cohort. Final
+disposal method-group controls additionally distinguish an actual call from a
+captured reference; all ten final Architecture cases pass with zero failures or
+skips. The final 362-source receipt is
+`ca0549e92bcb4bad50ea5fc7d82218bc3831a2bc9bcad49c21c6c6000095c9f9`.
+Only the tracing guard differs from the preceding 373-unit/70-PostgreSQL source
+snapshot; all production and behavioral fixtures remain byte-identical. Caller
+operation/parent policy is behavioral qualification, not a general IL dataflow
+claim. Focused reviews supply no full Step 9 review-round credit.
+
+Complete control/lease/late-settlement accounting, nineteen-rule enforcement,
+whole regression and unchanged CI-budget qualification, and both full Step 9
+reviews still precede packet closeout.
+
+#### Control transition counter qualification
+
+Actual control owners retain physical renewal, retry and terminal observations
+even when subsequent cleanup refuses release. The original completion request
+counts its retry once; a clean locked probe can confirm that exact transition.
+Same-generation routing repair and changed ownership do not imply a retry.
+The external execution owner likewise distinguishes its actual retry ACK from
+its original locked confirmation. Renewal history has a separate fixed
+`renewal_history_confirmed` cell and never reopens the closed execution lease.
+No counter recorder creates a source, task, listener invocation or authority.
+
+The new actual-owner PostgreSQL theory covers ACK, lost ACK with a real blocked
+confirmation query, and a later real admission that changes the original owner.
+All three corrected cases pass. The existing nine native known-outcome/recovery
+cases additionally assert direct retry ACK totals. The initial new theory uses
+an invalid 25 ms polling bound and leaves its probe pacing at the 30 s default;
+those setup defects are corrected to the accepted 50 ms and 5 s bounds. Its
+initial three failures do not constitute counter-runtime failures. The first
+build also rejects a nonexistent test-row property, replaced by an independent
+database generation read.
+
+The final source census roots each of the three recorders and the finite retry
+predicate in the existing memory walk. Reached/unreached SQL helpers and clean
+restoration distinguish these paths; exact references and typed bookkeeping
+owners remain bounded. Real-listener projection uses distinct acknowledged and
+history-confirmed renewal values. Focused reviews grant no full Step 9 round.
+
+The final CI-mode Release build has zero warnings/errors. All 373 Jobs unit and
+six final Architecture cases pass with zero failures/skips. The three corrected
+owner cases and nine native PostgreSQL cases cover byte-identical production and
+PG fixture inputs; the final changes affect only four guard/unit files. The
+final 363-source receipt is
+`067bf593428c041bcbb0b0e1857c0c2e1c8a635f55b0bed3608eb6c6fd7362e8`.
+
+#### Control branch qualification
+
+Fourteen actual-owner PostgreSQL cases pass together with zero failures/skips.
+They cover external retry ACK, lost ACK with blocked original-history confirmation
+and changed ownership; both native Finalize retry paths; ordinary retry plus
+actual grouped-capacity rollback/release; physical versus history-confirmed
+renewal; and terminal MUST audit followed by held or refused scope cleanup.
+The existing prebound late-renewal case also passes with the selective proxy.
+History-confirmed renewal never reopens execution permission. Terminal counting
+preserves an acknowledged audit even when actual cleanup refuses release.
+
+The proxy holds the actual renewal COMMIT by its returned column inventory;
+other control transactions cannot consume that fault. Actual owner results,
+durable state and row-lock waiters constrain the observations independently.
+The grouped retry case qualifies a physical ACK, not grouped lost-ACK history.
+The deliberate terminal cleanup failure disposes its inner scope before throwing;
+the finite observation task joins actual lanes while public cleanup remains
+unconfirmed. Isolated external retry ownership does not establish native
+Hangfire handoff. The focused source review reports no verified findings and
+grants no full Step 9 review-round credit.
+
+The final CI-mode Release build has zero warnings/errors; scoped formatting
+reports no changes. Production source remains unchanged from `c581f798`.
+The final 364-source receipt is
+`fb03a92a9e6e96b22aae6953c233fe5b4106d02567421b6e355d1741627b06b1`.
+Connection-cleanup fault combinations and grouped retry history are not claimed
+by this bounded cohort. Recurrence/bridge/lease/late accounting, nineteen-rule
+enforcement, whole regression and unchanged CI-budget qualification, and both
+full Step 9 reviews remain open. No catalogue obligation is promoted here.
+
+#### Recurrence progress qualification
+
+The actual recurrence owner records six fixed process totals from original
+acknowledged occurrence/page results before cleanup qualification. These cover
+inserted occurrences, skipped slots, pages, raw routes examined, inserted
+recipients and completed fanout cursors. Registration, native ticks, null results,
+unacknowledged values and later history add no original ACK. The existing
+eight-family metric inventory projects them through fixed control-total
+operations without identity labels, new SQL, sources, tasks or authority.
+
+Both-scope actual-runtime PostgreSQL cases examine three raw lifecycle routes,
+including a suspended tenant, and create two recipients in two pages. Independent
+stored state, child/context checks and actual listener samples establish one
+occurrence, two skipped slots and one completed cursor. Repeated collection and
+duplicate native ticks preserve the totals. Two isolated actual-store/owner-hook
+cases lose the physical COMMIT response after proving the server write: their
+nonnull results and later no-op queries never become acknowledged progress.
+They qualify occurrence and empty-page uncertainty, not native-runtime handoff
+or nonempty-page lost-ACK inserts.
+
+Eleven unit cases feed the actual generic owner observation hook with synthetic
+ACK facts and real resource-model cleanup. ACK plus failed cleanup preserves
+the totals and retained ownership; no ACK remains zero. This is not genuine
+PostgreSQL transaction/connection disposal-fault injection. Distinct scalar
+listener projection is supplementary to actual-runtime producer qualification.
+The transitive memory census includes the private recorder and rejects reached
+SQL and an extra caller; exact typed field access and emitted compiler cache
+owners remain pinned. The two source-review findings, a missing namespace import
+and assertion-failure teardown path, are corrected before the first build.
+The focused review has no remaining findings and supplies no full Step 9 credit.
+
+The CI-mode Release build has zero warnings/errors. All 384 Jobs unit, 52 focused
+Architecture and four PostgreSQL cases pass with zero failures/skips. The final
+366-source receipt is
+`10600bb7dd16c847e74001e3e1af3b375dc1e1057cbdf6c0ea1caeaab073a6b5`.
+Bridge/lease/late accounting, nineteen-rule enforcement, full regression,
+unchanged CI-budget qualification and both full Step 9 reviews remain open.
+No catalogue obligation is promoted by this slice.
+
+#### Bridge repair qualification
+
+The locked bridge candidate classifies prior acknowledged hint, expired prior
+token without a hint, or unmarked state before replacing its token. Hint takes
+precedence. Two fixed process totals count the disjoint marked-repair subsets
+only after actual startup/native exit and a true fenced ACK return. Unmarked is
+not first-ever work: a prior creation-failure deferral can clear its markers.
+Deployment-mismatch deferral now counts only a true fenced status change.
+The existing eight metric families and authority/source/grant boundaries stay
+unchanged.
+
+Thirty-two PostgreSQL cases pass, including actual stock repairs for missing,
+failed and succeeded vendor hints; old-marker precedence; an actual stale ACK;
+and false mismatch deferral after real claim cleanup expires its fence. Two
+runtime/stock-client cases project both repair cells through the live listener.
+Their prior-hint setup uses a synthetic numeric hint, not a claimed earlier
+stock creation; the separate stock repair cases cover that provider boundary.
+Actual native startup/stop/join controls preserve zero repair counts while
+ownership is retained.
+
+The real status-connection cleanup is held after its matching COMMIT. A separate
+database read proves the vendor ACK while counters remain zero until the actual
+bool call returns. A throwing Closed-event cleanup control instead leaves zero
+visible ACKs and one retained logical owner; the actual native thread, observer
+and test callback have ended. The bool API cannot expose the ACK hidden behind
+cleanup failure, so no current-row inference backfills it. Exact locker/role
+barriers and nested finally cleanup constrain these tests.
+
+The corrected CI-mode Release build has zero warnings/errors. All 384 Jobs unit,
+six focused Architecture and 32 PostgreSQL cases pass with zero failures/skips.
+The first build rejects a test-local variable-name collision, corrected without
+runtime changes. Focused review also corrects the exact classification-getter
+caller census before testing; no findings remain and no full Step 9 credit is
+claimed. Exact typed fields, immutable classification and reached memory-only
+observation remain guarded. The final 369-source receipt is
+`ae0bb0721b6bce47230b38c07098cfa245a56fe51f16263d79a3e4254e62b799`.
+Lease/late accounting, nineteen-rule enforcement, full regression, unchanged
+CI-budget qualification and both full Step 9 reviews remain open. No catalogue
+obligation is promoted here.
+
+#### First lease-loss observation qualification
+
+Two fixed process totals retain the first observed renewal refusal or elapsed
+local lease per validated start publication or clean recovery receipt. The
+execution's cause CAS precedes its Interlocked-only persistent parent recorder;
+recording adds no task, source, grant, listener or execution authority. Existing
+identity publication stays in place. Already-visible stop, settlement, join,
+cleanup fault or permanent renewal closure suppress a new count. Gate observation
+does not establish universal atomic ordering with concurrent host stop.
+
+The seven-case unit matrix covers refusal, actual timer callback after controlled
+clock advance, stop, join, settled work, missing publication and repeated recording
+while Run remains open. The latter distinguishes a real first-cause CAS from
+duplicate suppression supplied by a separately closed gate. Existing held timer
+Change/disposal controls preserve zero counts. Real renewal-owner PostgreSQL cases
+distinguish a physical ACK from lost ACK plus original locked history. Actual
+Outcome ACK with held cleanup, including stored recovery selection, remains zero.
+
+Eight recovery-timer cases use real acknowledged PostgreSQL acquisition and
+actual held timer factory/Change handles. Six stop/fault cases preserve zero;
+two advance only the local monotonic observation clock during a held lease timer
+prefix, then observe one elapsed loss before identity publication and no provider
+entry. These are controlled-clock proofs, not wall-clock lease-duration benchmarks.
+Cleanup still owns the actual returned handle; a hidden failed handle remains
+retained. They do not independently qualify expiry before recovery Bind or every
+normal publication/renewal elapsed branch.
+
+All 519 selected Jobs unit and five focused Architecture cases pass with zero
+failures/skips. The first PostgreSQL run passes eleven cases and finds two fixture
+shutdown omissions: elapsed-only cases had not closed generation starts before
+awaiting completion. After that test-only correction, all thirteen pass in
+94 seconds. Production and Architecture/unit source hashes are unchanged between
+receipts. The corrected CI-mode Release build has zero warnings/errors; scoped
+fourteen-file format verification reports no changes. The initial build's helper
+return-type analyzer warning is corrected. Focused source review closes an async
+metadata/discarded-task enforcement gap with transitive scheduling rejection and
+balanced dirty/restored controls. This is not either full Step 9 review round.
+
+The final 370-source receipt is
+`8ef7ac676619345655f818c371ee63cbf995564009703bd9243408724862795e`.
+Late settlement, nineteen-rule enforcement, full regression, unchanged CI-budget
+qualification and both full Step 9 reviews remain open. All nineteen obligations
+remain Registered.
+
+#### Actual late-settlement qualification
+
+Seventeen fixed `late_<stage>_settled` process totals distinguish an elapsed
+stage from eventual positive cleanup of its actual invocation. Only the stage
+clock records the effective elapsed-stage marker; host stop, lease loss, timer
+fault and a returned wrapper wait cannot invent it. Consumption happens once,
+after actual framework/execution, timer, cancellation-callback and private-resource
+cleanup. The existing bound invocation forwards only a fixed Interlocked update.
+No task, data source, grant, execution admission or new metric family is added.
+
+Each stage requires its actual typed task and positive cleanup. Recovery
+confirmation follows the current NoPlan/retry/acquisition branch and never
+substitutes an older clean probe. Whole-framework completion covers history and
+NoPlan loops beyond their final SQL slot. These are settlement observations,
+not durable ACKs, successful business outcomes, rollback or provider-quiescence
+certificates. Permanently retained cleanup contributes no settled count.
+
+Five new classifier cases cover absent tasks, observer join, exact business
+stage, current confirmation branch and positive disposition. A live Meter unit
+case checks all seventeen fixed projections, zeros and repeated scrapes. Wait
+controls preserve predecessor/prospective-stage semantics and zero markers for
+host stop or timer fault. All 525 selected Jobs unit cases pass with zero skips.
+Four real stock-worker/PostgreSQL cases pass: two held framework-scope paths and
+two provider-recovery paths distinguish actual clock expiry from host stop.
+The latter holds private cancellation cleanup after provider return and confirms
+zero until release, then one elapsed settlement or zero for host stop. This is
+not positive native coverage of all seventeen stage kinds.
+
+The initial five-case Architecture run passes both orchestration censuses and
+singleton registration; two metric companions expose exact emitted `call`
+opcodes where the new guard expected `callvirt`. After guard-only corrections,
+all three metric cases pass. Additional framework-task/cleanup-field ownership
+and a planted extra-cleanup-writer control also pass those three cases. No
+production, unit or PostgreSQL source changes between these receipts. The
+CI-mode Release build has zero warnings/errors; scoped eighteen-file formatting
+reports no changes. Initial missing namespace imports are corrected before that
+qualified build. Focused independent source inspections leave no open finding
+and provide neither full Step 9 review round.
+
+The final 375-source receipt is
+`7cd762f4870900a03420ed4e14b416d89d15eeddae890a98fb6b2d391f62c1cf`.
+Nineteen-rule enforcement, shared workflow guidance, full regression, unchanged
+CI-budget qualification and both full Step 9 reviews remain open. All nineteen
+obligations remain Registered.
+
+#### Shared background-job workflow guidance
+
+The shared `add-background-job` skill now describes the actual typed scheduler,
+explicit registry/catalog composition, ordinary transaction owner, external
+prepare/execute/finalize and three-state failure policy, capacity declaration and
+recurrence path. The common skill catalogue links it for every agent runtime.
+A focused source review corrects release wording for known failed/cancelled but
+quiescent effects, distinguishes capacity declarations from optional entitlement
+keys, and preserves all seven framework requests when replacing empty defaults.
+It provides no full Step 9 review-round credit or feature business definition.
+
+The preceding late-settlement commit's hook changes only six property-pattern
+indents and one trailing blank line. Reconstructing the exact pre-hook bytes
+matches its recorded hash; no semantic tokens change. Its test receipts remain
+pre-hook source receipts, rather than a newly claimed post-hook test run.
+
+#### Production manifest and route qualification
+
+A single fresh structural census compares every disk-discovered production
+project and each module's four assemblies with the loaded population. It pins
+both empty-registry factory paths and catalogue implementations, rejects
+business/recurrence constructors in scaffold modules (including delegate/async
+forms), and checks frozen registry state. The actual Program provider separately
+resolves both registries, catalogue aliases, seven framework requests, exact
+pool/queue/worker topology and nonempty runtime/health/hosted registrations before
+asserting empty business/tombstone/recurrence manifests and unopened sources.
+Missing/duplicate registrations and valid nonempty fixture registries exercise
+the same predicates; recurrence rejection remains independent of definitions.
+
+The actual fourteen-route/method/handler multiset includes eight public actions,
+liveness, OpenAPI, Scalar UI and its three static assets. Real extra dashboard,
+recovery, neutral-path and probe-controller endpoints fail that predicate.
+Whole-production IL additionally pins all four endpoint-registration call sites
+and concrete/inherited public controller actions, covering paths not executed by
+the Development host. Pinned dashboard method/type and generic middleware
+capabilities have dirty controls without adding a dashboard runtime dependency.
+A focused source review closes conditional-route, default-dashboard-options and
+inherited-action false passes; it is not either full Step 9 review round.
+
+Seven focused Architecture/corpus/discovery cases and the actual API composition
+case pass with zero failures/skips. Sixteen actual PostgreSQL policy-selection
+cases pass, including the added accepted nonrepeatable Failed outcome at admission
+six and rejected false-exhaustion projection; SQL source is unchanged by later
+guard corrections. The initial host assertion omitted Scalar's static assets;
+its approved exact inventory now includes them. The corpus counter exposed four
+previous observation companion methods absent from the prose tally; the
+mechanically verified total is 254, including the new manifest method. The final
+CI-mode Release build has zero warnings/errors. Three-file format qualification
+reports no changes.
+
+The final 377-source receipt is
+`532c29d65f6362a9ea6d25a3c3d2e30827baa19213211847429821748f457105`.
+Constructor-time context proof, combined privileged capacity qualification,
+complete nineteen-rule reconciliation, full regression/packaging/CI-budget proof
+and both full Step 9 reviews remain open. All nineteen obligations remain
+Registered.
+
+#### Constructor-time context and trace qualification
+
+A four-case real executor theory covers tenant-wide/organization work, each with
+success or cancellation while its actual business task remains held. After real
+routing/admission cleanup, observation-only fixture hooks capture parameter,
+root-request and handler constructors plus Body entry/continuations. Every
+mandatory capture sees the exact stored tenant/org, SystemActor, causal actor,
+job/incoming identity, module and correlation. Both sampled ActivitySources retain
+the stored causal trace: parameter/root observe `job.execution`, while handler
+and Body keep their genuine MediatR child and execution ancestry. The unrelated
+caller context and Activity retain their exact references throughout and after
+actual cleanup.
+
+The same assertion rejects a real parameter construction before job ownership.
+A separate trace-only capture at the genuine constructor preserves correct job
+context but selects the caller Activity; context facts pass and the independent
+trace predicate rejects it. These are oracle controls, not a claimed production
+source-reorder mutation. Static hooks restore their exact prior values only after
+the actual task becomes terminal. A failed bounded join supplies no cleanup
+claim. Caller AsyncLocal isolation alone does not prove each explicit finally
+setter; existing cleanup/Activity fault cases remain complementary.
+
+All 24 selected business PostgreSQL cases pass, including the four new cases,
+with zero failures/skips in 17 seconds. The final CI-mode Release build has zero
+warnings/errors and scoped two-file formatting reports no changes. Initial
+generic-assertion/cancellation-forwarding analyzer warnings are corrected with
+explicit intentional noncancellation of the held Body waits. Focused independent
+source inspection finds no defect; it is not either full Step 9 review round.
+No production context writer or execution authority changes.
+
+The final 378-source receipt is
+`e77b70cd875f2b208d46deaac82f248b21e508dbcbd9bb5598a9b0030cf14a7c`.
+Combined privileged capacity, complete nineteen-rule reconciliation, distribution
+and full regression/CI-budget qualification, and both full Step 9 reviews remain
+open. All nineteen obligations remain Registered.
+
+#### Published distribution gate qualification
+
+The existing backend CI job now publishes the actual Release API into a fresh
+owned temporary directory, then runs both existing offline distribution
+verifiers against that publish and its exact API/Infrastructure build graphs.
+Failure remains gating; only JSON receipts join its test-result artifact. The
+required job name, filters and twenty-minute ceiling stay unchanged. The kit
+README documents the prerequisite Release restore/build/publish commands.
+
+A fresh local framework-dependent publish completes in 1.176 seconds. All four
+stock shared DLLs, corresponding-source archives and licence/notice inventories
+verify. Fifteen dirty distribution controls reject, and the recipient-modified
+Core inspection succeeds without a runtime restriction. The original 178-file
+publish remains byte-identical after controls. These checks take 0.801 seconds;
+replacement inspection does not prove a modified assembly executes compatibly.
+The exact new workflow shell block also passes locally, emits both JSON receipts
+and removes its owned temporary publish. `actionlint` and diff checks pass.
+
+This is artifact/graph and workflow-step qualification, not API boot, full CI
+success or proof that the entire job fits its unchanged ceiling. Combined
+privileged capacity, complete nineteen-rule reconciliation, full regression and
+both full Step 9 reviews remain open. All nineteen obligations remain Registered.
+
+#### Canonical obligation ownership alignment
+
+Fourteen existing test methods now carry their catalogue identifiers in place.
+Their complete source bytes reverse to the prior files after replacing only that
+one identifier: bodies, attributes, Theory data, traits and dirty companions are
+unchanged. The two existing canonical owners and the three substantive manifest/
+constructor owners provide the other five names. Compiled Architecture and
+Integration discovery finds all nineteen names with their real case rows. The
+Architecture method total stays 254. CI-mode Release compilation has zero
+warnings/errors; scoped fourteen-file formatting reports no changes.
+
+This is naming/discovery qualification, not a new executed-test receipt, a claim
+that any one named method covers its full assertion, or catalogue promotion.
+Each complete obligation also retains its schema, native runtime and fault
+companions. Combined privileged capacity and complete regression/packaging/boot/
+CI-budget qualification remain pending before full Step 9 reviews and closeout.
+All nineteen obligations remain Registered.
+
+#### Combined physical-capacity qualification
+
+The actual registered job runtime, outbox and delivery processors share the
+captured keyed guarded source at Pooling=true/MaxPoolSize=52. Their actual
+completion tasks remain bound; the fixture explicitly starts those instances,
+without claiming GenericHost startup ordering. One real stock expiration
+invocation waits on a unique-key conflict for its exact resource. An independent
+observer identifies its backend through the setup transaction's blocking PID;
+a finite caller wait expires while that actual invocation remains Retained.
+
+Two independently selected terminal-audit scopes forward the genuine writer and
+hold cleanup after their actual terminal/MUST commits, before connection disposal.
+Three distinct confined-role, tagged backend PIDs and all pending cleanup facts
+are checked before and after TenantB's actual native job creates an organization,
+commits its business/MUST row and reaches stock Succeeded. An absent-owner control
+fails the same conjunction. Observers use a separate source. Finally every hold
+releases, all three real owners join, Busy reaches zero, native server rows vanish
+and the disposed tagged pool has no remaining backends.
+
+The [canonical ledger](../standards/05-database.md#shared-dispatcher-source-lifetime-and-capacity)
+counts all current simultaneous/nested/retained owner classes.52 remains a
+conservative supported floor, not a measured exact peak. Pinned source review
+corrects an earlier planning premise: ordinary Worker state-lock disposal precedes
+PerformJob, so its wrapper lifetime does not establish an extra nested checkout.
+The existing actual composition51 refusal and maximum158 topology/cleanup proofs
+remain complementary; no52-socket saturation or51 impossibility claim is made.
+
+Validation: CI=true Release build has zero warnings/errors. Four real PostgreSQL
+cases pass with zero failures/skips, including the new combined case, both actual
+messaging/source lifetime cases and retained-expiration native progress. The
+closed382-file source receipt is
+`b1fbb3344ff9df6f905937705a5c6ce493e59792f7facdccc947a8074aa9b451`.
+The initial new-case run reached its business observer but failed on a test-only
+text/UUID comparison; the corrected observer and all four cases pass on the final
+receipt. Independent focused source review confirms the corrected expiration
+physical witness, selective audit forwarding and actual joins, with no remaining
+verified finding. This is not a full Step9 review round or complete packet
+regression. All nineteen rules remain Registered pending that qualification.
+
+#### Step 9 full review round 1 (2026-10-18)
+
+Three fresh independent reviewers inspect `390515b8..d2bb2ee7` and the necessary
+adjacent paths: runtime/security/ownership, enforcement/test falsifiability, and
+corpus/composition/CI/distribution. The corpus reviewer also inspects the later
+two-file frontend inventory correction. These are full Step 9 reviews; earlier
+focused preflights do not count toward this round. Reviewers perform read-only
+source inspections and do not claim independently executed regression results.
+
+No Blocker or Major is verified. One Minor finding identifies two live
+observation summaries that still describe delivered stage/trace/lease/control
+signals as pending. Both summaries are corrected and independently rechecked;
+full packet qualification remains explicitly pending. All nineteen catalogue
+obligations remain Registered.
+
+The complete non-Docker CI filter executes 3,043 passing cases with zero failures
+or skips: 2,452 Unit, 410 Architecture, 177 HTTP Integration and four Contract.
+Its local wall time is 1,641.70 seconds, with part of the run sharing the host
+with Docker validation. This is not a hosted-runner benchmark or proof of the
+unchanged twenty-minute whole-job budget. Repeated observation-body selection
+inside a fresh detector evaluation is the next measured optimization candidate;
+case identity, every mutation/restoration and the parallelism bound must remain.
+
+Full frontend typecheck, lint and build pass. Its first full test run exposes
+unclassified offline Hangfire probe/kit files. An exact 32-path inventory fixes
+that test-only classification; unknown probe/vendor/runtime paths still reject,
+and runtime import modelling is unchanged. The corrected complete guarded test
+run passes all 1,616 cases with zero skips/todos; corrected typecheck and lint
+also pass. No application build output changes with these test-helper edits.
+
+The complete Docker complement is still running on the same frozen C# source.
+It exposes an exhaustion-plan fixture whose entire population makes the broad
+and narrow indexes equivalent, and a routing-wait observer that requires an SQL
+suffix beyond PostgreSQL's default activity-text buffer. Source cross-checks
+identify test-fixture defects, not demonstrated production failures. Corrections
+and actual PostgreSQL reruns remain pending until this frozen run ends. A third
+failure compares the latest schema to a historical predecessor while assuming
+only the terminal-history function changes; later indexes invalidate that
+premise. The correction will test the exact target/predecessor boundary and
+retain a separate complete latest job-inventory round trip. Full
+regression, demo/boot, CI-budget qualification, promotion and fresh full round 2
+remain open; this record does not declare Step 9 or P02b-4 complete.
+
+The completed Docker run executes 2,428 cases: 2,425 pass, the three identified
+fixture cases fail, and none are skipped. Local wall time is 2,287.77 seconds;
+this also supplies no hosted-runner or whole-job budget claim. The closed
+382-file first-run receipt is
+`1f44da4ddb710b882952141858a2a4fc49bf4e962ce9741c5ed1c3660eecf25c`.
+
+Corrections retain the real planner and exact exhausted-index assertion by adding
+an independently counted due, zero-attempt population; stable cutoff and volatile
+dirty-control bounds remain unchanged. The routing observer opens before the
+operation and uses the exact blocking backend dependency, with absent/wrong-PID
+controls and a genuinely pending operation before caller cancellation. The
+rollback test retains singleton function differences at its exact target boundary,
+then separately compares the entire latest job inventory. No production SQL,
+lease/retry limit, migration, grant or schema exception changes.
+
+The observation traversal now groups actual bodies by reference-identical owner
+once per fresh detector evaluation. Every original root, diagnostic and
+clean/dirty/restored visit remains; the existing companion independently checks
+actual group identity/order/multiplicity, linked async bodies and missing owners
+through its real metadata mutations. No Fact or case is removed or added.
+
+CI-mode Release build has zero warnings/errors; scoped formatting reports no
+changes. All twelve affected real PostgreSQL cases and eleven Architecture cases
+pass with zero failures/skips, including the cache, credential, runtime, three
+metric and five corpus guards. Their closed 383-file receipt is
+`7337d9765902903797a50a222ad44adc41033444917c8a23e3d5ab2fb2bc3e95`.
+Independent correction checks of all five C# files find no remaining issue; these
+are round-1 fix verification, not full round 2. The runtime-lifetime case records
+129.93 seconds versus 176.09 in the earlier full run, while the credential case
+records 211.55 versus 204.60. Different cohorts/shared load prevent attributing
+those durations to an isolated speedup or claiming CI-budget fit. Whole-job
+qualification remains required without raising its ceiling.
+
+#### Canonical enforcement reconciliation
+
+All nineteen packet obligations now report Implemented in the
+[catalogue](../standards/21-architecture-tests-catalogue.md#backgroundjob_submission_is_transactional_and_stamped).
+Each status names its actual compiled canonical owner and links its exact source;
+the full assertion also retains its structural, native runtime and PostgreSQL
+companions. Ten canonical owners run in Architecture and nine in Integration,
+including the actual Program composition case in the non-Docker partition.
+
+The closed first full run executes all 35 case rows of those nineteen methods
+successfully. The later runtime-detector correction also passes its canonical,
+metric, credential and independent mutation-equivalence cohort. This executed
+evidence replaces the earlier discovery-only receipt; identifier alignment alone
+did not authorize promotion. The three failed full-run fixture cases are
+separately corrected and qualified as recorded above.
+
+The five corpus guards pass after promotion: 254 Architecture method declarations,
+221 Implemented catalogue entries, 131 canonical Architecture entries and 90
+outside that assembly. Integration statuses name their own canonical class;
+Architecture companions do not silently reclassify those rows. Link/fragment and
+diff checks pass. Related live infrastructure/architecture summaries now reflect
+implemented enforcement and the completed Step 8 reviews. Full Step 9 round 2,
+demo/boot, packet closeout and exact PR-head CI/job-budget qualification remain
+separate pending work.
+
+#### Step 9 full review round 2 (2026-10-18)
+
+Three new independent reviewers inspect the complete 150-path Step 9 range
+`390515b8..720fca12` and necessary adjacent paths. Runtime/security/ownership,
+enforcement/falsifiability and corpus/composition/CI/distribution lenses close
+with no verified Blocker or Major. Reviews inspect source and existing receipts;
+they do not claim independently executed regression or CI.
+
+Three deduplicated Minor prose inconsistencies are verified: the live catalogue
+preface still calls promoted entries Registered, the glossary still calls stage
+instrumentation remaining work, and the architecture summary still calls both
+full reviews pending. Narrow corrections point to the owning status record and
+retain the distinction between local qualification and packet/CI closure. Both
+affected reviewers independently recheck the actual corrections and canonical
+owners/counts, with no remaining verified finding. This is correction verification
+within round 2, not another full review round. Both full Step 9 reviews and their
+verified corrections are now complete.
+
+An inspected provider-stage `NeverStarted` label is not treated as a defect:
+stage telemetry preserves the raw pre-checkpoint report, while the durable owner
+still treats the unresolved report after ExecuteIntent as Unknown and grants no
+quiescence, retry or release. The current observation contract distinguishes
+those meanings; no runtime or vocabulary change is justified by this candidate.
+
+At that correction check, the catalogue, glossary and architecture hashes are
+`35a184d078b587817fdffb1dcc07e2bb7ec332dbb8510adeac88548cc8aeae52`,
+`b2597922840fa98a7992721f05de816565820a093f56133af27727999bdaa311`
+and `bdaf367b047bed602dd8a2c4597eef90851b6f236522b3dd9e549b687a017494`.
+These three prose corrections change no C#. The fresh complete non-Docker
+rerun subsequently passes all 3,043 cases with zero failures/skips in 1,660.34
+seconds. Its closed 383-file source/artifact receipt is
+`f6f01737022f2013483967ddbff89e06daa4abd2eea6dd1ffbeed7a7de80e3dd`.
+This local result does not establish fit under the unchanged twenty-minute
+whole-job limit; real PR-head CI/job-budget qualification remains required.
+
+#### Fresh demo and browser/audit qualification
+
+A fresh actual `development` checkout at `d2bb2ee7` contains no private root/web
+configuration or previous demo artifact. Later commits change only tests and
+documentation; the functional sources are unchanged. The normal seven-service
+CI lifecycle restores, migrates, seeds, stops Keycloak, builds and boots the real
+API/native HTTPS renderer, then exercises all nine linked seeded pages. The
+earlier archive-only preparation boots successfully but cannot pass the required
+Git source-provenance check because it lacks `.git`; that failed setup attempt is
+retained separately and is not described as a product or audit failure.
+
+The actual clean-checkout `make demo DEMO_MODE=ci` exits zero in 662.69 seconds.
+The proof completes in 582.168 seconds, within its unchanged twelve-minute bound.
+All 27 JSON/HTML audit pairs and nine browser screenshots are present; every
+automated accessibility score is 1, maximum normalized gzip JS is 106,575 bytes
+and maximum CLS is zero. English catalog and Turkish lesson screenshots are also
+visually inspected. These checks preserve earlier human/VoiceOver evidence and
+do not claim a new complete manual accessibility audit.
+
+The nine LCP medians remain advisory at 2,012.61–2,197.74 ms against the existing
+1,500 ms warning threshold; response-time and blocking-time medians raise no
+warning. No timing advisory is relabeled a hard-gate success. Cleanup passes:
+owned processes stop, the disposable Compose project is empty, private files,
+environment and lock disappear, and application ports are free. Only sanitized
+receipt/report/screenshot artifacts are retained. Artifact/graph distribution
+verification and real API boot are separate evidence; this demo runs the normal
+Release build output and does not claim modified-library or publish-folder
+execution. Real PR-head CI and whole-job budget qualification remain pending.
+
+#### Final completion-budget scan qualification
+
+After the second full review and the completed 3,043-case run, a source-only
+performance correction replaces six whole-instruction walks for three owner
+budget fields with the existing fresh field-name index. Exact declaring identity,
+opcodes, private/instance declarations, permitted/forbidden owners and duplicate
+write counts remain. The standalone canonical Fact opens the same disposable
+detector scope already used by each mutation evaluation. No Fact, case, mutation,
+restoration, production subject, filter, timeout or concurrency bound changes.
+
+Independent applied-diff inspection verifies both hunks and all 35 unchanged
+mutation call sites/fixtures. CI-mode Release build has zero warnings/errors and
+scoped formatting reports no changes. All eight canonical, actual owner-mutation,
+independent instruction-index and corpus cases pass, zero failures/skips, in
+110.92 seconds. Their names match the preceding complete-run receipt. The owner
+mutation case records 109.69 seconds versus 186.35 in that earlier full cohort;
+different cohorts/load prevent claiming an isolated causal gain or CI-job fit.
+The closed 383-file source/artifact receipt is
+`e39d6d9a101b8d5b56246f262dd946c8ec82206c75db9bfd603ce363a6610dbe`.
+This is qualification-correction verification, not a third full review round.
+Real exact-head CI must still qualify the complete unchanged job budgets.
+
+### P02b-4 local closeout (2026-10-18)
+
+**Local implementation and review complete; [PR #32](https://github.com/HodeTech/LearnStack/pull/32) open.**
+All nine approved steps are delivered on `development`. Every step completed both fresh
+independent review rounds and its verified correction checks. The full Step 9
+rounds and final qualification corrections are recorded above; focused checks do
+not count as additional full rounds. Accepted ADR bodies/metadata and earlier
+as-of receipts remain intact.
+
+| Step | Delivered | Implementation / two review rounds |
+|---|---|---|
+| 1 | Typed contracts, closed registries and ordinary authority ceiling | Complete / complete |
+| 2 | Authoritative/vendor storage, exact grants and guarded bootstrap | Complete / complete |
+| 3 | Immediate transactional submission, trusted stamping and committed admission | Complete / complete |
+| 4 | Recoverable wakeups, independent pools and owned lifecycle/cleanup | Complete / complete |
+| 5 | Existing transaction owner, fenced completion and atomic terminal MUST audit | Complete / complete |
+| 6 | Cross-instance tenant capacity and quiescence-bound reservations | Complete / complete |
+| 7 | Durable external prepare/execute/finalize and known-failure policy | Complete / complete |
+| 8 | Durable UTC recurrence and recipient-bound tenantless fan-out | Complete / complete |
+| 9 | Complete observation, nineteen enforcement owners, skill/distribution and regression | Complete / complete |
+
+LearnStack state remains authoritative; stock Hangfire carries only opaque wakeup
+references. Production business and recurrence manifests remain empty. The actual
+Program manifest/route census, context restoration, transaction/terminal witnesses,
+capacity and external uncertainty, recurrence/fan-out, grants/RLS and real worker
+proofs back the nineteen Implemented catalogue obligations. The catalogue records
+221 Implemented rules: 131 Architecture and 90 elsewhere, with 254 Architecture
+method declarations. Discovery-only alignment was not used as executed evidence.
+
+**Local validation.** CI-mode Release build passes with zero warnings/errors;
+scoped formatting passes. The final complete non-Docker command before the last
+test-only optimization passes 3,043 cases, zero failures/skips: 2,452 Unit,
+410 Architecture, 177 HTTP Integration and four Contract. Its closed receipt is
+`f6f01737022f2013483967ddbff89e06daa4abd2eea6dd1ffbeed7a7de80e3dd`.
+The completion-budget correction receipt above qualifies the final changed
+detector and unchanged case identities. Local command duration remains explicit
+above; it is not substituted for the unchanged real CI job limit.
+
+The full Docker complement executes 2,428 cases, with three fixture failures
+retained honestly in the first receipt. All three are corrected without changing
+production code or test limits; twelve affected real PostgreSQL cases then pass
+with zero failures/skips. The source is frozen separately for each run. No fully
+current all-green local Docker rerun is claimed; the actual PR-head integration
+job must execute the whole complement. Frontend typecheck/lint/build and all
+1,616 guarded tests pass, zero skips/todos. The fresh real demo/browser/audit and
+complete cleanup receipt is recorded above. Packaging checks qualify the actual
+publish artifacts/dependency graph, both offline verifiers, replacement-source
+kit and dirty controls; actual normal Release API/native-renderer boot is proved
+separately by the fresh demo. No modified-library execution is claimed.
+
+All PR commit messages pass the actual strict hook. ADR lifecycle, relative
+links/fragments, source/count/no-skip guards, workflow lint and diff checks pass.
+The working branch remains `development`; protected stashes are preserved.
+
+**Accepted limits and next owner.** ADR-0059 permits a whole pool to wait until
+actual work/cleanup ends; ADR-0060's bounded unsafe startup/unwind class can kill
+the API process. Neither process exit nor lease expiry releases uncertain
+external reservations. Phase 03 owns operator recovery permissions/routes and
+privileged execution; Phase 04 owns actual media adapters/process-tree quiescence;
+Phase 11 owns mapped readiness, supervision/dumps, retention and measured
+production capacity. P02b-8 still owns the erasure inventory. These are the
+Accepted workload boundaries, not undisclosed unfinished P02b-4 mechanisms.
+
+The next packet is **P02b-5 API authentication**, beginning with G10/G11/G12
+(client), G14 and G20 decision review. No authentication/session implementation
+starts in this closeout. P02b-5–8 and the overall Phase 02b exit remain open.
+Real exact-head seven-job CI, its unchanged duration ceilings and the maintainer's
+PR review/merge remain separate; this local closeout does not claim them passed.
+
+#### PR handoff and current CI ownership
+
+[PR #32](https://github.com/HodeTech/LearnStack/pull/32) opens `development` →
+`main`, based on `ed60157c14d33fad926fd201b49c08e2d24eed1f`. The locally qualified
+implementation is committed at `199b033e`; this handoff adds only documentation.
+The closed C# receipt above remains byte-identical after normal commit hooks.
+
+The PR's [live checks](https://github.com/HodeTech/LearnStack/pull/32/checks) own
+current exact-head CI results, durations and downloadable artifacts. The initial
+[run](https://github.com/HodeTech/LearnStack/actions/runs/39120117263) starts on
+`199b033e`; a subsequent documentation push supersedes that unfinished run and
+requires a fresh complete check set. No partial or superseded result establishes
+final-head success. All seven required names and strict freshness remain enabled;
+backend, integration and demo keep their unchanged twenty-minute job ceilings.
+The maintainer owns PR review and merge; no merge is claimed here.
+
+#### Hosted CI qualification follow-up (2026-10-18)
+
+The completed [run 39120501520](https://github.com/HodeTech/LearnStack/actions/runs/39120501520)
+at `2e1d227ad1e0150fcbdcbde8df6d68374dc2f682` is **failed**. Frontend,
+meta, secret scan and OpenAPI pass. Backend and integration reach their unchanged
+twenty-minute ceilings; backend's completed TRXs retain 2,452 Unit, 177 HTTP and
+four Contract passes, with Architecture unfinished. Integration has actual early
+native-supervisor failures as well as cancellation; no complete Docker TRX passes.
+
+The actual native preflight reports `collector_pipe` on the hosted kernel.
+Zero inherited core limits do not qualify a piped collector. Earlier topology
+failures may race that refusal, but their precise endpoint states are unrecorded.
+[ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md) proposes explicit
+disposable-VM provisioning authority; it is not accepted or implemented. ADR-0060
+does not allow a failed precondition to authorize a host-wide setting change.
+
+The demo hits its separate sixteen-minute outer setup/proof budget during final
+report handoff; its inner proof lasts 659.906 seconds. Twenty-seven clean report
+pairs on disk do not repair the incomplete 26-row accepted receipt. Cleanup is
+confirmed; the run remains failed. Independent corrections address repeated
+architecture identity work and duplicate migration/API builds, preserving all
+cases, assertions, complete filters and existing deadlines. Final exact-head
+hosted success remains pending. The earlier local receipts and completed review
+rounds retain their stated scopes.
+
+The demo correction is committed at `bc3691fb`: normal migration entry performs
+one fresh Release API build before all unchanged EF chains consume that build,
+and the demo launches the resulting API without a duplicate build. Nine executed
+Makefile controls cover freshness, chain discovery/order and sticky failures.
+The guarded frontend suite passes 1,625 cases with zero skips/todos; typecheck and
+lint pass. A fresh Git clone at that commit completes the actual CI-mode demo in
+658.115 seconds: setup 71.168 seconds, proof 575.766 seconds and confirmed cleanup
+10.686 seconds. All 27 accepted report pairs and nine screenshots are present;
+maximum normalized gzip JavaScript is 106,574 bytes, CLS is zero and all 27
+accessibility scores are one. Nine LCP medians remain advisory warnings. Owned
+processes/containers, private configuration and locks are removed. This local run
+overlaps Architecture CPU work and does not establish hosted budget fit or new
+manual accessibility evidence.
+
+The first census correction completes the unchanged non-Docker filter with 3,043
+passes and zero skips: 2,452 Unit, 410 Architecture, 177 HTTP and four Contract.
+Every case identity matches the preceding full run. Its closed 383-file C# receipt
+is `c367357d21cf39ae2d339b0d166651a5969891cb1d6c55a4c1a7bbaad22dc9e0`.
+Local duration is 1,565.200 seconds; this is not a passing twenty-minute CI claim.
+A subsequent measured-cost correction uses fresh per-evaluation instruction/name
+indexes while retaining exact identities, opcodes, duplicates, all original
+mutation controls and independent raw-traversal comparisons. It additionally
+requires the actual authority detector to reject an unrelated detached target.
+Plain fixture setup SQL uses the same real PostgreSQL through an owned nonpooled,
+non-enlisting connection; the roles script retains its actual `psql -f` path.
+The four added transport rows and 311 existing role/guard/migration/provider cases
+pass together (315 passes, zero skips, 73.715 seconds). They verify actual roles,
+ambient isolation, intact batches, rollback and observed physical-session exit.
+The short server-cancellation row does not prove expiration of the helper's own
+thirty-second deadline. Independent targeted source reviews find no blocking or
+major defect; they are correction checks, not another full Step 9 review round.
+The latest ten selected Architecture cases also pass with zero skips in 390.999
+seconds, including actual authority/application-source/runtime mutations, exact
+raw/index parity and the catalogue/Docker-trait controls. Their requested case
+identities match exactly. These and the 315 PostgreSQL cases close the unchanged
+385-file C# receipt
+`919b1ef74b5b6d456abd628ac6e664f5f61fbd9c6184fde9737234a219dd259c`.
+The Release build has zero warnings/errors; scoped whitespace formatting is clean.
+PostgreSQL qualification overlaps Architecture CPU work; these subset timings
+are not causal speedup measurements. Final hosted full-filter results remain
+pending; no complete current Docker run or seven-check success is inferred.
+
+
+##### ADR-0062 revision and read-only baseline (2026-10-18)
+
+The maintainer's review requests changes; it is **not approval** of ADR-0062.
+The revised [proposal](../decisions/0062-native-crash-proof-ci-provisioning.md)
+selects a dedicated native-proof VM, verified fixed-pattern setup without
+restoration, and complete native/ordinary Docker partitions behind the existing
+fail-closed required result. It preserves seven required names and each existing
+twenty-minute execution ceiling. Host changes, the partition and its launcher
+remain unimplemented pending approval. The unmeasured 17:30/150-second allocation
+is withdrawn; actual fit remains a qualification gate. No Accepted ADR body or
+protection setting changes in this proposal pass.
+
+Two fresh independent targeted proposal reviews cover governance/authority and
+CI/process/coverage ownership. Both find no Blocker/Major; the first review's
+container-versus-VM wording is corrected. The final CI review has no remaining
+finding. These are proposal reviews, not a third full Step 9 round or hosted
+qualification. Private research also executes an isolated unprivileged
+.NET 10.0.10 nondumpability spike against the existing file collector: every exec
+resets the flag, per-child set/readback succeeds, actual FailFast gives SIGABRT
+without cleanup markers, and the benign twin keeps both. No pipe is installed or
+exercised; the pre-managed startup interval is not qualified by this experiment.
+The ADR records that narrower alternative and its boundary rather than claiming
+host mutation is technically unavoidable.
+
+[Run 39131069558](https://github.com/HodeTech/LearnStack/actions/runs/39131069558)
+measures source `0fe0db2b5b584d141fc2c37aeeaf102f8ba0781c` with read-only observation
+and the unchanged complete filters. Its PR merge checkout is
+`c705ea2eaa39df1c1ccafc0ee67b615b573383a1`; artifact metadata ties it to that source.
+There is no provisioning, changed collector, new partition or shortened deadline.
+The actual observation classifies `systemd_coredump`, four CPUs, VM present,
+container markers absent, noninteractive sudo available, writable proc mount but
+no caller write access, inherited host soft core zero/hard unlimited, and an
+empty readable all-state Docker baseline. These are closed observations, not
+exclusive-VM attestation, successful-write evidence or child-limit qualification.
+
+The full Docker command is canceled at the twenty-minute job ceiling. Console
+retains 629 recognized completed rows: 600 passes and 29 failures. Six direct failures report
+native supervisor refusal; 23 phase failures comprise fifteen exact pipe refusals
+and eight membership failures. The latter's endpoint states are still unknown;
+do not relabel them. Ordinary completed rows continue until cancellation, but no
+complete Integration TRX exists; three zero-selection assembly TRXs do not supply
+that missing evidence. The full non-Docker command also reaches its ceiling after
+16:21 in tests and 3:52 setup/format/build. Its final TRXs confirm 2,452 Unit,
+177 HTTP and four Contract passes with zero skips; Architecture retains 346
+completed passing console rows but no final TRX. No complete Architecture/job
+result or budget fit is inferred from those partial rows.
+
+Meta, secret scan, OpenAPI and demo pass. The actual demo retains all 27 accepted
+report pairs, nine screenshots, maximum normalized gzip JavaScript 106,551 bytes,
+CLS zero and all 27 accessibility scores one. Setup is 173.023 seconds, inner
+proof 653.561 seconds and confirmed cleanup 12.742 seconds; whole job is 15:04.
+This supersedes no historical failed demo receipt and supplies no new manual
+accessibility claim.
+
+Frontend's hosted run has 1,564 passes and one source-census failure: the two new
+CI-only Python files lacked explicit non-runtime classification. All nine new
+Makefile cases pass on actual hosted Ubuntu. Commit `641ba365` adds only those two
+exact paths; the unknown-Python rejection and runtime import graph remain intact.
+The corrected local guarded frontend runs all 1,625 cases with zero skips/todos;
+typecheck/lint pass. This local correction is not a passing hosted frontend result.
+Final full-source CI remains red; native authority approval and independently
+measured backend/Docker budget corrections still block PR closure.
+
+
+A subsequent independent budget correction retains typed owners until the capacity
+and recipient detectors select their actual targets, and formats recipient field
+writers only for the two target-type families the detector actually consumes.
+Global detached-target checks, exact assembly/signature/opcode/duplicate checks,
+all existing mutation schedules and fresh per-evaluation caches remain intact.
+Three standalone recipient checks use the same disposable evaluation scope.
+An independent applied source review has no finding. The CI-mode Release build
+has zero warnings/errors. All 29 selected capacity/recipient rows, raw/typed/index
+parity companion and five corpus guards pass with zero skips in 191.804 seconds;
+case identities exactly match the previous complete run. The unchanged 385-file
+source receipt is
+`c2521f3b2fe67289f796c9442e77f0977f96a9ec6272d2bfa39f7ef3e8d96c09`.
+These local subset timings are not a causal speedup measurement or a full hosted
+budget result. Other completed hosted cost evidence and repeated fresh-database
+migration work remain assigned to P02b-4's active CI qualification; no case,
+required check, timeout or production behavior is removed to obtain a pass.
+
+The complete unchanged non-Docker filter at `82d5307c` subsequently passes all
+3,043 cases: 2,452 Unit, 410 Architecture, 177 HTTP and four Contract, with zero
+skips and the exact previous case-identity multiset. The closed unchanged
+385-file C# receipt is
+`6ee75c41c60c1f4f48d7e096834b43f5e7c54574d2a90cc10d4e56acab0fdfe0`.
+Local test-command duration is 1,221.712 seconds, excluding hosted setup and
+artifact work; this does **not** qualify the twenty-minute whole-job budget.
+
+A separate local setup measurement invokes the existing fresh database CREATE,
+all five real migration chains and DROP six times on one owned fixture. The cold
+migration observation is 0.770250 seconds; five subsequent observations have a
+0.296865-second migration median and a 0.317290-second CREATE/migrate/DROP median.
+The first scratch run's empty receipt is rejected; after correcting only its
+writer initialization, all fixed numeric stage rows and successful disposal are
+verified, with no new container remaining. The CSV receipt hash is
+`15cb39f977c200bb5374819dfa7b21610ba071f5899edfdea4b1feadb8b29c1a`.
+This private measurement is not a committed regression, per-test seed/host/body
+measurement, template-equivalence proof or hosted fit claim. No template path is
+adopted from it. A collection-only parallelization is also rejected: distinct
+databases leave shared mutable dynamic hooks and Hangfire filter restoration
+exposed to races. The original serial proof semantics remain intact.
+
+A further narrow source-cost correction selects the three concrete completion
+owner writes from the existing fresh field-name instruction index. Exact full
+constructor identity, attached type, opcode, multiplicity, task constructor and
+live instruction adjacency checks remain unchanged. Two independent targeted
+source reviews find no issue. The CI-mode Release build has zero warnings/errors;
+all twelve selected pool, metric, tracing, credential, raw/index-parity and corpus
+cases pass with zero skips and unchanged identities in 106.375 seconds. Their
+closed 385-file C# receipt is
+`1da1475eb0d13b473007d10bbc69047903b7140c6a3a3081b8d814e9a115351e`.
+This correction has focused validation; the complete 3,043-case receipt above
+belongs to the preceding `82d5307c` source. No new full-run or hosted budget result
+is inferred, and ADR-0062 remains Proposed pending maintainer approval.
+
+##### ADR-0062 acceptance and CI implementation (2026-10-18)
+
+The maintainer explicitly approves revised ADR-0062 at `51346376` and authorizes
+implementation on `development`. Acceptance and ADR-0060's dated disclosure are
+committed before dependent CI code. The exact required integration name remains
+`backend integration (Testcontainers)`; it becomes a fail-closed aggregate of
+both complete Docker execution jobs. The other six required names, strict
+protection settings and twenty-minute execution ceilings remain unchanged.
+
+This follow-up implements one coherent CI boundary: closed provisioning and its
+offline meta controls; native process/cgroup ownership, complete complementary
+partition and result validation; then actual hosted qualification with complete
+artifacts and measured failure-cleanup reserve. It receives two fresh independent
+review rounds, with verified findings fixed and committed before final CI closure.
+Existing native child assertions and all ordinary test cases remain mandatory.
+No passing hosted result, new catalogue enforcement or completed implementation
+is claimed by this acceptance. The earlier failed and source-specific local
+receipts remain historical evidence; native separation alone is no budget proof.
+
+
+###### Native CI implementation and local qualification
+
+Acceptance commit `c4e64b52` precedes this implementation. The closed provisioning
+owner validates copied scalar workflow identity, actual platform/checkout,
+container/VM evidence, empty all-state Docker baseline and eligible collector
+before privilege. It independently compares actual reads and verifies either
+no-change or the one fixed literal write. Sixteen offline copied-owner subprocess
+controls pass; no developer host setting is changed by those controls.
+
+The native launcher owns finite execution/cleanup/export allocations, a delegated
+non-root systemd unit and separate supervisor/work cgroups. The live supervisor
+retains the work subtree until actual child join and an existing populated-zero
+witness; unit disappearance is not proof. Ordinary Docker receives equivalent
+process ownership on its separate VM, with no collector provisioning. The same
+required integration name is an always-running fail-closed aggregate of both
+successful, complete matching artifacts. The launcher's 203-second reserved tail is an allocation, not measured fit.
+Twenty offline launcher/result controls pass, including actual subprocess,
+setsid, live/missing cgroup, precise discovery IDs, sanitized TRX, incomplete
+aggregate, bounded export and composed pre-privilege collector controls. Actual
+hosted ownership, failure-tail
+measurements and whole-job fit remain pending.
+
+The CI-mode Release build passes with zero warnings/errors. Nine selected source,
+corpus and native predicate cases pass with zero skips; no canonical rule or test
+method count is added. The source census covers qualified/partial identities,
+shared traits, actual launch markers and transitive declared helper dependencies,
+with planted dirty and clean controls. It does not prove arbitrary dynamic-call
+analysis. The unchanged all-source snapshot covers 1,209 C# files; its snapshot-file
+hash is `91e9be8b8c7fb77954ed70638168ace4dabd761283526d8b0b19a8eaa7120b27`.
+
+Fresh actual Release discovery selects 2,432 Docker case IDs: 31 native and 2,401
+ordinary, disjoint and complete; the other three test assemblies select none.
+Twenty display-name collisions make a name-only set insufficient. The launcher
+parses only bounded identities from private VSTest protocol diagnostics; raw
+serialized theory inputs are not export artifacts.
+
+The complete local native partition passes all 31 cases with zero skips and exact
+fresh-discovery IDs, including benign twins and actual same-child mutants over
+real PostgreSQL. Its test interval is 166.889 seconds. The source snapshot stays
+unchanged; no new container remains and all 22 pre-existing container states are
+unchanged. Its TRX hash is
+`1cc3004dd5d67f18a577088bc52a06cd80e91e7ed984037dca63eb20750e63f7`.
+This qualifies the existing local native fixture, not hosted provisioning,
+systemd delegation or either twenty-minute whole-job path.
+
+Guarded frontend validation passes all 1,625 cases with zero skips/todos;
+typecheck and lint pass. Only the four new CI Python paths gain exact non-runtime
+classification; unknown paths and runtime import coverage remain guarded. Seven
+ADR-parser and five read-only observer controls, actionlint and changed-document
+links/fragments pass. Two fresh follow-up review rounds and actual final-source
+hosted qualification remain pending; PR #32 stays open and no merge is claimed.
+
+
+###### Native CI follow-up review round 1
+
+Commit `ee11bc94` contains the coherent implementation after acceptance
+`c4e64b52`. Normal commit hooks pass and preserve all 24 validated source hashes.
+Two new independent reviewers inspect the exact committed boundary through
+process/authority and coverage/corpus lenses. Their four findings are verified
+against that source before correction:
+
+- A failed optional preflight-log inspection drops the already bounded topology
+  facts from the exported reason. The exact topology form now permits an absent
+  preflight suffix while retaining its finite fields and refusal allowlist.
+- A contradictory positive TRX skip counter is accepted and then erased by
+  sanitization. Counter parsing now checks nonnegative values, row reconciliation
+  and zero error/skip/incomplete buckets before projecting a file for export.
+- Display-name-only interrupted records cannot distinguish 20 duplicate display
+  rows. The private incremental VSTest execution stream now supplies actual
+  assembly/case IDs, outcome and duration independently of final TRX.
+- A statically declared instance-extension helper escapes the source closure.
+  Its planted dirty control fails the original detector; source method symbols,
+  reduced extension declarations and ambiguous candidates now retain the helper
+  edge. An unrelated same-named extension remains a clean control.
+
+The extension correction builds with zero warnings/errors and all seven selected
+source/corpus controls pass with zero skips. This modifies only the Architecture
+source file; all native fixture and production C# files remain unchanged from the
+31-case local native proof. No extra rule or test method is added.
+
+Twenty-four corrected Python controls pass, including interrupted colliding IDs,
+partial event lines, completed tails, missing/duplicate/wrong identities, truthful
+failed rows, contradictory counters and missing optional diagnostics. The actual
+pinned runner also executes the two existing pure native predicates with
+`RunConfiguration.BatchSize=1`; each result arrives in its own StatsChange event,
+and the real parser's five-field records exactly match both actual TRX rows.
+Without that setting this small run delivers results only at Completed. Raw
+execution diagnostics remain private. The setting changes event batching, not
+case membership or assertions; nonempty projects receive distinct private streams
+and zero-case projects retain complete discovery coverage.
+
+This narrow wire experiment and offline controls do not qualify the hosted unit,
+provisioning, full ordinary partition or tail budget. The
+[VSTest 17.12 configuration](https://github.com/microsoft/vstest/blob/v17.12.0/src/Microsoft.TestPlatform.ObjectModel/RunSettings/RunConfiguration.cs)
+and [result cache](https://github.com/microsoft/vstest/blob/v17.12.0/src/Microsoft.TestPlatform.CrossPlatEngine/Execution/TestRunCache.cs)
+are the pinned source basis. The corrected commit and a second fresh independent
+review round still precede actual hosted qualification; PR #32 remains open.
+
+###### Native CI follow-up review round 2
+
+The round-1 correction is committed at `779b6007`. Two fresh independent
+reviewers inspect the complete acceptance-to-correction boundary: GPT-6-sol
+xhigh reviews runtime/authority and GPT-6.1-sol xhigh reviews proof/partition
+and corpus claims. The runtime review reports no verified finding; the proof
+review identifies two additional issues, both verified before correction:
+
+- GitHub's absent job-services context serializes as `null`, while both owners
+  accept only an empty object. Both now accept exactly those two empty forms;
+  missing, malformed, non-object and nonempty service contexts remain refusals.
+  Copied-owner controls exercise the real absent-services input before launch.
+  All 17 provisioning and 25 launcher controls pass.
+- A native call under a compiler-defined conditional symbol is invisible to
+  a parser with no defines. The source census now reuses the existing bounded
+  MSBuild symbol reader against the actual Integration Release project,
+  including SDK implicit defines. Whole-class and method-body controls under
+  `NET10_0` and `TRACE` reject unclassified callers; inactive `DEBUG` source
+  remains a clean control. The planted control fails the original parser.
+
+The corrected Release build has zero warnings/errors; all seven selected
+source/corpus cases pass with zero skips. Scoped whitespace verification passes
+with the separately reported workspace-loading warning. No native fixture or
+production C# source changes in this correction, and no rule/method count changes.
+
+The actual complete 31-case native fixture also passes with private incremental
+execution diagnostics and `RunConfiguration.BatchSize=1`. All five exported fields
+for every result match the final TRX exactly, including fresh-discovery IDs;
+there are zero skips, zero remaining new containers and unchanged states for
+all 22 pre-existing containers. The TRX hash is
+`03e826a07d94e06ec22f748ca80586eef1fe709de279a4914d29569c21729bf9`.
+This is a local fixture/protocol receipt, not hosted systemd/provisioning,
+ordinary-workload or whole-job timing qualification. Both full independent
+follow-up rounds are complete; verified corrections and final-source hosted
+qualification still precede PR closure. PR #32 remains open and unmerged.
+
+###### First hosted split qualification and meta control correction
+
+Source `6daa9a1c` is pushed normally on `development`; PR #32 remains open.
+[Run 39140874785](https://github.com/HodeTech/LearnStack/actions/runs/39140874785)
+starts actual hosted qualification. Independent API readback confirms all main
+protection settings, including seven required contexts and strict mode, are
+unchanged.
+
+The meta job passes all 17 provisioning controls, then exposes a synthetic-file
+race in the launcher suite: a forked fixture child truncates its fake
+`cgroup.events` before writing `populated 0`, while the owner reads concurrently.
+The strict production parser correctly refuses the impossible empty snapshot.
+The fixture now publishes the complete snapshot through same-directory atomic
+replacement; production checks are unchanged, and missing/malformed-event dirty
+controls remain. All 25 launcher controls pass after correction. An independent
+focused review confirms the race and correction without broadening the owner.
+This correction does not make the failed meta receipt pass; final-source hosted
+qualification remains required. Other jobs continue to measure their actual paths.
+
+The native job builds successfully with zero warnings/errors, then refuses
+before collector provisioning or test launch on `unexpected_crash_artifact`.
+Its read-only environment receipt confirms an empty Docker baseline and
+`systemd_coredump`; the retained receipt does not identify the matching file.
+No legitimate source/build candidate is established, and no exclusion is added.
+The scanner retains its exact roots, predicates, deadline and strict refusal,
+using NUL-delimited private output to classify only a finite root/name category
+in the refusal. Paths, contents and provider text are not exported. All 26
+launcher controls pass; an independent focused review confirms that nonempty
+or malformed candidates still refuse. Actual hosted requalification remains
+pending; this diagnostic correction supplies no passing native proof.
+
+###### First split-run result and bounded topology proposal
+
+Run 39140874785 completes with failure on source `6daa9a1c`, merge checkout
+`853678c01c2c877e8bf5d7f81f559fc86ffbc9c4`. Backend reaches its twenty-minute
+ceiling: complete TRXs contain 2,452 Unit, 177 HTTP Integration and four Contract
+passes with zero skips; Architecture has no final TRX. Its 152 recognized passing
+console rows do not qualify the remaining population or a complete run.
+
+Ordinary Docker discovers all 2,401 cases and records 503 distinct passing case
+IDs before `deadline_exhausted`; 1,898 cases remain censored. There is no final
+Integration TRX. Failure cleanup positively joins its owned workload in the
+recorded 0.475-second path, with forced cleanup and no successful natural Docker
+disposal claim. The aggregate correctly fails. This is measured failure of the
+current arrangement, not permission to change timeouts or omit cases.
+
+Frontend passes all 1,625 cases and its ingress proof; OpenAPI and secret scan
+pass. Demo's verified artifact contains 27 JSON/HTML report pairs, nine screenshots,
+accessibility 1 throughout, CLS 0 and maximum normalized gzip JavaScript 106,553
+bytes. Its setup/proof intervals are 182.954/658.518 seconds; 10.647-second owned
+cleanup passes. These successes remain specific to this source.
+
+Corrections `14584012` and `37ff4c59` are pushed normally after that run finishes.
+[Run 39142456800](https://github.com/HodeTech/LearnStack/actions/runs/39142456800)
+requalifies the separate meta/native corrections. Meta, frontend, OpenAPI and
+secret scan pass. Native still refuses before provisioning/test launch; its new
+closed reason is `unexpected_crash_artifact_docker_dump`. The actual matching
+file/format remains unknown. No candidate is excluded, no host setting is
+changed and no native hosted pass is claimed.
+
+A further read-only diagnostic invokes fixed `/usr/bin/file` only for the
+private NUL-delimited candidate and maps its captured description to a finite
+format label. It shares the original scan's twenty-second allocation. Every
+candidate still refuses, including unknown formats and failed/timed-out probes;
+no description, path or contents are exported. All 26 launcher controls pass,
+and an independent focused review finds no defect. Actual classification and
+native hosted qualification remain pending; this adds no collector authority
+or file exclusion.
+
+Diagnostic commit `b4ee65b2` is pushed normally with the Proposed ADR-0063
+documents. Run 39142456800 is superseded/canceled after its independent
+meta/native observations; no complete backend/ordinary result is inferred.
+[Run 39143417261](https://github.com/HodeTech/LearnStack/actions/runs/39143417261)
+again passes meta, frontend, OpenAPI and secret scan. Its native job builds
+successfully but refuses before provisioning/tests on
+`unexpected_crash_artifact_docker_dump_unknown`. Further fixed diagnostic labels
+distinguish Docker storage regions and common formats/probe refusal, without
+changing scan traversal, predicates or any failure decision. All 26 controls
+pass and independent focused review approves. The candidate remains unexplained;
+no allowlist, deletion, shard implementation or passing native result is claimed.
+
+Diagnostic source `d39233d5` starts
+[run 39144033895](https://github.com/HodeTech/LearnStack/actions/runs/39144033895).
+Meta, frontend, OpenAPI, secret scan and demo pass. Native still refuses before
+provisioning/tests, now classified as an overlay-area `.dump` with generic binary
+data format. Neither its contents nor image ownership is established by that
+classification. Ordinary Docker records 146 passing case IDs before
+`owned_completion_missing`; its failed receipt records forced cleanup and a
+positive cleanup-ownership witness, not successful execution or natural Docker
+disposal. No final Integration TRX exists. This early failure is distinct from
+the earlier measured deadline exhaustion and remains under investigation.
+
+The next read-only diagnostic compares the private candidate's canonical path
+with exact-ID-bound image-layer metadata from the fixed local Docker socket.
+Only classic `overlay2` at the expected root is understood; stable inventory and
+canonical paths are required. Only finite match/no-match/unavailable labels can
+leave the owner. Every crash candidate still refuses, including a positive
+image-layer match; no path is pruned or declared benign. A separate closed
+workload-error fact supplements a failed ownership receipt without replacing its
+failure or supplying completion evidence. Malformed ownership remains a failed
+receipt; a planted control first exposes an unguarded cleanup shape and then
+passes after the explicit dictionary guard. The provisioning owner is unchanged.
+All 30 launcher controls, the unchanged 17 provisioning controls and seven ADR
+parser controls pass. The independent focused source/proof review verifies the
+corrections and reports no remaining finding. This is offline diagnostic
+validation; actual hosted provenance, workload cause and full qualification
+remain pending. Main protection is independently read back unchanged in full,
+including strict mode and all seven required contexts.
+
+Source `f53c36fc` starts
+[run 39145489321](https://github.com/HodeTech/LearnStack/actions/runs/39145489321).
+Meta, OpenAPI and secret scan pass. Its native job still deliberately refuses,
+but now positively binds the private candidate to a presently inspected image
+layer: `unexpected_crash_artifact_docker_overlay_dump_binary_data_image_metadata_match`.
+This proves that candidate's path provenance on that source, not its content or
+earlier runs' files. Docker's
+[classic overlay2 documentation](https://docs.docker.com/engine/storage/drivers/overlayfs-driver/#image-and-container-layers-on-disk)
+distinguishes image lower layers from the separate writable container layer.
+
+The resulting applicability correction retains the first scan unchanged. Only a
+fresh, stable exact-ID image snapshot containing that same candidate authorizes
+a second scan over every original root, pruning solely verified existing image
+`diff` directories. A complete matching snapshot after that scan is mandatory
+before a clean return. Unsupported/unreadable metadata, non-directory layers,
+drift, malformed output, budget exhaustion and all nonpruned candidates remain
+failures. Each pre-launch and cleanup scan independently requalifies its own
+snapshot and records only its verified-directory count. No filename, format,
+overlay-parent or writable-container allowance is added; no file is deleted.
+
+All 32 copied-owner controls pass. They include real `find` traversal in an owned
+temporary tree: the image file is first, yet a later writable/prefix/merged/work/
+volume artifact still appears; malformed and post-scan-changing metadata cannot
+make the result clean. No developer Docker state or host collector is changed.
+Focused review and actual hosted qualification still precede closure.
+
+The first fresh focused scope review approves `7cd07a18` without findings and
+independently passes all 32 controls. A second fresh independent review follows.
+Run 39145489321's ordinary job separately records `workload_internal_refusal`;
+its failure remains red. The child now classifies unexpected faults solely by
+a fixed owner-stage map and finite exception families, never exception text,
+provider type names, filenames or stack output. The closed fact supplements
+the failed receipt; no retry, passing result or completion witness is invented.
+
+The second fresh focused review approves `f53c36fc..e710bb61` without findings,
+independently passing all 33 controls. On source `e710bb61`,
+[run 39146395561](https://github.com/HodeTech/LearnStack/actions/runs/39146395561)
+passes the complete hosted native job in 420 seconds. The verified artifact
+contains 31 passing native cases, zero skips and exact fresh-discovery IDs;
+all five completed-result fields equal the final TRX and every exported hash
+matches. Actual setup/execution/cleanup intervals inside the launcher are
+2.825/231.561/10.628 seconds. Ownership and natural Docker absence are positive;
+forced cleanup is false. The collector changes from `systemd_coredump` to the
+supported file policy with inherited zero limits. Independent pre/post scans
+verify 78/94 image directories respectively; neither reuses the other's snapshot.
+This qualifies that source's native job, not the complete PR or another source.
+The same hosted meta job passes 17 provisioning and 33 launcher controls,
+including actual GNU `find` traversal. Backend/ordinary fit remains separate.
+
+An independent source/filesystem investigation also verifies a normal VSTest
+diagnostic-rotation incompatibility. It does not establish the cause of any
+hosted ordinary failure. The inspected release sources
+[v17.12.0](https://github.com/microsoft/vstest/blob/v17.12.0/src/Microsoft.TestPlatform.PlatformAbstractions/common/Tracing/RollingFileTraceListener.cs)
+and [v18.6.0](https://github.com/microsoft/vstest/blob/v18.6.0/src/Microsoft.TestPlatform.PlatformAbstractions/common/Tracing/RollingFileTraceListener.cs)
+rename the current file to one expected backup before publishing its replacement.
+The old reader rejects a shorter replacement; a reproduced exists/open race
+throws `FileNotFoundError`. The package pin `Microsoft.NET.Test.Sdk` 17.12.0 does
+not itself pin the SDK console; the observed local console is
+`18.6.0-release-26329-109`. Release-source equivalence is not an assertion about
+an unobserved hosted build commit.
+
+The reader correction owns generation zero before launch, retains its descriptor
+and requires exact device/inode/backup continuity before each handoff. It drains
+old tails, preserves partial lines and defers only a live rename gap; a final
+unresolved gap, missing generation, unknown backup, truncation or replacement
+remains red. The cumulative 64 MiB bound spans generations; handoffs are bounded
+and descriptors close on success/refusal. All 38 copied-owner controls pass,
+including actual rename/race, hidden generation and cumulative-bound controls.
+Two real local pure predicate cases also pass with the pre-owned file and actual
+SDK writer: exact discovered IDs and all five final-result fields match TRX.
+This small append/protocol receipt does not qualify actual rotation, Docker,
+hosted cgroups or whole-job fit. Fresh review rounds and final-source hosted
+qualification remain pending for this independent reader correction.
+
+Reader implementation `9aad3c57` completes the first fresh review without
+findings; the reviewer independently passes all 38 controls and verifies both
+private append/protocol receipts. A further controlled local experiment fills
+only its private pre-owned generation zero above 10 MiB, triggering the
+unmodified SDK writer's actual normal rotation. The reader follows one handoff
+across 10,613,523 bytes; both real predicate cases pass with exact discovered IDs
+and all five result fields equal TRX. This is deliberate local feasibility, not
+a reproduction of a hosted fault. The new reader still owes final-source hosted
+qualification and its second fresh review.
+
+Run 39146395561's ordinary artifact is independently verified: 517 unique passing
+case IDs belong to the 2,401-case expected set; 1,884 cases remain censored and
+no final Integration TRX exists. Its error is `deadline_exhausted`, distinct from
+the earlier internal fault. The 0.777-second cleanup positively witnesses owned
+join but is forced and supplies no natural Docker-disposal success. The
+integration aggregate correctly fails despite the separate native success.
+
+ADR-0062's reopen condition is met. Proposed
+[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) describes one
+backend-base VM retaining non-test gates and cheap non-Docker suites, four
+Architecture method shards, ten ordinary Docker method shards and the unchanged
+native VM. The two backend required names become complete fail-closed aggregates;
+all seven names, strict protection and twenty-minute execution ceilings remain.
+Actual Release discovery and exact method-filter rediscovery must prove every
+theory row has exactly one owner, with independent aggregate recomputation.
+Timing estimates are advisory; the proposed counts are not a hosted fit proof.
+Repeated restore/build across fifteen base/Architecture/ordinary VMs replaces
+two such VMs; the runner and queue cost is explicit. No shard code is implemented
+before maintainer acceptance. The proposal names three implementation steps,
+each requiring commit and two fresh independent review rounds.
+
+Two independent proposal reviews (GPT-6-sol xhigh and GPT-6.1-sol xhigh)
+approve the revised ADR and index without remaining findings. They independently
+check retained failure artifacts, the pinned method-filter contract, exact
+bounded supersession, cross-VM population agreement, aggregate-side independent
+assignment recomputation, backend-base non-test gates and the sixteen-VM cost.
+Actual selection, ownership, reserves and fit remain pending implementation and
+hosted qualification. This is proposal review, not maintainer acceptance.
+
+###### ADR-0063 review revision (2026-10-18)
+
+The maintainer's response reviews the proposal; it does **not** accept it.
+ADR-0063 remains Proposed. The initial `3f5f09e3` proposal and its first two
+reviews above are historical inputs, not reviews of this revision. No shard
+implementation or ADR-0062 amendment is authorized yet; `development` is retained,
+PR #32 is open and P02b-5 has not started.
+
+Fresh read-only API/artifact verification of
+[run 39148006960](https://github.com/HodeTech/LearnStack/actions/runs/39148006960)
+binds source `3553ff16` to merge checkout
+`6de31fcce66d7f53e4d5d28fd163f65ab8af4d85`. Native succeeds in 465 job seconds:
+31/31 cases, zero skips, exact fresh IDs/TRX fields/hashes, positive ownership,
+natural Docker absence and no forced cleanup. The launcher-only intervals are
+1.535/240.221/10.468 seconds; these exclude checkout/restore/build. Both fresh
+reader correction review rounds are complete. Meta passes 17 provisioning and
+38 launcher controls; frontend, OpenAPI, secret scan and demo also pass.
+
+Backend again lacks a completed Architecture TRX and reaches the configured
+ceiling. Its API interval includes the cancellation/post-step tail; that does
+not extend its twenty-minute configuration. Ordinary is a distinct failed path:
+416 passing IDs, 1,985 censored cases, no final TRX, `owned_completion_missing`
+and `workload_internal_membership_io`. Forced 0.459-second cleanup witnesses
+cleanup ownership, not successful workload completion. The retained facts do
+not identify an errno or establish the root cause. ADR-0062 owns that correction;
+sharding cannot count it as a measured deadline or waive it. The integration
+aggregate correctly fails despite native success. Protection API readback still
+has the same seven app-bound contexts and strict mode; no setting is changed.
+
+Review dispositions are verified against the current tree and retained evidence:
+
+| Review topic | Verified disposition |
+|---|---|
+| Stale native/meta Context and reader follow-up | Corrected source-scoped history: meta race fixed; image provenance and reader both reviewed; native now passes. Earlier ordinary internal/completion faults remain separate. |
+| Four Architecture bins, 152 versus 346 rows | Confirmed weak sizing, not a fit proof. First/current/earlier console prefixes are 152/294/346 with no final TRX. Ordinary's ratio cannot predict CPU-bound Architecture. Local maximum is not a hosted upper bound. |
+| Sum/wall confusion and 782-second window | Corrected: the window includes discovery/fixtures/test lifetime; 203 seconds already includes 60 seconds upload. Historical sums do not establish spare capacity or ordinary-only wall time. |
+| Backend-base sizing | Newly extracted complete suite intervals and pre-test walls appear in ADR-0063. Base candidate remains one VM; its new discovery/owner/export and isolated fit still require measurement. |
+| Repeated fixture/discovery costs | Confirmed: SharedSchema spans 75 classes; split VMs repeat container/migration/seed and other fixtures. Missing per-fixture/CPU measurements are unknown, never zero. |
+| Fixed counts and new ADR per tuning attempt | Revised proposal permits reviewed manual Architecture 4–6 / ordinary 8–12, at most twenty backend/test execution VMs; initial 6/12. No automatic/dynamic expansion or larger ceiling. |
+| Process composition and independence | Require two genuinely different A/B assignments on the same source via two full attempts; bin renumbering cannot qualify. Fix actual dependence if exposed. |
+| Collection versus process/VM alternatives | Existing Integration collection parallelism and Architecture's two-thread cap clarified. Separate processes on fewer VMs are a credible unqualified alternative; VMs are not required merely to isolate static state. |
+| Non-Docker cgroup privilege | Explicit new bounded hosted-only transient systemd authority requires acceptance; child stays non-root. Non-Docker gets no Docker baseline/cleanup, crash scan or collector authority. |
+| Plan, timing/default costs and selector bounds | Proposed tracked JSON/owner, versioned frozen weights with provenance, unknown-method census, explicit 60-second estimate and finite direct-argv/filter bounds; actual selection still independently rediscovered. |
+| Aggregate outcomes/names/ceilings | Backend requires base/all Architecture; integration requires all ordinary/native. Each unique required name belongs solely to an always-running aggregate, each bounded to five minutes. All seven protection settings remain. |
+| Rerun/attempt/artifact semantics | Single-attempt receipts with immutable artifact IDs and attempt-specific job verification. Failed/aggregate-only reruns cannot reuse old siblings; recovery is Re-run all jobs. |
+| General control owner and meta ceiling | Proposed general `CI_Test_Shards_Are_Complete_And_Bounded`, Registered only at acceptance, then Implemented with actual Python/meta controls. Native/Hangfire and Docker-trait rules keep their own scope; meta stays five minutes. |
+| Cost, queue, toolchain and filter identity | Public standard minutes are free; effective organization concurrency is unknown. Queue extends feedback, not running ceiling. Each receipt records actual console/adapter; actual xUnit FQN producer is cited. |
+| Probe path, terminology, diagnostics | Full probe README named; base is project-owned, only Architecture/ordinary selector-sharded. Finite/private diagnostics remain bounded; raw provider output is not added. |
+
+The first fresh full revision review (GPT-6.1-sol, xhigh) approves with no
+Blocker/Major/Minor finding. It independently verifies native result integrity,
+base intervals, the current ordinary failure, source/merge identity and all seven
+strict app-bound protection contexts. Its suggestions are incorporated: explicit
+initial A/B algorithms and the 56-second current meta baseline with a provisional
+30-second new-control allocation. Only aggregates propose
+job-level `actions: read` beside `contents: read`; no execution token gains
+permission.
+
+The second fresh full review (GPT-6-sol, xhigh) independently approves
+`3553ff16..b3ee4ea6` with no Blocker/Major/Minor finding. It verifies the actual
+A/B/retry contract, bounded new authority, retained API/artifact/timing evidence
+and current primary toolchain contracts. Seven ADR parser controls, all 653
+relative links/anchors in changed documents, prose width and diff checks pass.
+Both revision review rounds are complete. This is proposal review, not acceptance
+or hosted fit; ADR-0063 remains Proposed and its implementation waits for the
+maintainer's explicit decision.
+
+The revised three steps are specified once in
+[ADR-0063 Implementation Notes](../decisions/0063-complete-bounded-ci-test-shards.md#implementation-notes):
+actual selector/plan controls; bounded execution/phase evidence; workflow/aggregate
+and two-assignment qualification. Each retains commit and two fresh independent
+review rounds before advancing. New general-rule registration and ADR-0062's dated
+bounded replacement/additive disclosure happen **only after acceptance**. Their
+future implementation must update actual catalogue counts in the enforcement
+change, not preclaim them here. Full execution fit and the independent ordinary
+owner failure remain open qualification work; no runtime feature is added.
+
+###### ADR-0063 acceptance and implementation (2026-10-18)
+
+The maintainer explicitly approves revised ADR-0063 and its three implementation
+steps and requests implementation. Acceptance binds
+`b3ee4ea6`, with two fresh independent review receipts recorded at `2e1fedc7`.
+It authorizes the initial base + six Architecture + twelve ordinary + native
+plan, manual Architecture 4–6 / ordinary 8–12 under twenty execution VMs,
+complete A/B attempts, confined non-Docker systemd ownership and aggregate-only
+read Actions API authority. Seven required contexts, strict protection and
+execution twenty-minute / aggregate five-minute ceilings remain unchanged.
+
+ADR-0062 Amendment 1 discloses the bounded replacement/additive seam without
+rewriting its Accepted body/metadata. The new general CI rule is Registered;
+implementation and actual final-source fit remain pending. This acceptance
+commit precedes any dependent code. The three steps follow ADR-0063's canonical
+plan, each with commit and two fresh independent review rounds. Verified owner
+faults remain corrections under ADR-0062, not presumed consequences of sharding.
+Work stays on `development`; PR #32 stays open and the maintainer owns merge.
+
+###### ADR-0063 Step 1 — complete selector plan (2026-10-19)
+
+Implementation follows acceptance commit `94f201ab`. The tracked JSON plan starts
+with six Architecture and twelve ordinary owners, bounded by the Accepted manual
+range. Its method weights retain artifact hashes, partial/local provenance and
+unknown fixed costs; estimates never select membership. The actual discovery
+protocol supplies assembly, case ID, display name and `FullyQualifiedName`.
+The owner builds whole-selector A/B assignments, bounded direct filters and exact
+per-owner/complete-union checks. Shared-fixture class observations support the
+independence witness; they do not define the test population. The general
+catalogue rule remains Registered until execution and aggregate enforcement ship.
+
+Fresh Release discovery identifies 5,475 cases: 3,043 non-Docker and 2,432 Docker,
+the latter exactly 31 native plus 2,401 ordinary. Both A/B plans independently
+rediscover all 44 generated project filters and match every assigned case field;
+their Architecture, ordinary and shared-fixture co-memberships differ. This
+local selection proof took 38.429 seconds after complete discovery, using SDK
+10.0.302. It does not execute the assignments or establish hosted fit. The
+assignment digests are
+`8c4459848fae3279b4bc60b7c4614945a282db4862042ca6565c331e9e56f4ad`
+and `8a113fac9c26a7595d930effcc1c307f030cd7ede1b8d38592c55cac7d55099c`.
+
+Real discovery/result reconciliation also exposed two existing identity edges:
+
+- An Exception-valued Unit theory advertised one discovered ID for three executed
+  rows. Primitive inline inputs now construct the same three exceptions inside
+  the test, preserving all assertions and producing three distinct IDs.
+- VSTest's TRX logger escapes supplementary Unicode as UTF-16 code units. Result
+  validation binds assembly/ID first and accepts only the exact discovered name
+  or its exact forward XML representation. It does not decode arbitrary names or
+  relax the raw completed protocol. Unicode test inputs remain unchanged. The
+  [resolved VSTest source](https://github.com/microsoft/vstest/blob/e2f248338b5756f82d38c0d9551ff08bea0947de/src/Microsoft.TestPlatform.Extensions.TrxLogger/XML/XmlPersistence.cs#L652-L689)
+  supplies this transformation.
+
+Local validation: normal solution Release build passes with zero warnings/errors;
+the corrected Unit suite passes 2,452 cases with zero skips and unique discovered
+IDs. All those TRX identities reconcile: 2,450 names directly and two through the
+expected-bound XML representation. This Unit run did not capture the completed
+protocol, so it is not claimed as a complete new launcher receipt. The actual
+TRX SHA-256 is
+`0597c5be316aab7ddb50ca1754e3b7cd29f2d3e689ae8862fea4fddc1375b395`.
+Five focused corpus checks pass. Twenty new offline controls pass in 0.183 seconds
+and all 38 existing launcher controls pass in 17.340 seconds. The changed C# file
+passes project format verification; the solution-format invocation reported a
+workspace-load warning, so it is not a clean full-solution format claim.
+
+The new controls run in meta inside a finite 30-second allowance. Workflow test
+matrices, new execution authority, aggregate/API enforcement and actual two-attempt
+hosted qualification remain Steps 2–3. Step 1's commit and both fresh independent
+review rounds must complete before Step 2 starts; their receipts follow here.
+
+**Step 1 review round 1.** A fresh `gpt-6.1-sol` reviewer at `xhigh` examines
+`94f201ab..480fb1b4` across the standards and code-review lenses. One Major is
+verified: disjoint case-ID populations could still split the same assembly/FQN
+between original trait partitions. Manifest validation now refuses that conflict;
+controls cover every non-Docker/native/ordinary boundary under both assignments.
+All 21 controls pass, including the supported equal-FQN/different-assembly case.
+The reviewer independently verifies the prepared fix, all five timing artifact
+hashes, complete discovery/filter diagnostics and unchanged A/B assignment
+digests. No other actionable finding is confirmed.
+
+The reviewer also replays a real focused VSTest protocol/TRX proof: all eleven
+cases across both Unicode methods and the three corrected exception rows pass
+with unique IDs and exact completed-stream fields. Its local execution took
+1.082 seconds; this supplies the protocol boundary proof missing from the full
+Unit run, without claiming cgroup or hosted execution qualification. The fix
+commit precedes the fresh second review. Step 2 has not started.
+
+**Step 1 review round 2 and closeout.** A new `gpt-6-sol` reviewer at `xhigh`
+independently reviews `94f201ab..0c97dd29` and approves with no actionable finding.
+The reviewer verifies the committed partition refusal, all 21 new and 38 existing
+controls, all 44 real selected-filter diagnostics, both exact unions and changed
+co-memberships, all five timing-source hashes and both Unit identity/protocol
+receipts. The current plan reports three ordinary selectors with unknown weights;
+they remain owned and use the declared advisory default. Step 1 is complete with
+both required review rounds and the verified correction committed. Step 2 now
+owns bounded execution and resource/identity receipts; Step 3 owns workflow/API
+enforcement and actual two-attempt hosted qualification. No hosted fit follows
+from this closeout.
+
+###### ADR-0063 Step 2 — bounded shard execution (2026-10-19)
+
+After Step 1 closeout `357b97fd`, the existing CI execution owner gains the
+finite base, Architecture, ordinary and native-shard paths. They use complete
+fresh selector discovery, recomputed plan ownership, independent selected-filter
+rediscovery before execution and exact completed-protocol/TRX reconciliation.
+All new dotnet argv pass the plan's byte bound before spawning. Base retains
+format and actual Hangfire publish/distribution/replacement controls; normal
+Release builds remain a prerequisite in the Step 3 workflow arrangement.
+Existing unsharded workflow paths remain active until that wiring ships.
+
+Non-Docker paths qualify the exclusive hosted Ubuntu 24.04 VM and use only the
+owned systemd/cgroup process boundary. They perform no Docker census/cleanup,
+collector read/write or crash inventory. The native setup writer remains
+native-only; a read-only qualification call explicitly excludes Docker for
+non-Docker jobs. Only the delegated owned unit enables CPU/memory accounting.
+The supervisor retains positive join and empty-subtree evidence before reading
+its work-cgroup CPU/memory peak. VM memory is separately sampled during polling:
+its observed maximum includes other VM work and is not a continuous peak bound.
+Container-specific peaks and uninstrumented fixture counts remain unknown.
+
+Receipts retain the actually selected SDK/console versions and binary hashes,
+the loaded adapter's diagnostic version/path-bound binary hash, per-project
+first-result and test-process intervals, discovery/selection, non-test gates and
+result export intervals. Advisory estimates retain unmeasured fixed terms and
+no invented wall bound. The existing finite whole-job/cleanup/upload budget is
+unchanged; forced termination cannot become success. Workflow/API aggregate
+validation of these receipts and actual hosted fit remain Step 3 obligations.
+
+The independent ADR-0062 membership fault is also addressed narrowly. Linux can
+return ENOENT/ESRCH when an enumerated task exits before its cmdline read. Only
+that candidate read, or a positive vanished-task recheck, is tolerated. An
+enumeration fault, non-exit cmdline fault, unreadable live candidate cgroup or
+outside testhost still refuses with finite stage/reason diagnostics. The
+previous hosted receipt lacks errno/suboperation evidence, so this is not a
+claim that ESRCH caused that run or that the hosted fault is already closed.
+
+Local checks: all 31 shard controls pass, including real owner selection/result
+flow, negative pre-spawn selection/bound checks, non-Docker parent authority
+controls, exit-race controls and metadata/resource shape checks. All 38 existing
+launcher controls and 18 provisioning controls pass. The latter execute a
+byte-verified copy through real temporary subprocesses, including the new
+non-Docker runtime reader with no Docker/collector/sudo operation. The reviewed
+provisioner source hash is updated for its explicit read-only Docker exclusion;
+all other copied bytes still must match. Actual local SDK/console observation
+and retained loaded-adapter diagnostics resolve SDK 10.0.302, console
+18.6.0-release-26329-109 and adapter assembly 2.8.2.0. These controls and local
+observations do not qualify hosted systemd, cgroups, Docker disposal or fit.
+
+Step 2's implementation commit and two fresh independent reviews follow before
+Step 3 begins. The general CI catalogue rule remains Registered; no final-source
+hosted success, complete packet CI or merge is claimed.
+
+**Step 2 review round 1.** A fresh `gpt-6.1-sol` reviewer at `xhigh` reviews
+`357b97fd..17f9cd4f` and approves with no actionable finding. All 31 shard,
+38 launcher and 18 provisioning controls independently pass. The reviewer checks
+the authority split, independent pre-execution selection, exact results,
+retained lifecycle/deadlines and honest resource/toolchain observations against
+the Accepted decisions and primary Linux/systemd sources. This unprivileged
+review does not supply actual hosted containment or fit. The second fresh review
+is required before Step 3 begins.
+
+**Step 2 review round 2.** A new `gpt-6-sol` reviewer at `xhigh` reviews
+`357b97fd..9d3c7b4f`. All 31/38/18 controls pass independently, but one Major
+startup fault is verified: accounting can refuse before publishing readiness,
+while the parent waits for that file without observing an already failed unit.
+The original path can consume the execution allocation and hide the prerequisite
+failure behind `deadline_exhausted`. Root independently reproduces zero terminal
+unit observations on that path.
+
+The correction publishes a bounded closed startup-failure record before any
+workload fork, observes terminal unit state during readiness and caps the entire
+startup handshake at thirty seconds inside the existing execution budget. A
+live but unready unit times out; a terminal unit refuses immediately with the
+allowlisted cause. Failed startup still stops only its owned unit, starts no
+business workload and cannot become successful ownership/cleanup evidence.
+All 34 shard controls pass, including real leaf refusal before fork, prompt
+parent detection, finite live-start timeout and retained failed-start cleanup.
+The fix commit and fresh focused verification follow before Step 3 starts.
+
+**Step 2 correction verification and closeout.** The correction is committed at
+`fc67d1f8`. A fresh `gpt-6.1-sol` reviewer at `high` approves the focused change
+without findings. All 34 shard and 38 launcher controls independently pass;
+42 supplemental assertions exercise malformed/absent startup diagnostics,
+terminal/disappeared units, readiness races, earlier deadlines and cancellation
+followed by actual parent cleanup. These unprivileged controls do not qualify
+hosted Linux containment. Both full Step 2 reviews and the verified correction
+are complete. Step 3 now owns finite workflow/API aggregate enforcement, corpus
+reconciliation and actual two-assignment final-source qualification.
+
+###### ADR-0063 Step 3 — workflow and aggregate enforcement (2026-10-19)
+
+After Step 2 closeout `83be42d6`, the workflow connects the initial base + six
+Architecture + twelve ordinary + one native execution arrangement. Every
+execution remains on an exclusive Ubuntu 24.04 VM with a twenty-minute ceiling;
+both always-running required aggregates retain five minutes. Their canonical
+names and the other five required names remain unchanged. Only aggregates gain
+job-scoped read-only Actions permission; execution gains no token authority.
+
+The aggregate source owner parses actual workflow YAML through the runner's
+bundled Ruby/Psych safe parser, with duplicate keys, aliases, tags and complex
+keys refused. No package is added. Literal indices/counts, unique protected
+names across workflows, mandatory Release/execute/upload gates and narrow
+permissions must agree with the tracked plan before execution. PR head and
+actual merge checkout remain distinct and are related through the raw commit's
+parent header, including shallow checkouts.
+
+Every aggregate uses current-attempt job API outcomes and immutable artifact
+IDs/digests before independently recomputing complete selection/result unions.
+Private bounded ZIP extraction allows only named sanitized files and refuses
+paths, symlinks, duplicate entries and oversize evidence. Case IDs, five result
+fields, complete TRX counters, non-test gates, actual toolchain hashes and
+scoped resources are checked again. Native provisioning/crash/no-refusal and
+natural Docker disposal stay mandatory. Missing, failed, skipped, stale or
+forced work cannot become a passing aggregate. Partial reruns cannot reuse
+previous-attempt siblings; recovery is Re-run all jobs.
+
+Source enforcement and its planted controls update the general CI catalogue
+rule to Implemented; its mechanically verified count is now 222 Implemented,
+131 in Architecture and 91 elsewhere, with 254 declared Architecture methods
+unchanged. This does not close Step 3 or qualify fit. Implementation commit,
+two fresh comprehensive reviews, verified corrections and two genuinely
+different complete final-source hosted attempts remain required. No complete
+P02b-4/PR CI or merge is claimed by local validation.
+
+Step 3 local validation passes 47 actual-owner shard/aggregate controls (34
+retained plan/execution controls plus 13 new result/API/topology controls),
+37 launcher controls and 18 provisioning controls. The retired unsharded
+aggregate's single test is replaced by the new complete API/result controls;
+its duplicate discovery/workload/aggregate and CLI paths are removed. The
+launcher descriptor-cleanup proof now exercises the real shard workload.
+Five CorpusConsistency cases verify the new catalogue counts, and seven ADR
+parser controls pass. Changed-document relative links and diff whitespace are
+clean. A retained predecessor native artifact is independently downloaded by
+immutable ID and its exact API ZIP digest is verified by the new safe extractor;
+this is archive-format evidence, not final-source execution qualification.
+No host privilege, collector, Docker mutation or Linux containment is exercised
+by these local offline controls. The implementation commit and required fresh
+reviews precede final qualification.
+
+**Step 3 review round 1 and verified corrections.** A fresh `gpt-6.1-sol`
+reviewer at `xhigh` reviews `83be42d6..10e1b164` and requests changes with one
+Blocker (cross-scope concordance) and one Major (mutable PR projection). All
+47 shard/result, 37 launcher, 18 provisioning, seven ADR parser and five
+CorpusConsistency controls independently pass on that reviewed source. Root
+verifies both findings before correction. The cross-scope coverage gap is: matching manifests inside each aggregate alone
+cannot prove that the two scopes agree on the same classification. Integration
+now additionally requires the same current-attempt immutable base artifact that
+backend already verifies. All producers' full manifests/toolchains are bound
+transitively to that common witness; integration's union/count excludes base's
+non-Docker cases. A planted whole-selector classification change is refused.
+
+A second verified API issue concerns old-event reruns: REST's pull-request
+projection follows the current branch head even while the run's head SHA stays
+at its original event. Root independently observes this on run 39148006960.
+Verification retains immutable run head plus the raw checked-out merge-parent
+relation, and binds the PR number without treating its mutable head as a run
+snapshot. A control supplies a newer PR projection with the older valid event.
+
+The initial hosted run 39170247704 exposes one additional frontend failure:
+the exhaustive product-source classifier does not yet classify the new CI
+files. The five exact CI plan/owner/control paths are added to its existing
+non-runtime inventory, with classification assertions. Unknown scripts remain
+refused. The guarded full frontend suite then passes 1,625 cases in two
+packages with zero skips/todos; lint and typecheck pass. No product behavior or
+broad extension exemption changes. All 48 shard/result controls and 37 launcher
+controls pass after these corrections. These local results do not qualify the
+initial hosted execution or the final two assignments.
+
+**Step 3 review round 2 and final control corrections.** A fresh `gpt-6-astra`
+reviewer at `xhigh` reviews `83be42d6..98ae41a8` and approves the source with no
+new Blocker/Major. Independent checks pass 48 shard/result, 18 provisioning,
+seven ADR parser, five CorpusConsistency and 19 targeted frontend cases. The
+37-launcher suite first exposes an existing 200 ms fixture-start race; an
+unchanged rerun passes, and a fixture-only 250 ms startup delay reproduces the
+race. Root replaces that proof's timing assumption with actual first-result
+and partial-next-event admission before deterministic cancellation, under a
+separate five-second test guard. A delayed real child still runs, is actually
+joined, preserves the exact completed ID and leaves incomplete JSON/no TRX.
+Production execution and cleanup budgets remain unchanged.
+
+The second verified Minor is that non-native preflight checks but discards the
+weekly image release. Receipts now retain its already validated OS/release,
+CPU/kernel/virtualization values; aggregates validate and retain each producer's
+observed identity independently, without inferring equal images from equal
+labels or SDKs. Controls reject missing/invalid image evidence. The suites now
+pass 49 shard/result and 37 launcher cases.
+
+The initial hosted run also exposes one stale environment-control assertion
+that expects test filters directly in the former backend execution job. It is
+adapted to the actual complete topology owner and verifies that the read-only
+collector/Docker observer runs only before native execution. Non-Docker paths
+gain no observation authority. All five environment controls pass. The other
+four read-only observer controls remain intact.
+
+Initial source `10e1b164` supplies a real passing base receipt: 2,633 cases,
+393 seconds whole job, actual SDK 10.0.402/console 18.7.0-release-26505-111,
+43.811 seconds discovery/selection and 113.792 seconds non-test gates.
+Immutable artifact 12152067468 and its API ZIP digest, exact results, natural
+ownership and raw merge-parent relation are independently verified. This is
+pre-correction base evidence only, not final-source/global fit. Initial
+ordinary-10 reports two failed facade cases; their related three rows pass
+locally in isolation and exact-shard diagnosis continues. A fresh focused
+correction review and full final-source hosted qualification remain required.
+
+**Focused correction verification and hosted diagnosis.** A fresh
+`gpt-6.1-sol` reviewer at `high` approves `98ae41a8..70c8fdea` with no findings.
+It independently passes 49 shard/result, 37 launcher, five environment and
+18 provisioning controls, plus malformed-image, distinct-image aggregate,
+actual cancellation/reaping and topology-mutation probes. Both full source
+reviews and those verified corrections are complete; actual hosted
+qualification remains separate.
+
+Initial run 39170247704 finishes with all six Architecture producers, base,
+native and eight ordinary producers passing. The backend aggregate passes;
+integration correctly refuses failed producers. Four ordinary producers fail
+five facade cases: ordinary-0 capacity completion, ordinary-3 grouped cleanup,
+ordinary-9 common database outage, and ordinary-10 control timeout and
+never-started admission. Their failure receipts report forced cleanup and
+missing owned completion, not natural completion. Frontend and meta expose
+the already corrected classifier and obsolete observer assertion above.
+This predecessor run is not final-source qualification.
+
+An independent investigator runs the exact initial ordinary-10 assignment
+locally: all 176 IDs match its hosted selection and pass in 212.449 seconds.
+The three focused facade rows also pass. This macOS/SDK 10.0.302 evidence
+does not close the hosted Linux/SDK 10.0.402 failures. No test budget, method
+assignment, policy or outcome is changed on that evidence.
+
+To locate the next actual failure without exporting provider diagnostics,
+the existing measurement receipt retains only fixed source codes for the
+five affected facade source files and bounded line numbers, tied to an
+already validated failed case ID. Raw stacks, paths, exception types and
+messages remain private; missing frames remain unknown. Successful aggregate
+validation requires no failed-location entries. A real two-failure probe
+using the pinned SDK/adapter confirms the actual wire field and sanitization;
+49 shard/result and 38 launcher controls pass. This diagnostic provides no
+completion, containment or passing-test evidence. A fresh focused review and
+subsequent full hosted runs remain required.
+
+The fresh `gpt-6.1-sol` / `high` diagnostic review approves
+`70c8fdea..4a14a812` with no findings. It independently passes 38 launcher and
+49 combined selector/aggregate controls, 18 focused privacy/boundary probes
+and eight rehashed measurement mutations. Passing cases export no diagnostic;
+missing or nonempty failure-location evidence cannot qualify a successful
+producer. The next hosted source incorporates both full review corrections
+and this independently verified diagnostic. Five failed facade rows and
+complete final-source A/B qualification remain open.
+
+**Candidate `ec5b045a` hosted diagnosis.** Run 39172490912 incorporates both
+verified full-review corrections and the focused diagnostic. Frontend and meta
+now pass. Its native artifact 12153083206 independently verifies 31 passing
+cases, exact results/hashes and natural ownership/cleanup in a 497-second job.
+The five affected facade methods also pass all eight exact IDs in a task-owned
+local Linux ARM64 / SDK 10.0.400 focus; this is not the hosted x64 toolchain.
+
+The hosted outage failure repeats. Its finite source locations identify the
+post-pause all-heartbeat-fault premise, not a proven runtime cause. The
+90-second case deadline includes startup and pre-pause work; stock heartbeats
+wait thirty real seconds, and a failed transient attempt remains faulted while
+the manual pacing clock is frozen. A new public admission rendering failure
+has no retained source location under the original five-file diagnostic.
+
+The next narrow diagnostic adds that verified test basename and decodes only
+its existing closed helper stage/detail, or the outage's existing bounded
+elapsed/pause/since-pause durations and finite per-pool generation facts.
+Extraction is limited to the two exact failed test identities, with unknown
+values left unknown. No raw error text, path, provider value or free-form
+state crosses the diagnostic boundary. These facts neither change test
+outcomes nor satisfy ownership/containment. Root causes, focused review and
+complete final-source A/B qualification remain open.
+
+The first fresh diagnostic review (`gpt-6.1-sol`, `high`) verifies one Major
+in `ec5b045a..2b8d6cbe`: the pool parser expects an internal metadata property
+that the actual record's generated text omits. All forty synthetic controls
+pass, but reflection over the real Release record reproduces absent pool
+details. Root verifies that actual output, removes the nonexistent suffix and
+aligns the control with the real shape; an extra-field mutation remains
+unknown. The corrected parser consumes all three actual record strings, and
+all forty launcher controls pass again. No application record or runtime
+policy changes. A new second focused review follows before publication.
+
+The fresh second `gpt-6-astra` / `high` review approves
+`ec5b045a..30ef90d4` without findings. Forty launcher and fourteen aggregate
+controls independently pass, alongside actual-record decoding, seven invalid
+protocol/privacy probes and rehashed success-receipt refusal mutations. Root
+also runs two deliberately failed pinned-xUnit scratch cases through the real
+wire: the exact test names expose only their closed stage or all three real
+record snapshots, both remain Failed, and the private canary is absent.
+
+Run 39172490912 finishes with 24 successful jobs and three failures: ordinary-9,
+ordinary-11 and their required integration aggregate. Backend and the five
+other required checks pass. Its longest Architecture job is 779 seconds;
+the longest ordinary job is 683 seconds and base is 314 seconds. These
+observations do not waive the two failed cases or qualify final-source A/B.
+The next source publishes the twice-reviewed diagnostic without changing any
+test, assignment, runtime behavior or bound. The live PR owns subsequent
+source/run receipts until packet closeout.
+
+
+The next full run, 39174286516 at `e0124baf`, finishes with 24 successful
+jobs and three failures: ordinary-9, ordinary-11 and their integration
+aggregate. The actual outage record now exposes all three original pools:
+control reports a heartbeat fault, while external and transactional do not;
+none is draining. The pause completes at 503 milliseconds and the failed
+observation follows 89,497 milliseconds later. This rules out insufficient
+post-pause allowance and prior drain for that observation, but does not
+locate the two unfinished heartbeats. The independently hashed ordinary-11
+artifact instead identifies the capacity-control lost-checkpoint test; the
+public-rendering case passes in this run. Its missing source location is
+not evidence of any particular failed stage.
+
+Pinned source inspection confirms three separate native heartbeat threads.
+A narrow owned Linux/Npgsql pause experiment returns every open, UPDATE and
+disposal within 15.029 seconds; it does not reproduce the hosted stall or
+qualify a total hosted provider deadline. The next diagnostic records only
+heartbeat entries, attempt count and the closed lifecycle-wrapper phases
+Created/Acquiring/Invoking/Disposing/Returned. These are non-atomic observations
+of progress, not successful-cleanup, join or admission authority. Invoking
+includes the stock provider's own connection acquisition, SQL and release.
+No timeout, scheduler policy, retry, ownership or assignment changes.
+The verified capacity-control basename joins the closed source-location map.
+
+Local validation of this observation includes the warnings-as-errors Release
+build, 2,452 unit cases and three actual PostgreSQL heartbeat/capacity-control
+cases, all without skips. The actual compiled diagnostic record is passed
+through two deliberately failed pinned-xUnit wire cases: three pool details
+retain their bounded phase/count facts, both cases stay Failed, and the
+private canary is absent. The fresh `gpt-6.1-sol` / `high` and
+`gpt-6-astra` / `high` focused reviews each approve `e0124baf..2c7d4300`
+without findings. Both independently pass forty launcher and 49 combined
+shard/result controls; the second also runs the fourteen result controls
+separately and probes actual compiled phases, numeric boundaries and privacy.
+The observation supplies no root-cause correction or ownership witness.
+Actual hosted root causes and complete final-source A/B remain open.
+
+**Candidate `89fd8450` and native qualification corrections.** Run
+39176455522 finishes with 22 successful jobs and five failures: ordinary-1,
+ordinary-3, ordinary-4, ordinary-9 and their integration aggregate. All six
+Architecture shards, base, native and the other five protected checks pass.
+The independently hashed ordinary-9 artifact records all three metadata
+heartbeats inside their first stock invocation, without a published fault,
+89,553 milliseconds after the database pause. This narrows the observation
+to the provider invocation; it does not distinguish physical acquisition,
+SQL or provider release. An owned Linux ARM64 experiment using the hosted
+SDK version, 10.0.402, returns paused pooled calls within 15.014 seconds and
+fresh opens within 5.009 seconds. It does not reproduce hosted x64 behavior.
+
+The other three failed cases concern the lost capacity checkpoint ACK,
+completion after row-lock expiry, and retained auxiliary cleanup. Their
+original failure locations are absent from the previous closed map. Source
+inspection also verifies a qualification race: a native hint can complete
+without business admission while the bridge ACK holds the application row;
+the committed ACK then leaves repair behind its accepted grace, longer than
+the fixture's initial wait. A new real-PostgreSQL control deliberately locks
+that row, observes the actual skipped native hint and zero business attempts,
+commits the real ACK, and resends through the real stock provider. Exactly
+one business execution and attempt complete. This proves the fixture gap is
+reachable; it does not establish the cause of earlier hosted failures.
+
+Execution-focused fixtures now observe either their actual start signal or
+the committed bridge ACK before supplying that additional native hint. A
+started body need not wait for an ACK blocked by its own row lock. Existing
+repair, lease, execution and cleanup bounds remain unchanged. Their explicit
+finally blocks preserve the original body failure together with a cleanup
+failure. This does not claim to cover every later implicit disposal fault.
+All facade source basenames join the fixed diagnostic map. A thread-local,
+synchronous observation adds PhysicalOpening around the actual connection
+factory; it has no admission, retry or cleanup authority and does not flow
+into child work.
+
+Local validation passes the warnings-as-errors Release build, all 2,452 unit
+cases, eight actual PostgreSQL regression rows, five affected Architecture
+boundary cases, forty launcher controls and 49 selector/result controls,
+without skips. Two deliberately failed pinned-xUnit wire cases retain both
+original and cleanup source locations and the three actual compiled
+PhysicalOpening records, while private canaries remain absent. The earlier
+full Architecture run passes 410 cases at `2c7d4300`/`89fd8450`; the five
+focused cases cover the changed production boundary. Two fresh correction
+reviews precede publication. Actual hosted root causes and the two complete
+final-source A/B attempts remain open.
+
+Both fresh correction reviews (`gpt-6.1-sol` / `xhigh` and
+`gpt-6-astra` / `xhigh`) approve `89fd8450..15d5161d` without introduced
+findings. Each independently passes 24 storage unit cases and forty launcher
+controls, inspects the actual wire proof and verifies the authority limits.
+The second review separately confirms the same pre-existing fixture gap in
+capacity admission, never-started admission and control-lock execution tests.
+An adjacent audit applies the helper to those and the equivalent capacity
+cleanup/stop/takeover, combined-pool and held-expiration execution premises.
+Initial bridging, repair, future-due and fairness subjects keep their paths.
+The additional eight test files change only start qualification and its
+signals; all original assertions and bounds remain. Their fourteen real
+PostgreSQL rows pass without skips in 84 seconds, and the warnings-as-errors
+Release build remains clean. This adjacent correction receives its own
+focused reviews before publication; it supplies no hosted failure attribution.
+
+The fresh focused `gpt-6.1-sol` / `high` and `gpt-6-astra` / `high` reviews
+both approve `15d5161d..6f5025ce` without findings. Each independently traces
+the actual-entry signals, lost-admission-ACK branch, stock hint and duplicate
+admission fences, and verifies all fourteen distinct passing PostgreSQL rows
+and the clean build receipt. Neither repeats the suites or claims hosted fit.
+The original eight and adjacent fourteen regression rows supply twenty-two
+local passing cases. Publication includes both twice-reviewed corrections;
+the next full hosted A attempt, then a complete same-source B attempt, must
+still qualify the final source. No required check or ownership rule is waived.
+
+**Candidate `c3564e08` and acquisition-path correction.** Full hosted run
+39180047008 completes with 25 successful jobs and two failures: ordinary-9
+and its integration aggregate. All six Architecture shards, base, native,
+the other eleven ordinary shards and the other six required checks pass.
+The independently hashed ordinary-9 artifact identifies only the common
+database-outage case. Control/external heartbeat attempts return their faults;
+the transactional heartbeat remains inside PhysicalOpening after 89,293
+post-pause milliseconds. That phase includes the authority check, lazy-source
+resolution and driver open/physical initialization; it does not identify a
+specific internal driver stage. The failed run reports missing owned completion
+and forced cleanup, not successful natural resource release.
+
+An unchanged actual Linux ARM64 fixture on SDK 10.0.402/runtime 10.0.13 passes
+alone in 39.343 seconds. The exact independently verified ordinary-9 cohort
+then passes all 207 actual case IDs, including that case in 38.127 seconds,
+without missing/extra/duplicate/skipped rows. Both use the direct Docker bridge;
+all their PostgreSQL containers are naturally absent after completion. These
+local results do not establish the native hosted x64 cause or final CI fit.
+
+Independent pinned-driver source inspection and an owned socket-pair experiment
+verify a separate acquisition hazard: the pinned
+[read-buffer timeout setter](https://github.com/npgsql/npgsql/blob/v10.0.0/src/Npgsql/Internal/NpgsqlReadBuffer.cs#L49-L57)
+truncates a positive sub-millisecond budget to socket timeout zero. The actual
+pinned read buffer stays held
+past that budget until its exact owned peer sends a byte; the same buffer's
+asynchronous cancellation source cancels a real asynchronous socket read.
+This is source-level evidence, not a reproduction of the hosted open path.
+
+The stock synchronous factory now joins the guarded source's supported
+asynchronous acquisition, retaining its actual completion and existing budgets.
+The shared physical-role initializer's query/disposal awaits are context-free.
+No vendor SQL, role grant, timeout, owner, admission, retry or assignment changes.
+An actual-driver control holds its asynchronous physical initializer: the factory
+cannot return early or dispatch through a caller's deferred synchronization
+context, and a planted synchronous initializer refuses. A second actual-factory
+control verifies the unmodified role guard on a fresh connector, a planted
+NOBYPASSRLS refusal and restoration. Validation and two fresh correction reviews
+precede publication; actual final-source A/B qualification remains open.
+
+Local validation passes the warnings-as-errors Release build, all 2,452 unit
+cases and 24 actual PostgreSQL factory/role/heartbeat cases without skips.
+Temporarily restoring only the old synchronous factory call makes the new
+async-initializer premise fail; restoration of the correction is checked again.
+Both restored factory cases pass, with no skip.
+A separate Ubuntu 24.04 SDK 10.0.402/runtime 10.0.13 x64 process passes the
+actual corrected outage case in 42.882 seconds. The local engine and child
+PostgreSQL remain ARM64, so this cross-architecture experiment does not claim
+native hosted x64 equivalence or root-cause closure. Its two PostgreSQL
+containers are naturally absent afterwards, with exact owned cleanup verified.
+
+The first fresh review verifies the factory correction and identifies bootstrap
+as the other production synchronous source caller. Owning its startup wait does
+not remove the same acquisition hazard. The correction moves to their shared
+`PrivilegedDataSource.OpenConnection` entry, preserving the authority check before
+lazy resolution. Both direct/bootstrap-source and factory paths now receive the
+same actual-driver initializer/context control. Bootstrap verification SQL stays
+synchronous; neither all SQL internals nor the hosted root cause are claimed
+corrected by this acquisition change. The central source correction is requalified
+before its fix commit and the second fresh review.
+
+The central implementation passes the warnings-as-errors Release build, all
+2,452 unit cases, 26 actual PostgreSQL source/factory/role/bootstrap/heartbeat
+cases and both exact credential/bootstrap Architecture guards, without skips.
+Restoring only the old driver call at the shared source makes both direct and
+factory initializer controls fail their actual async-entry premise. These
+controlled mutations are not passing regression evidence; the corrected source
+is restored before the fix commit and follow-up review.
+All three corrected source/factory cases pass again after restoration.
+
+The fresh `gpt-6.1-sol` / `xhigh` round approves `c3564e08..78c51320`
+without introduced findings and verifies bootstrap's adjacent existing hazard.
+After its central correction, a fresh `gpt-6-astra` / `xhigh` round approves the
+combined `c3564e08..da8a5958` source without findings. It independently traces
+both callers, actual driver failure/disposal, authority and role checks, and the
+recorded positive/mutant/restored results. Both correction review rounds are
+complete; no retrospective hosted root cause is certified.
+
+At this source freeze, complete final-source A/B CI remains a required exit
+gate. [PR #32](https://github.com/HodeTech/LearnStack/pull/32) owns its subsequent
+live source/run/attempt status and immutable API/artifact receipts. Dated records
+above remain historical observations against their named source, not a substitute
+for the PR's current qualification or the maintainer's review/merge.
+
+**Candidate `0634280b` and remaining execution premises.** Its full A run
+39183839130 verifies the common-outage case on hosted Linux x64 in 39.170
+seconds. The API-hashed ordinary-9 receipt passes all 235 cases with natural
+ownership/cleanup and no forced stop; the new source/factory theory rows also
+pass in ordinary-10. This is positive current-source execution, not proof of
+the predecessor's internal driver cause. Fresh discovery owns 5,479 actual cases.
+
+Ordinary-6 instead fails the native business-overrun/private-callback case
+after 30.890 seconds at its body-entry wait. Its API-hashed artifact retains
+that exact source location and a failing ownership/forced-cleanup result;
+neither is accepted as successful qualification. Source inspection verifies
+that this execution/cleanup subject and the admitted-renewal subject still
+rely only on the initial bridge hint. Both receive the existing actual-start
+or committed-handoff qualification before their entry wait. All original
+assertions and deadlines remain; no runtime code, assignment or retry changes.
+The separate terminal-backlog fairness proof retains its natural bridge path.
+The run ends with 25 successful jobs and the ordinary-6/integration aggregate
+failures; it is not a complete A receipt and no B rerun is requested.
+
+An independent remaining-premise audit inventories all facade entry waits and
+adjacent native external subjects. Five external constructor/recovery-cleanup
+rows also leave the repair grace at 60 seconds while waiting for entry under a
+30-second startup token. Both normal routing and external recovery may skip
+the actual ACK-locked row without provider entry. These execution-only subjects
+receive an external-specific qualifier: actual entry short-circuits; otherwise
+a committed vendor handoff supplies its current stored wake generation for one
+real stock external hint. Provider/recovery, cancellation, accounting and final
+state assertions remain unchanged. Intentional bridge/repair, fairness,
+future-due, recurrence and no-admission subjects retain their natural paths.
+This is a verified permitted interleaving, not a retrospective cause claimed
+from the failed hosted artifact. Release warning-as-error build passes. Four
+actual PostgreSQL business/locked-hint/fairness cases and six external
+constructor/recovery/history cases pass, with seven corpus/Docker-trait guards;
+all have zero failures/skips. Two fresh reviews precede publication. The next
+final source still needs complete A/B qualification.
+
+Correction `65afb4d5` completes two fresh independent reviews: Round 1
+(`gpt-6.1-sol`, high) and Round 2 (`gpt-6-astra`, high) approve without verified
+findings. Both independently trace the actual normal/recovery locks, stock
+route, ownership, cleanup and unchanged subjects against the passing receipts.
+Round 1 additionally verifies the live job API and immutable artifact hashes
+for the source-specific claims above. These are completed correction reviews,
+not a claim that either final hosted assignment has passed.
+
+**Candidate `39adff20` and owned completion witnesses.** Full A run
+39185926530 finishes with 24/27 successful jobs. Ordinary-6 now passes; the
+31-case native and 2,633-case base receipts pass with actual cleanup and
+API-matching archive hashes. The two failing cases are ordinary-1's public
+client-pool disposal proof and ordinary-8's grouped no-start/private-callback
+proof; their API-hashed archives retain the failures. The integration
+aggregate rejects the failed execution evidence. No B is requested for this source.
+
+The public case's exported result has no raw assertion message or mapped source
+location, so its precise hosted assertion is unknown. Independent pinned-source
+inspection verifies two missing synchronization premises: client connector
+closure does not join PostgreSQL backend exit, and competing framework host
+disposals need not join one another's service cleanup. The proof now observes
+the actual captured application-source lifetime without disposing it itself,
+requires a used, uniquely tagged pool and refused borrowing after disposal,
+then boundedly observes only that pool's server sessions disappear. Another
+connection's exit cannot hide a leak.
+
+The no-start artifact identifies its exact generation-snapshot assertion but
+does not retain the observed tuple. Source inspection confirms that the
+optional qualification hint may itself own the held callback; waiting only for
+the bridge hint's success does not establish its native wrapper's return.
+That case and the matching auxiliary-cleanup case now retain the optional hint
+identity and await its actual stock success before the unchanged exact snapshot.
+The callbacks remain held throughout. An independent sweep checks all eighteen
+qualifier calls; the other sixteen already use sufficient actual owner/cleanup
+or retained-only witnesses. Native snapshot and held-owner assertions remain
+intact; runtime, assignment and retry behavior do not change.
+The next final source still requires both complete hosted assignments.
+
+Local qualification passes a warning-as-error Release build, 35 actual
+PostgreSQL public-site/native-owner cases and seven corpus/Docker-trait guards
+with zero failures/skips. The public-pool case also passes alone. Removing
+only child-factory disposal makes that case fail its bounded actual-completion
+wait; exact source restoration, a fresh clean build and the isolated case pass
+again. This planted failure is a falsifiability control, not passing suite
+evidence. Two fresh correction reviews precede publication.
+
+Correction `18ba1700` completes fresh Round 1 (`gpt-6.1-sol`, high) and Round 2
+(`gpt-6-astra`, high) reviews with no actionable findings. Both independently
+verify real lifetime/consumer ownership, tagged pool use, passive completion,
+refused borrowing, native hint identities and held callbacks against the
+source-specific passing and planted-failure receipts. The restored source is
+clean. These approvals do not infer a missing historical assertion or replace
+the next final source's complete A/B qualification, owned live by PR #32.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
@@ -3447,8 +10201,8 @@ first publisher. P02b-2 delivers hosted producer dispatch and production-census
 enforcement; all four steps and both independent review rounds are complete and
 merged. The [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final
 verification. P02b-3 delivers independent subscriber execution and enforcement;
-its [Step 6 record](#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-owns local validation and the [PR handoff](#p02b-3-pr-handoff-2026-10-13) owns CI/review status.
+it is complete and merged, with final CI/review/merge verification in its
+[merge closeout](#p02b-3-merge-and-closeout-2026-10-15).
 The table shipped in Packet 6.
 
 A handler calls `IOutbox.EnqueueAsync` and the row commits on the same **transaction**
@@ -3478,7 +10232,8 @@ Dapr trigger verbatim — so it stays with Phase 11.
 - The phase declares itself **single-instance**. The cache-invalidation deferral above
   depends on that premise, and so does the ordering bound in § Ordering.
 - `ConnectionStrings:OutboxDispatcher` carries the `learnstack_outbox_admin` credential,
-  registered as a keyed data source behind a `Lazy<>` with a boot-time role guard, on
+  registered as a keyed guarded facade with an internal lazy pool and boot-time
+  role guard, on
   the pattern `Platform_DataSource_Resolved_Only_By_PlatformAdminScope` already holds.
   `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor` is **Implemented**
   with Step 4's nonempty credential caller census and passing planted controls;
@@ -3594,23 +10349,34 @@ Phase 11 owns `/readyz` and production alert windows.
 
 ### Background jobs
 
-Nothing in the corpus decides the background-job runtime. Two Accepted ADRs are credited
-with it by the documents that cite them, and neither mentions Hangfire at all; many
-other Accepted ADRs mention it, and none of them decides it. **G9** and its record,
-**ADR-0047**, are therefore the first work item, and the packet does not start until it
-is Accepted. The record has to close, at minimum:
+**Current implementation — 2026-10-18.** P02b-4's nine implementation steps and
+review gates are locally complete under Accepted ADR-0047/0058/0059/0060/0061.
+The [local closeout](#p02b-4-local-closeout-2026-10-18) owns exact qualification
+and remaining PR/CI/merge work. The pre-acceptance checklist below is historical
+preparation; the Accepted decision package and delivery records above own current
+authority.
+
+**Historical pre-acceptance preparation (not current authority).**
+
+No Accepted record selects the general background-job runtime. ADR-0028 selects
+Hangfire specifically for future audit maintenance; that narrower decision must
+be retained or explicitly superseded, rather than described as absent. **G9** and
+**ADR-0047** are the first work item; runtime implementation waits for acceptance.
+The record has to close, at minimum:
 
 - **Storage under the closed four-role model.** Infrastructure Stack Standards
   prescribes a `hangfire` schema; Database Standards says the database has one schema,
   `public`; all four roles are `NOCREATEDB` and none holds `CREATE` on the database, so
   no role can create that schema, and every structural Row Level Security sweep reads
   `public` only. Each default here breaks a written rule, which is why the storage
-  decision owes a dated ADR-0003 Amendment rather than a configuration line.
+  decision owes a dated ADR-0003 Amendment for a changed schema/role/grant boundary,
+  not merely for a tenant table following the existing policy.
 - **One writer of `ITenantContextAccessor.Current` on the job path.** ADR-0036 § Rules
   names the Hangfire `JobActivator`; `architecture/09` names a `LearnStackJob<TParams>`
   base class; the catalogue carries both spellings. The writer allow-list in
-  `TenantContextConstructionTests` is an exact match over two files, so the third file
-  is named in the same packet, and whichever loses is retired rather than left in place.
+  `TenantContextConstructionTests` currently names HTTP, bus and delivery-executor
+  files (two logical entry classes). The job writer is added deliberately, and
+  whichever competing job spelling loses is retired rather than left in place.
 - **Who owns a job frame's transaction and announces `app.tenant_id` on it.** Restoring
   the accessor announces no GUC, and a job touching a module `DbContext` therefore
   throws. ADR-0040 has exactly two entry points and eight setters, and the set is
@@ -3985,8 +10751,10 @@ What this phase owes the catalogue beyond implementing those rows:
   `Outbox_Claim_IsHeld_Until_Dispatch_Completes` replaces the former unconditional
   exactly-once assertion with live-lease contention, expiry/crash redelivery and
   stale-transition refusal; Step 3 implements the actual two-worker proof.
-  `Hangfire_Job_Payloads_Include_TenantId` gains the organization, actor and traceparent
-  fields. `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` gains the hanging-handler
+  P02b-4's accepted `BackgroundJob_Submission_Is_Transactional_And_Stamped` replaces
+  `Hangfire_Job_Payloads_Include_TenantId` with tenant/org/actor/trace and atomic
+  submission proofs under Accepted ADR-0047; it is not Implemented today.
+  `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` gains the hanging-handler
   case. Two rules the catalogue stamps **02a** also
   widen here, so the Phase-field sweep above does not reach them: the transport arm of
   `Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`, whose second arm has no
@@ -4156,6 +10924,381 @@ command. The phase retains zero skips, per assembly.
   whose transport row and reproduced count both change when the transport opens a
   transaction.
 
+
+## P02b-4 review corrections (2026-10-19)
+
+**Status: local validation and both fresh independent review rounds complete;
+final-source hosted qualification remains pending.** Work stays on
+`development`. These corrections apply the existing Accepted contracts and the
+explicitly approved quota accounting below; no new job runtime, role, grant,
+quarantine-release authority or ADR is introduced.
+
+### Verified corrections
+
+- **Capacity visibility.** Transactional work parked in `reconciling` with an
+  unreleased reservation now makes unmapped `jobs` health unhealthy. One boolean
+  joins the existing complete immutable observation statement and snapshot; gauge
+  callbacks issue no SQL and acquire no new labels. Parking and reservation
+  retention remain intact. The actual PostgreSQL proof covers pending/live work,
+  peer recovery, empty-registry observation and the original invocation's late
+  positive no-start cleanup, which restores routability without another attempt.
+- **Actual admission in checkpoint proofs.** The checkpoint fixture now invokes
+  `AdmitBackgroundJobAttemptCommandHandler` through the real pipeline instead of
+  copying its INSERT/UPDATE SQL. Bounded runtime options supply explicit attempt
+  deadlines. Recovery/fairness scenarios declare capacity for their sibling
+  histories; admission still locks/counts every reservation. The first run caught
+  three fixture scenarios trying to exceed the original one-slot declaration.
+  They pass with explicit fixture capacity; the initial failure is not green
+  regression evidence. The independent attempt observer also accepts an explicit
+  tenant, with positive tenant-B and tenant-A isolation controls.
+- **Distribution qualification.** The verifier uses its reviewed checkout as the
+  manifest authority and requires published manifest copies to match. It checks
+  each source archive's pinned PAX commit as well as its trusted digest. Actual
+  binary/notice/source co-tamper controls must fail. Dapper notice versions are
+  pinned alongside the existing graph checks. The documentation distinguishes
+  archive identity and the four original shared binaries from a reproducible
+  upstream build or a whole-dependency-tree integrity claim.
+- **CI refusal and fork shape.** GitHub may return an empty pull projection for a
+  fork run. The aggregate accepts it only with the API's explicit distinct fork
+  repository, while preserving exact run/attempt/head/workflow, raw merge-parent
+  and checkout bindings. Same-origin, malformed or substituted identities still
+  fail. Unexpected CLI/import/API-shape faults return a closed refusal rather than
+  exception text. Python bytecode is excluded from repository source inventory.
+- **Fixture bounds.** Zero-value controls now cover all positive-only runtime
+  budgets. Held-COMMIT proxies in the capacity completion/no-start scenarios have
+  explicit two-minute lifetimes so their configured transport outlives the
+  scenario's bounded holds and cleanup.
+- **Live corpus.** Isolation/security/observability and downstream consumers now
+  describe identifier-only typed submission, authoritative job rows and opaque
+  Hangfire hints. Retired base-class/rule examples no longer teach a live contract.
+  Catalogue/audit status headers reflect delivered enforcement. Front doors link
+  this phase's current status instead of copying Step 4–8 histories. Phase 03
+  explicitly owns the audited quarantine-reconciliation design and its required
+  trigger/grant migration; no such authority is activated here.
+
+### Dispositions without runtime changes
+
+| Examined concern | Verified disposition |
+|---|---|
+| Late renewal refusal cancels work | Existing lease/admission safety closes permission on uncertainty and prohibits reopening it from a late response. Probing before refusal would change that policy. |
+| Cleanup queue overflow should clear its sticky fault | No production path exceeding the bounded 64 execution owners and 128 request slots was demonstrated. Clearing a retained-cleanup fault without a witness is unsafe. |
+| Acknowledged COMMIT becomes a failed job after cleanup | The executor reads the commit gate's ACK and preserves definitive success separately from retained cleanup. Suppressing the coordinator exception would lose cleanup evidence. |
+| Failed native thread startup should signal completed cleanup | Ambiguous `Thread.Start` failure deliberately retains ownership; catch entry is not a positive join witness. |
+| Opaque startup refusal should keep its inner exception | Provider text is intentionally excluded. A finer closed diagnostic taxonomy is an optional operability change, not a demonstrated correctness defect. |
+| Quarantined rows cannot currently be edited | Phase 03's operator surface and authorization are not delivered. The freezes preserve uncertainty; nonterminal does not promise an ordinary-role release path. |
+| Consolidate historical trigger bodies | Versioned Up/Down snapshots must not read a mutable shared body. No historical migration is rewritten. |
+| Duplicate reservation index | The full FK/history index and unreleased-only occupancy index have different predicates and purposes. |
+| Native observation masks a Python error | GitHub's default Ubuntu run shell uses `bash -e`; a Python failure stops before the following `cat`. |
+| The bounded shard control runs only one suite | Its entry point loads plan and result controls under the same finite budget; earlier native controls have separate ownership. |
+| Old counts, amendments and prior CI failures should be rewritten | Dated receipts retain their original source/population. Existing ADR amendments already redirect the retired model. Accepted bodies and historical counts remain unchanged. |
+| Fixed 31-second sleeps | The cited occurrences are unit-test manual-clock advances, not real sleeps. Held-callback negative windows test an explicit barrier, not readiness by delay. |
+| Broad refactors, caching, extra labels or dependency-wide notices | No reproducible correctness/isolation defect was established. Detector/fixture decomposition, bounded allocation/polling optimizations and repository-wide packaging policy are not bundled into these corrections. |
+
+Observation-only diagnostic naming, aggregate failure-artifact convenience and
+source-test reflection coupling do not change admission, durable state, audit or
+qualification. They are not reasons to weaken existing fail-closed paths.
+
+### Evidence availability and final qualification
+
+Run `39188256776` completed both layouts on source `1dbde1a3`. Each was independently
+reconstructed while its complete archives were available. On 2026-10-19 the
+attempt-A aggregate IDs `12159885492` and `12159366005` return HTTP 404, and the API
+lists no attempt-A execution archives. Attempt B remains available; all twenty
+execution archives and both aggregate ZIPs were downloaded and checked against
+API digests. No deletion cause is inferred, and the current API cannot reconstruct
+attempt A. Earlier local verification is not a promise of indefinite remote
+artifact availability.
+
+The PR's ready-for-review claim was withdrawn while these corrections run. Final
+qualification retains ADR-0063's two full attempts of the **same workflow run**,
+with unchanged plan, required checks and ceilings. Before retrying all jobs for B,
+retain A's twenty execution ZIPs, two aggregate ZIPs, API metadata/digests and
+independent reconstruction. Recheck remote availability after B and distinguish
+verification performed at the time from artifacts still downloadable today.
+PR #32 owns the final source, actual outcomes and retained evidence location.
+
+### Local validation and review gates
+
+The Release solution build passes with zero warnings/errors. Unit 2,455, HTTP
+177 and Contract 4 pass with zero skips. The PostgreSQL checkpoint/admission/
+control run passes 334 of 335 cases; the new capacity fixture initially carried
+an invalid lease/progress pairing. After correcting and rebuilding that test,
+its complete parking/late-cleanup proof passes. Four actual native capacity
+completion/no-start cases also pass, including lost acknowledgements. Thus all
+339 distinct affected PostgreSQL cases have a passing applicable result; the
+intermediate failed run is retained as failed evidence, not renamed as success.
+
+The real distribution baseline and 23 dirty/replacement controls pass. Combined
+plan/aggregate controls 51, native environment 5, provisioning 18, native owner 40,
+ADR parser 7 and focused frontend source inventory 19 pass. Full frontend
+verification passes 1,625 cases across both packages with zero skips or todos.
+Changed-document link inspection finds no new broken target; the catalogue's literal placeholder
+`#name_lowercased` remains documentation syntax rather than a real anchor.
+
+Full Architecture verification passes all 410 cases with zero skips. Final-source
+hosted qualification remains pending in PR #32; no skipped or forced-cleanup
+result will be counted as a passing proof.
+
+**Fresh review round 1.** Two new independent reviewers examined
+`1dbde1a3..df6e2761` across runtime/ownership/tests and tooling/CI/corpus. Both
+approve the runtime and test corrections. One reviewer found five additional
+live-corpus passages still teaching `JobParams`, payload trace metadata or
+`JobActivator` authority. The isolation table, observability, pipeline guidance
+and shared skill instructions now use the authoritative row and `JobExecutor`.
+A scoped residual scan leaves only the explicit retired catalogue navigation and
+an example owned by the separate Hub repository. The second reviewer independently
+ran all 51 plan/aggregate and 23 distribution controls and reconstructed the
+339-case PostgreSQL receipt union. No code defect or weakened assertion was found.
+
+**Fresh review round 2.** Two different independent reviewers examine
+`1dbde1a3..bc5bf1c2` and the final documentation correction. Both approve with no
+open actionable finding. They independently run all 51 plan/aggregate controls
+and the actual distribution baseline with all 23 dirty/replacement controls;
+one also runs seven ADR parser controls and verifies 36 added local links. Both
+verify the remaining correlation delivery-table correction: authoritative rows,
+delivery ownership and `JobExecutor` restore context, while Hangfire hints stay
+opaque. They run no C# builds or hosted qualification; the local suites above
+are separate evidence. All verified corrections are committed before freezing
+the source for two complete hosted assignments. PR #32 owns the final hash,
+actual A/B outcomes, independent reconstruction and current archive availability;
+this local receipt does not claim those pending runs have passed.
+
+
+**Qualification follow-up.** The first hosted run of `8cd789de`,
+[39231264902 / attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/39231264902/attempts/1),
+exposes six failures in two ordinary shards. They share one test-only SQL helper:
+it searches for the previous complete six-column output projection after the
+capacity observation adds a seventh field. A local unchanged-source run reproduces
+all five invalid-fact theory failures at that exact guard. This is a verified
+coverage gap in the earlier focused test selection, not a passing qualification.
+
+The helper now identifies the unique terminal projection prefix and final output
+suffix before replacing that projection. Every production CTE, hash arithmetic,
+validity check and typed binding remains intact; the planted date/hash/history
+mutants retain their assertions. The actual Release build passes without warnings
+or errors, and the complete recurrence store suite passes all 110 cases with zero
+skips, including all six affected cases and their mutant controls. The production
+query is unchanged. Two fresh sequential focused reviews independently approve
+`8cd789de..6bcc2b9a` with no actionable finding. They verify the unique cut,
+unchanged production SQL, all caller/mutant assertions and both actual TRX
+receipts; neither reruns .NET or claims hosted qualification. The failed hosted
+run completes with 24 successful jobs, the two affected ordinary failures and
+the correctly failing integration aggregate. It is retained as failed evidence.
+Renewed complete A/B qualification follows the corrected source freeze; PR #32
+owns the final hash, actual outcomes and archive availability.
+
+
+**Native fence proof follow-up.** On corrected source `12c79f38`,
+[run 39233496115 / attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/39233496115/attempts/1)
+passes the six recurrence cases but fails one native final-fence expiry case.
+The retained location identifies its strict `last_error` read. A controlled local
+schedule waits for the next generation's actual bridge ACK before that read and
+reproduces `Column 'last_error' is null`. The bridge intentionally clears this
+transient diagnostic on successful pending-row handoff; the test was racing
+that separate, valid operation after observing rollback.
+
+The fence case now observes the first real committed handoff and positively joins
+only the bridge before releasing the held business handler. Business execution,
+lease expiry, app-role row-lock fencing and control recovery remain real. Every
+strict rollback/error/attempt/effect assertion remains unchanged; no nullable
+alternative replaces the error assertion. Bridge repair has its separate actual
+native proof. A fresh warning-as-error Release build succeeds; both final-fence
+branches, that repair proof, all bridge cases and the retry-progress proof pass
+32/32 with zero skips. The deliberate old-schedule failure is retained as a
+falsifiability receipt. The hosted run ends with 25 successful jobs and the
+correctly failing ordinary/integration pair, not qualified A/B evidence. Focused
+independent review and complete final-source qualification remain pending.
+
+The first fresh focused reviewer finds a valid ordering gap in `f8c003a7`: the
+staged child's parent FK already holds KEY SHARE, so the initial ACK's FOR UPDATE
+can wait behind the held handler. The corrected test signals native body entry
+before staging, asserts no child exists, observes the committed ACK and joins the
+bridge, then opens the staging gate and waits for its completion. Cleanup opens
+both handler gates. All original fence/rollback/effect assertions remain intact.
+A fresh warning-as-error build and the same complete 32-case selection pass with
+zero skips; the earlier passing schedule did not cover this ordering and is not
+presented as proof against it. Focused fix verification and a new second review
+precede another final-source freeze.
+
+The first reviewer verifies `2b626235` resolves that finding and approves. A new
+second independent reviewer approves `12c79f38..2b626235` without findings,
+checking both ACK/native-entry orderings, bridge/execution gate separation,
+cleanup and every preserved assertion. Both inspect the actual 32-case TRX and
+the deliberate null-diagnostic failure; neither reruns the suites or claims
+hosted qualification. Both focused rounds and verified corrections are complete.
+PR #32 owns the renewed final-source A/B results and retained evidence. No new
+runtime code, source-selection rule, privilege or deadline is introduced by
+these test corrections.
+
+### Additional verification and evidence reconciliation (2026-10-19)
+
+**Status: all local corrections and both independent review rounds complete;
+renewed final-source qualification pending.**
+This pass retains existing ADRs, durable-state authority and phase boundaries.
+
+#### Previously qualified source and retained evidence
+
+[Run 39236406151, attempt A](https://github.com/HodeTech/LearnStack/actions/runs/39236406151/attempts/1)
+and [attempt B](https://github.com/HodeTech/LearnStack/actions/runs/39236406151/attempts/2)
+both pass all 27 jobs on development head
+`62ad318cc79b1f3f4888c03158b158336bea6010`. The checkout SHA
+`3104c0fc2d812bfacda4825594263cc339363556` identifies GitHub's generated PR #32
+merge-ref commit, not a development commit. GitHub's commit API identifies its
+parents as `ed60157c14d33fad926fd201b49c08e2d24eed1f` and that development head;
+the retained source/aggregate checks independently verify the binding.
+
+Each exact union contains 5,482 backend cases, zero skips: 2,455 Unit, 410
+Architecture, 177 HTTP, four Contract and 2,436 Docker, including 31 native.
+The older 2,432 Docker count belongs to an earlier source and is not substituted
+for this result. Both actual assignments differ, including SharedSchema groups.
+Execution jobs take at most 809/777 seconds for A/B; all aggregates remain within
+five minutes. The seven strict required contexts and protection readback agree.
+
+All 22 A archives and their API metadata were retained before rerunning all jobs
+for B. Afterwards A's IDs return 404; B remains downloadable. The complete local
+bundle `learnstack-pr32-evidence-39236406151.tar.gz` has 44 ZIPs, 40,756,752 bytes
+and SHA-256
+`9630ede9052e7f20b1d9db18440a8a595030c519cf52daeed8a9d1644370e0db`.
+Its `verify-retained.py` entry point is packaged inside the bundle, not under
+repository `scripts/`. From its extracted directory, run
+`python3 verify-retained.py /path/to/qualified-checkout` at `62ad318c`.
+Independent reconstruction again passes both 5,482-case unions and checks the
+different co-membership. This verifies captured API responses and archives; it
+does not reauthenticate unavailable responses or rerun tests. The bundle is a
+shared-workspace artifact, not a public GitHub download. New source still requires
+renewed complete A/B qualification; this prior receipt is not proof of these
+subsequent corrections.
+
+#### Verified scope and dispositions
+
+| Examined concern | Current verification and action |
+|---|---|
+| Eager dispatcher parsing breaks absent configuration | Existing null/empty/whitespace controls pass: Npgsql's builder supplies defaults, the lazy source remains uncreated, and mandatory resolution refuses with the named key. No production change. |
+| Duplicate statistics-history filters are tolerated | Existing code rejects more than one. Zero is valid after intentional one-time removal. No filter-policy change. |
+| Blank application settings reach a raw first-query error | The lazy application source calls its named validator before building/opening the pool. No eager validation added. |
+| Pool worker bound lacks an independent discriminator | Add one 17-worker pool below the total-worker ceiling, retain the accepted 16-worker control, and test retained-bound arguments zero and seventeen. |
+| Domain-event drain boundary lacks a direct unit proof | Add inclusive 256 and rejecting 257 controls with FIFO, repeated-collection and rollback-only assertions. Existing PostgreSQL rollback proofs remain. |
+| Explicit Retry-After is overwritten | Preserve an existing delta/date value; supply the existing default only when absent or empty. |
+| Cleanup wait's boolean is ignored | `Completion` is a Task, not Task<bool>; awaiting WaitAsync already requires successful completion. No weakened or discarded boolean exists. |
+| Dependency/comment drift | Remove the unused audit-adapter MediatR reference; align its catalogue/coordinator description, Next patch comment, middleware XML summary and P02b-5 authentication owner. |
+| Moving CI action tags and scanner admission | Pin all 39 uses to seven reviewed upstream commits; future updates require review. Go already uses its checksum database; additionally require exact module and go.mod hashes before scanner installation. Keep aggregate upload identity exact and reject a tag or substituted commit. |
+| ADR comparison silently skips an unresolved base | Require the actual PR base SHA, push predecessor or explicit manual base, and refuse an unresolved base or failed diff. Require the SARIF artifact instead of warning when absent. |
+| Plan-gated content-type count is unenforced | Confirmed pre-existing gap. The maintainer approves distinct nondeleted custom keys, shared revision slots, excluded card default and last-live-revision deletion releasing capacity; the shared writer must serialize count/insert tenant-wide. Approval precedes implementation. |
+| Broken ADR-0038 anchor | Standards 13 already provides the exact `adr-amendments` HTML alias. The accepted record is not edited. |
+| Historical SQL copies or loose-then-tightened policies should be folded | Up/Down snapshots preserve versioned rollout and reversal. Current canonical bodies have parity proofs; no historical migration is folded or made dependent on mutable SQL. |
+| Vendor installer leaves search_path set | Pinned Install.v23.sql ends with RESET search_path. No session-setting change. |
+| environment.json is unbound | The API-authenticated SHA-256 covers its entire ZIP, including this observation file. No independent qualification authority is attributed to the file. |
+| Control cleanup limits are below the supported topology | At most 32 workers plus eight pools times four retained executions is 64; 128 request slots allow the documented cleanup boundaries. The proposed 160-owner premise exceeds the accepted topology. |
+| Catalogue guards should source-parse integration methods | The architecture guard explicitly owns its compiled assembly and a repository-wide orphan check. All nine job integration owners are real discovered tests. Source parsing would reintroduce the documented conditional-compilation blind spot; no absent current owner was found. |
+| Test reflection, real-time negative windows and canary naming | No bypass of a production boundary was demonstrated. Narrow two test names to their actual copy/closed-shape assertions; retain real gate/cleanup negative windows and native proofs. |
+| Display locale, enum fallback and fifth public route | English is the accepted display fallback; the two-value enum is checked in domain/storage; served OpenAPI and its extra-route mutant already reject surface drift. No speculative refactor. |
+| Audit diagnostics, slug helpers, tracker complexity and startup round trips | No incorrect durable outcome, isolation leak or unbounded admitted input was reproduced. Existing closed diagnostics remain; batching/helper extraction requires evidence beyond code similarity. |
+| Terminal timestamp/transaction liveness symmetry | Existing event witnesses bind the fenced row and same live transaction under ADR-0046. Job witnesses have their separate ADR-0047 contract; copying their wider shape is not an established event defect. |
+| Unused assert-tests-ran helper and FailureDescriptor constant | The first remains a source-inventory subject and its cited dated receipt is historical. The second documents the storage descriptor ceiling. Neither silently bypasses the current CI owner. |
+| Broader refactors, generated-file headers and recurring protection recorder | No current contract failure established. Do not hand-edit generated output, add a recurring automation or expand this correction into unrelated extraction work. |
+
+Phase 03 retains first production definitions, audited operator recovery and any
+new terminal caller census. Phase 04 retains real media capacity/limit consumers;
+Phase 06 owns the Studio audit-config writer and public error experience. Phase
+11 retains mapped readiness, supervised deployment/dump policy, retention/purge,
+connection-pooling qualification and production/browser operational diagnostics.
+These are existing owners, not delivered features of this correction.
+
+The warning-as-error Release solution build passes with zero warnings/errors.
+All 2,463 Unit cases and five compiled corpus guards pass with zero skips, as
+does the actual production-manifest test. The 51 combined shard controls, seven
+ADR lifecycle controls and seven new supply-chain controls pass. The real scanner
+installation verifies both pinned sums and its resulting Go module metadata;
+actionlint accepts the pinned workflow. The quota proposal remains non-runtime
+and was awaiting the maintainer's accounting choice at this source.
+
+**Additional review round 1.** Two fresh independent reviewers examine
+`62ad318c..cd69bbc6` across backend/contract tests and CI/dependency/evidence
+boundaries. The backend reviewer runs 70 focused cases, zero failures/skips,
+and identifies one valid documentation mismatch: Standards 09 still calls thirty
+seconds unconditional. It now describes the absent/empty default and preservation
+of an explicit value. The CI reviewer independently verifies all seven upstream
+commit identities, 51 shard, seven lifecycle and seven supply-chain controls,
+actionlint and both retained historical 5,482-case unions. These are separate
+local checks, not qualification of the new source.
+
+**Additional review round 2.** Two different fresh reviewers examine
+`62ad318c..abd5320b`. Both approve without a correctness/security finding.
+The backend reviewer runs 111 focused unit/configuration/corpus cases, zero
+failures/skips; the CI reviewer again runs all 51 shard, seven lifecycle and
+seven supply-chain controls and actionlint. The latter independently verifies
+official action identities, both Go sums, the historical merge parents and the
+bundle hash/implementation, but does not rerun its offline reconstruction.
+An optional new weekly Dependabot schedule is removed after scope review; exact
+SHA admission and its mutation controls remain. Parent verification also passes
+177 HTTP and four Contract cases, zero skips, and complete format verification.
+All 512 relative links in the changed documents resolve, including HTML aliases.
+No reviewer claims full hosted qualification for this corrected source.
+
+**Quota acceptance.** The maintainer explicitly selects the proposed accounting
+on 2026-10-19; its
+[accepted rule](phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19)
+precedes the shared-writer change. No new ADR or unapproved counting policy is
+introduced. Runtime implementation and its two independent review rounds follow.
+
+**Source-inventory qualification failure.** On `617ed087`,
+[run 39250697987](https://github.com/HodeTech/LearnStack/actions/runs/39250697987)
+passes frontend lint and production build, then fails its real genericity census:
+the two newly introduced Python CI tools lack explicit non-runtime ownership.
+The failure identifies `scripts/install-leakwatch.py` before reaching the second
+new entry. Both exact paths are added alongside the existing CI tools, with
+positive classification controls; unknown Python files still refuse. The full
+guarded frontend run then passes all 1,625 cases in both packages, zero skips or
+todos. The earlier focused frontend omission is a real verification gap. The
+failed run is cancelled after that failure because the approved quota also
+changes its source; neither that run nor its interrupted jobs qualify A/B.
+
+**Quota implementation and local proof.** The shared registration writer now
+acquires the tenant-wide quota lock before its concept lock, then checks distinct
+nondeleted custom keys and inserts on the same ambient transaction. Revisions
+share one slot, the built-in card is excluded, and the last live revision's
+tombstone frees its slot. Unlimited feature/numeric grants bypass the ceiling;
+zero admits no new custom key. The explicit `limit_exceeded` mapping returns 403,
+preserves the limit key/allowance in field errors, records Denied audit outcome
+and is permanent in the existing job failure taxonomy. No migration, new default
+entitlement or deletion/restoration authority is introduced.
+
+Full Unit passes 2,471 cases, zero skips. The PostgreSQL quota/default/publication
+selection passes 41 cases, zero skips; the final seven quota cases also pass after
+the controlled mutation is restored and rebuilt. A temporary removal of the real
+quota advisory lock makes the actual advisory-wait proof fail; production bytes
+are restored exactly before the positive rerun. The initial PostgreSQL run's one
+failure was a fixture assumption that the Null provider supplied a finite plan;
+it intentionally supplies all-enabled/unlimited under ADR-0045. The corrected
+tests preserve that default and exercise the real resolver against an explicit
+plan projection. That failed receipt remains failed evidence. Independent quota
+and source-inventory reviews precede renewed complete hosted qualification.
+
+**Quota review round 1.** Two fresh independent reviewers examine
+`617ed087..04b4e782` across transaction/isolation/concurrency and
+API/audit/job/error/corpus/source-inventory contracts. Both approve without a
+verified finding. They independently run seven PostgreSQL quota cases and 181
+focused Unit cases on current Debug binaries, plus all 19 genericity cases with
+their result guard. Their initial stale Release selections are not current-source
+evidence. The parent rebuilds the entire Release solution with zero warnings or
+errors, then runs all 2,471 Unit and 41 quota/default/publication PostgreSQL cases
+in Release: all pass, zero skips. A different fresh review pair follows before
+source freeze; no hosted qualification is claimed by these local receipts.
+
+**Quota review round 2 and source freeze.** Two different fresh reviewers examine
+`617ed087..d2c414ee` and approve without verified findings. They independently
+confirm all new cases are present in current Release binaries before running
+seven actual PostgreSQL quota cases and 181 focused Unit cases, zero skips.
+All 19 genericity cases and the result guard pass; unknown Python files still
+refuse. The contract reviewer verifies all 607 relative links/fragments in the
+changed documents. No test mutation, disabled guard, schema/grant change or new
+lifecycle authority remains. Parent Release build/format, all 2,471 Unit, 177
+HTTP, four Contract and 41 affected PostgreSQL cases pass, zero skips; complete
+frontend remains 1,625 cases across both packages. The source is frozen after
+this receipt for both complete hosted assignments. PR #32 owns the exact final
+head, actual A/B outcomes and retained evidence availability; none is claimed
+passed here before execution.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
@@ -4169,8 +11312,11 @@ P02b-3's
 [Step 6 proofs](#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 also cover the combined HTTP/event-delivery tracing criterion: actual committed
 rows match the enqueuing activity, announced tenant/org and exact nonempty
-partition. P02b-4–8 remain unimplemented; the whole phase is not complete. The
-[merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
+partition. The
+[P02b-3 merge closeout](#p02b-3-merge-and-closeout-2026-10-15) owns final combined
+event verification. P02b-4's job infrastructure is locally complete, with exact
+qualification in its [local closeout](#p02b-4-local-closeout-2026-10-18). P02b-5–8
+remain unimplemented; the whole phase is not complete.
 
 - An aggregate change and its outbox row commit together and roll back together,
   asserted as `learnstack_app`. An enqueue whose event `TenantId` differs from the
@@ -4272,6 +11418,10 @@ partition. P02b-4–8 remain unimplemented; the whole phase is not complete. The
   it; removing the row fails the build.
 
 **Background jobs**
+
+P02b-4's local evidence and Accepted-contract reconciliation of these criteria
+are recorded in its [local closeout](#p02b-4-local-closeout-2026-10-18); real
+PR-head CI/merge remain separate.
 
 - A job enqueued without a tenant id, and one enqueued without a correlation id, each
   fail **at enqueue time**; an organization-scoped job missing its organization fails
@@ -4381,7 +11531,9 @@ partition. P02b-4–8 remain unimplemented; the whole phase is not complete. The
   [Observability Standards](../standards/10-observability.md#required-metrics).
   Refresh publishes one complete immutable queue snapshot; each gauge reads an
   immutable snapshot. Pending, deferred, terminal and normal eligibility are
-  tested as distinct states. Job dimensions remain G9/G17 work.
+  tested as distinct states. Job dimensions are implemented under Accepted G9/G17;
+  the [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification,
+  while Standards 10 owns the exact inventory.
 - **No row in the [catalogue](../standards/21-architecture-tests-catalogue.md) whose
   Phase names 02b is still Registered or Awaiting backfill.** Structural rows are green
   in the `backend` check and behavioural rows in the `backend integration` check, which
@@ -4428,10 +11580,10 @@ partition. P02b-4–8 remain unimplemented; the whole phase is not complete. The
   workstation issues claimless tokens. The mitigation is the reconciler *and* asserting
   the issued token rather than the file — the fresh-container test alone is the shape
   that cannot tell clean from blind.
-- **Tenant context is forgotten in a background job.** The catalogued structural rule
-  asserts statement order and is green whether restoration works or not, and it is one
-  of two rules — the enqueue guard is the other. The mitigation is the behavioural
-  restoration test, run as `learnstack_app` against a real row.
+- **Tenant context is forgotten in a background job.** Opaque Hangfire hints cannot
+  establish tenant authority. The P02b-4 production census and real `learnstack_app`
+  execution proofs must keep restoration tied to the validated durable job row
+  before admission and handler construction.
 - **The outbox is treated as optional** — "module X will adopt it later." No reflection
   scan can observe whether a row committed with the change that raised it, so the
   mitigation is an integration test that commits and rolls back both together,
@@ -4484,8 +11636,9 @@ partition. P02b-4–8 remain unimplemented; the whole phase is not complete. The
 - A MUST-classified direct-write consumer produces exactly one row for its delivery, and
   a rolled-back delivery exactly one standalone `failed` row — the delivery-frame
   hand-off Packet 9 left open.
-- The background-job enqueue guard rejects a payload missing any one of its required
-  fields, and a job runs under its restored tenant against a real row.
+- Background-job submission rejects missing owner/context, unknown definitions and
+  invalid identifier-only parameters. A job runs under tenant/organization authority
+  restored from its real durable row; opaque transport hints carry no tenant payload.
 - Both Phase 02d sites still render anonymously with Keycloak stopped.
 - `LS0002` ships as a Warning with its record, its catalogue entry and its release row.
 - No catalogue row whose Phase names 02b is still Registered or Awaiting backfill; both

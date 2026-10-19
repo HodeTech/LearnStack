@@ -1,14 +1,15 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Diagnostics;
 using LearnStack.Infrastructure.Messaging;
-using Npgsql;
 
 namespace LearnStack.Api.Messaging;
 
 /// <summary>One just-in-time claimant with bounded, task-owned execution overruns.</summary>
 public sealed partial class DeliveryProcessor : BackgroundService
 {
-    private readonly Lazy<NpgsqlDataSource> _source;
+    private readonly PrivilegedDataSource _source;
     private readonly DeliveryDispatchStore _store;
+    private readonly MessagingPrivilegedLifetime _privilegedLifetime;
     private readonly DeliveryExecutor _executor;
     private readonly OutboxEventRegistry _registry;
     private readonly DeliveryDispatchOptions _options;
@@ -20,7 +21,7 @@ public sealed partial class DeliveryProcessor : BackgroundService
     private DeliveryClaimKind _nextClaimKind = DeliveryClaimKind.Terminal;
 
     public DeliveryProcessor(
-        [FromKeyedServices(OutboxDispatcherDataSource.Key)] Lazy<NpgsqlDataSource> source,
+        [FromKeyedServices(OutboxDispatcherDataSource.Key)] PrivilegedDataSource source,
         DeliveryDispatchStore store, DeliveryExecutor executor, OutboxEventRegistry registry,
         DeliveryDispatchOptions options, TimeProvider time,
         DeliveryObservation observation, ILogger<DeliveryProcessor> logger)
@@ -35,6 +36,7 @@ public sealed partial class DeliveryProcessor : BackgroundService
         ArgumentNullException.ThrowIfNull(logger);
         _source = source;
         _store = store;
+        _privilegedLifetime = new MessagingPrivilegedLifetime(store);
         _executor = executor;
         _registry = registry;
         _options = options;
@@ -43,31 +45,58 @@ public sealed partial class DeliveryProcessor : BackgroundService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Completes only after startup cleanup and actual privileged loop return, or
+    /// an irrevocable no-issued-loop decision. Caller wait expiry cannot complete it.
+    /// </summary>
+    public Task PrivilegedCompletion => _privilegedLifetime.Completion;
+
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        // .NET 10 runs ExecuteAsync in the background. Startup refusal therefore
-        // belongs here, before the host can report that it has started.
-        _options.Validate();
+        _privilegedLifetime.BeginStart();
         try
         {
-            using var timeout = new CancellationTokenSource(_options.SqlTimeout, _time);
-            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
-            await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw new OperationCanceledException(cancellationToken);
-        }
-        catch (Exception)
-        {
-            // No connection data, provider exception or inner exception escapes boot.
-            throw new InvalidOperationException("Delivery dispatcher startup was refused. "
-                + "Configure ConnectionStrings:OutboxDispatcher in Npgsql key/value form "
-                + "for learnstack_outbox_admin and verify database connectivity.");
-        }
+            // .NET 10 runs ExecuteAsync in the background. Startup refusal therefore
+            // belongs here, before the host can report that it has started.
+            _options.Validate();
+            try
+            {
+                using var timeout = new CancellationTokenSource(_options.SqlTimeout, _time);
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+                var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+                await _privilegedLifetime.DisposeStartupConnectionAsync(connection).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+            catch (Exception)
+            {
+                // No connection data, provider exception or inner exception escapes boot.
+                throw new InvalidOperationException("Delivery dispatcher startup was refused. "
+                    + "Configure ConnectionStrings:OutboxDispatcher in Npgsql key/value form "
+                    + "for learnstack_outbox_admin and verify database connectivity.");
+            }
 
-        _observation.Started();
-        await base.StartAsync(cancellationToken).ConfigureAwait(false);
+            if (!_privilegedLifetime.TryReserveExecution())
+                throw new InvalidOperationException("The delivery dispatcher is already stopping.");
+            try
+            {
+                _observation.Started();
+                await base.StartAsync(cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                if (ExecuteTask is { } execution) _privilegedLifetime.ObserveExecution(execution);
+                // Stop/Dispose can win after reservation but before base publishes
+                // its task. Complete that cancellation outside the state lock.
+                if (_privilegedLifetime.IsStopping) base.Dispose();
+            }
+        }
+        finally
+        {
+            _privilegedLifetime.FinishStart();
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -356,6 +385,7 @@ public sealed partial class DeliveryProcessor : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        _privilegedLifetime.SealStopping();
         // The base service and callback drain share one overall budget. Never add
         // a second shutdown wait after the host has already exhausted the first.
         using var timeout = new CancellationTokenSource(_options.ShutdownTimeout, _time);
@@ -376,5 +406,11 @@ public sealed partial class DeliveryProcessor : BackgroundService
             RetainedPartitions();
             _observation.Stopped();
         }
+    }
+
+    public override void Dispose()
+    {
+        _privilegedLifetime.SealStopping();
+        base.Dispose();
     }
 }

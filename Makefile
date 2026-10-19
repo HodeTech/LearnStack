@@ -175,6 +175,9 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 	@#    project from being visited twice when the glob reaches it — a second
 	@#    `database update` is a no-op, but a recipe that prints the same chain
 	@#    twice reads like a bug in the recipe.
+	@# 7. Build the startup graph once in Release, with restore for standalone use.
+	@#    Every EF invocation uses that fresh output; the demo launches the same API.
+	@#    Explicit failures also stop old Make versions without shell errexit.
 	@migration_cs="$${ConnectionStrings__Migration:-}"; \
 	migration_env="$${LEARNSTACK_COMPOSE_ENV_FILE:-.env}"; \
 	if [ -z "$$migration_cs" ] && [ -f "$$migration_env" ]; then \
@@ -202,7 +205,8 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 		exit 1; \
 	fi; \
 	export ConnectionStrings__Migration="$$migration_cs"; \
-	(cd backend && dotnet tool restore >/dev/null); \
+	(cd backend && dotnet tool restore >/dev/null) || exit $$?; \
+	(cd backend && dotnet build src/LearnStack.Api --configuration Release --nologo) || exit $$?; \
 	found=0; \
 	failed=0; \
 	applied=" "; \
@@ -217,6 +221,7 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 		(cd backend && dotnet ef database update \
 			--project "../$$proj" \
 			--startup-project src/LearnStack.Api \
+			--configuration Release --no-build \
 			--connection "$$migration_cs") || failed=1; \
 	done; \
 	if [ "$$found" = "0" ]; then \

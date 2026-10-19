@@ -97,6 +97,19 @@ the canonical template in [Database Standards](../standards/05-database.md), per
 
 ## Risks
 
+**Job contract prerequisite — 2026-10-15.** ADR-0047 and the P02b-4 package are
+Accepted; runtime/proofs remain pending. Its immediate/delayed submission and
+execution cancellation do not implement
+domain schedule cancellation or replacement. Before reminder/lifecycle writers,
+this phase must define a tenant/org-scoped logical occurrence key and revision,
+transactional deduplication/replacement and a stale/cancelled-intent no-op guard.
+Pin cancel-versus-send behavior explicitly; a notice already sent cannot be
+recalled. Phase 08a owns provider/dispatch idempotency, while this phase owns
+booking/reminder occurrence semantics. See the
+[ADR-0047 workload envelope](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations).
+The accepted H1 runtime exposes no generic Cancel/Reschedule API; this phase
+still owes its domain cancellation/replacement contract.
+
 - Building scheduling as a general-purpose calendar product instead of a focused
   live-session scheduler.
 - Hard-coupling scheduling to the live-classroom runtime; the seam between scheduling

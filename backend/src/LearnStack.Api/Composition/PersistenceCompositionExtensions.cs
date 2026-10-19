@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Jobs;
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
@@ -122,15 +123,14 @@ public static class PersistenceCompositionExtensions
             ValidateApplicationConnectionString(connectionString);
         }
 
-        services.TryAddSingleton(_ => BuildApplicationDataSource(connectionString));
+        services.TryAddSingleton(_ => new ApplicationDataSourceLifetime(connectionString));
 
         // And the Lazy over it — the ONE registration, which the host resolver, the
         // organization scope validator, the audit write path and the flag reads all take.
         // Same instance, deferred: a request on a platform host is answered from
         // Tenancy:PlatformHosts and must not pay for a credential it does not use — and the
         // Docker-free host suites have none at all.
-        services.TryAddSingleton(provider =>
-            new Lazy<NpgsqlDataSource>(provider.GetRequiredService<NpgsqlDataSource>));
+        services.TryAddSingleton(provider => provider.GetRequiredService<ApplicationDataSourceLifetime>().Source);
 
         // The platform credential — the second, separately-credentialed data source
         // ADR-0003 requires, keyed so only PlatformAdminScope resolves it. Validated at
@@ -149,14 +149,10 @@ public static class PersistenceCompositionExtensions
         // service for type NpgsqlDataSource has been registered", which names neither
         // the key nor the file an operator has to edit. The Lazy is what lets a
         // deployment that needs no platform admin — most of them — boot with none.
-        services.TryAddKeyedSingleton<NpgsqlDataSource>(
+        services.TryAddKeyedSingleton<PrivilegedDataSource>(
             PlatformAdminScope.PlatformDataSourceKey,
-            (_, _) => BuildPlatformDataSource(platformConnectionString));
-
-        services.TryAddKeyedSingleton<Lazy<NpgsqlDataSource>>(
-            PlatformAdminScope.PlatformDataSourceKey,
-            (provider, key) => new Lazy<NpgsqlDataSource>(
-                () => provider.GetRequiredKeyedService<NpgsqlDataSource>(key)));
+            (_, _) => new PrivilegedDataSource(() => BuildPlatformDataSource(platformConnectionString)));
+        services.AddLearnStackBackgroundJobContracts();
 
         // The gate first, so a reader sees that entry is refused before a connection is
         // opened rather than after. Both are stateless singletons.
@@ -165,7 +161,7 @@ public static class PersistenceCompositionExtensions
 
         // Scoped: one connection per request, owned by this, shared by every
         // context resolved in the scope (ADR-0040).
-        services.TryAddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
+        services.TryAddScoped<IUnitOfWork>(CreateUnitOfWork);
 
         // Every module context goes through the helper. A registration that built
         // its own connection string would give the context its own connection,
@@ -328,6 +324,10 @@ public static class PersistenceCompositionExtensions
 
         return services;
     }
+
+    private static IUnitOfWork CreateUnitOfWork(IServiceProvider services) => new NpgsqlUnitOfWork(
+        services.GetRequiredService<Lazy<NpgsqlDataSource>>().Value,
+        services.GetRequiredService<ILogger<NpgsqlUnitOfWork>>());
 
     /// <summary>
     /// Validates <c>ConnectionStrings:Default</c> and builds the application data

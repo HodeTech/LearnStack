@@ -178,9 +178,6 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
     }
 
     /// <summary>
-    /// Reads one assertion. Absent is fine; malformed or repeated is not.
-    /// </summary>
-    /// <summary>
     /// <c>/api/v{N}</c> and nothing that merely starts the same way.
     /// </summary>
     /// <remarks>
@@ -208,6 +205,9 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         return digits > 0 && (digits == rest.Length || rest[digits] == '/');
     }
 
+    /// <summary>
+    /// Reads one assertion. Absent is fine; malformed or repeated is not.
+    /// </summary>
     private static bool TryReadAssertion(HttpContext context, string header, out Guid? value)
     {
         value = null;

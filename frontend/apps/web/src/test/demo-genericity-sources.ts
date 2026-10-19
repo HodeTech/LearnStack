@@ -59,13 +59,59 @@ const nonRuntimeFiles = new Set([
   'frontend/pnpm-workspace.yaml',
   'scripts/adr-status.py',
   'scripts/assert-tests-ran.py',
+  'scripts/ci-native-environment.py',
+  'scripts/ci-native-provisioning.py',
+  'scripts/ci-native-tests.py',
+  'scripts/ci-test-shards.py',
+  'scripts/ci-test-shards-plan.json',
+  'scripts/ci-test-shard-results.py',
   'scripts/connection-string.awk',
+  'scripts/install-leakwatch.py',
   'scripts/install-oasdiff.py',
   'scripts/openapi-ci.py',
   'scripts/openapi-policy.py',
   'scripts/seed.sh',
   'scripts/test-adr-status.py',
+  'scripts/test-ci-native-environment.py',
+  'scripts/test-ci-native-provisioning.py',
+  'scripts/test-ci-native-tests.py',
+  'scripts/test-ci-test-shards.py',
+  'scripts/test-ci-test-shard-results.py',
+  'scripts/test-ci-supply-chain.py',
   'scripts/test-openapi-ci.py',
+  // Offline vendor distribution materials and isolated lifecycle experiments.
+  'scripts/probe-hangfire-lifecycle.py',
+  'scripts/probes/hangfire-lifecycle/BoundaryProbe.cs',
+  'scripts/probes/hangfire-lifecycle/BuilderProbe.cs',
+  'scripts/probes/hangfire-lifecycle/ExitProbe.cs',
+  'scripts/probes/hangfire-lifecycle/Program.cs',
+  'third-party/hangfire/.gitattributes',
+  'third-party/hangfire/README.md',
+  'third-party/hangfire/core/COPYING',
+  'third-party/hangfire/core/COPYING.LESSER',
+  'third-party/hangfire/core/LICENSE.md',
+  'third-party/hangfire/core/NOTICES',
+  'third-party/hangfire/core/corresponding-source.tar.gz',
+  'third-party/hangfire/cronos/LICENSE',
+  'third-party/hangfire/cronos/corresponding-source.tar.gz',
+  'third-party/hangfire/dependency-notices/Apache-2.0.txt',
+  'third-party/hangfire/dependency-notices/Dapper-2.0.123-LICENSE.txt',
+  'third-party/hangfire/dependency-notices/Dapper.AOT-1.0.48-LICENSE.txt',
+  'third-party/hangfire/dependency-notices/Newtonsoft.Json-13.0.4-LICENSE.md',
+  'third-party/hangfire/material-sha256.json',
+  'third-party/hangfire/original-binaries.json',
+  'third-party/hangfire/postgres/COPYING',
+  'third-party/hangfire/postgres/COPYING.LESSER',
+  'third-party/hangfire/postgres/LICENSE.md',
+  'third-party/hangfire/postgres/corresponding-source.tar.gz',
+  'third-party/hangfire/qualification/MaintenanceProbe.cs',
+  'third-party/hangfire/qualification/README.md',
+  'third-party/hangfire/qualification/probe-maintenance.py',
+  'third-party/hangfire/qualification/probe-pg-timeouts.py',
+  'third-party/hangfire/script-sha256.json',
+  'third-party/hangfire/source-sha256.json',
+  'third-party/hangfire/verify-distribution-controls.py',
+  'third-party/hangfire/verify-distribution.py',
 ]);
 const nonRuntimeRoots = new Set([
   '.claude',
@@ -106,9 +152,10 @@ export function demoSourceClassification(path: string): 'runtime' | 'other' {
       return 'other';
     throw new Error(`Unclassified repository source: ${path}`);
   }
+  if (nonRuntimeFiles.has(path)) return 'other';
   if (root !== 'frontend' && root !== 'scripts')
     throw new Error(`Unclassified repository source: ${path}`);
-  if (nonRuntimeFiles.has(path) || declaration.test(path)) return 'other';
+  if (declaration.test(path)) return 'other';
   if (
     !sourceExtension.test(path) ||
     [...dependencyRoots, ...generatedOutputs].some((dir) => path.startsWith(dir + '/'))

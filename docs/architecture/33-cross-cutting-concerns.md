@@ -365,8 +365,8 @@ LiveKit) carry tenant attributes without per-call enrichment. The processor
 is a singleton (OTel SDK design); it reads from the singleton
 `ITenantContextAccessor` (`AsyncLocal<ITenantContext?>`-backed), which the
 tenant middleware populates at request start. The same accessor is set by
-the Hangfire `JobActivator` (background jobs), the outbox / inbox handler
-scope (integration events), and `HubCorrelationMiddleware`
+`JobExecutor` from the validated job row (background jobs), the integration-event
+delivery owner, and `HubCorrelationMiddleware`
 (`/api/internal/*`). Every downstream span — even spans created by libraries
 the LearnStack codebase has no knowledge of — picks up the right tags
 because the SDK runs the processor's `OnStart` hook synchronously inside the
@@ -442,20 +442,22 @@ flowchart TD
   mw --> pipeline["MediatR pipeline<br/>LoggingBehavior opens ILogger scope"]
   pipeline --> handler[Handler]
   handler --> outbox["IOutbox.EnqueueAsync<br/>(row carries tenant_id, correlation_id, ...)"]
-  handler --> hangfire["Hangfire enqueue<br/>(payload carries tenant_id, correlation_id)"]
+  handler --> jobs["Typed scheduler<br/>(trusted origin on LearnStack row)"]
+  jobs --> hangfire["Hangfire wakeup<br/>(opaque reference only)"]
   outbox --> processor["OutboxProcessor batch dispatch"]
   processor --> dapr["DaprEventBus → Kafka"]
   dapr --> consumer["Consumer pod<br/>(restores ITenantContext from envelope,<br/> sets Activity.Parent from traceparent)"]
-  hangfire --> activator["Hangfire JobActivator<br/>(restores ITenantContext from payload,<br/> sets Activity.Parent from correlation_id)"]
+  hangfire --> executor["JobExecutor<br/>(restores tenant/org/trace<br/> from authoritative LearnStack row)"]
   consumer --> consumerPipeline["Same MediatR pipeline"]
-  activator --> jobHandler["Job handler"]
+  executor --> jobHandler["Job handler"]
 ```
 
 The primitive is **W3C `traceparent`** end to end. Every cross-boundary write
 includes it. The receiving side resumes the trace by setting
 `Activity.ParentId = traceparent`, so Tempo sees one continuous trace from
 the original HTTP request to the eventual outbox-dispatched consumer or
-Hangfire job execution.
+LearnStack job execution. Vendor wakeups carry no tenant or trace authority
+([ADR-0047](../decisions/0047-transactional-background-job-runtime.md#ordinary-execution-authority)).
 
 ### Hub HTTPS contract surface
 
@@ -532,7 +534,7 @@ Two integration points
 | Roslyn analyzer for `DomainException` | Phase 02a | Compile-time enforcement of "bug only" |
 | MUST-class audit write path (`IAuditStore`, `IAuditStateCapture`) | Phase 02a Packet 9 | Shape fixed by ADR-0033 + ADR-0044; `audit_log` ships plain, unpartitioned |
 | Public read-only transaction mode and host ceiling | P02d-4 | ADR-0052 Accepted; P02d-4 Step 1 delivers host admission, transaction modes and app-role write-refusal proofs; Step 2 adds site endpoints and structural dispatch/Off/persistence guards; Steps 3–4 deliver Education reads and contract/SDK/CI proofs |
-| Outbox / Hangfire correlation propagation | Phase 02b | Row schema + activator |
+| Outbox / background-job correlation propagation | Phase 02b | Trusted outbox/job rows and delivery/`JobExecutor` restoration; Hangfire hints remain opaque |
 | Hub HTTPS correlation middleware | Phase 02b / 02c | Cross-repo |
 | OTel Collector + Tempo + Loki + Prometheus deployment | Phase 11 | Production-side backends |
 | Sentry SaaS / Self-Hosted config | Phase 11 | Per-deployment-mode wiring |

@@ -75,8 +75,10 @@ answer **yes** to each item, or attach a written justification:
       architecture test `Every_OrgScoped_Entity_HasOrgIdAndFilter` checks the marker.
 - [ ] No `IgnoreQueryFilters()` outside the audited `EnterPlatformAdminScope(reason)`
       call path.
-- [ ] Every background job payload carries `TenantId` (and `OrganizationId?` when
-      relevant); the worker sets ambient tenant + org before any work.
+- [ ] Background jobs use the typed scheduler; trusted submission stamps tenant
+      and optional organization on the authoritative row, and `JobExecutor`
+      restores them before business work. Vendor wakeups carry opaque references
+      ([ADR-0047](../decisions/0047-transactional-background-job-runtime.md#typed-definitions-submission-and-scope)).
 - [ ] Every integration event payload carries `tenant_id` (and `organization_id?` when
       relevant); consumers restore tenant + org context before handling.
 - [ ] Raw SQL queries (if any) include `tenant_id` (and `organization_id` when
@@ -234,9 +236,12 @@ for the full strategy. Standards-side:
   **path check**: no per-call-site attribute or comment marker exempts a call
   ([09-tenant-isolation.md § Platform admin access](../architecture/09-tenant-isolation.md),
   [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)).
-- Background jobs **must** receive `TenantId` (and `OrganizationId?`) in their
-  payload. From [Phase 02b](../roadmap/phase-02b-events-auth.md), which ships Hangfire, a
-  job enqueued without it fails at enqueue time (`Hangfire_Job_Payloads_Include_TenantId`).
+- Background jobs use `IBackgroundJobScheduler` inside the enrolled writable
+  transaction. Tenant/org authority comes from trusted submission and the
+  authoritative job row; `JobExecutor` restores context before business work.
+  Hangfire wakeups contain only opaque references. See the
+  [submission rule](21-architecture-tests-catalogue.md#backgroundjob_submission_is_transactional_and_stamped)
+  and [ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
 - The `app.tenant_id` and `app.organization_id` session variables are set with
   `SET LOCAL` inside the ambient transaction — see § Tenant Context immediately below,
   which is the single authority for that placement.
@@ -259,8 +264,10 @@ non-superuser, directly or transitively. Superusers inherently reach every role;
 this check detects grant drift on a new physical connection, not continuous
 revocation of an existing session. No Seeder/web forwarding or shared app
 credential is allowed. [Database Standards](05-database.md#grant-matrix)
-owns exact status grants and audit INSERT-only; no business access or audit read,
-update or delete is admitted.
+owns exact status grants and audit INSERT-only. ADR-0047 additionally permits the
+[closed Tenancy lifecycle projection](05-database.md#job-lifecycle-projection)
+for durable job fan-out. Other business columns and tenancy mutations remain
+denied, as do audit read, update and delete.
 
 Routine confined poll/claim/mark receives ADR-0046's bounded audit exception;
 terminal state is MUST/SecurityEvent and atomic with its row-bound witness audit.

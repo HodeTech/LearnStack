@@ -18,6 +18,8 @@
     <!-- The two seed tenants are a Packet 7 deliverable, and what the seeder writes has
          to be asserted against the real schema rather than taken on trust. -->
     <ProjectReference Include="..\..\src\LearnStack.Tools.Seeder\LearnStack.Tools.Seeder.csproj" />
+    <ProjectReference Include="../LearnStack.Tests.JobLifecycleProbe/LearnStack.Tests.JobLifecycleProbe.csproj"
+                      ReferenceOutputAssembly="false" />
     <!-- The tenancy schema tests apply the module's own migration and assert its
          policies, so they need the migration assembly and the persistence model
          directly — not the DI registration. AddLearnStackPersistence does register
@@ -46,6 +48,20 @@
          against the real LearnStack.Api host. -->
     <PackageReference Include="MediatR" />
     <PackageReference Include="FluentValidation" />
+    <!-- Separate test-only module assemblies exercise real job ownership checks. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
+
+  <!-- The separately launched Linux child owns fatal proof. Never load its
+       entry point into the test host or use parent-process termination. -->
+  <Target Name="StageJobLifecycleProbe" AfterTargets="Build">
+    <ItemGroup>
+      <_JobLifecycleProbeFiles Include="$(MSBuildThisFileDirectory)../LearnStack.Tests.JobLifecycleProbe/bin/$(Configuration)/$(TargetFramework)/**/*" />
+    </ItemGroup>
+    <Error Condition="'@(_JobLifecycleProbeFiles)' == ''" Text="The job lifecycle proof sidecar was not built." />
+    <Copy SourceFiles="@(_JobLifecycleProbeFiles)"
+          DestinationFiles="@(_JobLifecycleProbeFiles->'$(OutDir)job-lifecycle-probe/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

@@ -13,6 +13,9 @@
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [ADR-0018 Tenant-Driven Customization Model](../decisions/0018-tenant-driven-customization-model.md)
 (supersedes ADR-0011 Vertical Extension Points).
+Background-job authority additionally derives from
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
+(Accepted; P02b-4 implementation in progress).
 
 These rules turn the architecture docs into enforceable code conventions. They are checked by architecture tests where possible.
 
@@ -203,7 +206,12 @@ Rules:
   one and takes no marker.
 - `[TenantOwned]` entities must have a configured EF global query filter and a PostgreSQL RLS policy (see [Database Standards](05-database.md)).
 - Application services must never expose `IgnoreQueryFilters()` directly to callers.
-- Background jobs and integration event handlers must accept `TenantId` as part of their payload and set it as the ambient context before doing work.
+- Background jobs restore tenant/org from the authoritative LearnStack job envelope
+  before business construction/work. Under ADR-0047, Hangfire wakeups carry only
+  opaque job-ID/generation references and finite tenantless ticks; these messages
+  grant no tenant authority. Integration event handlers restore context from their
+  retained integration-event envelope. P02b-4 implements the job boundary; the
+  shipped event boundary retains its contract.
 
 ## Composition Root
 

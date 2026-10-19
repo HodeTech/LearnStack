@@ -19,6 +19,14 @@ Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+Background-job additions derive from
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
+Vendor-maintenance configuration and ownership derive from
+[ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md).
+Accepted server lifecycle and its bounded availability qualification derive from
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md).
+The exceptional startup/unsafe-unwind process boundary derives from
+[ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md).
 
 Three audit decisions are referenced here but **not owned** here, and the split matters
 because they are easy to conflate:
@@ -687,7 +695,9 @@ are the Hub's public API, governed by the Hub repository.
 Accepted ADR-0046 adds the confined fifth method
 `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
 DbTransaction, CancellationToken)`, implemented in P02b-2 Step 2 with both
-independent review rounds complete. The delivered store has five write methods.
+independent review rounds complete. P02b-4 Step 5 adds ADR-0047's separate sixth
+`WriteJobTerminalAsync` method
+with its actual job-row witness; its delivery record owns qualification/reviews.
 Its restricted witness comes only from the actual successful fenced terminal UPDATE.
 The store validates declared operation/class/type, row identity and live caller
 transaction, then INSERTs without opening/committing a transaction. Existing four
@@ -700,15 +710,149 @@ causal-envelope or payload read to the bypass scheduler. See
 
 ## Background Jobs and Hangfire
 
-- Long-running domain work (cohort enrollments, recording transcoding) goes on
-  Hangfire. Short-running idempotent work goes on `IEventBus` consumers; the two are
-  not interchangeable.
-- Job names are namespaced `{module}.{job-name}` (`enrollment.bulk_grant`,
-  `media.recording_transcode`).
-- Recurring jobs are declared in code and registered at startup; ad-hoc UI scheduling
-  is disabled.
-- Hangfire's storage is its own Postgres schema (`hangfire`), separate from any
-  module's schema.
+Accepted [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
+owns H1: stock Hangfire transports opaque wakeups; LearnStack records own business
+intent, attempts, tenant/organization authority and completion. The
+[P02b-4 delivery record](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+owns current implementation/qualification status; Step 4 qualifies API activation.
+
+**Accepted lifecycle addition — 2026-10-16.**
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md) selects public
+stock process composition and one actual generation per pool, replaced only
+after actual stock/LearnStack work, callbacks and cleanup finish. Shared fetched-job
+heartbeat and expiration belong to an API-instance owner independent of every
+pool generation. Local drain closes admission without canceling admitted private
+work; host stop uses the existing finite shared external join budget. Exact fixed
+options, concrete storage/connection surface parity, lifecycle fences, closed
+cancellation/diagnostic callbacks and process exit require production qualification.
+Only the two ADR-0047 progress clauses disclosed in
+[Amendment 2](../decisions/0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16)
+are qualified: a draining pool can block unrelated same-pool tenants with a spare
+slot and below four retained overruns, including after storage recovery, until
+actual cleanup. Other healthy pools remain independent subject to common
+dependencies; hard retention bounds, attempts, reservations and quiescence hold.
+The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+is authorized. Step 4 locally qualifies the shipped lifecycle and API composition;
+its delivery record owns both full reviews and verified corrections.
+
+**Accepted exceptional boundary — 2026-10-16.**
+[ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md) selects
+nongraceful whole-API termination for opaque prevalidated constructor failure or
+observed Core unwind without qualified normal child-join evidence, before or after
+capture. This explicitly qualifies healthy-other-pool availability through dated
+ADR-0047/0059 amendments; ordinary classified pre-child faults, qualified cleanup
+and heartbeat draining retain ADR-0059. A startup stall alone is retained/unhealthy.
+Process-wide job-start/replacement gates close first; death releases no durable
+attempt, external uncertainty or reservation. Real fatal-child, callback/dump and
+worker/PostgreSQL qualification remains mandatory before activation. Phase 11 owns
+production supervision and crash diagnostics; acceptance claims no delivered runtime.
+
+**Accepted native CI boundary — 2026-10-18.**
+[ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md) authorizes a
+named CI-only owner to verify or set the fixed file collector on an exclusive
+disposable hosted native-proof VM, without restoration. Native/ordinary Docker
+execution stays complete behind the existing required integration result. This
+is not developer/shared/production host authority or a weaker child precondition.
+The closed owners are `scripts/ci-native-provisioning.py` and
+`scripts/ci-native-tests.py`; their offline subprocess/partition controls run in
+`meta`. Exact discovery/result identities and all required execution outcomes gate the
+aggregate. The [CI record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+owns reviews and actual hosted qualification. Local controls do not qualify the
+hosted process boundary, complete partitions or their budget fit.
+
+**Complete bounded CI execution — ADR-0063.** The
+[testing standard](06-testing.md#complete-bounded-ci-assignments) owns actual
+selector/assignment/result requirements and retry procedure. The tracked plan
+and literal workflow matrices provide finite base/Architecture/ordinary/native
+execution behind the same seven protected results. Only the two aggregates gain
+job-scoped `actions: read`; executors retain `contents: read`. Base/Architecture
+add only an owned transient systemd/cgroup seam on exclusive hosted Ubuntu 24.04
+VMs, without Docker or collector authority. Native's ADR-0062 authority remains
+exclusive. No application runtime, production infrastructure or local/shared
+host authority follows. Each execution remains bounded to twenty minutes and
+each aggregate to five; actual final-source fit is recorded in the phase.
+
+- Step 4's API composition registers one `BackgroundJobHostedService` over
+  [`BackgroundJobRuntime`](../glossary.md#background-jobs), with singleton hosted
+  aliases for the actual `OutboxProcessor` and `DeliveryProcessor`. Bind their
+  positive source-use witnesses before startup; duplicate processors or an absent
+  binding cannot stand in for completed messaging work. The facade owns bootstrap,
+  pools, shared components and bridge under one finite external shutdown budget;
+  actual joins continue after caller waiting ends. Its health check reads memory
+  and remains unmapped. Step 4's full reviews and verified qualification corrections
+  are complete in its owning delivery record.
+- Native wrapper waits are armed separately for each stage. `TransactionTimeout`
+  bounds framework admission and transactional/prepare/finalize stages.
+  `SqlTimeout` bounds external-state reads, Arm/Outcome, recovery acquisition,
+  no-start checkpoints and recovery disposition.
+  `ExternalWaitTimeout` bounds Execute; `ProbeTimeout` bounds Reconcile, checkpoint
+  history and recovery confirmation. Expiry closes late admission while actual
+  work, private cancellation callbacks and cleanup remain owned. The
+  [Step 7 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-7--external-stages-and-recovery-2026-10-17)
+  owns the stage-wait qualification.
+- A per-pool server-metadata heartbeat fault makes `jobs` unhealthy during retry,
+  before draining. Only confirmed stored heartbeat success clears it. Two fixed
+  maintenance health entries separately report expiration and fetched-job renewal
+  state, outcome, actual join, resource ownership and storage fault. No provider
+  object or SQL runs in health observation.
+- Modules submit typed registered jobs on their announced business transaction.
+  Transactional and external prepare/execute/finalize profiles retain distinct
+  owners; vendor success is not business completion. Events keep their independent
+  durable subscriber contract.
+- Tenant/group capacity admission counts all unreleased reservations after the
+  shared mutex wait and intersects an optional registered Hard limit with the
+  operational ceiling. Refusal spends no attempt. Successful business completion
+  releases atomically; grouped transactional rollback/no-start release requires
+  positive original cleanup and distinct recovery authority through the exact
+  app-role checkpoint.
+  Missing local cleanup preserves occupied capacity in paced recoverable parking.
+  The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+  owns passing local qualification, both completed full review rounds and verified
+  corrections.
+- Definition/queue/recurrence keys come from finite code registries. Only the two
+  exact opaque wrappers reach vendor invocation storage. No UI-defined callbacks,
+  dashboard or serialized tenant/organization/context authority is admitted.
+- Version-23 vendor tables live in `public`, classified separately from
+  tenant-owned business tables. Migration-owned installation and exact runtime
+  grants follow [Database Standards](05-database.md); workers never prepare schema.
+- Accepted [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md)
+  suppresses only exact stock `CountersAggregator` and `StatisticsHistoryAttribute`
+  through public hooks. Fail-closed inventories preserve stock expiration,
+  `PostgreSqlHeartbeatProcess`, state counters and required admission/retry filters.
+  No enabled command overrides finite driver I/O with zero; no socket exception
+  exists. Source/reset and enabled-path response-loss proofs remain mandatory.
+- The stock synchronous connection factory and schema bootstrap join the guarded
+  source's actual asynchronous acquisition at their common synchronous entry.
+  This keeps the driver's cancellable DNS/socket path
+  instead of its synchronous positive-fraction socket-timeout truncation. It
+  introduces no detached wait, deadline extension or cleanup witness. Physical
+  role validation and its disposal do not capture a caller's synchronization
+  context; every newly opened connector still crosses the same role guard.
+- One API-instance owner shares the actual stock expiration component across pools
+  on an owned background thread. The internal interval is exactly one millisecond;
+  the owner supplies one-hour cadence after completion and cancelable pacing/backoff.
+  Its positive wait is at most five minutes (default five), plus at most one second
+  of cleanup waiting. Actual work/resources remain owned through late completion;
+  no duplicate starts, spin or disposal in use is permitted. Maintenance adds no
+  business worker/reservation and is accounted separately from workers-plus-four
+  and bridge-four. Host stop uses one shared shutdown budget. Retained maintenance
+  makes unmapped `jobs` health unhealthy with a fixed separate maintenance dimension
+  and bounded progress/outcome code; Phase 11 owns readiness routing/alerts.
+- Database Standards owns the reset-safe five-second idle-session cleanup setting,
+  source deadlines and [shared-source lifetime and current Step 4 capacity floor](05-database.md#shared-dispatcher-source-lifetime-and-capacity).
+  `MessagingPrivilegedLifetime` and the concrete connection-cleanup seals preserve
+  that source through actual privileged work. Per-statement/lock bounds do not
+  bound a whole pass; later acquisition lanes require requalification. Independent
+  pool progress under contention remains a real qualification obligation.
+- Vendor counter totals are approximate: expiration compaction can lose subtotals
+  or discard nonpositive sums, and duplicate wakeups defeat a per-business-job row
+  ratio. New historical timelines are unavailable; old history expires. Fewer live
+  rows do not promise disk shrinkage, bounded backlog/store size or recovery rate.
+  Phase 11 owns operational retention/space and measured production capacity.
+  Step 2 implements source/reset qualification; Step 4 completes actual maintenance/
+  component/filter/pool qualification. Step 9 implements observation/enforcement
+  and locally qualifies both extended catalogue obligations; its delivery record
+  owns full-review, local packet-closeout and real PR-head CI qualification status.
 
 ## Network and Service Topology
 
@@ -757,6 +901,7 @@ causal-envelope or payload read to the bypass scheduler. See
 - [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
 - [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
 - [ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
+- [ADR-0058 Bounded Stock Hangfire Maintenance](../decisions/0058-bounded-stock-hangfire-maintenance.md)
 - [29-dapr-integration.md](../architecture/29-dapr-integration.md)
 - [30-api-gateway.md](../architecture/30-api-gateway.md)
 - [33-cross-cutting-concerns.md](../architecture/33-cross-cutting-concerns.md)

@@ -114,7 +114,8 @@ public sealed class OrgScopeSchemaTests
             "SELECT relname FROM organization_scoped ORDER BY relname");
 
         scoped.Should().Contain(["tenant_settings", "audit_log",
-            "courses", "lessons", "course_translations", "lesson_translations"],
+            "courses", "lessons", "course_translations", "lesson_translations",
+            "background_jobs", "background_job_attempts", "background_job_recipients"],
             "a guard over no classified tables proves nothing");
         all.Except(scoped).Should().BeEquivalentTo(["platform_host_to_tenant", "outbox_messages"],
             "these are the two documented table-class exceptions, not an extensible exclusion list");
@@ -182,6 +183,9 @@ public sealed class OrgScopeSchemaTests
     [InlineData("lessons", "tg_lessons_organization_id_immutable")]
     [InlineData("course_translations", "tg_course_translations_organization_id_immutable")]
     [InlineData("lesson_translations", "tg_lesson_translations_organization_id_immutable")]
+    [InlineData("background_jobs", "tg_background_jobs_organization_id_immutable")]
+    [InlineData("background_job_attempts", "tg_background_job_attempts_organization_id_immutable")]
+    [InlineData("background_job_recipients", "tg_background_job_recipients_organization_id_immutable")]
     public async Task The_Organization_Guard_Rejects_A_Missing_Guard_On_Each_Existing_Table(
         string table, string trigger)
     {

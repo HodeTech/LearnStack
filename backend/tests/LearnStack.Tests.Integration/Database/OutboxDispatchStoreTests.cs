@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Data.Common;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -984,7 +985,7 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         public OutboxDispatchStore Store(
             OutboxEventRegistry? registry = null, IClock? clock = null,
             Func<IAuditStore, IAuditStore>? decorate = null, NpgsqlDataSource? dispatchSource = null) => new(
-                new Lazy<NpgsqlDataSource>(() => dispatchSource ?? DispatchSource), registry ?? EligibleRegistry(),
+                new PrivilegedDataSource(() => dispatchSource ?? DispatchSource), registry ?? EligibleRegistry(),
                 new OutboxDispatchOptions(), new SystemGuidFactory(), clock ?? new FixedClock(Occurred),
                 decorate is null ? Provider.GetRequiredService<IServiceScopeFactory>()
                     : new DecoratingScopeFactory(Provider.GetRequiredService<IServiceScopeFactory>(), decorate));
@@ -1198,6 +1199,8 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         IAuditStore inner,
         Func<AuditEntryDraft, EventTerminalTransition, DbConnection, DbTransaction, CancellationToken, Task> terminal) : IAuditStore
     {
+        public Task WriteJobTerminalAsync(AuditEntryDraft entry, JobTerminalTransition transition, DbConnection connection,
+            DbTransaction transaction, CancellationToken cancellationToken = default) => inner.WriteJobTerminalAsync(entry, transition, connection, transaction, cancellationToken);
         public Task WritePendingAsync(IUnitOfWork unitOfWork, CancellationToken cancellationToken = default) =>
             inner.WritePendingAsync(unitOfWork, cancellationToken);
         public Task WriteStandaloneAsync(AuditEntryDraft entry, CancellationToken cancellationToken = default) =>

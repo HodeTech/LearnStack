@@ -489,3 +489,17 @@ that this ADR contained an outbox-only grant clause. Original acceptance metadat
 body and prior amendments remain intact. Acceptance authorizes implementation;
 [P02b-2's delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
 owns evidence. The platform-admin gate and pre-entry audit remain unchanged.
+
+## Amendment 8 — Background-job grant and table-class extension (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#storage-table-classes-and-grants)
+extends Amendment 3's **Database role model** and Amendment 7's confined grant
+budget for the named H1 runtime. The four separate login credentials remain;
+no fifth role, runtime DDL or general business bypass is authorized.
+
+The new authority enumerates the public vendor-control table class, routing/control
+access, app-role admission/checkpoint/reservation grants and the minimal lifecycle
+inventory reader. Canonical SQL/grants remain in Database Standards at implementation;
+this disclosure copies none. Tenant/org RLS, FORCE, exact grant confinement and
+platform-admin entry/pre-entry audit retain their contracts. P02b-4 implementation
+and role/storage proofs remain pending.

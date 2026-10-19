@@ -74,6 +74,7 @@ index plus the relevant [Architecture](../../docs/architecture/) doc.
 | [add-tenant-owned-entity](add-tenant-owned-entity/SKILL.md) | Adding a `[TenantOwned]` / `[OrganizationScoped]` aggregate with EF filter + RLS migration + isolation tests. |
 | [add-mediatr-handler](add-mediatr-handler/SKILL.md) | Adding a command or query handler that participates in the MediatR pipeline (Result, FluentValidation, audit). |
 | [add-integration-event](add-integration-event/SKILL.md) | Publishing or consuming an integration event (outbox + inbox guard + Dapr topic). |
+| [add-background-job](add-background-job/SKILL.md) | Adding module-owned transactional/external jobs, delayed submissions, capacity declarations or durable recurrence through the typed H1 runtime. |
 | [add-ef-migration](add-ef-migration/SKILL.md) | Producing an EF Core migration with RLS-aware patterns and the project naming convention. |
 | [add-permission](add-permission/SKILL.md) | Registering a permission key with the closed action set and scope (Platform / Tenant / Organization). |
 | [add-feature-key](add-feature-key/SKILL.md) | Adding a `FeatureKey` / `LimitKey` to the typed registry and wiring entitlement-projection reads. |

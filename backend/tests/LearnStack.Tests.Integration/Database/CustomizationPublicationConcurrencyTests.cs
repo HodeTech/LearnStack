@@ -236,6 +236,8 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
     }
     private sealed class ControlledContentStore(ITenantContentTypeStore inner, ActiveReadGate? gate = null, bool? failure = null) : ITenantContentTypeStore
     {
+        public Task LockRegistrationsAsync(CancellationToken cancellationToken = default) => inner.LockRegistrationsAsync(cancellationToken);
+        public Task<ContentTypeQuotaUsage> ReadQuotaUsageAsync(string key, CancellationToken cancellationToken = default) => inner.ReadQuotaUsageAsync(key, cancellationToken);
         public Task LockConceptAsync(string key, CancellationToken cancellationToken = default) => inner.LockConceptAsync(key, cancellationToken);
         public Task<bool> HasConceptHistoryAsync(string key, CancellationToken cancellationToken = default) => inner.HasConceptHistoryAsync(key, cancellationToken);
         public Task<TenantContentType?> FindAsync(TenantContentTypeId id, CancellationToken ct = default) => inner.FindAsync(id, ct);

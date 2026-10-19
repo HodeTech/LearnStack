@@ -49,7 +49,7 @@ eligibility and contract proofs;
 | Cache | The caller composes `{tenant_id}:{module}:{logical-name}` with `CacheKey.ForTenant`; every `ICacheService` implementation validates the key and prefixes nothing | `{tenant_id}:{org_id}:{module}:{logical-name}` with `CacheKey.ForOrganization`, for a value scoped to one organization. Settings reads are uncached in P02d-2/3 under [Accepted G23](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02); no settings cache key is active |
 | Files (SeaweedFS) | Object key prefix `tenants/{tenant_id}/...` | `tenants/{tenant_id}/organizations/{org_id}/...` for org-scoped assets |
 | Search | `tenant_id` as a mandatory filter composed **inside** `ITenantSearch` — callers pass criteria, never filter strings. Until Meilisearch's demand gate fires ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)), search runs on PostgreSQL full-text over tenant-owned tables and inherits Row Level Security; the engine-enforced per-request tenant token arrives with the Meilisearch adapter in [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | `organization_id = X OR organization_id IS NULL` clause when org context |
-| Jobs (Hangfire) | `JobParams.TenantId` mandatory | `JobParams.OrganizationId` nullable |
+| Jobs (ADR-0047) | Trusted submission stamps the authoritative row; `JobExecutor` restores its validated `TenantId` | The row carries nullable `OrganizationId`; opaque Hangfire hints supply no scope |
 | Audit (ADR-0016) | `audit_log.tenant_id` mandatory | `audit_log.organization_id` nullable |
 | Logs (Serilog) | Every log scope carries `TenantId` | `OrganizationId` when context set |
 | Architecture tests | `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` | `Every_OrgScoped_Entity_HasOrgIdAndFilter` |
@@ -207,55 +207,21 @@ Platform admin (LearnStack operator) access must be explicit:
 
 ## Background jobs
 
-Every tenant-scoped job payload (`JobParams`):
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md) owns the
+implemented job boundary. Feature code submits identifier-only parameters through
+`IBackgroundJobScheduler` on its enrolled writable transaction. Trusted submission
+stamps tenant, optional organization, trace and causal metadata on the authoritative
+LearnStack row; caller fields supply no scope or authority.
 
-```csharp
-public abstract record JobParams
-{
-    public required Guid TenantId { get; init; }
-    public Guid? OrganizationId { get; init; }
-    public string? CorrelationId { get; init; }
-    public Guid? InitiatedBy { get; init; }
-    public string? IdempotencyKey { get; init; }
-}
-```
+`JobExecutor` restores validated tenant/org/trace before business-handler
+construction and restores the prior context during cleanup. Hangfire transports
+opaque wakeup references only. Its activator never derives tenant authority from
+a vendor payload.
 
-Workers restore tenant + org context (`accessor.Current = ...`) before reading or
-writing tenant-owned data. `LearnStackJob<TParams>` is the base class where that write
-happens; [Phase 02b](../roadmap/phase-02b-events-auth.md) ships it alongside the
-tenant-aware `JobActivator`, and `LearnStackJob_RunAsync_SetsTenantBeforeExecute` holds
-it there (Nexora analogue:
-`Nexora/docs/architecture/multi-tenancy.md` and
-`Nexora/docs/decisions/0012-tenant-management.md`).
-
-`PlatformJob<TParams>` (cross-tenant background work) iterates all active tenants:
-
-```csharp
-public abstract class PlatformJob<TParams> : LearnStackJob<TParams>
-{
-    protected sealed override async Task ExecuteAsync(TParams parameters, CancellationToken ct)
-    {
-        var tenants = await _activeTenantProvider.GetActiveTenantsAsync(ct);
-        foreach (var tenant in tenants)
-        {
-            using var scope = _serviceProvider.CreateAsyncScope();
-            scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>()
-                .Current = JobTenantContext.ForTenant(tenant.TenantId);
-            try
-            {
-                await ExecuteForTenantAsync(parameters, tenant, scope.ServiceProvider, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Platform job failed for tenant {TenantId}", tenant.TenantId);
-                // Continue with next tenant; one failure does not abort all.
-            }
-        }
-    }
-    protected abstract Task ExecuteForTenantAsync(TParams parameters,
-        ActiveTenantInfo tenant, IServiceProvider services, CancellationToken ct);
-}
-```
+Cross-tenant recurrence uses a frozen code manifest, the confined lifecycle
+projection and recipient-bound child submission. It exposes no arbitrary tenant
+selector or platform job base class. The [runtime record](../roadmap/phase-02b-events-auth.md)
+owns delivery and hosted qualification; Phase 03 owns audited operator recovery.
 
 ## Architecture tests
 
@@ -269,8 +235,8 @@ of each.
 | `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` | Every entity marked `[TenantOwned]` has a **tenant key** (`TenantId`, or `Id` on the tenant-owned self-keyed class), an EF global query filter referencing it, and — in the migration that creates its table — `ENABLE` **and** `FORCE ROW LEVEL SECURITY` plus exactly one policy carrying both a `USING` and a `WITH CHECK` clause over `app.tenant_id`. A second **permissive** policy on the same table fails the test. |
 | `Every_OrgScoped_Entity_HasOrgIdAndFilter` | Every entity marked `[OrganizationScoped]` carries a **nullable** `OrganizationId`, an org-aware EF query filter, an organization term `AND`-ed into that same single policy — not a second permissive one — and, in the creating migration, both `AS RESTRICTIVE` write guards, `FOR UPDATE` and `FOR DELETE`. |
 | `No_IgnoreQueryFilters_Outside_PlatformAdminScope` | xUnit source scan: `IgnoreQueryFilters()` appears only inside the audited `EnterPlatformAdminScope(reason)` call path. No marker exempts a call site. |
-| `Hangfire_Job_Payloads_Include_TenantId` | Hangfire enqueue rejects a job payload missing `tenant_id` or `correlation_id` — at submission, not at activation. |
-| `LearnStackJob_RunAsync_SetsTenantBeforeExecute` | Source-grep + reflection: `RunAsync` is non-virtual; the write to `ITenantContextAccessor.Current` precedes `ExecuteAsync(...)`. |
+| [`BackgroundJob_Submission_Is_Transactional_And_Stamped`](../standards/21-architecture-tests-catalogue.md#backgroundjob_submission_is_transactional_and_stamped) | Submission uses trusted enrollment and stamps the authoritative row on the business transaction. |
+| [`BackgroundJob_Execution_Restores_Tenant_And_Trace`](../standards/21-architecture-tests-catalogue.md#backgroundjob_execution_restores_tenant_and_trace) | The executor restores trusted tenant/org/trace before business construction and restores prior context during cleanup. |
 | `Dapr_SDK_Types_NotImportedOutsideInfrastructure` | Dapr SDK types appear only in `LearnStack.Infrastructure.*`. |
 | `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. |
 

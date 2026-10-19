@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Jobs;
 using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
@@ -7,6 +8,7 @@ using LearnStack.Infrastructure.Audit;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -42,6 +44,33 @@ public sealed class TransactionBehaviorTests
 
     [PublicSurface]
     public sealed record PublicQuery : IRequest<Result<string>>;
+
+    public sealed record FrameworkQuery : IRequest<Result<string>>;
+
+    [Fact]
+    public async Task Caller_framework_metadata_cannot_choose_a_physical_read_only_transaction()
+    {
+        var unit = new RecordingUnitOfWork();
+        var producer = new ProducerExecution(unit);
+        var requests = Substitute.For<IBackgroundJobRequestCatalog>();
+        requests.TryGet(typeof(FrameworkQuery), out Arg.Any<BackgroundJobRequestDescriptor?>()).Returns(call =>
+        {
+            call[1] = new BackgroundJobRequestDescriptor(typeof(FrameworkQuery), BackgroundJobRequestClassification.FrameworkReadOnly, null);
+            return true;
+        });
+        var behavior = new TransactionBehavior<FrameworkQuery, Result<string>>(
+            new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
+                new AuditStateCapture(), producer, new DomainEventCollector(producer, Substitute.For<IPublisher>()),
+                NullLogger<TransactionExecutionCoordinator>.Instance), requests);
+        var result = await behavior.Handle(new FrameworkQuery(), () =>
+        {
+            unit.Mode.Should().Be(TransactionMode.ReadWrite);
+            unit.Calls.Add("framework-handler");
+            return Task.FromResult(Result.Ok("read"));
+        }, default);
+        result.IsSuccess.Should().BeTrue();
+        unit.Calls.Should().Equal("begin", "set-tenant", "framework-handler", "commit");
+    }
 
     [Fact]
     public async Task Step_seven_refuses_dispatch_without_an_enrolled_invocation()
@@ -102,7 +131,7 @@ public sealed class TransactionBehaviorTests
                 unitOfWork, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
                 new AuditStateCapture(), producer,
                 new DomainEventCollector(producer, Substitute.For<IPublisher>()),
-                NullLogger<TransactionExecutionCoordinator>.Instance));
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty());
 
         var result = await behavior.Handle(new PublicQuery(), () =>
         {
@@ -531,7 +560,7 @@ public sealed class TransactionBehaviorTests
             capture ?? new AuditStateCapture(),
             producer,
             new DomainEventCollector(producer, Substitute.For<IPublisher>()),
-            NullLogger<TransactionExecutionCoordinator>.Instance));
+            NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty());
     }
 
     private static Task<Result<string>> Next(RecordingUnitOfWork unitOfWork, Result<string> result)

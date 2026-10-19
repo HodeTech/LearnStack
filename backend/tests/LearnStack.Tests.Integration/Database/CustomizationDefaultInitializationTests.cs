@@ -424,6 +424,8 @@ public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema
 
     private sealed class GatedContentStore(ITenantContentTypeStore inner, IUnitOfWork unit, ConceptGate gate) : ITenantContentTypeStore
     {
+        public Task LockRegistrationsAsync(CancellationToken cancellationToken = default) => inner.LockRegistrationsAsync(cancellationToken);
+        public Task<ContentTypeQuotaUsage> ReadQuotaUsageAsync(string key, CancellationToken cancellationToken = default) => inner.ReadQuotaUsageAsync(key, cancellationToken);
         public Task LockConceptAsync(string key, CancellationToken cancellationToken = default) => gate.LockAsync(() => inner.LockConceptAsync(key, cancellationToken), unit, cancellationToken);
         public Task<bool> HasConceptHistoryAsync(string key, CancellationToken cancellationToken = default) => inner.HasConceptHistoryAsync(key, cancellationToken);
         public Task<TenantContentType?> FindAsync(TenantContentTypeId id, CancellationToken cancellationToken = default) => inner.FindAsync(id, cancellationToken);

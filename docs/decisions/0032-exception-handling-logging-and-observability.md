@@ -842,3 +842,19 @@ supersedes only these clauses:
 These were historical decisions, not false-at-entry statements. ADR-0057 supplies
 this changed authority; this disclosure is not an ADR-0041 correction. All original
 body text, acceptance metadata, rationale and earlier amendments remain intact.
+
+### Amendment 5 — Trusted job origins and bounded diagnostics (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#ordinary-execution-authority)
+bounds Sub-decision 10's Hangfire `JobActivator` writer, Sub-decision 12's
+job-payload restoration/correlation clauses, the Phase 02b Hangfire deliverable
+and the **Population pattern, set at scope start** table's Hangfire job row.
+`JobExecutor`, including its closed recurrence-recipient entry, restores validated
+tenant/org/trace from trusted LearnStack origins; opaque vendor wakeups/ticks carry
+no tenant/actor/trace payload.
+
+The accepted [diagnostics boundary](0047-transactional-background-job-runtime.md#attempts-terminal-audit-and-diagnostics)
+uses fixed bounded descriptors, below-filter vendor guards and a bounded log
+provider. Pipeline order, HTTP/event origins and the full W3C traceparent contract
+remain. P02b-4 supplies implementation and dirty/clean proof controls; none is
+claimed delivered by acceptance.

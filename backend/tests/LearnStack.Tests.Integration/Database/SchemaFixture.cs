@@ -31,10 +31,10 @@ namespace LearnStack.Tests.Integration.Database;
 /// below is the assertion that says so.
 /// </para>
 /// <para>
-/// <b>Every table carries rows for both tenants.</b> A count assertion against an
-/// empty table passes whether or not the policy that should have emptied it
-/// exists. Tenant A carries a second organization as well, so the organization
-/// half of the template has a sibling row to hide.
+/// <b>Every tenant table carries rows for both tenants.</b> A count assertion
+/// against an empty table passes whether or not its isolation policy exists.
+/// Tenant A also carries a second organization. Vendor/control subjects are
+/// nonempty under their confined dispatcher grants and app reads must raise 42501.
 /// </para>
 /// <para>
 /// Most of the seed runs as <c>learnstack_migration</c> inside a transaction that
@@ -58,7 +58,7 @@ public sealed class SchemaFixture : IAsyncLifetime
     public const string HostB = "beta.example.com";
 
     /// <summary>
-    /// The twenty-three tables the five chains create, used only to prove that a
+    /// The forty-two data tables the five chains create, used only to prove that a
     /// catalogue sweep read something.
     /// </summary>
     /// <remarks>
@@ -66,18 +66,7 @@ public sealed class SchemaFixture : IAsyncLifetime
     /// silently matched nothing fails instead of passing, which is the other way
     /// a structural assertion can prove nothing.
     /// </remarks>
-    public static readonly string[] KnownTables =
-    [
-        "tenants", "organizations", "tenant_domains", "tenant_locales",
-        "tenant_settings", "tenant_feature_flags",
-        "platform_entitlement_cache", "platform_host_to_tenant",
-        "outbox_messages", "idempotency_keys", "event_deliveries", "inbox_messages",
-        "tenant_content_types", "tenant_level_taxonomies", "tenant_level_taxonomy_items",
-        "customization_generations",
-        "audit_log", "audit_config",
-        "platform_killswitches",
-        "courses", "lessons", "course_translations", "lesson_translations",
-    ];
+    public static readonly string[] KnownTables = SchemaTableClasses.Data;
 
     /// <summary>What tenant A sees with its tenant context set and no organization scope.</summary>
     public static readonly Dictionary<string, long> RowsVisibleToTenantA = new(StringComparer.Ordinal)
@@ -149,6 +138,20 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["lesson_translations"] = 1,
     };
 
+    static SchemaFixture()
+    {
+        foreach (var table in SchemaTableClasses.JobTenant)
+        {
+            RowsVisibleToTenantA[table] = table == "background_job_reservations" ? 3 : 1;
+            RowsVisibleToTenantB[table] = table == "background_job_reservations" ? 2 : 1;
+        }
+        foreach (var table in SchemaTableClasses.Control.Concat(SchemaTableClasses.Vendor))
+        {
+            RowsVisibleToTenantA[table] = SchemaTableClasses.SelectDenied;
+            RowsVisibleToTenantB[table] = SchemaTableClasses.SelectDenied;
+        }
+    }
+
     public PostgresFixture Postgres { get; } = new();
 
     public async Task InitializeAsync()
@@ -160,6 +163,8 @@ public sealed class SchemaFixture : IAsyncLifetime
         await SeedAsync();
         await SeedDeliveryAsync();
         await EducationSchemaSeed.SeedAsync(Postgres.AppConnectionString);
+        await BackgroundJobSchemaSeed.SeedAsync(Postgres.AppConnectionString, Postgres.OutboxConnectionString);
+        await HangfireSchemaSeed.SeedAsync(Postgres.OutboxConnectionString);
     }
 
     public async Task DisposeAsync() => await Postgres.DisposeAsync();

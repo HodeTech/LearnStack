@@ -110,10 +110,10 @@ app.MapLearnStackOpenApi();
 // authentication, so the factory sees both signals at once.
 app.UseLearnStackHostClassification();
 
-// Which tenant, given the host and — from Phase 02b — the validated claims.
+// Which tenant, given the host and — from P02b-5 — the validated claims.
 // After classification so TenantContextFactory.Create is called once with both
 // signals in hand, rather than twice with one each; ADR-0036 § Rules splits the
-// single step architecture/27 once described into exactly these two. Phase 02b
+// single step architecture/27 once described into exactly these two. P02b-5
 // inserts UseAuthentication ABOVE this line and UseAuthorization below the
 // assertions — two insertions, not one block.
 app.UseLearnStackTenantResolution();

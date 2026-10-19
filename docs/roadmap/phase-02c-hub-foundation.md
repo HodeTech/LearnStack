@@ -219,13 +219,15 @@ never a reason to fail a tenant's request.
 [Phase 02a Packet 9](phase-02a-kernel-tenancy.md) ships the read and the descriptor:
 `IFeatureFlags.GetLimitAsync` returns the allowance — `-1` unlimited, `0` denied, `> 0`
 the allowance — and every `LimitKey` declares its `LimitEnforcement` (`Soft` | `Hard`).
-It ships no gate. The **enforcement path** lands here, because this is the first phase in
-which a soft limit has anywhere to report to
+It shipped no gate. The first hard authoring gate is the
+[approved content-type quota](phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19),
+which introduces the shared `403 limit_exceeded` mapping. The soft-limit reporting
+path lands here, because this is the first phase in which it has anywhere to report to
 ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 
 - **Hard** — the gated operation refuses with `403` and an RFC 7807 body carrying
-  `code=limit_exceeded` when current usage has reached the limit. The code lands with
-  the first gate, in [Error Handling Standards](../standards/09-error-handling.md) and in
+  `code=limit_exceeded` when current usage has reached the limit. The first gate
+  supplies the code in [Error Handling Standards](../standards/09-error-handling.md) and in
   `HttpStatusMap` explicitly rather than by fallthrough — which is what makes the status
   a `403` instead of a `500`. Its `type` URI is minted from the code, as every other
   error's is.
@@ -311,6 +313,25 @@ expiry.
   contract.
 - The TTLs are the safety net, not the refresh mechanism: L1 60s, L2 15 minutes as an
   upper bound.
+
+### Periodic phone-home refresh
+
+[ADR-0020 Implementation notes](../decisions/0020-triple-deployment-hybrid-license.md#implementation-notes)
+assigns the initial online phone-home refresh job to this triggered phase.
+Its [phone-home contract](../decisions/0020-triple-deployment-hybrid-license.md#phone-home-implementation)
+keeps the 24-hour cadence and 0–119-minute jitter; signed-key hardening and
+revocation-list operations remain Phase 11. This is a periodic job, distinct from
+the entitlement-push integration-event consumer above.
+
+The accepted expanded P02b-4 contract supplies durable recurrence and the
+restricted tenantless trigger → enumeration → separately announced submission
+foundation. This phase registers the real phone-home recurrence/child definitions
+and chooses the nonarchived policy that includes Suspended tenants. Verify stable
+occurrence/jitter, bounded resumable fan-out and duplicate-tick controls with the
+real Hub adapter here. No tenant sentinel or general business bypass substitutes
+for that authority. [ADR-0047 is Accepted — 2026-10-15](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations);
+P02b-4 implementation/proofs remain pending. This handoff claims no delivered
+foundation or implemented grant.
 
 ### `platform_host_to_tenant` mirroring
 

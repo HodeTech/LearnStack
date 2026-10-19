@@ -19,8 +19,8 @@
 #     provisioning suite — and is therefore the packet that has to split them.
 #     The HTTP tests in LearnStack.Tests.Integration stay in the `backend` job:
 #     they use WebApplicationFactory and need no Docker. The split is by
-#     [Trait("Requires","Docker")] and the two jobs' filters are exact
-#     complements, so every test runs in exactly one of them. Making it a
+#     [Trait("Requires","Docker")]. ADR-0062 partitions that complement into
+#     ordinary/native execution jobs behind the same required aggregate. Making it a
 #     REQUIRED check is a repository setting — see .github/CONTRIBUTING.md
 #     § Branch protection.
 #
@@ -64,136 +64,222 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
 
 jobs:
-  # ─── Backend ────────────────────────────────────────────────────────────
-  backend:
-    name: backend (build + unit + arch + contract)
-    runs-on: ubuntu-latest
+  # ─── base execution: ADR-0063 finite complete assignment ───
+  backend-base:
+    name: backend base tests and gates
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
+      MSBUILDDISABLENODEREUSE: "1"
     steps:
+      - name: Start the whole-job clock before checkout
+        run: echo "LEARNSTACK_CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      # The one SDK pin is backend/global.json — 10.0.112, whose runtime carries the .NET
-      # security fixes 10.0.0 did not (GHSA-cvvh-rhrc-wg4q among them). The path is the
-      # backend's own; there is no repo-root global.json to point at.
       - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: backend/global.json
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
           restore-keys: |
             nuget-${{ runner.os }}-
 
-      - name: Restore
-        working-directory: backend
-        # CI=true here too, not only on the build: NuGet's audit reports at RESTORE, and
-        # TreatWarningsAsErrors is what makes an advisory of any severity — transitive ones
-        # included (Directory.Build.props) — fail the job. A build with --no-restore only
-        # replays those findings as warnings. The runner sets CI=true on every step
-        # already; it is written down because the gate depends on it.
-        env:
-          CI: "true"
-        run: dotnet restore LearnStack.slnx
-
-      - name: Format verify (dotnet format)
-        working-directory: backend
-        run: dotnet format LearnStack.slnx --verify-no-changes --no-restore
-
-      - name: Build (TreatWarningsAsErrors)
+      - name: Restore with audit warnings as errors
         working-directory: backend
         env:
           CI: "true"
-        run: dotnet build LearnStack.slnx --no-restore --configuration Release
+        run: dotnet restore LearnStack.slnx --disable-build-servers
 
-      # The filter EXCLUDES a set, it does not name one. LearnStack.Tests.Integration
-      # holds WebApplicationFactory tests that need no Docker and carry rules the
-      # structural tests cannot — no-op'ing VersionedRouteConvention leaves every
-      # architecture test green and turns most of that assembly red — so excluding
-      # the assembly wholesale once let a broken route convention ship green. What
-      # is excluded here is only what carries [Trait("Requires","Docker")], and
-      # backend-integration runs exactly that complement, so every test runs once.
-      # Phase 02a Packet 6 brought this forward from Packet 7: it ships the first
-      # Docker-bound test, so it is the packet that has to split them.
-      # This job's NAME is a required check and does not change.
-      - name: Test (unit + architecture + contract + HTTP integration)
+      - name: Build Release with warnings as errors
         working-directory: backend
-        run: |
-          dotnet test LearnStack.slnx \
-            --no-restore --no-build --configuration Release \
-            --filter "Requires!=Docker" \
-            --logger trx \
-            --results-directory ../artifacts/backend-tests
+        env:
+          CI: "true"
+        run: dotnet build LearnStack.slnx --no-restore --configuration Release --disable-build-servers
 
-      # A filter that matches nothing exits 0, so a renamed trait or a project that fell
-      # out of the solution would leave this job green having run nothing. All four
-      # assemblies carry tests that need no Docker, so each must have executed some.
-      - name: Refuse a test run that executed nothing
-        run: |
-          python3 scripts/assert-tests-ran.py artifacts/backend-tests \
-            LearnStack.Tests.Unit LearnStack.Tests.Architecture \
-            LearnStack.Tests.Contract LearnStack.Tests.Integration
+      # Base's actual owner also runs format/publish/source/replacement gates.
+      - name: Execute assigned cases under the bounded owner
+        env:
+          LEARNSTACK_NATIVE_RUNNER_CONTEXT: ${{ runner.environment }}
+          LEARNSTACK_NATIVE_RUNNER_OS: ${{ runner.os }}
+          LEARNSTACK_NATIVE_RUNNER_ARCH: ${{ runner.arch }}
+          LEARNSTACK_NATIVE_RUNNER_LABEL: ubuntu-24.04
+          LEARNSTACK_NATIVE_JOB_CONTAINER: ${{ toJSON(job.container) }}
+          LEARNSTACK_NATIVE_JOB_SERVICES: ${{ toJSON(job.services) }}
+          LEARNSTACK_CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LEARNSTACK_NATIVE_RUN_ID: ${{ github.run_id }}
+          LEARNSTACK_NATIVE_ATTEMPT: ${{ github.run_attempt }}
+          LEARNSTACK_NATIVE_JOB: ${{ github.job }}
+          LEARNSTACK_NATIVE_SHA: ${{ github.sha }}
+          LEARNSTACK_NATIVE_REPOSITORY: ${{ github.repository }}
+          LEARNSTACK_NATIVE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          LEARNSTACK_NATIVE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          LEARNSTACK_NATIVE_WORKSPACE: ${{ github.workspace }}
+        run: python3 scripts/ci-native-tests.py base
 
-      # `--logger trx` without a LogFileName, deliberately. A fixed name makes all
-      # four projects write the SAME path in the SAME results directory: measured,
-      # one 874 KB file where four should be, so three assemblies' outcomes were
-      # silently overwritten and the artifact showed only the last to finish.
-      - name: Upload test results
+      - name: Read the single owner's artifact deadline
+        id: artifact-budget
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-test-results
-          path: artifacts/backend-tests
-          if-no-files-found: warn
+        run: python3 scripts/ci-native-tests.py upload-budget >> "$GITHUB_OUTPUT"
 
-  # ─── Backend integration (Testcontainers — active since Phase 02a Packet 6) ────
-  backend-integration:
-    name: backend integration (Testcontainers)
-    runs-on: ubuntu-latest
-    # ubuntu-latest carries a real Docker socket natively, which is why this job
-    # exists separately rather than the `backend` job growing a service container:
-    # Testcontainers manages its own lifecycle and needs the daemon, not a
-    # pre-declared service.
-    #
-    # The filter is the exact complement of the `backend` job's, so every test in
-    # the solution runs in exactly one of the two — including a test whose trait
-    # value is mistyped, which `Requires!=Docker` matches and which therefore runs
-    # in `backend`. That is NOT a loud failure: this runner and that one both carry
-    # a Docker socket, so the mis-traited test starts its container, passes, and
-    # the Docker suite quietly stops being where the Docker tests live. The value
-    # is a constant (LearnStack.Tests.Integration.Database.RequiresDocker) to make
-    # the typo impossible, and `Every_Database_Test_Carries_The_Docker_Trait`
-    # catches a class that forgets the attribute altogether.
+      - name: Upload immutable attempt evidence
+        if: always()
+        timeout-minutes: ${{ fromJSON(steps.artifact-budget.outputs.minutes) }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-proof-${{ github.run_id }}-${{ github.run_attempt }}-base
+          path: |
+            artifacts/backend-base/discovery.json
+            artifacts/backend-base/assignment.json
+            artifacts/backend-base/measurements.json
+            artifacts/backend-base/resources.json
+            artifacts/backend-base/completed-cases.jsonl
+            artifacts/backend-base/result.json
+            artifacts/backend-base/results/*.trx
+            artifacts/backend-base/distribution.json
+            artifacts/backend-base/replacementControls.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─── architecture execution: ADR-0063 finite complete assignment ───
+  backend-architecture:
+    name: backend architecture-${{ matrix.index }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        index: [0, 1, 2, 3, 4, 5]
+    env:
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
+      MSBUILDDISABLENODEREUSE: "1"
     steps:
+      - name: Start the whole-job clock before checkout
+        run: echo "LEARNSTACK_CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      # Same shape as the `backend` job: the SDK comes from backend/global.json, by that
-      # path — a repo-root path does not exist, and setup-dotnet pointed at one fails the
-      # job before a single test runs.
       - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: backend/global.json
 
-      # P02d-5 compiles a disposable production Next fixture against this job's
-      # real API/PostgreSQL host. It remains a Docker-trait integration test.
+      - name: Cache NuGet packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore with audit warnings as errors
+        working-directory: backend
+        env:
+          CI: "true"
+        run: dotnet restore LearnStack.slnx --disable-build-servers
+
+      - name: Build Release with warnings as errors
+        working-directory: backend
+        env:
+          CI: "true"
+        run: dotnet build LearnStack.slnx --no-restore --configuration Release --disable-build-servers
+
+      # Base's actual owner also runs format/publish/source/replacement gates.
+      - name: Execute assigned cases under the bounded owner
+        env:
+          LEARNSTACK_NATIVE_RUNNER_CONTEXT: ${{ runner.environment }}
+          LEARNSTACK_NATIVE_RUNNER_OS: ${{ runner.os }}
+          LEARNSTACK_NATIVE_RUNNER_ARCH: ${{ runner.arch }}
+          LEARNSTACK_NATIVE_RUNNER_LABEL: ubuntu-24.04
+          LEARNSTACK_NATIVE_JOB_CONTAINER: ${{ toJSON(job.container) }}
+          LEARNSTACK_NATIVE_JOB_SERVICES: ${{ toJSON(job.services) }}
+          LEARNSTACK_CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LEARNSTACK_NATIVE_RUN_ID: ${{ github.run_id }}
+          LEARNSTACK_NATIVE_ATTEMPT: ${{ github.run_attempt }}
+          LEARNSTACK_NATIVE_JOB: ${{ github.job }}
+          LEARNSTACK_NATIVE_SHA: ${{ github.sha }}
+          LEARNSTACK_NATIVE_REPOSITORY: ${{ github.repository }}
+          LEARNSTACK_NATIVE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          LEARNSTACK_NATIVE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          LEARNSTACK_NATIVE_WORKSPACE: ${{ github.workspace }}
+        run: python3 scripts/ci-native-tests.py architecture-${{ matrix.index }}
+
+      - name: Read the single owner's artifact deadline
+        id: artifact-budget
+        if: always()
+        run: python3 scripts/ci-native-tests.py upload-budget >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable attempt evidence
+        if: always()
+        timeout-minutes: ${{ fromJSON(steps.artifact-budget.outputs.minutes) }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-proof-${{ github.run_id }}-${{ github.run_attempt }}-architecture-${{ matrix.index }}
+          path: |
+            artifacts/backend-architecture-${{ matrix.index }}/discovery.json
+            artifacts/backend-architecture-${{ matrix.index }}/assignment.json
+            artifacts/backend-architecture-${{ matrix.index }}/measurements.json
+            artifacts/backend-architecture-${{ matrix.index }}/resources.json
+            artifacts/backend-architecture-${{ matrix.index }}/completed-cases.jsonl
+            artifacts/backend-architecture-${{ matrix.index }}/result.json
+            artifacts/backend-architecture-${{ matrix.index }}/results/*.trx
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─── ordinary execution: ADR-0063 finite complete assignment ───
+  backend-integration-tests:
+    name: backend ordinary-${{ matrix.index }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    env:
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
+      MSBUILDDISABLENODEREUSE: "1"
+    steps:
+      - name: Start the whole-job clock before checkout
+        run: echo "LEARNSTACK_CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: backend/global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # The actual production-rendering fixture remains in the Docker census.
       - name: Set up pnpm for production rendering fixture
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Set up Node.js for production rendering fixture
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -203,52 +289,252 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      # ADR-0055's narrow stock-Next Flight fallback proof cannot silently skip.
-      # The hosted Ubuntu image supplies Chrome; do not use a user's browser profile.
       - name: Verify stock browser for admission navigation proof
         run: |
           test -x /usr/bin/google-chrome
           /usr/bin/google-chrome --version
 
-      - name: Restore
-        working-directory: backend
-        # CI=true here too, not only on the build: NuGet's audit reports at RESTORE, and
-        # TreatWarningsAsErrors is what makes an advisory of any severity — transitive ones
-        # included (Directory.Build.props) — fail the job. A build with --no-restore only
-        # replays those findings as warnings. The runner sets CI=true on every step
-        # already; it is written down because the gate depends on it.
-        env:
-          CI: "true"
-        run: dotnet restore LearnStack.slnx
-
-      - name: Build
+      - name: Restore with audit warnings as errors
         working-directory: backend
         env:
           CI: "true"
-        run: dotnet build LearnStack.slnx --no-restore --configuration Release
+        run: dotnet restore LearnStack.slnx --disable-build-servers
 
-      - name: Test (Testcontainers)
+      - name: Build Release with warnings as errors
         working-directory: backend
-        run: |
-          dotnet test LearnStack.slnx \
-            --no-restore --no-build --configuration Release \
-            --filter "Requires=Docker" \
-            --logger trx \
-            --results-directory ../artifacts/backend-integration
+        env:
+          CI: "true"
+        run: dotnet build LearnStack.slnx --no-restore --configuration Release --disable-build-servers
 
-      # The job this matters most for: `Requires=Docker` matching nothing — the trait
-      # constant renamed, the filter mistyped — exits 0 and leaves the whole Docker suite
-      # unrun behind a green check. Only the integration assembly carries the trait.
-      - name: Refuse a test run that executed nothing
-        run: python3 scripts/assert-tests-ran.py artifacts/backend-integration LearnStack.Tests.Integration
+      # Base's actual owner also runs format/publish/source/replacement gates.
+      - name: Execute assigned cases under the bounded owner
+        env:
+          LEARNSTACK_NATIVE_RUNNER_CONTEXT: ${{ runner.environment }}
+          LEARNSTACK_NATIVE_RUNNER_OS: ${{ runner.os }}
+          LEARNSTACK_NATIVE_RUNNER_ARCH: ${{ runner.arch }}
+          LEARNSTACK_NATIVE_RUNNER_LABEL: ubuntu-24.04
+          LEARNSTACK_NATIVE_JOB_CONTAINER: ${{ toJSON(job.container) }}
+          LEARNSTACK_NATIVE_JOB_SERVICES: ${{ toJSON(job.services) }}
+          LEARNSTACK_CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LEARNSTACK_NATIVE_RUN_ID: ${{ github.run_id }}
+          LEARNSTACK_NATIVE_ATTEMPT: ${{ github.run_attempt }}
+          LEARNSTACK_NATIVE_JOB: ${{ github.job }}
+          LEARNSTACK_NATIVE_SHA: ${{ github.sha }}
+          LEARNSTACK_NATIVE_REPOSITORY: ${{ github.repository }}
+          LEARNSTACK_NATIVE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          LEARNSTACK_NATIVE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          LEARNSTACK_NATIVE_WORKSPACE: ${{ github.workspace }}
+        run: python3 scripts/ci-native-tests.py ordinary-${{ matrix.index }}
 
-      - name: Upload test results
+      - name: Read the single owner's artifact deadline
+        id: artifact-budget
         if: always()
-        uses: actions/upload-artifact@v4
+        run: python3 scripts/ci-native-tests.py upload-budget >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable attempt evidence
+        if: always()
+        timeout-minutes: ${{ fromJSON(steps.artifact-budget.outputs.minutes) }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: backend-integration-results
-          path: artifacts/backend-integration
-          if-no-files-found: warn
+          name: ci-proof-${{ github.run_id }}-${{ github.run_attempt }}-ordinary-${{ matrix.index }}
+          path: |
+            artifacts/backend-ordinary-${{ matrix.index }}/discovery.json
+            artifacts/backend-ordinary-${{ matrix.index }}/assignment.json
+            artifacts/backend-ordinary-${{ matrix.index }}/measurements.json
+            artifacts/backend-ordinary-${{ matrix.index }}/resources.json
+            artifacts/backend-ordinary-${{ matrix.index }}/completed-cases.jsonl
+            artifacts/backend-ordinary-${{ matrix.index }}/result.json
+            artifacts/backend-ordinary-${{ matrix.index }}/results/*.trx
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─── native execution: ADR-0063 finite complete assignment ───
+  backend-native:
+    name: backend native crash proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
+      MSBUILDDISABLENODEREUSE: "1"
+    steps:
+      - name: Start the whole-job clock before checkout
+        run: echo "LEARNSTACK_CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: backend/global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Observe native proof environment without provisioning
+        env:
+          LEARNSTACK_RUNNER_CONTEXT: ${{ runner.environment }}
+        run: |
+          mkdir -p artifacts/backend-native
+          python3 scripts/ci-native-environment.py > artifacts/backend-native/environment.json
+          cat artifacts/backend-native/environment.json
+
+      - name: Restore with audit warnings as errors
+        working-directory: backend
+        env:
+          CI: "true"
+        run: dotnet restore LearnStack.slnx --disable-build-servers
+
+      - name: Build Release with warnings as errors
+        working-directory: backend
+        env:
+          CI: "true"
+        run: dotnet build LearnStack.slnx --no-restore --configuration Release --disable-build-servers
+
+      # Base's actual owner also runs format/publish/source/replacement gates.
+      - name: Execute assigned cases under the bounded owner
+        env:
+          LEARNSTACK_NATIVE_RUNNER_CONTEXT: ${{ runner.environment }}
+          LEARNSTACK_NATIVE_RUNNER_OS: ${{ runner.os }}
+          LEARNSTACK_NATIVE_RUNNER_ARCH: ${{ runner.arch }}
+          LEARNSTACK_NATIVE_RUNNER_LABEL: ubuntu-24.04
+          LEARNSTACK_NATIVE_JOB_CONTAINER: ${{ toJSON(job.container) }}
+          LEARNSTACK_NATIVE_JOB_SERVICES: ${{ toJSON(job.services) }}
+          LEARNSTACK_CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LEARNSTACK_NATIVE_RUN_ID: ${{ github.run_id }}
+          LEARNSTACK_NATIVE_ATTEMPT: ${{ github.run_attempt }}
+          LEARNSTACK_NATIVE_JOB: ${{ github.job }}
+          LEARNSTACK_NATIVE_SHA: ${{ github.sha }}
+          LEARNSTACK_NATIVE_REPOSITORY: ${{ github.repository }}
+          LEARNSTACK_NATIVE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          LEARNSTACK_NATIVE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          LEARNSTACK_NATIVE_WORKSPACE: ${{ github.workspace }}
+        run: python3 scripts/ci-native-tests.py native-shard
+
+      - name: Read the single owner's artifact deadline
+        id: artifact-budget
+        if: always()
+        run: python3 scripts/ci-native-tests.py upload-budget >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable attempt evidence
+        if: always()
+        timeout-minutes: ${{ fromJSON(steps.artifact-budget.outputs.minutes) }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-proof-${{ github.run_id }}-${{ github.run_attempt }}-native
+          path: |
+            artifacts/backend-native/discovery.json
+            artifacts/backend-native/assignment.json
+            artifacts/backend-native/measurements.json
+            artifacts/backend-native/resources.json
+            artifacts/backend-native/completed-cases.jsonl
+            artifacts/backend-native/result.json
+            artifacts/backend-native/results/*.trx
+            artifacts/backend-native/environment.json
+            artifacts/backend-native/provisioning.json
+            artifacts/backend-native/native-refusals.jsonl
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─── Always-running protected backend result ───
+  backend:
+    name: backend (build + unit + arch + contract)
+    if: always()
+    needs: [backend-base, backend-architecture]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Start the whole-job clock before checkout
+        run: echo "LEARNSTACK_CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # Download immutable IDs via the read-only API; independently recompute
+      # assignment, exact case/TRX union, source and current-attempt outcomes.
+      - name: Verify every current-attempt producer and complete evidence
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEARNSTACK_CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LEARNSTACK_NATIVE_RUN_ID: ${{ github.run_id }}
+          LEARNSTACK_NATIVE_ATTEMPT: ${{ github.run_attempt }}
+          LEARNSTACK_NATIVE_JOB: ${{ github.job }}
+          LEARNSTACK_NATIVE_SHA: ${{ github.sha }}
+          LEARNSTACK_NATIVE_REPOSITORY: ${{ github.repository }}
+          LEARNSTACK_NATIVE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          LEARNSTACK_NATIVE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          LEARNSTACK_NATIVE_WORKSPACE: ${{ github.workspace }}
+        run: python3 scripts/ci-test-shards.py aggregate-backend
+
+      - name: Upload aggregate receipt
+        if: always()
+        timeout-minutes: 1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-aggregate-${{ github.run_id }}-${{ github.run_attempt }}-backend
+          path: artifacts/ci-aggregate-backend/aggregate.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─── Always-running protected integration result ───
+  backend-integration:
+    name: backend integration (Testcontainers)
+    if: always()
+    # Base's immutable full-manifest/toolchain witness joins the two scopes.
+    needs: [backend-base, backend-integration-tests, backend-native]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Start the whole-job clock before checkout
+        run: echo "LEARNSTACK_CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # Download immutable IDs via the read-only API; independently recompute
+      # assignment, exact case/TRX union, source and current-attempt outcomes.
+      - name: Verify every current-attempt producer and complete evidence
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEARNSTACK_CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LEARNSTACK_NATIVE_RUN_ID: ${{ github.run_id }}
+          LEARNSTACK_NATIVE_ATTEMPT: ${{ github.run_attempt }}
+          LEARNSTACK_NATIVE_JOB: ${{ github.job }}
+          LEARNSTACK_NATIVE_SHA: ${{ github.sha }}
+          LEARNSTACK_NATIVE_REPOSITORY: ${{ github.repository }}
+          LEARNSTACK_NATIVE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          LEARNSTACK_NATIVE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          LEARNSTACK_NATIVE_WORKSPACE: ${{ github.workspace }}
+        run: python3 scripts/ci-test-shards.py aggregate-integration
+
+      - name: Upload aggregate receipt
+        if: always()
+        timeout-minutes: 1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-aggregate-${{ github.run_id }}-${{ github.run_attempt }}-integration
+          path: artifacts/ci-aggregate-integration/aggregate.json
+          if-no-files-found: error
+          retention-days: 7
 
   # ─── Frontend ───────────────────────────────────────────────────────────
   frontend:
@@ -260,23 +546,23 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.local/share/pnpm/store
           key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
@@ -318,13 +604,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout verified history
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up .NET SDK for the first-baseline proof
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: backend/global.json
 
@@ -368,7 +654,7 @@ jobs:
 
       - name: Upload specs, SHAs, policy, tool version and comparison reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: openapi-comparison
           path: artifacts/openapi
@@ -387,32 +673,32 @@ jobs:
 
       - name: Checkout
         timeout-minutes: 2
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
       - name: Set up .NET SDK
         timeout-minutes: 3
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: backend/global.json
 
       - name: Set up Node.js
         timeout-minutes: 2
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Set up pnpm
         timeout-minutes: 1
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Cache NuGet packages
         timeout-minutes: 1
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
@@ -475,7 +761,7 @@ jobs:
       - name: Upload public reports and sanitized receipts only
         if: always()
         timeout-minutes: 1
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: public-demo-lighthouse
           path: |
@@ -494,7 +780,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0   # link audit walks the full tree
           persist-credentials: false
@@ -666,11 +952,26 @@ jobs:
       - name: ADR lifecycle parser controls
         run: python3 scripts/test-adr-status.py
 
+      - name: CI supply-chain controls
+        run: python3 scripts/test-ci-supply-chain.py
+
+      - name: Read-only native environment and duration logging controls
+        run: python3 scripts/test-ci-native-environment.py
+
+      - name: Native CI provisioning and complete partition controls
+        run: |
+          python3 scripts/test-ci-native-provisioning.py
+          python3 scripts/test-ci-native-tests.py
+
+      - name: Complete bounded CI plan controls
+        run: timeout --signal=TERM --kill-after=3s 27s python3 scripts/test-ci-test-shards.py
+
       - name: Accepted ADR disclosure
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
+          MANUAL_BASE_REF: ${{ inputs.openapi_base_ref }}
         run: |
           # ADR-0041: an Accepted ADR's body changes only by inline erratum or
           # bounded in-place replacement, and BOTH owe a dated Amendment **in
@@ -686,17 +987,24 @@ jobs:
           #     § What is not a correction at all), so a diff that changes only
           #     link targets is skipped.
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-              base="origin/${PR_BASE_REF}"
+              base="${PR_BASE_SHA}"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+              base="${MANUAL_BASE_REF}"
           else
               base="${PUSH_BEFORE_SHA}"
           fi
-          if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
-              echo "Base '${base}' does not resolve; nothing to compare an ADR against."
-              exit 0
+          if [[ -z "$base" ]] || ! base=$(git rev-parse --verify --quiet \
+                  --end-of-options "${base}^{commit}"); then
+              echo "::error::ADR comparison base does not resolve."
+              exit 1
           fi
+          # Read the complete diff before the loop: process substitution would
+          # hide a failed comparison (for example, unrelated histories).
+          changed=$(git diff --name-only "$base"...HEAD -- 'docs/decisions/*.md')
           undisclosed=0
           while IFS= read -r f; do
               [[ -n "$f" ]] || continue
+              [[ "$f" != docs/decisions/README.md && "$f" != docs/decisions/template.md ]] || continue
               # New in this PR, or deleted — no accepted record either way.
               git cat-file -e "${base}:${f}" 2>/dev/null || continue
               [[ -f "$f" ]] || continue
@@ -719,8 +1027,7 @@ jobs:
                   echo "UNDISCLOSED: $f — an Accepted ADR changed with no dated Amendment in its own file."
                   undisclosed=$((undisclosed + 1))
               fi
-          done < <(git diff --name-only "$base"...HEAD -- 'docs/decisions/*.md' \
-              | grep -vE '^docs/decisions/(README|template)\.md$')
+          done <<< "$changed"
           if [[ $undisclosed -gt 0 ]]; then
               echo "::error::$undisclosed Accepted ADR(s) changed without disclosure. See docs/standards/13-documentation.md § Correcting and Amending ADRs."
               exit 1
@@ -769,13 +1076,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0   # full history so push-event scans see prior commits
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: "1.25"
 
@@ -786,7 +1093,7 @@ jobs:
         # CRITICAL findings on a tree the local 1.8.0 scans clean, because every
         # one of them is an inline-ignored test input. A required check that
         # disagrees with the pre-commit hook is worse than no check.
-        run: go install github.com/HodeTech/leakwatch@v1.8.0
+        run: python3 scripts/install-leakwatch.py
 
       - name: Scan
         run: |
@@ -799,8 +1106,8 @@ jobs:
 
       - name: Upload SARIF artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: leakwatch-results
           path: results.sarif
-          if-no-files-found: warn
+          if-no-files-found: error

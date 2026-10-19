@@ -1084,6 +1084,21 @@ replacements. These dated notes provide navigation under
 without applying either false-when-written correction mechanism. Amendment 10,
 the original body, metadata and all earlier amendments are preserved verbatim.
 
+
+### 2026-10-15 — Amendment 12: sole job-path context writer
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#ordinary-execution-authority)
+bounds **Rules**' Hangfire `JobActivator` caller and Amendment 2's repeated caller
+list. `JobExecutor`, including its closed recurrence-recipient entry, is the sole
+job-path writer of `ITenantContextAccessor.Current`. It installs validated Ambient
+context without HostScope, uses SystemActor with separate causal metadata and
+restores the previous accessor/Activity through actual cleanup.
+
+The sticky ordinary execution ceiling admits exact requests and refuses privileged,
+platform/provisioning and bypass/admin entry. HTTP factory/host provenance, event
+writers and restoration retain their contracts. This is a writer decision change
+held by ADR-0047, not an ADR-0041 erratum. Implementation/proofs remain P02b-4.
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in

@@ -1,6 +1,8 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using FluentAssertions;
+using LearnStack.Api.Jobs;
 using LearnStack.Api.Messaging;
 using LearnStack.Application.Messaging;
 using LearnStack.Infrastructure.Messaging;
@@ -54,9 +56,9 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
         fixture.Start();
         fixture.Services.GetServices<IHostedService>().OfType<DeliveryProcessor>().Should().ContainSingle();
         await UntilAsync(() => fixture.Observation.IsHealthy);
-        var source = fixture.Services.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key);
+        var source = fixture.Services.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key);
         source.IsValueCreated.Should().BeTrue();
-        await using var connection = await source.Value.OpenConnectionAsync();
+        await using var connection = await source.OpenConnectionAsync();
         await using var command = new NpgsqlCommand("SELECT current_user", connection);
         (await command.ExecuteScalarAsync()).Should().Be(OutboxDispatcherDataSource.Role);
         using var client = fixture.Host.CreateClient();
@@ -860,8 +862,9 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
                 builder.ConfigureTestServices(services =>
                 {
                     foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
-                                 && (descriptor.ImplementationType == typeof(OutboxProcessor)
-                                     || removeWorker && descriptor.ImplementationType == typeof(DeliveryProcessor))).ToArray())
+                                 && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType) is { } implementation
+                                 && (implementation == typeof(OutboxProcessor) || implementation == typeof(BackgroundJobHostedService)
+                                     || removeWorker && implementation == typeof(DeliveryProcessor))).ToArray())
                         services.Remove(descriptor);
                     services.RemoveAll<DeliveryDispatchOptions>();
                     services.AddSingleton(bounds ?? Bounds);

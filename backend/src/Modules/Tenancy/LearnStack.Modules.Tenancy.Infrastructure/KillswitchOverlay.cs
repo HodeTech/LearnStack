@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Entitlements;
+using LearnStack.SharedKernel.Jobs;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
@@ -64,6 +65,7 @@ public sealed class KillswitchOverlay(
     /// <inheritdoc />
     public async Task<bool> IsEnabledAsync(KillswitchKey key, CancellationToken ct = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         // The DEFAULT is what an unreadable overlay answers, and it is read from the
         // registry rather than hard-coded true: a switch the registry does not declare is
         // one nothing should be gating on, and answering true for it would hide that.
@@ -78,9 +80,10 @@ public sealed class KillswitchOverlay(
 
         try
         {
+            var sourceOwner = JobApplicationSourceOwner.Current;
             switches = await cache.GetOrSetAsync(
                 CacheKey.ForKillswitchOverlay(),
-                LoadAsync,
+                token => StartLoadAsync(sourceOwner, token),
                 new CacheOptions(OverlayTtl),
                 ct).ConfigureAwait(false);
         }
@@ -109,24 +112,64 @@ public sealed class KillswitchOverlay(
     /// construction, so there is nothing to announce and the <c>GRANT</c> bounds the role
     /// instead.
     /// </remarks>
-    private async Task<IReadOnlyDictionary<string, bool>> LoadAsync(CancellationToken ct)
+    private Task<IReadOnlyDictionary<string, bool>> StartLoadAsync(JobApplicationSourceOwner? sourceOwner, CancellationToken ct)
     {
-        await using var connection = await dataSource.Value
-            .OpenConnectionAsync(ct).ConfigureAwait(false);
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        if (sourceOwner is null) return LoadAsync(null, ct);
+        var resources = sourceOwner.BeginKillswitchLoad();
+        var actual = LoadAsync(resources, ct);
+        resources.HoldActualTask(actual);
+        return actual;
+    }
 
-        await using var read = new NpgsqlCommand(
-            "SELECT key, is_enabled FROM platform_killswitches", connection);
-
-        var switches = new Dictionary<string, bool>(StringComparer.Ordinal);
-
-        await using var reader = await read.ExecuteReaderAsync(ct).ConfigureAwait(false);
-
-        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+    private async Task<IReadOnlyDictionary<string, bool>> LoadAsync(
+        JobApplicationAuxiliaryResources? resources, CancellationToken ct)
+    {
+        NpgsqlConnection? connection = null;
+        NpgsqlCommand? read = null;
+        NpgsqlDataReader? reader = null;
+        try
         {
-            switches[reader.GetString(0)] = reader.GetBoolean(1);
+            connection = dataSource.Value.CreateConnection();
+            resources?.HoldConnection(connection);
+            await connection.OpenAsync(ct).ConfigureAwait(false);
+            read = new NpgsqlCommand("SELECT key, is_enabled FROM platform_killswitches", connection);
+            resources?.HoldCommand(read);
+            reader = await read.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            resources?.HoldReader(reader);
+            var switches = new Dictionary<string, bool>(StringComparer.Ordinal);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+                switches[reader.GetString(0)] = reader.GetBoolean(1);
+            return switches;
         }
+        finally
+        {
+            if (resources is not null) await resources.CleanupAsync().ConfigureAwait(false);
+            else await CleanupUnownedAsync(reader, read, connection).ConfigureAwait(false);
+        }
+    }
 
-        return switches;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "All outer resources receive their cleanup attempt; the final disposal failure is rethrown.")]
+    private static async ValueTask CleanupUnownedAsync(NpgsqlDataReader? reader, NpgsqlCommand? read, NpgsqlConnection? connection)
+    {
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
+        if (reader is not null)
+        {
+            try { await reader.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (read is not null)
+        {
+            try { await read.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (connection is not null)
+        {
+            try { await connection.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        failure?.Throw();
     }
 
     private static readonly Action<ILogger, string, Exception?> LogReadFailed =

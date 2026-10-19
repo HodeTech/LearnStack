@@ -297,3 +297,16 @@ in [30-api-gateway.md](../architecture/30-api-gateway.md).
 - [11-security.md](../standards/11-security.md) — defense-in-depth security model.
 - [20-infrastructure-stack.md](../standards/20-infrastructure-stack.md) — gateway operating
   rules.
+
+## Amendments
+
+### Amendment 1 — Background-job operator surface boundary (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#bounded-supersessions-and-additive-seams)
+bounds **Architecture tests / CI gates**' Hangfire dashboard bullet, which names
+`/admin/hangfire*` and `HangfireAuthFilter.IsInRole("platform-admin")`.
+P02b-4 exposes no dashboard route. Phase 03 chooses the approved operator
+replay/reconciliation permission and surface; Phase 11 retains the edge surround.
+
+Platform protection remains required for any later operator surface. No gateway,
+permission or recovery route is implemented by this acceptance.

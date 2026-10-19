@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Api.Composition;
@@ -129,7 +130,7 @@ public sealed partial class OutboxDispatchConventionTests
         IServiceCollection services = ObservationServices();
         ObservationRegistrationOffenders(services).Should().BeEmpty();
         var worker = services.Single(descriptor => descriptor.ServiceType == typeof(IHostedService)
-            && descriptor.ImplementationType == typeof(OutboxProcessor));
+            && HostedAliasIdentity(descriptor) == BoundaryWorker);
         services.Remove(worker);
         ObservationRegistrationOffenders(services).Should().NotBeEmpty("Fix: missing mandatory execution must be detected");
         services.Add(worker);
@@ -299,7 +300,10 @@ public sealed partial class OutboxDispatchConventionTests
         return offenders;
     }
 
-    private static IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> OwnedBodies(ProductionCensus census)
+    private static IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> OwnedBodies(ProductionCensus census) =>
+        census.ReadOwnedBodies(EnumerateOwnedBodies(census));
+
+    private static IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> EnumerateOwnedBodies(ProductionCensus census)
     {
         var owners = census.Types.Values.SelectMany(type => type.Methods)
             .SelectMany(method => method.CustomAttributes.Where(attribute => attribute.AttributeType.FullName is
@@ -367,10 +371,18 @@ public sealed partial class OutboxDispatchConventionTests
         // Include the framework health publisher in the complete descriptor set so
         // factory/instance duplicates cannot hide behind the dispatcher type filter.
         var workers = services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)).ToArray();
-        CheckSet(offenders, "hosted-service descriptor types", workers.Select(descriptor => descriptor.ImplementationType?.FullName ?? "non-type registration"),
+        CheckSet(offenders, "hosted-service descriptor types", workers.Select(HostedAliasIdentity),
             [typeof(OutboxProcessor).FullName!, typeof(DeliveryProcessor).FullName!,
+                JobHostedService,
                 "Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherHostedService"]);
         if (workers.Any(descriptor => descriptor.Lifetime != ServiceLifetime.Singleton)) offenders.Add("Mandatory singleton worker registration");
+        foreach (var type in new[] { typeof(OutboxProcessor), typeof(DeliveryProcessor), typeof(LearnStack.Api.Jobs.BackgroundJobHostedService) })
+        {
+            var concrete = services.Where(descriptor => descriptor.ServiceType == type).ToArray();
+            if (concrete.Length != 1 || concrete[0].IsKeyedService || concrete[0].Lifetime != ServiceLifetime.Singleton
+                || concrete[0].ImplementationType != type)
+                offenders.Add("Hosted alias requires its one concrete singleton owner: " + type.FullName);
+        }
         // The helper graph walks production contracts. Its one framework-owned
         // virtual clock capability is admitted only as the shipped system instance.
         var clocks = services.Where(descriptor => descriptor.ServiceType == typeof(TimeProvider)).ToArray();
@@ -401,7 +413,7 @@ public sealed partial class OutboxDispatchConventionTests
             if (check.CheckHealthAsync(context).GetAwaiter().GetResult().Status != HealthStatus.Healthy)
                 offenders.Add("Registered check does not follow recovered singleton observation");
         }
-        if (provider.GetRequiredKeyedService<Lazy<Npgsql.NpgsqlDataSource>>(OutboxDispatcherDataSource.Key).IsValueCreated)
+        if (provider.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key).IsValueCreated)
             offenders.Add("Observation forced dispatcher source construction");
         return offenders;
     }

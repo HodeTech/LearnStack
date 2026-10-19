@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.MultiTenancy;
@@ -698,7 +699,7 @@ public sealed class PlatformAdminScopeTests
         ILogger<PlatformAdminScope> logger,
         IServiceScopeFactory? auditStore = null) =>
         new(new PermissiveGate(),
-            new Lazy<NpgsqlDataSource>(() => dataSource),
+            new PrivilegedDataSource(() => dataSource),
             new AuditCatalog([new TenancyAuditCatalogSource()]),
             auditStore ?? AuditStoreScopeFactory(),
             new SystemClock(),
@@ -742,6 +743,10 @@ public sealed class PlatformAdminScopeTests
         public Task WriteBestEffortAsync(
             AuditEntryDraft entry, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task WriteJobTerminalAsync(AuditEntryDraft entry, JobTerminalTransition transition,
+            System.Data.Common.DbConnection connection, System.Data.Common.DbTransaction transaction,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException("The job-terminal path has its own cases.");
 
         public Task WriteEventTerminalAsync(
             AuditEntryDraft entry,

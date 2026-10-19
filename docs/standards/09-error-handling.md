@@ -10,6 +10,12 @@ Bootstrap response ownership and renderer Retry-After qualification derive from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+Background-job policy derives from
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md) and
+[ADR-0061](../decisions/0061-known-external-job-failure-policy.md).
+Hard-limit refusal follows [ADR-0021](../decisions/0021-feature-based-entitlement.md),
+[ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) and the
+[accepted quota accounting](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19).
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
 
@@ -125,6 +131,7 @@ matching localization key adds the `lockey_` prefix.
 | `recording_consent_required` | Live session requires consent | 409 |
 | `unsupported_locale` | Well-formed public query locale absent or disabled for the tenant; implemented by P02d-4 | 400 |
 | `feature_disabled` | Feature flag off for tenant | 403 |
+| `limit_exceeded` | A hard plan limit refuses a new counted resource | 403 |
 | `method_not_allowed` | Route matched, method did not — *framework-minted* | 405 |
 | `payload_too_large` | Request body over the published limit — *framework-minted* | 413 |
 | `unsupported_media_type` | `Content-Type` the endpoint does not accept — *framework-minted* | 415 |
@@ -150,8 +157,9 @@ that map exists to prevent.
   `HttpStatusMap.For(Exception)`'s existing `LearnStackException known =>
   For(known.Error)` branch maps it — `AuditLogBehavior`'s catch-and-rethrow contract
   is untouched. [04-api-design.md § Status Codes](04-api-design.md) requires
-  `Retry-After` on a 503, and every 503 carries `Retry-After: 30` — thirty seconds being
-  the provider circuit breaker's default break duration. `RetryAfter.Apply` sets it where
+  `Retry-After` on a 503. An explicit delta/date value is preserved; absent or
+  empty values default to `Retry-After: 30`, the provider circuit breaker's default
+  break duration. `RetryAfter.Apply` supplies that default where
   the **status** is decided, on both Problem Details paths — `LearnStackExceptionHandler`
   for an exception, `ProblemDetailsActionResult` for a result — rather than where each code
   is minted, so this 503, `dependency_unavailable` and the idempotency store's capacity
@@ -557,10 +565,30 @@ exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
 
 ## Background Jobs
 
-- Jobs retry on `InfrastructureException` and `ProviderException` (5xx).
-- Backoff: exponential with jitter; cap at 5 attempts default.
-- Permanent failures move to dead-letter table with `last_error` and `attempts`.
-- Dead-letter inspection UI lives in the platform admin tools.
+[Accepted ADR-0047](../decisions/0047-transactional-background-job-runtime.md#attempts-terminal-audit-and-diagnostics)
+owns the job failure policy. The [P02b-4 delivery records](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+own the delivered implementation; the
+[phase status](../roadmap/phase-02b-events-auth.md) owns remaining hosted qualification.
+
+- Count at most six normal admissions and six separate finalize admissions.
+  Retries use the five fixed ordinal delays: 1 s, 5 s, 30 s, 5 min and 1 h.
+  A duplicate vendor wakeup or recovery probe spends no business attempt.
+- Preserve top-level Result/exception classification for ordinary requests and
+  invocation, Prepare and Finalize failures. Known completed external Failed/
+  Cancelled reports use Accepted ADR-0061's explicit policy. Owned lease loss,
+  deadline or shutdown closes new checkpoint/COMMIT admission and retains work;
+  an already admitted COMMIT keeps its actual result. Never infer permanent
+  refusal or positive quiescence from cancellation or elapsed time.
+- Keep terminal state on the authoritative job row. Its fenced transition and
+  terminal MUST audit commit together; prepared domain failure uses its audited
+  finalizer. No duplicate dead-letter table is required.
+- Phase 03 owns audited operator inspection/reconciliation and replay permission;
+  no operator surface is claimed here.
+
+[Accepted ADR-0061](../decisions/0061-known-external-job-failure-policy.md) owns
+the known completed external-failure branch. Step 7 implements and qualifies its
+report, storage and finalization contract before external activation; Step 9 owns
+full enforcement. Acceptance supplies no completed runtime proof.
 
 ## Outbox
 

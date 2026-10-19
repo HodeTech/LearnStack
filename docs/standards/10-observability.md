@@ -6,6 +6,9 @@ Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+Accepted job-lifecycle observation derives from
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md);
+implementation remains P02b-4 Steps 4 and 9.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -64,8 +67,10 @@ These propagate into:
 - HTTP server middleware
 - HTTP clients (typed clients via `IHttpClientFactory`)
 - MediatR pipeline behaviors
-- Background jobs (Hangfire activator + filter) — payload carries `tenant_id`
-  + `correlation_id`; activator restores `ITenantContext` before invocation
+- Background jobs — trusted submission stores tenant/org and W3C correlation on
+  the authoritative LearnStack row; `JobExecutor` restores that origin before
+  business invocation. Hangfire wakeups carry opaque references only
+  ([ADR-0047](../decisions/0047-transactional-background-job-runtime.md#ordinary-execution-authority))
 - Outbox dispatcher — row schema carries `tenant_id`, `organization_id?`,
   `correlation_id`, `id` (the event's `EventId`), `occurred_at`, `type`; the consumer
   restores `ITenantContext` from the envelope and starts an `Activity` with
@@ -93,8 +98,9 @@ P02b-3 Step 3 implements restoration and incoming-event causation in the common
 delivery owner; Step 5 activates both real defaults and semantic Seeder handoff.
 
 The propagation primitive is **W3C `traceparent`** end to end. Every
-cross-boundary write (outbox row, Hangfire payload, Hub envelope) carries it;
-the receiving side resumes the trace by setting `Activity.ParentId =
+cross-boundary write (outbox row, authoritative LearnStack job row, Hub envelope)
+carries it; Hangfire wakeups carry only opaque references, not trace metadata.
+The receiving side resumes the trace by setting `Activity.ParentId =
 traceparent`.
 
 ## Logging
@@ -164,6 +170,26 @@ Manual spans:
 - Use-case handlers wrap interesting subdivisions: `provider_create_room`, `token_issuance`, `event_dispatch`.
 - Naming: `<module>.<operation>`: `education.publish_course`, `classroom.create_room`.
 
+Background-job stages use the required observation owner's `learnstack.jobs`
+source. Admission, business execution, external execute/reconcile, external read,
+checkpoint, capacity cleanup, recipient submission and terminalization retain
+their finite `job.*` names. The factory returns an unstarted Activity; the actual
+stage owns it before `Start` and through existing cleanup. An absent/refusing
+sampler preserves W3C correlation through an unstarted fallback. A catchable
+sampler fault also marks observation unhealthy; it does not retry notification
+or replace an Activity after `Start`.
+
+Validated envelopes supply declared parents. A recovery read before the app-role
+envelope acknowledgement, recipient submission before a child exists, and the
+payload-free terminal lane start independent roots. Recipient startup clears the
+caller's tenant context before `Start`, then installs its route context using the
+actual span ID. Its root has no invented tenant attribution; submission spans
+inside that context receive normal enrichment. External provider and terminal
+spans acquire no tenant authority for tracing. Activity restoration and tenant
+restoration are attempted independently through arbitrary observer faults.
+Step 9's delivery record owns qualification; named tracing alone does not close
+the packet's execution, observation or lifecycle obligations.
+
 ### Span Attributes
 
 Required (auto-enriched by `TenantContextSpanProcessor`):
@@ -177,9 +203,8 @@ its `OnStart` hook reads from the singleton `ITenantContextAccessor`
 auto-instrumentation libraries (EF Core, HttpClient, Valkey via Dapr,
 SeaweedFS S3 SDK, LiveKit) — without per-call enrichment. The accessor is
 populated at scope start by `TenantResolverMiddleware` (HTTP),
-`HubCorrelationMiddleware` (`/api/internal/*`), Hangfire `JobActivator`
-(background jobs), and the outbox / inbox handler scope (integration
-events). Modules never call `Activity.Current?.SetTag("tenant.id", ...)`
+`HubCorrelationMiddleware` (`/api/internal/*`), `JobExecutor` from its validated
+job row (background jobs), and the integration-event delivery owner. Modules never call `Activity.Current?.SetTag("tenant.id", ...)`
 themselves.
 
 Common (set by the respective auto-instrumentation library):
@@ -244,8 +269,14 @@ backend treat business rejections as system failures.
 | `learnstack_delivery_heartbeat_age_seconds` | gauge | — |
 | `learnstack_inbox_dedup_total` | counter | event_type, subscription |
 | `learnstack_inbox_deadletter_total` | counter | event_type, subscription |
-| `learnstack_job_duration_seconds` | histogram | job_name |
-| `learnstack_job_failed_total` | counter | job_name |
+| `learnstack_job_duration_seconds` | histogram | job_name, profile, stage, outcome, cleanup |
+| `learnstack_job_failed_total` | counter | job_name, profile, stage, reason |
+| `learnstack_job_unknown_outcome_total` | counter | job_name, profile, stage, reason |
+| `learnstack_job_state_count` | observable gauge | kind, pool, profile, capacity_group, recurrence, artifact, reason |
+| `learnstack_job_oldest_eligible_age_seconds` | observable gauge | profile |
+| `learnstack_job_heartbeat_age_seconds` | observable gauge | component, pool |
+| `learnstack_job_component_state` | observable gauge | component, pool, state, reason |
+| `learnstack_job_control_total` | observable counter | operation, pool |
 | `learnstack_provider_request_duration_seconds` | histogram | provider, operation, outcome |
 | `learnstack_classroom_active_sessions` | gauge | tenant |
 | `learnstack_classroom_participants_active` | gauge | tenant |
@@ -266,7 +297,13 @@ Outbox metrics above are implemented in P02b-2 Step 3 under ADR-0046;
 both independent review rounds are complete. The subscriber/inbox inventory is
 accepted by the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13);
 Step 4 implements it with real worker, finite-label and memory-only observation
-proofs. Job metrics remain P02b-4.
+proofs. P02b-4 Step 9 implements the five observable and three stage families above under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md#lifecycle-and-observation).
+Stage, tracing, lease-loss and control-path instrumentation are implemented with
+source-specific qualification; the
+[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+owns those receipts and full-regression, review, packet-closeout and remaining
+PR/CI qualification status.
 `event_type` comes only from the finite declared registry plus fixed
 unknown/retired/invalid categories. `subscription` comes only from declared stable
 subscription IDs plus fixed `invalid`; a well-formed undeclared ID is still
@@ -296,6 +333,117 @@ causal metadata is restored only in the app-role executor; the bypass scheduler
 emits a fresh validated attempt trace without reading payload or causal-envelope
 columns. No raw exception details, stored type/subscription text or payload enters
 its diagnostics.
+
+Job observation binds one required concrete singleton to the actual API runtime
+after its snapshot owners initialize and before either source pin. Shared
+API/Seeder registration constructs no runtime, worker or source. Collection
+captures one immutable runtime snapshot per callback; it performs no SQL, DI
+resolution, arbitrary callback invocation or scheduling. Unbound or unobserved
+durable state emits no healthy empty-queue sample. A complete empty sample emits
+explicit finite zero cells. Refresh faults preserve prior values and expose the
+failure and conservative freshness age separately.
+
+Job pending counts include every unresolved non-dead-lettered job. Queue age is
+the stored SQL statement-time sample for exact normal eligibility; it is not
+extrapolated from the earlier acquisition/freshness timestamp. Missing confirmed
+metadata heartbeats emit `not_observed` state without a fabricated zero age;
+confirmed monotonic zero is valid. Pool/group/recurrence labels use frozen
+registries, while profiles, artifact categories, reasons and operations are fixed.
+No tenant/org/job/attempt/operation/trace identity or payload is a job metric tag.
+Aggregate retained work uses `kind=retained_total`; per-pool work uses `retained`,
+so a legitimate pool named `none` cannot alias the aggregate series.
+
+Job stage duration measures through actual executor-owned scope, Activity,
+context, authority, source, auxiliary and owned registration cleanup. It excludes
+the outer native invocation's later private-token/owner cleanup and never ends
+at a caller's finite-wait timeout. The interval ends before synchronous metric
+notification; a held notification still retains the actual task.
+`cleanup=retained` preserves failed cleanup;
+it cannot reverse a physical COMMIT acknowledgement. Confirmed stage failure and
+uncertain write/effect counters are separate; neither counts unique failed jobs.
+A successfully acknowledged Finalize remains successful even when it applies a
+selected failed provider outcome. An inferred clean no-COMMIT path is not a
+physical rollback acknowledgement.
+
+An explicit provider Failed report can increment stage failure before its durable
+outcome checkpoint; the report grants no release or retry authority. Running is
+pending. Unknown is an uncertain effect; a provider fault counts that uncertainty
+only after the typed bridge actually admits the provider call. Scope/adapter
+construction faults before that point remain unissued faults. Capacity cleanup
+without an acknowledgement or uncertain COMMIT reports neutral `NotCommitted`;
+its result does not distinguish refusal from a failed write. Job names use the
+frozen definition registry plus fixed `unknown`/`retired`, and every other stage
+dimension is closed. Catchable synchronous metric-listener faults mark observation
+unhealthy without changing the completed result or retrying notification. A
+blocked listener stays part of the actual owned task.
+
+Job control totals keep a fixed label per monotonic source: generation creation,
+shared maintenance invocations, bridge ACK/failure/deferral, renewal ACK and
+separate locked-history renewal confirmation,
+confirmed retry/terminal transitions and uncertainty observations. A confirmed
+terminal total can include an exact locked-history receipt after lost ACK;
+it does not assert the original physical acknowledgement. These process
+observations are distinct from durable accounting and from business failures.
+Retry confirmation requires the original transition's expected next generation;
+same-generation routing repair and changed ownership do not count. Physical ACK
+accounting precedes cleanup refusal without granting execution or cleanup
+authority. The fixed counter recorders invoke no listener and perform no SQL.
+
+Recurrence progress uses six fixed control-total operations: original acknowledged
+occurrences, skipped slots, recipient pages, raw routes examined, recipients
+inserted and completed fanouts. A completed fanout is its durable cursor marker,
+not completed child execution. Empty completed pages count; ineligible raw routes
+contribute to examined routes without fabricating recipients. Only an original
+physical COMMIT acknowledgement plus its typed progress result increments these
+process totals, before cleanup qualification. A returned value or later durable
+history cannot backfill a lost ACK. Native ticks and repeated collection add no
+progress. All six use `pool=none` without recurrence/tenant/identity labels.
+
+Bridge repair totals are disjoint subsets of visible acknowledged handoffs.
+`bridge_repair_prior_ack_hint_acknowledged` uses a prior acknowledged hint;
+`bridge_repair_expired_token_acknowledged` uses an expired prior claim without
+that hint. Classification reads the locked candidate before replacing its token;
+hint takes precedence. An expired token proves acquisition, not native execution.
+Unmarked work is not necessarily first-ever work because deferral clears tokens.
+Only actual native exit followed by a true fenced ACK return adds a repair.
+The existing bool status API can hide a committed ACK behind failed cleanup;
+these process totals conservatively omit it, retain ownership and never backfill
+it from current row state. Deployment-mismatch deferral counts only a true
+fenced mutation. Operational bridge failures remain distinct from job failures.
+
+Lease-loss totals preserve the first observed cause per acknowledged execution:
+`lease_loss_renewal_refused` or `lease_loss_elapsed`, both with `pool=none`.
+Only a validated start publication or clean acknowledged recovery receipt enables
+observation. Elapsed means the actual local lease clock has reached its bound;
+it is not inferred from a failed timer update, a refused recovery proof or an
+overall stage deadline. Already-visible stop, settled work, join, failed cleanup
+or permanent renewal closure suppress a new observation. This gate read and the
+cause CAS do not establish a universal atomic ordering with concurrent host stop.
+The first-cause cell prevents relabelling; persistent parent totals survive actual
+execution removal. Recording performs only fixed-memory atomics and grants no
+renewal, execution or cleanup authority.
+
+Late settlement uses seventeen literal `late_<stage>_settled` control operations
+for the existing finite invocation-stage set, all with `pool=none`. Only actual
+stage-clock closure records the effective stage. An elapsed predecessor keeps its
+name; a prospective shorter rearm that has not accepted its stage stays unnamed.
+Host stop, lease loss, timer faults and wrapper return do not create this cause.
+
+Record once after the actual published framework flight and its positive cleanup,
+execution joins, stage-timer/wake joins and private cancellation cleanup finish.
+Non-framework stages additionally require their exact concrete typed task and
+positive cleanup; missing tasks, wrong checkpoint/business kinds and older probes
+cannot substitute. History and NoPlan flights include their enclosing loop, not
+only an intermediate SQL result. The current retry/NoPlan confirmation takes
+precedence over an older acquisition probe. Unresolved status work remains under
+its existing Execute/Reconcile wait; observation adds no stage rearm.
+
+These process totals survive owner removal and repeat collection. Settlement is
+local flight/cleanup completion, not successful business work, provider quiescence,
+physical ACK, rollback or a unique-job count. A clean refusal/unknown report can
+settle its local flight. A permanently retained cleanup cannot. A clean parent
+status result that issued no SQL supplies no durable-ACK claim. Existing stage
+duration/outcome measurements retain their earlier executor-owned boundary.
 
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
@@ -345,6 +493,23 @@ stops serving past a configured unhealthy window, are demand-gated to
 [Phase 11](../roadmap/phase-11-production-hardening.md) —
 [ADR-0033 Amendment 3](../decisions/0033-audit-durability-model.md) states all four of
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s requirements for it.
+
+**Job-lifecycle observation.** The unmapped `jobs` health check implements
+ADR-0059's generation draining/retention, actual running work, last confirmed
+server-metadata heartbeat and independent shared-component fault observations.
+Durable transactional jobs parked for unproved capacity cleanup make `jobs`
+unhealthy while retaining their reservations; only positive cleanup/recovery
+clears that condition. Elapsed time never releases occupancy.
+
+Pool labels come only from the finite registry, with fixed state/reason codes.
+Interception or elapsed caller waiting cannot restore health, and a missing server
+row proves neither business completion nor external quiescence. Closed vendor
+callbacks record fixed memory state only; provider exceptions, SQL and tenant/job/
+actor/trace/parameter values stay out. The
+[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+owns delivered instruments and censuses; the
+[phase status](../roadmap/phase-02b-events-auth.md) owns current qualification.
+Phase 11 retains readiness routing, alert thresholds and process supervision.
 
 ### Business Metrics
 

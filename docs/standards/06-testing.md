@@ -78,8 +78,9 @@ belongs to is decided by what it needs, not by what it is about:
   migration chains, the policies, a two-tenant seed and the schema-level isolation
   suite; **Packet 7** re-runs those cases one layer up — the third population below.
   All of them connect as `learnstack_app`, because a test run as the owner or as a
-  `BYPASSRLS` role passes against inert policies. They run in the separate `backend-integration`
-  job, split from the Docker-free tests by `[Trait("Requires","Docker")]`.
+  `BYPASSRLS` role passes against inert policies. They run in the ordinary/native
+  Docker execution jobs behind the required `backend integration (Testcontainers)`
+  aggregate, split from Docker-free tests by `[Trait("Requires","Docker")]`.
 - **Request-level isolation tests** — a `WebApplicationFactory<Program>` pointed at
   a Testcontainers PostgreSQL. **Packet 7** introduces the population, because it is
   the only shape in which the real middleware chain, the real EF query filters and
@@ -98,15 +99,82 @@ belongs to is decided by what it needs, not by what it is about:
 `SchemaFixture`, `PostgresFixture` or the `SharedSchema` collection, as
 `ApiHandlerCompositionTests` does. It scanned `Database/` alone until Packet 9's fifth
 review, which left a class beside the HTTP suites unchecked. A missing trait does not fail
-the class, it runs it in the `backend` job: both CI runners are `ubuntu-latest` and both
+the class, it runs it in the `backend` job: the hosted runners also
 carry a Docker socket, so the container starts and the test passes — nothing goes red,
 and the Docker suite stops being where the Docker tests live. Its companion,
 `The_Docker_Trait_Sweep_Can_Actually_Fail`, feeds the predicate the shapes it must and must
-not flag. And neither backend job can pass having run nothing: each ends with
-`scripts/assert-tests-ran.py`, because a filter that matches no test exits `0`.
+not flag. Both backend aggregates reject an empty or incomplete assigned population.
+All Docker executions and their aggregate additionally require their exact
+discovered case identities, complete results and zero skips: a filter matching
+nothing exits `0` without those guards.
 
 All three: real module configuration, no mocked repositories, and coverage of the
 happy path and the edges.
+
+Under [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md),
+`scripts/ci-native-tests.py` owns the complementary Docker populations:
+`Requires=Docker&NativeCrashProof=true` and
+`Requires=Docker&NativeCrashProof!=true`. The existing source-trait rule also
+restricts the shared native trait to the two complete native proof classes and
+rejects an unclassified proof caller. Actual VSTest discovery and final TRX IDs
+prove the disjoint complete population; display names alone can collide across
+theory rows. Private discovery diagnostics are not exported.
+Incremental execution events retain actual assembly/case IDs, outcome and
+duration even when interruption prevents final TRX. Each selected project uses
+its own private diagnostic stream with the pinned VSTest `BatchSize=1` setting;
+empty project populations remain covered by discovery. Final results reconcile
+those records with TRX, including all summary counters. A display-name-only
+progress record cannot distinguish colliding theory rows.
+
+Native alone uses the exclusive disposable Ubuntu 24.04 VM and closed
+`scripts/ci-native-provisioning.py` owner. Setup verifies a supported collector or
+writes only literal `core`; it never restores a pipe. The unchanged child fixture
+still qualifies its own preconditions and actual native exits. The required
+aggregate checks every producer outcome and matching complete artifacts. Offline
+provisioning/launcher controls run in `meta`. The
+[CI acceptance and implementation record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+owns actual review and hosted qualification; local controls do not establish VM
+ownership, no-dump proof or either execution's whole-job budget fit.
+
+### Complete bounded CI assignments
+
+[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) extends that
+execution owner to base, Architecture and ordinary selector-group shards. The
+tracked [plan](../../scripts/ci-test-shards-plan.json) is the count/weight
+source of truth; the finite workflow matrix must agree before launch. Actual
+Release discovery supplies assembly, case ID and FullyQualifiedName. Selected
+filters are independently rediscovered before execution; all theory rows stay
+with their selector. Advisory weights never define membership or a wall bound.
+
+`scripts/ci-test-shards.py` and `scripts/ci-test-shard-results.py` implement the
+two always-running aggregates under the unchanged backend/integration required
+names. Each verifies current-attempt job outcomes through the read-only Actions
+API, downloads immutable artifact IDs, verifies archive hashes and recomputes
+assignment and complete exact case/TRX unions. Both scopes compare their full
+manifest/toolchain to the same uniquely named, immutable current-attempt base
+artifact. Integration additionally requires base as this common witness; it
+does not count base's non-Docker cases in its Docker union. Base also requires
+the actual Release build, format and Hangfire distribution/source/replacement gates.
+Matching worker digests alone cannot replace API or result evidence.
+
+Base/Architecture use only the approved non-root child and owned systemd/cgroup
+boundary on exclusive Ubuntu 24.04 VMs: no Docker census/disposal, collector
+access or crash inventory. Ordinary retains Docker ownership; native alone
+retains collector provisioning and independent crash assertions. Every execution
+keeps twenty minutes, both aggregates five minutes, and meta five minutes. The
+new offline plan/result controls share one thirty-second allocation in meta.
+Actual SDK/console/loaded-adapter hashes, disjoint phase intervals, first-result
+gaps and scoped resource observations accompany every successful execution.
+Uninstrumented fixture/container measurements remain unknown.
+
+Use **Re-run all jobs**, not failed-job or single-job reruns. All producer
+siblings must belong to the current run attempt. Odd/even attempts select the
+two deterministic layouts; final qualification requires genuinely distinct
+co-membership, including SharedSchema methods, on the same source, plan,
+toolchain and complete case population. The
+[CI follow-up record](../roadmap/phase-02b-events-auth.md#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
+owns actual hosted fit and the two complete attempts; local controls do not
+establish either.
 
 **An isolation test connects as `learnstack_app`.** One that runs as
 `learnstack_migration`, `learnstack_platform` or `learnstack_outbox_admin`
@@ -330,8 +398,9 @@ If a test gets slow, fix the test before the suite.
 
 - A flaky test is a bug. Triage immediately.
 - Quarantined tests re-enabled within one sprint or deleted.
-- A `Skip` fails CI: `scripts/assert-tests-ran.py` refuses any backend run whose results
-  report a case that did not run
+- A `Skip` fails CI: the `ci-test-shards.py` / `ci-native-tests.py` execution
+  owners and `ci-test-shard-results.py` aggregates require complete discovered
+  case-ID unions with every outcome Passed
   ([`No_Architecture_Test_Is_Skippable`](21-architecture-tests-catalogue.md#no_architecture_test_is_skippable)).
   P02d-5 G38(d) extends the runner to frontend workspaces: `pnpm test` from
   `frontend/` discovers test packages and checks actual nonempty Vitest JSON
@@ -363,8 +432,9 @@ Real LiveKit is **not** required in CI; a fake provider satisfies the contract.
 2. Static analysis — the Roslyn analyzers run in the build; ESLint and TypeScript in the
    `frontend` job.
 3. Unit, architecture and contract tests, and the Docker-free integration tests — the
-   `backend` job.
-4. The Docker-bound integration tests — the `backend-integration` job.
+   base/Architecture executions behind the required `backend` aggregate.
+4. Complete ordinary and native Docker executions — required together by the
+   `backend-integration` aggregate, with its existing check name unchanged.
 5. Frontend unit and component tests — the `frontend` job.
 6. Narrow seeded browser/Lighthouse proof — the `public demo + lighthouse` job
    invokes the shared `make demo DEMO_MODE=ci` lifecycle, per § End-to-End Tests.

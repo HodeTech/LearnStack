@@ -1,13 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Audit interceptor + state capture + the MediatR `AuditLogBehavior`
-    pipeline (ADR-0033, which supersedes ADR-0016). Phase 02a wires `AuditLogBehavior` into MediatR
-    via the core `LearnStack.Application` composition root — that's why we
-    pull in `MediatR` here but DO NOT reference `LearnStack.Application`.
-    The behavior implements `IPipelineBehavior<,>` (from MediatR) directly;
-    Application registers it via DI. Adding a ProjectReference to
-    `LearnStack.Application` here would invert the dependency direction.
+    Audit capture, catalogue and persistence adapters (ADR-0033/0044).
+    The MediatR behavior and execution coordinator live in LearnStack.Application;
+    these adapters depend on SharedKernel contracts rather than that application
+    project. No MediatR dependency is needed here.
   -->
 
   <PropertyGroup>
@@ -19,7 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="MediatR" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
     <!--

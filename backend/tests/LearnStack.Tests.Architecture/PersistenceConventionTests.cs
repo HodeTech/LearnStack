@@ -6,7 +6,11 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Application.Persistence;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Configuration;
@@ -270,7 +274,7 @@ public sealed partial class PersistenceConventionTests
         var constructor = typeof(TransactionBehavior<,>).GetConstructors().Single();
 
         constructor.GetParameters().Select(parameter => parameter.ParameterType)
-            .Should().Equal(typeof(TransactionExecutionCoordinator));
+            .Should().Equal(typeof(TransactionExecutionCoordinator), typeof(IBackgroundJobRequestCatalog));
         typeof(TransactionExecutionCoordinator).GetConstructors().Single()
             .GetParameters().Select(parameter => parameter.ParameterType)
             .Should().Contain(typeof(IUnitOfWork))
@@ -300,11 +304,13 @@ public sealed partial class PersistenceConventionTests
             "LearnStack.Application/Messaging/DomainEventCollector.cs",
             "LearnStack.Infrastructure.Audit/AuditStateCapture.cs",
         ], "the census includes shared scoped execution state, not only module callers");
-        ParallelSites.Keys.Should().BeSubsetOf(relativeFiles, "an exception must name a real scanned source file");
+        ParallelSites.Keys.Concat(RetainedLoaderSites.Keys).Concat(RecurrenceParallelSites.Keys).Should().BeSubsetOf(relativeFiles,
+            "an exception must name a real scanned source file");
 
-        ParallelOffenders(sourceRoot, files).Should().BeEmpty(
-            "modules and their shared execution code run one operation at a time on the ambient connection "
-            + "(ADR-0040 § Nesting)");
+        var offenders = ParallelOffenders(sourceRoot, files);
+        offenders.Should().BeEmpty(
+            "modules and shared execution code run one operation at a time on the ambient connection (ADR-0040 § Nesting); offenders: {0}",
+            string.Join(Environment.NewLine, offenders));
     }
 
     [Fact]
@@ -341,6 +347,42 @@ public sealed partial class PersistenceConventionTests
             File.WriteAllText(Path.Combine(sourceRoot, forbidden[1]), "await first; await second;");
             ParallelOffenders(sourceRoot, files).Should().BeEquivalentTo(forbidden.Where(path => path != forbidden[1]),
                 "sequential shared execution remains legal under the same predicate");
+
+            foreach (var (relative, site) in RetainedLoaderSites)
+            {
+                var production = File.ReadAllText(Path.Combine(RepositoryPaths.BackendSrc(), relative));
+                var probe = Path.Combine(sourceRoot, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(probe)!);
+                File.WriteAllText(probe, production);
+                ParallelOffenders(sourceRoot, [probe]).Should().BeEmpty(
+                    "the exact private factory owns one independent connection and retains its actual task before returning it");
+                string[] dirty =
+                [
+                    production.Replace("JobApplicationSourceOwner.RefuseExternalEntry();", "", StringComparison.Ordinal),
+                    production.Replace("resources.HoldActualTask(actual);", "", StringComparison.Ordinal),
+                    production.Replace("resources.HoldActualTask(actual);", "resources.HoldActualTask(Task.CompletedTask);", StringComparison.Ordinal),
+                    production.Replace("return actual;", "return Task.CompletedTask;", StringComparison.Ordinal),
+                    production.Replace(site.Source + ".Value.CreateConnection()", "unit.Connection", StringComparison.Ordinal),
+                    production.Replace("resources?.HoldConnection(connection);", "", StringComparison.Ordinal),
+                    production.Replace("await resources.CleanupAsync().ConfigureAwait(false);", "await unit.DisposeAsync();", StringComparison.Ordinal),
+                    production + "\ninternal sealed class ExtraParallelProbe { private async Task RunAsync() { await Task.WhenAll(first, second); } }",
+                    production + "\ninternal sealed class ExtraStoredProbe { private void Run() { var rows = store.ReadAsync(ct); } }",
+                ];
+                foreach (var planted in dirty)
+                {
+                    planted.Should().NotBe(production, "every dirty control must change the actual approved subject");
+                    File.WriteAllText(probe, planted);
+                    ParallelOffenders(sourceRoot, [probe]).Should().Equal([relative],
+                        "the exception cannot lose actual ownership or lend permission to another operation in the same file");
+                }
+                File.WriteAllText(probe, production +
+                    "\ninternal sealed class SequentialProbe { private async Task RunAsync() { await first; await second; } }");
+                ParallelOffenders(sourceRoot, [probe]).Should().BeEmpty(
+                    "ordinary sequential work elsewhere in the same file remains legal");
+                File.WriteAllText(probe, production.Replace(site.Starter + "(", "RemovedStarter(", StringComparison.Ordinal));
+                ParallelOffenders(sourceRoot, [probe]).Should().Equal([relative],
+                    "a missing retained-loader subject cannot make the exception vacuous");
+            }
         }
         finally
         {
@@ -359,10 +401,142 @@ public sealed partial class PersistenceConventionTests
             .ToArray();
 
     private static string[] ParallelOffenders(string sourceRoot, IEnumerable<string> files) =>
-        files.Where(file => FansOut(StripComments(File.ReadAllText(file))))
-            .Select(file => Path.GetRelativePath(sourceRoot, file).Replace('\\', '/'))
-            .Where(file => !ParallelSites.ContainsKey(file))
-            .ToArray();
+        files.Select(file => (Path: Path.GetRelativePath(sourceRoot, file).Replace('\\', '/'),
+                Code: StripComments(File.ReadAllText(file))))
+            .Where(file => !ParallelSites.ContainsKey(file.Path))
+            .Where(file => RetainedLoaderSites.TryGetValue(file.Path, out var site)
+                ? RetainedLoaderScanText(file.Code, site) is not { } scan || FansOut(scan)
+                : RecurrenceParallelSites.TryGetValue(file.Path, out var recurrence)
+                    ? RecurrenceParallelScanText(file.Code, recurrence) is not { } retained || FansOut(retained)
+                : FansOut(file.Code))
+            .Select(file => file.Path).ToArray();
+
+    // These four private starters retain one actual auxiliary operation before a cache or
+    // audit caller can observe its Task. They use an independent connection, never the
+    // ambient unit. Only that validated initializer is omitted from the fan-out scan;
+    // every other statement in each file still participates (ADR-0040/0047).
+    private sealed record RetainedLoaderSite(string Type, string Starter, string Core, string Source,
+        string Cancellation, string Parameters, string StarterBody, string Cleanup, string[] Helpers);
+
+    private static readonly Dictionary<string, RetainedLoaderSite> RetainedLoaderSites = new(StringComparer.Ordinal)
+    {
+        ["LearnStack.Infrastructure.Audit/AuditConfigService.cs"] = new(
+            "LearnStack.Infrastructure.Audit.AuditConfigService`0", "StartLoadAsync", "LoadAsync", "dataSource",
+            "cancellationToken", "TenantId tenantId, JobApplicationAuxiliaryResources? resources, CancellationToken cancellationToken",
+            """
+            { JobApplicationSourceOwner.RefuseExternalEntry();
+              if (sourceOwner is null) return LoadAsync(tenantId, null, cancellationToken);
+              var resources = sourceOwner.BeginAuditConfigLoad();
+              var actual = LoadAsync(tenantId, resources, cancellationToken);
+              resources.HoldActualTask(actual); return actual; }
+            """, "CleanupUnownedAsync(reader, read, announce, readOnly, transaction, connection)", ["CleanupUnownedAsync"]),
+        ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs"] = new(
+            "LearnStack.Infrastructure.Audit.PostgresAuditStore`0", "WriteOwnTransactionAsync", "WriteOwnTransactionCoreAsync", "_dataSource",
+            "cancellationToken", "AuditEntryDraft entry, LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources? resources, CancellationToken cancellationToken",
+            """
+            { JobApplicationSourceOwner.RefuseExternalEntry();
+              var owner = LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner.Current;
+              if (owner is null) return WriteOwnTransactionCoreAsync(entry, null, cancellationToken);
+              var resources = owner.BeginStandaloneAudit();
+              var actual = WriteOwnTransactionCoreAsync(entry, resources, cancellationToken);
+              resources.HoldActualTask(actual); return actual; }
+            """, "CleanupUnownedAsync(command, announce, transaction, connection)", ["CleanupUnownedAsync", "Add", "Bind"]),
+        ["Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/FeatureFlags.cs"] = new(
+            "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags`0", "StartTenantFlagsLoadAsync", "LoadTenantFlagsAsync", "dataSource",
+            "ct", "TenantId tenantId, JobApplicationAuxiliaryResources? resources, CancellationToken ct",
+            """
+            { JobApplicationSourceOwner.RefuseExternalEntry();
+              if (sourceOwner is null) return LoadTenantFlagsAsync(tenantId, null, ct);
+              var resources = sourceOwner.BeginTenantFlagsLoad();
+              var actual = LoadTenantFlagsAsync(tenantId, resources, ct);
+              resources.HoldActualTask(actual); return actual; }
+            """, "CleanupUnownedAsync(reader, read, announce, readOnly, transaction, connection)", ["CleanupUnownedAsync"]),
+        ["Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/KillswitchOverlay.cs"] = new(
+            "LearnStack.Modules.Tenancy.Infrastructure.KillswitchOverlay`0", "StartLoadAsync", "LoadAsync", "dataSource",
+            "ct", "JobApplicationAuxiliaryResources? resources, CancellationToken ct",
+            """
+            { JobApplicationSourceOwner.RefuseExternalEntry();
+              if (sourceOwner is null) return LoadAsync(null, ct);
+              var resources = sourceOwner.BeginKillswitchLoad();
+              var actual = LoadAsync(resources, ct);
+              resources.HoldActualTask(actual); return actual; }
+            """, "CleanupUnownedAsync(reader, read, connection)", ["CleanupUnownedAsync"]),
+    };
+
+    private static string? RetainedLoaderScanText(string code, RetainedLoaderSite site)
+    {
+        var syntax = CSharpSyntaxTree.ParseText(code).GetRoot();
+        var types = syntax.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .Where(type => TypeIdentity(type) == site.Type).ToArray();
+        if (syntax.ContainsDiagnostics || types.Length != 1) return null;
+        var starters = types[0].Members.OfType<MethodDeclarationSyntax>()
+            .Where(method => method.Identifier.ValueText == site.Starter).ToArray();
+        var cores = types[0].Members.OfType<MethodDeclarationSyntax>()
+            .Where(method => method.Identifier.ValueText == site.Core).ToArray();
+        if (starters.Length != 1 || cores.Length != 1 || !IsPrivate(starters[0]) || !IsPrivate(cores[0])
+            || !SyntaxFactory.AreEquivalent(starters[0].Body, SyntaxFactory.ParseStatement(site.StarterBody))
+            || !SyntaxFactory.AreEquivalent(cores[0].ParameterList, SyntaxFactory.ParseParameterList("(" + site.Parameters + ")"))
+            || !cores[0].Modifiers.Any(token => token.IsKind(SyntaxKind.AsyncKeyword))
+            || cores[0].Body is not { } body) return null;
+        var owned = body.Statements.OfType<TryStatementSyntax>().ToArray();
+        if (owned.Length != 1 || owned[0].Catches.Count != 0 || owned[0].Finally is not { } cleanup
+            || owned[0].Block.Statements.Count < 3) return null;
+        var prefix = new[] { "connection = " + site.Source + ".Value.CreateConnection();",
+            "resources?.HoldConnection(connection);", "await connection.OpenAsync(" + site.Cancellation + ").ConfigureAwait(false);" };
+        if (prefix.Where((statement, index) => !SyntaxFactory.AreEquivalent(owned[0].Block.Statements[index],
+                SyntaxFactory.ParseStatement(statement))).Any()
+            || !SyntaxFactory.AreEquivalent(cleanup.Block, SyntaxFactory.ParseStatement(
+                "{ if (resources is not null) await resources.CleanupAsync().ConfigureAwait(false); else await "
+                + site.Cleanup + ".ConfigureAwait(false); }"))) return null;
+        var calls = body.DescendantNodes().OfType<InvocationExpressionSyntax>().ToArray();
+        if (calls.Count(call => CalledName(call) == "CreateConnection") != 1
+            || calls.Count(call => CalledName(call) is "OpenAsync" or "OpenConnectionAsync") != 1
+            || body.DescendantNodes().OfType<AnonymousFunctionExpressionSyntax>().Any()
+            || calls.Any(call => call.Expression is IdentifierNameSyntax name
+                && !site.Helpers.Contains(name.Identifier.ValueText, StringComparer.Ordinal))) return null;
+        // A receiver must be a concrete parameter/local, the one lazy source, or the
+        // dictionary's comparer. No injected ambient unit/context/service locator can
+        // supply SQL, and no callback can be smuggled into these exact parameters.
+        var roots = cores[0].ParameterList.Parameters.Select(parameter => parameter.Identifier.ValueText)
+            .Concat(body.DescendantNodes().OfType<VariableDeclaratorSyntax>().Select(variable => variable.Identifier.ValueText))
+            .Concat(site.Helpers).Append(site.Source).Append("StringComparer").Append("string").ToHashSet(StringComparer.Ordinal);
+        var names = roots.Concat(["var", "NpgsqlConnection", "NpgsqlTransaction", "NpgsqlCommand", "NpgsqlDataReader", "InsertSql"])
+            .ToHashSet(StringComparer.Ordinal);
+        if (body.DescendantNodes().OfType<IdentifierNameSyntax>().Any(name =>
+                !(name.Parent is MemberAccessExpressionSyntax access && ReferenceEquals(access.Name, name))
+                && !(name.Parent is MemberBindingExpressionSyntax binding && ReferenceEquals(binding.Name, name))
+                && !names.Contains(name.Identifier.ValueText))) return null;
+        if (body.DescendantNodes().OfType<MemberAccessExpressionSyntax>().Any(access => !roots.Contains(ReceiverRoot(access)))
+            || body.DescendantNodes().OfType<ConditionalAccessExpressionSyntax>().Any(access => !roots.Contains(ReceiverRoot(access)))
+            || body.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().Any(creation =>
+                creation.Type is not IdentifierNameSyntax { Identifier.ValueText: "NpgsqlCommand" }
+                && creation.Type is not GenericNameSyntax { Identifier.ValueText: "Dictionary" })) return null;
+        var actual = starters[0].Body!.DescendantNodes().OfType<VariableDeclaratorSyntax>()
+            .Single(variable => variable.Identifier.ValueText == "actual").Initializer!.Value;
+        return code.Remove(actual.SpanStart, actual.Span.Length).Insert(actual.SpanStart, "default!");
+
+        static bool IsPrivate(MethodDeclarationSyntax method) =>
+            method.Modifiers.Any(token => token.IsKind(SyntaxKind.PrivateKeyword));
+        static string? CalledName(InvocationExpressionSyntax call) => call.Expression switch
+        {
+            IdentifierNameSyntax name => name.Identifier.ValueText,
+            MemberAccessExpressionSyntax access => access.Name.Identifier.ValueText,
+            MemberBindingExpressionSyntax binding => binding.Name.Identifier.ValueText,
+            _ => null,
+        };
+        static string ReceiverRoot(ExpressionSyntax expression) => expression switch
+        {
+            PredefinedTypeSyntax { Keyword.ValueText: "string" } => "string",
+            IdentifierNameSyntax name => name.Identifier.ValueText,
+            MemberAccessExpressionSyntax access => ReceiverRoot(access.Expression),
+            InvocationExpressionSyntax call => ReceiverRoot(call.Expression),
+            ConditionalAccessExpressionSyntax access => ReceiverRoot(access.Expression),
+            MemberBindingExpressionSyntax binding when binding.Ancestors().OfType<ConditionalAccessExpressionSyntax>().FirstOrDefault() is { } conditional
+                => ReceiverRoot(conditional.Expression),
+            ParenthesizedExpressionSyntax parenthesized => ReceiverRoot(parenthesized.Expression),
+            _ => "<unapproved receiver>",
+        };
+    }
 
     [Fact]
     public void The_Parallelism_Scan_Can_Actually_Fail()
@@ -403,6 +577,57 @@ public sealed partial class PersistenceConventionTests
     /// </summary>
     private static readonly Dictionary<string, string> ParallelSites = new(StringComparer.Ordinal)
     {
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobControl.cs"] =
+            "The process-owned independent renewal, recovery and terminal lanes retain their own privileged operations; "
+            + "the exact prebound capacity checkpoint uses a fresh sequential scope on the original source owner, "
+            + "never a control-lane ambient unit or module DbContext (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobCapacityCheckpointOperation.cs"] =
+            "One prebound capacity checkpoint retains its actual task, private cancellation callbacks and source owner; "
+            + "the exact executor enters a fresh sequential application scope after positive original cleanup, "
+            + "never concurrently on an existing ambient unit (ADR-0047).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobTerminalNoStartOperation.Control.cs"] =
+            "One prebound terminal-cleanup owner retains its actual privileged acquisition and sequential history probes; "
+            + "each store operation owns an independent connection, while application cleanup enters its own sequential source "
+            + "through the enumerated executor, never a control-lane ambient unit (ADR-0047).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobTerminalNoStartOperation.cs"] =
+            "The prebound terminal cleanup owner publishes one actual app task with ExecutionContext flow suppressed; "
+            + "its exact executor opens fresh sequential scopes on that owner and retains every read, write and callback "
+            + "through physical cleanup, never borrowing an ambient connection (ADR-0047).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobRenewalOperation.cs"] =
+            "One prebound renewal owner retains its actual privileged SQL task and a separate bounded wait; "
+            + "both belong to the process lane, never an ambient unit or module DbContext (ADR-0047).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobExecutionControl.cs"] =
+            "One generation-owned identity retains task, lease and cancellation observations through actual cleanup; "
+            + "this helper acquires no connection, ambient unit or module DbContext (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobExecutionControl.External.cs"] =
+            "One already retained external invocation publishes its actual sequential business task to both owners; "
+            + "the executor alone opens a fresh private application scope, while provider execution holds no ambient unit "
+            + "or module DbContext (ADR-0047/0061).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobRuntime.cs"] =
+            "The process facade retains bootstrap, independent pool/shared/bridge owners and the fixed messaging/source lifetime; "
+            + "all SQL is privileged or privately scoped, with no ambient unit or module DbContext (ADR-0047/0059/0060).",
+        ["LearnStack.Infrastructure/Jobs/HangfireGeneration.cs"] =
+            "One process-owned Core generation observes its startup, stop and actual joins independently; "
+            + "stock operations use confined provider connections, never a scoped ambient unit (ADR-0059/0060).",
+        ["LearnStack.Infrastructure/Jobs/HangfireSharedComponents.cs"] =
+            "Two process-owned stock maintenance lanes retain actual native work and cancellation cleanup; "
+            + "neither component holds an ambient unit or module DbContext (ADR-0058/0059).",
+        ["LearnStack.Infrastructure/Jobs/HangfireGenerationWork.cs"] =
+            "Generation-owned private cancellation observations retain callbacks through real cleanup; "
+            + "the helper acquires no ambient unit, module DbContext or physical connection (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/HangfireGenerationWork.StageWake.cs"] =
+            "One invocation retains its single stage-clock observer before issuance with ExecutionContext flow suppressed; "
+            + "the observer only signals fixed state and owns its timer through actual disposal, with no SQL, ambient unit "
+            + "or module callback (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/HangfireInvocationContract.cs"] =
+            "The closed transport wrapper retains actual routing/admission tasks for generation cleanup and awaits them sequentially; "
+            + "routing owns its privileged connection and JobExecutor creates fresh private scopes, never a wrapper ambient unit (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/HangfirePoolOwner.cs"] =
+            "One process-owned supervision loop retains each stock generation through actual cleanup and backoff; "
+            + "it uses no ambient unit or module DbContext (ADR-0059).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobBridge.cs"] =
+            "Process-owned bridge joins already-started stock client calls at shutdown; "
+            + "each SQL quantum owns its own privileged connection and no ambient unit of work (ADR-0047).",
         ["LearnStack.Infrastructure/Caching/InMemoryCacheService.cs"] =
             "Singleton cache flights race their service-owned deadline and retain abandoned factories until termination; "
             + "they hold no scoped unit of work or module DbContext.",
@@ -670,6 +895,10 @@ public sealed partial class PersistenceConventionTests
             "every test class under Database/, and every one that takes a database fixture, "
             + "needs a real Docker socket, and the trait is how CI routes it to the job that "
             + "declares one");
+
+        NativePartitionOffenders(files).Should().BeEmpty(
+            "ADR-0062 assigns both complete native proof classes, including their predicate and mutant rows, "
+            + "to the native VM; a new direct or delegated proof cannot silently enter ordinary Docker");
     }
 
     [Fact]
@@ -689,33 +918,351 @@ public sealed partial class PersistenceConventionTests
             ("RootForgotTests.cs", "public class RootForgotTests(Database.SchemaFixture schema) { [Fact] public void A() { } }"),
             ("RootTraitedTests.cs", $"{Qualified} public class RootTraitedTests(Database.SchemaFixture schema) {{ [Theory] public void A() {{ }} }}"),
             ("HttpOnlyTests.cs", "public class HttpOnlyTests { [Fact] public void A() { } }"),
-        ]).Should().Equal("Database/ForgotTests.cs", "RootForgotTests.cs");
+            ("Database/PartialMain.cs", $"namespace Valid; {Trait} public partial class SplitTests {{ }}"),
+            ("Database/PartialCase.cs", "namespace Valid; public partial class SplitTests { [Fact] public void A() { } }"),
+            ("Database/MissingPartialMain.cs", "namespace Missing; public partial class SplitTests { }"),
+            ("Database/MissingPartialCase.cs", "namespace Missing; public partial class SplitTests { [Fact] public void A() { } }"),
+            ("Database/OtherNamespaceTrait.cs", $"namespace Other; {Trait} public partial class SplitTests {{ }}"),
+            ("Database/OtherClassTrait.cs", $"namespace Missing; {Trait} public partial class DifferentTests {{ }}"),
+            ("Database/SameFile.cs", $"{Trait} public class CleanTests {{ [Fact] public void A() {{ }} }} "
+                + "public class UntraitedTests { [Fact] public void B() { } }"),
+            ("Database/CommentOnly.cs", $"// {Trait}\npublic class CommentOnlyTests {{ [Fact] public void A() {{ }} }}"),
+            ("Database/ForeignTrait.cs", "[Other.Trait(RequiresDocker.Key, RequiresDocker.Value)] public class ForeignTraitTests { [Fact] public void A() { } }"),
+            ("Database/NonPartialTrait.cs", $"namespace Unmerged; {Trait} public class UnmergedTests {{ }}"),
+            ("Database/NonPartialCase.cs", "namespace Unmerged; public class UnmergedTests { [Fact] public void A() { } }"),
+        ]).Should().Equal("Database/CommentOnly.cs", "Database/ForeignTrait.cs", "Database/ForgotTests.cs", "Database/MissingPartialCase.cs",
+            "Database/NonPartialCase.cs", "Database/SameFile.cs", "RootForgotTests.cs");
+
+        const string Native = "[Trait(NativeCrashProof.Key, NativeCrashProof.Value)]";
+        const string Namespace = "namespace LearnStack.Tests.Integration.Database; ";
+        var nativeFiles = new (string Path, string Source)[]
+        {
+            ("Database/Fatal.cs", Namespace + Trait + Native
+                + " public class HangfireFatalProcessTests { [Fact] public void A() { Probe.Run(); } }"),
+            ("Database/Phase.cs", Namespace + Qualified
+                + "[global::Xunit.TraitAttribute(Database.NativeCrashProof.Key, Database.NativeCrashProof.Value)]"
+                + " public partial class HangfireGenerationPhaseTests { }"),
+            ("Database/Phase.Cases.cs", Namespace
+                + "public partial class HangfireGenerationPhaseTests { [Theory] [InlineData(1)] public void A(int value) { HangfireGenerationPhaseHarness.Run(); } }"),
+            ("Database/Harness.cs", Namespace
+                + "internal static class HangfireGenerationPhaseHarness { public static void Run() { Probe.Run(); } }"
+                + " internal static class Probe { public static void Run() { _ = \"preflight.sh\"; } }"),
+        };
+        NativePartitionOffenders(nativeFiles).Should().BeEmpty();
+
+        void RejectNative(string diagnostic, params (string Path, string Source)[] added) =>
+            NativePartitionOffenders(nativeFiles.Concat(added)).Should().Contain(diagnostic);
+
+        void RejectChangedNative(string before, string after, string diagnostic) =>
+            NativePartitionOffenders(nativeFiles.Select(file =>
+                (file.Path, file.Source.Replace(before, after, StringComparison.Ordinal))))
+                .Should().Contain(diagnostic);
+
+        const string Fatal = "LearnStack.Tests.Integration.Database.HangfireFatalProcessTests`0";
+        const string Phase = "LearnStack.Tests.Integration.Database.HangfireGenerationPhaseTests`0";
+        RejectChangedNative(Native, "", "Native trait missing: " + Fatal);
+        RejectChangedNative(Native, "[Trait(NativeCrashProof.Key, \"false\")]", "Native trait missing: " + Fatal);
+        RejectChangedNative(Native, "[Other.Trait(NativeCrashProof.Key, NativeCrashProof.Value)]", "Native trait missing: " + Fatal);
+        RejectChangedNative(Native, "/* " + Native + " */", "Native trait missing: " + Fatal);
+        RejectChangedNative(Trait, "", "Native Docker trait missing: " + Fatal);
+        RejectChangedNative(Native, "[Trait(\"NativeCrashProof\", \"true\")]", "Native trait missing: " + Fatal);
+        RejectChangedNative(Native, Native + "[Trait(NativeCrashProof.Key, \"false\")]",
+            "Native trait must use shared constants: " + Fatal);
+        RejectChangedNative("public partial class HangfireGenerationPhaseTests", "public class HangfireGenerationPhaseTests",
+            "Native trait missing: " + Phase);
+        RejectChangedNative("[Fact] public void A()", Native + "[Fact] public void A()",
+            "Method native trait: " + Fatal);
+        RejectChangedNative("namespace LearnStack.Tests.Integration.Database; [Trait(Database.RequiresDocker.Key",
+            "namespace Other; [Trait(Database.RequiresDocker.Key", "Native trait missing: " + Phase);
+        RejectChangedNative("_ = \"preflight.sh\";", "", "Native launch census is empty");
+        NativePartitionOffenders([]).Should().Contain("Native source census is empty");
+        NativePartitionOffenders(nativeFiles.Where(file => file.Path != "Database/Fatal.cs"))
+            .Should().Contain("Native test class missing or duplicated: " + Fatal);
+        NativePartitionOffenders(nativeFiles.Where(file => file.Path is not ("Database/Fatal.cs" or "Database/Phase.Cases.cs")))
+            .Should().Contain("Native test census is empty");
+
+        RejectNative("Unexpected native trait: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; " + Native + " public class ThirdTests { [Fact] public void A() { } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { First.Run(); } }"),
+            ("First.cs", "namespace Other; internal static class First { public static void Run() { Second.Run(); } }"),
+            ("Second.cs", "namespace Other; internal static class Second { public static void Run() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public partial class ThirdTests { [Fact] public void A() { Run(); } }"),
+            ("Third.Helpers.cs", "namespace Other; public partial class ThirdTests { private static void Run() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "using Harness = LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness; namespace Other; public class ThirdTests { [Fact] public void A() { Harness.Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "using static LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness; namespace Other; public class ThirdTests { [Fact] public void A() { Run(); } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { this.RunNativeProof(); } }"),
+            ("Extensions.cs", "namespace Other; internal static class NativeExtensions { public static void RunNativeProof(this object value) { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"));
+        // The Release compiler, rather than a manually maintained symbol list,
+        // determines which conditional code the hosted job actually executes.
+        NativeReleaseSymbols.Value.Should().Contain("NET10_0").And.Contain("TRACE").And.NotContain("DEBUG");
+        foreach (var symbol in new[] { "NET10_0", "TRACE" })
+        {
+            RejectNative("Unclassified native test: Other.ThirdTests`0",
+                ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() {\n#if "
+                    + symbol + "\nLearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run();\n#endif\n} }"));
+            RejectNative("Unclassified native test: Other.ThirdTests`0",
+                ("Third.cs", "namespace Other;\n#if " + symbol
+                    + "\npublic class ThirdTests { [Fact] public void A() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }\n#endif\n"));
+        }
+        NativePartitionOffenders(nativeFiles.Concat(new (string Path, string Source)[]
+        {
+            ("Inactive.cs", "namespace Other; public class ThirdTests { [Fact] public void A() {\n#if DEBUG\nLearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run();\n#endif\n} }"),
+        })).Should().BeEmpty("Release must not flatten inactive branches into compiled code");
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { Copied.Run(); } }"),
+            ("Copied.cs", "namespace Other; internal static class Copied { public static void Run() { _ = \"pre\" + \"flight.sh\"; } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "namespace Other; public class ThirdTests { [Fact] public void A() { Copied.Run(); } }"),
+            ("Copied.cs", "namespace Other; internal static class Copied { public static void Run() { _ = Paths.Script; } } internal static class Paths { public const string Script = \"job-lifecycle-probe\"; }"));
+        RejectNative("Unclassified native test: Other.Outer`0.ThirdTests`1",
+            ("Third.cs", "namespace Other; public class Outer { public class ThirdTests<T> { [Fact] public void A() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } } }"));
+        RejectNative("Unexpected native trait: Other.HangfireFatalProcessTests`0",
+            ("Third.cs", "namespace Other; " + Native + " public class HangfireFatalProcessTests { [Fact] public void A() { } }"));
+        RejectNative("Unclassified native test: Other.ThirdTests`0",
+            ("Third.cs", "using First; using Second; namespace Other; public class ThirdTests { [Fact] public void A() { Ambiguous.Run(); } }"),
+            ("First.cs", "namespace First; internal static class Ambiguous { public static void Run() { LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness.Run(); } }"),
+            ("Second.cs", "namespace Second; internal static class Ambiguous { public static void Run() { } }"));
+
+        // Binding must distinguish a same-named unrelated type and a local variable
+        // from the real harness. Neither spelling alone grants native ownership.
+        NativePartitionOffenders(nativeFiles.Concat(new (string Path, string Source)[]
+        {
+            ("Other.cs", "namespace Other; internal static class HangfireGenerationPhaseHarness { public static void Run() { } } public class ThirdTests { [Fact] public void A() { HangfireGenerationPhaseHarness.Run(); } }"),
+            ("Shadow.cs", "namespace Shadow; public class ThirdTests { [Fact] public void A() { var HangfireGenerationPhaseHarness = 1; _ = HangfireGenerationPhaseHarness; } }"),
+            ("CleanExtensions.cs", "namespace Clean; internal static class Extensions { public static void RunNativeProof(this object value) { } } public class ThirdTests { [Fact] public void A() { this.RunNativeProof(); } }"),
+        })).Should().BeEmpty();
     }
+
+    private static readonly string[] NativeProofClasses =
+    [
+        "LearnStack.Tests.Integration.Database.HangfireFatalProcessTests`0",
+        "LearnStack.Tests.Integration.Database.HangfireGenerationPhaseTests`0",
+    ];
+
+    private static readonly Lazy<string[]> NativeReleaseSymbols = new(() => AnalyzerReport.EvaluatedSymbols(
+        Path.Combine(RepositoryPaths.RepoRoot(), "backend", "tests", "LearnStack.Tests.Integration",
+            "LearnStack.Tests.Integration.csproj"), "Release"));
+
+    private static List<string> NativePartitionOffenders(IEnumerable<(string Path, string Source)> files)
+    {
+        // One bounded source compilation per population, without emission, test-project
+        // references or loading the fatal sidecar. Only declared type dependencies are
+        // consumed; this is not a claim that arbitrary test bodies compile in isolation.
+        // Evaluate the real Release project so SDK/custom defines are neither guessed
+        // nor omitted. Flattening directives would misclassify inactive code.
+        var trees = files.Select(file => CSharpSyntaxTree.ParseText(file.Source,
+            new CSharpParseOptions(LanguageVersion.Latest).WithPreprocessorSymbols(NativeReleaseSymbols.Value), file.Path)).ToArray();
+        if (trees.Length == 0) return ["Native source census is empty"];
+        var compilation = CSharpCompilation.Create("NativePartition", trees,
+            new[] { typeof(object).Assembly.Location, typeof(FactAttribute).Assembly.Location }
+                .Distinct(StringComparer.Ordinal).Select(path => MetadataReference.CreateFromFile(path)),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var declarations = trees.SelectMany(tree =>
+        {
+            var model = compilation.GetSemanticModel(tree);
+            return tree.GetRoot().DescendantNodes().OfType<TypeDeclarationSyntax>()
+                .Select(type => new NativeTestDeclaration(TypeIdentity(type), type, model));
+        }).ToArray();
+        var byName = declarations.GroupBy(part => part.Syntax.Identifier.ValueText, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Select(part => part.Identity)
+                .ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
+        var aliases = trees.SelectMany(tree => tree.GetRoot().DescendantNodes().OfType<UsingDirectiveSyntax>())
+            .Where(import => import.Alias is not null).Select(import => import.Alias!.Name.Identifier.ValueText)
+            .ToHashSet(StringComparer.Ordinal);
+        var methodNames = declarations.SelectMany(part => part.Syntax.Members.OfType<MethodDeclarationSyntax>())
+            .Select(method => method.Identifier.ValueText).ToHashSet(StringComparer.Ordinal);
+        var parts = declarations.GroupBy(part => part.Identity, StringComparer.Ordinal)
+            .SelectMany(group => group.Count() == 1 || group.All(part => part.Syntax.Modifiers.Any(SyntaxKind.PartialKeyword))
+                ? new[] { group.ToArray() } : group.Select(part => new[] { part }))
+            .ToArray();
+        var dependencies = parts.ToLookup(group => group[0].Identity,
+            group => group.SelectMany(part => NativeTypeDependencies(part, byName, aliases, methodNames))
+                .ToHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
+        var launchParts = declarations.Where(part => part.Syntax.DescendantNodes().OfType<ExpressionSyntax>()
+            .Select(NativeConstantString).Any(value => value is not null
+                && (value.Contains("preflight.sh", StringComparison.Ordinal)
+                    || value.Contains("job-lifecycle-probe", StringComparison.Ordinal)
+                    || value.Contains("LearnStack.Tests.JobLifecycleProbe", StringComparison.Ordinal))))
+            .ToArray();
+        var native = launchParts.Select(part => part.Identity).Concat(declarations
+            .Where(part => part.Identity is "LearnStack.Tests.Integration.Database.HangfireGenerationPhaseHarness`0"
+                or "LearnStack.Tests.Integration.Database.HangfireGenerationPhaseMutation`0")
+            .Select(part => part.Identity)).ToHashSet(StringComparer.Ordinal);
+        bool changed;
+        do
+        {
+            changed = false;
+            foreach (var group in dependencies)
+                if (!native.Contains(group.Key) && group.Any(edges => edges.Overlaps(native)))
+                    changed |= native.Add(group.Key);
+        } while (changed);
+
+        var offenders = new SortedSet<string>(StringComparer.Ordinal);
+        if (launchParts.Length == 0) offenders.Add("Native launch census is empty");
+        var testParts = parts.Where(group => group.Any(part => part.Syntax.Members.OfType<MethodDeclarationSyntax>()
+            .Any(method => method.AttributeLists.SelectMany(list => list.Attributes)
+                .Any(attribute => AttributeName(attribute) is "Fact" or "Theory")))).ToArray();
+        if (testParts.Length == 0) offenders.Add("Native test census is empty");
+        foreach (var expected in NativeProofClasses)
+            if (testParts.Count(group => group[0].Identity == expected) != 1)
+                offenders.Add("Native test class missing or duplicated: " + expected);
+        foreach (var group in parts)
+        {
+            var identity = group[0].Identity;
+            var attributes = group.SelectMany(part => part.Syntax.AttributeLists.SelectMany(list => list.Attributes)).ToArray();
+            var approved = NativeProofClasses.Contains(identity, StringComparer.Ordinal);
+            if (!approved && attributes.Any(IsNativeTraitKey)) offenders.Add("Unexpected native trait: " + identity);
+            if (group.SelectMany(part => part.Syntax.Members.OfType<MethodDeclarationSyntax>())
+                .SelectMany(method => method.AttributeLists.SelectMany(list => list.Attributes)).Any(IsNativeTraitKey))
+                offenders.Add("Method native trait: " + identity);
+            if (!testParts.Contains(group)) continue;
+            if (native.Contains(identity) && !approved) offenders.Add("Unclassified native test: " + identity);
+            if (!approved) continue;
+            if (!attributes.Any(IsNativeTrait)) offenders.Add("Native trait missing: " + identity);
+            if (attributes.Any(attribute => IsNativeTraitKey(attribute) && !IsNativeTrait(attribute)))
+                offenders.Add("Native trait must use shared constants: " + identity);
+            if (!attributes.Any(IsDockerTrait)) offenders.Add("Native Docker trait missing: " + identity);
+        }
+        return offenders.ToList();
+    }
+
+    private sealed record NativeTestDeclaration(string Identity, TypeDeclarationSyntax Syntax, SemanticModel Model);
+
+    private static IEnumerable<string> NativeTypeDependencies(NativeTestDeclaration part,
+        Dictionary<string, HashSet<string>> byName, HashSet<string> aliases, HashSet<string> methodNames)
+    {
+        var imports = part.Syntax.SyntaxTree.GetCompilationUnitRoot().Usings.Concat(part.Syntax.Ancestors()
+            .OfType<BaseNamespaceDeclarationSyntax>().SelectMany(scope => scope.Usings));
+        var names = part.Syntax.DescendantNodes().OfType<SimpleNameSyntax>()
+            .Where(name => byName.ContainsKey(name.Identifier.ValueText) || aliases.Contains(name.Identifier.ValueText)
+                || methodNames.Contains(name.Identifier.ValueText))
+            .Cast<SyntaxNode>().Concat(imports.Where(import => import.StaticKeyword.IsKind(SyntaxKind.StaticKeyword))
+                .Select(import => import.Name).OfType<SyntaxNode>());
+        foreach (var name in names)
+        {
+            var information = part.Model.GetSymbolInfo(name);
+            var symbol = information.Symbol;
+            if (name is IdentifierNameSyntax identifier)
+                symbol = part.Model.GetAliasInfo(identifier)?.Target ?? symbol;
+            var symbols = symbol is null ? information.CandidateSymbols : [symbol];
+            foreach (var candidate in symbols)
+            {
+                // Instance extension syntax never spells its declaring helper
+                // type. Resolve the source method (including reduced forms)
+                // before assigning the caller's dependency.
+                var resolved = candidate is IMethodSymbol { ReducedFrom: { } original } ? original : candidate;
+                var type = resolved as INamedTypeSymbol ?? resolved.ContainingType;
+                if (type is null) continue;
+                foreach (var reference in type.OriginalDefinition.DeclaringSyntaxReferences)
+                    if (reference.GetSyntax() is TypeDeclarationSyntax declared) yield return TypeIdentity(declared);
+            }
+            if (symbol is null && information.CandidateSymbols.IsEmpty && name is SimpleNameSyntax unresolved
+                && byName.TryGetValue(unresolved.Identifier.ValueText, out var candidates))
+            {
+                // Missing external references do not authorize silently dropping a
+                // possible source helper. Ambiguity conservatively taints all candidates.
+                foreach (var candidate in candidates) yield return candidate;
+            }
+        }
+    }
+
+    private static string? NativeConstantString(ExpressionSyntax expression) => expression switch
+    {
+        LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.StringLiteralExpression) => literal.Token.ValueText,
+        ParenthesizedExpressionSyntax parenthesized => NativeConstantString(parenthesized.Expression),
+        BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.AddExpression)
+            && NativeConstantString(binary.Left) is { } left && NativeConstantString(binary.Right) is { } right => left + right,
+        _ => null,
+    };
+
+    private static bool IsNativeTraitKey(AttributeSyntax attribute) => IsXunitTrait(attribute)
+        && attribute.ArgumentList is { Arguments.Count: 2 } arguments
+        && (NativeConstantString(arguments.Arguments[0].Expression) == "NativeCrashProof"
+            || arguments.Arguments[0].Expression.DescendantTokens().Any(token => token.ValueText == "NativeCrashProof"));
+
+    private static bool IsNativeTrait(AttributeSyntax attribute)
+    {
+        if (!IsXunitTrait(attribute) || attribute.ArgumentList is not { Arguments.Count: 2 } arguments) return false;
+        var key = string.Concat(arguments.Arguments[0].Expression.DescendantTokens().Select(token => token.Text))
+            .Replace("global::", "", StringComparison.Ordinal);
+        var value = string.Concat(arguments.Arguments[1].Expression.DescendantTokens().Select(token => token.Text))
+            .Replace("global::", "", StringComparison.Ordinal);
+        return (key, value) is ("NativeCrashProof.Key", "NativeCrashProof.Value")
+            or ("Database.NativeCrashProof.Key", "Database.NativeCrashProof.Value")
+            or ("LearnStack.Tests.Integration.Database.NativeCrashProof.Key", "LearnStack.Tests.Integration.Database.NativeCrashProof.Value");
+    }
+
+    private static bool IsXunitTrait(AttributeSyntax attribute) =>
+        string.Concat(attribute.Name.DescendantTokens().Select(token => token.Text))
+            is "Trait" or "TraitAttribute" or "Xunit.Trait" or "Xunit.TraitAttribute"
+            or "global::Xunit.Trait" or "global::Xunit.TraitAttribute";
 
     /// <summary>
     /// The test files that need Docker and do not say so: under <c>Database/</c>, or naming
     /// a fixture that starts a container, and carrying no <c>RequiresDocker</c> trait.
     /// </summary>
-    private static List<string> UntraitedDockerTests(IEnumerable<(string Path, string Source)> files) =>
-        files
-            .Where(file =>
+    private static List<string> UntraitedDockerTests(IEnumerable<(string Path, string Source)> files)
+    {
+        var declarations = files.SelectMany(file => CSharpSyntaxTree.ParseText(file.Source).GetRoot()
+            .DescendantNodes().OfType<TypeDeclarationSyntax>()
+            .Select(type => new DockerTestDeclaration(file.Path, TypeIdentity(type),
+                type.Modifiers.Any(token => token.RawKind == (int)SyntaxKind.PartialKeyword),
+                type.Members.OfType<MethodDeclarationSyntax>().Any(method => method.AttributeLists
+                    .SelectMany(list => list.Attributes).Any(attribute => AttributeName(attribute) is "Fact" or "Theory")),
+                file.Path.StartsWith("Database/", StringComparison.Ordinal)
+                    || type.DescendantNodes().OfType<IdentifierNameSyntax>()
+                        .Any(name => DockerFixtures.Contains(name.Identifier.ValueText)),
+                type.AttributeLists.SelectMany(list => list.Attributes).Any(IsDockerTrait))))
+            .ToArray();
+
+        return declarations.GroupBy(type => type.Identity, StringComparer.Ordinal)
+            .SelectMany(group =>
             {
-                // A file declaring no test method has nothing to trait — the fixtures and
-                // the shared query helpers are the case.
-                var declaresTests = file.Source.Contains("[Fact]", StringComparison.Ordinal)
-                                    || file.Source.Contains("[Theory]", StringComparison.Ordinal);
-
-                var needsDocker = file.Path.StartsWith("Database/", StringComparison.Ordinal)
-                                  || DockerFixtures.Any(fixture => file.Source.Contains(fixture, StringComparison.Ordinal));
-
-                var traited = file.Source.Contains("[Trait(RequiresDocker.Key, RequiresDocker.Value)]", StringComparison.Ordinal)
-                              || file.Source.Contains("[Trait(Database.RequiresDocker.Key, Database.RequiresDocker.Value)]", StringComparison.Ordinal);
-
-                return declaresTests && needsDocker && !traited;
+                var parts = group.ToArray();
+                var isPartialType = parts.All(part => part.Partial);
+                return parts.Where(part => part.DeclaresTests
+                    && (part.NeedsDocker || isPartialType && parts.Any(other => other.NeedsDocker))
+                    && !(part.HasDockerTrait || isPartialType && parts.Any(other => other.HasDockerTrait)));
             })
-            .Select(file => file.Path)
-            .Order(StringComparer.Ordinal)
-            .ToList();
+            .Select(type => type.Path).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+    }
+
+    private sealed record DockerTestDeclaration(string Path, string Identity, bool Partial,
+        bool DeclaresTests, bool NeedsDocker, bool HasDockerTrait);
+
+    private static string TypeIdentity(TypeDeclarationSyntax declaration)
+    {
+        var namespaces = declaration.Ancestors().OfType<BaseNamespaceDeclarationSyntax>()
+            .Reverse().Select(scope => scope.Name.ToString());
+        var types = declaration.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().Reverse()
+            .Select(type => type.Identifier.ValueText + "`" + (type.TypeParameterList?.Parameters.Count ?? 0));
+        return string.Join(".", namespaces.Concat(types));
+    }
+
+    private static string AttributeName(AttributeSyntax attribute)
+    {
+        var name = attribute.Name.ToString().Replace("global::", "", StringComparison.Ordinal).Split('.')[^1];
+        return name.EndsWith("Attribute", StringComparison.Ordinal) ? name[..^"Attribute".Length] : name;
+    }
+
+    private static bool IsDockerTrait(AttributeSyntax attribute)
+    {
+        var name = string.Concat(attribute.Name.DescendantTokens().Select(token => token.Text));
+        if (name is not ("Trait" or "TraitAttribute" or "Xunit.Trait" or "Xunit.TraitAttribute"
+            or "global::Xunit.Trait" or "global::Xunit.TraitAttribute") || attribute.ArgumentList?.Arguments.Count != 2)
+            return false;
+        var key = string.Concat(attribute.ArgumentList.Arguments[0].Expression.DescendantTokens().Select(token => token.Text));
+        var value = string.Concat(attribute.ArgumentList.Arguments[1].Expression.DescendantTokens().Select(token => token.Text));
+        return (key, value) is ("RequiresDocker.Key", "RequiresDocker.Value")
+            or ("Database.RequiresDocker.Key", "Database.RequiresDocker.Value");
+    }
 
     /// <summary>The fixtures that start a PostgreSQL container, by the names a test takes them under.</summary>
     private static readonly string[] DockerFixtures = ["SchemaFixture", "PostgresFixture", "SharedSchema"];

@@ -26,7 +26,7 @@ and survive forward-only deploy rules
 - Adding monthly partition for an append-only table (`audit_log`, future event
   tables).
 - Backfilling data alongside a schema change (use an idempotent SQL block or a
-  Hangfire job).
+  deployment-owned backfill).
 
 ## When not to use
 
@@ -44,7 +44,7 @@ and survive forward-only deploy rules
 | Module | Yes | The module's `Infrastructure` project hosts the migration. |
 | Touches RLS? | Yes | New table → yes. Column add on existing tenant-owned table → no. |
 | Destructive? | Yes | Drop, rename, type-change — requires two-step plan. |
-| Backfill? | No | If data must be populated, prefer an idempotent Hangfire job. |
+| Backfill? | No | Use an idempotent deployment-owned backfill when inline SQL is too large. |
 
 ## Workflow
 
@@ -260,9 +260,12 @@ migrationBuilder.DropColumn(name: "source_legacy", table: "enrollments");
 
 ### Step 7: Data migration
 
-Small data migrations live inline as SQL. Larger migrations live as **idempotent
-Hangfire jobs** triggered by the migration. The job sets `app.tenant_id` per tenant
-before mutating data, on the **migration** connection:
+Small data migrations live inline as SQL. Larger backfills remain idempotent,
+deployment-owned migration work under
+[ADR-0047](../../../docs/decisions/0047-transactional-background-job-runtime.md#bounded-supersessions-and-additive-seams).
+The ordinary API job runtime cannot receive migration credentials or execute this
+backfill. The migration-owned loop sets `app.tenant_id` per tenant on its own
+**migration** connection:
 
 > This loop is a migration-time backfill, not a ninth entry in ADR-0040's closed
 > eight-setter set. Application code never opens its own connection to set the

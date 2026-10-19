@@ -15,9 +15,10 @@ namespace LearnStack.Tests.Integration.Database;
 /// </remarks>
 internal static class SchemaQueries
 {
-    public static async Task AssertApplicationRoleAsync(DbConnection connection)
+    public static async Task AssertApplicationRoleAsync(DbConnection connection, DbTransaction? transaction = null)
     {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = """
             SELECT session_user, current_user, rolsuper, rolbypassrls
             FROM pg_roles WHERE rolname = current_user
@@ -58,6 +59,8 @@ internal static class SchemaQueries
         DbConnection connection,
         DbTransaction? transaction)
     {
+        await AssertApplicationRoleAsync(connection, transaction);
+        await SchemaTableClasses.AssertCompleteAsync(connection, transaction);
         var counts = new Dictionary<string, long>(StringComparer.Ordinal);
 
         foreach (var table in await ReadStringsAsync(connection, TableNames, transaction))
@@ -69,7 +72,28 @@ internal static class SchemaQueries
                 $"SELECT count(*) FROM {Quote(table)}",
                 (NpgsqlConnection)connection, (NpgsqlTransaction?)transaction);
 
-            counts[table] = (long)(await command.ExecuteScalarAsync())!;
+            var denied = SchemaTableClasses.AppSelectDenied(table);
+            if (denied && transaction is not null)
+                await ExecuteAsync(connection, transaction, "SAVEPOINT schema_select_denial");
+            try
+            {
+                counts[table] = (long)(await command.ExecuteScalarAsync())!;
+                denied.Should().BeFalse($"{table} must refuse app SELECT with 42501, even when empty");
+            }
+            catch (PostgresException refusal) when (denied)
+            {
+                refusal.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                    $"{table} is a vendor/control object with no app read privilege");
+                counts[table] = SchemaTableClasses.SelectDenied;
+            }
+            finally
+            {
+                if (denied && transaction is not null)
+                {
+                    await ExecuteAsync(connection, transaction, "ROLLBACK TO SAVEPOINT schema_select_denial");
+                    await ExecuteAsync(connection, transaction, "RELEASE SAVEPOINT schema_select_denial");
+                }
+            }
         }
 
         return counts;

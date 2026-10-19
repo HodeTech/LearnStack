@@ -1,6 +1,7 @@
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -94,6 +95,7 @@ public sealed class AuditConfigService(
     public async Task<AuditClassification> ClassifyAsync(
         TenantId? tenantId, AuditCatalogEntry entry, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
 
         var declared = Declared(entry.OperationClass);
@@ -119,7 +121,7 @@ public sealed class AuditConfigService(
             // rejecting every request platform-wide because a cache is unavailable is a
             // worse compliance outcome than losing one tenant's narrowing.
             LogOverrideReadFailed(logger, tenantId.Value.Value,
-                tenantAccessor?.Current is EventTenantContext ? null : failure);
+                AsyncExecutionDiagnostics.IsTrusted(tenantAccessor?.Current) ? null : failure);
 
             return declared;
         }
@@ -132,9 +134,10 @@ public sealed class AuditConfigService(
     private async Task<IReadOnlyDictionary<string, bool>> OverridesAsync(
         TenantId tenantId, CancellationToken cancellationToken)
     {
+        var sourceOwner = JobApplicationSourceOwner.Current;
         return await cache.GetOrSetAsync(
             CacheKeyFor(tenantId),
-            token => LoadAsync(tenantId, token),
+            token => StartLoadAsync(tenantId, sourceOwner, token),
             new CacheOptions(OverrideTtl),
             cancellationToken).ConfigureAwait(false);
     }
@@ -161,62 +164,99 @@ public sealed class AuditConfigService(
     /// operation for this one.
     /// </para>
     /// </remarks>
-    private async Task<IReadOnlyDictionary<string, bool>> LoadAsync(
-        TenantId tenantId, CancellationToken cancellationToken)
+    private Task<IReadOnlyDictionary<string, bool>> StartLoadAsync(
+        TenantId tenantId, JobApplicationSourceOwner? sourceOwner, CancellationToken cancellationToken)
     {
-        await using var connection = await dataSource.Value
-            .OpenConnectionAsync(cancellationToken)
-            .ConfigureAwait(false);
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        if (sourceOwner is null) return LoadAsync(tenantId, null, cancellationToken);
+        var resources = sourceOwner.BeginAuditConfigLoad();
+        var actual = LoadAsync(tenantId, resources, cancellationToken);
+        resources.HoldActualTask(actual);
+        return actual;
+    }
 
-        await using var transaction = await connection
-            .BeginTransactionAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        // Read-only is the property that makes an out-of-band announcement of app.tenant_id
-        // acceptable. This connection is learnstack_app, which holds write grants across the
-        // schema — audit_config itself is SELECT-only for it, but the announcement is what
-        // every tenant-owned table's policy reads, so nothing but this statement stops a later
-        // edit here from writing under a tenant no request asked for.
-        //
-        // It precedes the announcement because the statement binds only what FOLLOWS it.
-        // PostgreSQL accepts it after other statements — measured, including after an INSERT,
-        // which still commits — so "first" is the rule's doing, not the server's
-        // (Out_Of_Band_Setters_Open_Read_Only_Transactions).
-        await using (var readOnly = new NpgsqlCommand(
-            "SET TRANSACTION READ ONLY", connection, transaction))
+    private async Task<IReadOnlyDictionary<string, bool>> LoadAsync(
+        TenantId tenantId, JobApplicationAuxiliaryResources? resources, CancellationToken cancellationToken)
+    {
+        NpgsqlConnection? connection = null;
+        NpgsqlTransaction? transaction = null;
+        NpgsqlCommand? readOnly = null;
+        NpgsqlCommand? announce = null;
+        NpgsqlCommand? read = null;
+        NpgsqlDataReader? reader = null;
+        try
         {
+            connection = dataSource.Value.CreateConnection();
+            resources?.HoldConnection(connection);
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            resources?.HoldTransaction(transaction);
+            readOnly = new NpgsqlCommand("SET TRANSACTION READ ONLY", connection, transaction);
+            resources?.HoldCommand(readOnly);
             await readOnly.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        await using (var announce = new NpgsqlCommand(
-            "SELECT set_config('app.tenant_id', @tenant, true)", connection, transaction))
-        {
+            announce = new NpgsqlCommand(
+                "SELECT set_config('app.tenant_id', @tenant, true)", connection, transaction);
+            resources?.HoldCommand(announce);
             announce.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
             await announce.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        var overrides = new Dictionary<string, bool>(StringComparer.Ordinal);
-
-        await using (var read = new NpgsqlCommand(
-            "SELECT module, operation, is_enabled FROM audit_config "
-            + "WHERE tenant_id = @tenant AND deleted_at IS NULL",
-            connection,
-            transaction))
-        {
+            read = new NpgsqlCommand(
+                "SELECT module, operation, is_enabled FROM audit_config "
+                + "WHERE tenant_id = @tenant AND deleted_at IS NULL", connection, transaction);
+            resources?.HoldCommand(read);
             read.Parameters.AddWithValue("tenant", tenantId.Value);
-
-            await using var reader = await read.ExecuteReaderAsync(cancellationToken)
-                .ConfigureAwait(false);
-
+            reader = await read.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            resources?.HoldReader(reader);
+            var overrides = new Dictionary<string, bool>(StringComparer.Ordinal);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            {
                 overrides[reader.GetString(0) + "|" + reader.GetString(1)] = reader.GetBoolean(2);
-            }
+            if (resources is not null) await resources.DisposeReaderAsync().ConfigureAwait(false);
+            else { var completedReader = reader; reader = null; await completedReader.DisposeAsync().ConfigureAwait(false); }
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return overrides;
         }
+        finally
+        {
+            if (resources is not null) await resources.CleanupAsync().ConfigureAwait(false);
+            else await CleanupUnownedAsync(reader, read, announce, readOnly, transaction, connection).ConfigureAwait(false);
+        }
+    }
 
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-
-        return overrides;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "All outer resources receive their cleanup attempt; the final disposal failure is rethrown.")]
+    private static async ValueTask CleanupUnownedAsync(NpgsqlDataReader? reader, NpgsqlCommand? read, NpgsqlCommand? announce, NpgsqlCommand? readOnly, NpgsqlTransaction? transaction, NpgsqlConnection? connection)
+    {
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
+        if (reader is not null)
+        {
+            try { await reader.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (read is not null)
+        {
+            try { await read.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (announce is not null)
+        {
+            try { await announce.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (readOnly is not null)
+        {
+            try { await readOnly.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (transaction is not null)
+        {
+            try { await transaction.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (connection is not null)
+        {
+            try { await connection.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        failure?.Throw();
     }
 
     private static string Key(AuditCatalogEntry entry) => entry.ModuleName + "|" + entry.Operation;

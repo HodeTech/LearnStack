@@ -1,7 +1,7 @@
 # 17 — Code Review Standards
 
 **Status:** Active
-**Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md), [ADR 0041 — Correcting False Statements in Accepted ADRs](../decisions/0041-correcting-false-statements-in-accepted-adrs.md) (every zero-tolerance blocker maps back to one of these three).
+**Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md), [ADR 0041 — Correcting False Statements in Accepted ADRs](../decisions/0041-correcting-false-statements-in-accepted-adrs.md), [ADR-0047 — Transactional Background Job Runtime](../decisions/0047-transactional-background-job-runtime.md) (every zero-tolerance blocker maps back to these authorities).
 Public accessibility enforcement additionally derives from
 [ADR-0027](../decisions/0027-frontend-i18n.md) and
 [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
@@ -29,7 +29,7 @@ The following findings are always `blocker:`. No discussion needed; the PR does 
 | Secret, token, or password committed to the repo | [11-security.md](11-security.md) § Secrets. One narrow exemption: development-only `${VAR:-fallback}` defaults inside `infra/compose/`, per [12-infrastructure.md](12-infrastructure.md) § Secrets Management |
 | Tenant id read from request body or query param at API edge | [04-api-design.md](04-api-design.md) § Tenant Context |
 | Provider SDK type imported in `Domain` or `Application` | [01-architecture-standards.md](01-architecture-standards.md) § Provider Adapters |
-| Background job without `TenantId` in payload | [01-architecture-standards.md](01-architecture-standards.md) § Tenant-Scoped Code |
+| Background job without trusted tenant/org in its authoritative LearnStack envelope, or business execution using vendor-message authority | [01-architecture-standards.md](01-architecture-standards.md) § Tenant-Scoped Code; ADR-0047 |
 | Hardcoded user-facing string in JSX or backend response | [08-localization.md](08-localization.md) § Strings in Code |
 | `dangerouslySetInnerHTML` without sanitisation wrapper | [11-security.md](11-security.md) § XSS, [03-frontend-coding.md](03-frontend-coding.md) § Forbidden |
 | Token stored in `localStorage` or `sessionStorage` | [11-security.md](11-security.md) § Authentication |
@@ -52,7 +52,8 @@ Before requesting reviews, run the relevant checklist on your own diff:
 - [ ] Every new tenant-owned entity has `[TenantOwned]`, an EF query filter, and a Postgres RLS migration.
 - [ ] Every new MediatR handler validates input via FluentValidation and returns `Result<T>` for expected outcomes.
 - [ ] Every new integration event ships in the outbox in the same transaction as the domain change.
-- [ ] Every new background job has `TenantId` in its payload and restores ambient tenant context.
+- [ ] Every new background job restores exact tenant/org from its authoritative
+      LearnStack envelope; opaque vendor wakeups/ticks carry no tenant authority.
 - [ ] Every new provider call has an explicit timeout, retry policy, and `ProviderException` mapping at the adapter boundary.
 - [ ] Strongly-typed ids are used; no raw `Guid` on the public surface — except a module-local id in a cross-module contract, which is [ADR-0023 Amendment 8](../decisions/0023-strongly-typed-id-source-generator.md)'s bounded exception.
 - [ ] No `DateTime.UtcNow` / `DateTime.Now` in domain or application code (use `IClock` / `TimeProvider`).

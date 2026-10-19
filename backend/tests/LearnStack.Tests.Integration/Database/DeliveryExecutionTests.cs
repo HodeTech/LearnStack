@@ -909,7 +909,8 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                                 "routing SQL must resolve its bare unit without another caller's ambient identity");
                             Observation.BareUnitObserved = true;
                         }
-                        return ActivatorUtilities.CreateInstance<NpgsqlUnitOfWork>(provider);
+                        return ActivatorUtilities.CreateInstance<NpgsqlUnitOfWork>(provider,
+                            provider.GetRequiredService<Lazy<NpgsqlDataSource>>().Value);
                     });
                     services.AddScoped<Handler>();
                     services.AddScoped<CleanupProbe>();

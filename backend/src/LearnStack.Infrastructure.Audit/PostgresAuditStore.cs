@@ -3,6 +3,7 @@ using System.Data.Common;
 using System.Text.Json;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using System.Diagnostics.Metrics;
@@ -135,6 +136,7 @@ public sealed class PostgresAuditStore : IAuditStore
     public async Task WritePendingAsync(
         IUnitOfWork unitOfWork, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(unitOfWork);
 
         var pending = _capture.Intents
@@ -205,6 +207,7 @@ public sealed class PostgresAuditStore : IAuditStore
     public async Task WriteStandaloneAsync(
         AuditEntryDraft entry, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
         EnsureNotPlatformScope(entry);
 
@@ -320,6 +323,7 @@ public sealed class PostgresAuditStore : IAuditStore
     public async Task WriteBestEffortAsync(
         AuditEntryDraft entry, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
         EnsureNotPlatformScope(entry);
 
@@ -351,7 +355,7 @@ public sealed class PostgresAuditStore : IAuditStore
     }
 
     private Exception? DiagnosticException(Exception failure) =>
-        _tenantAccessor.Current is EventTenantContext ? null : failure;
+        AsyncExecutionDiagnostics.IsTrusted(_tenantAccessor.Current) ? null : failure;
 
     /// <inheritdoc />
     public async Task WritePlatformScopeAsync(
@@ -360,6 +364,7 @@ public sealed class PostgresAuditStore : IAuditStore
         DbTransaction transaction,
         CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
@@ -396,6 +401,7 @@ public sealed class PostgresAuditStore : IAuditStore
         DbTransaction transaction,
         CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(transition);
         transition.EnsureMatches(entry, connection, transaction);
 
@@ -430,6 +436,40 @@ public sealed class PostgresAuditStore : IAuditStore
         }
     }
 
+    /// <inheritdoc />
+    public async Task WriteJobTerminalAsync(
+        AuditEntryDraft entry,
+        JobTerminalTransition transition,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        ArgumentNullException.ThrowIfNull(transition);
+        transition.EnsureMatches(entry, connection, transaction);
+        const string operation = "platform.job.dead_letter";
+        if (!_catalog.TryGetOffPath(operation, out var declared)
+            || declared.Operation != operation || declared.ModuleName != "platform"
+            || declared.OperationClass != OperationClass.Must || declared.OperationType != OperationType.SecurityEvent
+            || declared.EntityType is not null || entry.Operation != declared.Operation
+            || entry.ModuleName != declared.ModuleName || entry.OperationClass != declared.OperationClass
+            || entry.OperationType != declared.OperationType)
+            throw new ArgumentException("Job terminal audit requires its declared MUST security event.", nameof(entry));
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = InsertSql;
+            command.Transaction = transaction;
+            Bind(command.Parameters, entry);
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbException failure)
+        {
+            throw new AuditWriteFailedException("The job terminal audit failed; its state transition must roll back.", failure);
+        }
+    }
+
     /// <summary>
     /// <c>BEGIN; SET LOCAL app.tenant_id; SET LOCAL app.organization_id; INSERT; COMMIT</c>
     /// on a connection of this call's own.
@@ -443,41 +483,81 @@ public sealed class PostgresAuditStore : IAuditStore
     /// (<see href="../../../docs/decisions/0033-audit-durability-model.md">ADR-0033
     /// Amendment 2 § 5</see>).
     /// </remarks>
-    private async Task WriteOwnTransactionAsync(
-        AuditEntryDraft entry, CancellationToken cancellationToken)
+    private Task WriteOwnTransactionAsync(AuditEntryDraft entry, CancellationToken cancellationToken)
     {
-        await using var connection = await _dataSource.Value
-            .OpenConnectionAsync(cancellationToken)
-            .ConfigureAwait(false);
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        var owner = LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner.Current;
+        if (owner is null) return WriteOwnTransactionCoreAsync(entry, null, cancellationToken);
+        var resources = owner.BeginStandaloneAudit();
+        var actual = WriteOwnTransactionCoreAsync(entry, resources, cancellationToken);
+        resources.HoldActualTask(actual);
+        return actual;
+    }
 
-        await using var transaction = await connection
-            .BeginTransactionAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await using (var announce = connection.CreateCommand())
+    private async Task WriteOwnTransactionCoreAsync(AuditEntryDraft entry,
+        LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources? resources, CancellationToken cancellationToken)
+    {
+        NpgsqlConnection? connection = null;
+        NpgsqlTransaction? transaction = null;
+        NpgsqlCommand? announce = null;
+        NpgsqlCommand? command = null;
+        try
         {
+            connection = _dataSource.Value.CreateConnection();
+            resources?.HoldConnection(connection);
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            resources?.HoldTransaction(transaction);
+            announce = connection.CreateCommand();
+            resources?.HoldCommand(announce);
             announce.Transaction = transaction;
             announce.CommandText =
                 "SELECT set_config('app.tenant_id', @tenant, true), "
                 + "set_config('app.organization_id', @organization, true)";
-
             Add(announce.Parameters, "tenant", entry.TenantId.Value.ToString());
             Add(announce.Parameters, "organization", entry.OrganizationId?.Value.ToString() ?? string.Empty);
-
             await announce.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        await using (var command = connection.CreateCommand())
-        {
+            command = connection.CreateCommand();
+            resources?.HoldCommand(command);
             command.Transaction = transaction;
             command.CommandText = InsertSql;
-
             Bind(command.Parameters, entry);
-
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
+        finally
+        {
+            if (resources is not null) await resources.CleanupAsync().ConfigureAwait(false);
+            else await CleanupUnownedAsync(command, announce, transaction, connection).ConfigureAwait(false);
+        }
+    }
 
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "All outer resources receive their cleanup attempt; the final disposal failure is rethrown.")]
+    private static async ValueTask CleanupUnownedAsync(NpgsqlCommand? command, NpgsqlCommand? announce, NpgsqlTransaction? transaction, NpgsqlConnection? connection)
+    {
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
+        if (command is not null)
+        {
+            try { await command.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (announce is not null)
+        {
+            try { await announce.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (transaction is not null)
+        {
+            try { await transaction.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (connection is not null)
+        {
+            try { await connection.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        failure?.Throw();
     }
 
     /// <summary>Binds one row's parameters, for a command or for one command of a batch.</summary>
