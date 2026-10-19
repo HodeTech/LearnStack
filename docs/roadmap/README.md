@@ -154,9 +154,11 @@ Accepted ADR-0063 (2026-10-18) authorizes three bounded CI implementation steps;
 its [acceptance record](phase-02b-events-auth.md#adr-0063-acceptance-and-implementation-2026-10-18)
 owns step/review progress and two-assignment hosted qualification. The initial
 plan is base + six Architecture + twelve ordinary + native, with manual counts
-inside the accepted twenty-execution-VM cap. The Step 3 record owns current
-source-specific runs and open hosted failures; decision acceptance alone does
-not complete packet/PR qualification.
+inside the accepted twenty-execution-VM cap. The Step 3 record owns dated
+source-specific runs and verified corrections;
+[PR #32](https://github.com/HodeTech/LearnStack/pull/32) owns live final-source
+A/B qualification and review status. Decision acceptance alone does not complete
+packet/PR qualification.
 ADR-0063 Step 1's selector plan is complete after both fresh review rounds and
 the verified partition correction; its
 [record](phase-02b-events-auth.md#adr-0063-step-1--complete-selector-plan-2026-10-19)

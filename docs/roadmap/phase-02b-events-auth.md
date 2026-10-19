@@ -44,15 +44,17 @@ remaining PR/CI/merge work. P02b-5–8 remain pending. Production business and
 recurrence definitions remain empty.
 [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md) is Accepted —
 2026-10-18. Its [CI acceptance](#adr-0062-acceptance-and-ci-implementation-2026-10-18)
-authorizes the bounded native provisioning/partition follow-up; implementation
-and exact-head hosted qualification remain in progress.
+records the bounded native provisioning/partition implementation and follow-up
+reviews. [PR #32](https://github.com/HodeTech/LearnStack/pull/32) owns live
+exact-head hosted qualification and review status.
 [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) is Accepted —
 2026-10-18. Its [acceptance record](#adr-0063-acceptance-and-implementation-2026-10-18)
 owns the three authorized CI steps and actual two-assignment qualification.
 Steps 1 and 2 are locally complete after both reviews and verified corrections.
 Step 3 source enforcement has completed both full reviews and verified
 corrections; its [record](#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
-owns initial hosted failures and continuing two-assignment qualification.
+owns dated hosted failures and verified corrections. PR #32 owns live final-source
+two-assignment qualification; earlier receipts retain their source-specific state.
 Acceptance is not packet/PR closeout.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
@@ -10082,6 +10084,20 @@ factory initializer controls fail their actual async-entry premise. These
 controlled mutations are not passing regression evidence; the corrected source
 is restored before the fix commit and follow-up review.
 All three corrected source/factory cases pass again after restoration.
+
+The fresh `gpt-6.1-sol` / `xhigh` round approves `c3564e08..78c51320`
+without introduced findings and verifies bootstrap's adjacent existing hazard.
+After its central correction, a fresh `gpt-6-astra` / `xhigh` round approves the
+combined `c3564e08..da8a5958` source without findings. It independently traces
+both callers, actual driver failure/disposal, authority and role checks, and the
+recorded positive/mutant/restored results. Both correction review rounds are
+complete; no retrospective hosted root cause is certified.
+
+At this source freeze, complete final-source A/B CI remains a required exit
+gate. [PR #32](https://github.com/HodeTech/LearnStack/pull/32) owns its subsequent
+live source/run/attempt status and immutable API/artifact receipts. Dated records
+above remain historical observations against their named source, not a substitute
+for the PR's current qualification or the maintainer's review/merge.
 
 ### Durable outbox dispatch
 
