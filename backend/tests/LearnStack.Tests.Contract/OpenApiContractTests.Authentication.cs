@@ -39,6 +39,9 @@ public sealed partial class OpenApiContractTests
         ContractErrors(dirty).Should().Contain("operations");
         foreach (var path in new[] { "/api/v1/public/site", "/api/v1/account/site" })
         {
+            dirty = clean.DeepClone();
+            dirty["paths"]![path]!["get"]!["responses"]!.AsObject().Remove("413");
+            ContractErrors(dirty).Should().Contain("responses", "the reachable body-limit refusal must stay documented");
             foreach (var (status, header, expected) in new[] { ("401", "WWW-Authenticate", "challenge"), ("429", "Retry-After", "retry-after"), ("200", "Cache-Control", "headers") })
             {
                 dirty = clean.DeepClone();

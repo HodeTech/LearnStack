@@ -33,6 +33,7 @@ internal sealed class TenantAuthenticationDocumentTransformer : IOpenApiDocument
             ("401", "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details."),
             ("404", "not_found for absent credentials, unknown hosts, membership refusals or missing host-backed authority; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure."),
             ("405", "method_not_allowed from routing; this authenticated operation admits GET only."),
+            ("413", "payload_too_large; the decoded request-body bound precedes host classification and authentication."),
             ("429", "rate_limited from early visitor/peer admission or the validated-subject limiter."),
             ("500", "internal_error from unexpected failures; no exception or query details."),
             ("503", "dependency_unavailable from invalid stored public configuration.")

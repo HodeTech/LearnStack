@@ -292,6 +292,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            413: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
@@ -393,6 +403,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            413: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
@@ -478,6 +498,14 @@ export interface operations {
             };
             /** @description method_not_allowed from routing. */
             405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            413: {
                 headers: {
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
@@ -582,6 +610,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            413: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
@@ -670,6 +708,14 @@ export interface operations {
             };
             /** @description method_not_allowed from routing. */
             405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            413: {
                 headers: {
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
@@ -772,6 +818,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            413: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
@@ -858,6 +914,14 @@ export interface operations {
             };
             /** @description method_not_allowed from routing. */
             405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            413: {
                 headers: {
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
@@ -952,6 +1016,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            413: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
             429: {
                 headers: {
@@ -1030,6 +1104,14 @@ export interface operations {
             };
             /** @description method_not_allowed from routing. */
             405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            413: {
                 headers: {
                     "Cache-Control": "no-store";
                     [name: string]: unknown;

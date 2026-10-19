@@ -15,7 +15,7 @@ namespace LearnStack.Tests.Contract;
 
 public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactory factory) : IClassFixture<DevelopmentWebApplicationFactory>
 {
-    private static readonly string[] Statuses = ["200", "400", "401", "404", "405", "429", "500", "503"];
+    private static readonly string[] Statuses = ["200", "400", "401", "404", "405", "413", "429", "500", "503"];
     private static readonly Dictionary<string, string[]> Operations = new(StringComparer.Ordinal)
     {
         ["/api/v1/public/site"] = ["GetPublicSite", "HeadPublicSite"],

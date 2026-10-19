@@ -62,6 +62,9 @@ describe('generated GET contract ownership', () => {
     expectTypeOf<AccountSite['tenantId']>().toEqualTypeOf<string>();
     expectTypeOf<AccountSite['organizationId']>().toEqualTypeOf<string | null>();
     expectTypeOf<AccountSite['site']>().toEqualTypeOf<components['schemas']['PublicSite']>();
+    expectTypeOf<
+      operations['GetAccountSite']['responses'][413]['content']['application/problem+json']
+    >().toEqualTypeOf<components['schemas']['ProblemDetails']>();
     expectTypeOf<paths['/api/v1/account/site']['get']>().toEqualTypeOf<
       operations['GetAccountSite']
     >();

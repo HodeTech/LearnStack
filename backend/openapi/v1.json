@@ -672,6 +672,27 @@
               }
             }
           },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "payload_too_large; the decoded request-body bound precedes host classification and authentication.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "429": {
             "content": {
               "application/problem+json": {
@@ -908,6 +929,27 @@
               }
             }
           },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "payload_too_large; the decoded request-body bound precedes host classification and authentication.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "429": {
             "content": {
               "application/problem+json": {
@@ -1090,6 +1132,20 @@
           },
           "405": {
             "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; the decoded request-body bound precedes host classification and authentication.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1323,6 +1379,27 @@
               }
             }
           },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "payload_too_large; the decoded request-body bound precedes host classification and authentication.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "429": {
             "content": {
               "application/problem+json": {
@@ -1516,6 +1593,20 @@
           },
           "405": {
             "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; the decoded request-body bound precedes host classification and authentication.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1740,6 +1831,27 @@
               }
             }
           },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "payload_too_large; the decoded request-body bound precedes host classification and authentication.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "429": {
             "content": {
               "application/problem+json": {
@@ -1936,6 +2048,20 @@
               }
             }
           },
+          "413": {
+            "description": "payload_too_large; the decoded request-body bound precedes host classification and authentication.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "429": {
             "description": "rate_limited from early visitor/peer admission or the validated-subject limiter.",
             "headers": {
@@ -2112,6 +2238,27 @@
               }
             }
           },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "payload_too_large; the decoded request-body bound precedes host classification and authentication.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
           "429": {
             "content": {
               "application/problem+json": {
@@ -2260,6 +2407,20 @@
           },
           "405": {
             "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; the decoded request-body bound precedes host classification and authentication.",
             "headers": {
               "Cache-Control": {
                 "required": true,

@@ -11993,6 +11993,30 @@ Complete backend/hosted unions and final catalogue promotion remain Step 5.
 This receipt claims only the named local populations; both fresh independent
 Step 4 review rounds remain pending.
 
+#### Step 4 independent review round 1
+
+Two fresh independent xhigh reviewers inspected `6686d018..0be26abc` across
+runtime security/isolation and contract/census/confinement, including correctness,
+performance, ownership, refactoring and standards. Neither found a Blocker/Major;
+both verified one Minor: actual AccountSite GET can return the early body-bound
+`413 payload_too_large`, but the served contract and generated SDK omitted it.
+The runtime itself already refuses before host/authentication work. Independent
+reruns passed 52 architecture/contract/actual-host/configuration cases in one
+review, and 113 HTTP/census/PostgreSQL/contract/SDK cases in the other, zero skips.
+
+The verified correction adds that response to account and public contracts using
+the shared Problem Details/no-store owner; public HEAD remains bodyless. The
+response census and missing-413 controls now require it. The strengthened census
+first failed against the unchanged runtime, then passed after adding the response.
+The snapshot is re-exported from the actual host and SDK regenerated, with an
+explicit generated 413 type assertion. This changes no admission/runtime outcome.
+
+After correction, the warnings-as-errors Release solution build, five contract
+and 34 actual-host/PostgreSQL/quota cases pass with zero warnings/failures/skips.
+Frontend typecheck, SDK lint and the complete guarded 1,629-case suite pass with
+zero skips/todos. Carrier and whitespace checks pass. The second fresh independent
+review round remains pending.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile
