@@ -11077,8 +11077,14 @@ validity check and typed binding remains intact; the planted date/hash/history
 mutants retain their assertions. The actual Release build passes without warnings
 or errors, and the complete recurrence store suite passes all 110 cases with zero
 skips, including all six affected cases and their mutant controls. The production
-query is unchanged. Fresh focused review and renewed complete A/B qualification
-follow this correction; PR #32 owns their live results.
+query is unchanged. Two fresh sequential focused reviews independently approve
+`8cd789de..6bcc2b9a` with no actionable finding. They verify the unique cut,
+unchanged production SQL, all caller/mutant assertions and both actual TRX
+receipts; neither reruns .NET or claims hosted qualification. The failed hosted
+run completes with 24 successful jobs, the two affected ordinary failures and
+the correctly failing integration aggregate. It is retained as failed evidence.
+Renewed complete A/B qualification follows the corrected source freeze; PR #32
+owns the final hash, actual outcomes and archive availability.
 
 ## Completion Criteria
 
