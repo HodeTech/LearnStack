@@ -523,7 +523,12 @@ Phase 11 deliverables:
 - `Apisix_NeverFronts_InternalApi` — integration test asserts requests to
   `app.learnstack.dev/api/internal/*` return 404 from APISIX (route not defined).
 - `Backend_RequiresJwt_OnAllAuthenticatedRoutes` — `WebApplicationFactory` integration
-  test: every endpoint outside the public allow-list returns 401 without a bearer token.
+  test under [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md):
+  present invalid credentials on known hosts return 401, including public routes.
+  Exact AccountSite absent credentials return masked `not_found` 404 on tenant,
+  organization and platform hosts. Unknown hosts refuse before JWT work; the
+  generic unresolved MediatR gate is unchanged. P02b-5 implements these controls
+  before production authentication activation in Step 4.
   This is the test that holds the line while the gateway's OIDC block is commented out.
 
 ## 12. Non-goals

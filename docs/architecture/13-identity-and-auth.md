@@ -12,12 +12,13 @@ or credentials. [Phase 02b's entry verification](../roadmap/phase-02b-events-aut
 records the baseline; G10–G13/G20 settle token shape, resolution, session custody
 and lifetimes before their first consumers. Phase 03 owns the identity domain.
 
-**P02b-5 proposal — approval pending.**
+**P02b-5 decision Accepted — 2026-10-19.**
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) and its
 [decision package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
-propose scalar identity claims, one closed authenticated read and additional
-subject accounting. The membership-array and token-flow sketches below are not
-implemented authority; acceptance reconciles their named carriers before code.
+authorize scalar identity claims, one closed authenticated read and additional
+subject accounting. The five implementation steps remain subject to their
+runtime proofs and two independent review rounds each. Authentication and
+authorization registration activate together with the closed surface in Step 4.
 Realm reconciliation and BFF sessions remain P02b-6/P02b-7.
 
 ## Why Not Build It Ourselves
@@ -63,10 +64,17 @@ flowchart LR
 
 Two realm strategies were considered:
 
-- **Single realm, multi-tenant claims** (chosen). One Keycloak realm; users have a custom claim `memberships: [{tenant_id, role}, ...]` populated by a Keycloak protocol mapper or by LearnStack post-login.
+- **Single tenant realm, scalar active scope** (chosen). The `learnstack` realm
+  issues the profile in ADR-0064: opaque `sub`, stable UUID `user_id`, optional
+  scalar UUID `tenant_id` and optional scalar UUID `organization_id`. It carries
+  no authoritative membership array or application-role grant. P02b-6 supplies
+  admin-controlled attributes/mappers; Phase 03 owns live memberships.
 - **Realm-per-tenant**. Cleaner isolation, but a user with memberships in multiple tenants needs separate accounts; user discovery and SSO get more complex.
 
-The single-realm approach matches the "global user, tenant-scoped membership" domain model. Realm-per-tenant remains available for enterprise tenants with strict identity isolation, on a case-by-case basis.
+The single tenant realm matches the global-user, tenant-scoped membership model.
+The separate `learnstack-hub` realm remains the operator boundary. Realm-per-tenant
+is not part of the accepted API profile; a different issuer strategy needs a new
+decision before its first consumer.
 
 ## Token Flow
 
@@ -88,7 +96,7 @@ sequenceDiagram
     BFF->>BFF: set HttpOnly cookie 'session'
     BFF->>Browser: redirect to /studio/dashboard
     Browser->>BFF: GET /api/courses
-    BFF->>API: GET /v1/courses (Authorization: Bearer access_token, X-Tenant-Id)
+    BFF->>API: GET /api/v1/account/site (Bearer, verified host)
     API->>API: validate JWT signature against KC JWKS
     API-->>BFF: tenant-scoped response
     BFF-->>Browser: response
@@ -98,16 +106,17 @@ Key details:
 
 - **PKCE only.** No implicit flow, no client secrets in the browser.
 - **Cookies, not localStorage.** Tokens never enter JavaScript; the BFF holds them.
-- **Short access token TTL** (5 minutes). Refresh handled silently by the BFF.
+- **Short access token TTL.** P02b-6's realm export/reconciler owns actual
+  issuance lifetime. ADR-0064 bounds API acceptance; P02b-7 owns BFF refresh.
 - **JWKS rotation.** API validates tokens against Keycloak's JWKS endpoint, with key caching and rotation handling built into the .NET OIDC middleware.
 
 ## Tenant Resolution Across Identity
 
-When a user logs in, they may have multiple memberships. The active tenant is determined by:
-
-1. The host the user hit (custom domain / subdomain). See [27-custom-domain-tls.md](27-custom-domain-tls.md) for verification and TLS.
-2. An explicit tenant selector for Studio (for cross-tenant operators).
-3. The user's last active tenant (cookie hint).
+When a user logs in, they may have multiple memberships. HTTP tenant authority
+comes only from the independent verified host and validated active-scope claims,
+reconciled by ADR-0036. A selector or cookie may suggest a later token reissue;
+it never selects API scope. Phase 03 owns membership-aware tenant switching.
+See [27-custom-domain-tls.md](27-custom-domain-tls.md) for host verification/TLS.
 
 The JWT carries a `tenant_id` claim for the active session; LearnStack rejects requests where the host-derived tenant disagrees with the claim. That rejection is not a fallback rule but the general shape of resolution — every authoritative signal is resolved independently and the request proceeds only on their intersection. The full matrix, including the organization dimension and the platform-host case, is [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md). See also [Tenant Isolation](09-tenant-isolation.md).
 
@@ -125,7 +134,11 @@ Mechanism:
 - `Role` carries `Permission`s (atomic capabilities like `course.publish`, `enrollment.create`).
 - Resource-scoped checks (`course.edit` is allowed only when `course.owner_id == current_user.id`) live in policy classes, evaluated in the application layer.
 
-The JWT carries `sub` (Keycloak user ID), `email`, and `tenant_id`. It does **not** carry the full permission list — that is fetched and cached server-side per request.
+The API uses opaque `sub` for external identity/subject accounting and UUID
+`user_id` for actor attribution, with scalar active-scope claims. Email and
+realm/client roles grant no application authority. Phase 03 owns permission
+resolution; P02b-5 exposes only its closed nonsensitive read while application
+authorization is still pass-through.
 
 ## Invitations
 
@@ -213,7 +226,7 @@ and a re-run is idempotent.
 > **Open in Phase 02b.** How seed users, mappers and the client scope reach a Keycloak
 > database that has already consumed the import is G12 in
 > [Phase 02b's decision register](../roadmap/phase-02b-events-auth.md#the-decision-register);
-> whether one token can name two tenants is its G10. A user who belongs to both tenants
+> G10 is Accepted: one token carries at most one active tenant. A user in both tenants
 > also needs `Membership`, which [Phase 03](../roadmap/phase-03-identity-admin.md)
 > delivers. The pass that closes each gate edits this section with its answer.
 

@@ -125,8 +125,10 @@ not deferred to the showcase phase.
   and both complete final-source hosted assignments. Production business and
   recurrence definitions remain empty. P02b-5's
   [decision package](phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
-  and ADR-0064 are Proposed; five implementation steps await maintainer approval.
-  No dependent runtime has started. Realm reconciliation, BFF sessions and
+  and ADR-0064 are Accepted — 2026-10-19; five implementation steps, each with two
+  fresh independent review rounds, are authorized. Step 1 starts the isolated
+  token foundation; production activation remains Step 4. Realm reconciliation,
+  BFF sessions and
   phase-exit enforcement remain P02b-6–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

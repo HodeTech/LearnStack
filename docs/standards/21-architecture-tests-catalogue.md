@@ -37,7 +37,9 @@ owns review, packet and exact PR-head CI/job-budget status),
 (Accepted 2026-10-18; native execution authority implemented),
 [ADR-0063 Complete Bounded CI Test Shards](../decisions/0063-complete-bounded-ci-test-shards.md)
 (Accepted 2026-10-18; general CI obligation implemented; the phase record owns
-final-source hosted qualification).
+final-source hosted qualification),
+[ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
+(Accepted 2026-10-19; P02b-5 obligations Registered; runtime pending).
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -3821,7 +3823,6 @@ implements it.
 | Test | Rule | Kind | Owning phase | Named in |
 |---|---|---|---|---|
 | `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. A superset of [`Adapters_Wrap_Provider_Exceptions`](#adapters_wrap_provider_exceptions), which already holds the exception types of the SDKs it lists — the one slice of this rule that runs today | structural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with the first provider adapter; it then binds per provider as each adapter lands | [Tenant Isolation](../architecture/09-tenant-isolation.md) |
-| `Backend_RequiresJwt_OnAllAuthenticatedRoutes` | Every endpoint outside the public allow-list answers `401` without a bearer token — the guard that holds while the gateway's OIDC block is commented out | behavioural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with authentication | [API Gateway](../architecture/30-api-gateway.md) |
 | `LicenseKey_Payload_MatchesSchema` | `entitlement-v1.schema.json` is pinned by a snapshot test run in **both** repositories against the same checked-in schema | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with the schema | [Hybrid License Model](../architecture/26-hybrid-license-model.md); [ADR-0021](../decisions/0021-feature-based-entitlement.md), as `EntitlementProjection_Shape_IsStable` — see § Canonical names |
 | `Entitlement_Read_Path_Falls_Through_To_Durable_Row` | With L1 and L2 flushed and the Hub unreachable, the tenant resolves from `platform_entitlement_cache` and no exception escapes the flag read | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with `HubEntitlementProvider` | [Hybrid License Model](../architecture/26-hybrid-license-model.md) |
 | `CustomDomain_TenantId_NeverReadFrom_RequestBody` | Custom-domain submission derives the tenant from the authenticated session, never from the body or the query | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), Hub side, per [ADR-0022](../decisions/0022-custom-domain-tls.md) | ADR-0022; [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
@@ -4412,12 +4413,147 @@ structural test proves — and what it does not.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`
 
-- **Asserts:** the composition root registers exactly one JWT authority for `/api/v1/*`, the `learnstack` realm. A `learnstack-hub` token on a tenant-facing endpoint is 401.
-- **Source:** ADR-0036 § The signals; ADR-0004 Amendment 1.
-- **Type:** xUnit + DI inspection. **Kind:** structural.
+- **Asserts:** the composition root registers exactly one tenant bearer scheme,
+  pinned to the configured `learnstack` issuer. A real-handler request rejects a
+  wrong issuer even under a trusted signing key, including `learnstack-hub`.
+  DI inspection alone cannot prove issuer enforcement. Unknown hosts retain 404
+  before validation and unclassified infrastructure/internal paths remain outside
+  this tenant scheme.
+- **Source:** ADR-0036 § The signals; ADR-0004 Amendment 1;
+  [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
+- **Type:** xUnit DI inspection plus real-handler signed-token HTTP controls.
+  **Kind:** behavioural, with complementary structural inspection.
+- **Test owner:** planned
+  `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationProfileTests.cs`;
+  active-host controls in planned `TenantAuthenticationHttpTests.cs` in that project.
 - **Status:** **Registered.**
-- **Phase:** 02b.
-- **Note:** The integration test is the load-bearing half: the structural test passes while issuer validation is disabled in configuration.
+- **Phase:** P02b-5 Step 1 isolated handler proof; Step 4 production activation;
+  Step 5 final enforcement. No production registration before Step 4.
+
+#### `Backend_RequiresJwt_OnAllAuthenticatedRoutes`
+
+- **Asserts:** present invalid or undecidable tenant bearer credentials on known
+  hosts return 401 with a bare Bearer challenge, including public endpoints.
+  Absent credentials on exact AccountSite return masked 404 `not_found` on tenant,
+  organization and platform hosts; the scoped authorization result handler cannot
+  fall back to default 401. A claimless valid profile keeps HostOnly/public-only
+  authority. Unknown hosts refuse before JWT work. Generic unresolved MediatR
+  `tenant_mismatch` is unchanged; no blanket missing-token 401 is promised.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Pipeline and error precedence; [API Design](04-api-design.md#public-surface);
+  [API Gateway](../architecture/30-api-gateway.md).
+- **Type:** actual API-host signed-token/absence HTTP matrix with correlation
+  normalization, public IdP-unavailable regression and scoped challenge controls.
+  **Kind:** behavioural.
+- **Test owner:** planned
+  `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationHttpTests.cs`.
+- **Status:** **Registered.** Moved from Awaiting backfill at ADR-0064 acceptance;
+  implementation remains pending.
+- **Phase:** P02b-5 Step 4 activation and Step 5 enforcement.
+
+#### `Tenant_Authentication_Profile_Is_Closed`
+
+- **Asserts:** the real stock handler enforces ADR-0064's signed RS256, issuer,
+  audience, purpose/client, bounded lifetime, stable actor and scalar UUID profile;
+  duplicate JSON/security properties and duplicate or unsupported JOSE parameters
+  fail. Credential shape/size and configured-key-only discovery are bounded.
+  Controlled metadata proves added-key refresh and rejection after observed key
+  withdrawal, respecting stock refresh minima. Canary controls cover vendor events
+  1/3/7 across enabled sinks, while independent closed LearnStack outcomes remain
+  visible. Invalid credentials never become absence.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Access-token profile and § Vendor diagnostic boundary.
+- **Type:** real JwtBearer/OIDC handler with controlled signed-token issuer,
+  discovery/JWKS server and actual logging/export/error-capture controls.
+  **Kind:** behavioural.
+- **Test owner:** planned
+  `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationProfileTests.cs`.
+- **Status:** **Registered.** No profile/runtime proof is claimed at acceptance.
+- **Phase:** P02b-5 Step 1 isolated foundation; Steps 4–5 actual active path.
+
+#### `Authentication_Middleware_Order_Is_Enforced`
+
+- **Asserts:** the actual chain preserves early admission/body limits, host
+  classification, authentication, credential enforcement, subject quota, tenant
+  resolution/assertions, authorization, closed-surface admission and dispatch in
+  ADR-0064 order. Unknown-host/early-quota precedence survives; subject refusal
+  prevents durable mismatch recording. A planted reorder fails. Production scheme
+  and authorization registration remain absent until atomic Step 4 activation,
+  including minimal hosting's implicit middleware behavior.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Pipeline and error precedence.
+- **Type:** whole-chain actual-host HTTP controls plus a planted reorder control.
+  **Kind:** behavioural.
+- **Test owner:** planned
+  `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationHttpTests.cs`.
+- **Status:** **Registered.**
+- **Phase:** P02b-5 Step 3 component harness; Step 4 actual activation; Step 5
+  complete production enforcement.
+
+#### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
+
+- **Asserts:** the nonempty complete production route/method/transitive-request
+  census contains only the eight existing public GET/HEAD actions and exact
+  AccountSite GET, with enumerated infrastructure exclusions. Extra controller,
+  minimal-route, mutation and unregistered/nested dispatch controls fail.
+  `GetAccountSiteQuery` independently requires valid HostAndClaim actor and
+  matching real host provenance before any reader, rejecting future
+  ClaimAndMembership too. It reads actual host-scoped public data as
+  `learnstack_app`, is explicitly Off with zero normal query audit rows, and uses
+  the existing exact-type physical ReadOnly owner: a planted SQL write is refused.
+  No-store covers early errors; served OpenAPI and disjoint exhaustive
+  public/authenticated SDK GET ownership agree without a public AccountSite wrapper.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Closed authenticated read; ADR-0040 and ADR-0052's 2026-10-19 disclosures;
+  [Security Standards](11-security.md#the-rule).
+- **Type:** complete production source/IL/route census with dirty/clean controls,
+  actual HTTP/app-role PostgreSQL and generated/served contract controls.
+  **Kind:** behavioural, with complementary structural controls.
+- **Test owner:** planned
+  `backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.cs`
+  and `backend/tests/LearnStack.Tests.Integration/Database/AccountSiteHttpTests.cs`;
+  SDK/OpenAPI contract controls remain with their actual contract owners.
+- **Status:** **Registered.**
+- **Phase:** P02b-5 Step 2 query/database boundary; Step 4 route/contract
+  activation; Step 5 complete transitive enforcement.
+
+#### `Keycloak_Roles_Are_Not_Application_Authority`
+
+- **Asserts:** no production call site treats realm/client roles, email, display
+  name or arbitrary claim/scope text as application permission or promotes tenant
+  authority from authentication alone. The complete call-site census has real
+  subjects and planted role/claim-based authorization violations, plus clean
+  controls; missing subjects or a weakened predicate fail. Phase 03 retains
+  membership and permission authority.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Access-token profile and § Resolution and attribution; ADR-0004.
+- **Type:** complete production source/IL call-site census with planted compiled
+  violations and predicate-mutation controls. **Kind:** structural.
+- **Test owner:** planned
+  `backend/tests/LearnStack.Tests.Architecture/AuthenticationAuthorityTests.cs`.
+- **Status:** **Registered.**
+- **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.
+
+#### `Authenticated_Rate_Limits_Use_Validated_Subject`
+
+- **Asserts:** the additional 600/min fixed-window quota uses validated issuer
+  and opaque subject, with no queue. Token rotation or tenant/organization changes
+  cannot reset quota; distinct subjects have independent state. Invalid tokens
+  gain no quota identity or early bypass. Existing visitor/peer limits remain.
+  Whole-chain reduced-budget controls isolate subject accounting beneath those
+  floors; a separate proof covers the actual 600 boundary. Concurrent accounting,
+  first-refusal Retry-After/429, bounded idle retirement and timer disposal are
+  controlled; refusal stops downstream audit work without resetting live quotas.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Additional subject quota; ADR-0053 and ADR-0054's retained ingress floors.
+- **Type:** real limiter concurrency/lifecycle controls and signed-token
+  whole-chain HTTP tests, including actual-default boundary.
+  **Kind:** behavioural.
+- **Test owner:** planned
+  `backend/tests/LearnStack.Tests.Integration/AuthenticatedRateLimitTests.cs`.
+- **Status:** **Registered.**
+- **Phase:** P02b-5 Step 3 bounded component; Step 4 whole-chain activation;
+  Step 5 production enforcement. Phase 11 retains distributed capacity.
 
 #### `Resolving_Host_Is_Set_In_One_Place`
 

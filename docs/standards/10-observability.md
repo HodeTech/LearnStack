@@ -9,6 +9,9 @@ Delivery/recovery additions derive from
 Accepted job-lifecycle observation derives from
 [ADR-0059](../decisions/0059-owned-hangfire-server-generations.md);
 implementation remains P02b-4 Steps 4 and 9.
+Tenant-authentication diagnostics derive from
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md);
+their P02b-5 implementation remains pending.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -143,6 +146,47 @@ Structured JSON, one event per line. Example:
 - Redaction filter strips configured fields before emission.
 - Stack traces logged at `Error` and `Fatal` only.
 - Avoid logging large objects; log identifiers and a sample summary instead.
+
+### Tenant-authentication diagnostics
+
+**Accepted contract — 2026-10-19; P02b-5 runtime pending.**
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) extends the
+existing rejection recorder; it introduces no second detector or audit slug.
+
+- The closed `TenantAssertionSource` maps only to `header` or `jwt-claim`.
+  Recorder metadata/counters consume that source. Arbitrary claims, opaque
+  subjects, actors and correlation IDs never become metric labels.
+- Rejection records capture typed actor, request correlation and trusted
+  organization explicitly. A host-backed JWT rejection is recorded under the
+  host tenant, with `OrganizationId=null` and trusted organization in metadata;
+  failed resolution does not install a tenant context for attribution.
+- Row 7 gains its required single rejection audit; row 10 stays unaudited.
+  Row 14 uses synchronous `RecordNoTenantRefusal`: one existing
+  `learnstack_tenant_assertion_unresolved_total` increment with only
+  `source=jwt-claim`, `dimension=Tenant`, and fixed `membership_unconfirmed`
+  diagnostic. Its decorator performs no audit-store I/O and writes zero rows;
+  no claimed tenant or sentinel supplies an audit target.
+- A validated profile with absent tenant claim emits one fixed
+  `tenant_claim_absent` **Debug log event** per admitted request after subject
+  admission. It has no claim value or labels, creates no metric or error/message
+  key, and preserves public 200/protected 404 and the actor's attribution.
+- Resolution short-circuits at its first disagreement, before header assertions.
+  Separate authenticated requests remain separate occurrences. Subject-quota
+  refusal precedes durable mismatch recording; audit failure preserves the
+  refusal and existing Critical/health behavior.
+
+The Step 1 vendor boundary suppresses the exact category
+`Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerHandler` at every level
+before any production sink. This includes stock failure events 1/3 and inherited
+event 7. Emit independent LearnStack closed stage/reason outcomes without vendor
+exceptions, their message/inner/data, token, subject or issuer/audience text.
+IdentityModel PII/security-artifact output and backchannel diagnostics follow
+the same boundary. Actual Serilog-to-OTLP/error-capture and collector canary
+controls must prove both absence of raw failures and presence of closed outcomes;
+a Warning threshold or response-only setting is insufficient. Unrelated logging
+and sanctioned typed UUID/correlation recorder attribution remain observable.
+Step 3 implements recorder/claimless/quota diagnostics; Steps 4–5 qualify the
+complete active path. Acceptance alone claims none of these mechanisms delivered.
 
 ### Sampling
 

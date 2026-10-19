@@ -6,6 +6,9 @@
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); anonymous accounting derives from
 [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
+The accepted tenant-authentication contract derives from
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md);
+P02b-5 implementation remains pending.
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -71,7 +74,7 @@ shape, and per-deployment-mode behaviour — see ADR-0024 directly.
 | 202 | Accepted for async work |
 | 204 | Success, no body |
 | 400 | Client validation failure |
-| 401 | Missing/invalid authentication |
+| 401 | Invalid present tenant bearer credentials; missing authentication only where the surface permits a challenge |
 | 403 | Authenticated but not authorized |
 | 404 | Not found (also used to hide cross-tenant existence) |
 | 405 | Method not allowed; the `Allow` header lists the methods that are permitted |
@@ -127,6 +130,15 @@ Two things a reader of this document needs, because both are easy to get wrong:
 - Service-to-service uses client-credentials grants with limited scopes.
 - API keys are forbidden in the MVP; if added later, they live in `Integrations` with rotation + audit.
 
+**P02b-5 accepted contract — 2026-10-19; runtime pending.**
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) defines the
+strict tenant bearer profile and ordered HTTP admission. On classified known
+hosts, present invalid or undecidable credentials return 401 with a bare Bearer
+challenge, including on public endpoints. Unknown hosts retain their masked 404
+before JWT validation; credential-free public reads retain anonymous behavior.
+Production authentication and authorization services/middleware activate together
+with the complete Step 4 boundary.
+
 ## Tenant Context
 
 **[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) is the single
@@ -162,8 +174,9 @@ reconciliation matrix are the separate case — no tenant context resolves at al
   else — failing with `lockey_not_found`, so the body it renders is byte-identical to
   the one an unresolvable host gets, because anything a client can tell apart confirms
   to an anonymous caller that the tenant exists. Not `lockey_tenant_mismatch`: a
-  `HostOnly` context is anonymous by construction and `tenant_mismatch` is the
-  authenticated code. The mechanism differs and the wire result must not —
+  `HostOnly` context records host-only tenant authority, including a validated
+  actor whose tenant claim is absent under ADR-0064. Authentication cannot lift that
+  ceiling. The mechanism differs and the wire result must not —
   host classification writes a bodyless **404** that `UseStatusCodePages` fills in through
   `ProblemDetailsFactory.ForStatus(404)`, while a step-4 failure carries its own Problem
   Details body through `ProblemDetailsActionResult`; since
@@ -193,6 +206,12 @@ reconciliation matrix are the separate case — no tenant context resolves at al
   tenant host under the ceiling and an unknown host both carry `not_found`. That
   discloses membership of `Tenancy:PlatformHosts` — a short static list an operator
   publishes as its own entry point — and nothing about any tenant.
+  This generic unresolved MediatR result remains `tenant_mismatch`.
+  ADR-0064's planned AccountSite endpoint instead refuses at outer HTTP admission:
+  absent credentials on tenant, organization and platform hosts return the masked
+  `not_found` 404, as does a validated principal without usable host-backed tenant
+  authority. Its scoped authorization result handler preserves that result before
+  dispatch; it does not change the generic pipeline gate.
 - **Permitted methods default to `GET` / `HEAD`.** An entry declaring a mutating method
   states why, in the table.
 - **No `[PublicSurface]` type performs a tenant-owned write.**
@@ -242,6 +261,24 @@ decision the pipeline never enforces. `PublicSurface_Requests_Are_Never_ReadSens
 cross-checks the merged `IAuditCatalog` and fails any marked request registered as
 MUST-class `read-sensitive`. Its companion proves the forbidden classification is
 detected even when all shipped requests are correctly Off.
+
+### Closed authenticated read
+
+**Accepted by ADR-0064 — 2026-10-19; implementation pending in P02b-5.**
+The additional operation is exact `GET /api/v1/account/site`, `GetAccountSite`,
+dispatching non-public `GetAccountSiteQuery`. It returns the validated actor,
+resolved tenant/organization and existing live `PublicSite` projection, accepts
+no query parameters or client-selected identifiers, and is audit Off. Before any
+reader, the query requires `HostAndClaim`, a real non-system actor and matching
+real resolved/host scope; `ClaimAndMembership` remains ineligible even after live
+membership arrives. The exact query receives physical ReadOnly through the
+existing owner; it gains no public marker or general authenticated-read exemption.
+
+Step 4 adds this GET to the eight public GET/HEAD actions in the closed production
+census, with explicit infrastructure exclusions, bearer OpenAPI security and
+no-store on success and early errors. Generated GETs have exact disjoint public
+and authenticated ownership with an exhaustive union. The public transport stays
+credential-free; P02b-7 owns authenticated session transport.
 
 ## Pagination
 

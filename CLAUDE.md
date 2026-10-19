@@ -234,10 +234,13 @@ owns final source/merge and CI verification.
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
 records all nine job-runtime steps, three CI steps, independent reviews and both
 complete final-source hosted assignments. Production business and recurrence
-definitions remain empty. **P02b-5's decision package and ADR-0064 are Proposed**; their
+definitions remain empty. **P02b-5's decision package and ADR-0064 are Accepted
+— 2026-10-19**; their
 [decision pass](docs/roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
-presents five implementation steps and awaits maintainer approval. No dependent
-runtime has started; realm reconciliation, BFF sessions and phase exit remain
+authorizes five implementation steps, each with commit and two fresh independent
+review rounds. Step 1 begins with acceptance disclosures and the isolated token
+foundation; production authentication activation remains Step 4. Realm
+reconciliation, BFF sessions and phase exit remain
 P02b-6–8.
 Phase 06 retains the full
 renderer/Studio expansion.
@@ -450,8 +453,9 @@ Then read the phase that is live and the one it stands on:
   and merged through PR #31 on 2026-10-15; all six steps and correction bundles
   completed both review rounds. Its merge closeout above owns final verification.
   P02b-4 is complete and merged through PR #32 on 2026-10-19; its merge closeout
-  above owns final verification. P02b-5's proposed decision package awaits approval;
-  P02b-5–8 remain pending, with each packet accepting its gates first.
+  above owns final verification. P02b-5's decision package and ADR-0064 are Accepted;
+  its five-step implementation is in progress. P02b-6–8 remain pending, with each
+  packet accepting its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency

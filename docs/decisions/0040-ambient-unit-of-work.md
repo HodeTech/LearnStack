@@ -737,3 +737,33 @@ requests select ReadOnly through a closed mode mapping. Framework commands use
 ordinary writable announced owners; no caller selects a mode. Eight setters,
 two entry shapes, sticky poisoning, nesting and aggregate rules remain. P02b-4
 implements/proves these additive seams; public host eligibility is unchanged.
+
+### Amendment 13 — Exact authenticated read-mode scope (2026-10-19)
+
+**Status: Accepted.** The maintainer accepts
+[ADR-0064](0064-tenant-api-authentication-boundary.md) and the
+[P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19).
+Its [exact relationship to Accepted decisions](0064-tenant-api-authentication-boundary.md#exact-relationship-to-accepted-decisions)
+extends Amendment 8's public-only mode-ordering scope to exactly the authenticated,
+non-`[PublicSurface]` `GetAccountSiteQuery`. This is a bounded normative extension
+authorized by ADR-0064, with its own
+[ADR-0052 disclosure](0052-anonymous-public-read-boundary.md#amendment-15--exact-authenticated-read-mode-scope-2026-10-19);
+it is not an ADR-0041 fact correction or an independently changed Decision sketch.
+
+Add that exact request type to the positive read-mode mapping alongside existing
+public and exact job-framework reads. No suffix, interface or generic query
+heuristic selects the exception, and callers cannot choose a transaction mode.
+The existing physical ReadOnly owner begins READ COMMITTED, awaits
+`SET TRANSACTION READ ONLY`, then uses the sanctioned tenant/organization
+announcement before data SQL or handler dispatch. The query is explicitly audit
+Off; normal success/refusal writes no query audit row. Independent rejection
+audits retain their sanctioned path.
+
+One connection, transaction/frame ownership, eight setters, default writable
+announcement order, mixed-mode refusal and sticky poisoning remain unchanged.
+The extension adds no connection, setter, nested public send or writable outer
+frame for this query. Public markers and host eligibility retain their contracts.
+The original body, metadata and prior amendments remain verbatim. Updated
+acceptance carriers are this amendment, ADR-0052's own amendment and Standards 11;
+ADR-0064 and the package own the full register. Implementation/proofs remain
+P02b-5, including physical write refusal on the authenticated query's actual path.

@@ -13,11 +13,12 @@ Accepted ADR-0047/0058/0059/0060/0061 govern the delivered job runtime;
 ADR-0062/0063 govern the delivered bounded CI ownership and partitioning.
 Production business and recurrence definitions remain empty.
 
-**P02b-5 decision pass in progress — approval pending.** The
-[decision package](#p02b-5-decision-package-2026-10-19) and
-[Proposed ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) present
-the verified entry, owner choices and five implementation steps. G10, G11,
-G12's BFF-client choice, G14 and G20 remain Open; no dependent runtime has started.
+**P02b-5 decision pass Accepted — 2026-10-19.** The maintainer approved the
+revised [decision package](#p02b-5-decision-package-2026-10-19) and
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md). G10, G11,
+G12's BFF-client choice, G14 and G20 are Accepted. Five implementation steps are
+authorized; Step 1 starts with the dated disclosures and isolated token
+foundation. Production authentication activation remains Step 4.
 P02b-6 realm reconciliation, P02b-7 BFF sessions and P02b-8 enforcement/erasure
 inventory remain pending; Phase 02b remains in progress. Earlier dated delivery
 and failed-run receipts keep their as-of state.
@@ -289,7 +290,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-2** | **Complete and merged — [PR #30 closeout](#p02b-2-merge-and-closeout-2026-10-13).** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
 | **P02b-3** | **Complete and merged — [PR #31 closeout](#p02b-3-merge-and-closeout-2026-10-15).** Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | **Complete and merged — [PR #32 closeout](#p02b-4-merge-and-closeout-2026-10-19).** Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; all nine implementation steps and their review gates delivered; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
-| **P02b-5** | **[Decision package Proposed](#p02b-5-decision-package-2026-10-19); approval pending.** API authentication: closed JWT profile, ordered reconciliation and existing rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
+| **P02b-5** | **[Decision package Accepted](#p02b-5-decision-package-2026-10-19) — 2026-10-19; implementation in progress.** API authentication: closed JWT profile, ordered reconciliation and existing rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: the shared client scope, the mappers, the user-profile declaration, UUID attributes agreeing with `SeedData`, the warm-realm reconciler, the Keycloak test fixture | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
 | **P02b-7** | BFF session: Auth.js, the cookie session, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
 | **P02b-8** | `LS0002`, the carrier reconciliations this phase owes, the re-verification that the behavioural check is still required under the name it reports, and the exit checks | G16, G18 (the erasure inventory) Accepted |
@@ -324,17 +325,17 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G7 | For a dead-letter transition: what class, what `OperationType`, what slug, on which transaction, in what order against the state change, with what failure posture — and may a second non-MediatR caller reach `IAuditStore.WriteStandaloneAsync`? | MUST `security-event`; producer `platform.outbox.dead_letter` and reserved P3 `platform.delivery.dead_letter`; fenced terminal transition and audit INSERT on the same short transaction through a narrow fifth write seam; failed audit retries terminalization without publication | Accepted ADR-0046 + bounded ADR-0044 audit-grant replacement, separate additive fifth-writer seam amendment and ADR-0033 same-transaction clarification under this acceptance; `DeclareOffPath` registration and Audit Coverage baseline | P02b-2 (the producer dead-letter row its criteria assert), P02b-3 | Accepted — 2026-10-12; producer terminal audit [implemented](#p02b-2-step-2--durable-transitions-and-terminal-audit-2026-10-12); subscriber terminal audit implemented by P02b-3 Step 4; job part Accepted — 2026-10-15 under ADR-0047: `platform.job.dead_letter`, actual-row sixth write and same-transaction MUST audit; job terminal/MUST audit implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification and merge |
 | G8 | Does the dispatcher's `BYPASSRLS` use carry a per-invocation `security-event` row, or is it exempt — and on what written terms? | Exempt, on three terms: the bypass is grant-bounded and code-path-confined, dispatch attempts are logged rather than audited, and the dead-letter transitions are the audited events | Accepted ADR-0046 explicitly replaces the routine-dispatch coverage rule and bounds the ADR-0003 grant extension; dated disclosures under this acceptance, not an ADR-0041 correction | P02b-2 | Accepted — 2026-10-12; confined dispatcher exception/census [implemented](#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state; job/recurrence part Accepted — 2026-10-15 under ADR-0047, conditional on exact grants/censuses, diagnostics, observation and terminal MUST audit; job/recurrence confinement, diagnostics, observation and terminal MUST controls implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification and merge |
 | G9 | Which record decides the background-job runtime — its storage under the closed four-role model, the single tenant-context writer, the job frame's transaction owner, the enqueue-site rule *and who may enqueue whose job type*, the retry contract (whose class, slug and posture adopt **G7**'s), the tenantless platform-job class a purge needs, the ADR-0035 classification, the queue grammar, and the package pins with their licence verdict? | One record answering all of it; business execution uses the existing announced request owner through `ISender`, retaining the eight setters; the chosen storage/scheduler authority is separately explicit | **ADR-0047** + a dated **ADR-0003 Amendment** for any schema/role/grant-confinement extension (not merely a new tenant table under the existing policy) + a dated **ADR-0036 Amendment** disclosing the selected context-writer contract; then Standards 05/20. A decision change is not an erratum | P02b-4 | Accepted — 2026-10-15 under ADR-0047 and the nine-step P02b-4 package; bounded prior-ADR Amendments accompany acceptance; runtime and all nineteen canonical obligations implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification and merge |
-| G10 | Does the active tenant travel as a scalar `tenant_id` claim, a `memberships` array, or both — and what value does `UserId` hold? | The scalar claim, whose 02b source is an admin-set user attribute; a second UUID-valued `user_id` attribute for the actor, with `sub` staying Keycloak's subject | Phase-doc: [ADR-0036 § What is out of scope](../decisions/0036-tenant-resolution-trusted-inputs.md#what-is-out-of-scope-and-what-is-not) hands the shape to this phase by name. Reconcile `architecture/13`'s array sketch in the same change | P02b-5 | Open |
-| G11 | Which [ADR-0036 matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) rows resolve in this phase, given that row 10 consults a reader that denies everyone — and what row covers a signature-valid token carrying no `tenant_id` claim on a tenant host? | Either mint `organization_id` scoped to the host's organization, which makes row 10 need no membership read, or declare the organization host's authenticated 404 and test it as the expected outcome | A dated **ADR-0036** amendment plus errata beside § Staging across packets and the 2026-09-02 erratum, both of which assign row 10 to this phase without noting that its `M covers (T, O)` term is denied until Phase 03 — which groups it with rows 7 and 14 rather than with 6 and 9 | P02b-5 | Open |
-| G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? Native HTTPS on retained `*.learnstack.local` hosts, with manual hosts/trust setup, is delivered by Phase 02d and re-verified by P02b-0 | A confidential BFF client with one redirect URI per seed host, retaining native HTTPS and `Secure` cookies; and an idempotent reconciler inside `make seed` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-0 re-verifies [Phase 02d G32](phase-02d-walking-skeleton.md#the-decision-register), ADR-0053/0054 and ADR-0055; P02b-5 (which client the BFF redeems the code with: the API pins `azp` against it), P02b-6 | Open |
+| G10 | Does the active tenant travel as a scalar `tenant_id` claim, a `memberships` array, or both — and what value does `UserId` hold? | The scalar claim, whose 02b source is an admin-set user attribute; a second UUID-valued `user_id` attribute for the actor, with `sub` staying Keycloak's subject | Phase-doc: [ADR-0036 § What is out of scope](../decisions/0036-tenant-resolution-trusted-inputs.md#what-is-out-of-scope-and-what-is-not) hands the shape to this phase by name. Reconcile `architecture/13`'s array sketch in the same change | P02b-5 | Accepted — 2026-10-19; [P02b-5 package](#p02b-5-decision-package-2026-10-19) |
+| G11 | Which [ADR-0036 matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) rows resolve in this phase, given that row 10 consults a reader that denies everyone — and what row covers a signature-valid token carrying no `tenant_id` claim on a tenant host? | Issue a matching organization claim for row 9. Rows 7/10/14 remain membership-dependent refusals until Phase 03; a claimless principal retains public-only HostOnly authority. Row 14 records no tenant audit without a confirmed host tenant, as bounded by ADR-0064 | A dated **ADR-0036** amendment plus errata beside § Staging across packets and the 2026-09-02 erratum, both of which assign row 10 to this phase without noting that its `M covers (T, O)` term is denied until Phase 03 — which groups it with rows 7 and 14 rather than with 6 and 9 | P02b-5 | Accepted — 2026-10-19; [P02b-5 package](#p02b-5-decision-package-2026-10-19) |
+| G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? Native HTTPS on retained `*.learnstack.local` hosts, with manual hosts/trust setup, is delivered by Phase 02d and re-verified by P02b-0 | A confidential BFF client with one redirect URI per seed host, retaining native HTTPS and `Secure` cookies; and an idempotent reconciler inside `make seed` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-0 re-verifies [Phase 02d G32](phase-02d-walking-skeleton.md#the-decision-register), ADR-0053/0054 and ADR-0055; P02b-5 (which client the BFF redeems the code with: the API pins `azp` against it), P02b-6 | Accepted — BFF-client choice, 2026-10-19; realm/reconciliation remains Open for P02b-6 |
 | G13 | What is the BFF session — its custody of the refresh token, its store, its idle and absolute lifetimes, its refresh serialisation under concurrent requests, its terminal `invalid_grant` behaviour, its CSRF control and its logout — and which document owns the access-token lifetime? | The `HttpOnly` cookie Security Standards already describes, encrypted by the session adapter, read only by server code, with single-flight refresh and one authority for the TTL | Phase-doc + one reconciled [Security Standards § Authentication](../standards/11-security.md#authentication); a **new ADR** only for a server-side session store | P02b-6 (which document owns the access-token lifetime: the realm export and its reconciler write it), P02b-7 | Open |
-| G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject. The early anonymous stage already runs before authentication: P02d-5 delivers 60/min per canonical direct or authenticated-hop visitor IP plus 600/min peer acquisitions/allocations under ADR-0053 and ADR-0054. Exhausted known visitors refuse before peer debit; unknown visitor allocation remains peer-gated. These remain IP/peer quotas, not token quotas; a request they reject never reaches the token stage. Re-verify the [P5 remediation decision](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09) before choosing authenticated accounting, preserving pre-classification protection against unknown-host abuse | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 (the token-keyed stage and the early stage's treatment of validated callers); G34's anonymous-hop policy and ADR-0054's bounded accounting replacement are Accepted and delivered in P02d-5 | Open |
+| G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject. The early anonymous stage already runs before authentication: P02d-5 delivers 60/min per canonical direct or authenticated-hop visitor IP plus 600/min peer acquisitions/allocations under ADR-0053 and ADR-0054. Exhausted known visitors refuse before peer debit; unknown visitor allocation remains peer-gated. These remain IP/peer quotas, not token quotas; a request they reject never reaches the token stage. Re-verify the [P5 remediation decision](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09) before choosing authenticated accounting, preserving pre-classification protection against unknown-host abuse | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 (the token-keyed stage and the early stage's treatment of validated callers); G34's anonymous-hop policy and ADR-0054's bounded accounting replacement are Accepted and delivered in P02d-5 | Accepted — 2026-10-19; [P02b-5 package](#p02b-5-decision-package-2026-10-19) |
 | G15 | What initiates a replay in this phase? | Targeted internal subscriber replay in P02b-3; producer/operator reset and fencing require a separate Phase 03 contract | Phase-doc; the URL space is its own decision record, per ADR-0036 | — (answered in § The consumer side; recorded so the question travels with the deferral) | Accepted — internal subscriber replay implemented by P02b-3 Step 4; operator contract Phase 03 |
 | G16 | What is `LS0002`'s rule name, which project trees does it run over, what does it inspect, and what escalates it to Error? | The name and scope recorded the way Amendment 1 recorded `LS0001`, with the scope reaching the assemblies that actually handle tokens | A dated **ADR-0032** amendment + a catalogue entry + an `AnalyzerReleases` row | P02b-8 | Open |
 | G17 | What are the label sets for the event and job metrics, is the tenant axis permitted, and is it spelled `tenant` or `tenant_id`? | One note in the document that owns metric names, no raw tenant label on a per-event series, and an oldest-eligible-row age metric separate from the pending count | [Observability Standards § Required Metrics](../standards/10-observability.md#required-metrics) edit | P02b-2 (the first series ships there, and a label added afterwards touches every emitter already written) | Event metrics Accepted — 2026-10-12; runtime/guards [implemented](#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state; job label/observation contract Accepted — 2026-10-15 under ADR-0047; job instruments/guards implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification and merge |
 | G18 | May an integration-event payload or a job argument carry personal data, what may `last_error` contain, and do the four new durable stores enter the erasure scope? | Identifiers only, a sanitized and length-bounded failure descriptor, and the stores named in the erasure inventory | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) decides the new producer payload/NULL JSON metadata policy and application byte cap; a dated ADR-0038 cross-reference under this acceptance. [Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten), P02b-8 and Phase 11 retain erasure ownership | P02b-1 (the payload rule: the first payload ships there), P02b-2 (the `last_error` rule and its DDL bound), P02b-8 (the erasure inventory) | Payload and failure descriptors Accepted and implemented; job identifier-only payload/checkpoint and failure-descriptor bounds Accepted — 2026-10-15 under ADR-0047; job payload/checkpoint/failure bounds implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification; erasure inventory open P02b-8 |
 | G19 | Where do the sample flow's publisher and consumer live — a fixture pair in the integration assembly, or a real event a shipped module consumes? | A real event between two shipped domain modules, because a test-assembly-only consumer leaves every module-scoped sweep with zero subjects | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) and the P02b-1 package; reconcile Tenancy/Customization/Audit specs under this acceptance. ADR-0046 accepts distinct subscription deduplication and envelope delivery scope; P02b-3 implements the two effects and Seeder handoff. The provisioning publisher must prove enqueue from its transaction announcement while ambient context remains unresolved | P02b-1 | Flow and delivery contract Accepted; subscriptions/semantic Seeder handoff implemented by P02b-3 Step 5 |
-| G20 | What does an anonymous request to a **routed non-public** request type on a live tenant host answer — and does the catalogued `Backend_RequiresJwt_OnAllAuthenticatedRoutes` narrow to a surface outside tenant resolution? A second half rides with it: the shipped assertion middleware says that from this phase the refusal code differs by caller, `tenant_mismatch` for an authenticated one and `not_found` for an anonymous one, written by the middleware itself | The matrix wins on a tenant host — [row 2](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) answers 404, byte-identical to an unknown host's, and the 401 rule narrows to the surface where a 401 discloses nothing | The dated **ADR-0036** amendment G11 needs + a catalogue edit to that rule's Asserts line | P02b-5 | Open |
+| G20 | What does an anonymous request to a **routed non-public** request type on a live tenant host answer — and does the catalogued `Backend_RequiresJwt_OnAllAuthenticatedRoutes` narrow to a surface outside tenant resolution? A second half rides with it: the shipped assertion middleware says that from this phase the refusal code differs by caller, `tenant_mismatch` for an authenticated one and `not_found` for an anonymous one, written by the middleware itself | AccountSite absent credentials give masked `not_found` 404 on tenant/organization/platform hosts. Invalid present credentials on known hosts give 401, including public routes. Rows 8/11/12 and authenticated assertions use `tenant_mismatch`; membership refusals and anonymous assertions use `not_found`; the generic unresolved MediatR gate is unchanged | The dated **ADR-0036** amendment G11 needs + a catalogue edit to that rule's Asserts line | P02b-5 | Accepted — 2026-10-19; [P02b-5 package](#p02b-5-decision-package-2026-10-19) |
 
 ### P02b-0 entry verification (2026-10-12)
 
@@ -11363,18 +11364,18 @@ final-source qualification is recorded above. This closeout starts no next packe
 
 ## P02b-5 decision package (2026-10-19)
 
-**Proposed — approval pending.** The maintainer requested P02b-5 on development,
-with the document audit before code, decisions presented together, and commit
-plus two fresh independent review rounds for every implementation step.
-[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) holds the
-proposed security contract. Neither this package nor its draft accepts a gate.
-P02b-0–4 remain complete and merged; P02b-5 runtime has not started.
+**Accepted — 2026-10-19.** The maintainer explicitly approved revised
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) and this
+five-step package together. G10/G11/G12-client/G14/G20 are Accepted. All work
+stays on development, with commit plus two fresh independent review rounds
+for each step. P02b-0–4 remain complete and merged; P02b-5 implementation begins
+with the acceptance commit before dependent runtime code.
 
 **Maintainer review follow-up — 2026-10-19.** The revised contract below addresses
 verified review findings. The earlier decision-review opinions remain historical;
 this follow-up replaces their readiness conclusion. Both fresh independent
-revision review rounds are now complete; maintainer acceptance remains required
-before runtime work.
+revision review rounds are complete; the dated acceptance record below records
+the subsequent maintainer approval before runtime work.
 
 ### Problem statement and verified entry
 
@@ -11410,7 +11411,7 @@ starts no new workflow and is not a P02b-5 implementation test.
 | SDK `PUBLIC_GET_WRAPPERS` presently covers every generated GET path | Separate the exact public operations from the new authenticated contract during regeneration; preserve credential-free public transport. |
 | Name-based telemetry redaction does not sanitize arbitrary exception messages | Token canaries must be absent from logs/spans/error captures, not merely response bodies or named properties. |
 
-### Decisions presented for approval
+### Accepted decisions
 
 This table summarizes owner choices. ADR-0064 is the canonical contract; the
 summary does not redefine its validation details.
@@ -11427,8 +11428,8 @@ summary does not redefine its validation details.
 | G14: routable read | One GET `/api/v1/account/site`: own actor/resolved scope and existing live `PublicSite` data, non-public Off query, physical ReadOnly, no scope parameters. The query itself checks HostAndClaim and matching HostScope before any reader, even when future membership permits row 14. No authoring/private content or platform route. |
 | G20: precedence | Early admission/unknown-host 404 precedes JWT work. Invalid present credentials on known hosts give 401 even on public routes. AccountSite absent credentials give masked 404 on tenant, organization and platform hosts; a scoped authorization result handler prevents a default 401. Rows 8/11/12 and authenticated header mismatches give `tenant_mismatch`; rows 7/10/14 membership refusal and anonymous mismatches give `not_found`. |
 
-These decisions, the disclosure instruments and the five-step plan are one
-approval package. No additional permission question is needed for routine
+The maintainer accepted these decisions, disclosure instruments and five-step
+plan as one package. No additional permission question is needed for routine
 implementation within that accepted scope. A genuinely new security or
 cross-module decision reopens only its affected boundary before implementation.
 
@@ -11458,9 +11459,9 @@ The implementation additionally uses `add-mediatr-handler`, `add-audit-coverage`
 | Realm JSON, Keycloak README, seed | P02b-6 prerequisite receipt: attach audience mapper to issuing client, access-token-only API audience; admin-only identity attributes; preserve `basic` and actual `sub`; converge fresh/warm realms without deleting users or Hub realm. No realm runtime change in P02b-5. | P02b-6 |
 | Frontend auth layout/native admission | P02b-7 owns Auth.js in `apps/web`, bounded auth route/method admission through current GET/HEAD ingress, cookie propagation, refresh/CSRF/logout. No generic ingress exemption. Remove stale `packages/auth` illustration with that decision. | P02b-7 |
 
-The proposal changes no Accepted ADR yet. Acceptance commits the exact dated
-instruments before dependent code; G10/G11/G12-client/G14/G20 then change to
-Accepted together. G12's realm reconciliation, G13, G16 and phase exit stay Open.
+The acceptance commit records the exact dated instruments before dependent
+code; G10/G11/G12-client/G14/G20 are Accepted together. G12's realm
+reconciliation, G13, G16 and phase exit stay Open.
 No prior dated delivery record is rewritten.
 
 ### Five implementation steps
@@ -11658,6 +11659,32 @@ pending explicit approval together. No dependent runtime has started. Acceptance
 first commits the three dated ADR disclosures, row-10 corrections and named
 mutable carrier/catalogue reconciliation, then follows the per-step commit and
 two-round review loop without further routine approval pauses.
+
+### Maintainer acceptance and implementation start (2026-10-19)
+
+The maintainer explicitly approved the revised ADR-0064 and five-step package
+and requested implementation. This accepts G10/G11/G12-client/G14/G20 together;
+realm/reconciliation, session/TTL and remaining phase-exit decisions are not
+accepted implicitly. The two original and two revision review rounds remain
+as-of receipts; this record closes their approval hold without rewriting them.
+
+The first commit records acceptance, ADR-0036's own bounded audit replacement,
+additive attribution clarification and row-10 errata; ADR-0040 and ADR-0052 each
+receive their own exact-query read-mode scope disclosure. Standards 04/10/11 and
+the five new Registered catalogue obligations carry the accepted contract.
+Registration is not implementation evidence. The existing authorization
+behavior, database roles/grants, realm export and production HTTP composition
+remain unchanged in this acceptance commit.
+
+Step 1 now implements the token foundation in isolated composition. Production
+scheme/authorization registration and middleware activation both remain Step 4.
+Every step retains commit, two fresh independent review rounds, verified fixes
+and automatic progression. No further routine implementation approval is needed.
+
+Acceptance checks pass: seven ADR parser controls, five Release corpus tests
+with zero skips, 1,788 relative targets/fragments (one existing illustrative
+placeholder), prose/whitespace checks and insertion-only preservation in all
+three previously Accepted ADRs. No runtime file changes in this first commit.
 
 ### Work deliberately retained by its first consumer
 

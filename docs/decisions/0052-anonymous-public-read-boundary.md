@@ -404,3 +404,42 @@ The mapping is closed and exposes no caller-selected mode.
 This adds no public host ceiling or public request class. Existing host provenance,
 anonymous eligibility, physical ReadOnly protections and mixed-mode refusal remain.
 P02b-4 implements/proves this bounded extension; no new public runtime is claimed.
+
+## Amendment 15 — Exact authenticated read-mode scope (2026-10-19)
+
+**Status: Accepted.** The maintainer accepts
+[ADR-0064](0064-tenant-api-authentication-boundary.md) and the
+[P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19).
+Its [exact relationship to Accepted decisions](0064-tenant-api-authentication-boundary.md#exact-relationship-to-accepted-decisions)
+extends this ADR's Decision/Context authorization of mode-before-announcement
+ordering to exactly the authenticated, non-`[PublicSurface]`
+`GetAccountSiteQuery`. This bounded normative extension is held by ADR-0064;
+it is not an ADR-0041 fact correction. The original public-read decision remains
+intact, with this additional exact owner of its physical read-only ordering.
+
+The existing ambient owner uses READ COMMITTED and awaits
+`SET TRANSACTION READ ONLY` before the sanctioned tenant/organization announcement,
+then dispatches the query through the existing MediatR/audit owner. Positive
+exact-type mode selection is disclosed in
+[ADR-0040 Amendment 13](0040-ambient-unit-of-work.md#amendment-13--exact-authenticated-read-mode-scope-2026-10-19).
+There is no generic authenticated-read or query-name exception, no public marker
+on this request and no separate transaction or nested public dispatch workaround.
+Explicit Off registration produces no normal query audit row; independent
+assertion rejection audits retain their sanctioned path.
+
+Before invoking any reader, AccountSite independently requires `HostAndClaim`, a
+valid non-system actor and matching resolved/host tenant IDs that are initialized,
+nonnil and not the platform sentinel. Nonnull organization IDs are initialized and
+nonnil; a nonnull host organization matches the resolved organization. Under
+ADR-0064, claim-only/`ClaimAndMembership`, missing or mismatched host scope cannot
+reach a reader, including after Phase 03 supplies live membership. Its site data
+retains the anonymous projection's public visibility and independently checked
+host ceiling.
+
+Every institution public read remains `[PublicSurface]`, Off and physically
+read-only with unchanged host provenance, public eligibility, filters and RLS.
+Mixed-mode refusal, frame ownership, setter set and writable defaults remain.
+The original body, metadata and all earlier amendments remain verbatim. Updated
+acceptance carriers are this amendment, ADR-0040's own amendment and Standards 11;
+ADR-0064 and the package own the full register. P02b-5 owns implementation and
+real authenticated-path proofs; this disclosure claims no runtime delivery.

@@ -26,6 +26,8 @@ ingress/caller and anonymous visitor budgets derive from
 native admission and redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+The exact authenticated read-mode extension derives from
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
 
 Producer announcement and common execution ownership derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
@@ -307,15 +309,24 @@ transaction by the step-6 `TransactionBehavior` adapter through
 `TransactionExecutionCoordinator`, from the context admitted at step 4.
 Default ReadWrite transactions announce them as their first SQL statement.
 
-For a physical PublicSurface ReadOnly owner only,
+For a physical PublicSurface ReadOnly owner or the exact authenticated
+`GetAccountSiteQuery` ReadOnly owner only,
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) and
 [ADR-0040 Amendment 8](../decisions/0040-ambient-unit-of-work.md#amendment-8--read-only-public-frames-2026-10-03)
+with each ADR's 2026-10-19 dated scope-extension disclosure under
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md),
 authorize one predecessor: begin READ COMMITTED, execute and await
 `SET TRANSACTION READ ONLY`, then return the owner frame. The existing tenant/
 organization setter follows before any data SQL or handler dispatch. Mode setup
 alone never stamps the tenant-announced marker. If setup fails or is cancelled,
 Begin cleans up the partial transaction and marks rollback-only before rethrowing.
 Mode resets per transaction; poisoning remains sticky for the unit's lifetime.
+
+The authenticated-query extension is Accepted on 2026-10-19; P02b-5 Step 2 owns
+its pending implementation and Step 4 owns HTTP activation. Selection is by exact
+request type, never a query-name suffix, public marker or general authenticated
+read category. It reuses the existing physical owner and tenant announcement;
+the closed setter set and transaction-ownership contracts do not change.
 
 Every institution public read dispatches a marked request through ISender, audit
 Off and GET/HEAD only. Factory HostScope is an independent host ceiling intersected

@@ -2,14 +2,15 @@
 
 ## Status
 
-Proposed — maintainer approval pending. No dependent runtime is authorized.
+Accepted — 2026-10-19. The maintainer approved this revised record and the
+five-step P02b-5 package; implementation remains subject to their proof gates.
 
 **Date:** 2026-10-19
 **Deciders:** @cemil
 **Bounded supersession:** ADR-0036 row 14 (audit clause only);
 ADR-0040 Amendment 8 and ADR-0052 (exact authenticated read-mode scope).
 
-This proposal supplies the security-sensitive access-token profile and HTTP
+This decision supplies the security-sensitive access-token profile and HTTP
 admission contract for P02b-5. It retains ADR-0036's resolution matrix except for
 the precisely named audit disposition below. Acceptance adds dated disclosures
 before implementation; it does not rewrite an Accepted ADR's body or acceptance
@@ -36,7 +37,7 @@ work. The named normative changes are disclosed separately from clarifications.
 ## Considered Options
 
 1. **Strict bearer profile, unchanged ingress floors and closed reads**
-   (recommended). Use ASP.NET Core JWT validation, one explicit claim boundary,
+   (chosen). Use ASP.NET Core JWT validation, one explicit claim boundary,
    the existing tenant factory and one production authenticated site read.
 2. **JWT defaults plus endpoint `[Authorize]`** (rejected). It leaves token
    purpose, actor identity, failed credentials on public endpoints and the
@@ -54,7 +55,7 @@ work. The named normative changes are disclosed separately from clarifications.
 
 ## Decision
 
-Subject to maintainer acceptance, LearnStack validates tenant access tokens with
+LearnStack validates tenant access tokens with
 one strict `learnstack`-realm profile, constructs tenant context once through the
 existing factory, and exposes only enumerated GET/HEAD reads before Phase 03.
 The pre-authentication quotas remain unchanged; an additional quota uses the
@@ -447,13 +448,13 @@ boundary before its first consumer; do not infer authorization from this phase.
 ## Implementation Notes
 
 The [P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
-owns steps, per-step reviews and current implementation status. Acceptance first
+owns steps, per-step reviews and current implementation status. Acceptance
 records dated disclosures in ADR-0036, ADR-0040 and ADR-0052, plus row-10 errata,
 and reconciles Standards 11's PublicSurface-only wording. It registers catalogue
 obligations, and reconciles the named mutable carriers. Architecture 30's blanket
 non-public 401 description changes with the catalogue; its no-authentication
-status changes only with Step 4 activation. No dependent code starts
-before the maintainer accepts both records.
+status changes only with Step 4 activation. The maintainer accepted both records
+before dependent code; acceptance alone does not establish runtime delivery.
 
 Pin JwtBearer to the repository's ASP.NET Core 10.0.12 package line. Keep vendor
 types at the API/infrastructure composition boundary; module contracts carry
@@ -464,8 +465,8 @@ typed LearnStack values only. No Keycloak admin adapter is introduced in P02b-5.
 Retain/implement `Api_Registers_Only_The_Tenant_Realm_Authority` and
 `Backend_RequiresJwt_OnAllAuthenticatedRoutes`, narrowing the latter's blanket
 401 promise to the explicit invalid-credential and absent-credential outcomes
-above. At acceptance,
-register these additional canonical obligations in Standards 21:
+above. Acceptance registers these additional canonical obligations in
+Standards 21:
 
 - `Tenant_Authentication_Profile_Is_Closed`: real-handler signature/profile,
   duplicate-property, purpose, metadata and key-refresh controls.

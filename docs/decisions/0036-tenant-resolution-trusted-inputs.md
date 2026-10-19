@@ -601,6 +601,14 @@ this ADR actually shipped.
 
 ### Staging across packets
 
+> **Erratum — 2026-10-19.** The table below omits row 10 from the rows that
+> require Phase 03 membership to succeed. Row 10 already requires `M covers
+> (T, O)` in the matrix accepted at `803b3810`; authentication only makes it
+> reachable. Rows 7, 10 and 14 remain refused while membership denies all.
+> The row-10 decision is unchanged. Current authority: the matrix and
+> [ADR-0064 § Resolution and attribution](0064-tenant-api-authentication-boundary.md#resolution-and-attribution).
+> Recorded with the false-at-entry evidence in Amendment 13.
+
 | Stage | What exists | What a mismatch produces |
 |---|---|---|
 | **Packet 4** | Rate limiter, effective host, normalizer, trusted hop, assertion comparison, `LoggingTenantAssertionRecorder`. No resolver, no claims, no `IAuditStore` | 404 + metric + `Warning` log. Unreachable in traffic — every request is already rejected by the unresolved-context guard — and exercised by unit tests over a stubbed context. **Packet 4 must not describe the outcome as audited.** |
@@ -609,6 +617,16 @@ this ADR actually shipped.
 | **Packet 9** | `IAuditStore`, `audit_log`, `AuditingTenantAssertionRecorder` | MUST-class rows begin. `tenancy.tenant-assertion.reject` per occurrence for authenticated callers; `tenancy.tenant-assertion.anonymous-burst` per window |
 | **Phase 02b** | Keycloak, `UseAuthentication`, the `tenant_id` claim | The H↔J cross-check goes live through the **same** recorder and the **same** operation key with `metadata.assertionSource = jwt-claim`. Phase 02b's completion criterion is met by this mechanism, not by a second detector |
 | **Phase 03** | `Membership` | Rows 7 and 14 stop failing closed |
+
+> **Erratum — 2026-10-19.** The 2026-09-02 erratum below says rows 6, 9 and 10
+> become live in Phase 02b, then assigns only 7 and 14 to Phase 03. Row 10 can
+> become reachable in Phase 02b but cannot succeed without live membership.
+> Its `M covers (T, O)` term already exists at `9df48d6c`, when that erratum
+> entered the record; the then-shipped `DenyAllTenantMembershipReader` returns
+> false. Rows 6 and 9 need no membership read; rows 7, 10 and 14 do.
+> The row-10 decision is unchanged. Current authority: the matrix and
+> [ADR-0064 § Resolution and attribution](0064-tenant-api-authentication-boundary.md#resolution-and-attribution).
+> Recorded in Amendment 13; the earlier erratum remains verbatim.
 
 > **Erratum — 2026-09-02.** The Packet 7 row says matrix rows **2, 3, 6, 9, 10** become
 > live. Rows 6, 9 and 10 do not: all three require a validated claim in their Auth
@@ -1098,6 +1116,95 @@ The sticky ordinary execution ceiling admits exact requests and refuses privileg
 platform/provisioning and bypass/admin entry. HTTP factory/host provenance, event
 writers and restoration retain their contracts. This is a writer decision change
 held by ADR-0047, not an ADR-0041 erratum. Implementation/proofs remain P02b-4.
+
+### 2026-10-19 — Amendment 13: API authentication and row-10 staging correction
+
+**Status: Accepted.** The maintainer accepts
+[ADR-0064](0064-tenant-api-authentication-boundary.md) and the
+[P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19).
+Its [exact relationship to Accepted decisions](0064-tenant-api-authentication-boundary.md#exact-relationship-to-accepted-decisions)
+separates the following bounded supersession, additive contracts and fact correction.
+This is acceptance disclosure; P02b-5 runtime and its proofs are not delivered here.
+
+**Bounded supersession — row 14's audit clause only.** ADR-0064 replaces
+`otherwise 404 + record under T_j` only where platform-host membership is refused
+without a confirmed host tenant. The 404 and active-membership requirement remain;
+no business context, claimed tenant or platform sentinel is installed for recording.
+The existing recorder gains a synchronous `RecordNoTenantRefusal` path carrying
+closed source/dimension, validated actor and captured correlation, with no tenant
+or asserted tenant value. It increments
+`learnstack_tenant_assertion_unresolved_total` once with only `source=jwt-claim`
+and `dimension=Tenant`, and emits the fixed `membership_unconfirmed` diagnostic.
+The auditing decorator forwards without calling the audit store, opening a connection
+or writing a durable row. Actor and correlation are never metric labels. ADR-0064
+holds this normative replacement; ADR-0041 does not authorize it.
+
+**Additive profile and claimless attribution.** ADR-0064 closes the delegated
+claim shape: scalar UUID `tenant_id`, optional scalar UUID `organization_id`,
+stable UUID `user_id` and opaque external `sub`, under its strict issuer,
+audience, purpose, client and duplicate-free token profile. Only the immutable
+validated projection feeds the existing factory. A validated profile without a
+tenant claim retains its actor for attribution but has only `HostOnly` authority
+on a tenant/organization host. Public reads remain public and Off; protected
+AccountSite returns 404. One fixed `tenant_claim_absent` Debug event follows
+subject admission without claim values, a new metric or a new error code.
+Platform-host claimless row 15 remains unresolved. No origin or context writer
+is added; authentication and actor presence never promote the authority ceiling.
+
+**Existing audit obligations and the explicit attribution seam.** Row 7 already
+requires a rejection audit under the host tenant, but the current resolver only
+logs refusals: P02b-5 must implement that audit rather than claim it already runs.
+Row 10 remains unaudited. Host/claim disagreements use the same recorder and
+`tenancy.tenant_assertion.reject` operation, under the independently confirmed
+host tenant rather than the disagreeing claim. The closed `TenantAssertionSource`
+maps only to `header` or `jwt-claim`; both recorder implementations consume it.
+The rejection carries typed `ActorUserId`, captured request `CorrelationId` and
+nullable `TrustedOrganizationId` explicitly from validated facts. Resolver
+refusals take trusted organization from classification; later header refusals
+take it from the successfully resolved context. Audit rows remain tenant-wide
+with `AuditEntryDraft.OrganizationId = null`; trusted organization is retained as
+`metadata.trustedOrganizationId`, not in the scope column. Correlation is captured
+before refusal and is not reread from a rejected ambient context.
+
+The first failing comparison records once because resolution short-circuits header
+assertions. Separate authenticated requests remain per-occurrence, without
+coalescing or a per-tenant ceiling; anonymous burst behavior and both operation
+slugs remain. A failed rejection audit preserves the refusal and the existing
+Critical/health behavior. Under ADR-0064's explicit HTTP contract, rows 8/11/12
+and authenticated header mismatches return 404 `tenant_mismatch`; membership
+refusals in rows 7/10/14 and anonymous mismatches return 404 `not_found`.
+Malformed/repeated assertions remain 400 `validation_failed`. The pure factory's
+shared `Refused` and generic unresolved MediatR gate retain their contracts.
+AccountSite's outer masked 404 also applies to absent credentials on tenant,
+organization and platform hosts; no platform/unresolved endpoint is introduced.
+
+**Fact correction — row 10 was always membership-dependent.** The staging table
+omits row 10 from Phase 03's fail-closed set. The 2026-09-02 staging erratum then
+groups it with rows 6/9 as becoming live in Phase 02b without that qualification.
+Both statements were false at entry, rather than becoming stale:
+
+- `git show 803b3810:docs/decisions/0036-tenant-resolution-trusted-inputs.md`
+  shows the original accepted row 10 already resolving only `iff M covers (T, O)`
+  while its staging table assigns only rows 7/14 to Phase 03.
+- `git show 9df48d6c:docs/decisions/0036-tenant-resolution-trusted-inputs.md`
+  shows the same membership term beside the newly entered 2026-09-02 erratum.
+  `DenyAllTenantMembershipReader.CoversAsync` already returns `Task.FromResult(false)`
+  at `0a7b5677`, earlier that day, and still does at the decision-pass entry.
+
+Authentication makes rows 7/10/14 reachable; Phase 03 membership is required for
+their success. Rows 6/9 need no membership read. A matching organization claim on
+an organization host takes row 9 and does not implement row 10's membership.
+**The row-10 Decision is unchanged.** Its corrected staging is disclosed under
+[ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md).
+
+**Correction carriers:** this ADR's new erratum immediately below
+§ Staging across packets, the new erratum immediately before its 2026-09-02
+erratum, and this amendment. Original table, earlier erratum, Accepted body,
+metadata and prior amendments remain verbatim. ADR-0040 and ADR-0052 each carry
+their own separate read-mode disclosure; ADR-0064 and the package own the complete
+acceptance-carrier register. Outside ADR-0064's explicit HTTP changes and row-14
+audit replacement, the matrix, status/error clauses, trusted host provenance,
+assertion-only headers, setter/writer sets and membership requirements remain.
 
 ## References
 
