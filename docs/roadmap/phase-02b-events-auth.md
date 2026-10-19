@@ -10181,6 +10181,14 @@ wait; exact source restoration, a fresh clean build and the isolated case pass
 again. This planted failure is a falsifiability control, not passing suite
 evidence. Two fresh correction reviews precede publication.
 
+Correction `18ba1700` completes fresh Round 1 (`gpt-6.1-sol`, high) and Round 2
+(`gpt-6-astra`, high) reviews with no actionable findings. Both independently
+verify real lifetime/consumer ownership, tagged pool use, passive completion,
+refused borrowing, native hint identities and held callbacks against the
+source-specific passing and planted-failure receipts. The restored source is
+clean. These approvals do not infer a missing historical assertion or replace
+the next final source's complete A/B qualification, owned live by PR #32.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
