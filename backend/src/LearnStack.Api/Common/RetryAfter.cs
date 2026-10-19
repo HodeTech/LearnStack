@@ -17,7 +17,7 @@ namespace LearnStack.Api.Common;
 /// rather than where each code is minted, so a third 503 code inherits it.
 /// </para>
 /// <para>
-/// Thirty seconds: the provider circuit breaker's default break duration
+/// The fallback is thirty seconds: the provider circuit breaker's default break duration
 /// (<c>ResilienceOptions.CircuitBreaker.BreakDurationSeconds</c>), so a client that honours
 /// the header does not return while the breaker that refused it is still open. It is a hint
 /// about when a retry is worth making, not a promise the dependency is back by then.

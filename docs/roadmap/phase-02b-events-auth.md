@@ -11210,6 +11210,16 @@ installation verifies both pinned sums and its resulting Go module metadata;
 actionlint accepts the pinned workflow. The quota proposal remains non-runtime
 and awaits the maintainer's accounting choice.
 
+**Additional review round 1.** Two fresh independent reviewers examine
+`62ad318c..cd69bbc6` across backend/contract tests and CI/dependency/evidence
+boundaries. The backend reviewer runs 70 focused cases, zero failures/skips,
+and identifies one valid documentation mismatch: Standards 09 still calls thirty
+seconds unconditional. It now describes the absent/empty default and preservation
+of an explicit value. The CI reviewer independently verifies all seven upstream
+commit identities, 51 shard, seven lifecycle and seven supply-chain controls,
+actionlint and both retained historical 5,482-case unions. These are separate
+local checks, not qualification of the new source.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

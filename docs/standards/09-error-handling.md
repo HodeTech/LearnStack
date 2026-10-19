@@ -153,8 +153,9 @@ that map exists to prevent.
   `HttpStatusMap.For(Exception)`'s existing `LearnStackException known =>
   For(known.Error)` branch maps it — `AuditLogBehavior`'s catch-and-rethrow contract
   is untouched. [04-api-design.md § Status Codes](04-api-design.md) requires
-  `Retry-After` on a 503, and every 503 carries `Retry-After: 30` — thirty seconds being
-  the provider circuit breaker's default break duration. `RetryAfter.Apply` sets it where
+  `Retry-After` on a 503. An explicit delta/date value is preserved; absent or
+  empty values default to `Retry-After: 30`, the provider circuit breaker's default
+  break duration. `RetryAfter.Apply` supplies that default where
   the **status** is decided, on both Problem Details paths — `LearnStackExceptionHandler`
   for an exception, `ProblemDetailsActionResult` for a result — rather than where each code
   is minted, so this 503, `dependency_unavailable` and the idempotency store's capacity
