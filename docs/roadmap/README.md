@@ -129,8 +129,11 @@ not deferred to the showcase phase.
   fresh independent review rounds, are authorized. Step 1 completes the isolated
   token foundation after both independent reviews; its
   [record](phase-02b-events-auth.md#p02b-5-step-1--token-foundation-2026-10-19)
-  owns the verified metric-privacy correction. Step 2 adds the real read-only
-  subject; production activation remains Step 4. Realm reconciliation, BFF sessions and
+  owns the verified metric-privacy correction. Step 2 completes the real read-only
+  subject after both independent review rounds; its
+  [record](phase-02b-events-auth.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19)
+  owns validation. Step 3 adds attributed reconciliation and subject admission;
+  production activation remains Step 4. Realm reconciliation, BFF sessions and
   phase-exit enforcement remain P02b-6–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

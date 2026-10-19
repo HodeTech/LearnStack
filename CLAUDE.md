@@ -241,7 +241,10 @@ authorizes five implementation steps, each with commit and two fresh independent
 review rounds. Step 1 completes acceptance disclosures and the isolated token
 foundation after both independent review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-1--token-foundation-2026-10-19)
-owns the verified metric-privacy correction. Step 2 adds the real read-only subject;
+owns the verified metric-privacy correction. Step 2 completes the real read-only
+subject after both independent review rounds; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19)
+owns validation. Step 3 adds attributed reconciliation and subject admission;
 production authentication activation remains Step 4. Realm
 reconciliation, BFF sessions and phase exit remain
 P02b-6–8.

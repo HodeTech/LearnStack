@@ -11775,7 +11775,7 @@ middleware and HTTP route activation remain Step 4.
 
 ### P02b-5 Step 2 — real read-only application subject (2026-10-19)
 
-**Implementation validated; independent reviews pending.** Entry is `e67c3299`.
+**Complete after both independent review rounds.** Entry is `e67c3299`.
 Tenancy declares the unmarked `GetAccountSiteQuery` and typed `AccountSite`
 projection. Its independent guard requires HostAndClaim, a real non-system actor,
 real matching tenant/host provenance and coherent initialized organization IDs
@@ -11831,6 +11831,22 @@ also reran all 14 actual AccountSite PostgreSQL cases. All pass with zero skips.
 The source review confirmed actual app-role SQL/EF refusals and writable controls,
 future hostless-context refusal, audit Off and unchanged shared projection.
 A stale Standards 11 implementation pointer is reconciled before round 2.
+
+#### Step 2 independent review round 2 and closeout
+
+Two different fresh xhigh reviewers independently rechecked security/correctness
+and module/composition/census boundaries at `e67c3299..e36d47ca`. Both approve
+with zero actionable findings. Each independently passed 73 focused unit cases
+and the extended transaction-composition architecture case; the security reviewer
+also passed all 14 real AccountSite PostgreSQL cases. Zero failures or skips.
+They inspected current source and controls rather than treating round 1 as proof.
+Neither repeated the complete solution or hosted suites; the implementation
+validation above and final Step 5 obligations retain their stated scope.
+
+Implementation is `a736edbb`; `e36d47ca` reconciles the mutable standard and records
+round 1. Both review rounds are complete. Step 3 now implements attributed
+reconciliation, no-tenant diagnostics and subject admission. Production scheme,
+ordered middleware and route activation remain Step 4.
 
 ### Work deliberately retained by its first consumer
 
