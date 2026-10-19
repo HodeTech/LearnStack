@@ -10,8 +10,10 @@ namespace LearnStack.Tests.Integration.Database;
 
 public sealed partial class HangfireStorageTests
 {
-    [Fact]
-    public async Task Synchronous_vendor_factory_joins_the_actual_async_acquisition_without_context_dispatch()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Synchronous_vendor_and_bootstrap_calls_join_the_actual_async_acquisition_without_context_dispatch(bool vendorFactory)
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -38,7 +40,7 @@ public sealed partial class HangfireStorageTests
         var caller = new Thread(() =>
         {
             SynchronizationContext.SetSynchronizationContext(context);
-            try { completed.TrySetResult(factory.GetOrCreateConnection()); }
+            try { completed.TrySetResult(vendorFactory ? factory.GetOrCreateConnection() : source.OpenConnection()); }
             catch (Exception failure) { completed.TrySetException(failure); }
             finally { SynchronizationContext.SetSynchronizationContext(null); }
         })

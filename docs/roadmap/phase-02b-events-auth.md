@@ -10064,6 +10064,25 @@ PostgreSQL remain ARM64, so this cross-architecture experiment does not claim
 native hosted x64 equivalence or root-cause closure. Its two PostgreSQL
 containers are naturally absent afterwards, with exact owned cleanup verified.
 
+The first fresh review verifies the factory correction and identifies bootstrap
+as the other production synchronous source caller. Owning its startup wait does
+not remove the same acquisition hazard. The correction moves to their shared
+`PrivilegedDataSource.OpenConnection` entry, preserving the authority check before
+lazy resolution. Both direct/bootstrap-source and factory paths now receive the
+same actual-driver initializer/context control. Bootstrap verification SQL stays
+synchronous; neither all SQL internals nor the hosted root cause are claimed
+corrected by this acquisition change. The central source correction is requalified
+before its fix commit and the second fresh review.
+
+The central implementation passes the warnings-as-errors Release build, all
+2,452 unit cases, 26 actual PostgreSQL source/factory/role/bootstrap/heartbeat
+cases and both exact credential/bootstrap Architecture guards, without skips.
+Restoring only the old driver call at the shared source makes both direct and
+factory initializer controls fail their actual async-entry premise. These
+controlled mutations are not passing regression evidence; the corrected source
+is restored before the fix commit and follow-up review.
+All three corrected source/factory cases pass again after restoration.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

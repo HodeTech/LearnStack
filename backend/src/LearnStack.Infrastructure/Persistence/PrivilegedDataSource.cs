@@ -55,7 +55,11 @@ public sealed class PrivilegedDataSource(Func<NpgsqlDataSource> factory) : IDisp
     public NpgsqlConnection OpenConnection()
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
-        return Resolve().OpenConnection();
+        // The stock factory and schema bootstrap have synchronous contracts.
+        // Join the driver's actual async DNS/socket path: its sync buffers can
+        // round a positive sub-millisecond remainder to an infinite socket wait.
+        // No detached task, substitute timeout or authority check after Resolve.
+        return Resolve().OpenConnectionAsync().AsTask().GetAwaiter().GetResult();
     }
 
     /// <summary>Checks ordinary-job authority before credential construction, cancellation or pool reuse.</summary>
