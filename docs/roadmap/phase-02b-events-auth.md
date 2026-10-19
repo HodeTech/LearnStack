@@ -11686,6 +11686,49 @@ with zero skips, 1,788 relative targets/fragments (one existing illustrative
 placeholder), prose/whitespace checks and insertion-only preservation in all
 three previously Accepted ADRs. No runtime file changes in this first commit.
 
+### P02b-5 Step 1 — token foundation (2026-10-19)
+
+**Implementation validated; independent reviews pending.** Acceptance was
+committed first at `493d7f92`. The API now contains the closed options/profile,
+immutable typed identity, request-local credential outcome and isolated stock
+JwtBearer registration. `Program.cs` remains unchanged: no production scheme,
+authorization registration, middleware or protected route activates in this step.
+
+The resolved graph uses JwtBearer 10.0.12 and IdentityModel 8.19.2. The latter is
+the selected dependency version at this receipt, not a separate pre-existing pin.
+Raw compact/header and post-signature payload checks reject duplicates, invalid
+shapes, reserved IDs, wrong purpose/client/scope and malformed escaped Unicode.
+The stock handler still owns cryptography, issuer/audience and key refresh.
+
+The owned backchannel refuses redirects and bounds each document to five seconds
+and 256 KiB, including streamed multibyte bodies. Metadata HTTP instrumentation is
+suppressed; unrelated outbound HTTP diagnostics remain observable. Last-known-good
+reuse is disabled. The real rotation proof lowers only the stock manager's public
+on-demand interval to its one-second minimum in isolated test composition; its
+automatic interval remains five minutes and production on-demand remains 30 seconds.
+
+The production Serilog boundary excludes the exact raw JwtBearer category at all
+levels, independently of the ILogger filter. Closed LearnStack outcomes replace
+raw failures. Real loopback gRPC OTLP log/trace collection and the L1 capture path
+prove privacy with allowed-log/error/HTTP-span positives. Natural initial metadata
+failure is stock event 1; a documented test-only interface adapter delegates to
+the same real manager/retriever to qualify stock event 3. Event 7 is independently
+observed. No fabricated provider exception is called a natural metadata failure.
+
+The initial combined integration run exposed concurrent test hosts replacing
+process-global Serilog/OTel state. A dedicated nonparallel diagnostics collection,
+matching the existing public-log test ownership pattern, fixes the test isolation;
+production behavior and every canary assertion remain unchanged.
+
+Validation passes: warnings-as-errors Release solution build; 2,471 unit,
+209 Docker-free integration and four contract cases, all with zero skips. The
+integration total includes 18 configuration cases, eight real-handler cases with
+independent negative/positive matrices and six full diagnostic cases. The complete
+architecture suite passes all 410 cases with zero skips; scoped format verification
+and the acceptance-carrier link/prose checks also pass. No database/realm/frontend
+runtime changes or Docker-suite evidence are claimed for this isolated token slice. Catalogue
+obligations remain Registered until their complete active-path owners ship.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile

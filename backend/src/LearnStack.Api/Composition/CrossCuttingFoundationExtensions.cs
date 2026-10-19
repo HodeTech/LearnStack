@@ -2,6 +2,7 @@ using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.Modules.Customization.Application.IntegrationEvents;
 using LearnStack.Api.Common;
+using LearnStack.Api.Authentication;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.ErrorTracking;
 using LearnStack.Infrastructure.Observability;
@@ -165,6 +166,7 @@ public static class CrossCuttingFoundationExtensions
         {
             cfg.ReadFrom.Configuration(ctx.Configuration)
                 .ReadFrom.Services(services)
+                .Filter.ByExcluding(TenantAuthenticationDiagnostics.IsVendorEvent)
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("service.name", "learnstack-api")
                 // ADR-0032 § Sub-decision 8: the correlation-context enricher

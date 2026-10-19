@@ -1,0 +1,75 @@
+using System.Text;
+using Microsoft.IdentityModel.Protocols;
+using OpenTelemetry;
+
+namespace LearnStack.Api.Authentication;
+
+/// <summary>One owned client; finite I/O, no redirects or instrumented credential metadata.</summary>
+internal sealed class TenantAuthenticationBackchannel : IDisposable
+{
+    internal static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
+    internal const int MaximumDocumentBytes = 256 * 1024;
+
+    internal HttpClient Client { get; } = new(new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        ConnectTimeout = Timeout,
+        UseCookies = false,
+    })
+    { Timeout = Timeout, MaxResponseContentBufferSize = MaximumDocumentBytes };
+
+    public void Dispose() => Client.Dispose();
+}
+
+/// <summary>The stock configuration manager consumes documents through this bounded transport.</summary>
+internal sealed class TenantOidcDocumentRetriever(
+    TenantAuthenticationOptions settings,
+    TenantAuthenticationBackchannel backchannel) : IDocumentRetriever
+{
+    public async Task<string> GetDocumentAsync(string address, CancellationToken cancel)
+    {
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri)
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || !string.IsNullOrEmpty(uri.Fragment)
+            || (uri.Scheme != Uri.UriSchemeHttps
+                && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback
+                    && new Uri(settings.Issuer).Scheme == Uri.UriSchemeHttp)))
+        {
+            throw new IOException("Tenant authentication metadata refused.");
+        }
+
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        deadline.CancelAfter(TenantAuthenticationBackchannel.Timeout);
+        // Metadata addresses and provider errors must not become exported HTTP spans.
+        using var suppression = SuppressInstrumentationScope.Begin();
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        using var response = await backchannel.Client.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
+        if (!response.IsSuccessStatusCode
+            || response.Content.Headers.ContentLength > TenantAuthenticationBackchannel.MaximumDocumentBytes)
+        {
+            throw new IOException("Tenant authentication metadata refused.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
+        using var body = new MemoryStream();
+        var buffer = new byte[8192];
+        while (true)
+        {
+            var remaining = TenantAuthenticationBackchannel.MaximumDocumentBytes - (int)body.Length;
+            var read = await stream.ReadAsync(
+                buffer.AsMemory(0, Math.Min(buffer.Length, remaining + 1)), deadline.Token);
+            if (read == 0)
+            {
+                return Encoding.UTF8.GetString(body.GetBuffer(), 0, (int)body.Length);
+            }
+
+            if (read > remaining)
+            {
+                throw new IOException("Tenant authentication metadata refused.");
+            }
+
+            body.Write(buffer, 0, read);
+        }
+    }
+}
