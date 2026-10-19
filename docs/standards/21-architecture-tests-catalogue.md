@@ -39,7 +39,8 @@ owns review, packet and exact PR-head CI/job-budget status),
 (Accepted 2026-10-18; general CI obligation implemented; the phase record owns
 final-source hosted qualification),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
-(Accepted 2026-10-19; P02b-5 obligations Registered; runtime pending).
+(Accepted 2026-10-19; P02b-5 obligations implemented; Step 5 owns final review
+and full hosted qualification).
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -4552,8 +4553,8 @@ structural test proves — and what it does not.
   `backend/tests/LearnStack.Tests.Architecture/AuthenticationAuthorityTests.cs`.
   Its real production graph closes typed projection creation, feature writes,
   immutable shape and direct actor/scope/subject accessor consumers. Compiled
-  role/claim and forged/clone/subject-permission probes use the same detector;
-  predicate mutation,
+  role/claim, interface role-metadata, deconstruction and forged/clone/subject
+  permission probes use the same detector; predicate mutation,
   missing real subjects and same-owner additional writes fail independently.
 - **Status:** **Implemented** (`AuthenticationAuthorityTests`).
 - **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.

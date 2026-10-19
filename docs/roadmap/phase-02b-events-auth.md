@@ -12074,6 +12074,49 @@ not close the failed complete run. Native Linux,
 full hosted execution, both Step 5 review rounds and packet closeout remain
 pending. No population, assertion, grant or production SQL is waived.
 
+#### Step 5 independent review round 1 and verified corrections
+
+Two fresh independent xhigh reviewers inspected `a7c9d5a3..d4639529` across
+security/authority and corpus/test falsifiability. They verified two Major
+structural-enforcement gaps, with no current production authority misuse:
+interface `IAuthorizeData.Roles` assignment escaped the concrete-role predicate,
+and generated-record `Deconstruct` exposed subject/scope without external getter
+calls. Both used compiled probes against the actual detector and real production
+graph; the interface metadata also produced a real framework role requirement.
+
+The root reproduced each independently with new compiled negative controls:
+the unchanged scanner first failed the interface control; fixing that predicate
+then exposed the deconstruction control as a second failing test. Interface
+role getter/setter calls and identity deconstruction are now refused by the same
+production detector. Existing clean, predicate-mutation, missing-subject,
+factory, immutable-shape and same-owner additional-write controls remain.
+The suggested extra-constructor concern was not a verified finding: an ordinary
+additional constructor on this positional record delegates to the primary
+constructor and adds an already rejected caller.
+
+Verified Minor corrections reconcile the catalogue's stale Registered/runtime
+pending header and ADR-0064 derivations in Standards 02/05/09/20. README now
+separates active API authentication from future browser sign-in and documents
+mandatory issuer configuration without a startup network dependency.
+
+The complete Release architecture run also caught the older job-manifest census
+still expecting only two public controllers. Its exact inventory now adds only
+AccountController/GetSite, keeps every production controller/action in the scan
+and plants an extra AccountSite action into the same detector. It does not add
+an operator route or dashboard exception. Nine focused Debug authority/corpus/
+manifest cases pass, zero failures/skips. The maintained terminal-plan case also
+passes separately in Debug with unchanged normal-planner and dirty/clean bounds.
+Seven ADR parser controls and the carrier/whitespace checks pass.
+
+The original broad local architecture/PostgreSQL runs and the first hosted run
+retain their actual results; focused correction proof is not a claim that those
+runs passed. The complete hosted run is
+[39318063296](https://github.com/HodeTech/LearnStack/actions/runs/39318063296)
+at `d46395299f46428bc175b82745392505b1779a86`; it is still in progress at this
+receipt. Both independent review opinions and verified corrections close round
+1. Round 2 uses two different fresh reviewers on the corrected slice; complete
+current-source hosted qualification and packet closeout remain pending.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile

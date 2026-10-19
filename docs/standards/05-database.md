@@ -26,6 +26,8 @@ write path, not on the `tenants` CHECK**),
 ships unwritten**).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+Tenant API authentication additions derive from
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
 Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 Delivery/recovery additions derive from

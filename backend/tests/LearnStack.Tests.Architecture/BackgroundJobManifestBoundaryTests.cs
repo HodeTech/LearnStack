@@ -11,8 +11,9 @@ public sealed partial class OutboxDispatchConventionTests
 {
     private static readonly (string Controller, string[] Actions)[] JobManifestControllerActions =
     [
-        ("PublicSiteController", ["Get", "Head"]),
-        ("PublicEducationController", ["Catalog", "HeadCatalog", "Course", "HeadCourse", "Lesson", "HeadLesson"]),
+        ("LearnStack.Api.PublicReads.PublicSiteController", ["Get", "Head"]),
+        ("LearnStack.Api.PublicReads.PublicEducationController", ["Catalog", "HeadCatalog", "Course", "HeadCourse", "Lesson", "HeadLesson"]),
+        ("LearnStack.Api.Account.AccountController", ["GetSite"]),
     ];
 
     /// <summary>ADR-0047: disk-discovered modules cannot hide declarations outside the live handler scan.</summary>
@@ -85,6 +86,7 @@ public sealed partial class OutboxDispatchConventionTests
         AssertMutation(census, "dashboard activation hidden in a generic middleware argument", () =>
             AddCallProbe(scaffold, "HiddenGenericDashboard", useDashboard, OpCodes.Call), JobManifestOffenders);
         foreach (var siteController in new[] { types[("LearnStack.Api", "LearnStack.Api.PublicReads.PublicSiteController")],
+                     types[("LearnStack.Api", "LearnStack.Api.Account.AccountController")],
                      types[("LearnStack.Api", "LearnStack.Api.Common.ApiControllerBase")] })
             AssertMutation(census, "a new declared or inherited public action on an approved controller", () =>
         {
@@ -153,11 +155,11 @@ public sealed partial class OutboxDispatchConventionTests
                 || type.Fields.Any(field => DashboardCapability(field.FieldType)))
                 offenders.Add("Production Hangfire dashboard holder: " + TypeId(type));
         CheckSet(offenders, "complete production controller population", types.Values.Where(IsController).Select(TypeId),
-            ["LearnStack.Api:LearnStack.Api.PublicReads.PublicSiteController", "LearnStack.Api:LearnStack.Api.PublicReads.PublicEducationController"]);
-        CheckSet(offenders, "exact public controller actions", types.Values.Where(IsController)
+            JobManifestControllerActions.Select(controller => "LearnStack.Api:" + controller.Controller));
+        CheckSet(offenders, "exact production controller actions", types.Values.Where(IsController)
                 .SelectMany(ControllerActions).Select(MethodId),
             JobManifestControllerActions.SelectMany(controller => controller.Actions.Select(name =>
-                Method(types[("LearnStack.Api", "LearnStack.Api.PublicReads." + controller.Controller)], name))));
+                Method(types[("LearnStack.Api", controller.Controller)], name))));
         foreach (var contract in new[] { typeof(IBackgroundJobDefinitionCatalog), typeof(IBackgroundJobRequestCatalog) })
         {
             var declaration = types[(KernelAssembly, contract.FullName!)];

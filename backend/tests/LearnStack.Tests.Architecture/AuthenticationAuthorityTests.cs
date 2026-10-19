@@ -69,9 +69,9 @@ public sealed partial class AuthenticationAuthorityTests
         Require(method => method.Name == "Set" && method is GenericInstanceMethod generic
                 && generic.GenericArguments.Any(argument => Is(argument, Feature)), Events + ".MessageReceived");
         foreach (var call in calls.Where(call => Is(call.Target.DeclaringType, Identity)
-                     && (call.Target.Name.StartsWith("set_", StringComparison.Ordinal) || call.Target.Name == "<Clone>$")
+                     && (call.Target.Name.StartsWith("set_", StringComparison.Ordinal) || call.Target.Name is "<Clone>$" or "Deconstruct")
                  || Is(call.Target.DeclaringType, Events) && call.Target.Name == "TokenValidated"))
-            errors.Add("Cannot forge, clone, mutate or directly invoke validated identity: " + call.Source.Site);
+            errors.Add("Cannot forge, clone, mutate, deconstruct or directly invoke validated identity: " + call.Source.Site);
 
         // Issuer/sub may select a private accounting partition, never permission.
         // Scope/actor consumption remains explicit even inside the API assembly.
@@ -144,7 +144,8 @@ public sealed partial class AuthenticationAuthorityTests
         || target.DeclaringType.FullName is
             "Microsoft.AspNetCore.Authorization.Infrastructure.RolesAuthorizationRequirement"
             or "Microsoft.AspNetCore.Authorization.Infrastructure.ClaimsAuthorizationRequirement"
-        || target.DeclaringType.FullName == "Microsoft.AspNetCore.Authorization.AuthorizeAttribute" && target.Name == "set_Roles";
+        || target.DeclaringType.FullName is "Microsoft.AspNetCore.Authorization.AuthorizeAttribute"
+            or "Microsoft.AspNetCore.Authorization.IAuthorizeData" && target.Name is "get_Roles" or "set_Roles";
 
     private static Func<MethodReference, bool> Target(string type, string name, int? parameters = null) =>
         method => Is(method.DeclaringType, type) && method.Name == name

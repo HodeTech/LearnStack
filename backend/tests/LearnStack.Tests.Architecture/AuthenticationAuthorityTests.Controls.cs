@@ -23,7 +23,7 @@ public sealed partial class AuthenticationAuthorityTests
         foreach (var name in new[] { nameof(AuthorityProbe.Role), nameof(AuthorityProbe.InterfaceRole), nameof(AuthorityProbe.IdentityName),
                      nameof(AuthorityProbe.Claim), nameof(AuthorityProbe.ClaimSet),
                      nameof(AuthorityProbe.Email), nameof(AuthorityProbe.Authenticated), nameof(AuthorityProbe.RawUser),
-                     nameof(AuthorityProbe.RolePolicy), nameof(AuthorityProbe.ClaimPolicy) })
+                     nameof(AuthorityProbe.RolePolicy), nameof(AuthorityProbe.ClaimPolicy), nameof(AuthorityProbe.InterfaceRoleMetadata) })
         {
             var dirty = methods.Single(method => method.Name == name);
             Offenders(modules, [dirty]).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal), name);
@@ -32,7 +32,7 @@ public sealed partial class AuthenticationAuthorityTests
             blinded.Should().Throw<Xunit.Sdk.XunitException>("a weakened raw-reader predicate must fail its dirty control: " + name);
         }
         foreach (var name in new[] { nameof(AuthorityProbe.Forge), nameof(AuthorityProbe.ForgeFeature),
-                     nameof(AuthorityProbe.Clone), nameof(AuthorityProbe.SubjectPermission) })
+                     nameof(AuthorityProbe.Clone), nameof(AuthorityProbe.SubjectPermission), nameof(AuthorityProbe.SubjectDeconstruct) })
             Offenders(modules, [methods.Single(method => method.Name == name)]).Should().NotBeEmpty(name);
         Offenders(modules, [methods.Single(method => method.Name == nameof(AuthorityProbe.TypedActor))])
             .Should().BeEmpty("an application UserId is not raw provider-claim authority");
@@ -102,10 +102,20 @@ public sealed partial class AuthenticationAuthorityTests
         internal static ClaimsPrincipal RawUser(HttpContext context) => context.User;
         internal static AuthorizationPolicyBuilder RolePolicy(AuthorizationPolicyBuilder builder) => builder.RequireRole("tenant-admin");
         internal static AuthorizationPolicyBuilder ClaimPolicy(AuthorizationPolicyBuilder builder) => builder.RequireClaim("permission", "write");
+        internal static IAuthorizeData InterfaceRoleMetadata(IAuthorizeData metadata)
+        {
+            metadata.Roles = "tenant-admin";
+            return metadata;
+        }
         internal static ValidatedTenantIdentity Forge() => new("issuer", "subject", UserId.From(Guid.Parse("a2999254-8355-43da-86ea-5cbebf105d29")), null, null);
         internal static TenantCredentialFeature ForgeFeature(ValidatedTenantIdentity identity) => new() { Identity = identity };
         internal static ValidatedTenantIdentity Clone(ValidatedTenantIdentity identity) => identity with { Subject = "tenant-admin" };
         internal static bool SubjectPermission(ValidatedTenantIdentity identity) => identity.Subject == "tenant-admin";
+        internal static bool SubjectDeconstruct(ValidatedTenantIdentity identity)
+        {
+            var (_, subject, _, _, _) = identity;
+            return subject == "tenant-admin";
+        }
         internal static bool TypedActor(UserId user) => user == UserId.SystemActor;
     }
 }

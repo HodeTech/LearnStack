@@ -37,7 +37,7 @@ the boundary between customization and capabilities that require platform code.
 
 > **Under active development.** The backend foundation and Education schema are
 > implemented. The first working browser experience is the current milestone;
-> authentication, enrolment, payments and live teaching are still ahead.
+> browser sign-in, enrolment, payments and live teaching are still ahead.
 > See [current status](#where-it-is-today) before trying the local scaffold.
 
 ## What it does
@@ -162,7 +162,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery and transactional/external background jobs | API authentication, realm reconciliation and BFF sessions in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs and the closed tenant bearer/AccountSite boundary | P02b-5 final qualification, then realm reconciliation and BFF sessions in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
@@ -269,6 +269,12 @@ no-hop API startup remains supported outside this paired renderer recipe; supply
 both `ConnectionStrings:Default` (`learnstack_app`) and
 `ConnectionStrings:OutboxDispatcher` (`learnstack_outbox_admin`). The mandatory
 API worker verifies dispatcher connectivity at startup.
+Supply `Authentication:Tenant:Issuer` too: the canonical HTTPS tenant-realm URL,
+with loopback HTTP allowed only in `Development`. The development configuration
+defaults to `http://localhost:8080/realms/learnstack`; issuer configuration is
+validated without contacting Keycloak at startup. Credential-free public reads
+remain available when Keycloak is stopped. Real realm issuance/reconciliation and
+browser sessions remain P02b-6 and P02b-7 respectively.
 
 **P02d-5 is complete: ingress, visitor budgets and public entry.** The web
 bootstraps the captured host through the API, redirects using enabled/default
@@ -311,7 +317,7 @@ three product surfaces. See the
 | Database | PostgreSQL 18 | Migrations, tenant / organization RLS and integration proofs |
 | Frontend | Next.js 15 · React 19 · TypeScript | App/UI scaffolds; generated SDK and injected transport implemented |
 | Observability | OpenTelemetry · Serilog → OTLP | Cross-cutting backend instrumentation implemented |
-| Identity | Keycloak | Local realms configured; application authentication belongs to Phase 02b |
+| Identity | Keycloak | P02b-5 tenant API bearer boundary active; real realm reconciliation and browser sessions remain P02b-6–7 |
 | Storage and search | SeaweedFS · PostgreSQL full-text search | Selected architecture; feature delivery belongs to Phases 04–05 |
 | Live classroom | LiveKit through a provider adapter | Planned in Phase 08c, starting with Cloud and retaining a self-hosted path |
 
