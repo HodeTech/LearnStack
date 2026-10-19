@@ -16,6 +16,10 @@ export interface PublicDemoFailureRecord {
 }
 
 export function publicDemoWorkerStage(stage: unknown): string | null;
+export function publicDemoChildExited(child: {
+  exitCode: number | null;
+  signalCode: string | null;
+}): boolean;
 export function publicDemoFailure(
   stage: unknown,
   error: unknown,

@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   PublicDemoFailure,
+  publicDemoChildExited,
   publicDemoFailure,
   publicDemoOperation,
 } from '../../scripts/public-demo-diagnostics.mjs';
@@ -17,6 +19,44 @@ const canary = 'private-provider-token-host-url-canary';
 const context = { mode: 'audit', laneIndex: 0, kind: 'catalog', run: 2, workerStage: 'audit' };
 
 describe('closed public demo operation diagnostics', () => {
+  it.each(['normal', 'signal'])(
+    'recognizes an actual native child %s exit before the startup deadline',
+    async (kind) => {
+      const child = spawn(
+        process.execPath,
+        ['-e', kind === 'normal' ? 'process.exit(0)' : 'process.kill(process.pid, "SIGTERM")'],
+        { stdio: 'ignore' },
+      );
+      const exited = once(child, 'exit');
+      try {
+        expect(publicDemoChildExited(child)).toBe(false);
+        await exited;
+        expect(publicDemoChildExited(child)).toBe(true);
+        const status = { exitCode: child.exitCode, signalCode: child.signalCode };
+        expect(status).toEqual(
+          kind === 'normal'
+            ? { exitCode: 0, signalCode: null }
+            : { exitCode: null, signalCode: 'SIGTERM' },
+        );
+        expect(
+          publicDemoFailure(
+            'startup-port',
+            new PublicDemoFailure('chromium-exited'),
+            context,
+            status,
+          ),
+        ).toMatchObject({
+          reason: 'chromium-exited',
+          exitCode: status.exitCode,
+          signal: status.signalCode,
+        });
+      } finally {
+        if (!publicDemoChildExited(child)) child.kill('SIGKILL');
+        await exited;
+      }
+    },
+  );
+
   it('returns a successful operation result only after owned cleanup without recording failure', async () => {
     const events: string[] = [];
     const result = await publicDemoOperation({
@@ -54,7 +94,7 @@ describe('closed public demo operation diagnostics', () => {
         : Object.assign(new PublicDemoFailure(reason), { message: canary });
     const operation = publicDemoOperation({
       input: { ...context, url: canary, token: canary },
-      child: () => ({ exitCode: 1, signalCode: 'SIGTRAP', stderr: canary }),
+      child: () => ({ exitCode: 1, signalCode: null, stderr: canary }),
       record: (row: unknown) => {
         failure ??= row;
       },
@@ -76,7 +116,7 @@ describe('closed public demo operation diagnostics', () => {
       run: 2,
       workerStage: stage === 'worker' ? 'audit' : null,
       exitCode: 1,
-      signal: 'SIGTRAP',
+      signal: null,
     });
     expect(JSON.stringify(failure)).not.toContain(canary);
     expect(cleanups).toBe(1);

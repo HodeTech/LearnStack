@@ -37,6 +37,10 @@ export class PublicDemoFailure extends Error {
 
 export const publicDemoWorkerStage = (stage) => (workerStages.has(stage) ? stage : null);
 
+/** Node records signal termination separately from a numeric exit code. */
+export const publicDemoChildExited = (child) =>
+  child.exitCode !== null || child.signalCode !== null;
+
 /** Only closed phase/context and native process status may enter public artifacts. */
 export function publicDemoFailure(stage, error, input = {}, child) {
   const phase = stages.has(stage) ? stage : 'proof';

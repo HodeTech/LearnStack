@@ -11,6 +11,7 @@ import { chromium } from 'playwright';
 import { digest, reportAdvisories, reportInventory } from './public-demo-contract.mjs';
 import {
   PublicDemoFailure,
+  publicDemoChildExited,
   publicDemoFailure,
   publicDemoOperation,
   publicDemoWorkerStage,
@@ -142,7 +143,7 @@ export async function verifyPublicDemo(runtime) {
         const startupDeadline = Date.now() + remaining(10000);
         while (!existsSync(portFile)) {
           remaining(10000);
-          if (browser.child.exitCode !== null) throw new PublicDemoFailure('chromium-exited');
+          if (publicDemoChildExited(browser.child)) throw new PublicDemoFailure('chromium-exited');
           if (Date.now() >= startupDeadline) throw new PublicDemoFailure('deadline');
           await pause(50, undefined, { signal: runtime.signal });
         }
