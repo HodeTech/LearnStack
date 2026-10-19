@@ -1,8 +1,10 @@
 using System.Net;
 using FluentAssertions;
 using LearnStack.Api.Authentication;
+using LearnStack.SharedKernel.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -22,6 +24,45 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
     private const string VendorSinkCanary = "private-vendor-sink-18f1bddae593";
     private const string AllowedLog = "allowed-application-diagnostic-18f1bddae593";
     private const string AllowedError = "allowed-application-error-18f1bddae593";
+    private static readonly Action<Microsoft.Extensions.Logging.ILogger, string, Exception?> AllowedLoggerMessage =
+        LoggerMessage.Define<string>(LogLevel.Information, new EventId(918, "AllowedDiagnostic"), "{AllowedDiagnostic}");
+    private static readonly Action<Microsoft.Extensions.Logging.ILogger, string, Exception?> AllowedWarningMessage =
+        LoggerMessage.Define<string>(LogLevel.Warning, new EventId(920, "AllowedWarning"), "{AllowedDiagnostic}");
+
+    [Theory]
+    [InlineData(LogLevel.Trace, false)]
+    [InlineData(LogLevel.Warning, false)]
+    [InlineData(LogLevel.Trace, true)]
+    public async Task The_ILogger_filter_suppresses_only_the_exact_vendor_category_and_preserves_other_thresholds(
+        LogLevel minimumLevel, bool categoryWarning)
+    {
+        using var observed = new DiagnosticVendorProvider();
+        var services = new ServiceCollection();
+        services.AddLogging(logging =>
+        {
+            logging.AddProvider(observed).SetMinimumLevel(minimumLevel);
+            if (categoryWarning) logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+        });
+        services.AddLearnStackTenantAuthentication(TenantAuthenticationOptions.Create(
+            "https://issuer.invalid/realms/learnstack", DeploymentMode.SaaS));
+        await using var provider = services.BuildServiceProvider();
+        var factory = provider.GetRequiredService<ILoggerFactory>();
+
+        var vendor = factory.CreateLogger(TenantAuthenticationDiagnostics.VendorCategory);
+        foreach (var level in Enum.GetValues<LogLevel>().Where(level => level != LogLevel.None))
+        {
+            LoggerMessage.Define<string>(level, new EventId(919, "VendorDiagnostic"), "{PrivateDiagnostic}")
+                (vendor, VendorSinkCanary, null);
+        }
+        AllowedLoggerMessage(factory.CreateLogger(TenantAuthenticationDiagnostics.VendorCategory + ".Unrelated"), AllowedLog, null);
+        AllowedWarningMessage(factory.CreateLogger(TenantAuthenticationDiagnostics.VendorCategory + ".Unrelated"), AllowedLog + "-warning", null);
+
+        observed.Entries.Should().OnlyContain(entry =>
+            entry.Category == TenantAuthenticationDiagnostics.VendorCategory + ".Unrelated");
+        observed.Entries.Should().ContainSingle(entry => entry.Message == AllowedLog + "-warning");
+        observed.Entries.Count(entry => entry.Message == AllowedLog).Should()
+            .Be(minimumLevel <= LogLevel.Information && !categoryWarning ? 1 : 0);
+    }
 
     [Theory]
     [InlineData("issuer", 1, "validation")]
@@ -133,6 +174,8 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
             }
             logger.ForContext("SourceContext", TenantAuthenticationDiagnostics.VendorCategory + ".Unrelated")
                 .Information("{AllowedDiagnostic}", AllowedLog);
+            AllowedLoggerMessage(app.Services.GetRequiredService<ILoggerFactory>()
+                .CreateLogger(TenantAuthenticationDiagnostics.VendorCategory + ".Unrelated"), AllowedLog + "-ILogger", null);
             using var allowedError = await client.GetAsync("/diagnostic/allowed-error");
             allowedError.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
             observed.Captures.Should().ContainSingle().Which.Exception.Message.Should().Be(AllowedError);
@@ -175,6 +218,6 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
             collector.AllPayloads.Should().NotContain(value);
             captures.Should().NotContain(value);
         }
-        structured.Should().Contain(AllowedLog).And.Contain(AllowedError);
+        structured.Should().Contain(AllowedLog + "-ILogger").And.Contain(AllowedError);
     }
 }

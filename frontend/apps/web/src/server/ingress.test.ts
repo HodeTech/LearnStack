@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, request } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -215,17 +215,30 @@ describe('private local configuration', () => {
     ).toBe('explicit');
   });
 
-  it('loads an API issuer without letting ambient configuration silently replace it', () => {
+  it('resolves API issuer across source, projection and ambient inputs only for the API launcher', () => {
     const key = 'Authentication__Tenant__Issuer';
     const issuer = 'https://identity.example/realms/learnstack';
+    const options = { apiAuthentication: true };
+    const projectionDirectory = join(directory, 'frontend/apps/web');
+    mkdirSync(projectionDirectory, { recursive: true });
+    const projectionPath = join(projectionDirectory, '.env.local');
     writeFileSync(join(directory, '.env'), key + '=' + issuer);
-    expect(loadLocalEnvironment(directory, {})[key]).toBe(issuer);
-    expect(loadLocalEnvironment(directory, { [key]: issuer })[key]).toBe(issuer);
-    expect(() => loadLocalEnvironment(directory, { [key]: issuer + '-hub' })).toThrow(
+    writeFileSync(projectionPath, key + '=' + issuer);
+    expect(loadLocalEnvironment(directory, {}, options)[key]).toBe(issuer);
+    expect(loadLocalEnvironment(directory, { [key]: issuer }, options)[key]).toBe(issuer);
+    expect(() => loadLocalEnvironment(directory, { [key]: issuer + '-hub' }, options)).toThrow(
       'Conflicting API authentication configuration',
     );
+    writeFileSync(projectionPath, key + '=' + issuer + '-hub');
+    expect(() => loadLocalEnvironment(directory, {}, options)).toThrow(
+      'Conflicting API authentication configuration',
+    );
+    expect(loadLocalEnvironment(directory, { [key]: 'unrelated' })[key]).toBeUndefined();
     writeFileSync(join(directory, '.env'), '');
-    expect(loadLocalEnvironment(directory, { [key]: issuer })[key]).toBe(issuer);
+    writeFileSync(projectionPath, key + '=' + issuer);
+    expect(loadLocalEnvironment(directory, {}, options)[key]).toBe(issuer);
+    writeFileSync(projectionPath, '');
+    expect(loadLocalEnvironment(directory, { [key]: issuer }, options)[key]).toBe(issuer);
   });
 
   const configuration = {

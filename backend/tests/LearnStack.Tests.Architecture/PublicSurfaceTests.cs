@@ -54,6 +54,8 @@ public sealed class PublicSurfaceTests
                 Dispatches(type, action.Name).Should().BeTrue($"{controller.Name}.{action.Name} must construct a marked query and call ISender.Send");
         }
         MinimalBypasses(module).Should().BeEmpty("the only direct data-free MapGet admitted here is the existing healthz bootstrap");
+        EndpointCompositionControls.Plant(module, because => MinimalBypasses(module).Should().NotBeEmpty(because));
+        MinimalBypasses(module).Should().BeEmpty("restoring production composition restores the clean control");
     }
 
     [Fact]
@@ -82,7 +84,9 @@ public sealed class PublicSurfaceTests
         var call = Il.Methods(module.GetType(typeof(MinimalProbe).FullName!.Replace('+', '/'))).SelectMany(method => method.Definition.Body.Instructions)
             .Select(instruction => instruction.Operand).OfType<MethodReference>().Single(reference => reference.Name == "MapGet");
         var writer = map.Body.GetILProcessor();
+        writer.Emit(Mono.Cecil.Cil.OpCodes.Ldnull);
         writer.Emit(Mono.Cecil.Cil.OpCodes.Ldstr, "/healthz");
+        writer.Emit(Mono.Cecil.Cil.OpCodes.Ldnull);
         writer.Emit(Mono.Cecil.Cil.OpCodes.Call, call);
         MinimalBypasses(module).Should().NotContain("Program", "one existing health bootstrap is the clean control");
         writer.Emit(Mono.Cecil.Cil.OpCodes.Call, call);
@@ -290,11 +294,14 @@ public sealed class PublicSurfaceTests
     private static IEnumerable<string> MinimalBypasses(ModuleDefinition module) => Types([module]).Where(type =>
     {
         var methods = Il.Methods(type).Where(method => method.Definition.HasBody).ToArray();
-        var calls = methods.SelectMany(method => method.Definition.Body.Instructions)
-            .Select(instruction => instruction.Operand).OfType<MethodReference>()
-            .Where(call => call.Name is "MapGet" or "MapPost" or "MapPut" or "MapDelete" or "MapPatch" or "MapMethods").ToArray();
-        return calls.Length != 0 && !(type.Name == "Program" && calls.Length == 1
-            && methods.Any(method => method.Definition.Body.Instructions.Any(item => item.Operand is string path && path == "/healthz")));
+        var calls = methods.SelectMany(method => method.Definition.Body.Instructions
+                .Where(instruction => instruction.Operand is MethodReference call && EndpointComposition.IsCapability(call))
+                .Select(instruction => (method.Definition, Instruction: instruction, Call: (MethodReference)instruction.Operand)))
+            .Where(site => !EndpointComposition.IsMapping(site.Call)
+                || site.Call.Name is not ("MapControllers" or "MapOpenApi" or "MapScalarApiReference")).ToArray();
+        return calls.Length != 0 && !(type.Name == "Program" && calls.Length == 1 && calls[0].Call.Name == "MapGet"
+            && calls[0].Instruction.OpCode == OpCodes.Call
+            && EndpointComposition.HasLiteralPath(calls[0].Definition, calls[0].Instruction, "/healthz"));
     }).Select(type => type.FullName.Replace('/', '+'));
 
     internal static IEnumerable<string> PersistenceOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map)

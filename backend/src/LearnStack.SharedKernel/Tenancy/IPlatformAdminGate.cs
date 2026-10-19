@@ -8,8 +8,8 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// because
 /// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
 /// § The platform-admin override is not a resolution source</see> requires the
-/// permission to be "checked before the scope opens" — and with no principal anywhere in
-/// the process, a collaborator is the only way to make that a real call rather than a
+/// permission to be "checked before the scope opens" — a collaborator makes that a
+/// real call rather than a
 /// comment. Phase 03 replaces the shipped implementation with one that reads the actor's
 /// platform-scope permission.
 /// </remarks>
@@ -23,18 +23,17 @@ public interface IPlatformAdminGate
 /// <remarks>
 /// <para>
 /// <b>This is correct, and it will look like a bug</b> — the same shape and the same
-/// argument as <see cref="DenyAllTenantMembershipReader"/>. There is no authenticated
-/// principal until Phase 02b and no permission to hold until Phase 03, so "nobody holds
+/// argument as <see cref="DenyAllTenantMembershipReader"/>. P02b-5 authenticates tenant
+/// principals but no application permission exists until Phase 03, so "nobody holds
 /// a platform-scope permission" is the true answer rather than a placeholder, and a gate
 /// that were permissive in Development would reproduce exactly the configuration
 /// inversion the composition root argues against elsewhere: the demo passes and
 /// production refuses.
 /// </para>
 /// <para>
-/// <b>Nothing can reach it in Packet 7</b> — no production caller enters the scope. The
-/// consequence worth naming ahead of time is Packet 9's: its GDPR redaction handler is
-/// the first real caller, and it inherits a closed gate, so Packet 9 either lands a gate
-/// implementation of its own or waits for Phase 03.
+/// <b>Callers still inherit a closed gate.</b> Redaction and other privileged
+/// operations cannot use tenant authentication as a platform-scope permission.
+/// Phase 03 owns the permission-aware replacement.
 /// </para>
 /// </remarks>
 public sealed class DenyAllPlatformAdminGate : IPlatformAdminGate

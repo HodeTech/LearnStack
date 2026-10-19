@@ -69,7 +69,7 @@ public sealed class TransactionBehaviorTests
         var behavior = new TransactionBehavior<GetAccountSiteQuery, Result<AccountSite>>(
             new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
                 new AuditStateCapture(), producer, new DomainEventCollector(producer, Substitute.For<IPublisher>()),
-                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), declarations);
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog(declarations));
         declarations.Clear();
 
         var result = await behavior.Handle(new GetAccountSiteQuery(), () =>
@@ -86,6 +86,23 @@ public sealed class TransactionBehaviorTests
     }
 
     [Fact]
+    public void Site_registration_is_idempotent_and_the_catalog_is_shared_across_scopes()
+    {
+        var services = new ServiceCollection();
+        services.AddLearnStackMediatRPipeline();
+        services.AddTenantSiteReads();
+        services.AddTenantSiteReads();
+        using var provider = services.BuildServiceProvider();
+        using var first = provider.CreateScope();
+        using var second = provider.CreateScope();
+        first.ServiceProvider.GetServices<ExplicitReadOnlyRequest>().Should().ContainSingle()
+            .Which.RequestType.Should().Be<GetAccountSiteQuery>();
+        var catalog = first.ServiceProvider.GetRequiredService<ExplicitReadOnlyRequestCatalog>();
+        second.ServiceProvider.GetRequiredService<ExplicitReadOnlyRequestCatalog>().Should().BeSameAs(catalog);
+        catalog.RequestTypes.Should().Equal(typeof(GetAccountSiteQuery));
+    }
+
+    [Fact]
     public async Task A_namesake_request_remains_writable_despite_the_account_declaration()
     {
         var unit = new RecordingUnitOfWork();
@@ -94,7 +111,7 @@ public sealed class TransactionBehaviorTests
         var behavior = new TransactionBehavior<Namesake.GetAccountSiteQuery, Result<string>>(
             new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
                 new AuditStateCapture(), producer, new DomainEventCollector(producer, Substitute.For<IPublisher>()),
-                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), declarations);
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog(declarations));
         declarations.Add(new(typeof(Namesake.GetAccountSiteQuery)));
 
         var result = await behavior.Handle(new Namesake.GetAccountSiteQuery(), () =>
@@ -120,7 +137,7 @@ public sealed class TransactionBehaviorTests
         var behavior = new TransactionBehavior<FrameworkQuery, Result<string>>(
             new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
                 new AuditStateCapture(), producer, new DomainEventCollector(producer, Substitute.For<IPublisher>()),
-                NullLogger<TransactionExecutionCoordinator>.Instance), requests, []);
+                NullLogger<TransactionExecutionCoordinator>.Instance), requests, new ExplicitReadOnlyRequestCatalog([]));
         var result = await behavior.Handle(new FrameworkQuery(), () =>
         {
             unit.Mode.Should().Be(TransactionMode.ReadWrite);
@@ -190,7 +207,7 @@ public sealed class TransactionBehaviorTests
                 unitOfWork, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
                 new AuditStateCapture(), producer,
                 new DomainEventCollector(producer, Substitute.For<IPublisher>()),
-                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), []);
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]));
 
         var result = await behavior.Handle(new PublicQuery(), () =>
         {
@@ -619,7 +636,7 @@ public sealed class TransactionBehaviorTests
             capture ?? new AuditStateCapture(),
             producer,
             new DomainEventCollector(producer, Substitute.For<IPublisher>()),
-            NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), []);
+            NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]));
     }
 
     private static Task<Result<string>> Next(RecordingUnitOfWork unitOfWork, Result<string> result)

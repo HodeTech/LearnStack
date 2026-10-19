@@ -153,7 +153,11 @@ export function createConfiguredPublicClient(
     // Only the SDK's four fixed operations can call this closure. Recheck origin
     // after URL normalization before attaching credentials to the request.
     const url = new URL(path, configuration.apiOrigin);
-    if (url.origin !== configuration.apiOrigin || !path.startsWith('/api/v1/public/'))
+    if (
+      url.origin !== configuration.apiOrigin ||
+      !url.pathname.startsWith('/api/v1/public/') ||
+      url.pathname + url.search !== path
+    )
       throw new Error('Invalid public API operation');
     return boundedResponse(url, headers, signal);
   });

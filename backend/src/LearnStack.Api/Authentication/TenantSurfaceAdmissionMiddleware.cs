@@ -26,7 +26,7 @@ internal sealed class TenantSurfaceAdmissionMiddleware(RequestDelegate next)
         ArgumentNullException.ThrowIfNull(tenantContext);
         if (context.Features.Get<HostClassification>() is not null
             && (IsAccountSiteEndpoint(context)
-                || (HttpMethods.IsGet(context.Request.Method) && IsAccountSitePath(context.Request.Path)))
+                || IsAccountSitePath(context.Request.Path))
             && (context.Features.Get<TenantCredentialFeature>()?.Identity is not { } identity
                 || !HasHostAuthority(tenantContext, identity)))
         {
@@ -52,6 +52,8 @@ internal sealed class TenantSurfaceAdmissionMiddleware(RequestDelegate next)
             && StronglyTypedId.IsAssigned(host.TenantId)
             && host.TenantId == context.TenantId
             && identity.TenantId == context.TenantId
+            && StronglyTypedId.IsAssignedWhenPresent(identity.OrganizationId)
+            && context.OrganizationId == (identity.OrganizationId ?? host.OrganizationId)
             && StronglyTypedId.IsAssignedWhenPresent(context.OrganizationId)
             && StronglyTypedId.IsAssignedWhenPresent(host.OrganizationId)
             && (host.OrganizationId is null || host.OrganizationId == context.OrganizationId);

@@ -15,16 +15,30 @@ using Microsoft.Extensions.Logging;
 namespace LearnStack.Tests.Integration;
 
 /// <summary>Real HTTP/2 gRPC receiver for the production exporters, without a replacement logging sink.</summary>
-internal sealed class TenantAuthenticationDiagnosticCollector : IAsyncDisposable
+internal sealed partial class TenantAuthenticationDiagnosticCollector : IAsyncDisposable
 {
     private readonly WebApplication _app;
-    private readonly ConcurrentQueue<(string Path, string Payload)> _requests = new();
+    private readonly ConcurrentQueue<(string Path, string Payload, byte[] Data)> _requests = new();
+    private TaskCompletionSource _arrival = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TenantAuthenticationDiagnosticCollector(WebApplication app) => _app = app;
     internal string Endpoint { get; private set; } = "";
     internal string Logs => Payloads("/opentelemetry.proto.collector.logs.v1.LogsService/Export");
     internal string Traces => Payloads("/opentelemetry.proto.collector.trace.v1.TraceService/Export");
     internal string Metrics => Payloads("/opentelemetry.proto.collector.metrics.v1.MetricsService/Export");
     internal string AllPayloads => string.Join('\n', _requests.Select(request => request.Payload));
+
+    internal async Task WaitForLogAsync(string expected, TimeSpan timeout)
+    {
+        using var deadline = new CancellationTokenSource(timeout);
+        while (!Logs.Contains(expected, StringComparison.Ordinal))
+        {
+            var arrived = Volatile.Read(ref _arrival).Task;
+            // Recheck after capturing the notification so an arrival between
+            // the first check and the capture cannot leave us waiting forever.
+            if (Logs.Contains(expected, StringComparison.Ordinal)) return;
+            await arrived.WaitAsync(deadline.Token);
+        }
+    }
 
     internal static async Task<TenantAuthenticationDiagnosticCollector> StartAsync()
     {
@@ -68,7 +82,9 @@ internal sealed class TenantAuthenticationDiagnosticCollector : IAsyncDisposable
                 await gzip.CopyToAsync(decoded, context.RequestAborted);
                 payload = decoded.ToArray();
             }
-            _requests.Enqueue((context.Request.Path.Value!, Encoding.UTF8.GetString(payload)));
+            _requests.Enqueue((context.Request.Path.Value!, Encoding.UTF8.GetString(payload), payload));
+            Interlocked.Exchange(ref _arrival,
+                new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
             offset += length;
         }
         context.Response.ContentType = "application/grpc";

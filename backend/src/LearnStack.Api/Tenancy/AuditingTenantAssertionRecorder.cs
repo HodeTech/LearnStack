@@ -24,9 +24,9 @@ namespace LearnStack.Api.Tenancy;
 /// profiles</b>
 /// (<see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
 /// § Recording a rejected assertion</see>). A mismatch carrying a validated principal is
-/// bounded by token issuance and the actor is the finding, so every occurrence is a row
-/// with no coalescing and no per-tenant ceiling. An anonymous mismatch is bounded by
-/// nothing, so it is not itself audited — the <b>burst</b> is, once per
+/// admitted against the singleton target-tenant allowance (ADR-0065). Each admitted
+/// occurrence gets its own row; later occurrences keep only their warning and counters.
+/// An anonymous mismatch is not itself audited — the <b>burst</b> is, once per
 /// <c>(resolved tenant, dimension, window)</c>.
 /// </para>
 /// <para>
@@ -50,12 +50,13 @@ public sealed class AuditingTenantAssertionRecorder(
     IAuditCatalog catalog,
     IAuditStore store,
     TenantAssertionBurstDetector bursts,
+    TenantAssertionAuditBudget auditBudget,
     IClock clock,
     IGuidFactory guidFactory,
     ILogger<AuditingTenantAssertionRecorder> logger)
     : ITenantAssertionRecorder
 {
-    /// <summary>Written per occurrence, for a mismatch carrying a validated principal.</summary>
+    /// <summary>Written for each admitted authenticated occurrence (ADR-0065).</summary>
     public const string RejectOperation = "tenancy.tenant_assertion.reject";
 
     /// <summary>Written once per <c>(resolved tenant, dimension, window)</c>.</summary>
@@ -70,6 +71,9 @@ public sealed class AuditingTenantAssertionRecorder(
     private readonly TenantAssertionBurstDetector _bursts =
         bursts ?? throw new ArgumentNullException(nameof(bursts));
 
+    private readonly TenantAssertionAuditBudget _auditBudget =
+        auditBudget ?? throw new ArgumentNullException(nameof(auditBudget));
+
     private readonly IClock _clock = clock ?? throw new ArgumentNullException(nameof(clock));
 
     private readonly IGuidFactory _guidFactory =
@@ -81,20 +85,21 @@ public sealed class AuditingTenantAssertionRecorder(
     /// <inheritdoc />
     public async Task RecordRejectionAsync(TenantAssertionRejection rejection)
     {
-        // The signal first, and unconditionally. It costs no I/O and it is the half that
-        // survives an audit store being unreachable.
-        _inner.Record(rejection);
-
-        // The authenticated tier writes every occurrence; the anonymous tier writes only
-        // the crossing. RecordAndCheckCrossing is called ONLY on the anonymous branch —
-        // feeding authenticated mismatches into the same counter would let a token holder
-        // consume the anonymous budget, and the two tiers are separated precisely because
-        // one of them is bounded and the other is not.
+        if (rejection.ResolvedTenantId == Guid.Empty
+            || rejection.ResolvedTenantId == TenantId.PlatformSentinel.Value)
+            throw new ArgumentException("A defended tenant is required.", nameof(rejection));
+        // Admission is process-wide and spent before I/O. Anonymous crossings retain
+        // their separate accounting; neither tier can consume the other's allowance.
+        var auditSuppressed = rejection.IsAuthenticated
+            && !_auditBudget.TryAcquire(rejection.ResolvedTenantId);
         var operation = rejection.IsAuthenticated
-            ? RejectOperation
+            ? auditSuppressed ? null : RejectOperation
             : _bursts.RecordAndCheckCrossing(rejection.ResolvedTenantId, rejection.Dimension)
                 ? BurstOperation
                 : null;
+
+        // Exactly one real-time occurrence, even when no durable attempt is admitted.
+        _inner.Record(rejection, auditSuppressed);
 
         if (operation is null)
         {
@@ -191,8 +196,8 @@ public sealed class AuditingTenantAssertionRecorder(
             // abandoned here would leave the detector silent for the rest of the window
             // with nothing recorded anywhere.
             //
-            // The crossing stays consumed even when the write fails, and that is
-            // deliberate: releasing it would make every later occurrence retry the write,
+            // The crossing or authenticated allowance stays consumed even when the write
+            // fails. This is deliberate: releasing it would make every later occurrence retry the write,
             // which is one database round trip per anonymous request — the amplification
             // the burst event exists to bound. The failure is not lost, it is LOUD
             // somewhere else: the store logs Critical, counts
@@ -254,6 +259,7 @@ public sealed class AuditingTenantAssertionRecorder(
             + ",\"authenticated\":" + (rejection.IsAuthenticated ? "true" : "false")
             + ",\"assertionSource\":" + AuditJson.Quote(rejection.Source.ToLabel())
             + ",\"trustedOrganizationId\":" + (rejection.TrustedOrganizationId is { } organization
+                && StronglyTypedId.IsAssigned(organization)
                 ? AuditJson.Quote(organization.Value.ToString(null, CultureInfo.InvariantCulture))
                 : "null") + "}");
     }

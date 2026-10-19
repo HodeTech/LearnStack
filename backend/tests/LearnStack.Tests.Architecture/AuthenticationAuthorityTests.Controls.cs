@@ -25,7 +25,8 @@ public sealed partial class AuthenticationAuthorityTests
                      nameof(AuthorityProbe.Email), nameof(AuthorityProbe.Authenticated), nameof(AuthorityProbe.RawUser),
                      nameof(AuthorityProbe.RolePolicy), nameof(AuthorityProbe.ClaimPolicy), nameof(AuthorityProbe.InterfaceRoleMetadata),
                      nameof(AuthorityProbe.RawTokenClaim), nameof(AuthorityProbe.RawTokenSubject),
-                     nameof(AuthorityProbe.LegacyTokenPayload), nameof(AuthorityProbe.RawHeaderReparse) })
+                     nameof(AuthorityProbe.LegacyTokenPayload), nameof(AuthorityProbe.RawHeaderReparse),
+                     nameof(AuthorityProbe.ValidationClaims), nameof(AuthorityProbe.ValidatedSecurityToken) })
         {
             var dirty = methods.Single(method => method.Name == name);
             Offenders(modules, [dirty]).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal), name);
@@ -112,11 +113,222 @@ public sealed partial class AuthenticationAuthorityTests
             }
             finally { action.CustomAttributes.Remove(metadata); }
         });
+        AuthenticationMetadata.WithExternalRole(api, metadata =>
+        {
+            action.CustomAttributes.Add(metadata);
+            try
+            {
+                Offenders(modules).Should().Contain(value => value.StartsWith("Realm-role authorization metadata:", StringComparison.Ordinal));
+                metadata.Properties.Clear();
+                Offenders(modules).Should().Contain(value => value.StartsWith("Realm-role authorization metadata:", StringComparison.Ordinal),
+                    "an external constructor can supply Roles without a named attribute argument");
+            }
+            finally { action.CustomAttributes.Remove(metadata); }
+        });
+        var unresolved = new TypeReference("Missing.Package", "UnknownAuthorizationAttribute", api,
+            new AssemblyNameReference("Missing.Authorization.Package", new Version(1, 0)));
+        AuthenticationMetadata.IsData(unresolved, new Dictionary<string, TypeDefinition>()).Should().BeTrue(
+            "missing external metadata cannot establish that an attribute is harmless");
+        var unresolvedAttribute = new CustomAttribute(new MethodReference(".ctor", api.TypeSystem.Void, unresolved) { HasThis = true });
+        action.CustomAttributes.Add(unresolvedAttribute);
+        try { Offenders(modules).Should().Contain(value => value.StartsWith("Realm-role authorization metadata:", StringComparison.Ordinal)); }
+        finally { action.CustomAttributes.Remove(unresolvedAttribute); }
         Offenders(modules).Should().BeEmpty("all mutations of actual production subjects are restored");
     });
 
+    /// <summary>ADR-0064: approved owners do not authorize extra members, overloads or opaque exports.</summary>
+    [Theory]
+    [InlineData("identity-method")]
+    [InlineData("identity-property")]
+    [InlineData("identity-field")]
+    [InlineData("identity-constructor")]
+    [InlineData("feature-method")]
+    [InlineData("feature-property")]
+    [InlineData("feature-field")]
+    [InlineData("feature-constructor")]
+    [InlineData("generic-export")]
+    [InlineData("object-export")]
+    [InlineData("identity-constraint")]
+    [InlineData("owner-overload")]
+    public void Authority_census_closes_shape_and_approved_owner_exports(string mutation) => WithProduction(modules =>
+    {
+        Offenders(modules).Should().BeEmpty();
+        var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
+        var owner = api.GetType(mutation.StartsWith("feature-", StringComparison.Ordinal) ? Feature : Identity);
+        var factory = api.GetType(Profile).Methods.Single(method => method.Name == "TryReadValidated");
+        if (mutation.EndsWith("-property", StringComparison.Ordinal))
+            owner.Properties.Add(new PropertyDefinition("Extra", PropertyAttributes.None, api.TypeSystem.String));
+        else if (mutation.EndsWith("-field", StringComparison.Ordinal))
+            owner.Fields.Add(new FieldDefinition("Extra", FieldAttributes.Private | FieldAttributes.InitOnly, api.TypeSystem.String));
+        else if (mutation.EndsWith("-method", StringComparison.Ordinal))
+            owner.Methods.Add(new MethodDefinition("Extra", MethodAttributes.Private, api.TypeSystem.Void));
+        else if (mutation.EndsWith("-constructor", StringComparison.Ordinal))
+        {
+            var constructor = new MethodDefinition(".ctor", MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, api.TypeSystem.Void);
+            // Same arity, different signature, and actually called by the approved factory.
+            foreach (var _ in Enumerable.Range(0, owner.FullName == Identity ? 5 : 0))
+                constructor.Parameters.Add(new ParameterDefinition(api.TypeSystem.Object));
+            owner.Methods.Add(constructor);
+            factory.Body.Instructions.Add(Instruction.Create(OpCodes.Newobj, constructor));
+        }
+        else if (mutation == "owner-overload")
+        {
+            var overload = new MethodDefinition(factory.Name, MethodAttributes.Private | MethodAttributes.Static, api.TypeSystem.Void);
+            overload.Parameters.Add(new ParameterDefinition(api.GetType(Identity)));
+            overload.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            factory.DeclaringType.Methods.Add(overload);
+        }
+        else if (mutation == "identity-constraint")
+        {
+            var helper = new MethodDefinition("Constrained", MethodAttributes.Private | MethodAttributes.Static, api.TypeSystem.Void);
+            var parameter = new GenericParameter("T", helper);
+            parameter.Constraints.Add(new GenericParameterConstraint(api.GetType(Identity)));
+            helper.GenericParameters.Add(parameter);
+            helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            factory.DeclaringType.Methods.Add(helper);
+            Offenders(modules).Should().NotBeEmpty("method-level identity constraints must be visible");
+            factory.DeclaringType.Methods.Remove(helper);
+            var genericType = new TypeDefinition("AuthorityProbe", "Constrained`1", TypeAttributes.Class, api.TypeSystem.Object);
+            var typeParameter = new GenericParameter("T", genericType);
+            typeParameter.Constraints.Add(new GenericParameterConstraint(api.GetType(Identity)));
+            genericType.GenericParameters.Add(typeParameter);
+            api.Types.Add(genericType);
+        }
+        else
+        {
+            using var probes = ModuleDefinition.ReadModule(typeof(AuthenticationAuthorityTests).Assembly.Location);
+            var helper = probes.GetType(typeof(AuthenticationAuthorityTests).FullName).NestedTypes.Single(type => type.Name == nameof(AuthorityProbe))
+                .Methods.Single(method => method.Name == nameof(AuthorityProbe.Format));
+            MethodReference target = mutation == "generic-export"
+                ? new GenericInstanceMethod(api.ImportReference(helper)) { GenericArguments = { api.GetType(Identity) } }
+                : api.ImportReference(typeof(object).GetMethod(nameof(ToString), Type.EmptyTypes)!);
+            factory.Body.Instructions.Add(Instruction.Create(OpCodes.Call, target));
+            if (target is GenericInstanceMethod generic)
+            {
+                Offenders(modules).Should().NotBeEmpty("generic identity formatting in an approved owner must be visible");
+                generic.GenericArguments[0] = api.TypeSystem.Object;
+            }
+        }
+        Offenders(modules).Should().NotBeEmpty("the real production graph must reject " + mutation);
+    });
+
+    /// <summary>ADR-0064: an approved caller cannot erase identity into an opaque helper argument.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Authority_census_rejects_actual_identity_forwarding_to_opaque_helpers(bool array)
+        => WithProduction(modules =>
+        {
+            var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
+            var helperType = new TypeDefinition("AuthorityProbe", "OpaqueExport", TypeAttributes.Abstract | TypeAttributes.Sealed, api.TypeSystem.Object);
+            var helper = new MethodDefinition("Emit", MethodAttributes.Assembly | MethodAttributes.Static, api.TypeSystem.Void);
+            helper.Parameters.Add(new ParameterDefinition(array ? new ArrayType(api.TypeSystem.Object) : api.TypeSystem.Object));
+            helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+            if (array)
+            {
+                helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_0));
+                helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ldelem_Ref));
+            }
+            helper.Body.Instructions.Add(Instruction.Create(OpCodes.Callvirt, api.ImportReference(typeof(object).GetMethod(nameof(ToString), Type.EmptyTypes)!)));
+            helper.Body.Instructions.Add(Instruction.Create(OpCodes.Call, api.ImportReference(typeof(Console).GetMethod(nameof(Console.WriteLine), [typeof(string)])!)));
+            helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            helperType.Methods.Add(helper);
+            api.Types.Add(helperType);
+            Offenders(modules).Should().BeEmpty("the helper alone carries no identity and is a clean control");
+
+            var validated = api.GetType(Events).Methods.Single(method => method.Name == "TokenValidated");
+            var setter = validated.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && Is(target.DeclaringType, Feature) && target.Name == "set_Identity");
+            var identity = validated.Body.Variables.Single(variable => Is(variable.VariableType, Identity));
+            var forwarding = new List<Instruction>();
+            if (array)
+                forwarding.AddRange([Instruction.Create(OpCodes.Ldc_I4_1), Instruction.Create(OpCodes.Newarr, api.TypeSystem.Object),
+                    Instruction.Create(OpCodes.Dup), Instruction.Create(OpCodes.Ldc_I4_0)]);
+            forwarding.Add(Instruction.Create(OpCodes.Ldloc, identity));
+            if (array) forwarding.Add(Instruction.Create(OpCodes.Stelem_Ref));
+            forwarding.Add(Instruction.Create(OpCodes.Call, helper));
+            var processor = validated.Body.GetILProcessor();
+            var previous = setter;
+            foreach (var instruction in forwarding)
+            {
+                processor.InsertAfter(previous, instruction);
+                previous = instruction;
+            }
+            Offenders(modules).Should().Contain(value => value.StartsWith("Opaque typed identity/feature export:", StringComparison.Ordinal),
+                "the real approved TokenValidated caller forwarded its actual validated identity into " + (array ? "object[]" : "object"));
+            foreach (var instruction in forwarding) processor.Remove(instruction);
+            Offenders(modules).Should().BeEmpty("removing the forwarding restores the clean graph while retaining the helper");
+        });
+
+    /// <summary>ADR-0064: erasing an identity through storage is an export even with a parameterless reader.</summary>
+    [Theory]
+    [InlineData("static")]
+    [InlineData("instance")]
+    [InlineData("array")]
+    public void Authority_census_rejects_actual_identity_forwarding_through_opaque_storage(string storage)
+        => WithProduction(modules =>
+        {
+            var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
+            var type = new TypeDefinition("AuthorityProbe", "OpaqueStorage", TypeAttributes.Class, api.TypeSystem.Object);
+            var field = new FieldDefinition("Value", FieldAttributes.Assembly | (storage == "instance" ? 0 : FieldAttributes.Static),
+                storage == "array" ? new ArrayType(api.TypeSystem.Object) : api.TypeSystem.Object);
+            type.Fields.Add(field);
+            var constructor = new MethodDefinition(".ctor", MethodAttributes.Assembly | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, api.TypeSystem.Void);
+            constructor.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+            constructor.Body.Instructions.Add(Instruction.Create(OpCodes.Call, api.ImportReference(typeof(object).GetConstructor(Type.EmptyTypes)!)));
+            constructor.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            type.Methods.Add(constructor);
+            if (storage == "array")
+            {
+                var initialize = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, api.TypeSystem.Void);
+                initialize.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_1));
+                initialize.Body.Instructions.Add(Instruction.Create(OpCodes.Newarr, api.TypeSystem.Object));
+                initialize.Body.Instructions.Add(Instruction.Create(OpCodes.Stsfld, field));
+                initialize.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                type.Methods.Add(initialize);
+            }
+            var helper = new MethodDefinition("Emit", MethodAttributes.Assembly | (storage == "instance" ? 0 : MethodAttributes.Static), api.TypeSystem.Void);
+            if (storage == "instance") helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+            helper.Body.Instructions.Add(Instruction.Create(storage == "instance" ? OpCodes.Ldfld : OpCodes.Ldsfld, field));
+            if (storage == "array")
+            {
+                helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_0));
+                helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ldelem_Ref));
+            }
+            helper.Body.Instructions.Add(Instruction.Create(OpCodes.Callvirt, api.ImportReference(typeof(object).GetMethod(nameof(ToString), Type.EmptyTypes)!)));
+            helper.Body.Instructions.Add(Instruction.Create(OpCodes.Call, api.ImportReference(typeof(Console).GetMethod(nameof(Console.WriteLine), [typeof(string)])!)));
+            helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            type.Methods.Add(helper);
+            api.Types.Add(type);
+            Offenders(modules).Should().BeEmpty("opaque storage and its parameterless reader carry no identity on their own");
+
+            var validated = api.GetType(Events).Methods.Single(method => method.Name == "TokenValidated");
+            var setter = validated.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && Is(target.DeclaringType, Feature) && target.Name == "set_Identity");
+            var identity = validated.Body.Variables.Single(variable => Is(variable.VariableType, Identity));
+            var forwarding = new List<Instruction>();
+            if (storage == "instance") forwarding.AddRange([Instruction.Create(OpCodes.Newobj, constructor), Instruction.Create(OpCodes.Dup)]);
+            if (storage == "array") forwarding.AddRange([Instruction.Create(OpCodes.Ldsfld, field), Instruction.Create(OpCodes.Ldc_I4_0)]);
+            forwarding.Add(Instruction.Create(OpCodes.Ldloc, identity));
+            forwarding.Add(storage == "array" ? Instruction.Create(OpCodes.Stelem_Ref)
+                : Instruction.Create(storage == "instance" ? OpCodes.Stfld : OpCodes.Stsfld, field));
+            forwarding.Add(Instruction.Create(storage == "instance" ? OpCodes.Callvirt : OpCodes.Call, helper));
+            var processor = validated.Body.GetILProcessor();
+            var previous = setter;
+            foreach (var instruction in forwarding)
+            {
+                processor.InsertAfter(previous, instruction);
+                previous = instruction;
+            }
+            Offenders(modules).Should().Contain(value => value.StartsWith("Opaque typed identity/feature export:", StringComparison.Ordinal),
+                "the approved TokenValidated caller stored its actual identity through " + storage);
+            foreach (var instruction in forwarding) processor.Remove(instruction);
+            Offenders(modules).Should().BeEmpty("removing identity storage restores the clean graph while retaining the reader");
+        });
+
     private static class AuthorityProbe
     {
+        internal static string Format<T>(T value) => $"{value}";
         internal static bool Role(ClaimsPrincipal principal) => principal.IsInRole("tenant-admin");
         internal static bool InterfaceRole(System.Security.Principal.IPrincipal principal) => principal.IsInRole("tenant-admin");
         internal static string? IdentityName(System.Security.Principal.IIdentity identity) => identity.Name;
@@ -132,6 +344,8 @@ public sealed partial class AuthenticationAuthorityTests
             metadata.Roles = "tenant-admin";
             return metadata;
         }
+        internal static object ValidationClaims(Microsoft.IdentityModel.Tokens.TokenValidationResult result) => result.Claims;
+        internal static Microsoft.IdentityModel.Tokens.SecurityToken ValidatedSecurityToken(Microsoft.IdentityModel.Tokens.TokenValidationResult result) => result.SecurityToken;
         internal static bool RawTokenClaim(Microsoft.IdentityModel.JsonWebTokens.JsonWebToken token) => token.GetPayloadValue<string>("permission") == "write";
         internal static bool RawTokenSubject(Microsoft.IdentityModel.JsonWebTokens.JsonWebToken token) => token.Subject == "tenant-admin";
         internal static bool LegacyTokenPayload(System.IdentityModel.Tokens.Jwt.JwtSecurityToken token) => (string)token.Payload["permission"] == "write";

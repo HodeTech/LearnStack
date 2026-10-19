@@ -66,7 +66,8 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
         if (control is not null)
         {
             builder.Logging.AddProvider(control);
-            builder.Logging.AddFilter(TenantAuthenticationDiagnostics.VendorCategory, LogLevel.Trace);
+            builder.Services.PostConfigure<LoggerFilterOptions>(options => options.Rules.Add(
+                new LoggerFilterRule(null, TenantAuthenticationDiagnostics.VendorCategory, LogLevel.Trace, null)));
         }
         var app = builder.Build();
         if (observed is not null) app.UseExceptionHandler();

@@ -47,6 +47,41 @@ public sealed partial class TenantSubjectRateLimiterTests
     }
 
     [Fact]
+    public void Subject_registry_refuses_new_keys_at_capacity_without_allocating_or_resetting_live_quota()
+    {
+        using var clock = new ManualClock();
+        List<TrackedBudget> budgets = [];
+        using var owner = new TenantSubjectRateLimiter(() =>
+        {
+            var budget = new TrackedBudget(1);
+            budgets.Add(budget);
+            return budget;
+        }, Window, clock, maximumPartitions: 2);
+        using var first = owner.AttemptAcquire(Identity("first"));
+        using var second = owner.AttemptAcquire(Identity("second"));
+        for (var index = 0; index < 2048; index++)
+        {
+            using var overflow = owner.AttemptAcquire(Identity($"overflow-{index}"));
+            overflow.IsAcquired.Should().BeFalse();
+            overflow.TryGetMetadata(MetadataName.RetryAfter, out var retry).Should().BeTrue();
+            retry.Should().Be(Window);
+        }
+        using var stillSpent = owner.AttemptAcquire(Identity("first"));
+        stillSpent.IsAcquired.Should().BeFalse();
+        budgets.Should().HaveCount(2);
+        clock.Timer.Fire();
+        budgets.Should().OnlyContain(budget => budget.Disposals == 0);
+
+        budgets[0].Replenish(Window);
+        clock.Timer.Fire();
+        using var newKey = owner.AttemptAcquire(Identity("new"));
+        newKey.IsAcquired.Should().BeTrue();
+        budgets.Should().HaveCount(3);
+        using var otherStillSpent = owner.AttemptAcquire(Identity("second"));
+        otherStillSpent.IsAcquired.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Middleware_reuses_request_outcomes_and_only_debits_validated_classified_requests()
     {
         using var clock = new ManualClock();
@@ -299,7 +334,7 @@ public sealed partial class TenantSubjectRateLimiterTests
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
         if (classified) context.Features.Set(HostClassification.Platform("platform.example"));
-        context.Features.Set(new TenantCredentialFeature { IsPresent = identity is not null, Identity = identity });
+        context.Features.Set(new TenantCredentialFeature { Identity = identity });
         return context;
     }
 

@@ -63,16 +63,28 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
     }
 
     [Theory]
-    [InlineData(false, "Suspended")]
-    [InlineData(false, "Archived")]
-    [InlineData(false, "deleted")]
-    [InlineData(true, "Suspended")]
-    [InlineData(true, "Archived")]
-    [InlineData(true, "deleted")]
-    public async Task Actual_account_query_rechecks_live_tenant_and_mapped_organization(bool organization, string state)
+    [InlineData(false, "Suspended", false)]
+    [InlineData(false, "Archived", false)]
+    [InlineData(false, "deleted", false)]
+    [InlineData(true, "Suspended", false)]
+    [InlineData(true, "Archived", false)]
+    [InlineData(true, "deleted", false)]
+    [InlineData(true, "Suspended", true)]
+    [InlineData(true, "Archived", true)]
+    [InlineData(true, "deleted", true)]
+    public async Task Actual_account_query_rechecks_live_tenant_mapped_and_claim_selected_organization(bool organization, string state, bool claimSelected)
     {
         var tenant = organization ? SeedData.Yoga : SeedData.English;
-        var context = Context(tenant, organization);
+        var context = claimSelected ? TenantContextFactory.Create(new TenantResolutionAttempt
+        {
+            HostTenantId = tenant.TenantId,
+            ClaimTenantId = tenant.TenantId,
+            ClaimOrganizationId = tenant.DefaultOrganization.OrganizationId,
+            UserId = Actor,
+            HasValidatedPrincipal = true,
+            MembershipCovers = true,
+            ClaimedOrganizationBelongsToTenant = true,
+        }).Value! : Context(tenant, organization);
         await using var host = CreateHost(context);
         (await Send(host)).IsSuccess.Should().BeTrue("the same stored scope is visible before its lifecycle changes");
         var before = await fixture.AuditCountAsync(tenant);

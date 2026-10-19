@@ -172,6 +172,7 @@ public sealed class TenantAssertionAuditTests
     {
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
         await using var transaction = await connection.BeginTransactionAsync();
+        await SchemaQueries.AssertApplicationRoleAsync(connection, transaction);
 
         await SchemaQueries.SetTenantAsync(connection, transaction, tenantId ?? SchemaFixture.TenantA);
         if (organizationId is { } organization)
@@ -182,11 +183,12 @@ public sealed class TenantAssertionAuditTests
             SELECT tenant_id, organization_id, operation, outcome, metadata::text,
                    correlation_id, actor_user_id, current_user
             FROM audit_log
-            WHERE operation LIKE 'tenancy.tenant_assertion.%'
+            WHERE operation LIKE 'tenancy.tenant_assertion.%' AND correlation_id = @correlation
             """,
             (NpgsqlConnection)connection,
             (NpgsqlTransaction)transaction);
 
+        command.Parameters.AddWithValue("correlation", Correlation);
         await using var reader = await command.ExecuteReaderAsync();
 
         if (!await reader.ReadAsync())
@@ -214,9 +216,10 @@ public sealed class TenantAssertionAuditTests
         await using var connection = await PostgresFixture.OpenAsync(
             _schema.Postgres.PlatformConnectionString);
         await using var command = new NpgsqlCommand(
-            "DELETE FROM audit_log WHERE operation LIKE 'tenancy.tenant_assertion.%'",
+            "DELETE FROM audit_log WHERE operation LIKE 'tenancy.tenant_assertion.%' AND correlation_id = @correlation",
             (NpgsqlConnection)connection);
 
+        command.Parameters.AddWithValue("correlation", Correlation);
         await command.ExecuteNonQueryAsync();
     }
 
@@ -232,6 +235,7 @@ public sealed class TenantAssertionAuditTests
                     Window = TimeSpan.FromMinutes(5),
                 }),
                 new SystemClock()),
+            new TenantAssertionAuditBudget(TimeProvider.System),
             new SystemClock(),
             new LearnStack.SharedKernel.Identifiers.SystemGuidFactory(),
             NullLogger<AuditingTenantAssertionRecorder>.Instance);

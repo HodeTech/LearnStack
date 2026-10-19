@@ -294,10 +294,11 @@ public sealed class PostgresAuditStore : IAuditStore
     /// </remarks>
     private static void EnsureNotPlatformScope(AuditEntryDraft entry)
     {
-        if (entry.TenantId == TenantId.PlatformSentinel)
+        if (!StronglyTypedId.IsAssigned(entry.TenantId) || entry.TenantId == TenantId.PlatformSentinel)
         {
             throw new ArgumentException(
-                "A platform-scope row carries TenantId.PlatformSentinel and belongs to "
+                "A tenant row requires an assigned, nonnil tenant. A platform-scope row "
+                + "carries TenantId.PlatformSentinel and belongs to "
                 + "WritePlatformScopeAsync, which writes it on the scope's own platform-role "
                 + "connection. Announcing the sentinel on a runtime connection is refused here "
                 + "as it is at every other announcement site (ADR-0044 § 1, § 10).",

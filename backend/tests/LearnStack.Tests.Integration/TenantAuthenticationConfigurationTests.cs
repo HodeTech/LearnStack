@@ -22,6 +22,8 @@ public sealed class TenantAuthenticationConfigurationTests
     [InlineData("http://issuer.invalid/realms/learnstack")]
     [InlineData("https://issuer.invalid/realms/learnstack-hub")]
     [InlineData("https://issuer.invalid/realms/learnstack/")]
+    [InlineData("https://issuer.invalid//realms/learnstack")]
+    [InlineData("https://issuer.invalid:443/realms/learnstack")]
     [InlineData("https://issuer.invalid/realms/learnstack?secret=query-canary")]
     [InlineData("https://issuer.invalid/realms/learnstack#fragment-canary")]
     [InlineData("https://user-canary:password-canary@issuer.invalid/realms/learnstack")]
@@ -103,6 +105,7 @@ public sealed class TenantAuthenticationConfigurationTests
 
         var validation = options.TokenValidationParameters;
         validation.RequireSignedTokens.Should().BeTrue();
+        validation.TryAllIssuerSigningKeys.Should().BeFalse();
         validation.ValidateIssuerSigningKey.Should().BeTrue();
         validation.ValidateIssuer.Should().BeTrue();
         validation.ValidIssuer.Should().Be(settings.Issuer);

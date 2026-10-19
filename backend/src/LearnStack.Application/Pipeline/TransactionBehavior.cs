@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using LearnStack.Application.Jobs;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.Application.Persistence;
@@ -14,13 +13,12 @@ namespace LearnStack.Application.Pipeline;
 /// producer enrollment and transaction completion for every entry (ADR-0057).
 /// </summary>
 public sealed class TransactionBehavior<TRequest, TResponse>(TransactionExecutionCoordinator coordinator,
-    IBackgroundJobRequestCatalog requests, IEnumerable<ExplicitReadOnlyRequest> readOnlyRequests)
+    IBackgroundJobRequestCatalog requests, ExplicitReadOnlyRequestCatalog readOnlyRequests)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
     where TResponse : IResultBase
 {
-    private readonly FrozenSet<Type> _readOnlyRequests = readOnlyRequests
-        .Select(request => request.RequestType).ToFrozenSet();
+    private readonly ExplicitReadOnlyRequestCatalog _readOnlyRequests = readOnlyRequests;
 
     /// <inheritdoc />
     public Task<TResponse> Handle(
@@ -30,7 +28,7 @@ public sealed class TransactionBehavior<TRequest, TResponse>(TransactionExecutio
     {
         ArgumentNullException.ThrowIfNull(next);
         return coordinator.ExecuteRequestAsync(
-            request, _readOnlyRequests.Contains(typeof(TRequest)) ? TransactionMode.ReadOnly
+            request, _readOnlyRequests.RequestTypes.Contains(typeof(TRequest)) ? TransactionMode.ReadOnly
                 : BackgroundJobExecutionAdmission.ModeFor(typeof(TRequest), requests),
             () => next(), cancellationToken);
     }

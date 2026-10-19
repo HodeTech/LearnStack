@@ -95,7 +95,7 @@ public sealed class BackgroundJobExternalCheckpointTests
             Substitute.For<IAuditStateCapture>(), producer, new DomainEventCollector(producer, Substitute.For<IPublisher>()),
             NullLogger<TransactionExecutionCoordinator>.Instance);
         var tenantBehavior = new TenantContextBehavior<TRequest, Result<None>>(context);
-        var transactionBehavior = new TransactionBehavior<TRequest, Result<None>>(coordinator, registry, []);
+        var transactionBehavior = new TransactionBehavior<TRequest, Result<None>>(coordinator, registry, new ExplicitReadOnlyRequestCatalog([]));
         using var authority = checkpoint switch
         {
             RecordBackgroundJobArmCommand arm => admission.EnterExternalCheckpoint(arm, unit),

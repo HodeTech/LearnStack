@@ -35,6 +35,7 @@ internal sealed class TenantAuthenticationOptions
             || address.UserInfo.Length != 0
             || address.Query.Length != 0
             || address.Fragment.Length != 0
+            || address.AbsolutePath.Contains("//", StringComparison.Ordinal)
             || !address.AbsolutePath.EndsWith("/realms/learnstack", StringComparison.Ordinal)
             || !IsAllowedTransport(address, deploymentMode)
         )

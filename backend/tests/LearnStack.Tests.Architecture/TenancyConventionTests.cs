@@ -686,16 +686,34 @@ public sealed partial class TenancyConventionTests
         // decides the metric's label cardinality — and, since Packet 9, one place that
         // decides which tenant the row carries, which is the whole of why the row is safe
         // to write at all.
-        Offenders(
-                except: Path.Combine("Tenancy", "LoggingTenantAssertionRecorder.cs"),
-                banned: [
-                    "learnstack_tenant_assertion_mismatch_total",
-                    "learnstack_tenant_assertion_unresolved_total",
-                ])
-            .Should().BeEmpty(
-                "only an ITenantAssertionRecorder writes a tenant-assertion mismatch "
-                + "(ADR-0036 § Recording a rejected assertion)");
+        var subjects = ApiSources().ToArray();
+        subjects.Should().NotBeEmpty();
+        MismatchCounterOffenders(subjects).Should().BeEmpty();
+        var owner = subjects.Single(source => source.Relative == Path.Combine("Tenancy", "LoggingTenantAssertionRecorder.cs"));
+        foreach (var counter in AssertionCounters)
+        {
+            owner.Code.Should().Contain(counter, "each enumerated counter has a real production subject");
+            MismatchCounterOffenders(subjects.Append((Path.Combine("Tenancy", "CounterProbe.cs"),
+                SourceText.WithoutWhitespace($"const string Name = \"{counter}\";"))))
+                .Should().ContainSingle("a second writer of each counter must be rejected");
+        }
     }
+
+    private static readonly string[] AssertionCounters =
+    [
+        "learnstack_tenant_assertion_mismatch_total",
+        "learnstack_tenant_assertion_unresolved_total",
+        "learnstack_tenant_assertion_audit_suppressed_total",
+    ];
+
+    private static List<string> MismatchCounterOffenders(IEnumerable<(string Relative, string Code)> sources) =>
+    [
+        .. from source in sources
+           where source.Relative != Path.Combine("Tenancy", "LoggingTenantAssertionRecorder.cs")
+           from counter in AssertionCounters
+           where source.Code.Contains(counter, StringComparison.Ordinal)
+           select $"{source.Relative} contains '{counter}'",
+    ];
 
     [Fact]
     public void Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs()

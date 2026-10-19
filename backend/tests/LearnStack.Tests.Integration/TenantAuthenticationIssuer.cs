@@ -50,6 +50,7 @@ internal sealed class TenantAuthenticationIssuer : IAsyncDisposable
     internal int JwksStatusCode { get; set; } = StatusCodes.Status200OK;
     internal TimeSpan DiscoveryDelay { get; set; }
     internal TimeSpan JwksDelay { get; set; }
+    internal Task? JwksRelease { get; set; }
     internal string DiscoveryDocument => JsonSerializer.Serialize(new
     {
         issuer = Issuer,
@@ -70,6 +71,7 @@ internal sealed class TenantAuthenticationIssuer : IAsyncDisposable
         var issuer = new TenantAuthenticationIssuer(app);
         app.MapGet("/realms/learnstack/.well-known/openid-configuration", issuer.Discovery);
         app.MapGet("/realms/learnstack/keys", issuer.Jwks);
+        app.MapGet("/realms/learnstack-hub/keys", issuer.Jwks);
         app.MapGet("/realms/learnstack/canary", issuer.Canary);
         await app.StartAsync();
         var addresses = app.Services.GetRequiredService<IServer>()
@@ -155,6 +157,7 @@ internal sealed class TenantAuthenticationIssuer : IAsyncDisposable
     private async Task Jwks(HttpContext context)
     {
         Interlocked.Increment(ref _jwksRequests);
+        if (JwksRelease is { } release) await release.WaitAsync(context.RequestAborted);
         if (JwksDelay > TimeSpan.Zero) await Task.Delay(JwksDelay, context.RequestAborted);
         context.Response.StatusCode = JwksStatusCode;
         context.Response.ContentType = "application/json";

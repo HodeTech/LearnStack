@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.Configuration;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Xunit;
 
@@ -17,6 +18,68 @@ namespace LearnStack.Tests.Integration;
 
 public sealed partial class TenantAuthenticationProfileTests
 {
+    [Fact]
+    public async Task Profile_projects_the_token_validated_by_the_handler_even_if_the_request_header_changes()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var app = await CreateHost(issuer, options =>
+        {
+            var events = options.Events;
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = events.MessageReceived,
+                OnAuthenticationFailed = events.AuthenticationFailed,
+                OnTokenValidated = context =>
+                {
+                    context.Request.Headers.Authorization = "Bearer " + issuer.Token(
+                        issuer.Payload(("sub", "header-substitution-never-validated")));
+                    return events.TokenValidated(context);
+                },
+            };
+        });
+        using var client = app.GetTestClient();
+        await AssertAccepted(client, issuer.Token(), issuer);
+    }
+
+    [Fact]
+    public async Task Discovery_issuer_must_equal_the_configured_trust_root_even_with_a_matching_key()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        issuer.DiscoveryResponse = JsonSerializer.Serialize(new
+        {
+            issuer = issuer.Issuer + "-hub",
+            jwks_uri = issuer.Issuer + "/keys",
+        });
+        await using var app = await CreateHost(issuer);
+        using var client = app.GetTestClient();
+        await AssertRejected(client, issuer.Token(),
+            "a valid configured-issuer payload cannot trust keys from mismatched discovery");
+        issuer.MetadataRequests.Should().BeGreaterThan(0);
+        issuer.JwksRequests.Should().BeGreaterThan(0,
+            "the fixture supplies an otherwise valid key so issuer binding owns the refusal");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Discovery_cannot_move_key_retrieval_to_another_origin_or_realm(bool otherRealm)
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var foreign = await TenantAuthenticationIssuer.StartAsync();
+        issuer.DiscoveryResponse = JsonSerializer.Serialize(new
+        {
+            issuer = issuer.Issuer,
+            jwks_uri = otherRealm ? issuer.Issuer + "-hub/keys" : foreign.Issuer + "/keys",
+        });
+        await using var app = await CreateHost(issuer);
+        using var client = app.GetTestClient();
+        await AssertRejected(client, issuer.Token(key: otherRealm ? issuer.CurrentKey : foreign.CurrentKey),
+            "discovery cannot substitute a key origin outside the configured issuer realm");
+        issuer.MetadataRequests.Should().BeGreaterThan(0);
+        issuer.JwksRequests.Should().Be(0, "the other realm is refused before outbound I/O");
+        foreign.JwksRequests.Should().Be(0, "another origin is refused before outbound I/O");
+    }
+
     [Fact]
     public async Task Credential_free_unknown_and_infrastructure_requests_never_fetch_metadata()
     {
@@ -202,12 +265,26 @@ public sealed partial class TenantAuthenticationProfileTests
         issuer.Publish(issuer.CurrentKey, newKey);
         var newToken = issuer.Token(key: newKey);
         var initialJwksRequests = issuer.JwksRequests;
-        using (var response = await Send(client, "Bearer " + newToken))
-        {
-            response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized);
-        }
-        await WaitForConfiguration(manager, configuration =>
+        var refreshResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        issuer.JwksRelease = refreshResponse.Task;
+        var rotation = new ConfigurationUpdateObservation(configuration =>
             configuration.SigningKeys.Any(key => key.KeyId == newKey.Kid));
+        manager.ConfigurationEventHandler = rotation;
+        // A cached stock manager refreshes in the background. Only this real
+        // bearer request may request refresh: the observation never calls the
+        // manager, provides configuration or changes its automatic schedule.
+        try
+        {
+            using var response = await Send(client, "Bearer " + newToken);
+            response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+                "the new key remains unavailable while the issuer holds the background JWKS response");
+        }
+        finally
+        {
+            refreshResponse.TrySetResult();
+        }
+        await rotation.Updated.Task.WaitAsync(TimeSpan.FromSeconds(8));
+        issuer.JwksRelease = null;
         issuer.JwksRequests.Should().BeGreaterThan(initialJwksRequests,
             "the new-key token must drive the stock handler's discovery refresh");
         await AssertAccepted(client, newToken, issuer);
@@ -217,24 +294,34 @@ public sealed partial class TenantAuthenticationProfileTests
         // Respect the last on-demand refresh's public floor before requesting
         // the withdrawal snapshot. This delay is bounded and owns no fake time.
         await Task.Delay(TimeSpan.FromMilliseconds(1100));
-        manager.RequestRefresh();
-        await WaitForConfiguration(manager, configuration =>
+        var withdrawal = new ConfigurationUpdateObservation(configuration =>
             configuration.SigningKeys.Count == 1 && configuration.SigningKeys.Single().KeyId == newKey.Kid);
+        manager.ConfigurationEventHandler = withdrawal;
+        manager.RequestRefresh();
+        await withdrawal.Updated.Task.WaitAsync(TimeSpan.FromSeconds(8));
         await AssertAccepted(client, newToken, issuer);
         await AssertRejected(client, oldToken, "the old token remains unexpired but its key has been withdrawn");
+        await AssertRejected(client, issuer.Token(key: newKey,
+            header: TenantAuthenticationIssuer.Header(issuer.CurrentKey.Kid)),
+            "a currently trusted signature cannot revive a withdrawn kid selector");
         await AssertAccepted(client, newToken, issuer);
         await AssertRejected(client, oldToken, "last-known-good fallback must not revive the observed withdrawal");
     }
 
-    private static async Task WaitForConfiguration(ConfigurationManager<OpenIdConnectConfiguration> manager,
-        Func<OpenIdConnectConfiguration, bool> observed)
+    private sealed class ConfigurationUpdateObservation(Func<OpenIdConnectConfiguration, bool> observed)
+        : IConfigurationEventHandler<OpenIdConnectConfiguration>
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-        while (true)
+        internal TaskCompletionSource Updated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<ConfigurationEventHandlerResult<OpenIdConnectConfiguration>> BeforeRetrieveAsync(
+            string metadataAddress, CancellationToken cancellationToken = default) =>
+            Task.FromResult(ConfigurationEventHandlerResult<OpenIdConnectConfiguration>.NoResult);
+
+        public Task AfterUpdateAsync(string metadataAddress, OpenIdConnectConfiguration configuration,
+            CancellationToken cancellationToken = default)
         {
-            var configuration = await manager.GetConfigurationAsync(timeout.Token);
-            if (observed(configuration)) return;
-            await Task.Delay(TimeSpan.FromMilliseconds(25), timeout.Token);
+            if (observed(configuration)) Updated.TrySetResult();
+            return Task.CompletedTask;
         }
     }
 }

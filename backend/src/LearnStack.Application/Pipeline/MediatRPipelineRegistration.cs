@@ -57,6 +57,7 @@ public static class MediatRPipelineRegistration
         services.TryAddScoped<ProducerExecution>();
         services.TryAddScoped<DomainEventCollector>();
         services.TryAddScoped<TransactionExecutionCoordinator>();
+        services.TryAddSingleton<ExplicitReadOnlyRequestCatalog>();
 
         // MediatR 12.x throws if no assemblies are registered for handler
         // scanning. Fall back to the LearnStack.Application assembly itself —

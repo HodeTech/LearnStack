@@ -137,6 +137,7 @@ public sealed class AuthenticatedHttpSurfaceTests
         contracts.Types.Remove(unregistered);
 
         var maps = MappingSites(modules).ToArray();
+        EndpointCompositionControls.Plant(api, because => Dirty(because));
         var health = maps.Single(site => site.Target.Name == "MapGet");
         var duplicate = Instruction.Create(OpCodes.Call, health.Target);
         health.Owner.Body.Instructions.Add(duplicate);
@@ -403,9 +404,7 @@ public sealed class AuthenticatedHttpSurfaceTests
                     && (predicate ?? IsEndpointMapping)(target))
                 .Select(instruction => new Mapping(method, instruction, (MethodReference)instruction.Operand)));
 
-    private static bool IsEndpointMapping(MethodReference target) => target.Name.StartsWith("Map", StringComparison.Ordinal)
-        && (target.DeclaringType.FullName.StartsWith("Microsoft.AspNetCore.", StringComparison.Ordinal)
-            || target.DeclaringType.FullName.StartsWith("Scalar.AspNetCore.", StringComparison.Ordinal));
+    private static bool IsEndpointMapping(MethodReference target) => EndpointComposition.IsCapability(target);
 
     private static string MappingName(MethodDefinition owner, MethodReference target) =>
         owner.DeclaringType.FullName + "." + owner.Name + " -> " + target.DeclaringType.FullName + "." + target.Name;
@@ -413,25 +412,27 @@ public sealed class AuthenticatedHttpSurfaceTests
     private static bool InfrastructurePathIsApproved(Mapping mapping, Dictionary<string, TypeDefinition> map)
     {
         var target = mapping.Target;
-        if (target.Parameters.Count == 0 || target.Parameters[0].ParameterType.FullName != "Microsoft.AspNetCore.Routing.IEndpointRouteBuilder") return false;
-        var literals = mapping.Owner.Body.Instructions.TakeWhile(instruction => instruction != mapping.Instruction)
-            .Where(instruction => instruction.OpCode == OpCodes.Ldstr).Select(instruction => instruction.Operand as string).ToArray();
+        if (mapping.Instruction.OpCode != OpCodes.Call || target.Parameters.Count == 0
+            || target.Parameters[0].ParameterType.FullName != "Microsoft.AspNetCore.Routing.IEndpointRouteBuilder") return false;
         return target.Name switch
         {
             "MapControllers" => target.Parameters.Count == 1,
             "MapGet" => target.Parameters.Count == 3 && HealthIsDataFree(mapping.Owner, mapping.Instruction, map),
-            "MapOpenApi" => target.Parameters.Count == 2 && literals.TakeLast(2).SequenceEqual(
-                ["/openapi/{documentName:regex(^(", ")$)}.json"], StringComparer.Ordinal),
-            "MapScalarApiReference" => target.Parameters.Count == 3 && literals.LastOrDefault() == "/docs",
+            "MapOpenApi" => target.Parameters.Count == 2
+                && EndpointComposition.ArgumentProducer(mapping.Owner, mapping.Instruction, 1) is { } path
+                && path.Operand is MethodReference { Name: "Concat", DeclaringType.FullName: "System.String", Parameters.Count: 3 }
+                && EndpointComposition.HasLiteralArgument(mapping.Owner, path, 0, "/openapi/{documentName:regex(^(")
+                && EndpointComposition.HasLiteralArgument(mapping.Owner, path, 2, ")$)}.json"),
+            "MapScalarApiReference" => target.Parameters.Count == 3 && EndpointComposition.HasLiteralPath(mapping.Owner, mapping.Instruction, "/docs"),
             _ => false
         };
     }
 
     private static bool HealthIsDataFree(MethodDefinition owner, Instruction mapping, Dictionary<string, TypeDefinition> map)
     {
+        if (!EndpointComposition.HasLiteralPath(owner, mapping, "/healthz")) return false;
         var before = owner.Body.Instructions.TakeWhile(instruction => instruction != mapping).ToArray();
-        var path = Array.FindLastIndex(before, instruction => instruction.OpCode == OpCodes.Ldstr);
-        if (path < 0 || before[path].Operand as string != "/healthz") return false;
+        var path = Array.IndexOf(before, EndpointComposition.ArgumentProducer(owner, mapping, 1));
         var callbacks = before.Skip(path).Where(instruction => instruction.OpCode == OpCodes.Ldftn)
             .Select(instruction => instruction.Operand).OfType<MethodReference>().ToArray();
         if (callbacks.Length != 1 || !map.TryGetValue(Key(callbacks[0].DeclaringType), out var type)) return false;

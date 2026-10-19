@@ -69,7 +69,7 @@ public sealed class BackgroundJobCapacityCleanupTests
             Substitute.For<IAuditStateCapture>(), producer, new DomainEventCollector(producer, Substitute.For<IPublisher>()),
             NullLogger<TransactionExecutionCoordinator>.Instance);
         var tenant = new TenantContextBehavior<RecordBackgroundJobCapacityCleanupCommand, Result<None>>(context);
-        var transactionBehavior = new TransactionBehavior<RecordBackgroundJobCapacityCleanupCommand, Result<None>>(coordinator, catalog, []);
+        var transactionBehavior = new TransactionBehavior<RecordBackgroundJobCapacityCleanupCommand, Result<None>>(coordinator, catalog, new ExplicitReadOnlyRequestCatalog([]));
         using var authority = admission.EnterCapacityCleanup(command, unit);
 
         var run = () => tenant.Handle(command, () => transactionBehavior.Handle(command, () =>

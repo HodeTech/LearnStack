@@ -2,6 +2,7 @@ using LearnStack.Api.Tenancy;
 using LearnStack.SharedKernel.Time;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -24,8 +25,22 @@ internal static class TenantAuthenticationRegistration
         services.AddSingleton(settings);
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<TenantAuthenticationBackchannel>();
-        services.AddLogging(logging => logging.AddFilter(
-            TenantAuthenticationDiagnostics.VendorCategory, LogLevel.None));
+        services.AddLogging(logging => logging.Services.PostConfigure<LoggerFilterOptions>(options =>
+        {
+            // Category rules match prefixes. Apply the exact-category veto to
+            // every selectable rule while retaining unrelated thresholds and
+            // provider filters, including the original no-rule fallback.
+            var rules = options.Rules.ToArray();
+            options.Rules.Clear();
+            options.Rules.Add(new LoggerFilterRule(null, null, options.MinLevel,
+                (_, category, _) => category != TenantAuthenticationDiagnostics.VendorCategory));
+            foreach (var rule in rules)
+            {
+                options.Rules.Add(new LoggerFilterRule(rule.ProviderName, rule.CategoryName, rule.LogLevel,
+                    (provider, category, level) => category != TenantAuthenticationDiagnostics.VendorCategory
+                        && (rule.Filter?.Invoke(provider, category, level) ?? true)));
+            }
+        }));
         services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = Scheme;
@@ -48,7 +63,8 @@ internal static class TenantAuthenticationRegistration
                     options.ConfigurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(
                         settings.MetadataAddress,
                         new OpenIdConnectConfigurationRetriever(),
-                        new TenantOidcDocumentRetriever(settings, backchannel))
+                        new TenantOidcDocumentRetriever(settings, backchannel),
+                        new TenantOidcConfigurationValidator(settings))
                     {
                         AutomaticRefreshInterval = options.AutomaticRefreshInterval,
                         RefreshInterval = options.RefreshInterval,
@@ -57,6 +73,7 @@ internal static class TenantAuthenticationRegistration
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
                         RequireSignedTokens = true,
+                        TryAllIssuerSigningKeys = false,
                         ValidateIssuerSigningKey = true,
                         ValidateIssuer = true,
                         ValidIssuer = settings.Issuer,
@@ -96,7 +113,7 @@ internal sealed class TenantAuthenticationEvents(
 
         var values = context.Request.Headers.Authorization;
         var present = context.Request.Headers.ContainsKey("Authorization");
-        context.HttpContext.Features.Set(new TenantCredentialFeature { IsPresent = present });
+        context.HttpContext.Features.Set(new TenantCredentialFeature());
         if (!present)
         {
             context.NoResult();
@@ -118,9 +135,9 @@ internal sealed class TenantAuthenticationEvents(
     public override Task TokenValidated(TokenValidatedContext context)
     {
         var feature = context.HttpContext.Features.Get<TenantCredentialFeature>();
-        if (feature is null || !TryToken(context.Request.Headers.Authorization[0], out var token)
+        if (feature is null || context.SecurityToken is not JsonWebToken token
             || !TenantTokenProfile.TryReadValidated(
-                token, settings, clock.UtcNow, out var identity, out _))
+                token.EncodedToken, settings, clock.UtcNow, out var identity, out _))
         {
             TenantAuthenticationDiagnostics.Outcome(logger, "profile", "rejected");
             context.Fail("Tenant credential refused.");

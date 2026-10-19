@@ -52,6 +52,7 @@ internal static class TenantTokenProfile
             return fields.Count == 3
                 && fields["alg"] == "RS256"
                 && fields["typ"] == "JWT"
+                && !string.IsNullOrWhiteSpace(fields["kid"])
                 && fields["kid"].Length <= 128;
         }
         catch (JsonException)
@@ -280,6 +281,7 @@ internal static class TenantTokenProfile
             !claims.TryGetValue(name, out var property)
             || property.ValueKind != JsonValueKind.String
             || property.GetString() is not { Length: > 0 } text
+            || string.IsNullOrWhiteSpace(text)
         )
         {
             return false;

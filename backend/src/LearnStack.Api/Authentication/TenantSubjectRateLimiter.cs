@@ -6,12 +6,14 @@ namespace LearnStack.Api.Authentication;
 internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
 {
     internal const int PermitPerWindow = 600;
+    internal const int MaximumPartitions = 4096;
     internal static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
     private const int SweepBatchSize = 128;
     private static readonly TimeSpan SweepPeriod = TimeSpan.FromSeconds(30);
     private readonly object _gate = new();
     private readonly Func<RateLimiter> _createPartition;
     private readonly TimeSpan _window;
+    private readonly int _maximumPartitions;
     private readonly Dictionary<SubjectKey, Entry> _partitions = [];
     private readonly Queue<Entry> _sweepOrder = new();
     private readonly ITimer _sweeper;
@@ -24,13 +26,16 @@ internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
 
     /// <summary>The factory owns replenishment; the injected clock controls only retirement.</summary>
     internal TenantSubjectRateLimiter(
-        Func<RateLimiter> createPartition, TimeSpan window, TimeProvider timeProvider)
+        Func<RateLimiter> createPartition, TimeSpan window, TimeProvider timeProvider,
+        int maximumPartitions = MaximumPartitions)
     {
         ArgumentNullException.ThrowIfNull(createPartition);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(window, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maximumPartitions, 0);
         _createPartition = createPartition;
         _window = window;
+        _maximumPartitions = maximumPartitions;
         _sweeper = timeProvider.CreateTimer(_ => Sweep(), null, SweepPeriod, SweepPeriod);
     }
 
@@ -59,6 +64,10 @@ internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
                 var key = new SubjectKey(identity.Issuer, identity.Subject);
                 if (!_partitions.TryGetValue(key, out var entry))
                 {
+                    // Capacity refusal never evicts a live subject or restores its
+                    // spent quota. The bounded sweeper alone retires idle entries.
+                    if (_partitions.Count >= _maximumPartitions)
+                        return CapacityRefusal();
                     entry = new Entry(key, _createPartition());
                     _partitions.Add(key, entry);
                     _sweepOrder.Enqueue(entry);
@@ -77,6 +86,9 @@ internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
             lease?.Dispose();
         }
     }
+
+    private SnapshotLease CapacityRefusal() => new(false, new Dictionary<string, object?>
+    { [MetadataName.RetryAfter.Name] = _window });
 
     private void Sweep()
     {

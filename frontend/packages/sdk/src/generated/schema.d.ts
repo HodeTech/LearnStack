@@ -285,6 +285,7 @@ export interface operations {
             /** @description method_not_allowed from routing; this authenticated operation admits GET only. */
             405: {
                 headers: {
+                    Allow: "GET";
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
@@ -292,7 +293,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -328,6 +329,8 @@ export interface operations {
             503: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -396,6 +399,7 @@ export interface operations {
             /** @description method_not_allowed from routing. */
             405: {
                 headers: {
+                    Allow: "GET, HEAD";
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
@@ -403,7 +407,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -439,6 +443,8 @@ export interface operations {
             503: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -499,12 +505,13 @@ export interface operations {
             /** @description method_not_allowed from routing. */
             405: {
                 headers: {
+                    Allow: "GET, HEAD";
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -534,6 +541,8 @@ export interface operations {
             503: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -603,6 +612,7 @@ export interface operations {
             /** @description method_not_allowed from routing. */
             405: {
                 headers: {
+                    Allow: "GET, HEAD";
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
@@ -610,7 +620,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -646,6 +656,8 @@ export interface operations {
             503: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -709,12 +721,13 @@ export interface operations {
             /** @description method_not_allowed from routing. */
             405: {
                 headers: {
+                    Allow: "GET, HEAD";
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -744,6 +757,8 @@ export interface operations {
             503: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -811,6 +826,7 @@ export interface operations {
             /** @description method_not_allowed from routing. */
             405: {
                 headers: {
+                    Allow: "GET, HEAD";
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
@@ -818,7 +834,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -854,6 +870,8 @@ export interface operations {
             503: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -915,12 +933,13 @@ export interface operations {
             /** @description method_not_allowed from routing. */
             405: {
                 headers: {
+                    Allow: "GET, HEAD";
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -950,6 +969,8 @@ export interface operations {
             503: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -1009,6 +1030,7 @@ export interface operations {
             /** @description method_not_allowed from routing. */
             405: {
                 headers: {
+                    Allow: "GET, HEAD";
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
@@ -1016,7 +1038,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -1052,6 +1074,8 @@ export interface operations {
             503: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -1105,12 +1129,13 @@ export interface operations {
             /** @description method_not_allowed from routing. */
             405: {
                 headers: {
+                    Allow: "GET, HEAD";
                     "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description payload_too_large; the decoded request-body bound precedes host classification and authentication. */
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -1140,6 +1165,8 @@ export interface operations {
             503: {
                 headers: {
                     "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content?: never;

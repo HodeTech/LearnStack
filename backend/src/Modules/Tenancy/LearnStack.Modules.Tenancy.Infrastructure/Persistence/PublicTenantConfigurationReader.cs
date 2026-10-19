@@ -32,7 +32,7 @@ public sealed partial class PublicTenantConfigurationReader(
             .SingleOrDefaultAsync(row => row.Id == tenantContext.TenantId && row.DeletedAt == null
                 && (row.Status == TenantStatus.Trial || row.Status == TenantStatus.Active), cancellationToken);
         if (tenant is null) return Hidden();
-        if (host.OrganizationId is { } organization
+        if (tenantContext.OrganizationId is { } organization
             && !await context.Organizations.AsNoTracking().AnyAsync(row => row.Id == organization
                 && row.TenantId == tenantContext.TenantId && row.DeletedAt == null
                 && row.Status == OrganizationStatus.Active, cancellationToken))

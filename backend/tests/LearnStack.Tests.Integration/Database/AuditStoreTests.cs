@@ -713,8 +713,11 @@ public sealed class AuditStoreTests
     }
 
 
-    [Fact]
-    public async Task The_sentinel_is_refused_on_the_standalone_path()
+    [Theory]
+    [InlineData("sentinel")]
+    [InlineData("nil")]
+    [InlineData("uninitialized")]
+    public async Task Non_tenant_identifiers_are_refused_on_the_standalone_paths(string kind)
     {
         // The FIFTH announcement site. TenantId's remarks enumerate four guards because a
         // CHECK on `tenants` cannot stop a session variable from being announced — and
@@ -722,7 +725,14 @@ public sealed class AuditStoreTests
         // table that deliberately has no foreign key to `tenants`. Measured before the
         // guard: the row was written, through the runtime role, under the sentinel — which
         // is exactly what IAuditStore's own contract says cannot happen.
-        var draft = Draft(organizationId: null) with { TenantId = TenantId.PlatformSentinel };
+        var tenant = kind switch
+        {
+            "sentinel" => TenantId.PlatformSentinel,
+            "nil" => TenantId.From(Guid.Empty),
+            "uninitialized" => (new TenantId[1])[0],
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+        };
+        var draft = Draft(organizationId: null) with { TenantId = tenant };
 
         await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
         var health = new AuditHealth();

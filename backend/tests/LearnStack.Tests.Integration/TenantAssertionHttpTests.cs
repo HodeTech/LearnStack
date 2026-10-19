@@ -100,7 +100,7 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
             "and the client's claim travels as metadata, never as the row's tenant");
         rejection.Dimension.Should().Be(TenantAssertionDimension.Tenant);
         rejection.IsAuthenticated.Should().BeFalse(
-            "there is no UseAuthentication until Phase 02b, so the tier is constant-false");
+            "this fixture supplies no bearer credential, so its requests remain anonymous");
     }
 
     [Fact]
@@ -429,6 +429,27 @@ public sealed class AssertionRecorderCompositionTests(RegisteredRecorderFixture 
         first.ServiceProvider.GetRequiredService<TenantAssertionBurstDetector>()
             .Should().BeSameAs(
                 second.ServiceProvider.GetRequiredService<TenantAssertionBurstDetector>());
+    }
+
+    [Fact]
+    public void The_Assertion_Audit_Budget_Is_A_Singleton()
+    {
+        AssertSingleton(fixture.Services);
+
+        using var scoped = fixture.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.Replace(ServiceDescriptor.Scoped<TenantAssertionAuditBudget, TenantAssertionAuditBudget>())));
+        Action changedLifetime = () => AssertSingleton(scoped.Services);
+        changedLifetime.Should().Throw<Xunit.Sdk.XunitException>(
+            "a scoped budget would give each request another 600 audit attempts");
+
+        static void AssertSingleton(IServiceProvider services)
+        {
+            using var first = services.CreateScope();
+            using var second = services.CreateScope();
+            first.ServiceProvider.GetRequiredService<TenantAssertionAuditBudget>()
+                .Should().BeSameAs(second.ServiceProvider.GetRequiredService<TenantAssertionAuditBudget>(),
+                    "the defended-tenant audit allowance belongs to the API instance across request scopes");
+        }
     }
 
     [Fact]

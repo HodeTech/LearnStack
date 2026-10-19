@@ -264,6 +264,7 @@ function readOptionalEnvironment(path: string): Record<string, string> {
 export function loadLocalEnvironment(
   root: string,
   environment: Readonly<Record<string, string | undefined>>,
+  options: { apiAuthentication?: boolean } = {},
 ): Record<string, string> {
   const source = readOptionalEnvironment(resolve(root, '.env'));
   const projection = readOptionalEnvironment(resolve(root, 'frontend/apps/web/.env.local'));
@@ -283,10 +284,15 @@ export function loadLocalEnvironment(
     if (environment[key] !== undefined) result[key] = environment[key];
   }
   const issuerKey = 'Authentication__Tenant__Issuer';
-  if (environment[issuerKey] !== undefined) {
-    if (source[issuerKey] !== undefined && source[issuerKey] !== environment[issuerKey])
-      throw new Error('Conflicting API authentication configuration');
-    result[issuerKey] = environment[issuerKey];
+  // Web startup does not consume API authentication configuration. Only the API
+  // launcher opts into resolving this private value and its conflict checks.
+  delete result[issuerKey];
+  if (options.apiAuthentication) {
+    const issuers = [source[issuerKey], projection[issuerKey], environment[issuerKey]].filter(
+      (value): value is string => value !== undefined,
+    );
+    if (new Set(issuers).size > 1) throw new Error('Conflicting API authentication configuration');
+    if (issuers[0] !== undefined) result[issuerKey] = issuers[0];
   }
   return result;
 }

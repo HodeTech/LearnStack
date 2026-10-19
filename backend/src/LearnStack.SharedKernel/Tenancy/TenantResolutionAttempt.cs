@@ -142,7 +142,10 @@ public sealed record TenantResolutionAttempt
     /// </para>
     /// </remarks>
     public bool HasIncoherentClaims =>
-        (ClaimTenantId is not null && UserId is null)
+        (!HasValidatedPrincipal && (ClaimTenantId is not null || ClaimOrganizationId is not null || UserId is not null))
+        || (HasValidatedPrincipal && UserId is null)
+        || (HostOrganizationId is not null && HostTenantId is null)
+        || (ClaimTenantId is not null && UserId is null)
         || (ClaimOrganizationId is not null && ClaimTenantId is null);
 
     /// <summary>

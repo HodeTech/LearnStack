@@ -192,9 +192,12 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
                     if (status == "401" && (response["headers"]?["WWW-Authenticate"]?["schema"]?["enum"] is not JsonArray { Count: 1 } challenge
                         || challenge[0]?.GetValue<string>() != "Bearer"
                         || response["headers"]?["WWW-Authenticate"]?["required"]?.GetValue<bool>() != true)) errors.Add("challenge");
-                    if (status == "429" && (response["headers"]?["Retry-After"]?["schema"]?["type"]?.GetValue<string>() != "integer"
+                    if (status is "429" or "503" && (response["headers"]?["Retry-After"]?["schema"]?["type"]?.GetValue<string>() != "integer"
                         || response["headers"]?["Retry-After"]?["schema"]?["minimum"]?.GetValue<int>() != 0
                         || response["headers"]?["Retry-After"]?["required"]?.GetValue<bool>() != true)) errors.Add("retry-after");
+                    if (status == "405" && (response["headers"]?["Allow"]?["required"]?.GetValue<bool>() != true
+                        || response["headers"]?["Allow"]?["schema"]?["enum"]?[0]?.GetValue<string>()
+                            != (authenticated ? "GET" : "GET, HEAD"))) errors.Add("allow");
                     if (method == "head") { if (response["content"] is not null) errors.Add("head-body"); }
                     else if (status != "200" && response["content"]?["application/problem+json"]?["schema"]?["$ref"]?.GetValue<string>() != "#/components/schemas/ProblemDetails") errors.Add("problem");
                     else if (status == "200")

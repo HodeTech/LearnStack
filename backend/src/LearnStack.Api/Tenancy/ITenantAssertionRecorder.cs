@@ -45,8 +45,8 @@ internal static class TenantAssertionSourceExtensions
 /// <param name="IsAuthenticated">
 /// Whether a validated principal was attached. The two tiers have different
 /// amplification profiles and ADR-0036 treats them differently: an
-/// authenticated mismatch is bounded by token issuance, an anonymous one is
-/// not.
+/// authenticated durable attempt spends a shared target-tenant allowance (ADR-0065);
+/// anonymous occurrences use a separate burst window.
 /// </param>
 /// <param name="Source">Header or validated JWT claim.</param>
 /// <param name="ActorUserId">The validated actor, absent for an anonymous request.</param>
@@ -90,8 +90,8 @@ public readonly record struct TenantNoTenantRefusal(
 /// The interface stays named <c>Record</c> rather than <c>Audit</c>. Not every occurrence
 /// produces a row and that is the design, not a shortfall: an unresolved request produces
 /// none at all, and an anonymous mismatch produces one only when its window crosses the
-/// burst threshold. A name promising a row per call would be wrong on two of the three
-/// paths.
+/// burst threshold. Authenticated occurrences beyond the target-tenant allowance also
+/// produce only diagnostics. This admission exception does not weaken mutation MUST durability.
 /// </para>
 /// </remarks>
 public interface ITenantAssertionRecorder

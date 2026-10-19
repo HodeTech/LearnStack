@@ -311,7 +311,7 @@ public sealed class TenantProvisioningTests
                 new NoOpAuditStore(), new AuditStateCapture(),
                 scope.ServiceProvider.GetRequiredService<ProducerExecution>(),
                 scope.ServiceProvider.GetRequiredService<DomainEventCollector>(),
-                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), []);
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]));
 
         var write = () => behavior.Handle(
             new Probe(),
@@ -520,7 +520,7 @@ public sealed class TenantProvisioningTests
                 new NoOpAuditStore(), new AuditStateCapture(),
                 services.GetRequiredService<ProducerExecution>(),
                 services.GetRequiredService<DomainEventCollector>(),
-                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), []);
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]));
 
         return await behavior.Handle(
             command,

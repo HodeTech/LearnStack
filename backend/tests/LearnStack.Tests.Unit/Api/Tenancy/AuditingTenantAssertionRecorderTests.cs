@@ -34,8 +34,15 @@ namespace LearnStack.Tests.Unit.Api.Tenancy;
 /// written and what it says is this file's, whether PostgreSQL accepts it is that one's.
 /// </para>
 /// </remarks>
-public sealed class AuditingTenantAssertionRecorderTests
+public sealed partial class AuditingTenantAssertionRecorderTests : IDisposable
 {
+    private readonly List<ServiceProvider> _providers = [];
+
+    public void Dispose()
+    {
+        foreach (var provider in _providers) provider.Dispose();
+    }
+
     private static readonly Guid Resolved = Guid.Parse("11111111-1111-7111-8111-111111111111");
     private static readonly Guid Asserted = Guid.Parse("99999999-9999-7999-8999-999999999999");
 
@@ -44,14 +51,35 @@ public sealed class AuditingTenantAssertionRecorderTests
         OrganizationId.From(Guid.Parse("33333333-3333-7333-8333-333333333333"));
     private const string Correlation = "00-harness-assertion-01";
 
-    [Fact]
-    public async Task An_authenticated_mismatch_is_a_row_every_time()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task An_invalid_defended_tenant_is_refused_before_signal_or_store(bool sentinel)
     {
-        // No coalescing and no per-tenant ceiling. The tier is bounded by token issuance
-        // and the actor is the finding, so suppressing repeats loses the signal — and a
-        // ceiling would be worse than the flood it prevents: ten cheap requests against a
-        // tenant of the attacker's choosing would silence every later authenticated
-        // mismatch against that tenant for the window.
+        var store = new RecordingStore();
+        var recorder = Recorder(store, out _);
+        var rejected = Rejection(authenticated: true) with
+        { ResolvedTenantId = sentinel ? TenantId.PlatformSentinel.Value : Guid.Empty };
+        var invoke = () => recorder.RecordRejectionAsync(rejected);
+        await invoke.Should().ThrowAsync<ArgumentException>();
+        store.Attempts.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Unassigned_trusted_organization_is_not_dereferenced_or_written_as_metadata()
+    {
+        var store = new RecordingStore();
+        var recorder = Recorder(store, out _);
+        await recorder.RecordRejectionAsync(Rejection(authenticated: true) with
+        { TrustedOrganizationId = (new OrganizationId[1])[0] });
+        using var metadata = JsonDocument.Parse(store.Written.Single().Metadata!);
+        metadata.RootElement.GetProperty("trustedOrganizationId").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task Each_admitted_authenticated_mismatch_has_its_own_row()
+    {
+        // Admitted events are individual rows; the 600-attempt boundary is proved separately.
         var store = new RecordingStore();
         var recorder = Recorder(store, out _);
 
@@ -253,7 +281,6 @@ public sealed class AuditingTenantAssertionRecorderTests
         measurement.Count.Should().Be(1);
         measurement.Tags.Should().BeEquivalentTo(new Dictionary<string, object?>
         {
-            ["tenant"] = Resolved,
             ["dimension"] = "Tenant",
             ["source"] = label,
             ["authenticated"] = true,
@@ -606,19 +633,24 @@ public sealed class AuditingTenantAssertionRecorderTests
         new(Resolved, dimension, Asserted, authenticated, source,
             authenticated ? Actor : null, Correlation, trustedOrganizationId);
 
-    private static AuditingTenantAssertionRecorder Recorder(
+    private AuditingTenantAssertionRecorder Recorder(
         IAuditStore store,
         out MovableClock clock,
         int threshold = 10,
         IAuditCatalog? catalog = null,
         ILogger<AuditingTenantAssertionRecorder>? logger = null,
         IMeterFactory? meterFactory = null,
-        ILogger<LoggingTenantAssertionRecorder>? signalLogger = null)
+        ILogger<LoggingTenantAssertionRecorder>? signalLogger = null,
+        TenantAssertionAuditBudget? auditBudget = null)
     {
         clock = new MovableClock(DateTimeOffset.UnixEpoch);
 
-        meterFactory ??= new ServiceCollection().AddMetrics()
-            .BuildServiceProvider().GetRequiredService<IMeterFactory>();
+        if (meterFactory is null)
+        {
+            var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+            _providers.Add(provider);
+            meterFactory = provider.GetRequiredService<IMeterFactory>();
+        }
 
         return new AuditingTenantAssertionRecorder(
             new LoggingTenantAssertionRecorder(
@@ -632,6 +664,7 @@ public sealed class AuditingTenantAssertionRecorderTests
                     Window = TimeSpan.FromMinutes(5),
                 }),
                 clock),
+            auditBudget ?? new TenantAssertionAuditBudget(TimeProvider.System),
             clock,
             new SystemGuidFactory(),
             logger ?? NullLogger<AuditingTenantAssertionRecorder>.Instance);
@@ -712,6 +745,7 @@ public sealed class AuditingTenantAssertionRecorderTests
     private class CapturingLogger<T> : ILogger<T>
     {
         private readonly List<(LogLevel Level, string Message, IReadOnlyDictionary<string, object?> Properties)> _entries = [];
+        public List<EventId> EventIds { get; } = [];
 
         public IReadOnlyList<(LogLevel Level, string Message, IReadOnlyDictionary<string, object?> Properties)> Entries => _entries;
 
@@ -725,10 +759,13 @@ public sealed class AuditingTenantAssertionRecorderTests
             EventId eventId,
             TState state,
             Exception? exception,
-            Func<TState, Exception?, string> formatter) =>
+            Func<TState, Exception?, string> formatter)
+        {
+            EventIds.Add(eventId);
             _entries.Add((logLevel, formatter(state, exception),
                 state is IEnumerable<KeyValuePair<string, object?>> properties
                     ? properties.ToDictionary(property => property.Key, property => property.Value)
                     : new Dictionary<string, object?>()));
+        }
     }
 }

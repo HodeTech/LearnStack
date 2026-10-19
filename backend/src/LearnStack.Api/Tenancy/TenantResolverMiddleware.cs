@@ -91,7 +91,7 @@ public sealed class TenantResolverMiddleware(
 
         try
         {
-            if (attempt.NamesNoTenant)
+            if (!attempt.HasIncoherentClaims && attempt.NamesNoTenant)
             {
                 accessor.Current = UnresolvedTenantContext.Instance;
                 await next(context);
@@ -235,7 +235,8 @@ public sealed class TenantResolverMiddleware(
             return recorder.RecordRejectionAsync(new TenantAssertionRejection(
                 host.TenantId.Value.Value, dimension, asserted, IsAuthenticated: true,
                 TenantAssertionSource.JwtClaim, identity.ActorUserId,
-                attempt.CorrelationId, host.OrganizationId));
+                attempt.CorrelationId, host.OrganizationId is { } organization
+                    && LearnStack.SharedKernel.Identifiers.StronglyTypedId.IsAssigned(organization) ? organization : null));
         }
         return Task.CompletedTask;
     }

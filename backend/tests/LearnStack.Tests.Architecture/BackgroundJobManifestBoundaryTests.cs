@@ -22,6 +22,9 @@ public sealed partial class OutboxDispatchConventionTests
     {
         using var census = ProductionCensus.Read();
         EvaluateDetector(census, JobManifestOffenders).Should().BeEmpty();
+        EndpointCompositionControls.Plant(census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api"),
+            because => EvaluateDetector(census, JobManifestOffenders).Should().NotBeEmpty(because));
+        EvaluateDetector(census, JobManifestOffenders).Should().BeEmpty("restoring production composition restores the manifest");
         CheckJobFrameworkMetadata();
 
         var scaffold = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Modules.Media.Application");
@@ -184,6 +187,9 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "exact endpoint registration capabilities", sites.Where(site => EndpointCapability(site.Target))
                 .Select(site => MethodId(site.Owner) + "|" + MethodId(site.Target) + "|" + site.Instruction.OpCode.Name),
             approvedRoutes.Select(route => route.Item1 + "|" + MethodId(api.ImportReference(route.Item2)) + "|call"));
+        foreach (var site in sites.Where(site => site.Target.Name == "MapGet" && EndpointCapability(site.Target)))
+            if (!EndpointComposition.HasLiteralPath(site.Owner, site.Instruction, "/healthz"))
+                offenders.Add("Only the direct literal /healthz infrastructure mapping is admitted: " + MethodId(site.Owner));
         return offenders;
 
         IEnumerable<MethodDefinition> ControllerActions(TypeDefinition controller)
@@ -252,8 +258,6 @@ public sealed partial class OutboxDispatchConventionTests
         || DashboardCapability(method.ReturnType) || method.Parameters.Any(parameter => DashboardCapability(parameter.ParameterType))
         || method is GenericInstanceMethod generic && generic.GenericArguments.Any(DashboardCapability);
 
-    private static bool EndpointCapability(MethodReference method) => method.Name.StartsWith("Map", StringComparison.Ordinal)
-        && (method.DeclaringType.Namespace.StartsWith("Microsoft.AspNetCore.Builder", StringComparison.Ordinal)
-            || method.DeclaringType.Namespace == "Scalar.AspNetCore"
-            || DashboardCapability(method.DeclaringType));
+    private static bool EndpointCapability(MethodReference method) => EndpointComposition.IsCapability(method)
+        || method.Name.StartsWith("Map", StringComparison.Ordinal) && DashboardCapability(method.DeclaringType);
 }

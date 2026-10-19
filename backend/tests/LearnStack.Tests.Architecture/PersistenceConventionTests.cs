@@ -275,7 +275,7 @@ public sealed partial class PersistenceConventionTests
 
         constructor.GetParameters().Select(parameter => parameter.ParameterType)
             .Should().Equal(typeof(TransactionExecutionCoordinator), typeof(IBackgroundJobRequestCatalog),
-                typeof(IEnumerable<ExplicitReadOnlyRequest>));
+                typeof(ExplicitReadOnlyRequestCatalog));
         typeof(TransactionExecutionCoordinator).GetConstructors().Single()
             .GetParameters().Select(parameter => parameter.ParameterType)
             .Should().Contain(typeof(IUnitOfWork))

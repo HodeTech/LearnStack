@@ -17,12 +17,10 @@ namespace LearnStack.Tests.Unit.SharedKernel.Tenancy;
 /// entry is a failure here rather than a discovery in Phase 02b.
 /// </para>
 /// <para>
-/// <b>Most of these rows cannot happen yet.</b> Rows 6–12, 14 and 15 all need a
-/// validated claim, and there is no <c>UseAuthentication</c> until Phase 02b. They
-/// are tested anyway, and this is the one place where testing an unreachable path is
-/// right: the factory is pure, so the rows are reachable <i>as a function</i>, and
-/// the alternative is shipping the arithmetic of an authority ceiling with no
-/// evidence and finding out when authentication lands.
+/// <b>These pure cases complement actual signed-token HTTP tests.</b> P02b-5
+/// authentication reaches matching host/claim rows. The deny-all membership
+/// reader still refuses rows 7, 10 and 14 until Phase 03; the positive cases here
+/// supply explicit membership answers to prove the factory's future contract.
 /// </para>
 /// </remarks>
 public sealed class TenantContextFactoryTests
@@ -32,6 +30,40 @@ public sealed class TenantContextFactoryTests
     private static readonly OrganizationId OrgOne = OrganizationId.From(Guid.Parse("018f4d40-0000-7000-8000-0000000000a1"));
     private static readonly OrganizationId OrgTwo = OrganizationId.From(Guid.Parse("018f4d40-0000-7000-8000-0000000000a2"));
     private static readonly UserId Actor = UserId.From(Guid.Parse("018f4d40-0000-7000-8000-0000000000f1"));
+
+    [Theory]
+    [InlineData("host-nil")]
+    [InlineData("host-default")]
+    [InlineData("host-sentinel")]
+    [InlineData("claim-nil")]
+    [InlineData("claim-default")]
+    [InlineData("claim-sentinel")]
+    [InlineData("actor-nil")]
+    [InlineData("actor-default")]
+    [InlineData("actor-system")]
+    [InlineData("orphan-actor")]
+    [InlineData("orphan-organization")]
+    public void Malformed_supplied_identifiers_never_mint_a_resolved_context(string fault)
+    {
+        var attempt = Authenticated() with { HostTenantId = TenantA, ClaimTenantId = TenantA };
+        attempt = fault switch
+        {
+            "host-nil" => attempt with { HostTenantId = TenantId.From(Guid.Empty) },
+            "host-default" => attempt with { HostTenantId = (new TenantId[1])[0] },
+            "host-sentinel" => attempt with { HostTenantId = TenantId.PlatformSentinel },
+            "claim-nil" => attempt with { ClaimTenantId = TenantId.From(Guid.Empty) },
+            "claim-default" => attempt with { ClaimTenantId = (new TenantId[1])[0] },
+            "claim-sentinel" => attempt with { ClaimTenantId = TenantId.PlatformSentinel },
+            "actor-nil" => attempt with { UserId = UserId.From(Guid.Empty) },
+            "actor-default" => attempt with { UserId = (new UserId[1])[0] },
+            "actor-system" => attempt with { UserId = UserId.SystemActor },
+            "orphan-actor" => new TenantResolutionAttempt { UserId = Actor },
+            "orphan-organization" => new TenantResolutionAttempt { HostOrganizationId = OrgOne },
+            _ => throw new ArgumentOutOfRangeException(nameof(fault)),
+        };
+        TenantContextFactory.Create(attempt).IsFailure.Should().BeTrue();
+        if (attempt.NamesNoTenant) attempt.HasIncoherentClaims.Should().BeTrue();
+    }
 
     [Fact]
     public void Row_2_A_tenant_host_with_no_token_resolves_the_tenant_under_the_host_only_ceiling()

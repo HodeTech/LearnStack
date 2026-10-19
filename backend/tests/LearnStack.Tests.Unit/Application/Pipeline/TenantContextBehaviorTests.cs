@@ -219,7 +219,7 @@ public sealed class TenantContextBehaviorTests
             ClaimTenantId = context.TenantId,
             ClaimOrganizationId = OrganizationId.From(Guid.CreateVersion7()),
             HasValidatedPrincipal = true,
-            UserId = UserId.SystemActor,
+            UserId = UserId.From(Guid.CreateVersion7()),
             MembershipCovers = true,
             ClaimedOrganizationBelongsToTenant = true,
         });

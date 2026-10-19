@@ -17,14 +17,6 @@ public sealed partial class AuthenticationAuthorityTests
     private const string Profile = Authentication + nameof(TenantTokenProfile);
     private const string Limiter = Authentication + nameof(TenantSubjectRateLimiter);
     private const string Resolver = "LearnStack.Api.Tenancy.TenantResolverMiddleware";
-    private static readonly HashSet<string> ProjectionOwners = new(StringComparer.Ordinal)
-    {
-        Profile + ".TryReadValidated", Events + ".MessageReceived", Events + ".AuthenticationFailed", Events + ".TokenValidated",
-        Limiter + ".AttemptAcquire", Resolver + ".BuildAttemptAsync", Resolver + ".RecordRefusalAsync", Resolver + ".InvokeAsync",
-        "LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync",
-        Authentication + "TenantSurfaceAdmissionMiddleware.InvokeAsync", Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority",
-        Authentication + "TenantSubjectAdmissionMiddleware.InvokeAsync", Authentication + "TenantCredentialAdmissionMiddleware.InvokeAsync"
-    };
     private static readonly string[] IdentityProperties = ["ActorUserId", "Issuer", "OrganizationId", "Subject", "TenantId"];
     private static readonly Dictionary<string, Type> IdentityTypes = new(StringComparer.Ordinal)
     {
@@ -37,7 +29,11 @@ public sealed partial class AuthenticationAuthorityTests
 
     private sealed record Method(TypeDefinition Owner, string Name, MethodDefinition Definition)
     {
-        internal string Site => Owner.FullName + "." + Name;
+        internal string Site => Definition.DeclaringType == Owner ? Definition.FullName
+            : Owner.Methods.SingleOrDefault(method => method.CustomAttributes.Any(attribute =>
+                attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute"
+                && attribute.ConstructorArguments.Any(argument => argument.Value is TypeReference stateMachine
+                    && stateMachine.FullName == Definition.DeclaringType.FullName)))?.FullName ?? Definition.FullName;
     }
 
     private sealed record Call(Method Source, MethodReference Target);
@@ -64,25 +60,35 @@ public sealed partial class AuthenticationAuthorityTests
             .Select(instruction => instruction.Operand).OfType<MethodReference>()
             .Select(target => new Call(method, target))).ToArray();
 
-        foreach (var call in calls.Where(call => (rawReader ?? IsRawAuthorityRead)(call.Target)))
+        foreach (var call in calls.Where(call => (rawReader ?? IsRawAuthorityRead)(call.Target)
+                     && !(call.Source.Site == ExpectedSite(Events + ".TokenValidated")
+                         && call.Target.FullName == "System.String Microsoft.IdentityModel.JsonWebTokens.JsonWebToken::get_EncodedToken()")))
             errors.Add("Raw claim/role authority: " + call.Source.Site + " -> " + call.Target.FullName);
         // Object virtual dispatch and generic formatting can export a positional
         // record without an identity-declared call. Close acquisition, holders
         // and forwarding too, rather than treating getters as the only readers.
         foreach (var method in methods.Where(projectionUse ?? TouchesProjection))
-            if (method.Owner.FullName != Identity && method.Owner.FullName != Feature && !ProjectionOwners.Contains(method.Site))
+            if (method.Owner.FullName != Identity && method.Owner.FullName != Feature && !ApprovedSites.Values.Contains(method.Site, StringComparer.Ordinal))
                 errors.Add("Unapproved typed identity/feature consumer: " + method.Site);
+        foreach (var method in methods.Where(method => method.Owner.FullName != Identity && method.Owner.FullName != Feature
+                     && TouchesProjection(method) && ExportsProjection(method)))
+            errors.Add("Opaque typed identity/feature export: " + method.Site);
         foreach (var type in types)
         {
+            if (type.GenericParameters.Concat(type.Methods.SelectMany(method => method.GenericParameters))
+                .SelectMany(parameter => parameter.Constraints).Any(constraint => CarriesProjection(constraint.ConstraintType)))
+                errors.Add("Identity/feature generic constraint outside the closed projection: " + type.FullName);
             if (authorizationData(type)) errors.Add("Unapproved authorization metadata type: " + type.FullName);
             foreach (var attribute in type.CustomAttributes.Concat(type.Methods.SelectMany(method => method.CustomAttributes)))
                 if (authorizationData(attribute.AttributeType)
-                    && attribute.Properties.Any(property => property.Name == "Roles"))
+                    && (attribute.AttributeType.FullName != "Microsoft.AspNetCore.Authorization.AuthorizeAttribute"
+                        || attribute.Properties.Any(property => property.Name == "Roles")
+                        || attribute.Fields.Any(field => field.Name == "Roles")))
                     errors.Add("Realm-role authorization metadata: " + type.FullName);
         }
 
-        Require(Target(Identity, ".ctor", parameters: 5), Profile + ".TryReadValidated");
-        Require(Target(Identity, ".ctor", parameters: 1), Identity + ".<Clone>$");
+        Require(method => method.FullName == IdentityConstructor, Profile + ".TryReadValidated");
+        Require(method => method.FullName == IdentityCopyConstructor, Identity + ".<Clone>$");
         Require(Target(Feature, ".ctor"), Events + ".MessageReceived");
         Require(Target(Feature, "set_Identity"), Events + ".AuthenticationFailed", Events + ".TokenValidated");
         Require(Target(Profile, "TryReadValidated"), Events + ".TokenValidated");
@@ -102,13 +108,13 @@ public sealed partial class AuthenticationAuthorityTests
             Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority");
         Consumers("TenantId", Resolver + ".BuildAttemptAsync", Resolver + ".InvokeAsync",
             Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority");
-        Consumers("OrganizationId", Resolver + ".BuildAttemptAsync");
+        Consumers("OrganizationId", Resolver + ".BuildAttemptAsync", Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority");
 
         foreach (var method in methods)
             foreach (var instruction in method.Definition.Body.Instructions)
                 if (instruction.OpCode == OpCodes.Stfld && instruction.Operand is FieldReference field
                     && Is(field.DeclaringType, Feature) && Is(field.FieldType, Identity)
-                    && method.Site != Feature + ".set_Identity")
+                    && method.Site != ExpectedSite(Feature + ".set_Identity"))
                     errors.Add("Direct identity backing-field write: " + method.Site);
 
         var identities = types.Where(type => Is(type, Identity)).ToArray();
@@ -137,12 +143,16 @@ public sealed partial class AuthenticationAuthorityTests
                 || !Is(identityProperty.PropertyType, Identity))
                 errors.Add("The request feature may carry only the closed typed identity.");
         }
+        if (identities.Length == 1 && !HasClosedIdentityShape(identities[0]))
+            errors.Add("Validated identity has an unexpected member or constructor signature.");
+        if (features.Length == 1 && !HasClosedFeatureShape(features[0]))
+            errors.Add("Credential feature has an unexpected member or constructor signature.");
         return errors;
 
         void Require(Func<MethodReference, bool> target, params string[] owners)
         {
             var actual = calls.Where(call => target(call.Target)).Select(call => call.Source.Site).Order(StringComparer.Ordinal);
-            if (!actual.SequenceEqual(owners.Order(StringComparer.Ordinal), StringComparer.Ordinal))
+            if (!actual.SequenceEqual(owners.Select(ExpectedSite).Order(StringComparer.Ordinal), StringComparer.Ordinal))
                 errors.Add("Changed/missing trust capability callers: " + string.Join(", ", owners));
         }
 
@@ -151,7 +161,7 @@ public sealed partial class AuthenticationAuthorityTests
             var actual = calls.Where(call => Is(call.Target.DeclaringType, Identity) && call.Target.Name == "get_" + property
                     && call.Source.Owner.FullName != Identity)
                 .Select(call => call.Source.Site).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
-            if (!actual.SequenceEqual(owners.Order(StringComparer.Ordinal), StringComparer.Ordinal))
+            if (!actual.SequenceEqual(owners.Select(ExpectedSite).Order(StringComparer.Ordinal), StringComparer.Ordinal))
                 errors.Add("Changed/missing validated " + property + " consumers: " + string.Join(", ", actual));
         }
     }
@@ -159,6 +169,10 @@ public sealed partial class AuthenticationAuthorityTests
     private static bool IsRawAuthorityRead(MethodReference target) =>
         target.DeclaringType.Namespace is "System.Security.Claims" or "System.Security.Principal"
             or "Microsoft.IdentityModel.JsonWebTokens" or "System.IdentityModel.Tokens.Jwt"
+        // Validation policy/configuration is infrastructure, but validation results
+        // and SecurityToken members remain raw provider authority.
+        || target.DeclaringType.Namespace == "Microsoft.IdentityModel.Tokens"
+            && target.DeclaringType.Name is not ("TokenValidationParameters" or "BaseConfiguration" or "BaseConfigurationManager")
         || target.DeclaringType.FullName == "Microsoft.AspNetCore.Http.HttpContext" && target.Name is "get_User" or "set_User"
         || target.DeclaringType.FullName == "Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder"
             && target.Name is "RequireRole" or "RequireClaim"
@@ -168,9 +182,8 @@ public sealed partial class AuthenticationAuthorityTests
         || target.DeclaringType.FullName is "Microsoft.AspNetCore.Authorization.AuthorizeAttribute"
             or "Microsoft.AspNetCore.Authorization.IAuthorizeData" && target.Name is "get_Roles" or "set_Roles";
 
-    private static Func<MethodReference, bool> Target(string type, string name, int? parameters = null) =>
-        method => Is(method.DeclaringType, type) && method.Name == name
-            && (parameters is null || method.Parameters.Count == parameters);
+    private static Func<MethodReference, bool> Target(string type, string name) =>
+        method => Is(method.DeclaringType, type) && method.FullName == ExpectedSite(type + "." + name);
 
     private static bool Is(TypeReference type, string name) => type.FullName == name
         && type.Scope.Name.Replace(".dll", "", StringComparison.Ordinal) == "LearnStack.Api";
@@ -187,6 +200,8 @@ public sealed partial class AuthenticationAuthorityTests
 
     private static bool TouchesProjection(Method method) => CarriesProjection(method.Definition.ReturnType)
         || method.Definition.Parameters.Any(parameter => CarriesProjection(parameter.ParameterType))
+        || method.Definition.GenericParameters.SelectMany(parameter => parameter.Constraints).Any(constraint => CarriesProjection(constraint.ConstraintType))
+        || method.Owner.GenericParameters.SelectMany(parameter => parameter.Constraints).Any(constraint => CarriesProjection(constraint.ConstraintType))
         || method.Definition.Body.Variables.Any(variable => CarriesProjection(variable.VariableType))
         || method.Definition.Body.Instructions.Any(instruction => instruction.Operand switch
         {

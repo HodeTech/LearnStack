@@ -95,6 +95,17 @@ public sealed class TenantAuthenticationHttpTests
         protectedContext.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
         protectedContext.Response.Headers.WWWAuthenticate.Should().BeEmpty();
 
+        await using var forbiddenScope = factory.Services.CreateAsyncScope();
+        var forbidden = new DefaultHttpContext { RequestServices = forbiddenScope.ServiceProvider };
+        forbidden.Request.Path = TenantAuthenticationHttpRequest.AccountPath;
+        forbidden.SetEndpoint(account);
+        forbidden.Features.Set(HostClassification.Platform(TenantAuthenticationReconciliationHost.PlatformHost));
+        await handler.HandleAsync(_ => throw new InvalidOperationException("A forbidden request cannot dispatch."),
+            forbidden, policy, PolicyAuthorizationResult.Forbid());
+        forbidden.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden,
+            "only a missing-credential challenge is masked; an authorization refusal retains 403");
+        forbidden.Response.Headers.WWWAuthenticate.Should().BeEmpty();
+
         var internalContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
         internalContext.Request.Path = "/api/internal/authorization-control";
         await handler.HandleAsync(_ => throw new InvalidOperationException("A challenge cannot dispatch the endpoint."),
@@ -163,6 +174,24 @@ public sealed class TenantAuthenticationHttpTests
         BareBearer(response);
         factory.Recorder!.Rejections.Should().BeEmpty();
         issuer.MetadataRequests.Should().Be(0, "malformed credentials need no discovery");
+    }
+
+    [Fact]
+    public async Task A_trusted_signature_with_an_invalid_profile_is_401_on_an_actual_public_route()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var factory = new TenantAuthenticationApiFactory(issuer);
+        using var client = factory.CreateClient();
+        using var response = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.TenantHost, TenantAuthenticationHttpRequest.PublicPath,
+            token: issuer.Token(issuer.Payload(("typ", "ID"))));
+
+        await Problem(response, HttpStatusCode.Unauthorized, "unauthorized");
+        BareBearer(response);
+        factory.Recorder.Rejections.Should().BeEmpty();
+        factory.Ports.Memberships.Should().BeEmpty();
+        issuer.MetadataRequests.Should().BeGreaterThan(0, "the real handler validates the trusted signing key");
+        issuer.JwksRequests.Should().BeGreaterThan(0);
     }
 
     [Fact]

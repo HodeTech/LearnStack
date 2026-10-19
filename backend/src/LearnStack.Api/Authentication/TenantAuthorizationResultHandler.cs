@@ -14,7 +14,8 @@ internal sealed class TenantAuthorizationResultHandler : IAuthorizationMiddlewar
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(authorizeResult);
-        if (!authorizeResult.Succeeded
+        if (authorizeResult.Challenged
+            && context.Features.Get<TenantCredentialFeature>()?.Identity is null
             && context.Features.Get<HostClassification>() is not null
             && TenantSurfaceAdmissionMiddleware.IsAccountSiteEndpoint(context))
         {

@@ -136,6 +136,7 @@ public sealed class TenantAuthenticationRejectionAuditTests(SchemaFixture schema
             services.GetRequiredService<ITenantContextAccessor>());
         return new AuditingTenantAssertionRecorder(services.GetRequiredService<LoggingTenantAssertionRecorder>(),
             catalog, store, new TenantAssertionBurstDetector(Options.Create(new AssertionBurstOptions()), new SystemClock()),
+            services.GetRequiredService<TenantAssertionAuditBudget>(),
             new SystemClock(), new SystemGuidFactory(), services.GetRequiredService<ILogger<AuditingTenantAssertionRecorder>>());
     }
 

@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using OpenTelemetry;
 
 namespace LearnStack.Api.Authentication;
@@ -30,10 +31,11 @@ internal sealed class TenantOidcDocumentRetriever(
     {
         if (!Uri.TryCreate(address, UriKind.Absolute, out var uri)
             || !string.IsNullOrEmpty(uri.UserInfo)
+            || !string.IsNullOrEmpty(uri.Query)
             || !string.IsNullOrEmpty(uri.Fragment)
-            || (uri.Scheme != Uri.UriSchemeHttps
-                && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback
-                    && new Uri(settings.Issuer).Scheme == Uri.UriSchemeHttp)))
+            || !uri.IsWellFormedOriginalString()
+            || !string.Equals(uri.AbsoluteUri, address, StringComparison.Ordinal)
+            || !address.StartsWith(settings.Issuer + "/", StringComparison.Ordinal))
         {
             throw new IOException("Tenant authentication metadata refused.");
         }
@@ -73,4 +75,15 @@ internal sealed class TenantOidcDocumentRetriever(
             body.Write(buffer, 0, read);
         }
     }
+}
+
+/// <summary>Discovery cannot widen the issuer authority trusted by the stock manager.</summary>
+internal sealed class TenantOidcConfigurationValidator(TenantAuthenticationOptions settings)
+    : IConfigurationValidator<OpenIdConnectConfiguration>
+{
+    public ConfigurationValidationResult Validate(OpenIdConnectConfiguration configuration) => new()
+    {
+        Succeeded = string.Equals(configuration.Issuer, settings.Issuer, StringComparison.Ordinal),
+        ErrorMessage = "Tenant authentication metadata refused.",
+    };
 }

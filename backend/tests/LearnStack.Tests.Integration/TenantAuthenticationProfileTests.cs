@@ -50,6 +50,7 @@ public sealed partial class TenantAuthenticationProfileTests
             ("platform OAuth scope", issuer.Payload(("scope", "openid platform profile"))),
             ("organization without tenant", issuer.Without("tenant_id")),
             ("subject exceeds the opaque subject bound", issuer.Payload(("sub", new string('s', 256)))),
+            ("subject contains only whitespace", issuer.Payload(("sub", " \t\r\n\u2003"))),
             ("duplicate audience value", issuer.Payload(("aud", (string[])["learnstack-api", "learnstack-api"]))),
             ("empty audience array", issuer.Payload(("aud", Array.Empty<string>()))),
             ("nonstring audience entry", issuer.PayloadWithRaw("aud", "[\"learnstack-api\",1]")),
@@ -114,7 +115,8 @@ public sealed partial class TenantAuthenticationProfileTests
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
         var oversizedKid = issuer.NewKey(new string('k', 129));
-        issuer.Publish(issuer.CurrentKey, oversizedKid);
+        var whitespaceKid = issuer.NewKey(" \t\u2003");
+        issuer.Publish(issuer.CurrentKey, oversizedKid, whitespaceKid);
         await using var app = await CreateHost(issuer);
         using var client = app.GetTestClient();
         await AssertAccepted(client, issuer.Token(), issuer);
@@ -162,6 +164,13 @@ public sealed partial class TenantAuthenticationProfileTests
         await AssertRejected(client, issuer.Token(key: oversizedKid),
             "oversized key id");
         await AssertRejected(client, issuer.Token(key: rogue), "unpublished signing key");
+        await AssertRejected(client, issuer.Token(header: TenantAuthenticationIssuer.Header("unknown-key")),
+            "a trusted signature cannot replace an unknown kid selector");
+        await AssertRejected(client, issuer.Token(key: whitespaceKid),
+            "a whitespace-only kid is not a key selector");
+        var signed = issuer.Token();
+        await AssertRejected(client, signed[..(signed.LastIndexOf('.') + 1)],
+            "an actual unsigned compact JWS cannot authenticate with a permitted alg header");
         await AssertRejected(client, issuer.Token(key: rogue, header:
             TenantAuthenticationIssuer.AddProperty(TenantAuthenticationIssuer.Header(rogue.Kid), "jwk", rogue.PublicJwk)),
             "embedded signing key cannot establish trust");
@@ -201,6 +210,29 @@ public sealed partial class TenantAuthenticationProfileTests
             }
         }
         await AssertAccepted(client, issuer.Token(), issuer);
+    }
+
+    [Fact]
+    public async Task Validated_profile_enforces_the_exact_thirty_second_skew_at_tick_precision()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        var settings = TenantAuthenticationOptions.Create(issuer.Issuer, DeploymentMode.Development);
+        // The production profile has an injected clock. Qualify its exact edge
+        // separately from the real handler's wall-clock tests above; truncation
+        // to token seconds must not make a +/-30 boundary test depend on timing.
+        var now = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        foreach (var claim in new[] { "iat", "exp", "nbf" })
+        {
+            var boundary = now.ToUnixTimeSeconds() + (claim == "exp" ? -30 : 30);
+            var token = issuer.Token(issuer.Payload(("iat", now.ToUnixTimeSeconds() - 600),
+                ("exp", now.ToUnixTimeSeconds() + 600), (claim, boundary)));
+
+            TenantTokenProfile.TryReadValidated(token, settings, now, out _, out _)
+                .Should().BeTrue(claim + " at exactly thirty seconds is within skew");
+            var outside = now.AddTicks(claim == "exp" ? 1 : -1);
+            TenantTokenProfile.TryReadValidated(token, settings, outside, out _, out _)
+                .Should().BeFalse(claim + " one tick beyond thirty seconds is outside skew");
+        }
     }
 
     [Fact]
@@ -272,7 +304,7 @@ public sealed partial class TenantAuthenticationProfileTests
             if (context.Response.StatusCode != StatusCodes.Status204NoContent)
             {
                 await context.Response.WriteAsJsonAsync(new AuthenticationObservation(
-                    result.Succeeded, feature?.IsPresent == true,
+                    result.Succeeded, context.Request.Headers.ContainsKey("Authorization"),
                     context.User.Identity?.IsAuthenticated == true,
                     identity?.Issuer, identity?.Subject, identity?.ActorUserId.Value,
                     identity?.TenantId?.Value, identity?.OrganizationId?.Value));

@@ -320,7 +320,7 @@ export async function startDemo(mode) {
     for (const [key, value] of Object.entries(rawValues))
       if (process.env[key] !== undefined && process.env[key] !== value)
         throw new Error('Environment disagrees with private root configuration');
-    const values = loadLocalEnvironment(repositoryRoot, process.env);
+    const values = loadLocalEnvironment(repositoryRoot, process.env, { apiAuthentication: true });
     const configuration = publicServerConfiguration(values, repositoryRoot);
     await vacant(Number(new URL(configuration.apiOrigin).port || '80'));
     validateDemoDatabaseConfiguration(rawValues);

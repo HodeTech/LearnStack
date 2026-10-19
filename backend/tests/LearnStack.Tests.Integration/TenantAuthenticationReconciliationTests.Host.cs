@@ -81,6 +81,7 @@ internal sealed class TenantAuthenticationReconciliationHost : IAsyncDisposable
         builder.Services.AddSingleton<IOrganizationScopeValidator>(services =>
             services.GetRequiredService<ReconciliationPorts>());
         builder.Services.AddSingleton<LoggingTenantAssertionRecorder>();
+        builder.Services.AddSingleton(new TenantAssertionAuditBudget(TimeProvider.System));
         builder.Services.AddSingleton(services => new ReconciliationRecorder(
             recorder?.Invoke(services) ?? services.GetRequiredService<LoggingTenantAssertionRecorder>()));
         builder.Services.AddSingleton<ITenantAssertionRecorder>(services =>

@@ -42,7 +42,7 @@ try {
     chmodSync(path, 0o600);
     console.warn('Private renderer configuration prepared; TLS and hosts remain manual.');
   } else if (operation === 'api') {
-    const values = loadLocalEnvironment(root, process.env);
+    const values = loadLocalEnvironment(root, process.env, { apiAuthentication: true });
     const configuration = publicServerConfiguration(values, root);
     if (!values.ConnectionStrings__Default) throw new Error();
     const environment = publicApiEnvironment(values, configuration);

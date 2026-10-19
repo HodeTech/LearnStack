@@ -292,12 +292,12 @@ public sealed class GetAccountSiteQueryTests
         return result.Value!;
     }
 
+    // Plant malformed provenance without asking the hardened factory to mint it.
+    // These cases independently exercise the handler's defensive ceiling.
     private static HostScope Host(TenantId tenant, OrganizationId? organization = null) =>
-        TenantContextFactory.Create(new TenantResolutionAttempt
-        {
-            HostTenantId = tenant,
-            HostOrganizationId = organization,
-        }).Value!.HostScope!;
+        (HostScope)Activator.CreateInstance(typeof(HostScope),
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            binder: null, args: [tenant, organization], culture: null)!;
 
     private static TestContext Copy(ITenantContext context) => new(
         context.TenantId, context.OrganizationId, context.UserId, context.Origin, context.HostScope);

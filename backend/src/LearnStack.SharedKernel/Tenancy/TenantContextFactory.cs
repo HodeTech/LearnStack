@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Results;
 
 namespace LearnStack.SharedKernel.Tenancy;
@@ -63,39 +64,19 @@ public static class TenantContextFactory
     {
         ArgumentNullException.ThrowIfNull(attempt);
 
-        // Rows 13 and 15, defensively. Callers must not arrive here with NamesNoTenant
-        // set — the middleware leaves those requests on UnresolvedTenantContext,
-        // because "this host serves no tenant" is what a platform host legitimately is
-        // and not an error. Refused is simply the safe answer for a caller that ignores
-        // that contract; it is not the path traffic takes.
-        if (attempt.NamesNoTenant)
-        {
+        // Validate every supplied signal before the no-tenant shortcut. Incoherent
+        // actor/organization signals cannot become a legitimate platform request.
+        if (attempt.HasIncoherentClaims
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.HostTenantId)
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.ClaimTenantId)
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.HostOrganizationId)
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.ClaimOrganizationId)
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.UserId)
+            || attempt.HostTenantId == TenantId.PlatformSentinel
+            || attempt.ClaimTenantId == TenantId.PlatformSentinel
+            || attempt.UserId == UserId.SystemActor
+            || attempt.NamesNoTenant)
             return Result.Fail<TenantContext>(Refused);
-        }
-
-        // Neither shape is a row. Refused before the cross-check, because the
-        // cross-check reasons about signals that agree and these signals are not
-        // well-formed enough to disagree.
-        if (attempt.HasIncoherentClaims)
-        {
-            return Result.Fail<TenantContext>(Refused);
-        }
-
-        // A claim without a validated principal is not a claim. HasValidatedPrincipal is
-        // declared as the bit that separates rows 13 and 15 — "both resolve no tenant, and
-        // only one of them has a principal" — and until now nothing read it, so an attempt
-        // carrying ClaimTenantId with the bit clear produced a HostAndClaim context and the
-        // matrix's own trust distinction was decorative.
-        //
-        // The HTTP resolver supplies both only from the validated typed projection.
-        // Other factory callers must preserve that same trust distinction.
-        if (!attempt.HasValidatedPrincipal
-            && (attempt.ClaimTenantId is not null
-                || attempt.ClaimOrganizationId is not null
-                || attempt.UserId is not null))
-        {
-            return Result.Fail<TenantContext>(Refused);
-        }
 
         // Rows 8, 11 and 12 — the cross-check. Evaluated before any port answer is
         // consulted, so a refused request never spends a database round trip.
@@ -106,7 +87,7 @@ public static class TenantContextFactory
 
         // Rows 7, 10 and 14. `is not true` and not `== false`: an unanswered question
         // is a refusal, so a caller that forgot to ask cannot widen anything. This is
-        // where DenyAllTenantMembershipReader makes rows 7 and 14 fail closed until
+        // where DenyAllTenantMembershipReader makes rows 7, 10 and 14 fail closed until
         // Phase 03.
         if (attempt.RequiresMembershipCheck && attempt.MembershipCovers is not true)
         {
