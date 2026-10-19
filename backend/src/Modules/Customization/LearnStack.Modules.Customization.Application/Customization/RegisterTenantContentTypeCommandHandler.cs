@@ -1,6 +1,7 @@
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
@@ -37,6 +38,7 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
     ICustomizationGenerationStore generations,
     ITenantLevelTaxonomyCatalog taxonomies,
     IJsonSchemaValidator schemas,
+    IFeatureFlags features,
     ITenantContext tenantContext,
     IClock clock)
     : IRequestHandler<RegisterTenantContentTypeCommand, Result<TenantContentTypeDto>>
@@ -96,7 +98,22 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
 
         try
         {
+            // All custom-key registrars take the tenant lock before the concept
+            // lock. Different keys otherwise race the same tenant-wide ceiling.
+            // Card does not consume a slot; initialization keeps its history lock.
+            var custom = request.Key != BuiltInCustomizations.Card.Key;
+            if (custom) await contentTypes.LockRegistrationsAsync(cancellationToken);
             await contentTypes.LockConceptAsync(request.Key, cancellationToken);
+            if (custom && !await features.IsEnabledAsync(FeatureKeys.UnlimitedContentTypes, cancellationToken))
+            {
+                var limit = await features.GetLimitAsync(LimitKeys.MaxCustomContentTypes, cancellationToken);
+                if (limit != LimitKeys.Unlimited)
+                {
+                    var usage = await contentTypes.ReadQuotaUsageAsync(request.Key, cancellationToken);
+                    if (!usage.HasNondeletedRevision && usage.CustomKeyCount >= limit)
+                        return CustomizationFailures.ContentTypeLimit<TenantContentTypeDto>(limit);
+                }
+            }
             await contentTypes.AddAsync(contentType, cancellationToken);
         }
         catch (AggregateConflictException conflict)

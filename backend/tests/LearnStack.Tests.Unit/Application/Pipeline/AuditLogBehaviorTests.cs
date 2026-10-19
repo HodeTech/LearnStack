@@ -462,6 +462,7 @@ public sealed class AuditLogBehaviorTests
     [InlineData("forbidden", AuditOutcome.Denied)]
     [InlineData("resource_scope_violation", AuditOutcome.Denied)]
     [InlineData("feature_disabled", AuditOutcome.Denied)]
+    [InlineData("limit_exceeded", AuditOutcome.Denied)]
     // A malformed request is not a refused one, and counting it as a denial would bury
     // the probes the denied class exists to surface. The validation_failed that reaches
     // this step is a handler's — ADR-0043's payload gates return it; step 1's never does,

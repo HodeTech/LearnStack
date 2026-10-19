@@ -30,6 +30,7 @@ public sealed class BackgroundJobFailurePolicyTests
     [InlineData("not_found")]
     [InlineData("business_rule_violation")]
     [InlineData("feature_disabled")]
+    [InlineData("limit_exceeded")]
     [InlineData("unsupported_locale")]
     [InlineData("audit_unclassified_operation")]
     public void All_declared_permanent_Result_codes_terminalize_without_persisting_the_supplied_details(string code)

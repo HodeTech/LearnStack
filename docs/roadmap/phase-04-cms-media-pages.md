@@ -116,8 +116,8 @@ Also in scope:
 ### Content-type quota accounting — accepted (2026-10-19)
 
 **Accepted — 2026-10-19, @cemil.** The maintainer approved the accounting below
-before implementation. The existing registration command does not yet enforce
-`LimitKeys.MaxCustomContentTypes`; the registered key alone is not a write-time
+before implementation. The existing registration command did not enforce
+`LimitKeys.MaxCustomContentTypes`; the registered key alone was not a write-time
 quota. The correction implements this rule in that shared writer.
 
 The rule counts distinct, nondeleted, tenant-authored content-type keys.

@@ -128,6 +128,7 @@ matching localization key adds the `lockey_` prefix.
 | `recording_consent_required` | Live session requires consent | 409 |
 | `unsupported_locale` | Well-formed public query locale absent or disabled for the tenant; implemented by P02d-4 | 400 |
 | `feature_disabled` | Feature flag off for tenant | 403 |
+| `limit_exceeded` | A hard plan limit refuses a new counted resource | 403 |
 | `method_not_allowed` | Route matched, method did not — *framework-minted* | 405 |
 | `payload_too_large` | Request body over the published limit — *framework-minted* | 413 |
 | `unsupported_media_type` | `Content-Type` the endpoint does not accept — *framework-minted* | 415 |

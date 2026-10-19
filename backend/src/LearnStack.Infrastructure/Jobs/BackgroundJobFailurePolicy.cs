@@ -73,7 +73,7 @@ internal static class BackgroundJobFailurePolicy
     {
         "concurrency_conflict" or "rate_limited" or "dependency_unavailable" or "audit_unavailable" => Retry(code),
         "validation_failed" or "unauthorized" or "forbidden" or "tenant_mismatch" or "resource_scope_violation"
-            or "not_found" or "business_rule_violation" or "feature_disabled" or "unsupported_locale"
+            or "not_found" or "business_rule_violation" or "feature_disabled" or "limit_exceeded" or "unsupported_locale"
             or "audit_unclassified_operation" => Permanent(),
         _ => Retry("unexpected_fault"),
     };

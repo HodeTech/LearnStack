@@ -27,6 +27,7 @@ public static class HttpStatusMap
         "forbidden" => (int)HttpStatusCode.Forbidden,
         "resource_scope_violation" => (int)HttpStatusCode.Forbidden,
         "feature_disabled" => (int)HttpStatusCode.Forbidden,
+        "limit_exceeded" => (int)HttpStatusCode.Forbidden,
         "not_found" => (int)HttpStatusCode.NotFound,
         "method_not_allowed" => (int)HttpStatusCode.MethodNotAllowed,
         "payload_too_large" => (int)HttpStatusCode.RequestEntityTooLarge,

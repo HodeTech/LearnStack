@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.SharedKernel.Identifiers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -19,6 +20,18 @@ internal static class CustomizationConceptHistory
         // A stable namespace includes tenant and kind, but deliberately no revision.
         // A hash collision only serializes unrelated writers; it cannot grant access.
         var identity = $"customization:{tenant.Value:D}:{(taxonomy ? "taxonomy" : "content-type")}:{key}";
+        await LockIdentityAsync(identity, connection, transaction, cancellationToken);
+    }
+
+    internal static async Task LockRegistrationsAsync(CustomizationDbContext db, CancellationToken cancellationToken)
+    {
+        var (tenant, connection, transaction) = RequireContext(db, BuiltInCustomizations.Card.Key);
+        await LockIdentityAsync($"customization:{tenant.Value:D}:content-type-quota", connection, transaction, cancellationToken);
+    }
+
+    private static async Task LockIdentityAsync(string identity, NpgsqlConnection connection,
+        NpgsqlTransaction transaction, CancellationToken cancellationToken)
+    {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
         var lockKey = BinaryPrimitives.ReadInt64BigEndian(digest);
         await using var command = new NpgsqlCommand(

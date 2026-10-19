@@ -66,6 +66,7 @@ const nonRuntimeFiles = new Set([
   'scripts/ci-test-shards-plan.json',
   'scripts/ci-test-shard-results.py',
   'scripts/connection-string.awk',
+  'scripts/install-leakwatch.py',
   'scripts/install-oasdiff.py',
   'scripts/openapi-ci.py',
   'scripts/openapi-policy.py',
@@ -76,6 +77,7 @@ const nonRuntimeFiles = new Set([
   'scripts/test-ci-native-tests.py',
   'scripts/test-ci-test-shards.py',
   'scripts/test-ci-test-shard-results.py',
+  'scripts/test-ci-supply-chain.py',
   'scripts/test-openapi-ci.py',
   // Offline vendor distribution materials and isolated lifecycle experiments.
   'scripts/probe-hangfire-lifecycle.py',

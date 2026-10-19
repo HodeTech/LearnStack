@@ -481,7 +481,7 @@ Everything above describes what a tenant *can* declare. This section describes w
 declare something the runtime cannot render inside a request budget. Structural
 document limits are enforced at write time, so a tenant learns about them while
 authoring rather than a learner discovering them on a page load. Section 8.4
-distinguishes the outstanding plan-quota accounting decision.
+distinguishes structural document limits from plan-gated content-type counts.
 
 ### 8.1 Validation timing — write time, not read time
 
@@ -661,11 +661,13 @@ queries, this contract silently regresses the first time someone writes a conven
 
 Structural limits are checked at write time and return Problem Details naming the
 limit that was exceeded. They are deliberately generous — they exist to stop
-pathological documents, not to constrain reasonable authoring. The content-type
-count is an outstanding exception: its entitlement keys exist, but registration
-does not yet enforce them. The
+pathological documents, not to constrain reasonable authoring. Content-type
+registration also enforces the plan's count under the
 [accepted quota accounting](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19)
-states the maintainer's counting decision and required concurrency proof.
+with a tenant-wide transaction lock around usage and insertion. Entitlement
+resolution remains authoritative: the default NullEntitlementProvider grants
+unlimited usage under
+[ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md#4-nullentitlementprovider-is-registered-in-every-deployment-mode).
 
 | Limit | Value | Why this one |
 |---|---|---|

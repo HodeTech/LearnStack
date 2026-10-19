@@ -381,7 +381,7 @@ public sealed class AuditExecutionCoordinator(
     /// </remarks>
     private static AuditOutcome OutcomeOf(Error error) => error.Code switch
     {
-        "forbidden" or "resource_scope_violation" or "feature_disabled" => AuditOutcome.Denied,
+        "forbidden" or "resource_scope_violation" or "feature_disabled" or "limit_exceeded" => AuditOutcome.Denied,
         _ => AuditOutcome.Failed,
     };
 

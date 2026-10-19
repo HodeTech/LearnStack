@@ -11240,6 +11240,39 @@ on 2026-10-19; its
 precedes the shared-writer change. No new ADR or unapproved counting policy is
 introduced. Runtime implementation and its two independent review rounds follow.
 
+**Source-inventory qualification failure.** On `617ed087`,
+[run 39250697987](https://github.com/HodeTech/LearnStack/actions/runs/39250697987)
+passes frontend lint and production build, then fails its real genericity census:
+the two newly introduced Python CI tools lack explicit non-runtime ownership.
+The failure identifies `scripts/install-leakwatch.py` before reaching the second
+new entry. Both exact paths are added alongside the existing CI tools, with
+positive classification controls; unknown Python files still refuse. The full
+guarded frontend run then passes all 1,625 cases in both packages, zero skips or
+todos. The earlier focused frontend omission is a real verification gap. The
+failed run is cancelled after that failure because the approved quota also
+changes its source; neither that run nor its interrupted jobs qualify A/B.
+
+**Quota implementation and local proof.** The shared registration writer now
+acquires the tenant-wide quota lock before its concept lock, then checks distinct
+nondeleted custom keys and inserts on the same ambient transaction. Revisions
+share one slot, the built-in card is excluded, and the last live revision's
+tombstone frees its slot. Unlimited feature/numeric grants bypass the ceiling;
+zero admits no new custom key. The explicit `limit_exceeded` mapping returns 403,
+preserves the limit key/allowance in field errors, records Denied audit outcome
+and is permanent in the existing job failure taxonomy. No migration, new default
+entitlement or deletion/restoration authority is introduced.
+
+Full Unit passes 2,471 cases, zero skips. The PostgreSQL quota/default/publication
+selection passes 41 cases, zero skips; the final seven quota cases also pass after
+the controlled mutation is restored and rebuilt. A temporary removal of the real
+quota advisory lock makes the actual advisory-wait proof fail; production bytes
+are restored exactly before the positive rerun. The initial PostgreSQL run's one
+failure was a fixture assumption that the Null provider supplied a finite plan;
+it intentionally supplies all-enabled/unlimited under ADR-0045. The corrected
+tests preserve that default and exercise the real resolver against an explicit
+plan projection. That failed receipt remains failed evidence. Independent quota
+and source-inventory reviews precede renewed complete hosted qualification.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

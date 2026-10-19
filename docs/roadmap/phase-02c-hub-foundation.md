@@ -219,13 +219,15 @@ never a reason to fail a tenant's request.
 [Phase 02a Packet 9](phase-02a-kernel-tenancy.md) ships the read and the descriptor:
 `IFeatureFlags.GetLimitAsync` returns the allowance — `-1` unlimited, `0` denied, `> 0`
 the allowance — and every `LimitKey` declares its `LimitEnforcement` (`Soft` | `Hard`).
-It ships no gate. The **enforcement path** lands here, because this is the first phase in
-which a soft limit has anywhere to report to
+It shipped no gate. The first hard authoring gate is the
+[approved content-type quota](phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19),
+which introduces the shared `403 limit_exceeded` mapping. The soft-limit reporting
+path lands here, because this is the first phase in which it has anywhere to report to
 ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 
 - **Hard** — the gated operation refuses with `403` and an RFC 7807 body carrying
-  `code=limit_exceeded` when current usage has reached the limit. The code lands with
-  the first gate, in [Error Handling Standards](../standards/09-error-handling.md) and in
+  `code=limit_exceeded` when current usage has reached the limit. The first gate
+  supplies the code in [Error Handling Standards](../standards/09-error-handling.md) and in
   `HttpStatusMap` explicitly rather than by fallthrough — which is what makes the status
   a `403` instead of a `500`. Its `type` URI is minted from the code, as every other
   error's is.

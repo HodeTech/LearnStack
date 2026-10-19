@@ -4,8 +4,8 @@ using LearnStack.SharedKernel.Persistence;
 
 namespace LearnStack.Modules.Customization.Application.Abstractions;
 
-/// <summary>The <c>TenantContentType</c> aggregate's writes, and the two reads a
-/// publish needs.</summary>
+/// <summary>The <c>TenantContentType</c> aggregate's writes, coordination and reads
+/// for registration and publication.</summary>
 /// <remarks>
 /// <para>
 /// Declared here and implemented across the boundary, for the reason
@@ -34,6 +34,12 @@ namespace LearnStack.Modules.Customization.Application.Abstractions;
 public interface ITenantContentTypeStore
     : IAggregateWriteStore<TenantContentType, TenantContentTypeId>
 {
+    /// <summary>Serializes custom-key registrations for the tenant until transaction end, before taking a concept lock.</summary>
+    Task LockRegistrationsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Distinct nondeleted custom keys and whether this key already has a nondeleted revision; excludes the built-in card.</summary>
+    Task<ContentTypeQuotaUsage> ReadQuotaUsageAsync(string key, CancellationToken cancellationToken = default);
+
     /// <summary>Serializes registration and initialization for this tenant's concept until transaction end.</summary>
     Task LockConceptAsync(string key, CancellationToken cancellationToken = default);
 
@@ -55,6 +61,9 @@ public interface ITenantContentTypeStore
     Task<TenantContentType?> FindActiveAsync(
         string key, CancellationToken cancellationToken = default);
 }
+
+/// <summary>The tenant's authoring usage; revisions share one custom-key slot.</summary>
+public sealed record ContentTypeQuotaUsage(long CustomKeyCount, bool HasNondeletedRevision);
 
 /// <summary>The <c>TenantLevelTaxonomy</c> aggregate's writes, and the two reads a
 /// publish needs.</summary>
