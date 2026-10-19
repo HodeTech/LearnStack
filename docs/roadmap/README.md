@@ -119,13 +119,13 @@ not deferred to the showcase phase.
   P02b-3 is complete and merged through PR #31 on 2026-10-15; its
   [merge closeout](phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
   owns final verification.
-  P02b-4's transactional job infrastructure is implemented under Accepted ADR-0047
-  and its lifecycle decisions. ADR-0062/0063 supply the bounded CI implementation.
-  The [live Phase 02b status](phase-02b-events-auth.md) owns current remediation,
-  review and final-source A/B qualification; new source requires both complete
-  assignments. Production business and recurrence definitions remain empty.
-  API authentication, realm reconciliation, BFF sessions and phase-exit
-  enforcement remain P02b-5–8.
+  P02b-4 is complete and merged through PR #32 on 2026-10-19. Its
+  [merge closeout](phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+  records all nine runtime steps, three CI steps, completed independent reviews
+  and both complete final-source hosted assignments. Production business and
+  recurrence definitions remain empty. Next is P02b-5's API authentication
+  decision pass; realm reconciliation, BFF sessions and phase-exit enforcement
+  remain P02b-6–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)

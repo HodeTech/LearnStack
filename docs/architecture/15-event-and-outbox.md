@@ -728,16 +728,18 @@ independent subject to shared dependencies. The exact two-clause supersession
 is disclosed in [ADR-0047 Amendment 2](../decisions/0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16);
 [ADR-0058 Amendment 2](../decisions/0058-bounded-stock-hangfire-maintenance.md#amendment-2--independent-shared-component-ownership-2026-10-16)
 adds ownership navigation only. The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
-is authorized. Implementation and full-step review corrections are locally complete;
-the [Step 4 record](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
-owns qualification of the shipped lifecycle/API composition and review dispositions.
+is delivered with both full review rounds and verified corrections. P02b-4 is
+complete and merged through PR #32; its
+[merge closeout](../roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+owns final qualification of the shipped lifecycle/API composition.
 
 **Accepted exceptional boundary — 2026-10-16.**
 Accepted [ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
 adds a whole-API failure boundary to H1's ordinary per-pool ownership. Its exact
 trigger, global start gates, durable uncertainty and qualification requirements
 are carried by [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire).
-Step 4 owns implementation; acceptance provides no activated worker or crash proof.
+Step 4 delivers implementation; the merge closeout above records actual worker
+and native crash qualification separately from decision acceptance.
 Accepted [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md)
 adds only the named disposable native CI provisioning/partition authority;
 [its CI record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
@@ -763,8 +765,8 @@ supplies no source release, business completion or external-quiescence authority
 The [metric inventory](../standards/10-observability.md#required-metrics) and
 [Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 record the implemented observable, stage, trace, lease-loss and control signals,
-their source-specific qualification, full review status and remaining packet/CI
-qualification.
+their source-specific qualification and full review status; the merge closeout
+above records final packet/CI verification.
 [Database Standards](../standards/05-database.md#shared-dispatcher-source-lifetime-and-capacity)
 owns the source-release contract and current physical floor; adding later SQL
 lanes requires requalification.

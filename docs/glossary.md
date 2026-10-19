@@ -324,8 +324,10 @@ These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 
 Unless explicitly marked Proposed, these terms belong to
 [Accepted ADR-0047](decisions/0047-transactional-background-job-runtime.md), accepted with the expanded nine-step P02b-4 package on 2026-10-15. The contract is
-accepted; the [P02b-4 delivery records](roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
-own implementation and review status. Production business definitions remain empty.
+implemented and merged through PR #32 on 2026-10-19; the
+[P02b-4 merge closeout](roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+owns final implementation, review and CI verification. Production business
+and recurrence definitions remain empty.
 
 | Term | Definition |
 |------|------------|

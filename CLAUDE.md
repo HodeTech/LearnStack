@@ -229,11 +229,13 @@ records verified corrections and two further independent review rounds; the
 records subsequent runtime/proof corrections and their completed reviews. The
 [P02b-3 merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final source/merge and CI verification.
-P02b-4's transactional job infrastructure is implemented under Accepted ADR-0047
-and its lifecycle decisions. ADR-0062/0063 supply the bounded CI implementation.
-The [live Phase 02b status](docs/roadmap/phase-02b-events-auth.md) owns current remediation,
-review and final-source A/B qualification; new source requires both complete
-assignments. Production business and recurrence definitions remain empty.
+**P02b-4 is complete and merged** through
+[PR #32](https://github.com/HodeTech/LearnStack/pull/32) on 2026-10-19. Its
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+records all nine job-runtime steps, three CI steps, independent reviews and both
+complete final-source hosted assignments. Production business and recurrence
+definitions remain empty. **Next: P02b-5 API authentication decision pass**;
+realm reconciliation, BFF sessions and phase exit remain P02b-6–8.
 Phase 06 retains the full
 renderer/Studio expansion.
 
@@ -444,8 +446,9 @@ Then read the phase that is live and the one it stands on:
   2026-10-13; its merge closeout above owns final verification. P02b-3 is complete
   and merged through PR #31 on 2026-10-15; all six steps and correction bundles
   completed both review rounds. Its merge closeout above owns final verification.
-  The linked phase status owns current P02b-4 remediation, reviews and final-source
-  qualification. P02b-5–8 remain pending; each later packet accepts its gates first.
+  P02b-4 is complete and merged through PR #32 on 2026-10-19; its merge closeout
+  above owns final verification. Next is P02b-5's API authentication decision pass;
+  P02b-5–8 remain pending, with each packet accepting its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency

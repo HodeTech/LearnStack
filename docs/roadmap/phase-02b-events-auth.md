@@ -1,66 +1,23 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Current status — 2026-10-19.** P02b-0 through P02b-3 are complete.
-P02b-2 is merged through [PR #30](https://github.com/HodeTech/LearnStack/pull/30);
-its [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
-P02b-3 is merged through [PR #31](https://github.com/HodeTech/LearnStack/pull/31);
-its [merge closeout](#p02b-3-merge-and-closeout-2026-10-15) owns final verification.
-All six steps and the verified review corrections are delivered, with both
-independent review rounds complete.
-The [external review follow-up](#p02b-3-external-review-follow-up-2026-10-15)
-records verified corrections and dispositions against the reviewed PR head.
-The [second follow-up](#p02b-3-second-external-review-follow-up-2026-10-15)
-owns the subsequent runtime and proof corrections.
-P02b-4's [decision package](#p02b-4-decision-package-2026-10-15) and ADR-0047 are
-Accepted — 2026-10-15. Nine implementation steps are authorized on `development`;
-P02b-4 Step 1 implements contracts and ordinary execution guards; its
-[record](#p02b-4-step-1--contracts-and-authority-2026-10-16) owns validation and
-review status. Step 2 is complete under ADR-0058, Accepted — 2026-10-16;
-its [closeout](#step-2-final-proof-and-closeout) records both fresh review rounds,
-critical-fix verification and passing regression. Step 3 submission/admission is
-complete; its [record](#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
-owns both review rounds and passing 4,152-case backend verification. Step 4's
-[lifecycle acceptance](#maintainer-acceptance-and-step-4-adaptation-2026-10-16) and
-ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
-composition qualification under Accepted ADR-0060; business execution stays Step 5.
-The [required-startup qualification](#step-4-required-startup-qualification-2026-10-16)
-records ADR-0060's reviewed revision; its
-[acceptance](#adr-0060-acceptance-and-step-4-continuation-2026-10-16) on 2026-10-16
-authorizes dependent fatal/lifecycle implementation. The
-[Step 4 closeout](#full-step-4-round-2-correction-validation-and-closeout-2026-10-16)
-records passing qualification and both full review rounds with verified corrections.
-Steps 4–6 are locally complete after both full review rounds and verified
-corrections. The [Step 6 record](#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
-owns capacity delivery and final local qualification. Step 7 external stages are
-committed under Accepted ADR-0061; both full review rounds and verified corrections
-are complete. Its
-[record](#p02b-4-step-7--external-stages-and-recovery-2026-10-17) owns current evidence.
-Step 8 durable recurrence and restricted fan-out is locally complete after both
-full review rounds and verified corrections; its
-[closeout](#step-8-full-review-round-2-2026-10-18) owns final qualification. Step 9
-enforcement and P02b-4 are locally complete; the
-[local closeout](#p02b-4-local-closeout-2026-10-18) owns exact qualification and
-remaining PR/CI/merge work. P02b-5–8 remain pending. Production business and
-recurrence definitions remain empty.
-[ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md) is Accepted —
-2026-10-18. Its [CI acceptance](#adr-0062-acceptance-and-ci-implementation-2026-10-18)
-records the bounded native provisioning/partition implementation and follow-up
-reviews. [PR #32](https://github.com/HodeTech/LearnStack/pull/32) owns live
-exact-head hosted qualification and review status.
-[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) is Accepted —
-2026-10-18. Its [acceptance record](#adr-0063-acceptance-and-implementation-2026-10-18)
-owns the three authorized CI steps and actual two-assignment qualification.
-Steps 1 and 2 are locally complete after both reviews and verified corrections.
-Step 3 source enforcement has completed both full reviews and verified
-corrections; its [record](#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
-owns dated hosted failures and verified corrections. PR #32 owns live final-source
-two-assignment qualification; earlier receipts retain their source-specific state.
-Acceptance is not packet/PR closeout. The
-[review correction record](#p02b-4-review-corrections-2026-10-19) owns the current
-source corrections and evidence-availability qualification. Both final-source
-layouts require independent reconstruction and retained evidence; PR #32
-carries live results and current artifact availability.
-Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
+**Current status — 2026-10-19.** P02b-0 through P02b-4 are complete.
+P02b-1, P02b-2 and P02b-3 are merged through PRs #29, #30 and #31;
+their dated merge closeouts below retain final verification.
+**P02b-4 is complete and merged** through
+[PR #32](https://github.com/HodeTech/LearnStack/pull/32) on 2026-10-19.
+Its [merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records the final
+source, identical squash-merge tree, both complete hosted assignments and current
+evidence availability. All nine runtime steps, all three ADR-0063 CI steps and
+verified correction bundles completed their required independent review rounds.
+Accepted ADR-0047/0058/0059/0060/0061 govern the delivered job runtime;
+ADR-0062/0063 govern the delivered bounded CI ownership and partitioning.
+Production business and recurrence definitions remain empty.
+
+**Next: P02b-5 API authentication decision pass.** G10, G11, G12's BFF-client
+choice, G14 and G20 remain Open. No authentication/session implementation is
+started by this merge closeout. P02b-6 realm reconciliation, P02b-7 BFF sessions
+and P02b-8 enforcement/erasure inventory remain pending; Phase 02b remains in
+progress. Earlier dated delivery and failed-run receipts keep their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
 its [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
@@ -327,7 +284,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-1** | **Complete and merged — [PR #29 closeout](#p02b-1-merge-and-closeout-2026-10-12).** Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
 | **P02b-2** | **Complete and merged — [PR #30 closeout](#p02b-2-merge-and-closeout-2026-10-13).** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
 | **P02b-3** | **Complete and merged — [PR #31 closeout](#p02b-3-merge-and-closeout-2026-10-15).** Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
-| **P02b-4** | **Locally complete — [local closeout](#p02b-4-local-closeout-2026-10-18).** Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; all nine implementation steps and their review gates delivered; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
+| **P02b-4** | **Complete and merged — [PR #32 closeout](#p02b-4-merge-and-closeout-2026-10-19).** Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; all nine implementation steps and their review gates delivered; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
 | **P02b-5** | API authentication: JwtBearer wiring and its insertion order, claim population, the host/JWT cross-check through the existing recorder, token-keyed rate limits, the 401 rows, one authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: the shared client scope, the mappers, the user-profile declaration, UUID attributes agreeing with `SeedData`, the warm-realm reconciler, the Keycloak test fixture | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
 | **P02b-7** | BFF session: Auth.js, the cookie session, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
@@ -360,9 +317,9 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G4 | What counts as an attempt, what is `MaxAttempts` bound to, and what marker keeps a terminal row terminal as the clock advances? | Six attempts (one immediate plus the five documented delays) and an explicit terminal column, because a pushed-out `available_after` stops being terminal and never leaves the pending gauge | Accepted ADR-0046 + dated ADR-0006 disclosure under this acceptance; Database Standards § Outbox DDL, index and grant edits | P02b-2 | Accepted — 2026-10-12; producer attempts/terminal state [implemented](#p02b-2-step-2--durable-transitions-and-terminal-audit-2026-10-12) |
 | G5 | Does the stored event identity stay the assembly-qualified type name with declared compatibility mappings, and what happens to an unresolvable type, a retired type and an event with no subscriber? And what is the **row's** identity — a surrogate `id` plus an `event_id` column, or `EventId` as the key — given that two documents list an `event_id` the canonical DDL does not have? | Keep the type identity, add a bounded resolver reading through `PayloadJsonOptions` and declared mappings; dead-letter a retired type at once rather than spending its attempt budget; reconcile the row's column list in one direction | Stored identities: [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) bounded supersession of ADR-0032 Sub-decision 12 and the Phase 02b deliverables table in Implementation Notes, with a dated supersession disclosure under this acceptance; Database Standards alignment. ADR-0046 accepts declared resolution, Pending holds and intentional absence; dispatch runtime remains P02b-2 | P02b-1 (the stored type identity and the row's identity, both written at enqueue), P02b-2 (unresolvable, retired and unsubscribed types) | Stored identities and resolution outcomes Accepted; resolver/readiness runtime [implemented](#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12); both real durable subscriptions Active in P02b-3 Step 5 |
 | G6 | When the unit-of-work owner is not an `AuditLogBehavior`, who performs the four owner-side audit acts and enters the outermost audit frame — and does a state-mutating delivery declare its own intents, keyed by handler type? | The transport opens the outermost frame beside its transaction; a delivery declares its own intents and an unregistered handler is refused as an unregistered request is | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md): bounded ADR-0040 nested-failure supersession; separately enumerated additive UoW read-seam amendment; clarifying ADR-0044/0033 common-owner amendments. G1-dependent production delivery/inbox implementation remains P02b-3 | P02b-1, P02b-3 | Producer/common owner delivered; delivery/inbox contract Accepted; common owner and execution implemented by P02b-3 Steps 2–3 |
-| G7 | For a dead-letter transition: what class, what `OperationType`, what slug, on which transaction, in what order against the state change, with what failure posture — and may a second non-MediatR caller reach `IAuditStore.WriteStandaloneAsync`? | MUST `security-event`; producer `platform.outbox.dead_letter` and reserved P3 `platform.delivery.dead_letter`; fenced terminal transition and audit INSERT on the same short transaction through a narrow fifth write seam; failed audit retries terminalization without publication | Accepted ADR-0046 + bounded ADR-0044 audit-grant replacement, separate additive fifth-writer seam amendment and ADR-0033 same-transaction clarification under this acceptance; `DeclareOffPath` registration and Audit Coverage baseline | P02b-2 (the producer dead-letter row its criteria assert), P02b-3 | Accepted — 2026-10-12; producer terminal audit [implemented](#p02b-2-step-2--durable-transitions-and-terminal-audit-2026-10-12); subscriber terminal audit implemented by P02b-3 Step 4; job part Accepted — 2026-10-15 under ADR-0047: `platform.job.dead_letter`, actual-row sixth write and same-transaction MUST audit; job terminal/MUST audit implemented; [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification and remaining PR/CI/merge work |
-| G8 | Does the dispatcher's `BYPASSRLS` use carry a per-invocation `security-event` row, or is it exempt — and on what written terms? | Exempt, on three terms: the bypass is grant-bounded and code-path-confined, dispatch attempts are logged rather than audited, and the dead-letter transitions are the audited events | Accepted ADR-0046 explicitly replaces the routine-dispatch coverage rule and bounds the ADR-0003 grant extension; dated disclosures under this acceptance, not an ADR-0041 correction | P02b-2 | Accepted — 2026-10-12; confined dispatcher exception/census [implemented](#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state; job/recurrence part Accepted — 2026-10-15 under ADR-0047, conditional on exact grants/censuses, diagnostics, observation and terminal MUST audit; job/recurrence confinement, diagnostics, observation and terminal MUST controls implemented; [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification and remaining PR/CI/merge work |
-| G9 | Which record decides the background-job runtime — its storage under the closed four-role model, the single tenant-context writer, the job frame's transaction owner, the enqueue-site rule *and who may enqueue whose job type*, the retry contract (whose class, slug and posture adopt **G7**'s), the tenantless platform-job class a purge needs, the ADR-0035 classification, the queue grammar, and the package pins with their licence verdict? | One record answering all of it; business execution uses the existing announced request owner through `ISender`, retaining the eight setters; the chosen storage/scheduler authority is separately explicit | **ADR-0047** + a dated **ADR-0003 Amendment** for any schema/role/grant-confinement extension (not merely a new tenant table under the existing policy) + a dated **ADR-0036 Amendment** disclosing the selected context-writer contract; then Standards 05/20. A decision change is not an erratum | P02b-4 | Accepted — 2026-10-15 under ADR-0047 and the nine-step P02b-4 package; bounded prior-ADR Amendments accompany acceptance; runtime and all nineteen canonical obligations implemented; [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification and remaining PR/CI/merge work |
+| G7 | For a dead-letter transition: what class, what `OperationType`, what slug, on which transaction, in what order against the state change, with what failure posture — and may a second non-MediatR caller reach `IAuditStore.WriteStandaloneAsync`? | MUST `security-event`; producer `platform.outbox.dead_letter` and reserved P3 `platform.delivery.dead_letter`; fenced terminal transition and audit INSERT on the same short transaction through a narrow fifth write seam; failed audit retries terminalization without publication | Accepted ADR-0046 + bounded ADR-0044 audit-grant replacement, separate additive fifth-writer seam amendment and ADR-0033 same-transaction clarification under this acceptance; `DeclareOffPath` registration and Audit Coverage baseline | P02b-2 (the producer dead-letter row its criteria assert), P02b-3 | Accepted — 2026-10-12; producer terminal audit [implemented](#p02b-2-step-2--durable-transitions-and-terminal-audit-2026-10-12); subscriber terminal audit implemented by P02b-3 Step 4; job part Accepted — 2026-10-15 under ADR-0047: `platform.job.dead_letter`, actual-row sixth write and same-transaction MUST audit; job terminal/MUST audit implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification and merge |
+| G8 | Does the dispatcher's `BYPASSRLS` use carry a per-invocation `security-event` row, or is it exempt — and on what written terms? | Exempt, on three terms: the bypass is grant-bounded and code-path-confined, dispatch attempts are logged rather than audited, and the dead-letter transitions are the audited events | Accepted ADR-0046 explicitly replaces the routine-dispatch coverage rule and bounds the ADR-0003 grant extension; dated disclosures under this acceptance, not an ADR-0041 correction | P02b-2 | Accepted — 2026-10-12; confined dispatcher exception/census [implemented](#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state; job/recurrence part Accepted — 2026-10-15 under ADR-0047, conditional on exact grants/censuses, diagnostics, observation and terminal MUST audit; job/recurrence confinement, diagnostics, observation and terminal MUST controls implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification and merge |
+| G9 | Which record decides the background-job runtime — its storage under the closed four-role model, the single tenant-context writer, the job frame's transaction owner, the enqueue-site rule *and who may enqueue whose job type*, the retry contract (whose class, slug and posture adopt **G7**'s), the tenantless platform-job class a purge needs, the ADR-0035 classification, the queue grammar, and the package pins with their licence verdict? | One record answering all of it; business execution uses the existing announced request owner through `ISender`, retaining the eight setters; the chosen storage/scheduler authority is separately explicit | **ADR-0047** + a dated **ADR-0003 Amendment** for any schema/role/grant-confinement extension (not merely a new tenant table under the existing policy) + a dated **ADR-0036 Amendment** disclosing the selected context-writer contract; then Standards 05/20. A decision change is not an erratum | P02b-4 | Accepted — 2026-10-15 under ADR-0047 and the nine-step P02b-4 package; bounded prior-ADR Amendments accompany acceptance; runtime and all nineteen canonical obligations implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification and merge |
 | G10 | Does the active tenant travel as a scalar `tenant_id` claim, a `memberships` array, or both — and what value does `UserId` hold? | The scalar claim, whose 02b source is an admin-set user attribute; a second UUID-valued `user_id` attribute for the actor, with `sub` staying Keycloak's subject | Phase-doc: [ADR-0036 § What is out of scope](../decisions/0036-tenant-resolution-trusted-inputs.md#what-is-out-of-scope-and-what-is-not) hands the shape to this phase by name. Reconcile `architecture/13`'s array sketch in the same change | P02b-5 | Open |
 | G11 | Which [ADR-0036 matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) rows resolve in this phase, given that row 10 consults a reader that denies everyone — and what row covers a signature-valid token carrying no `tenant_id` claim on a tenant host? | Either mint `organization_id` scoped to the host's organization, which makes row 10 need no membership read, or declare the organization host's authenticated 404 and test it as the expected outcome | A dated **ADR-0036** amendment plus errata beside § Staging across packets and the 2026-09-02 erratum, both of which assign row 10 to this phase without noting that its `M covers (T, O)` term is denied until Phase 03 — which groups it with rows 7 and 14 rather than with 6 and 9 | P02b-5 | Open |
 | G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? Native HTTPS on retained `*.learnstack.local` hosts, with manual hosts/trust setup, is delivered by Phase 02d and re-verified by P02b-0 | A confidential BFF client with one redirect URI per seed host, retaining native HTTPS and `Secure` cookies; and an idempotent reconciler inside `make seed` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-0 re-verifies [Phase 02d G32](phase-02d-walking-skeleton.md#the-decision-register), ADR-0053/0054 and ADR-0055; P02b-5 (which client the BFF redeems the code with: the API pins `azp` against it), P02b-6 | Open |
@@ -370,8 +327,8 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject. The early anonymous stage already runs before authentication: P02d-5 delivers 60/min per canonical direct or authenticated-hop visitor IP plus 600/min peer acquisitions/allocations under ADR-0053 and ADR-0054. Exhausted known visitors refuse before peer debit; unknown visitor allocation remains peer-gated. These remain IP/peer quotas, not token quotas; a request they reject never reaches the token stage. Re-verify the [P5 remediation decision](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09) before choosing authenticated accounting, preserving pre-classification protection against unknown-host abuse | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 (the token-keyed stage and the early stage's treatment of validated callers); G34's anonymous-hop policy and ADR-0054's bounded accounting replacement are Accepted and delivered in P02d-5 | Open |
 | G15 | What initiates a replay in this phase? | Targeted internal subscriber replay in P02b-3; producer/operator reset and fencing require a separate Phase 03 contract | Phase-doc; the URL space is its own decision record, per ADR-0036 | — (answered in § The consumer side; recorded so the question travels with the deferral) | Accepted — internal subscriber replay implemented by P02b-3 Step 4; operator contract Phase 03 |
 | G16 | What is `LS0002`'s rule name, which project trees does it run over, what does it inspect, and what escalates it to Error? | The name and scope recorded the way Amendment 1 recorded `LS0001`, with the scope reaching the assemblies that actually handle tokens | A dated **ADR-0032** amendment + a catalogue entry + an `AnalyzerReleases` row | P02b-8 | Open |
-| G17 | What are the label sets for the event and job metrics, is the tenant axis permitted, and is it spelled `tenant` or `tenant_id`? | One note in the document that owns metric names, no raw tenant label on a per-event series, and an oldest-eligible-row age metric separate from the pending count | [Observability Standards § Required Metrics](../standards/10-observability.md#required-metrics) edit | P02b-2 (the first series ships there, and a label added afterwards touches every emitter already written) | Event metrics Accepted — 2026-10-12; runtime/guards [implemented](#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state; job label/observation contract Accepted — 2026-10-15 under ADR-0047; job instruments/guards implemented; [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification and remaining PR/CI/merge work |
-| G18 | May an integration-event payload or a job argument carry personal data, what may `last_error` contain, and do the four new durable stores enter the erasure scope? | Identifiers only, a sanitized and length-bounded failure descriptor, and the stores named in the erasure inventory | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) decides the new producer payload/NULL JSON metadata policy and application byte cap; a dated ADR-0038 cross-reference under this acceptance. [Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten), P02b-8 and Phase 11 retain erasure ownership | P02b-1 (the payload rule: the first payload ships there), P02b-2 (the `last_error` rule and its DDL bound), P02b-8 (the erasure inventory) | Payload and failure descriptors Accepted and implemented; job identifier-only payload/checkpoint and failure-descriptor bounds Accepted — 2026-10-15 under ADR-0047; job payload/checkpoint/failure bounds implemented; [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification; erasure inventory open P02b-8 |
+| G17 | What are the label sets for the event and job metrics, is the tenant axis permitted, and is it spelled `tenant` or `tenant_id`? | One note in the document that owns metric names, no raw tenant label on a per-event series, and an oldest-eligible-row age metric separate from the pending count | [Observability Standards § Required Metrics](../standards/10-observability.md#required-metrics) edit | P02b-2 (the first series ships there, and a label added afterwards touches every emitter already written) | Event metrics Accepted — 2026-10-12; runtime/guards [implemented](#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state; job label/observation contract Accepted — 2026-10-15 under ADR-0047; job instruments/guards implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification and merge |
+| G18 | May an integration-event payload or a job argument carry personal data, what may `last_error` contain, and do the four new durable stores enter the erasure scope? | Identifiers only, a sanitized and length-bounded failure descriptor, and the stores named in the erasure inventory | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) decides the new producer payload/NULL JSON metadata policy and application byte cap; a dated ADR-0038 cross-reference under this acceptance. [Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten), P02b-8 and Phase 11 retain erasure ownership | P02b-1 (the payload rule: the first payload ships there), P02b-2 (the `last_error` rule and its DDL bound), P02b-8 (the erasure inventory) | Payload and failure descriptors Accepted and implemented; job identifier-only payload/checkpoint and failure-descriptor bounds Accepted — 2026-10-15 under ADR-0047; job payload/checkpoint/failure bounds implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification; erasure inventory open P02b-8 |
 | G19 | Where do the sample flow's publisher and consumer live — a fixture pair in the integration assembly, or a real event a shipped module consumes? | A real event between two shipped domain modules, because a test-assembly-only consumer leaves every module-scoped sweep with zero subjects | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) and the P02b-1 package; reconcile Tenancy/Customization/Audit specs under this acceptance. ADR-0046 accepts distinct subscription deduplication and envelope delivery scope; P02b-3 implements the two effects and Seeder handoff. The provisioning publisher must prove enqueue from its transaction announcement while ambient context remains unresolved | P02b-1 | Flow and delivery contract Accepted; subscriptions/semantic Seeder handoff implemented by P02b-3 Step 5 |
 | G20 | What does an anonymous request to a **routed non-public** request type on a live tenant host answer — and does the catalogued `Backend_RequiresJwt_OnAllAuthenticatedRoutes` narrow to a surface outside tenant resolution? A second half rides with it: the shipped assertion middleware says that from this phase the refusal code differs by caller, `tenant_mismatch` for an authenticated one and `not_found` for an anonymous one, written by the middleware itself | The matrix wins on a tenant host — [row 2](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) answers 404, byte-identical to an unknown host's, and the 401 rule narrows to the surface where a 401 discloses nothing | The dated **ADR-0036** amendment G11 needs + a catalogue edit to that rule's Asserts line | P02b-5 | Open |
 
@@ -11299,6 +11256,107 @@ this receipt for both complete hosted assignments. PR #32 owns the exact final
 head, actual A/B outcomes and retained evidence availability; none is claimed
 passed here before execution.
 
+## P02b-4 merge and closeout (2026-10-19)
+
+The maintainer merged [PR #32](https://github.com/HodeTech/LearnStack/pull/32)
+on 2026-10-19 at **17:08:09 Europe/Istanbul** (14:08:09 UTC).
+GitHub records final development source
+`1261c38268ff194a047f987c4ee8ffdb68ab1382` and squash merge
+`b81006c7af7d38f1587ecb3bf93dbcca16f353e0`, whose parent is previous main
+`ed60157c14d33fad926fd201b49c08e2d24eed1f`. Source and squash merge have the
+identical tree `9c2ad62ca821ff7c886553518eab50c28094a29c`; the direct tree diff
+is empty. Development incorporates the main merge without switching branches or
+rewriting published history. This closeout changes no runtime, migration, grant
+or Accepted ADR.
+
+**Final-source hosted qualification is complete.** Both full assignments of
+[run 39253376497](https://github.com/HodeTech/LearnStack/actions/runs/39253376497)
+pass all **27 jobs and 5,505 backend cases per attempt**, with zero skips:
+
+| Assignment | Actual attempt | Backend case union | Cleanup |
+|---|---|---|---|
+| A | [Attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/39253376497/attempts/1) | 3,062 non-Docker + 2,443 Docker | Natural, complete |
+| B | [Attempt 2](https://github.com/HodeTech/LearnStack/actions/runs/39253376497/attempts/2), Re-run all jobs | Same complete union | Natural, complete |
+
+The non-Docker union contains 2,471 Unit, 410 Architecture, 177 HTTP Integration
+and four Contract cases. Docker contains 2,412 ordinary and 31 native cases.
+Frontend, meta, secret scan, OpenAPI and public demo/Lighthouse pass in both
+attempts; the complete guarded frontend suite contains 1,625 cases.
+The checkout/workflow SHA is GitHub's generated PR merge-ref
+`d062b67ed79f9c85d46d8faab44189e20b959729`, whose verified second parent is the
+final development source above; it is distinct from the later squash merge.
+
+Independent reconstruction checks both complete protocol/TRX unions, artifact
+API digests, producer-job ownership, source identity and actual natural cleanup.
+Both attempts use the same source, plan, manifest and actual toolchain, with
+verified different co-membership including SharedSchema: 218/254 Architecture
+and 992/1,085 ordinary selector groups change owner. Maximum execution-job walls
+are **846 seconds (A)** and **812 seconds (B)**, below 1,200 seconds. Each
+aggregate finishes below 300 seconds; backend/integration pre-upload processing
+is 16.441/31.655 seconds for A and 11.347/17.068 seconds for B. All seven strict,
+app-bound required contexts and the entire branch-protection configuration are
+unchanged in the final readback.
+
+| Aggregate | Artifact ID | SHA-256 |
+|---|---|---|
+| A backend | `12187997537` | `9b34b0a92d55ecd74555224987e3bf11dbcc9680d0e5fb7e694f3823ecac7a41` |
+| A integration | `12187354369` | `4eac0bacedd3f30e99472db97eb8cd20a44c7855bdd085a8d0b4927d57063e5f` |
+| B backend | `12191355246` | `18b1f18c57cabe19ad07e9aa7b7890f1e33364bd3cc9697e906fa381b8488400` |
+| B integration | `12191520422` | `0482a80e92d608f06f305ff9b2bd749df36f0ee44fc0366c90104f1fbd8565ee` |
+
+**Evidence availability has a narrower bound.** All 22 A archives and their API
+metadata/hashes were downloaded and independently verified before B began.
+Final qualification readback returns HTTP 404 for all 22 A artifact IDs, while
+all 22 B archives remain available. No deletion cause is inferred; the current
+API cannot independently reconstruct A. The retained review bundle contains
+all **44 ZIPs**, captured metadata, source/hash manifests, both receipts and the
+comparison: `learnstack-pr32-evidence-39253376497.tar.gz`, 40,974,306 bytes,
+SHA-256 `028de8d8d2bc6584a90e84f16755187cd2c32d600c2e80d98ad3ea19e18ce98d`.
+Its packaged `verify-retained.py` reconstructs both attempts offline against
+checkout `1261c382`; that entry point is inside the bundle, not repository
+scripts. This verifies retained integrity/results without reauthenticating
+unavailable API responses or rerunning tests.
+
+The separate post-merge push
+[run 39266220267](https://github.com/HodeTech/LearnStack/actions/runs/39266220267)
+was queued when merge verification began. It is not counted as a completed
+post-merge proof; its live result remains separate from the final PR-source
+qualification and identical-tree verification above.
+
+**P02b-4 is closed.** All nine runtime steps in the
+[delivery table](#p02b-4-local-closeout-2026-10-18), all three ADR-0063 CI steps
+and verified review corrections are delivered. Their independent review rounds
+and negative controls remain recorded above. The final corrections also enforce
+the approved distinct-key content-type quota under one tenant-wide transaction
+lock, preserve explicit Retry-After values and close CI dependency/diagnostic
+verification gaps. Earlier dated receipts retain their pre-merge or failed state;
+this closeout does not relabel them as successful final-source evidence.
+Production job and recurrence definitions remain empty.
+
+**Next: P02b-5 API authentication decision pass.** Re-verify G10/G11, G12's
+BFF-client choice, G14 and G20 before implementation: UUID claims/actor identity,
+host/JWT reconciliation (including organization and claimless-token outcomes),
+client/issuer/audience validation, an explicitly bounded authenticated read
+surface, validated-subject rate limits and the agreed anonymous 404/401 rules.
+The pass must reconcile the existing ADR-0036, Security Standards and catalogue
+carriers before code. No new gate is accepted by this closeout.
+
+P02b-6 owns realm mappers, admin-only UUID attributes, warm-realm reconciliation
+and token/TTL proof. P02b-7 owns BFF token custody, single-flight refresh, CSRF,
+logout and studio/session behavior. P02b-8 owns LS0002, retained-store erasure
+inventory, remaining carrier reconciliations and the Phase 02b exit. Phase 02b
+therefore remains in progress. Operator recovery/privileged execution stays
+Phase 03, real media adapters/process-tree proof Phase 04, and mapped readiness,
+supervision, retention and production sizing Phase 11.
+
+**Documentation-only closeout validation.** Five Release corpus consistency
+cases and seven ADR status/parser controls pass, zero failures/skips. All 1,002
+relative links/fragments in the seven changed Markdown files resolve. Added prose
+wrapping, whitespace and residual checks pass; every dated delivery/review record
+and every Accepted ADR file is byte-preserved against the final PR source. The
+runtime suites are not rerun locally for these status/navigation edits; their
+final-source qualification is recorded above. This closeout starts no next packet.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
@@ -11419,9 +11477,9 @@ remain unimplemented; the whole phase is not complete.
 
 **Background jobs**
 
-P02b-4's local evidence and Accepted-contract reconciliation of these criteria
-are recorded in its [local closeout](#p02b-4-local-closeout-2026-10-18); real
-PR-head CI/merge remain separate.
+P02b-4 meets these criteria. Its
+[merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final PR-source
+CI and merge verification; its dated local receipts retain their original scope.
 
 - A job enqueued without a tenant id, and one enqueued without a correlation id, each
   fail **at enqueue time**; an organization-scoped job missing its organization fails
@@ -11532,8 +11590,8 @@ PR-head CI/merge remain separate.
   Refresh publishes one complete immutable queue snapshot; each gauge reads an
   immutable snapshot. Pending, deferred, terminal and normal eligibility are
   tested as distinct states. Job dimensions are implemented under Accepted G9/G17;
-  the [P02b-4 local closeout](#p02b-4-local-closeout-2026-10-18) owns qualification,
-  while Standards 10 owns the exact inventory.
+  the [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final
+  qualification, while Standards 10 owns the exact inventory.
 - **No row in the [catalogue](../standards/21-architecture-tests-catalogue.md) whose
   Phase names 02b is still Registered or Awaiting backfill.** Structural rows are green
   in the `backend` check and behavioural rows in the `backend integration` check, which

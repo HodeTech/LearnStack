@@ -82,11 +82,13 @@ durable subscriber acceptance, shared inbox/delivery ledger, both real default
 subscriptions and Seeder handoff. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final verification.
-P02b-4's transactional job infrastructure is implemented under Accepted ADR-0047
-and its lifecycle decisions. ADR-0062/0063 supply the bounded CI implementation.
-The [live Phase 02b status](docs/roadmap/phase-02b-events-auth.md) owns current remediation,
-review and final-source A/B qualification; new source requires both complete
-assignments. Production business and recurrence definitions remain empty.
+**P02b-4 is complete and merged** through
+[PR #32](https://github.com/HodeTech/LearnStack/pull/32) on 2026-10-19. Its
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+records all nine job-runtime steps, three CI steps, independent reviews and both
+complete final-source hosted assignments. Production business and recurrence
+definitions remain empty. **Next: P02b-5 API authentication decision pass**;
+realm reconciliation, BFF sessions and phase exit remain P02b-6–8.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
@@ -137,14 +139,14 @@ proof pass real CI; the seventh required context is active. The
 owns CI enforcement, reviews and the positive phase-exit verdict.
 [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; the
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
-owns final verification. P02b-0 through P02b-3 are complete; the
-[P02b-3 merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
-owns final source/merge verification. P02b-3 Steps 1–5 implement durable acceptance,
-shared inbox/ledger, independent subscriber scheduling and both useful defaults
-with semantic Seeder handoff. Its
+owns final verification. P02b-0 through P02b-4 are complete; their merge closeouts
+above own final source/merge verification. P02b-3 Steps 1–5 implement durable
+acceptance, shared inbox/ledger, independent subscriber scheduling and both
+useful defaults with semantic Seeder handoff. Its
 [Step 6 record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 records completed enforcement/regression and both review rounds for all six steps.
-The merge closeout also records the verified external-review corrections. The
+Its [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+also records the verified external-review corrections. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
@@ -156,7 +158,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, transactional event production, hosted producer dispatch and independent durable subscriber delivery | Background jobs and authentication in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery and transactional/external background jobs | API authentication, realm reconciliation and BFF sessions in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
