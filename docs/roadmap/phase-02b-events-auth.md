@@ -12372,8 +12372,53 @@ The final fresh pair (GPT-6-astra xhigh for runtime/security and GPT-6.1-sol xhi
 for proofs/contracts) independently reviews frozen code commit `8a3892d9`. Both
 approve their assigned scopes with no additional actionable finding. They are
 read-only source/test inspections, not test-execution or full-CI receipts.
-Source remains unchanged; mutable closeout status is reconciled afterwards.
+That review covers the frozen runtime source. The subsequent demo-only follow-up
+below has its own review and hosted qualification.
 This follow-up starts no next packet and makes no claim that PR #33 is merged.
+
+### Hosted correction qualification follow-up
+
+The first correction-head run,
+[39337392103](https://github.com/HodeTech/LearnStack/actions/runs/39337392103),
+checks out merge `bc79e01f` for head `ac82ca6b`; its tree equals that head's tree.
+Both source/attempt-bound aggregates pass: 3,276 backend cases plus 2,491
+integration cases, **5,767 total**, with exact complete unions and no failed or
+skipped cases. Independently downloading all twenty producer artifacts and
+re-running both receipt/hash/result/union validators confirms all 5,767 completed
+cases are Passed: 2,581 Unit, 433 Architecture, five Contract and 2,748 Integration
+(including 257 non-Docker, 2,460 ordinary Docker and 31 native cases). The frontend
+passes 1,630 cases. Twenty-six of 27 jobs pass;
+`public demo + lighthouse` is the sole failed job, so this is not a green PR-head
+receipt.
+
+The demo completes browser controls and its first audit, whose LCP, blocking time,
+layout shift and accessibility satisfy the existing budgets. It refuses roughly
+280 milliseconds after announcing the second audit, before that audit makes any
+product API call. Owned cleanup passes. The retained artifacts do not identify
+whether browser launch, the debugging-port file or another early operation
+failed; a browser-startup or product regression is not established by this record.
+
+Commit `f5befc9e` adds closed parent phases, bounded browser exit/signal fields
+and a revalidated private worker substage. The first failure survives cleanup;
+raw exception, provider, URL and document text cannot enter this diagnostic.
+It changes no retry, deadline, browser flag, port parsing or audit threshold.
+The first fresh demo review pair (GPT-6-astra xhigh and GPT-6.1-sol xhigh) finds
+no privacy/cleanup defect but independently identifies an exit-classification
+edge: Node exposes signal termination through signalCode with null exitCode.
+Commit `ce2b746e` corrects the production startup predicate and replaces an
+impossible synthetic status pair. Two actual native-child controls verify live,
+normal and signal states. The thirteen new controls also cover an actual worker
+connection refusal, clean completion, primary/cleanup failures and canary
+rejection. All 189 focused demo cases and the full 1,643-case frontend population
+pass with no skips/todos; typecheck, lint and formatting pass. The fresh second
+independent pair identifies a declaration-only mismatch: Record<string, unknown>
+does not accept Node ChildProcess. Commit `d9f21ddb` uses the exact structural
+status fields, and the existing actual-child controls now compile-check both
+entry points. Typecheck, all thirteen diagnostic controls, lint and formatting
+pass after that fix. Both reviewers confirm the complete corrected slice has no
+remaining actionable finding in their assigned scopes. Their source inspections
+are not hosted demo receipts. A complete new hosted run must qualify the final
+source; the earlier backend receipt does not qualify the later frontend source.
 
 ### Reviewer handoff
 
