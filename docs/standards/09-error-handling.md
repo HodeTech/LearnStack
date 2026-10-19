@@ -13,6 +13,9 @@ Delivery/recovery additions derive from
 Background-job policy derives from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md) and
 [ADR-0061](../decisions/0061-known-external-job-failure-policy.md).
+Hard-limit refusal follows [ADR-0021](../decisions/0021-feature-based-entitlement.md),
+[ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) and the
+[accepted quota accounting](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19).
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
 

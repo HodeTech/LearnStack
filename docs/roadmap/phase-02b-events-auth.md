@@ -11273,6 +11273,17 @@ tests preserve that default and exercise the real resolver against an explicit
 plan projection. That failed receipt remains failed evidence. Independent quota
 and source-inventory reviews precede renewed complete hosted qualification.
 
+**Quota review round 1.** Two fresh independent reviewers examine
+`617ed087..04b4e782` across transaction/isolation/concurrency and
+API/audit/job/error/corpus/source-inventory contracts. Both approve without a
+verified finding. They independently run seven PostgreSQL quota cases and 181
+focused Unit cases on current Debug binaries, plus all 19 genericity cases with
+their result guard. Their initial stale Release selections are not current-source
+evidence. The parent rebuilds the entire Release solution with zero warnings or
+errors, then runs all 2,471 Unit and 41 quota/default/publication PostgreSQL cases
+in Release: all pass, zero skips. A different fresh review pair follows before
+source freeze; no hosted qualification is claimed by these local receipts.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
