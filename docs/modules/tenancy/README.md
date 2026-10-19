@@ -156,6 +156,25 @@ No platform locale registry is introduced. Admission uses the existing `LocaleTa
 grammar, canonicalization and 35-character application bound; membership is the
 tenant's own enabled rows, not a speculative platform language allowlist.
 
+### P02b-5 authenticated account-site read
+
+`GetAccountSiteQuery` is an unrouted, non-public, audit Off request under
+[ADR-0064's closed authenticated read](../../decisions/0064-tenant-api-authentication-boundary.md#closed-authenticated-read).
+It accepts no scope selector and returns `AccountSite`: the context's stable
+`ActorId`, resolved `TenantId` and nullable `OrganizationId`, plus the existing
+`PublicSite` projection. It discloses no permission-sensitive configuration and
+adds no permission key; Phase 03 owns membership and permissions.
+
+Before any configuration, settings or feature read, its own guard requires
+`HostAndClaim`, a real non-system actor and matching real resolved/host scope.
+Missing provenance and `ClaimAndMembership` return `not_found`, including future
+membership-confirmed platform contexts with an apparently matching host scope.
+Both site handlers call the same projection directly within the pipeline-owned
+physical READ ONLY frame. The live configuration reader independently retains
+its host, enlistment, tenant/organization lifecycle and locale checks. Theme/null
+and attribution follow the public contract above; `branding.theme` stays
+tenant-wide. P02b-5 Step 4 owns HTTP routing and production authentication activation.
+
 ### Whole-theme setting and public boundary
 
 The command-local registry admits only tenant-wide `branding.theme`. It does not

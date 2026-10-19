@@ -1763,12 +1763,19 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   against the **project file** as well as the emitted assembly-reference table,
   because the compiler elides a reference whose types the IL never touches, so a
   dangling `<ProjectReference>` would leave a reflection-only check green. The
-  assembly half carries a positive control.
-- **Source:** ADR-0040; ADR-0033.
-- **Type:** xUnit + assembly-reference and constructor inspection. **Kind:** structural.
+  assembly half carries a positive control. The immutable exact-Type read-only
+  declaration is constructed only by Tenancy's shared site-read registration for
+  `GetAccountSiteQuery` and consumed only by the existing transaction owner as a
+  frozen Type set. API and Seeder call that registration. Complete production IL
+  construction/consumer/caller censuses include clean and planted mutation controls;
+  this authenticated exception does not acquire the public marker.
+- **Source:** ADR-0040; ADR-0033; ADR-0064 § Closed authenticated read.
+- **Type:** xUnit + assembly-reference, constructor and production IL inspection.
+  **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6,
-  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
-- **Phase:** 02a (Packet 6).
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`; P02b-5 Step 2
+  extends the same owner with the exact authenticated read-only declaration).
+- **Phase:** 02a (Packet 6); 02b (P02b-5 Step 2 extension).
 
 #### `A_Cross_Module_Read_Inside_The_Ambient_Transaction_Returns_Rows`
 

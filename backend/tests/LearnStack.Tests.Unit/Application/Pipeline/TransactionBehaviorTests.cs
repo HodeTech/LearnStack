@@ -5,6 +5,9 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Application.Persistence;
 using LearnStack.Application.Messaging;
 using LearnStack.Infrastructure.Audit;
+using LearnStack.Modules.Tenancy.Application.Contracts.Account;
+using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
+using LearnStack.Modules.Tenancy.Infrastructure;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Identifiers;
@@ -14,6 +17,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
 
@@ -47,6 +51,61 @@ public sealed class TransactionBehaviorTests
 
     public sealed record FrameworkQuery : IRequest<Result<string>>;
 
+    private static class Namesake
+    {
+        public sealed record GetAccountSiteQuery : IRequest<Result<string>>;
+    }
+
+    [Fact]
+    public async Task The_declared_account_read_uses_read_only_before_announcement_and_freezes_its_exact_type_set()
+    {
+        var services = new ServiceCollection();
+        services.AddTenantSiteReads();
+        using var provider = services.BuildServiceProvider();
+        var declarations = provider.GetServices<ExplicitReadOnlyRequest>().ToList();
+        declarations.Should().ContainSingle().Which.RequestType.Should().Be<GetAccountSiteQuery>();
+        var unit = new RecordingUnitOfWork();
+        var producer = new ProducerExecution(unit);
+        var behavior = new TransactionBehavior<GetAccountSiteQuery, Result<AccountSite>>(
+            new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
+                new AuditStateCapture(), producer, new DomainEventCollector(producer, Substitute.For<IPublisher>()),
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), declarations);
+        declarations.Clear();
+
+        var result = await behavior.Handle(new GetAccountSiteQuery(), () =>
+        {
+            unit.Mode.Should().Be(TransactionMode.ReadOnly);
+            unit.Calls.Add("account-handler");
+            return Task.FromResult(Result.Ok(new AccountSite(UserId.From(Guid.NewGuid()), TenantId.From(Guid.NewGuid()), null,
+                new PublicSite("Site", ["en"], "en", null, true))));
+        }, default);
+
+        result.IsSuccess.Should().BeTrue();
+        unit.Calls.Should().Equal("begin", "set-tenant", "account-handler", "commit");
+        unit.ModeOnAnnouncement.Should().Be(TransactionMode.ReadOnly);
+    }
+
+    [Fact]
+    public async Task A_namesake_request_remains_writable_despite_the_account_declaration()
+    {
+        var unit = new RecordingUnitOfWork();
+        var producer = new ProducerExecution(unit);
+        var declarations = new List<ExplicitReadOnlyRequest> { new(typeof(GetAccountSiteQuery)) };
+        var behavior = new TransactionBehavior<Namesake.GetAccountSiteQuery, Result<string>>(
+            new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
+                new AuditStateCapture(), producer, new DomainEventCollector(producer, Substitute.For<IPublisher>()),
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), declarations);
+        declarations.Add(new(typeof(Namesake.GetAccountSiteQuery)));
+
+        var result = await behavior.Handle(new Namesake.GetAccountSiteQuery(), () =>
+        {
+            unit.Mode.Should().Be(TransactionMode.ReadWrite);
+            return Task.FromResult(Result.Ok("writable"));
+        }, default);
+
+        result.IsSuccess.Should().BeTrue();
+    }
+
     [Fact]
     public async Task Caller_framework_metadata_cannot_choose_a_physical_read_only_transaction()
     {
@@ -61,7 +120,7 @@ public sealed class TransactionBehaviorTests
         var behavior = new TransactionBehavior<FrameworkQuery, Result<string>>(
             new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
                 new AuditStateCapture(), producer, new DomainEventCollector(producer, Substitute.For<IPublisher>()),
-                NullLogger<TransactionExecutionCoordinator>.Instance), requests);
+                NullLogger<TransactionExecutionCoordinator>.Instance), requests, []);
         var result = await behavior.Handle(new FrameworkQuery(), () =>
         {
             unit.Mode.Should().Be(TransactionMode.ReadWrite);
@@ -131,7 +190,7 @@ public sealed class TransactionBehaviorTests
                 unitOfWork, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
                 new AuditStateCapture(), producer,
                 new DomainEventCollector(producer, Substitute.For<IPublisher>()),
-                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty());
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), []);
 
         var result = await behavior.Handle(new PublicQuery(), () =>
         {
@@ -560,7 +619,7 @@ public sealed class TransactionBehaviorTests
             capture ?? new AuditStateCapture(),
             producer,
             new DomainEventCollector(producer, Substitute.For<IPublisher>()),
-            NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty());
+            NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), []);
     }
 
     private static Task<Result<string>> Next(RecordingUnitOfWork unitOfWork, Result<string> result)
@@ -585,6 +644,8 @@ public sealed class TransactionBehaviorTests
         public List<string> Calls { get; } = [];
 
         public ITenantContext? TenantContext { get; private set; }
+
+        public TransactionMode? ModeOnAnnouncement { get; private set; }
 
         /// <summary>Thrown by the outermost commit, to model a faulted COMMIT.</summary>
         public Exception? CommitFailure { get; init; }
@@ -649,6 +710,7 @@ public sealed class TransactionBehaviorTests
             }
 
             Calls.Add("set-tenant");
+            ModeOnAnnouncement = Mode;
             TenantContext = context;
             return Task.CompletedTask;
         }

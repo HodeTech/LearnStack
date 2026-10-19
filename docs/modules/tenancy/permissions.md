@@ -3,6 +3,14 @@
 Per [Permission Standards](../../standards/19-permissions.md), which names this
 file. Part of the [module spec](README.md).
 
+**P02b-5 Step 2 account-site subject.** `GetAccountSiteQuery` is unrouted,
+non-public and explicitly audit Off. It adds no permission key or grant, and
+returns only the context's own actor/scope with the existing public site
+projection. Its independent `HostAndClaim`/host-scope guard precedes all readers;
+membership alone cannot admit it. [The module contract](README.md#p02b-5-authenticated-account-site-read)
+owns the boundary. P02b-5 Step 4 owns routing/authentication activation;
+Phase 03 owns permission-sensitive disclosure and live membership.
+
 **P02b-1 Step 3 producer implemented — 2026-10-12.** The completed-provisioning
 domain translator runs only during owner completion, adds no endpoint or
 permission, and inserts a pending outbox row under the provisioning announcement.

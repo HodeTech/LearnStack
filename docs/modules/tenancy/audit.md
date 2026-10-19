@@ -215,3 +215,14 @@ read-only pipeline. No operation slug or resource audit row is registered. Norma
 successes and refusals add no intent; independent rejected-assertion auditing is
 unchanged. `IPublicTenantConfigurationReader` and `ITenantSettingsAccessor` are
 internal ports, not separately dispatched or directly routed endpoints.
+
+## P02b-5 authenticated account-site read
+
+`GetAccountSiteQuery` is explicitly Off through
+`builder.Off<GetAccountSiteQuery>()` in `TenancyAuditCatalogSource`, as required by
+[ADR-0064](../../decisions/0064-tenant-api-authentication-boundary.md#closed-authenticated-read).
+The unrouted non-public query returns only its own actor/scope and the existing
+public site projection. Normal success and refusal create no query intent,
+operation slug or audit row; it is neither ReadSensitive nor MAY. Independent
+rejected-assertion auditing retains its own path. The
+[module contract](README.md#p02b-5-authenticated-account-site-read) owns admission.

@@ -11773,6 +11773,54 @@ contract, independent host guard, exact physical read-only selection, explicit
 Off classification and application-role PostgreSQL proofs. Production scheme,
 middleware and HTTP route activation remain Step 4.
 
+### P02b-5 Step 2 — real read-only application subject (2026-10-19)
+
+**Implementation validated; independent reviews pending.** Entry is `e67c3299`.
+Tenancy declares the unmarked `GetAccountSiteQuery` and typed `AccountSite`
+projection. Its independent guard requires HostAndClaim, a real non-system actor,
+real matching tenant/host provenance and coherent initialized organization IDs
+before configuration, settings or feature access. Future ClaimAndMembership
+contexts remain refused even with a planted matching HostScope. Refusals use the
+shared `not_found` error. The validator admits no query parameters.
+
+The public and account handlers call the same internal projection directly;
+neither nests another MediatR request. Public fields, lifecycle/locale semantics,
+whole-theme/null behavior and attribution remain unchanged. The account query is
+explicitly Off, with no query intent or audit row. Module documentation names
+the unrouted boundary and adds no permission key.
+
+An immutable exact-Type declaration lives in SharedKernel beside transaction
+mode. Tenancy's shared site-read registration supplies the sole AccountSite
+literal; API and Seeder call it. The existing TransactionBehavior freezes the
+Type set and retains the unchanged framework/public fallback. This placement
+preserves module dependency rules without introducing a core-to-module edge or
+a general mode selector. The shared registration also supplies Seeder's public
+configuration reader. Existing physical mode/announcement ownership is unchanged.
+
+The existing module-independent transaction architecture rule now closes the
+declaration, immutable snapshot, exact type lookup and registration callers.
+An initial detector falsely classified the legitimate Enumerable projection as
+registration; its correction permits only the exact projection and registration
+signatures/owners, with duplicate/acquisition/substitution controls inside those
+owners as well as outside them. No new architecture Fact or canonical rule is
+invented, and implemented catalogue counts stay unchanged.
+
+Validation passes: zero-warning warnings-as-errors Release solution build;
+2,521 unit cases, 210 Docker-free integration cases, 119 focused PostgreSQL
+cases and 89 affected architecture cases, all with zero failures or skips.
+The PostgreSQL set includes 14 new actual-account cases plus existing public
+reads, transaction, provisioning and unit-of-work regression cases. Actual
+`learnstack_app` checks prove non-superuser/non-BYPASSRLS execution, contrasting
+stored tenant data, mapped-organization lifecycle, empty/disabled configuration,
+foreign provenance refusal before reads, zero query audit delta, real SQL/EF
+`25006` refusals with writable positive controls and writable-outer mixed-mode
+refusal. Branding remains tenant-wide; no organization theme is fabricated.
+
+Scoped formatting, whitespace and carrier link/prose checks pass. Complete
+backend/Docker/architecture unions and hosted qualification remain Step 5;
+this receipt claims the named affected populations. No production HTTP route,
+authentication activation, schema or grant change is introduced by Step 2.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile
