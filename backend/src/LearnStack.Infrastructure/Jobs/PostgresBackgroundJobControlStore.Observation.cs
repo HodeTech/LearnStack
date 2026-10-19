@@ -252,7 +252,14 @@ internal sealed partial class PostgresBackgroundJobControlStore
             FROM recipient_class WHERE accepted_job_id IS NULL AND skipped_at IS NULL
               AND quarantined_at IS NULL GROUP BY label
         )
-        SELECT family AS observation_family,label,code,n,eligible,age FROM output ORDER BY family,label,code;
+        SELECT family AS observation_family,label,code,n,eligible,age,
+          EXISTS (SELECT 1 FROM job_base j
+            WHERE j.profile='transactional' AND j.capacity_group IS NOT NULL
+              AND j.phase='reconciling' AND j.ownership_token IS NULL
+              AND EXISTS (SELECT 1 FROM background_job_reservations r
+                WHERE r.tenant_id=j.tenant_id AND r.job_id=j.id AND r.released_at IS NULL))
+            AS unresolved_capacity_recovery
+        FROM output ORDER BY family,label,code;
         """;
 
     internal async Task<OwnedBackgroundJobControl<BackgroundJobDurableObservation>> ReadDurableObservationAsync(
@@ -273,6 +280,7 @@ internal sealed partial class PostgresBackgroundJobControlStore
                 manifest.Bind(command, retainedJobs);
                 resources.SetReader(await command.ExecuteReaderAsync(deadline.Token).ConfigureAwait(false));
                 var points = new List<BackgroundJobObservationPoint>();
+                var unresolvedCapacityRecovery = false;
                 while (await resources.Reader!.ReadAsync(deadline.Token).ConfigureAwait(false))
                 {
                     if (points.Count >= manifest.MaximumRows)
@@ -280,8 +288,9 @@ internal sealed partial class PostgresBackgroundJobControlStore
                     points.Add(new((BackgroundJobObservationFamily)resources.Reader.GetInt32(0),
                         resources.Reader.GetString(1), resources.Reader.GetInt32(2), resources.Reader.GetInt64(3),
                         resources.Reader.GetInt64(4), resources.Reader.GetDouble(5)));
+                    unresolvedCapacityRecovery |= resources.Reader.GetBoolean(6);
                 }
-                var observed = BackgroundJobDurableObservation.Create(manifest, points);
+                var observed = BackgroundJobDurableObservation.Create(manifest, points, unresolvedCapacityRecovery);
                 await FinishAsync(resources).ConfigureAwait(false);
                 await resources.Transaction!.RollbackAsync(deadline.Token).ConfigureAwait(false);
                 resources.ProbeRollbackAcknowledged = true;

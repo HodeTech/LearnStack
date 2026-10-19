@@ -398,8 +398,9 @@ If a test gets slow, fix the test before the suite.
 
 - A flaky test is a bug. Triage immediately.
 - Quarantined tests re-enabled within one sprint or deleted.
-- A `Skip` fails CI: `scripts/assert-tests-ran.py` refuses any backend run whose results
-  report a case that did not run
+- A `Skip` fails CI: the `ci-test-shards.py` / `ci-native-tests.py` execution
+  owners and `ci-test-shard-results.py` aggregates require complete discovered
+  case-ID unions with every outcome Passed
   ([`No_Architecture_Test_Is_Skippable`](21-architecture-tests-catalogue.md#no_architecture_test_is_skippable)).
   P02d-5 G38(d) extends the runner to frontend workspaces: `pnpm test` from
   `frontend/` discovers test packages and checks actual nonempty Vitest JSON

@@ -40,8 +40,6 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
             services.RemoveAll<BackgroundJobDefinitionRegistry>();
             services.AddSingleton(registry);
             services.AddSingleton<IAuditCatalogSource>(budget.AuditSource(oversizedOutcome));
-            services.RemoveAll<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>>();
-            services.AddTransient<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>, FixtureAdmissionHandler>();
             services.AddSingleton(new PreparedArtifact(artifact));
             services.AddTransient(typeof(IRequestHandler<,>).MakeGenericType(definition.ProfileRegistration.RootRequestType,
                 typeof(Result<>).MakeGenericType(definition.ProfileRegistration.PlanType!)),

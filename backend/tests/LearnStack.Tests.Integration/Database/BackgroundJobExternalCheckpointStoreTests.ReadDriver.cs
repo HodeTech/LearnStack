@@ -32,9 +32,7 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         var probe = new ReadDriverCleanupProbe(throwOnCleanup);
         await using var host = Fixture.Host(database, new BackgroundJobFixtureProbe(), configure: services =>
         {
-            services.AddSingleton(new FixtureAdmissionWindow(freshRecovery ? TimeSpan.FromMilliseconds(500) : TimeSpan.FromMinutes(4)));
-            services.RemoveAll<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>>();
-            services.AddTransient<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>, FixtureAdmissionHandler>();
+            ConfigureAdmissionWindow(services, freshRecovery ? TimeSpan.FromMilliseconds(500) : TimeSpan.FromMinutes(4));
             services.AddSingleton(probe);
             services.AddScoped<ReadDriverHeldCleanup>();
             services.AddTransient<IPipelineBehavior<ReadBackgroundJobExternalStateQuery, Result<BackgroundJobExternalSnapshot>>,

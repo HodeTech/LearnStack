@@ -266,8 +266,7 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
             services.AddTransient(service, typeof(NoPlanRefusalHandler<,>).MakeGenericType(profile.RootRequestType, profile.PlanType!));
             if (admissionWindow is { } window)
             {
-                services.RemoveAll<FixtureAdmissionWindow>();
-                services.AddSingleton(new FixtureAdmissionWindow(window));
+                ConfigureAdmissionWindow(services, window);
             }
             if (emptyDefinitions)
             {

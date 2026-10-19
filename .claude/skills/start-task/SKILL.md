@@ -129,6 +129,7 @@ the task. Common starting points:
 | New aggregate or table | [add-tenant-owned-entity](../add-tenant-owned-entity/SKILL.md) |
 | New command / query handler | [add-mediatr-handler](../add-mediatr-handler/SKILL.md) |
 | Inter-module event flow | [add-integration-event](../add-integration-event/SKILL.md) |
+| Background job or durable recurrence | [add-background-job](../add-background-job/SKILL.md) |
 | New permission key | [add-permission](../add-permission/SKILL.md) |
 | New feature / limit | [add-feature-key](../add-feature-key/SKILL.md) |
 | New EF migration | [add-ef-migration](../add-ef-migration/SKILL.md) |

@@ -33,8 +33,11 @@ owns review, packet and exact PR-head CI/job-budget status),
 (Accepted 2026-10-16; exceptional boundary and runtime proofs implemented),
 [ADR-0061 Known External Job Failure Policy](../decisions/0061-known-external-job-failure-policy.md)
 (Accepted 2026-10-17; Step 7 qualified and Step 9 enforcement implemented),
+[ADR-0062 Native Crash Proof CI Provisioning](../decisions/0062-native-crash-proof-ci-provisioning.md)
+(Accepted 2026-10-18; native execution authority implemented),
 [ADR-0063 Complete Bounded CI Test Shards](../decisions/0063-complete-bounded-ci-test-shards.md)
-(Accepted 2026-10-18; general CI obligation Registered, implementation pending).
+(Accepted 2026-10-18; general CI obligation implemented; the phase record owns
+final-source hosted qualification).
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -840,9 +843,11 @@ otherwise).
   comments and literal contents are gone: a pattern that stopped at the first `)` could not
   see a `Skip` written **after** `DisplayName = "(meta) …"`, and the assembly ships exactly
   one such attribute — on the meta-test that certifies every NetArchTest row is not
-  vacuous. Then `scripts/assert-tests-ran.py` refuses any run whose `.trx` reports a case
-  that did not run, which is what catches a `Skip` placed on the scan itself; a skipped
-  test does not execute, so it cannot report its own absence. An earlier version instead
+  vacuous. The current `ci-test-shards.py` / `ci-native-tests.py` execution owners
+  and `ci-test-shard-results.py` aggregates require complete discovered case-ID
+  unions with every outcome Passed, which catches a `Skip` placed on the scan
+  itself; a skipped test does not execute, so it cannot report its own absence. An
+  earlier version instead
   exempted this rule's own file, so the companion's fixtures were not read as code — and
   the exemption made the four corpus guards the only tests in the assembly that one edit
   could switch off. Stripping literals removed the reason for it.

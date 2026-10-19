@@ -11,9 +11,15 @@ public sealed record BackgroundJobObservationPoint(BackgroundJobObservationFamil
 /// <summary>A complete immutable statement result, published only after actual rollback and cleanup.</summary>
 public sealed class BackgroundJobDurableObservation
 {
-    private BackgroundJobDurableObservation(ImmutableArray<BackgroundJobObservationPoint> points) => Points = points;
+    private BackgroundJobDurableObservation(ImmutableArray<BackgroundJobObservationPoint> points,
+        bool hasUnresolvedCapacityRecovery)
+    {
+        Points = points;
+        HasUnresolvedCapacityRecovery = hasUnresolvedCapacityRecovery;
+    }
 
     public ImmutableArray<BackgroundJobObservationPoint> Points { get; }
+    public bool HasUnresolvedCapacityRecovery { get; }
     public bool HasQuarantinedJobs => Points.Any(point => point.Family == BackgroundJobObservationFamily.Quarantine
         && point.Label == "job" && point.Count != 0);
     public bool HasQuarantinedControl => Points.Any(point => point.Family == BackgroundJobObservationFamily.Quarantine
@@ -21,7 +27,7 @@ public sealed class BackgroundJobDurableObservation
     public bool HasDeferredWork => Points.Any(point => point.Family == BackgroundJobObservationFamily.Deferred && point.Count != 0);
 
     internal static BackgroundJobDurableObservation Create(BackgroundJobObservationManifest manifest,
-        IEnumerable<BackgroundJobObservationPoint> points)
+        IEnumerable<BackgroundJobObservationPoint> points, bool hasUnresolvedCapacityRecovery = false)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(points);
@@ -40,6 +46,6 @@ public sealed class BackgroundJobDurableObservation
         }
         if (keys.Count(key => key.Family == BackgroundJobObservationFamily.Quarantine) != 4)
             throw new InvalidOperationException("The durable job observation is missing an artifact.");
-        return new(result.ToImmutable());
+        return new(result.ToImmutable(), hasUnresolvedCapacityRecovery);
     }
 }

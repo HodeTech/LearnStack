@@ -67,8 +67,10 @@ These propagate into:
 - HTTP server middleware
 - HTTP clients (typed clients via `IHttpClientFactory`)
 - MediatR pipeline behaviors
-- Background jobs (Hangfire activator + filter) — payload carries `tenant_id`
-  + `correlation_id`; activator restores `ITenantContext` before invocation
+- Background jobs — trusted submission stores tenant/org and W3C correlation on
+  the authoritative LearnStack row; `JobExecutor` restores that origin before
+  business invocation. Hangfire wakeups carry opaque references only
+  ([ADR-0047](../decisions/0047-transactional-background-job-runtime.md#ordinary-execution-authority))
 - Outbox dispatcher — row schema carries `tenant_id`, `organization_id?`,
   `correlation_id`, `id` (the event's `EventId`), `occurred_at`, `type`; the consumer
   restores `ITenantContext` from the envelope and starts an `Activity` with
@@ -492,18 +494,22 @@ stops serving past a configured unhealthy window, are demand-gated to
 [ADR-0033 Amendment 3](../decisions/0033-audit-durability-model.md) states all four of
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s requirements for it.
 
-**Accepted job-lifecycle observation — 2026-10-16.** ADR-0059 requires unmapped
-`jobs` health to distinguish generation draining/retention, actual running work,
-last confirmed server-metadata heartbeat and independent shared-component faults.
-Pool labels come only from the finite registry, with fixed state/reason codes;
-they supply no readiness mapping. Interception or elapsed caller waiting cannot
-restore health, and a missing server row proves neither business completion nor
-external quiescence. Closed vendor callbacks record fixed memory state only;
-provider exceptions, SQL and tenant/job/actor/trace/parameter values stay out.
-The [Step 4 acceptance record](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
-owns pending lifecycle qualification; Step 9 owns final instruments/censuses.
-This acceptance adds no emitter or health registration. Phase 11 retains
-readiness routing, alert thresholds and process supervision.
+**Job-lifecycle observation.** The unmapped `jobs` health check implements
+ADR-0059's generation draining/retention, actual running work, last confirmed
+server-metadata heartbeat and independent shared-component fault observations.
+Durable transactional jobs parked for unproved capacity cleanup make `jobs`
+unhealthy while retaining their reservations; only positive cleanup/recovery
+clears that condition. Elapsed time never releases occupancy.
+
+Pool labels come only from the finite registry, with fixed state/reason codes.
+Interception or elapsed caller waiting cannot restore health, and a missing server
+row proves neither business completion nor external quiescence. Closed vendor
+callbacks record fixed memory state only; provider exceptions, SQL and tenant/job/
+actor/trace/parameter values stay out. The
+[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+owns delivered instruments and censuses; the
+[phase status](../roadmap/phase-02b-events-auth.md) owns current qualification.
+Phase 11 retains readiness routing, alert thresholds and process supervision.
 
 ### Business Metrics
 

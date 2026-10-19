@@ -19,7 +19,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         await using var database = await DatabaseAsync();
         var bounds = NativeCommitFaultBounds();
         await using var proxy = new CommitResponseDroppingProxy(database.AppConnectionString,
-            commitsToPass: loseAck ? 2 : int.MaxValue, holdCommitResponse: loseAck);
+            commitsToPass: loseAck ? 2 : int.MaxValue, holdCommitResponse: loseAck, lifetime: TimeSpan.FromMinutes(2));
         var effects = new NativeCommitEffects();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var probe = new BackgroundJobFixtureProbe

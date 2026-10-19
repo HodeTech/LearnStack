@@ -215,9 +215,12 @@ Resource fairness is a separate mechanism and this phase builds it.
   execution rather than cancelled after it has already consumed resources. This applies
   first and hardest to queries the platform did not write — see the `data_source` limit
   below — and second to any endpoint that accepts a caller-supplied filter or sort.
-- **Hangfire queue fairness and per-tenant concurrency limits.** Every job payload
-  already carries a tenant id (`Hangfire_Job_Payloads_Include_TenantId`), which is what
-  makes fairness implementable. A tenant that enqueues fifty thousand notification jobs
+- **Hangfire queue fairness and per-tenant concurrency limits.** Authoritative
+  LearnStack job rows carry the trusted tenant identity under
+  [ADR-0047](../decisions/0047-transactional-background-job-runtime.md); vendor
+  wakeups contain opaque references. P02b-4 already supplies tenant capacity
+  reservations and independent pools. A tenant that enqueues fifty thousand
+  notification jobs
   must not delay every other tenant's jobs behind them. The work: a per-tenant concurrency
   cap, a fair-share dispatch order across tenants rather than strict FIFO across the whole
   queue, a bounded per-tenant queue depth with a defined rejection behaviour when it is

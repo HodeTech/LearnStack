@@ -17,8 +17,8 @@ using Xunit;
 namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
-/// Actual app-role Prepare/Arm/Outcome SQL and pipeline proof. The explicit fixture
-/// admission below is not the external routing engine or a provider execution.
+/// Actual app-role admission and Prepare/Arm/Outcome SQL and pipeline proof. The
+/// explicit routing claim below is not a native dispatch or provider execution.
 /// The original construction canary's registry and throwing adapter stay intact.
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
@@ -47,8 +47,6 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests(SchemaFixt
         {
             services.AddSingleton(diagnostics);
             services.Insert(0, ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(FixtureDiagnosticsBehavior<,>)));
-            services.RemoveAll<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>>();
-            services.AddTransient<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>, FixtureAdmissionHandler>();
             var definition = Fixture.Registry.Resolve(BackgroundJobRuntimeFixture.ExternalKey).Definition!;
             services.AddSingleton(new PreparedArtifact(artifact));
             services.AddTransient(typeof(IRequestHandler<,>).MakeGenericType(definition.ProfileRegistration.RootRequestType,
@@ -237,60 +235,13 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests(SchemaFixt
         }
     }
 
-    private sealed record FixtureAdmissionWindow(TimeSpan Duration);
-
-    private sealed class FixtureAdmissionHandler(IUnitOfWork unit, FixtureAdmissionWindow? window = null) : IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>
+    // Exercise the real admission handler, including its envelope, lease,
+    // generation and tenant-wide capacity fences. Only its configured deadline
+    // varies to make original-attempt expiry observable within a bounded test.
+    private static void ConfigureAdmissionWindow(IServiceCollection services, TimeSpan duration)
     {
-        public async Task<Result<None>> Handle(AdmitBackgroundJobAttemptCommand request, CancellationToken cancellationToken)
-        {
-            BackgroundJobExecutionAdmission.RequireStart(request);
-            await SchemaQueries.AssertApplicationRoleAsync(unit.Connection, unit.Transaction!);
-            var attempt = BackgroundJobAttemptId.From(Guid.CreateVersion7());
-            int ordinal;
-            bool reusePlan;
-            await using (var state = unit.Connection.CreateCommand())
-            {
-                state.Transaction = unit.Transaction;
-                state.CommandText = "SELECT normal_attempts+1,plan IS NOT NULL FROM background_jobs WHERE id=@id";
-                var id = state.CreateParameter();
-                id.ParameterName = "id";
-                id.Value = request.Claim.JobId.Value;
-                state.Parameters.Add(id);
-                await using var current = await state.ExecuteReaderAsync(cancellationToken);
-                (await current.ReadAsync(cancellationToken)).Should().BeTrue();
-                ordinal = current.GetInt32(0);
-                reusePlan = current.GetBoolean(1);
-            }
-            await SchemaQueries.ExecuteAsync(unit.Connection, unit.Transaction, """
-                INSERT INTO background_job_attempts (id,tenant_id,organization_id,job_id,stage,ordinal,admission_token,deadline)
-                    VALUES(@attempt,@tenant,NULL,@job,'normal',@ordinal,@token,@deadline);
-                UPDATE background_jobs SET normal_attempts=@ordinal,current_attempt_id=@attempt,attempt_deadline=@deadline,
-                    phase=@phase WHERE id=@job AND tenant_id=@tenant
-                """, ("attempt", attempt.Value), ("tenant", request.Claim.TenantId.Value), ("job", request.Claim.JobId.Value),
-                ("ordinal", ordinal), ("token", request.Claim.Token),
-                ("deadline", BackgroundJobSchemaSeed.Microseconds(DateTimeOffset.UtcNow.Add(window?.Duration ?? TimeSpan.FromMinutes(4)))),
-                ("phase", reusePlan ? "prepared" : "preparing"));
-            await SchemaQueries.ExecuteAsync(unit.Connection, unit.Transaction, """
-                INSERT INTO background_job_capacity(tenant_id,capacity_group) VALUES(@tenant,@group) ON CONFLICT DO NOTHING;
-                INSERT INTO background_job_reservations(tenant_id,capacity_group,job_id,attempt_id)
-                    VALUES(@tenant,@group,@job,@attempt)
-                """, ("tenant", request.Claim.TenantId.Value), ("group", request.Envelope.CapacityGroup!),
-                ("job", request.Claim.JobId.Value), ("attempt", attempt.Value));
-            await using var command = unit.Connection.CreateCommand();
-            command.Transaction = unit.Transaction;
-            command.CommandText = "SELECT a.admitted_at,a.deadline,j.ownership_until FROM background_jobs j"
-                + " JOIN background_job_attempts a ON a.id=j.current_attempt_id WHERE j.id=@job";
-            var parameter = command.CreateParameter();
-            parameter.ParameterName = "job";
-            parameter.Value = request.Claim.JobId.Value;
-            command.Parameters.Add(parameter);
-            await using var row = await command.ExecuteReaderAsync(cancellationToken);
-            (await row.ReadAsync(cancellationToken)).Should().BeTrue();
-            request.RecordAttempt(unit, attempt, ordinal, 0,
-                reusePlan ? null : BackgroundJobExecutionStage.Prepare, null,
-                row.GetFieldValue<DateTimeOffset>(0), row.GetFieldValue<DateTimeOffset>(1), row.GetFieldValue<DateTimeOffset>(2));
-            return Result<None>.Ok(None.Value);
-        }
+        services.RemoveAll<BackgroundJobRuntimeOptions>();
+        services.AddSingleton(new BackgroundJobRuntimeOptions { ExternalWaitTimeout = duration });
     }
 
     private sealed class FixtureClaim : BackgroundJobRoutingClaim.MintingSource

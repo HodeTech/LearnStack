@@ -27,6 +27,10 @@ dist/
 build/
 coverage/
 
+# Python offline controls
+__pycache__/
+*.pyc
+
 # Local test and browser proof artifacts
 /artifacts/
 

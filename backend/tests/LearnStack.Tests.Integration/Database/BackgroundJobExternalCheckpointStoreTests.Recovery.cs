@@ -408,9 +408,12 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         CheckpointCommitPause? pause = null, Action<IServiceCollection>? configure = null, string? appConnectionString = null) =>
         Fixture.Host(database, new BackgroundJobFixtureProbe(), configure: services =>
         {
-            services.AddSingleton(new FixtureAdmissionWindow(preparing ? TimeSpan.FromMinutes(4) : TimeSpan.FromMilliseconds(500)));
-            services.RemoveAll<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>>();
-            services.AddTransient<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>, FixtureAdmissionHandler>();
+            // Recovery/fairness scenarios retain more than one batch of sibling
+            // histories. Declare their capacity; the real handler still locks
+            // and counts every reservation instead of bypassing admission.
+            services.RemoveAll<BackgroundJobDefinitionRegistry>();
+            services.AddSingleton(Fixture.CapacityRegistry(operationalCeiling: 128));
+            ConfigureAdmissionWindow(services, preparing ? TimeSpan.FromMinutes(4) : TimeSpan.FromMilliseconds(500));
             if (pause is not null)
             {
                 services.AddSingleton(pause);

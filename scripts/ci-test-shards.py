@@ -295,18 +295,22 @@ def main():
     if len(sys.argv) != 2 or sys.argv[1] not in ('topology', 'aggregate-backend', 'aggregate-integration'):
         print('{"protocol":1,"error":"mode_refused"}')
         return 1
-    spec = importlib.util.spec_from_file_location('ci_shard_results', Path(__file__).with_name('ci-test-shard-results.py'))
-    result = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(result)
+    result = None
     try:
+        spec = importlib.util.spec_from_file_location('ci_shard_results', Path(__file__).with_name('ci-test-shard-results.py'))
+        result = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(result)
         if sys.argv[1] == 'topology':
             result.source_topology(load_plan())
             print('{"protocol":1,"topology":"complete"}')
             return 0
         return result.aggregate(sys.argv[1].removeprefix('aggregate-'))
-    except (Refusal, result.Refusal, result.OWNER.Refusal, result.OWNER.ET.ParseError,
-            OSError, ValueError, TypeError, KeyError) as failure:
-        reason = failure.reason if hasattr(failure, 'reason') else 'aggregate_internal_refusal'
+    except Exception as failure:
+        # Known owners expose only closed refusals. An unexpected import/parser
+        # or API-shape fault also fails, without exporting provider text.
+        refusals = (Refusal, getattr(result, 'Refusal', Refusal),
+                    getattr(getattr(result, 'OWNER', None), 'Refusal', Refusal))
+        reason = failure.reason if isinstance(failure, refusals) else 'aggregate_internal_refusal'
         print(json.dumps({'protocol': 1, 'error': reason}, sort_keys=True))
         return 1
 

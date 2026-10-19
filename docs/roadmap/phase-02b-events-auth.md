@@ -55,7 +55,10 @@ Step 3 source enforcement has completed both full reviews and verified
 corrections; its [record](#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
 owns dated hosted failures and verified corrections. PR #32 owns live final-source
 two-assignment qualification; earlier receipts retain their source-specific state.
-Acceptance is not packet/PR closeout.
+Acceptance is not packet/PR closeout. The
+[review correction record](#p02b-4-review-corrections-2026-10-19) owns the current
+source corrections and evidence-availability qualification. Both final-source
+layouts must remain independently retrievable; PR #32 carries live results.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -10920,6 +10923,120 @@ command. The phase retains zero skips, per assembly.
   whose transport row and reproduced count both change when the transport opens a
   transaction.
 
+
+## P02b-4 review corrections (2026-10-19)
+
+**Status: implementation corrections under local validation; independent review
+rounds and final-source hosted qualification remain pending.** Work stays on
+`development`. These corrections apply the existing Accepted contracts; no new
+runtime, role, grant, quarantine-release authority or ADR decision is introduced.
+
+### Verified corrections
+
+- **Capacity visibility.** Transactional work parked in `reconciling` with an
+  unreleased reservation now makes unmapped `jobs` health unhealthy. One boolean
+  joins the existing complete immutable observation statement and snapshot; gauge
+  callbacks issue no SQL and acquire no new labels. Parking and reservation
+  retention remain intact. The actual PostgreSQL proof covers pending/live work,
+  peer recovery, empty-registry observation and the original invocation's late
+  positive no-start cleanup, which restores routability without another attempt.
+- **Actual admission in checkpoint proofs.** The checkpoint fixture now invokes
+  `AdmitBackgroundJobAttemptCommandHandler` through the real pipeline instead of
+  copying its INSERT/UPDATE SQL. Bounded runtime options supply explicit attempt
+  deadlines. Recovery/fairness scenarios declare capacity for their sibling
+  histories; admission still locks/counts every reservation. The first run caught
+  three fixture scenarios trying to exceed the original one-slot declaration.
+  They must pass again with explicit fixture capacity; that failure is not green
+  regression evidence. The independent attempt observer also accepts an explicit
+  tenant, with positive tenant-B and tenant-A isolation controls.
+- **Distribution qualification.** The verifier uses its reviewed checkout as the
+  manifest authority and requires published manifest copies to match. It checks
+  each source archive's pinned PAX commit as well as its trusted digest. Actual
+  binary/notice/source co-tamper controls must fail. Dapper notice versions are
+  pinned alongside the existing graph checks. The documentation distinguishes
+  archive identity and the four original shared binaries from a reproducible
+  upstream build or a whole-dependency-tree integrity claim.
+- **CI refusal and fork shape.** GitHub may return an empty pull projection for a
+  fork run. The aggregate accepts it only with the API's explicit distinct fork
+  repository, while preserving exact run/attempt/head/workflow, raw merge-parent
+  and checkout bindings. Same-origin, malformed or substituted identities still
+  fail. Unexpected CLI/import/API-shape faults return a closed refusal rather than
+  exception text. Python bytecode is excluded from repository source inventory.
+- **Fixture bounds.** Zero-value controls now cover all positive-only runtime
+  budgets. Held-COMMIT proxies in the capacity completion/no-start scenarios have
+  explicit two-minute lifetimes so their configured transport outlives the
+  scenario's bounded holds and cleanup.
+- **Live corpus.** Isolation/security/observability and downstream consumers now
+  describe identifier-only typed submission, authoritative job rows and opaque
+  Hangfire hints. Retired base-class/rule examples no longer teach a live contract.
+  Catalogue/audit status headers reflect delivered enforcement. Front doors link
+  this phase's current status instead of copying Step 4–8 histories. Phase 03
+  explicitly owns the audited quarantine-reconciliation design and its required
+  trigger/grant migration; no such authority is activated here.
+
+### Dispositions without runtime changes
+
+| Examined concern | Verified disposition |
+|---|---|
+| Late renewal refusal cancels work | Existing lease/admission safety closes permission on uncertainty and prohibits reopening it from a late response. Probing before refusal would change that policy. |
+| Cleanup queue overflow should clear its sticky fault | No production path exceeding the bounded 64 execution owners and 128 request slots was demonstrated. Clearing a retained-cleanup fault without a witness is unsafe. |
+| Acknowledged COMMIT becomes a failed job after cleanup | The executor reads the commit gate's ACK and preserves definitive success separately from retained cleanup. Suppressing the coordinator exception would lose cleanup evidence. |
+| Failed native thread startup should signal completed cleanup | Ambiguous `Thread.Start` failure deliberately retains ownership; catch entry is not a positive join witness. |
+| Opaque startup refusal should keep its inner exception | Provider text is intentionally excluded. A finer closed diagnostic taxonomy is an optional operability change, not a demonstrated correctness defect. |
+| Quarantined rows cannot currently be edited | Phase 03's operator surface and authorization are not delivered. The freezes preserve uncertainty; nonterminal does not promise an ordinary-role release path. |
+| Consolidate historical trigger bodies | Versioned Up/Down snapshots must not read a mutable shared body. No historical migration is rewritten. |
+| Duplicate reservation index | The full FK/history index and unreleased-only occupancy index have different predicates and purposes. |
+| Native observation masks a Python error | GitHub's default Ubuntu run shell uses `bash -e`; a Python failure stops before the following `cat`. |
+| The bounded shard control runs only one suite | Its entry point loads plan and result controls under the same finite budget; earlier native controls have separate ownership. |
+| Old counts, amendments and prior CI failures should be rewritten | Dated receipts retain their original source/population. Existing ADR amendments already redirect the retired model. Accepted bodies and historical counts remain unchanged. |
+| Fixed 31-second sleeps | The cited occurrences are unit-test manual-clock advances, not real sleeps. Held-callback negative windows test an explicit barrier, not readiness by delay. |
+| Broad refactors, caching, extra labels or dependency-wide notices | No reproducible correctness/isolation defect was established. Detector/fixture decomposition, bounded allocation/polling optimizations and repository-wide packaging policy are not bundled into these corrections. |
+
+Observation-only diagnostic naming, aggregate failure-artifact convenience and
+source-test reflection coupling do not change admission, durable state, audit or
+qualification. They are not reasons to weaken existing fail-closed paths.
+
+### Evidence availability and final qualification
+
+Run `39188256776` completed both layouts on source `1dbde1a3`. Each was independently
+reconstructed while its complete archives were available. On 2026-10-19 the
+attempt-A aggregate IDs `12159885492` and `12159366005` return HTTP 404, and the API
+lists no attempt-A execution archives. Attempt B remains available; all twenty
+execution archives and both aggregate ZIPs were downloaded and checked against
+API digests. No deletion cause is inferred, and the current API cannot reconstruct
+attempt A. Earlier local verification is not a promise of indefinite remote
+artifact availability.
+
+The PR's ready-for-review claim was withdrawn while these corrections run. Final
+qualification retains ADR-0063's two full attempts of the **same workflow run**,
+with unchanged plan, required checks and ceilings. Before retrying all jobs for B,
+retain A's twenty execution ZIPs, two aggregate ZIPs, API metadata/digests and
+independent reconstruction. Recheck remote availability after B and distinguish
+verification performed at the time from artifacts still downloadable today.
+PR #32 owns the final source, actual outcomes and retained evidence location.
+
+### Local validation and review gates
+
+The Release solution build passes with zero warnings/errors. Unit 2,455, HTTP
+177 and Contract 4 pass with zero skips. The PostgreSQL checkpoint/admission/
+control run passes 334 of 335 cases; the new capacity fixture initially carried
+an invalid lease/progress pairing. After correcting and rebuilding that test,
+its complete parking/late-cleanup proof passes. Four actual native capacity
+completion/no-start cases also pass, including lost acknowledgements. Thus all
+339 distinct affected PostgreSQL cases have a passing applicable result; the
+intermediate failed run is retained as failed evidence, not renamed as success.
+
+The real distribution baseline and 23 dirty/replacement controls pass. Combined
+plan/aggregate controls 51, native environment 5, provisioning 18, native owner 40,
+ADR parser 7 and focused frontend source inventory 19 pass. Changed-document link
+inspection finds no new broken target; the catalogue's literal placeholder
+`#name_lowercased` remains documentation syntax rather than a real anchor.
+
+Full Architecture verification, both fresh independent review rounds and
+final-source hosted qualification are still pending. Their receipts follow
+before the final source is frozen. No skipped or forced-cleanup result will be
+counted as a passing proof.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
@@ -11201,10 +11318,10 @@ PR-head CI/merge remain separate.
   workstation issues claimless tokens. The mitigation is the reconciler *and* asserting
   the issued token rather than the file — the fresh-container test alone is the shape
   that cannot tell clean from blind.
-- **Tenant context is forgotten in a background job.** The catalogued structural rule
-  asserts statement order and is green whether restoration works or not, and it is one
-  of two rules — the enqueue guard is the other. The mitigation is the behavioural
-  restoration test, run as `learnstack_app` against a real row.
+- **Tenant context is forgotten in a background job.** Opaque Hangfire hints cannot
+  establish tenant authority. The P02b-4 production census and real `learnstack_app`
+  execution proofs must keep restoration tied to the validated durable job row
+  before admission and handler construction.
 - **The outbox is treated as optional** — "module X will adopt it later." No reflection
   scan can observe whether a row committed with the change that raised it, so the
   mitigation is an integration test that commits and rolls back both together,
@@ -11257,8 +11374,9 @@ PR-head CI/merge remain separate.
 - A MUST-classified direct-write consumer produces exactly one row for its delivery, and
   a rolled-back delivery exactly one standalone `failed` row — the delivery-frame
   hand-off Packet 9 left open.
-- The background-job enqueue guard rejects a payload missing any one of its required
-  fields, and a job runs under its restored tenant against a real row.
+- Background-job submission rejects missing owner/context, unknown definitions and
+  invalid identifier-only parameters. A job runs under tenant/organization authority
+  restored from its real durable row; opaque transport hints carry no tenant payload.
 - Both Phase 02d sites still render anonymously with Keycloak stopped.
 - `LS0002` ships as a Warning with its record, its catalogue entry and its release row.
 - No catalogue row whose Phase names 02b is still Registered or Awaiting backfill; both

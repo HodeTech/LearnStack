@@ -79,11 +79,12 @@ internal static class BackgroundJobRuntimeRows
         return id;
     }
 
-    internal static async Task<long> CountAttemptsAsync(string connectionString, BackgroundJobId id, Guid? organization = null)
+    internal static async Task<long> CountAttemptsAsync(string connectionString, BackgroundJobId id, Guid? organization = null,
+        Guid? tenant = null)
     {
         await using var connection = await PostgresFixture.OpenAsync(connectionString);
         await using var transaction = await connection.BeginTransactionAsync();
-        await EducationSchemaSeed.AnnounceAsync(connection, transaction, SchemaFixture.TenantA, organization);
+        await EducationSchemaSeed.AnnounceAsync(connection, transaction, tenant ?? SchemaFixture.TenantA, organization);
         await using var count = new NpgsqlCommand("SELECT count(*) FROM background_job_attempts WHERE job_id = @job",
             (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
         count.Parameters.AddWithValue("job", id.Value);

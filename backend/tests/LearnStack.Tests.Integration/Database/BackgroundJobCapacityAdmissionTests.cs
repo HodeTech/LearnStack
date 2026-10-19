@@ -271,6 +271,10 @@ public sealed partial class BackgroundJobCapacityAdmissionTests(SchemaFixture sc
         var other = await CapacityJobAsync(database, tenant: SchemaFixture.TenantB);
         var admitted = await StartAsync(host.Services, other);
         admitted.Outcome.Should().Be(JobStartExecutionOutcome.Started);
+        (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, other,
+            tenant: SchemaFixture.TenantB)).Should().Be(1);
+        (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, other)).Should().Be(0,
+            "the independent observer must respect its explicitly announced tenant");
         (await OccupiedAsync(database, tenant: SchemaFixture.TenantB)).Should().Be(1);
         (await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admitted.Receipt!, admitted.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional))).CommitAcknowledged.Should().BeTrue();
         (await OccupiedAsync(database, tenant: SchemaFixture.TenantB)).Should().Be(0);

@@ -224,6 +224,76 @@ class AggregateControls(unittest.TestCase):
             self.assertEqual(context, owner.source_context({key: value for key, value in context.items() if key not in ('headSha', 'eventName')}))
             self.assertEqual(['cat-file', '-p', 'HEAD'], command.call_args.args[0][1:])
 
+    def test_empty_fork_projection_keeps_run_checkout_and_exact_workflow_binding(self):
+        owner = RESULTS.OWNER; context = self.context()
+        env = {'GITHUB_ACTIONS': 'true', 'GITHUB_EVENT_NAME': 'pull_request',
+               'LEARNSTACK_CI_HEAD_SHA': context['headSha']}
+        for name, value in {'RUN_ID': '123', 'RUN_ATTEMPT': '1', 'JOB': 'backend',
+                'SHA': context['sourceSha'], 'WORKFLOW_SHA': context['workflowSha'],
+                'REPOSITORY': context['repository'], 'WORKFLOW_REF': context['workflowRef'],
+                'WORKSPACE': str(Path.cwd())}.items():
+            env['GITHUB_' + name] = value
+            env['LEARNSTACK_NATIVE_' + ('ATTEMPT' if name == 'RUN_ATTEMPT' else name)] = value
+        header = 'tree ' + 'c' * 40 + '\nparent ' + 'd' * 40 + '\nparent ' + context['headSha'] + '\n\nmessage'
+        def git(argv, *_):
+            return (header if argv[1] == 'cat-file' else context['sourceSha']).encode()
+        run = {'id': 123, 'run_attempt': 1, 'head_sha': context['headSha'], 'path': '.github/workflows/ci.yml',
+               'event': 'pull_request', 'name': 'ci', 'repository': {'full_name': context['repository']},
+               'pull_requests': [], 'head_repository': {'fork': True, 'full_name': 'contributor/LearnStack'}}
+        with mock.patch.object(owner.sys, 'platform', 'linux'), mock.patch.object(owner, 'ROOT', Path.cwd()), \
+                mock.patch.dict(os.environ, env, clear=True), mock.patch.object(owner, 'command', side_effect=git):
+            self.assertEqual(context, owner.shard_context('backend'))
+            RESULTS.verify_run(run, owner.shard_context('backend'))
+            with mock.patch.dict(os.environ, {'GITHUB_SHA': 'e' * 40, 'LEARNSTACK_NATIVE_SHA': 'e' * 40}):
+                self.refuses('source_identity_mismatch', owner.shard_context, 'backend')
+            with mock.patch.dict(os.environ, {'GITHUB_SHA': 'e' * 40, 'LEARNSTACK_NATIVE_SHA': 'e' * 40,
+                    'GITHUB_WORKFLOW_SHA': 'e' * 40, 'LEARNSTACK_NATIVE_WORKFLOW_SHA': 'e' * 40}):
+                self.refuses('checkout_mismatch', owner.shard_context, 'backend')
+            for dirty in (header.replace(context['headSha'], 'e' * 40),
+                          header.replace('\nparent ' + context['headSha'], '')):
+                header_before = header; header = dirty
+                try:self.refuses('merge_parent_mismatch', owner.shard_context, 'backend')
+                finally:header = header_before
+            with mock.patch.dict(os.environ, {'GITHUB_WORKFLOW_REF': 'foreign/LearnStack/.github/workflows/ci.yml@refs/pull/32/merge',
+                    'LEARNSTACK_NATIVE_WORKFLOW_REF': 'foreign/LearnStack/.github/workflows/ci.yml@refs/pull/32/merge'}):
+                self.refuses('workflow_identity_mismatch', owner.shard_context, 'backend')
+        for key, value in [('id', 124), ('run_attempt', 2), ('head_sha', context['sourceSha']),
+                           ('repository', None), ('repository', {'full_name': 'foreign/LearnStack'})]:
+            self.refuses('run_api_identity_mismatch', RESULTS.verify_run, {**run, key: value}, context)
+        for head in (None, {}, {'fork': False, 'full_name': 'contributor/LearnStack'},
+                     {'fork': 'true', 'full_name': 'contributor/LearnStack'}, {'fork': True, 'full_name': ''},
+                     {'fork': True, 'full_name': context['repository']},
+                     {'fork': True, 'full_name': context['repository'].lower()}):
+            self.refuses('run_pull_identity_mismatch', RESULTS.verify_run, {**run, 'head_repository': head}, context)
+        for pulls in (None, {}, [None], [{'number': 33}], [{'number': 32}, {'number': 32}]):
+            self.refuses('run_pull_identity_mismatch', RESULTS.verify_run, {**run, 'pull_requests': pulls}, context)
+        for ref in ('prefix/' + context['workflowRef'], context['workflowRef'] + '\n',
+                    context['workflowRef'].replace('ci.yml', 'foreign.yml'),
+                    context['workflowRef'].replace('/pull/32/merge', '/heads/development')):
+            self.refuses('run_pull_identity_mismatch', RESULTS.verify_run, run, {**context, 'workflowRef': ref})
+
+    def test_cli_unexpected_and_import_faults_emit_only_closed_refusals(self):
+        unexpected = RuntimeError('PRIVATE-CANARY'); unexpected.reason = 'PRIVATE-CANARY'
+        for failure in (AttributeError('PRIVATE-CANARY'), unexpected, RESULTS.Refusal('workflow_yaml_refused')):
+            console, errors = io.StringIO(), io.StringIO()
+            with mock.patch('sys.argv', ['ci-test-shards.py', 'topology']), \
+                    mock.patch('sys.stdout', console), mock.patch('sys.stderr', errors), \
+                    mock.patch.object(PLAN.importlib.util, 'spec_from_file_location', return_value=mock.Mock()), \
+                    mock.patch.object(PLAN.importlib.util, 'module_from_spec', return_value=RESULTS), \
+                    mock.patch.object(RESULTS, 'source_topology', side_effect=failure):
+                self.assertEqual(1, PLAN.main())
+            expected = failure.reason if isinstance(failure, RESULTS.Refusal) else 'aggregate_internal_refusal'
+            self.assertEqual({'protocol': 1, 'error': expected}, json.loads(console.getvalue()))
+            self.assertEqual('', errors.getvalue())
+            self.assertNotIn('PRIVATE-CANARY', console.getvalue())
+        console, errors = io.StringIO(), io.StringIO()
+        with mock.patch('sys.argv', ['ci-test-shards.py', 'topology']), mock.patch('sys.stdout', console), \
+                mock.patch('sys.stderr', errors), \
+                mock.patch.object(PLAN.importlib.util, 'module_from_spec', side_effect=RuntimeError('PRIVATE-CANARY')):
+            self.assertEqual(1, PLAN.main())
+        self.assertEqual({'protocol': 1, 'error': 'aggregate_internal_refusal'}, json.loads(console.getvalue()))
+        self.assertEqual('', errors.getvalue())
+
     def test_artifact_api_requires_unique_current_attempt_id_digest_and_job_window(self):
         context = self.context(); job = self.job('base'); clean = self.metadata()
         self.assertEqual(12345, RESULTS.verify_artifact(clean, context, 'base', job)['id'])

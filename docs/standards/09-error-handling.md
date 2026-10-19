@@ -561,8 +561,9 @@ exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
 ## Background Jobs
 
 [Accepted ADR-0047](../decisions/0047-transactional-background-job-runtime.md#attempts-terminal-audit-and-diagnostics)
-owns the job failure policy. The [P02b-4 delivery records](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
-own current implementation and remaining external/finalization enforcement.
+owns the job failure policy. The [P02b-4 delivery records](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+own the delivered implementation; the
+[phase status](../roadmap/phase-02b-events-auth.md) owns remaining hosted qualification.
 
 - Count at most six normal admissions and six separate finalize admissions.
   Retries use the five fixed ordinal delays: 1 s, 5 s, 30 s, 5 min and 1 h.

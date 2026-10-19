@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import tarfile
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("publish", type=pathlib.Path)
@@ -13,6 +14,9 @@ parser.add_argument("--allow-replacements", action="store_true", help="Record mo
 args = parser.parse_args()
 publish = args.publish.resolve()
 kit = publish / "third-party" / "hangfire"
+trusted_kit = pathlib.Path(__file__).resolve().parent
+if trusted_kit == kit.resolve():
+    raise SystemExit("Run the verifier from the reviewed repository checkout")
 
 
 def digest(path):
@@ -21,22 +25,39 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-expected = {"Hangfire.Core": "1.8.25", "Hangfire.NetCore": "1.8.25", "Hangfire.PostgreSql": "1.21.1", "Newtonsoft.Json": "13.0.4", "Npgsql": "10.0.0", "Microsoft.Extensions.Hosting": "10.0.12"}
+def manifest(name):
+    # The verifier in the reviewed checkout is the qualification authority.
+    # A redistributed manifest cannot bless changes to its own sibling bytes.
+    trusted = (trusted_kit / name).read_bytes()
+    if not (kit / name).is_file() or (kit / name).read_bytes() != trusted:
+        raise SystemExit(f"Changed distribution manifest: {name}")
+    return json.loads(trusted)
+
+
+expected = {"Hangfire.Core": "1.8.25", "Hangfire.NetCore": "1.8.25", "Hangfire.PostgreSql": "1.21.1", "Newtonsoft.Json": "13.0.4", "Npgsql": "10.0.0", "Microsoft.Extensions.Hosting": "10.0.12", "Dapper": "2.0.123", "Dapper.AOT": "1.0.48"}
 source_commits = {"core": "1d4778c23410b365b5f9ce35458202efe0b0f3ea", "postgres": "e0a4001c6627695d61a0eea19d4403882e4cea34", "cronos": "b2050abdf910bf5c3b7262d1a09d2c04c0f56f58"}
 material_paths = {f"{component}/{name}" for component in ("core", "postgres") for name in ("COPYING", "COPYING.LESSER", "LICENSE.md")}
 material_paths |= {"core/NOTICES", "cronos/LICENSE", "dependency-notices/Apache-2.0.txt", "dependency-notices/Dapper-2.0.123-LICENSE.txt", "dependency-notices/Dapper.AOT-1.0.48-LICENSE.txt", "dependency-notices/Newtonsoft.Json-13.0.4-LICENSE.md"}
-material = json.loads((kit / "material-sha256.json").read_text())
+material = manifest("material-sha256.json")
+manifest("script-sha256.json")
 if set(material) != material_paths:
     raise SystemExit("Licence/notice manifest inventory differs from the qualified distribution")
 for name, sha in material.items():
     if digest(kit / name) != sha:
         raise SystemExit(f"Changed licence/notice material: {name}")
-sources = json.loads((kit / "source-sha256.json").read_text())
+sources = manifest("source-sha256.json")
 if set(sources) != set(source_commits):
     raise SystemExit("Corresponding source inventory differs from the qualified distribution")
 for component, commit in source_commits.items():
-    if sources[component]["commit"] != commit or digest(kit / component / "corresponding-source.tar.gz") != sources[component]["sha256"]:
+    archive = kit / component / "corresponding-source.tar.gz"
+    if sources[component]["commit"] != commit or digest(archive) != sources[component]["sha256"]:
         raise SystemExit(f"Unqualified corresponding source: {component}")
+    try:
+        with tarfile.open(archive, "r:gz") as source:
+            if source.pax_headers.get("comment") != commit:
+                raise SystemExit(f"Unqualified corresponding source archive identity: {component}")
+    except (tarfile.TarError, OSError):
+        raise SystemExit(f"Unreadable corresponding source archive: {component}") from None
 embedded_cronos = {"version": "0.11.1", "tag": "v0.11.1", "embedded_in": "Hangfire.Core/1.8.25"}
 if any(sources["cronos"].get(key) != value for key, value in embedded_cronos.items()):
     raise SystemExit("Unqualified internally merged Cronos dependency")
@@ -70,7 +91,7 @@ for package in set(shipped) | set(resolved) | set(infrastructure_resolved):
     if package.startswith(("Hangfire.SqlServer/", "Hangfire.AspNetCore/", "Hangfire.Pro/", "Hangfire.Ace/")):
         raise SystemExit(f"Unexpected provider package: {package}")
 
-original = json.loads((kit / "original-binaries.json").read_text())
+original = manifest("original-binaries.json")
 required = {name + ".dll" for name in ("Hangfire.Core", "Hangfire.NetCore", "Hangfire.PostgreSql", "Newtonsoft.Json")}
 if set(original) != required:
     raise SystemExit("Replaceable shared-assembly inventory differs from the qualified distribution")

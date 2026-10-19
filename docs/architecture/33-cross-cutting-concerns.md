@@ -442,20 +442,22 @@ flowchart TD
   mw --> pipeline["MediatR pipeline<br/>LoggingBehavior opens ILogger scope"]
   pipeline --> handler[Handler]
   handler --> outbox["IOutbox.EnqueueAsync<br/>(row carries tenant_id, correlation_id, ...)"]
-  handler --> hangfire["Hangfire enqueue<br/>(payload carries tenant_id, correlation_id)"]
+  handler --> jobs["Typed scheduler<br/>(trusted origin on LearnStack row)"]
+  jobs --> hangfire["Hangfire wakeup<br/>(opaque reference only)"]
   outbox --> processor["OutboxProcessor batch dispatch"]
   processor --> dapr["DaprEventBus → Kafka"]
   dapr --> consumer["Consumer pod<br/>(restores ITenantContext from envelope,<br/> sets Activity.Parent from traceparent)"]
-  hangfire --> activator["Hangfire JobActivator<br/>(restores ITenantContext from payload,<br/> sets Activity.Parent from correlation_id)"]
+  hangfire --> executor["JobExecutor<br/>(restores tenant/org/trace<br/> from authoritative LearnStack row)"]
   consumer --> consumerPipeline["Same MediatR pipeline"]
-  activator --> jobHandler["Job handler"]
+  executor --> jobHandler["Job handler"]
 ```
 
 The primitive is **W3C `traceparent`** end to end. Every cross-boundary write
 includes it. The receiving side resumes the trace by setting
 `Activity.ParentId = traceparent`, so Tempo sees one continuous trace from
 the original HTTP request to the eventual outbox-dispatched consumer or
-Hangfire job execution.
+LearnStack job execution. Vendor wakeups carry no tenant or trace authority
+([ADR-0047](../decisions/0047-transactional-background-job-runtime.md#ordinary-execution-authority)).
 
 ### Hub HTTPS contract surface
 

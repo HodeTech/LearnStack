@@ -28,7 +28,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             TransactionTimeout = TimeSpan.FromSeconds(10),
         };
         await using var proxy = new CommitResponseDroppingProxy(database.AppConnectionString,
-            commitsToPass: loseAdmissionAck ? 1 : int.MaxValue, holdCommitResponse: loseAdmissionAck);
+            commitsToPass: loseAdmissionAck ? 1 : int.MaxValue, holdCommitResponse: loseAdmissionAck, lifetime: TimeSpan.FromMinutes(2));
         var state = new CapacityNoStartState();
         var provider = new CapacityEntitlementProvider(1);
         var roots = Fixture.RootConstructions;

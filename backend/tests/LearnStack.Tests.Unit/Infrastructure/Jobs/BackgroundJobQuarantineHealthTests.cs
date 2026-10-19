@@ -44,6 +44,7 @@ public sealed class BackgroundJobQuarantineHealthTests
     {
         await using var fixture = new Fixture(new());
         fixture.Control.Snapshot.HasQuarantinedJobs.Should().BeNull();
+        fixture.Control.Snapshot.HasUnresolvedCapacityRecovery.Should().BeNull();
         fixture.Control.Snapshot.ObservationHealthy.Should().BeFalse();
         fixture.Observe(false);
         fixture.Control.Snapshot.ObservationHealthy.Should().BeTrue();
@@ -60,23 +61,26 @@ public sealed class BackgroundJobQuarantineHealthTests
     }
 
     [Theory]
-    [InlineData(null, false, false, true, false)]
-    [InlineData(false, null, false, true, false)]
-    [InlineData(false, false, null, true, false)]
-    [InlineData(false, false, true, true, false)]
-    [InlineData(false, false, false, false, false)]
-    [InlineData(false, false, false, true, true)]
-    [InlineData(true, false, false, true, false)]
-    [InlineData(false, true, false, true, false)]
-    [InlineData(true, true, false, true, false)]
+    [InlineData(null, false, false, false, true, false)]
+    [InlineData(false, null, false, false, true, false)]
+    [InlineData(false, false, null, false, true, false)]
+    [InlineData(false, false, true, false, true, false)]
+    [InlineData(false, false, false, false, false, false)]
+    [InlineData(false, false, false, false, true, true)]
+    [InlineData(true, false, false, false, true, false)]
+    [InlineData(false, true, false, false, true, false)]
+    [InlineData(true, true, false, false, true, false)]
+    [InlineData(false, false, false, null, true, false)]
+    [InlineData(false, false, false, true, true, false)]
     public void Runtime_health_requires_a_fresh_known_negative_quarantine_sample(bool? present, bool? controlPresent,
-        bool? deferred, bool fresh, bool healthy)
+        bool? deferred, bool? unresolvedCapacityRecovery, bool fresh, bool healthy)
     {
         var control = new BackgroundJobControlHealth(0, 0, true, true, true, false, 0, 0, 0, 0)
         {
             HasQuarantinedJobs = present,
             HasQuarantinedControl = controlPresent,
             HasDeferredWork = deferred,
+            HasUnresolvedCapacityRecovery = unresolvedCapacityRecovery,
             ObservationHealthy = fresh,
             Recurrence = new(0, 0, 0, false, false, true, true, false, false, true),
         };
@@ -103,6 +107,22 @@ public sealed class BackgroundJobQuarantineHealthTests
         fixture.Control.Snapshot.HasQuarantinedControl.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Unresolved_capacity_recovery_is_a_cached_observation_without_fabricating_quarantine()
+    {
+        await using var fixture = new Fixture(new());
+        fixture.Observe(false, unresolvedCapacityRecovery: true);
+        var parked = fixture.Control.Snapshot;
+        parked.ObservationHealthy.Should().BeTrue();
+        parked.HasUnresolvedCapacityRecovery.Should().BeTrue();
+        parked.HasQuarantinedJobs.Should().BeFalse();
+        for (var index = 0; index < 1_000; index++)
+            fixture.Control.Snapshot.HasUnresolvedCapacityRecovery.Should().BeTrue();
+        fixture.Observe(false);
+        fixture.Control.Snapshot.HasUnresolvedCapacityRecovery.Should().BeFalse();
+        parked.Observation!.HasUnresolvedCapacityRecovery.Should().BeTrue("later reads cannot mutate a published sample");
+    }
+
     // These are memory/freshness controls only. Real reads and restart truth are
     // qualified separately against guarded PostgreSQL and the native facade.
     private sealed class Fixture : IAsyncDisposable
@@ -119,14 +139,14 @@ public sealed class BackgroundJobQuarantineHealthTests
                 new BackgroundJobExecutionAdmission(definitions, definitions, Substitute.For<IAuditCatalog>()), bounds, _observation);
             Control = new(_source, definitions, executor, new(definitions.Infrastructure), bounds, new SystemGuidFactory(), Time);
         }
-        internal void Observe(bool value, bool controlValue = false)
+        internal void Observe(bool value, bool controlValue = false, bool unresolvedCapacityRecovery = false)
         {
             var points = BackgroundJobDurableObservationTests.EmptyPoints().Select(point => point with
             {
                 Count = point.Label == "job" ? value ? 1 : 0 : point.Label == "recipient" && controlValue ? 1 : 0,
             });
             Set(Control, "_observation", BackgroundJobDurableObservation.Create(
-                BackgroundJobDurableObservationTests.EmptyManifest(), points));
+                BackgroundJobDurableObservationTests.EmptyManifest(), points, unresolvedCapacityRecovery));
             Set(Control, "_observationObservedAt", Time.GetTimestamp());
             Set(Control, "_observationFault", false);
             Progress();

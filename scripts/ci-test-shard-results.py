@@ -250,19 +250,32 @@ class Api:
 
 
 def verify_run(run, context):
+    repository = run.get('repository') if isinstance(run, dict) else None
     require(isinstance(run, dict) and run.get('id') == int(context['runId'])
             and run.get('run_attempt') == int(context['runAttempt'])
             and run.get('head_sha') == context['headSha'] and run.get('path') == '.github/workflows/ci.yml'
             and run.get('event') == context['eventName'] and run.get('name') == 'ci'
-            and run.get('repository', {}).get('full_name') == context['repository'], 'run_api_identity_mismatch')
+            and isinstance(repository, dict) and repository.get('full_name') == context['repository'],
+            'run_api_identity_mismatch')
     if context['eventName'] == 'pull_request':
         pulls = run.get('pull_requests')
-        number = re.search(r'/pull/([1-9][0-9]*)/merge$', context['workflowRef'])
+        number = re.fullmatch(r'HodeTech/LearnStack/\.github/workflows/ci\.yml@refs/pull/([1-9][0-9]*)/merge',
+                              context['workflowRef'])
         # The REST pull-request projection tracks the current branch, not the
         # original event. run.head_sha is the immutable event identity; the raw
         # checked-out merge parent independently binds that to sourceSha.
-        require(isinstance(pulls, list) and len(pulls) == 1
-                and number and pulls[0].get('number') == int(number[1]), 'run_pull_identity_mismatch')
+        # GitHub omits this projection for fork PRs. Only the API's explicit
+        # different fork repository permits that shape. OWNER.shard_context has
+        # already bound the exact workflow ref and raw merge second parent;
+        # run/head/attempt checks above remain mandatory for either projection.
+        head_repository = run.get('head_repository')
+        fork = (isinstance(head_repository, dict) and head_repository.get('fork') is True
+                and isinstance(head_repository.get('full_name'), str)
+                and re.fullmatch(r'[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}', head_repository['full_name'])
+                and head_repository['full_name'].casefold() != context['repository'].casefold())
+        require(number and isinstance(pulls, list) and (
+            len(pulls) == 1 and isinstance(pulls[0], dict) and pulls[0].get('number') == int(number[1])
+            or not pulls and fork), 'run_pull_identity_mismatch')
 
 
 def verify_jobs(jobs, context, plan, scope):

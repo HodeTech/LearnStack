@@ -308,7 +308,7 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
         var job = await ExternalRetryJobAsync(database);
         await using var host = RecoveryHost(database, preparing: true, configure: services =>
-            services.AddSingleton(new FixtureAdmissionWindow(TimeSpan.FromSeconds(2))));
+            ConfigureAdmissionWindow(services, TimeSpan.FromSeconds(2)));
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         var runtime = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
         var options = UnresolvedBounds with { QuiescenceGrace = TimeSpan.FromMilliseconds(50) };

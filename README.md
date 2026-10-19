@@ -81,51 +81,12 @@ and merged** through [PR #31](https://github.com/HodeTech/LearnStack/pull/31) on
 durable subscriber acceptance, shared inbox/delivery ledger, both real default
 subscriptions and Seeder handoff. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
-owns final verification. P02b-4's
-[background-job package](docs/roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
-and ADR-0047 are Accepted — 2026-10-15. Nine H1/expanded infrastructure steps
-are authorized on `development`.
-Step 1 implements typed contracts and ordinary execution guards. Its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-1--contracts-and-authority-2026-10-16)
-owns completed validation and both review rounds. Step 2's
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
-owns locally validated schema/bootstrap and source/reset implementation under
-Accepted ADR-0058 (2026-10-16); both fresh review rounds and critical-fix
-verification are complete.
-Step 3 submission/admission is complete with both fresh review rounds; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
-owns implementation and review status. Step 4 is locally complete after both full
-review rounds and verified corrections. Step 5 is locally complete after both
-full review rounds and independent correction verification; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-5--transactional-owner-and-terminal-audit-2026-10-16)
-owns validation and review receipts. Step 6 capacity implementation is locally
-complete; its [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
-owns passing local qualification, both completed full review rounds and verified
-corrections. Step 7 external stages are committed under Accepted ADR-0061.
-Both full review rounds and verified corrections are complete; its
-[closeout](docs/roadmap/phase-02b-events-auth.md#step-7-full-review-round-2-2026-10-17)
-owns the source-specific validation receipts.
-Step 8 durable recurrence and restricted fan-out is locally complete after both
-full review rounds and verified corrections; its
-[closeout](docs/roadmap/phase-02b-events-auth.md#step-8-full-review-round-2-2026-10-18)
-owns final qualification. P02b-4 is locally complete after all nine implementation
-steps, both independent review rounds per step and verified corrections. Its
-[local closeout](docs/roadmap/phase-02b-events-auth.md#p02b-4-local-closeout-2026-10-18)
-owns exact local qualification and remaining PR/CI/merge work.
-Accepted ADR-0062 (2026-10-18) authorizes the bounded native CI follow-up; its
-[acceptance record](docs/roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
-owns implementation, follow-up reviews and exact-head hosted qualification.
-Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
-and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
-composition qualification under Accepted ADR-0060; business execution stays Step 5.
-The [required-startup qualification record](docs/roadmap/phase-02b-events-auth.md#step-4-required-startup-qualification-2026-10-16)
-records the reviewed ADR-0060 revision. Its
-[acceptance](docs/roadmap/phase-02b-events-auth.md#adr-0060-acceptance-and-step-4-continuation-2026-10-16)
-authorizes the conservative fatal boundary and dependent implementation on
-2026-10-16. Step 4 records passing real lifecycle qualification before activation.
-The [source-lifetime continuation](docs/roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
-records the implemented pool/facade ownership, passing local qualification and
-completed full Step 4 review gates. Production business definitions remain empty.
+owns final verification.
+P02b-4's transactional job infrastructure is implemented under Accepted ADR-0047
+and its lifecycle decisions. ADR-0062/0063 supply the bounded CI implementation.
+The [live Phase 02b status](docs/roadmap/phase-02b-events-auth.md) owns current remediation,
+review and final-source A/B qualification; new source requires both complete
+assignments. Production business and recurrence definitions remain empty.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.

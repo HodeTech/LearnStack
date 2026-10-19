@@ -618,10 +618,12 @@ Two consequences are binding:
   policy. A provisioning path that genuinely cannot supply an id ahead of the write runs
   under `EnterPlatformAdminScope("tenant-provisioning")`; that is the sanctioned escape,
   not a reason to weaken the policy.
-- **Enumerating tenants requires the platform role.** `SELECT … FROM tenants` with no
-  `app.tenant_id` returns zero rows, so `PlatformJob<TParams>`'s active-tenant sweep and
-  every operator list screen go through `EnterPlatformAdminScope(reason)`. This is the
-  intended cost: the application role cannot enumerate the customer list.
+- **Enumerating tenants requires explicit privileged authority.** `SELECT … FROM
+  tenants` with no `app.tenant_id` returns zero rows. Operator list screens use
+  `EnterPlatformAdminScope(reason)`. ADR-0047's confined recurrence router uses
+  only its [minimal lifecycle projection](#background-jobs), with no general
+  platform job or tenant-selection API. The application role cannot enumerate
+  the customer list.
 
 `tenants.slug` is globally unique, and PostgreSQL enforces unique indexes with row
 security bypassed, so a duplicate-slug insert reveals that *some* tenant already holds

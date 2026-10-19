@@ -14,7 +14,8 @@ Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 Job additions derive from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
-(accepted 2026-10-15; P02b-4 runtime and enforcement pending).
+(accepted 2026-10-15; P02b-4 runtime and enforcement implemented; the
+[phase status](../roadmap/phase-02b-events-auth.md) owns hosted qualification).
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its

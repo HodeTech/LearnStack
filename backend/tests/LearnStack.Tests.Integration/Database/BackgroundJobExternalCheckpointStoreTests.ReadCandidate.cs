@@ -33,9 +33,7 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         var probe = new ReadCandidateSubstitution(substitution);
         await using var host = Fixture.Host(database, new BackgroundJobFixtureProbe(), configure: services =>
         {
-            services.AddSingleton(new FixtureAdmissionWindow(TimeSpan.FromMilliseconds(500)));
-            services.RemoveAll<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>>();
-            services.AddTransient<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>, FixtureAdmissionHandler>();
+            ConfigureAdmissionWindow(services, TimeSpan.FromMilliseconds(500));
             services.AddSingleton(probe);
             services.AddTransient<IPipelineBehavior<ReadBackgroundJobExternalStateQuery, Result<BackgroundJobExternalSnapshot>>,
                 SubstituteReadCandidate>();

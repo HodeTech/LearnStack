@@ -241,9 +241,10 @@ foundation and adds no runner.
   loses tenant context the first time it runs unattended.
 - **Templates treated as configuration rather than content.** A template is user-visible
   text with a locale and an audit trail; editing it in a config file bypasses both.
-- **Running background jobs without tenant context.** Mitigated by the Phase 02b activator
-  and enqueue guard — provided this phase's jobs use the standard payload shape rather
-  than passing ids by hand.
+- **Running background jobs without tenant context.** Mitigated by Phase 02b's
+  trusted typed submission and `JobExecutor` restoration from the authoritative
+  row. This phase's definitions use that runtime
+  ([ADR-0047](../decisions/0047-transactional-background-job-runtime.md)).
 
 ## Phase Exit Decision
 

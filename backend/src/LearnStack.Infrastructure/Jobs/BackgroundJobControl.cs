@@ -14,6 +14,7 @@ public sealed record BackgroundJobControlHealth(int Executions, int PendingOutco
     public bool? HasQuarantinedJobs { get; init; }
     public bool? HasQuarantinedControl { get; init; }
     public bool? HasDeferredWork { get; init; }
+    public bool? HasUnresolvedCapacityRecovery { get; init; }
     public bool ObservationHealthy { get; init; }
     public BackgroundJobDurableObservation? Observation { get; init; }
     public long? ObservationTimestamp { get; init; }
@@ -104,6 +105,7 @@ internal sealed partial class BackgroundJobControl
                     HasQuarantinedJobs = _observation?.HasQuarantinedJobs,
                     HasQuarantinedControl = _observation?.HasQuarantinedControl,
                     HasDeferredWork = _observation?.HasDeferredWork,
+                    HasUnresolvedCapacityRecovery = _observation?.HasUnresolvedCapacityRecovery,
                     ObservationHealthy = ObservationHealthy(),
                     Observation = _observation,
                     ObservationTimestamp = _observationObservedAt,

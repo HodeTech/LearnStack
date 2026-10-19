@@ -24,8 +24,11 @@ The pinned Core build internally merges Cronos 0.11.1 into its netstandard2.0
 assembly. It therefore does not appear as a separate dependency in the application's
 NuGet graph. The kit records this embedded dependency separately and includes its
 complete source archive and original MIT copyright/permission notice. Its source
-tag resolves to the commit above; the verifier requires that exact identity and
-its relationship to the unchanged Core assembly.
+tag resolves to the commit above. The verifier checks each archive's recorded
+git-archive PAX commit against that pin and checks the complete archive bytes
+against the reviewed checkout's digest. The Core assembly is independently
+checked against its original NuGet digest; this does not reproduce its upstream
+build or prove that the source produced those binary bytes.
 
 The Dapper/Dapper.AOT notices and Core's third-party notices reference Apache 2.0.
 The complete authoritative [Apache licence text](https://www.apache.org/licenses/LICENSE-2.0.txt)
@@ -68,21 +71,30 @@ python3 third-party/hangfire/verify-distribution.py path/to/publish \
   --infrastructure-assets backend/src/LearnStack.Infrastructure/obj/project.assets.json
 ```
 
+Run the verifier from the reviewed repository checkout. Its four checked-in
+manifests are the qualification baseline; the publish kit's manifest copies must
+match them byte for byte. Changing a published file together with its published
+manifest cannot establish a new baseline. The verifier refuses to qualify the
+publish kit that contains itself. The checkout and verifier themselves remain
+trusted inputs to this offline check.
+
 The verifier checks both linked API/Infrastructure build graphs alongside the
 published graph: ASP.NET Core prunes Hosting from the API graph and publish
 output; the referenced Infrastructure graph resolves its exact pin. It records the
 runtime framework reference and does not infer the installed runtime patch from a
-NuGet pin. Source and licence hashes are verified. Original-distribution
-qualification compares the four shared assemblies with the original NuGet bytes;
+NuGet pin. Source archive hashes and recorded PAX commits, and licence hashes,
+are verified. Dapper/Dapper.AOT graph versions must match their versioned notices.
+Original-distribution qualification compares the four shared assemblies with the
+original NuGet bytes;
 `--allow-replacements` records recipient-modified assemblies instead. This offline
 check imposes no runtime restriction on replacement assemblies.
 
 Run `verify-distribution-controls.py` with the same publish/asset arguments for
 negative controls: wrong build/shipped pins, absent/corrupt source and licences,
 including the internally merged Cronos source/notice/pin, missing/modified shared
-assemblies, absent framework reference, and explicit
-recipient-replacement inspection. It mutates only a temporary copy and emits its
-receipt to stdout.
+assemblies, file/manifest co-tampering, mismatched archive commit identity, absent
+framework reference, and explicit recipient-replacement inspection. It mutates
+only temporary copies and emits its receipt to stdout.
 
 The existing backend CI job performs a fresh Release publish and runs both
 verifiers as a failure gate before its tests. Its artifact includes only the JSON
