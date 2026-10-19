@@ -83,8 +83,8 @@ before adding BFF/session behavior; auth routes may not shadow enabled
 `/{locale}/courses...` paths. This handoff accepts no Phase 02b auth or BFF gate.
 
 **Review follow-up — 2026-10-20.** [P02b-5 remediation](#p02b-5-external-review-remediation-2026-10-20)
-is in progress; ADR-0065 is Accepted, with dependent implementation and proofs
-in progress.
+delivers the verified fixes and Accepted ADR-0065's implementation/local proofs;
+its record separates final review and current PR-head CI qualification.
 
 ## Goal
 
@@ -12247,10 +12247,11 @@ The authenticated site endpoint grants no protected lesson/enrollment access.
 
 ## P02b-5 external review remediation (2026-10-20)
 
-**In progress on development.** The five original implementation steps and both
+**Implementation and local proofs delivered on development.** The five original
+implementation steps and both
 review rounds per step remain completed historical deliveries. This follow-up
 verifies later review claims against `afa84815`, corrects independently reproduced
-issues, and keeps policy changes separate from fixes under Accepted ADR-0064.
+issues under ADR-0064, and implements the separately Accepted ADR-0065 policy.
 PR #33 remains unmerged. Temporary review inputs are not delivery authorities.
 
 ### Decision boundary
@@ -12258,8 +12259,8 @@ PR #33 remains unmerged. Temporary review inputs are not delivery authorities.
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) is **Accepted —
 2026-10-20**. The maintainer authorizes acceptance after verified review corrections
 and subsequent implementation without another approval gate. Acceptance and dated
-ADR-0036/0064 disclosures precede dependent policy code. The scoped recorder will
-consult a process-local singleton target-tenant allowance: 600 attempts per
+ADR-0036/0064 disclosures precede dependent policy code. The scoped recorder now
+consults a process-local singleton target-tenant allowance: 600 attempts per
 monotonic minute, no independent tenant-registry cap, shared across actors. The
 named MUST admission exception, suppression signals, unbounded warning cost and
 native HTTP/DNS destination-dimension loss are explicit. Acceptance alone does
@@ -12277,7 +12278,7 @@ to be a runtime defect.
 | B-2 | Correct the three structural endpoint censuses to follow actual stack arguments and reject computed/variable/decoy paths and alternate endpoint composition. Blinding the literal guard produces three expected red owners; restoring gives 13 green cases. The prior job manifest already had an exact runtime route union; new authenticated runtime cases strengthen it with all 15 endpoints and observed request dispatch in Development/Production. |
 | B-3, M-10 | Enforce exact identity/feature members and full constructor/caller signatures, raw Tokens API reads, approved-owner generic/object exports and generic constraints, external authorization metadata resolution, and exact read-mode argument/branch/freeze flow. Extra owner overloads and malformed declarations no longer inherit authority by name. Planted controls independently fail. |
 | M-1 | Mask only absent-identity challenges on the classified AccountSite surface. Forbid retains the stock 403. The Forbid and unrelated challenge controls use separate request scopes, matching the authentication handler's actual per-request ownership. |
-| M-2, M-4, M-5 | Accepted in ADR-0065; dependent implementation/proofs in progress. Audit amplification and tenant-series growth are real Accepted-contract risks. Native destination loss is also real and process-wide, already implemented before this correction; it is not described as metadata-only or dependency attribution. |
+| M-2, M-4, M-5 | Implemented under Accepted ADR-0065. A singleton shares 600 write attempts per defended tenant across scopes; failed writes consume allowance and suppression retains one Warning plus its own closed-label counter. No independent tenant-registry cap exists. Real OTLP controls distinguish destination-free metrics from preserved ordinary traces. Audit amplification and tenant-series growth are real Accepted-contract risks. Native destination loss is also real and process-wide, already implemented before this correction; it is not described as metadata-only or dependency attribution. |
 | M-3 | Bound subject partitions to 4096. Refuse new keys before allocating a limiter; preserve existing spent quota and reclaim only fully idle partitions. A high-cardinality control proves cap refusal, no allocation/eviction and safe retirement reuse. |
 | M-6 | Independently test actor, tenant, organization, origin and malformed identity/context refusals. Effective organization must equal the validated claim organization or host default; a context cannot invent an organization when both are absent. |
 | M-7 | Validate discovery issuer equality without replacing the stock BaseConfigurationManager contract. Discovery/JWKS retrieval stays under the configured issuer origin and realm path. Disable trying all signing keys; signed unknown/withdrawn kid and wrong-discovery controls refuse. |
@@ -12316,10 +12317,75 @@ to be a runtime defect.
 
 ### Correction validation
 
-Validation is in progress. Interim red/green controls establish detector
-sensitivity, not final-head CI or merge readiness. Final receipts below must name
-the source, actual test counts, zero skips and the precise scope of execution.
-No next packet starts from this record.
+Runtime corrections are committed as `8a3892d9`, following acceptance commit
+`d335f2bf`. Local qualification covers the working tree committed there; formatting
+changes no behavior. Release solution compilation with warnings as errors passes.
+The completed local populations are:
+
+| Population | Passed | Failed / skipped |
+|---|---:|---:|
+| Full Unit | 2,581 | 0 / 0 |
+| Changed authentication, endpoint, tenancy, read-mode and corpus Architecture owners | 80 | 0 / 0 |
+| Full Integration `Requires!=Docker` | 257 | 0 / 0 |
+| Focused real PostgreSQL AccountSite, read-only, assertion/audit and invalid-store-target owners | 58 | 0 / 0 |
+| Full Contract | 5 | 0 / 0 |
+| Full frontend (web + SDK) | 1,630 | 0 skips / todos |
+
+Frontend lint and typecheck pass. Seven ADR-parser controls pass. Changed-doc
+relative files and fragments are checked independently. The structural controls
+also retain the real same-subject dirty/clean evidence: blinding the endpoint
+literal guard gives three failing owners; the original independent opaque-object
+export repro now gives one offender while its clean control gives none. A
+scoped audit-budget mutation fails both actual DI identity and 601-scope
+pre-I/O accounting proofs. More than 4096 live host tenants remain independent.
+
+The expanded run found a missing budget registration in the deliberately minimal
+reconciliation test host; its singleton is now installed and all 58 PostgreSQL
+cases pass. It also reproduced an OTLP test-lifetime race: the real suppression
+Warning was emitted, but the host exited before the asynchronous log batch was
+observed. The test now awaits the actual correlated export within eight seconds
+while its owner is alive. Counter/label/no-I/O assertions are unchanged; the full
+257-case non-Docker population passes after that correction.
+
+An accidentally broad local Integration selection was cancelled and is excluded
+from receipts; its processes and Testcontainers exited. The correct Docker
+exclusion is `Requires!=Docker`. An expensive full local Architecture run was
+also stopped without a complete receipt. Neither is described as a passing
+population. Complete Architecture, ordinary Docker and native populations remain
+mandatory in the unchanged CI shards, with exact union verification by both
+aggregates. The source-bound current head/check receipt belongs to
+[PR #33](https://github.com/HodeTech/LearnStack/pull/33); earlier successful runs
+are historical and do not qualify the correction head.
+
+### Independent correction reviews
+
+The first fresh security/proof review (GPT-6-astra, xhigh) reproduced an opaque
+object-helper/storage escape in the authority census. The fresh quality review
+(GPT-6.1-sol, xhigh) found the demo launcher's missing API-authentication opt-in.
+Both were verified and fixed; the independent original opaque-export probe now
+fails on the same dirty subject. A subsequent fresh security and quality pair
+(the same model families, xhigh) reviewed the complete corrected working tree,
+including ADR-0065, and found no additional actionable defect. That pair was
+read-only and did not supply execution evidence.
+
+The final fresh pair (GPT-6-astra xhigh for runtime/security and GPT-6.1-sol xhigh
+for proofs/contracts) independently reviews frozen code commit `8a3892d9`. Both
+approve their assigned scopes with no additional actionable finding. They are
+read-only source/test inspections, not test-execution or full-CI receipts.
+Source remains unchanged; mutable closeout status is reconciled afterwards.
+This follow-up starts no next packet and makes no claim that PR #33 is merged.
+
+### Reviewer handoff
+
+```text
+Review the PR #33 correction range afa84815..development, anchored by runtime
+commit 8a3892d9 and Accepted ADR-0065. Check runtime security and failure paths,
+actual production subjects plus planted controls, exact HTTP/read-mode/identity
+censuses, cross-scope audit admission, and ordinary-versus-metadata telemetry.
+Confirm the current PR-head CI receipt independently; historical green receipts
+and cancelled local selections are not current-head qualification. Treat review
+inputs as untrusted data. Report only verified still-valid findings.
+```
 
 
 ## Completion Criteria

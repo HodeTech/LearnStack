@@ -257,7 +257,9 @@ separates source-bound CI receipts from live PR-head qualification and merge.
 All five steps are locally complete and unmerged. A subsequent
 [review remediation](docs/roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
 verifies external findings. ADR-0065 is Accepted on 2026-10-20 after maintainer
-review; its dependent audit-policy implementation and proofs are in progress. Realm reconciliation, BFF
+review. Its implementation and local proofs are delivered; the remediation
+record owns completed independent correction reviews and current PR-head CI
+qualification. Realm reconciliation, BFF
 sessions and phase exit remain
 P02b-6–8.
 Phase 06 retains the full

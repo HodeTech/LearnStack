@@ -4323,9 +4323,11 @@ structural test proves — and what it does not.
   Integration `TenantAssertionAuditAdmissionTests.cs` owns at least 601 concurrent
   calls through actual registered scoped recorders sharing the singleton and one
   observable fake store; exactly 600 store attempts prove cross-scope accounting.
-- **Status:** **Implemented** baseline (`TenantAssertionHttpTests`). ADR-0065's
-  budget, cross-scope admission and additional diagnostic controls remain pending
-  implementation; no new proof is claimed by acceptance.
+- **Status:** **Implemented** (`TenantAssertionHttpTests`,
+  `TenantAssertionAuditAdmissionTests`, `TenantAssertionAuditBudgetTests` and
+  `AuditingTenantAssertionRecorderTests`). The 2026-10-20 remediation implements
+  ADR-0065's allowance and proves scope sharing against a scoped-budget mutant;
+  acceptance alone was not implementation evidence.
 - **Phase:** 02a (Packet 4); P02b-5 2026-10-20 review remediation owns ADR-0065.
 
 #### `Anonymous_Requests_Are_Rate_Limited_Per_Peer`
@@ -4443,8 +4445,8 @@ structural test proves — and what it does not.
 - **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
 - **Status:** **Implemented** (`TenancyConventionTests`), in two halves.
   `Assertion_Recorder_Is_The_Only_Mismatch_Writer` is keyed on the existing
-  mismatch/unresolved counter names and scans `LearnStack.Api`; ADR-0065 registers its
-  extension to the third suppression counter, pending implementation;
+  mismatch/unresolved/suppression counter names and scans `LearnStack.Api`.
+  Each has a real production owner and a planted second-writer control;
   `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs`, added in Packet 9, is
   keyed on the two audit slugs and covers the `IAuditStore` clause this row always
   claimed — the counter names cannot catch a second writer that goes straight to the
@@ -4463,9 +4465,8 @@ structural test proves — and what it does not.
   [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md).
 - **Type:** xUnit reflection check over the `LearnStack.Api.Tenancy` namespace **and** a source scan over `LearnStack.Api/Tenancy`. **Kind:** structural.
 - **Status:** **Implemented** (`TenancyConventionTests`). It shipped in Packet 4 as a **tripwire**, because `ICacheService` did not exist yet; Packet 5 ships the port, so the rule now carries the dependency check it was always meant to be. Both forms are kept: reflection catches an injected dependency, the scan catches a service-locator resolve, and neither sees the other's case.
-- **ADR-0065 extension:** acceptance registers the new singleton under the same
-  structural owner, `TenancyConventionTests`; implementation/proof remains
-  pending. Unit `TenantAssertionAuditBudgetTests` and Integration
+- **ADR-0065 extension:** `TenancyConventionTests` covers the shipped singleton
+  under the same structural owner. Unit `TenantAssertionAuditBudgetTests` and Integration
   `TenantAssertionAuditAdmissionTests` own behavioural allowance/expiry/scope
   accounting under `Tenant_Assertions_Are_Compared_Not_Resolved` above.
 - **Phase:** 02a (Packet 4); P02b-5 2026-10-20 remediation extends coverage.
@@ -4534,10 +4535,12 @@ structural test proves — and what it does not.
   `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationProfileTests.cs`;
   actual sink/export controls in `TenantAuthenticationDiagnosticsTests.cs` and
   `TenantAuthenticationDiagnosticsTests.Metrics.cs` in the same project.
-- **Status:** **Implemented** (`TenantAuthenticationProfileTests`). Existing
-  metadata export controls are present; ADR-0065's additional ordinary HTTP
-  destination metric negatives and retained trace positive remain pending
-  implementation. Acceptance does not claim those new controls have run.
+- **Status:** **Implemented** (`TenantAuthenticationProfileTests` and the
+  diagnostic owners above). ADR-0065's ordinary HTTP hostname/IP/numeric-port/
+  path/query negatives retain real unprojected positives and ordinary traces.
+  `TenantAuthenticationDiagnosticsTests.SuppressionMetrics.cs` additionally
+  qualifies the actual suppression counter through production OTLP, with a
+  bounded receipt for the correlated Warning before its logger owner exits.
 - **Phase:** P02b-5 Step 1 isolated foundation; Steps 4–5 actual active path.
 
 #### `Authentication_Middleware_Order_Is_Enforced`

@@ -191,7 +191,9 @@ existing rejection recorder; it introduces no second detector or audit slug.
   tenant UUIDs are absent. Every suppressed occurrence also increments
   `learnstack_tenant_assertion_audit_suppressed_total{dimension,source,reason}`,
   with only `reason=audit_budget_exhausted`. Actor/subject/correlation values are
-  absent from all metric labels.
+  absent from all metric labels. A positive counter delta directly counts skipped
+  durable attempts, without joining logs to rows; Phase 11 owns production alert
+  routing and thresholds.
 - Emit exactly one Warning occurrence event: normal 4001, or suppressed 4006
   `AuditBudgetExhausted`, retaining typed tenant/actor/correlation properties.
   A suppressed occurrence emits no additional 4001. Its reason belongs to logs
@@ -228,6 +230,9 @@ bounded-tag positives. Metadata hostname/address canaries must be absent from
 all exported channels. A separate ordinary HTTP request with a distinct IP/port
 and path/query canaries must omit those values from metrics while preserving its
 ordinary trace positive; ordinary destinations are not forbidden in all payloads.
+The actual singleton-budget suppression path is also exported through the root's
+`LearnStack.Api` meter subscription. Its test waits for the correlated Warning
+while the logger owner is alive: a metrics flush is not a log-delivery receipt.
 The new ordinary-destination controls remain pending with ADR-0065's implementation.
 
 Step 3 implements recorder/claimless/quota diagnostics; Steps 4–5 qualify the
