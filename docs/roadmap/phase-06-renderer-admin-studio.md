@@ -238,6 +238,12 @@ live class. **Phase 06 owns it.**
 - Tenant context handling.
 - Error mapping from RFC 7807 Problem Details to typed client errors.
 
+P02b-5's [closed API contract](../decisions/0064-tenant-api-authentication-boundary.md)
+already separates public/authenticated generated GET ownership. P02b-7 supplies
+session transport and its guarded page; this phase expands that foundation to the
+full authenticated browser/Studio/Portal journeys. It does not reintroduce token
+storage in browser JavaScript or make AccountSite an anonymous public wrapper.
+
 ### End-to-end test stack — a carried dependency
 
 P02d-7 delivers a narrow Playwright library browser and Lighthouse harness through

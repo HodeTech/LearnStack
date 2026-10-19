@@ -5,6 +5,14 @@
 Turn a working product into an operable one, and build the infrastructure that was
 deliberately not built earlier.
 
+**Tenant authentication handoff — P02b-5.**
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) qualifies the
+closed API boundary with a controlled issuer; P02b-6/7 own actual realm/session
+integration. This phase owns production IdP provisioning, key/lifetime operational
+qualification, mapped readiness and distributed/edge quota capacity. Existing
+visitor/peer floors still apply; the in-process subject limit promises no
+independent end-to-end throughput or immediate JWT/session revocation.
+
 Phase 11 carries two distinct bodies of work that share one exit gate.
 
 The first is the classical hardening surface: security posture, reliability, backups,

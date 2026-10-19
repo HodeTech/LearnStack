@@ -408,6 +408,17 @@ Rules:
   container env vars. The pre-commit hook scans for high-entropy strings; CI fails on
   hits.
 
+## Tenant API authentication
+
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) supplies the
+in-process tenant resource-server boundary. Its one stock JWT/OIDC scheme uses
+explicit issuer configuration and closed projection/admission owners; API startup
+validates configuration without contacting Keycloak. No admin adapter, client
+secret or live membership is added. P02b-6 owns realm reconciliation, P02b-7 the
+BFF/session transport, Phase 03 application authorization, and Phase 11 production
+IdP provisioning and distributed/edge capacity. The gateway below remains gated;
+it cannot replace the API's own validation and host reconciliation.
+
 ## APISIX Gateway
 
 - APISIX runs in **standalone mode** (YAML hot-reload, no etcd) per ADR-0015.

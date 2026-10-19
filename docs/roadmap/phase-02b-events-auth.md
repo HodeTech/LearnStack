@@ -12035,6 +12035,45 @@ round 1. Both independent review rounds and their verified correction are closed
 Step 4 is complete. Step 5 now owns the remaining authority census, final carrier
 reconciliation and complete local/hosted packet qualification before PR handoff.
 
+### P02b-5 Step 5 — production enforcement and closeout (2026-10-19)
+
+**In progress; no PR or hosted qualification is claimed.** Steps 1–4 and both
+fresh independent review rounds per step are complete at `a7c9d5a3`.
+
+The final authority census loads every discovered production assembly and scans
+actual IL, including generated state machines. Raw principal/claim/role reads,
+role authorization metadata, extra typed-identity constructors, clones, mutations
+and direct feature writes are refused. The existing factory/events and direct
+actor/scope/subject accessor consumers form explicit nonempty caller sets.
+Compiled dirty/clean probes, weakened raw-reader predicates and mutations of the
+actual identity shape, factory call, same-owner write count and backing field
+exercise the same detector. This is structural enforcement, not a general
+reflection/taint-analysis claim.
+
+Architecture 09/14/28/33, Standards 02/05/09/20 and Phase 03/06/11 now describe
+the implemented API boundary and each next consumer. The seven authentication
+catalogue obligations have actual local test owners and are Implemented: 260
+architecture methods, 229 Implemented rules, 133 in that assembly and 96 elsewhere.
+Runtime proof remains with the actual signed-token, physical ReadOnly, quota,
+recorder, served-contract and SDK controls delivered in Steps 1–4.
+
+**Local validation at entry.** The warnings-as-errors Release solution build
+passes. All 2,536 unit, five contract and 241 Docker-free HTTP cases pass with
+zero failures/skips. Twenty focused Release authority/surface/corpus cases pass;
+subsequent interface-access and typed-property negative controls pass eight
+focused Debug authority/corpus cases with zero build warnings/errors or skips.
+The complete Release architecture and ordinary PostgreSQL populations are still
+running. One earlier job terminal-query plan assertion failed in the latter.
+A disposable migrated-database experiment reproduced 12,000 obsolete bitmap
+index entries after the guarded synthetic seed and zero after VACUUM, with the
+same runtime SQL; bitmap forcing is confined to that diagnostic experiment.
+The fixture now explicitly VACUUMs/analyzes before EXPLAIN. Normal production
+planning, the clean `<256` visit bound and the volatile-cutoff dirty `>=6,000`
+control remain unchanged. Its isolated original rerun passed; that rerun does
+not close the failed complete run. Native Linux,
+full hosted execution, both Step 5 review rounds and packet closeout remain
+pending. No population, assertion, grant or production SQL is waived.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile

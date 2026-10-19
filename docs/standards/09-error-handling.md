@@ -137,6 +137,14 @@ matching localization key adds the `lockey_` prefix.
 | `unsupported_media_type` | `Content-Type` the endpoint does not accept — *framework-minted* | 415 |
 | `request_rejected` | Any other 4xx nothing else names — *framework-minted* | 4xx as sent |
 
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) distinguishes
+HTTP credential failures from tenant refusal: invalid present credentials on
+known hosts return bare-challenge 401, while missing AccountSite credentials
+return masked `not_found` 404. Authenticated host/header disagreement remains
+`tenant_mismatch`; membership refusal remains `not_found`. Early 413/429 retain
+their existing precedence and shared Problem Details owner. The complete ongoing
+contract lives in [API Design](04-api-design.md#authentication).
+
 A **framework-minted** code is one no handler produced: routing or the server
 rejected the request before an `Error` could exist, so the code is derived from
 the status by `HttpStatusMap.CanonicalCodeFor`. See § API Surface below for the

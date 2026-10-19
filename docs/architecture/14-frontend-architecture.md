@@ -303,11 +303,21 @@ merge of tenant + optional org) more cheaply.
 Two paths:
 
 - **Server-side** — React Server Components and route handlers call the .NET API directly using the typed SDK in `packages/sdk`. The SDK is generated from the backend's OpenAPI document; [Standards 07 § SDK](../standards/07-frontend-architecture.md) owns when and how.
-- **Client-side** — interactive components fetch through a thin BFF endpoint under `/api/...` that forwards the request with the user's JWT and the tenant header. The BFF exists to keep API base URLs and CORS off the public web origin, not to wrap business logic.
+- **Client-side target** — P02b-7 supplies the thin authenticated BFF/session
+  transport. It keeps tokens outside browser JavaScript; any tenant header can
+  only assert independently resolved scope under ADR-0036. It never selects it.
+  Public SDK requests remain credential-free. The BFF wraps no business logic.
 
 The SDK is the only sanctioned way to call the API. Hand-rolled `fetch('/api/v1/...')` calls are blocked by lint — `no-restricted-globals`, because `fetch` is a global and an import rule could never have caught a single call.
 
 ## Authentication on the Frontend
+
+P02b-5 delivers the API boundary and a separate typed AccountSite SDK contract,
+without authenticated transport or a login UI. P02b-6 reconciles actual realm
+issuance; P02b-7 owns the BFF/session flow below. Phase 06 expands the complete
+browser journey and Studio/Portal experience. The
+[API contract](../decisions/0064-tenant-api-authentication-boundary.md) does not
+turn a generated GET into a public wrapper or widen native public admission.
 
 Auth is delegated to the identity provider (Keycloak/Authentik, see [Identity and Authentication](13-identity-and-auth.md)). The frontend uses OIDC Authorization Code with PKCE.
 

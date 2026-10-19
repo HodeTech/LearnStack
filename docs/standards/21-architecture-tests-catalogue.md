@@ -132,7 +132,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**257 test methods run in
+**260 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -143,6 +143,9 @@ Its nineteen packet obligations are implemented with actual canonical owners and
 complementary structural, native-runtime and PostgreSQL controls. The
 [Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 distinguishes local enforcement qualification from pending review/packet/CI closeout.
+P02b-5 adds the authenticated route/helper census and closed claim/role authority
+controls; its seven obligations have actual local owners. Its Step 5 record
+separately tracks full hosted qualification, which remains pending at entry.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -169,8 +172,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**222 rules in this catalogue are Implemented, and 131 of them are in that assembly.**
-The other 91 are no less binding, and most could not live there. The table says where
+**229 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
+The other 96 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -4430,10 +4433,11 @@ structural test proves — and what it does not.
   [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
 - **Type:** xUnit DI inspection plus real-handler signed-token HTTP controls.
   **Kind:** behavioural, with complementary structural inspection.
-- **Test owner:** planned
+- **Test owner:**
   `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationProfileTests.cs`;
-  active-host controls in planned `TenantAuthenticationHttpTests.cs` in that project.
-- **Status:** **Registered.**
+  active-host controls in `TenantAuthenticationHttpTests.cs` in that project.
+- **Status:** **Implemented** (`TenantAuthenticationHttpTests`,
+  `TenantAuthenticationProfileTests`).
 - **Phase:** P02b-5 Step 1 isolated handler proof; Step 4 production activation;
   Step 5 final enforcement. No production registration before Step 4.
 
@@ -4452,10 +4456,9 @@ structural test proves — and what it does not.
 - **Type:** actual API-host signed-token/absence HTTP matrix with correlation
   normalization, public IdP-unavailable regression and scoped challenge controls.
   **Kind:** behavioural.
-- **Test owner:** planned
+- **Test owner:**
   `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationHttpTests.cs`.
-- **Status:** **Registered.** Moved from Awaiting backfill at ADR-0064 acceptance;
-  implementation remains pending.
+- **Status:** **Implemented** (`TenantAuthenticationHttpTests`, `AccountSiteHttpTests`).
 - **Phase:** P02b-5 Step 4 activation and Step 5 enforcement.
 
 #### `Tenant_Authentication_Profile_Is_Closed`
@@ -4473,9 +4476,9 @@ structural test proves — and what it does not.
 - **Type:** real JwtBearer/OIDC handler with controlled signed-token issuer,
   discovery/JWKS server and actual logging/export/error-capture controls.
   **Kind:** behavioural.
-- **Test owner:** planned
+- **Test owner:**
   `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationProfileTests.cs`.
-- **Status:** **Registered.** No profile/runtime proof is claimed at acceptance.
+- **Status:** **Implemented** (`TenantAuthenticationProfileTests`).
 - **Phase:** P02b-5 Step 1 isolated foundation; Steps 4–5 actual active path.
 
 #### `Authentication_Middleware_Order_Is_Enforced`
@@ -4491,9 +4494,10 @@ structural test proves — and what it does not.
   § Pipeline and error precedence.
 - **Type:** whole-chain actual-host HTTP controls plus a planted reorder control.
   **Kind:** behavioural.
-- **Test owner:** planned
+- **Test owner:**
   `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationHttpTests.cs`.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`TenantAuthenticationHttpTests`,
+  `AuthenticatedRateLimitTests`).
 - **Phase:** P02b-5 Step 3 component harness; Step 4 actual activation; Step 5
   complete production enforcement.
 
@@ -4516,7 +4520,7 @@ structural test proves — and what it does not.
 - **Type:** complete production source/IL/route census with dirty/clean controls,
   actual HTTP/app-role PostgreSQL and generated/served contract controls.
   **Kind:** behavioural, with complementary structural controls.
-- **Test owner:** planned
+- **Test owner:**
   `backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.cs`
   and `backend/tests/LearnStack.Tests.Integration/Database/AccountSiteHttpTests.cs`;
   SDK/OpenAPI contract controls remain with their actual contract owners.
@@ -4526,8 +4530,9 @@ structural test proves — and what it does not.
   companion methods plant route, method, request, controller, mapping and
   transitive-capability violations into those same Cecil subjects; missing
   subjects and weakened discovery predicates fail. Complete runtime and
-  cross-contract qualification remains with Steps 4–5 before promotion.
-- **Status:** **Registered.**
+  cross-contract local proof ships in Step 4; Step 5 owns full hosted qualification.
+- **Status:** **Implemented** (`AuthenticatedHttpSurfaceTests`, `AccountSiteHttpTests`,
+  `AccountSiteQueryTests`, `OpenApiContractTests`).
 - **Phase:** P02b-5 Step 2 query/database boundary; Step 4 route/contract
   activation; Step 5 complete transitive enforcement.
 
@@ -4543,9 +4548,14 @@ structural test proves — and what it does not.
   § Access-token profile and § Resolution and attribution; ADR-0004.
 - **Type:** complete production source/IL call-site census with planted compiled
   violations and predicate-mutation controls. **Kind:** structural.
-- **Test owner:** planned
+- **Test owner:**
   `backend/tests/LearnStack.Tests.Architecture/AuthenticationAuthorityTests.cs`.
-- **Status:** **Registered.**
+  Its real production graph closes typed projection creation, feature writes,
+  immutable shape and direct actor/scope/subject accessor consumers. Compiled
+  role/claim and forged/clone/subject-permission probes use the same detector;
+  predicate mutation,
+  missing real subjects and same-owner additional writes fail independently.
+- **Status:** **Implemented** (`AuthenticationAuthorityTests`).
 - **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.
 
 #### `Authenticated_Rate_Limits_Use_Validated_Subject`
@@ -4563,9 +4573,10 @@ structural test proves — and what it does not.
 - **Type:** real limiter concurrency/lifecycle controls and signed-token
   whole-chain HTTP tests, including actual-default boundary.
   **Kind:** behavioural.
-- **Test owner:** planned
+- **Test owner:**
   `backend/tests/LearnStack.Tests.Integration/AuthenticatedRateLimitTests.cs`.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`AuthenticatedRateLimitTests`,
+  `TenantSubjectRateLimiterTests`).
 - **Phase:** P02b-5 Step 3 bounded component; Step 4 whole-chain activation;
   Step 5 production enforcement. Phase 11 retains distributed capacity.
 

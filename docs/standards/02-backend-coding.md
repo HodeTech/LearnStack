@@ -109,6 +109,14 @@ Emission — **at an export boundary, write `id.Value`, never the id**:
   unwrapping early is how a tenant id ends up where an organization id belongs
   with the compiler's blessing.
 
+The HTTP identity boundary follows
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md): the API alone
+projects validated token UUIDs into typed actor/scope values. Opaque `sub` is not
+`UserId`, and role/email/display claims are not application permission. Modules
+consume trusted context/contracts, never raw provider claims. The production
+caller census closes projection construction, mutation and consumers; generated
+record copy capabilities do not authorize a second producer.
+
 ## Nullability
 
 - `Nullable` is on. Treat warnings as errors.

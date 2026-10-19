@@ -83,6 +83,15 @@ unhandled exception (Sentry-captured, 500 Problem Details). Per
 
 ## 2. MediatR Pipeline Order
 
+P02b-5's [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+adds HTTP authentication/admission before this unchanged pipeline. Only the
+closed AccountSite GET gains authenticated reachability; its exact query is Off
+and uses the existing physical ReadOnly owner alongside PublicSurface reads.
+The HTTP middleware order and error precedence live in that ADR and
+[API Design](../standards/04-api-design.md#authentication); they do not add a ninth
+MediatR stage or implement Phase 03 permission checks. Independent rejected
+assertions keep the recorder's existing standalone audit path.
+
 P02d-4's [accepted boundary](../decisions/0052-anonymous-public-read-boundary.md)
 adds factory host-ceiling admission and read-only transaction intent.
 [Step 1](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)

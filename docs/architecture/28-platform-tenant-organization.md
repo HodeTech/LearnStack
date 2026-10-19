@@ -250,6 +250,14 @@ operational discipline:
    `learnstack-hub` realm rejects authentication for tenant-bearing endpoints; the
    `learnstack` realm rejects platform-scope tokens. (ADR-0004 Amendment 1)
 
+The tenant HTTP boundary under
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) accepts scalar
+active tenant/organization UUIDs and a distinct stable `user_id` actor. Opaque
+`sub` identifies the external subject for accounting; roles and membership arrays
+are not application permission or a scope selector. The host/factory intersection
+remains authoritative, with live memberships owned by Phase 03. P02b-6 owns actual
+realm mapper issuance, while P02b-5 proves the API using a controlled issuer.
+
 ## 6a. Hub ↔ LearnStack ownership matrix
 
 Both repositories carry a row for a tenant. Each field belongs to **exactly one** of

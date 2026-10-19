@@ -24,6 +24,14 @@ phase could avoid it because no tenant admin could write a person's attributes y
 From this phase forward one can, and the answer has to exist before the first custom
 field is stored.
 
+**P02b-5 handoff — 2026-10-19.**
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) delivers only
+the closed tenant API bearer boundary and nonsensitive AccountSite read. This
+phase consumes P02b-6 realm issuance and P02b-7 sessions; it does not first wire
+those flows. It owns durable subject/actor mapping, real membership, permissions
+and permission-sensitive routes. Bootstrap seed mapper emission remains P02b-6;
+this phase extends that integration to the live identity/membership lifecycle.
+
 ## Scope
 
 ### Identity Model
