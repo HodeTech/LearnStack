@@ -82,6 +82,10 @@ owns verification and the CI/phase-exit state. G12/G14 re-verify these premises
 before adding BFF/session behavior; auth routes may not shadow enabled
 `/{locale}/courses...` paths. This handoff accepts no Phase 02b auth or BFF gate.
 
+**Review follow-up — 2026-10-20.** [P02b-5 remediation](#p02b-5-external-review-remediation-2026-10-20)
+is in progress; ADR-0065 is Accepted, with dependent implementation and proofs
+in progress.
+
 ## Goal
 
 Give the platform a signed-in user, a durable cross-module event path, and a place for
@@ -12238,6 +12242,84 @@ No next packet starts in this closeout.
 
 These are the already staged first consumers, not cleanup debt from P02b-5.
 The authenticated site endpoint grants no protected lesson/enrollment access.
+
+
+
+## P02b-5 external review remediation (2026-10-20)
+
+**In progress on development.** The five original implementation steps and both
+review rounds per step remain completed historical deliveries. This follow-up
+verifies later review claims against `afa84815`, corrects independently reproduced
+issues, and keeps policy changes separate from fixes under Accepted ADR-0064.
+PR #33 remains unmerged. Temporary review inputs are not delivery authorities.
+
+### Decision boundary
+
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) is **Accepted —
+2026-10-20**. The maintainer authorizes acceptance after verified review corrections
+and subsequent implementation without another approval gate. Acceptance and dated
+ADR-0036/0064 disclosures precede dependent policy code. The scoped recorder will
+consult a process-local singleton target-tenant allowance: 600 attempts per
+monotonic minute, no independent tenant-registry cap, shared across actors. The
+named MUST admission exception, suppression signals, unbounded warning cost and
+native HTTP/DNS destination-dimension loss are explicit. Acceptance alone does
+not claim the new runtime or proofs are delivered.
+
+### Verified corrections and dispositions
+
+Identifiers below preserve the review's finding identity, not its severity.
+Reproduction and source determine each disposition; a suggestion is not presumed
+to be a runtime defect.
+
+| Items | Disposition and evidence owner |
+|---|---|
+| B-1 | Strengthen the real-handler rotation proof: only a token request causes stock manager refresh, an issuer-owned response gate and actual update callback witness the update, and the subsequent rotated-token request must be 200. No test polling of `GetConfigurationAsync` can fetch the key. Stock background refresh may first return 401; that response is not counted as successful refresh. |
+| B-2 | Correct the three structural endpoint censuses to follow actual stack arguments and reject computed/variable/decoy paths and alternate endpoint composition. Blinding the literal guard produces three expected red owners; restoring gives 13 green cases. The prior job manifest already had an exact runtime route union; new authenticated runtime cases strengthen it with all 15 endpoints and observed request dispatch in Development/Production. |
+| B-3, M-10 | Enforce exact identity/feature members and full constructor/caller signatures, raw Tokens API reads, approved-owner generic/object exports and generic constraints, external authorization metadata resolution, and exact read-mode argument/branch/freeze flow. Extra owner overloads and malformed declarations no longer inherit authority by name. Planted controls independently fail. |
+| M-1 | Mask only absent-identity challenges on the classified AccountSite surface. Forbid retains the stock 403. The Forbid and unrelated challenge controls use separate request scopes, matching the authentication handler's actual per-request ownership. |
+| M-2, M-4, M-5 | Accepted in ADR-0065; dependent implementation/proofs in progress. Audit amplification and tenant-series growth are real Accepted-contract risks. Native destination loss is also real and process-wide, already implemented before this correction; it is not described as metadata-only or dependency attribution. |
+| M-3 | Bound subject partitions to 4096. Refuse new keys before allocating a limiter; preserve existing spent quota and reclaim only fully idle partitions. A high-cardinality control proves cap refusal, no allocation/eviction and safe retirement reuse. |
+| M-6 | Independently test actor, tenant, organization, origin and malformed identity/context refusals. Effective organization must equal the validated claim organization or host default; a context cannot invent an organization when both are absent. |
+| M-7 | Validate discovery issuer equality without replacing the stock BaseConfigurationManager contract. Discovery/JWKS retrieval stays under the configured issuer origin and realm path. Disable trying all signing keys; signed unknown/withdrawn kid and wrong-discovery controls refuse. |
+| M-8 | Reconcile live authentication, rows 7/10/14, deny-all membership and current implementation comments. The actual Keycloak export still lacks the approved issuance profile; P02b-6 owns its implementation and proof. |
+| M-9 | The prior implementation receipt at `5676c754` remains historical. The doc-sync head `afa84815e0e9dfc3a215e8ebb38f8840e3ec2254` passed [39325575543](https://github.com/HodeTech/LearnStack/actions/runs/39325575543), and CodeRabbit passed. These observations do not qualify subsequent correction code. PR #33 owns the current head/check receipt. The earlier dated “still running” statement is retained as its as-of observation. |
+| M-11, m-33 | Resolve issuer conflicts across `.env`, `.env.local` and ambient inputs only when the API launcher opts in. Projection-only values are accepted explicitly; web startup neither consumes nor gates on the API issuer. |
+| m-1, m-2 | Document required 503 Retry-After and route-specific 405 Allow; extend served-contract deletion controls and regenerate snapshot/SDK together. |
+| m-3, m-4 | Reconcile the SDK root's typed authenticated contract and nine-operation/five-GET contract inventory, preserving four public wrappers. |
+| m-5 | No change: the generic settings accessor also serves writable commands and is not a public-site-only seam. The public projection first passes the physical read-only/provenance configuration reader; independently forbidding writable generic reads would break its intended owner. |
+| m-6 | Recheck every resolved organization lifecycle in the public configuration reader, including claim-selected row 7 scope. Positive/restored and suspended/archived/deleted real-PostgreSQL controls distinguish it from the host-only check. |
+| m-7, m-8 | Freeze declarations once in singleton ExplicitReadOnlyRequestCatalog and make the sole exact-type declaration registration idempotent. Actual repeated registration and cross-scope identity controls accompany the structural flow guard. |
+| m-9 | No change: invalid optional theme already intentionally projects null; the generic setting reader returns a typed validation failure. A new warning is an optional diagnostic choice, not a changed successful-response contract. |
+| m-10 | Document the existing Kestrel wire/framing backstop residual in 413 descriptions: server-level refusal can precede the application body/header policy. No all-wire Problem Details/no-store guarantee is invented. |
+| m-11 | PublicResponsePolicy already uses the shared account path predicate; the OpenAPI transformer now uses the same live v1 constant. No v2 exists to qualify; a new major remains an explicit surface change. |
+| m-12 | Suppress only the exact vendor ILogger category while preserving unrelated provider/category thresholds and rule order. Sibling-category positive and threshold controls prevent prefix suppression or accidental threshold widening. |
+| m-13 | No change: explicit default-port text is deliberately noncanonical and rejected rather than silently normalized to a different configured issuer string. An explicit refusal case documents that existing policy. |
+| m-14 | Refuse duplicate path slashes in issuer configuration; canonical transport remains strict. |
+| m-15, m-17 | No speculative decompression, connection-pool or lock-sharding refactor. No correctness failure or measured contention was demonstrated. Finite I/O/document and subject registry bounds remain independently tested. |
+| m-16 | Remove unused credential presence state. Preserve the already tested single closed authentication outcome; do not delete a distinct useful signal merely because a report calls it duplicate. |
+| m-18 | No change: typed assertion headers intentionally retain Guid.TryParse compatibility. They never select scope and their accepted spelling is not the stricter token identity grammar. |
+| m-19 | No new metric: row 10 already emits the fixed resolver refusal diagnostic and deliberately writes no audit row. A new membership-dimension instrument would be an additional observability contract. |
+| m-20, m-21 | Define claimless principal, AccountSite and assertion source; narrow audit-matrix per-occurrence wording to a defended host tenant and explicitly exclude row 14. |
+| m-22 | No Accepted body rewrite: the relationship table already names the two read-mode scope extensions and the row-14 audit replacement separately. The broad status summary does not replace those exact instruments. |
+| m-23 | Refuse no-tenant signal calls outside the fixed jwt-claim/Tenant pair before emitting a label. |
+| m-24, m-25 | Refuse nil/sentinel defended audit tenants before signal/store work; standalone store backstops also reject unassigned ids. Unassigned trusted organization becomes null metadata, never a dereference. |
+| m-26, m-27 | Validate every supplied typed identifier and principal coherence before no-tenant shortcut/context construction. Factory positive rows remain; malformed values cannot mint a partially trustworthy context. |
+| m-28 | Extend the account path fallback across methods while preserving actual matched-action admission and the existing valid-credential 405 controls. No additional routed method is introduced. |
+| m-29 | Derive the immutable projection from the cryptographically validated security token, never a second read of a potentially changed Authorization header. |
+| m-30 | Positive pure-factory rows 7/10/14 already existed. Keep them; add claim-selected organization lifecycle controls rather than inventing a second live membership implementation before Phase 03. |
+| m-31 | Strengthen actual unsigned/public-route invalid-profile and precise projection-clock skew controls, plus Forbid and app-role assertion. Existing actual 600/whole-chain reduced-budget, anonymous warning and no-credential/no-audit evidence remains; do not relabel a reduced-budget test as end-to-end 600 throughput. |
+| m-32 | Dispose unit-owned metric providers; isolate real database cleanup/reads by fixture correlation. The diagnostic collector's AllPayloads already includes Metrics, so an alleged missing full metric canary sweep is not reproduced. |
+| m-34 | Recheck normalized URL pathname and reject any normalization change before adding private public-hop headers. A substituted SDK transport control rejects dot segments, encoded traversal, fragments and foreign origins, with a real positive public request. |
+| m-35, m-36 | Require kid-selected trusted keys and reject whitespace-only opaque subject/kid values; explicit signed negative controls accompany them. |
+| m-37 | No duplicate handler validation: the real GetAccountSiteQueryValidator rejects HasUnexpectedQuery at canonical pipeline step 2 before any reader. Directly calling a handler outside its owner does not establish an HTTP bypass. |
+| m-38 | JWKS documents cannot redirect trust to another origin/realm path. Do not ban private IdP networks: SaaS, Dedicated and Self-Hosted can legitimately configure private identity providers. An operator allowlist/DNS-rebinding policy would be a separate deployment decision. |
+
+### Correction validation
+
+Validation is in progress. Interim red/green controls establish detector
+sensitivity, not final-head CI or merge readiness. Final receipts below must name
+the source, actual test counts, zero skips and the precise scope of execution.
+No next packet starts from this record.
 
 
 ## Completion Criteria

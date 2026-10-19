@@ -203,7 +203,8 @@ server caller in `apps/web/src/server/configured-public-client.ts`.
   using locked `openapi-typescript` 7.13.0 into checked-in `schema.d.ts`.
   Production served/snapshot equality and required frontend regeneration/drift
   checks are part of P02d-4; generator output remains outside formatter rewriting.
-- The root exports generated types only. `/server` supplies four thin public GET
+- The root exports generated types and the exact authenticated path/operation
+  contract, with no authenticated transport. `/server` supplies four thin public GET
   wrappers using generated operation types and an injected Fetch-compatible
   transport that resolves relative URLs; no global-fetch default.
 - The unused client factory/export is removed. No tenant-ID option, authority-header

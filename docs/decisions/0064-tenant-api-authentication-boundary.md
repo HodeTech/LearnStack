@@ -516,3 +516,43 @@ proves JWT handling, or a context-only stub proves database isolation.
 - [Keycloak 26.6.2 JWT encoder](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/jose/jws/DefaultTokenManager.java),
   [26.6.2 JWS builder](https://github.com/keycloak/keycloak/blob/26.6.2/core/src/main/java/org/keycloak/jose/jws/JWSBuilder.java),
   [RFC 7515 § 4](https://www.rfc-editor.org/rfc/rfc7515#section-4).
+
+## Amendments
+
+### Amendment 1 — bounded assertion diagnostics (2026-10-20)
+
+**Status: Accepted.** The maintainer accepts
+[ADR-0065](0065-bounded-tenant-assertion-diagnostics.md) and authorizes its
+implementation after review corrections without another approval gate. Its
+acceptance precedes dependent code. This bounded normative supersession replaces
+only the recorder's authenticated every-occurrence durable-write promise:
+`TenantAssertionAuditBudget`, shared as a singleton across scoped recorders,
+admits 600 write attempts per independently defended host tenant per instance in
+each first-request-anchored monotonic minute. Failed writes consume allowance;
+suppressed requests cannot extend expiry. Actors/sources/dimensions share it;
+there is no tenant `AuditConfig` override or separate 4096-tenant ceiling.
+ADR-0064's 4096-subject registry remains a distinct request-admission mechanism.
+
+An attacker can consume that aggregate allowance, leaving later actors without
+durable evidence during the window. Each occurrence retains its refusal,
+mismatch count and exactly one Warning: normal 4001 or suppressed 4006
+`AuditBudgetExhausted`, with typed tenant/actor/correlation properties. The closed
+suppression counter has only dimension/source/reason labels. Suppression makes
+no audit-store call; admitted events remain MUST and retain existing failure/
+health behavior. General mutation MUST durability and tenant `AuditConfig` rules
+are unchanged. Anonymous bursts, row-7/10/14 dispositions, subject/peer/visitor
+quotas, authentication authority and HTTP refusal contracts remain intact.
+
+ADR-0065 also ratifies the process-wide outbound native HTTP/DNS projection
+already shipped in `c6108bf9`, with its ordinary dependency-metric attribution
+cost. Native DNS retains only `error.type`; HTTP retains its bounded method,
+status, protocol, scheme and error dimensions. Destination/path/query values
+are absent from metrics for all requests. Metadata canaries remain absent from
+all exported channels; ordinary HTTP traces/logs stay observable. Phase 11 owns
+qualified finite dependency aliases before their first consumer and measured
+production audit capacity. Original Accepted body/metadata remain verbatim;
+this is not an ADR-0041 false-when-written correction. The prior
+[Step 5 closeout](../roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+remains historical; the
+[2026-10-20 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+owns subsequent implementation, proofs and current PR-head qualification.

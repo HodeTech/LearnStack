@@ -40,7 +40,10 @@ owns review, packet and exact PR-head CI/job-budget status),
 final-source hosted qualification),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
 (Accepted 2026-10-19; P02b-5 obligations implemented; Step 5 owns final review
-and full hosted qualification).
+and full hosted qualification),
+[ADR-0065 Bounded Tenant Assertion Diagnostics](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
+(Accepted 2026-10-20; extends existing obligations below; dependent audit-budget
+and additional telemetry controls remain pending implementation).
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -133,7 +136,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**260 test methods run in
+**263 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -145,8 +148,9 @@ complementary structural, native-runtime and PostgreSQL controls. The
 [Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 distinguishes local enforcement qualification from pending review/packet/CI closeout.
 P02b-5 adds the authenticated route/helper census and closed claim/role authority
-controls; its seven obligations have actual local owners. Its Step 5 record
-separately tracks full hosted qualification, which remains pending at entry.
+controls; its seven obligations have actual local owners. Its Step 5 and
+[review remediation](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+records distinguish prior hosted qualification from the current correction head.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -4294,11 +4298,35 @@ structural test proves — and what it does not.
 
 #### `Tenant_Assertions_Are_Compared_Not_Resolved`
 
-- **Asserts:** `X-Tenant-Id` and `X-Organization-Id` never select anything. An assertion that agrees with what the API resolved passes; one that disagrees is **404**, not 403 — a wrong tenant id must not be able to tell the difference between "exists, not yours" and "does not exist"; a malformed or repeated one is **400** and counted; and an unresolved context passes the request through to be refused downstream rather than inventing a tenant.
-- **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + HTTP. **Kind:** behavioural.
-- **Status:** **Implemented** (`TenantAssertionHttpTests`).
-- **Phase:** 02a (Packet 4).
+- **Asserts:** `X-Tenant-Id` and `X-Organization-Id` never select anything. An
+  agreeing assertion passes; a disagreement is 404, a malformed/repeated one is
+  400 and counted, and unresolved context cannot invent a tenant. ADR-0065 adds
+  at most 600 authenticated audit attempts per defended host tenant per instance
+  per first-request-anchored monotonic minute across scoped recorders, actors,
+  sources and dimensions. Failed writes spend permits; suppression preserves
+  refusal, counts and exactly one attributed Warning without I/O or extending
+  expiry. Anonymous and tenantless behavior remains separate. Expired-only
+  sweeps inspect at most 128 entries per call, never evict live quotas and never
+  duplicate retained queue keys; a 4097th actual host tenant remains independent.
+- **Source:** ADR-0036 § The reconciliation matrix;
+  [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md).
+- **Type:** xUnit component/concurrency and actual registered HTTP/DI controls.
+  **Kind:** behavioural.
+- **Test owner:** Integration `TenantAssertionHttpTests.cs` owns refusal and
+  actual singleton registration across request scopes. Unit
+  `Api/Tenancy/TenantAssertionAuditBudgetTests.cs` owns concurrent 600, independent
+  tenants, monotonic expiry, suppression not extending expiry, same-tenant reset,
+  128-entry sweep and more-than-4096-host-tenant controls. Unit
+  `Api/Tenancy/AuditingTenantAssertionRecorderTests.cs` owns write-failure spending,
+  suppressed no-I/O, actor/source/dimension sharing, anonymous/tenantless behavior,
+  closed metric labels, typed attribution and exactly one Warning (4001 or 4006).
+  Integration `TenantAssertionAuditAdmissionTests.cs` owns at least 601 concurrent
+  calls through actual registered scoped recorders sharing the singleton and one
+  observable fake store; exactly 600 store attempts prove cross-scope accounting.
+- **Status:** **Implemented** baseline (`TenantAssertionHttpTests`). ADR-0065's
+  budget, cross-scope admission and additional diagnostic controls remain pending
+  implementation; no new proof is claimed by acceptance.
+- **Phase:** 02a (Packet 4); P02b-5 2026-10-20 review remediation owns ADR-0065.
 
 #### `Anonymous_Requests_Are_Rate_Limited_Per_Peer`
 
@@ -4407,20 +4435,40 @@ structural test proves — and what it does not.
 
 #### `Assertion_Recorder_Is_The_Only_Mismatch_Writer`
 
-- **Asserts:** no type other than an `ITenantAssertionRecorder` implementation writes a tenant-assertion mismatch to a log, a metric or `IAuditStore`.
-- **Source:** ADR-0036 § Recording a rejected assertion.
+- **Asserts:** only `ITenantAssertionRecorder` implementations write mismatch
+  logs/metrics/audit rows, including the mismatch, unresolved and suppression
+  counter names. A new suppression counter must not create a second writer.
+- **Source:** ADR-0036 § Recording a rejected assertion;
+  [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md).
 - **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
-- **Status:** **Implemented** (`TenancyConventionTests`), in two halves. `Assertion_Recorder_Is_The_Only_Mismatch_Writer` is keyed on the two counter names and scans `LearnStack.Api`; `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs`, added in Packet 9, is keyed on the two audit slugs and covers the `IAuditStore` clause this row always claimed — the counter names cannot catch a second writer that goes straight to the store, which is the dangerous one, because the row's tenant is what keeps an anonymous caller from choosing whose audit log grows.
+- **Status:** **Implemented** (`TenancyConventionTests`), in two halves.
+  `Assertion_Recorder_Is_The_Only_Mismatch_Writer` is keyed on the existing
+  mismatch/unresolved counter names and scans `LearnStack.Api`; ADR-0065 registers its
+  extension to the third suppression counter, pending implementation;
+  `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs`, added in Packet 9, is
+  keyed on the two audit slugs and covers the `IAuditStore` clause this row always
+  claimed — the counter names cannot catch a second writer that goes straight to the
+  store, which is the dangerous one, because the row's tenant is what keeps an anonymous
+  caller from choosing whose audit log grows.
 - **The second half scans all of `backend/src`, not just the API project**, and that is the correction its own first draft needed: a module is precisely where `IAuditStore` is reachable from a handler, and a narrow scan exempts the dangerous half. Measured — planting the burst slug in `LearnStack.Modules.Tenancy.Application` passed the narrow version and fails the wide one. `TenancyAuditCatalogSource` is exempt because declaring a slug is not writing a row; removing that exemption turns the rule red, which is what makes it a real exemption rather than a decorative one. Its companion, `The_Slug_Scan_Finds_The_Files_It_Exempts`, runs the same scan with no exemptions and requires it to find exactly those two files — with nothing offending, a scan whose exemption logic had broken open would pass as well.
 - **Phase:** 02a (Packet 4; the second half, Packet 9).
 
 #### `Assertion_Budget_Does_Not_Depend_On_ICacheService`
 
-- **Asserts:** the anonymous-burst counters resolve no `ICacheService`. A cache outage must not decide whether a MUST-class security event is recorded.
-- **Source:** ADR-0036 § Recording a rejected assertion.
+- **Asserts:** anonymous-burst counters and the authenticated singleton
+  `TenantAssertionAuditBudget` resolve no `ICacheService`. Cache availability must
+  not determine admitted MUST-class security-event recording. The source and
+  dependency predicates cover the new budget without claiming accounting proof.
+- **Source:** ADR-0036 § Recording a rejected assertion;
+  [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md).
 - **Type:** xUnit reflection check over the `LearnStack.Api.Tenancy` namespace **and** a source scan over `LearnStack.Api/Tenancy`. **Kind:** structural.
 - **Status:** **Implemented** (`TenancyConventionTests`). It shipped in Packet 4 as a **tripwire**, because `ICacheService` did not exist yet; Packet 5 ships the port, so the rule now carries the dependency check it was always meant to be. Both forms are kept: reflection catches an injected dependency, the scan catches a service-locator resolve, and neither sees the other's case.
-- **Phase:** 02a (Packet 4).
+- **ADR-0065 extension:** acceptance registers the new singleton under the same
+  structural owner, `TenancyConventionTests`; implementation/proof remains
+  pending. Unit `TenantAssertionAuditBudgetTests` and Integration
+  `TenantAssertionAuditAdmissionTests` own behavioural allowance/expiry/scope
+  accounting under `Tenant_Assertions_Are_Compared_Not_Resolved` above.
+- **Phase:** 02a (Packet 4); P02b-5 2026-10-20 remediation extends coverage.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`
 
@@ -4471,15 +4519,25 @@ structural test proves — and what it does not.
   Controlled metadata proves added-key refresh and rejection after observed key
   withdrawal, respecting stock refresh minima. Canary controls cover vendor events
   1/3/7 across enabled sinks, while independent closed LearnStack outcomes remain
-  visible. Invalid credentials never become absence.
+  visible. Invalid credentials never become absence. ADR-0065 additionally
+  qualifies process-wide native HTTP/DNS metric projection: real durations and
+  bounded tags remain, metadata canaries are absent from all exported channels,
+  and an ordinary distinct HTTP IP/port/path/query canary is absent from metrics
+  while its ordinary trace remains visible. DNS retains only `error.type`; HTTP
+  retains bounded method/status/protocol/scheme/error dimensions.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
   § Access-token profile and § Vendor diagnostic boundary.
 - **Type:** real JwtBearer/OIDC handler with controlled signed-token issuer,
   discovery/JWKS server and actual logging/export/error-capture controls.
   **Kind:** behavioural.
 - **Test owner:**
-  `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationProfileTests.cs`.
-- **Status:** **Implemented** (`TenantAuthenticationProfileTests`).
+  `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationProfileTests.cs`;
+  actual sink/export controls in `TenantAuthenticationDiagnosticsTests.cs` and
+  `TenantAuthenticationDiagnosticsTests.Metrics.cs` in the same project.
+- **Status:** **Implemented** (`TenantAuthenticationProfileTests`). Existing
+  metadata export controls are present; ADR-0065's additional ordinary HTTP
+  destination metric negatives and retained trace positive remain pending
+  implementation. Acceptance does not claim those new controls have run.
 - **Phase:** P02b-5 Step 1 isolated foundation; Steps 4–5 actual active path.
 
 #### `Authentication_Middleware_Order_Is_Enforced`
@@ -4570,7 +4628,8 @@ structural test proves — and what it does not.
   gain no quota identity or early bypass. Existing visitor/peer limits remain.
   Whole-chain reduced-budget controls isolate subject accounting beneath those
   floors; a separate proof covers the actual 600 boundary. Concurrent accounting,
-  first-refusal Retry-After/429, bounded idle retirement and timer disposal are
+  first-refusal Retry-After/429, a finite partition registry with refusal before
+  allocation, bounded idle retirement and timer disposal are
   controlled; refusal stops downstream audit work without resetting live quotas.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
   § Additional subject quota; ADR-0053 and ADR-0054's retained ingress floors.
@@ -4902,12 +4961,13 @@ of structural detection.
 
 - **Asserts:** production composition and committed snapshot have the same document
   after object-key normalization, preserving array order; exactly eight public
-  operations and four generated GET wrappers exist. Drift and policy-breaking
+  operations and four public GET wrappers exist, alongside the separate
+  authenticated AccountSite GET contract (nine operations and five GET contracts). Drift and policy-breaking
   fixtures fail the pinned diff/generation checks.
 - **Source:** ADR-0024; ADR-0052; accepted P02d-4 G31.
 - **Type:** xUnit + served OpenAPI + SDK/CLI fixtures. **Kind:** behavioural +
   structural.
-- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4); eight-operation, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
+- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4); nine-operation, disjoint public/authenticated GET ownership, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
 - **Phase:** 02d (P02d-4 Step 4).
 
 ## P02d-5 public server rendering controls

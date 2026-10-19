@@ -16,10 +16,29 @@ and lifetimes before their first consumers. Phase 03 owns the identity domain.
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) and its
 [decision package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
 authorize scalar identity claims, one closed authenticated read and additional
-subject accounting. The five implementation steps remain subject to their
-runtime proofs and two independent review rounds each. Authentication and
-authorization registration activate together with the closed surface in Step 4.
+subject accounting. All five implementation steps and their two independent
+review rounds are locally complete; the
+[Step 5 closeout](../roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+owns delivery and PR qualification. Authentication and authorization registration
+activate together with the closed surface in Step 4.
 Realm reconciliation and BFF sessions remain P02b-6/P02b-7.
+
+**Assertion diagnostics Accepted — 2026-10-20.**
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) admits 600
+rejected-assertion audit attempts per independently defended host tenant per API
+instance per first-request-anchored monotonic minute. The API singleton shares
+allowance across scoped recorders and all actors/sources/dimensions; failed
+writes spend permits. Suppression retains the refusal, closed counters and one
+attributed Warning without a durable row or database call. An attacker can
+exhaust another tenant's recording allowance; later actors lose durable evidence
+within that window, and aggregate real-time log volume remains unbounded.
+Admitted events remain MUST; tenant `AuditConfig` cannot override the allowance
+or general mutation durability. Subject quotas and their 4096-entry registry
+remain separate. ADR-0065 also ratifies process-wide native HTTP/DNS metric
+projection and ordinary dependency-attribution loss while preserving ordinary
+traces/logs. Acceptance precedes dependent budget implementation; the
+[2026-10-20 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+owns current implementation and proof status.
 
 **API activation — P02b-5 Step 4, 2026-10-19.** The production API now installs
 that strict bearer boundary and exposes exact `GET /api/v1/account/site`.
@@ -73,10 +92,11 @@ flowchart LR
 Two realm strategies were considered:
 
 - **Single tenant realm, scalar active scope** (chosen). The `learnstack` realm
-  issues the profile in ADR-0064: opaque `sub`, stable UUID `user_id`, optional
+  is the required issuer for the ADR-0064 profile: opaque `sub`, stable UUID `user_id`, optional
   scalar UUID `tenant_id` and optional scalar UUID `organization_id`. It carries
   no authoritative membership array or application-role grant. P02b-6 supplies
-  admin-controlled attributes/mappers; Phase 03 owns live memberships.
+  admin-controlled attributes/mappers and real issuance proof; the current realm
+  export does not yet issue that profile. Phase 03 owns live memberships.
 - **Realm-per-tenant**. Cleaner isolation, but a user with memberships in multiple tenants needs separate accounts; user discovery and SSO get more complex.
 
 The single tenant realm matches the global-user, tenant-scoped membership model.

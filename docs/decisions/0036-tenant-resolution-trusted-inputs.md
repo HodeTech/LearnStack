@@ -1206,6 +1206,36 @@ acceptance-carrier register. Outside ADR-0064's explicit HTTP changes and row-14
 audit replacement, the matrix, status/error clauses, trusted host provenance,
 assertion-only headers, setter/writer sets and membership requirements remain.
 
+### 2026-10-20 — Amendment 14: bounded assertion diagnostics
+
+**Status: Accepted.** The maintainer accepts
+[ADR-0065](0065-bounded-tenant-assertion-diagnostics.md) before its dependent code.
+It replaces only this ADR's authenticated every-occurrence/no-per-tenant-ceiling
+durable-record clauses in the original body and Amendment 13, and its
+tenant-labelled mismatch counter. Admitted assertion
+events remain MUST-class; the singleton target-host-tenant budget admits 600
+write attempts per instance per first-request-anchored monotonic minute. Failed
+writes spend allowance; later occurrences retain their refusal, mismatch count
+and one suppression Warning without audit-store I/O. There is no actor/source/
+dimension split, tenant configuration override or separate tenant-registry cap.
+
+The original “ten cheap requests” objection remains a deliberate visibility cost:
+an attacker can now exhaust 600 attempts and deny subsequent actors durable
+records for that window. Continued warnings/counters do not provide complete
+durable actor evidence. ADR-0065 owns the cost estimate and loss acceptance;
+general mutation MUST durability and the tenant `AuditConfig` floor are unchanged.
+Mismatch metrics omit tenant labels and add a closed suppression counter; typed
+tenant/actor/correlation attribution stays in rows/logs. Real-time log volume
+remains unbounded. Anonymous bursts, row-7/10/14 dispositions, host authority,
+reconciliation, refusal status and claimless attribution retain their contracts.
+
+ADR-0065 also ratifies `c6108bf9`'s process-wide native HTTP/DNS metric projection
+and discloses ordinary dependency attribution loss. This is bounded normative
+supersession, not an ADR-0041 fact correction. Original Accepted metadata/body,
+prior amendments and dated implementation receipts are preserved verbatim. The
+[2026-10-20 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+owns subsequent implementation and proof status; acceptance does not deliver it.
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in

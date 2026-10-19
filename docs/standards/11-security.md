@@ -27,7 +27,16 @@ native admission and redirect/query rules derive from [ADR-0054](../decisions/00
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 The exact authenticated read-mode extension derives from
-[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md). The composition
+declarations
+are frozen once in a singleton exact-type catalogue; request-scoped transaction
+behaviors share that immutable snapshot. The additional subject registry refuses
+new keys at its 4096-entry process bound without evicting live quota; only full-quota
+idle retirement creates space. This resource cap grants no throughput entitlement.
+Bounded authenticated assertion recording derives from
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); acceptance
+precedes its dependent code. Its tenant-only audit budget is separate from the
+4096-subject request registry and adds no tenant-registry admission cap.
 
 Producer announcement and common execution ownership derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
@@ -678,6 +687,19 @@ reduced-budget proofs isolate the subject limit below those early floors; a
 separate real-default proof exercises the 600 boundary. A quota refusal stops
 before reconciliation and durable rejection audit. See
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md#additional-subject-quota).
+
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) separately
+limits authenticated rejection audit attempts to 600 per independently defended
+host tenant per API instance per first-request-anchored monotonic minute. The
+singleton audit budget is shared by all scoped recorders and has no actor,
+subject, source or dimension split. Failed writes spend permits; suppression
+retains the refusal, count and exactly one attributed Warning without database
+I/O or extending expiry. Admitted events remain MUST; tenant `AuditConfig` cannot
+override the allowance or weaken general mutation durability. Ten admitted IPs
+can exhaust the allowance through the physical-peer floor, so later actors may
+have no durable evidence in that window; aggregate log volume remains unbounded.
+Subject admission therefore supplies no independent actor-coverage guarantee.
+Anonymous bursts and tenantless refusals retain their separate contracts.
 
 429 responses include `Retry-After`. The edge half runs on **APISIX**
 (`limit-req` / `limit-count` plugins); the application half runs in ASP.NET, where

@@ -12,6 +12,9 @@ implementation remains P02b-4 Steps 4 and 9.
 Tenant-authentication diagnostics derive from
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md);
 P02b-5 Steps 1 and 3 implement the components; Step 4 activates the HTTP boundary.
+Bounded assertion diagnostics and process-wide outbound metric projection derive
+from [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
+2026-10-20 acceptance precedes dependent audit-budget implementation.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -172,9 +175,30 @@ existing rejection recorder; it introduces no second detector or audit slug.
   admission. It has no claim value or labels, creates no metric or error/message
   key, and preserves public 200/protected 404 and the actor's attribution.
 - Resolution short-circuits at its first disagreement, before header assertions.
-  Separate authenticated requests remain separate occurrences. Subject-quota
-  refusal precedes durable mismatch recording; audit failure preserves the
-  refusal and existing Critical/health behavior.
+  Separate authenticated requests remain distinct diagnostic occurrences.
+  Subject-quota refusal precedes durable mismatch recording; admitted audit
+  failure preserves the refusal and existing Critical/health behavior.
+- [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) admits 600
+  authenticated audit attempts per independently defended host tenant per API
+  instance in a first-request-anchored monotonic minute. A singleton
+  `TenantAssertionAuditBudget` shares allowance across scoped recorders, actors,
+  sources and dimensions. Failed writes spend permits. Later occurrences make
+  no audit-store call and retain their refusal. There is no tenant configuration
+  override or independent tenant-registry cap; suppressed calls do not extend
+  expiry. Anonymous bursts and tenantless recording retain their contracts.
+- Every mismatch increments
+  `learnstack_tenant_assertion_mismatch_total{dimension,source,authenticated}`;
+  tenant UUIDs are absent. Every suppressed occurrence also increments
+  `learnstack_tenant_assertion_audit_suppressed_total{dimension,source,reason}`,
+  with only `reason=audit_budget_exhausted`. Actor/subject/correlation values are
+  absent from all metric labels.
+- Emit exactly one Warning occurrence event: normal 4001, or suppressed 4006
+  `AuditBudgetExhausted`, retaining typed tenant/actor/correlation properties.
+  A suppressed occurrence emits no additional 4001. Its reason belongs to logs
+  and telemetry, never `AuditEntryDraft.Reason` or Problem Details. Aggregate
+  real-time log volume remains unbounded; an attacker can exhaust the durable
+  tenant allowance and later actors have no durable row during that window.
+  Counters/warnings do not restore complete durable actor evidence.
 
 The Step 1 vendor boundary suppresses the exact category
 `Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerHandler` at every level
@@ -188,14 +212,23 @@ a Warning threshold or response-only setting is insufficient. Unrelated logging
 and sanctioned typed UUID/correlation recorder attribution remain observable.
 
 Metadata HTTP spans are suppressed. Native `System.Net.Http` and
-`System.Net.NameResolution` metrics do not honor that request-local suppression;
-their API export therefore retains only `http.request.method`,
-`http.response.status_code`, `network.protocol.version`, `url.scheme` and
-`error.type` dimensions. Raw destination, peer and DNS names are omitted from
-metrics for all outbound requests. Counts, durations and status remain observable,
-as do unrelated HTTP traces and application logs. Exported metric positives
-and a distinct metadata-hostname canary qualify this boundary alongside logs
-and traces.
+`System.Net.NameResolution` metrics do not honor request-local suppression.
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) ratifies the
+API export projection shipped in `c6108bf9`: HTTP retains only
+`http.request.method`, `http.response.status_code`, `network.protocol.version`,
+`url.scheme` and `error.type`; DNS retains only `error.type`. Counts and durations
+remain observable. Hostname/address/port, DNS question, full URL, path and query
+are omitted from metrics for every outbound request, including ordinary Hub,
+payment and media dependencies. Destination attribution is unavailable there.
+Ordinary HTTP traces and application logs remain observable. Phase 11 qualifies
+a finite source-declared dependency identity before its first consumer.
+
+`TenantAuthenticationDiagnosticsTests.Metrics` proves real HTTP/DNS duration and
+bounded-tag positives. Metadata hostname/address canaries must be absent from
+all exported channels. A separate ordinary HTTP request with a distinct IP/port
+and path/query canaries must omit those values from metrics while preserving its
+ordinary trace positive; ordinary destinations are not forbidden in all payloads.
+The new ordinary-destination controls remain pending with ADR-0065's implementation.
 
 Step 3 implements recorder/claimless/quota diagnostics; Steps 4–5 qualify the
 complete active path. Acceptance alone claims none of these mechanisms delivered.

@@ -3,6 +3,7 @@
 **Derives from:** [ADR-0033](../decisions/0033-audit-durability-model.md)
 (supersedes [ADR-0016](../decisions/0016-audit-log-subsystem.md)),
 [ADR-0044 (The Audit Write Path)](../decisions/0044-audit-write-path.md),
+[ADR-0065 (Bounded Tenant Assertion Diagnostics)](../decisions/0065-bounded-tenant-assertion-diagnostics.md),
 [ADR-0046 (Durable Event Delivery and Recovery)](../decisions/0046-durable-event-delivery-and-recovery.md),
 [ADR-0057 (Transactional Event Production and Completion)](../decisions/0057-transactional-event-production-and-completion.md),
 [ADR-0017 (Tenant + Organization)](../decisions/0017-tenant-organization-hierarchy.md),
@@ -39,6 +40,28 @@ classes rather than reordering the pipeline:
 | **MUST**, with a business transaction — security, compliance, privileged access | **Inside the business transaction**, as one parameterised `INSERT` issued by `IAuditStore.WritePendingAsync` immediately before `COMMIT` | **Fail closed** — the transaction rolls back and the caller receives `503 audit_unavailable` | For these events the audit row *is* part of the operation's contract. "Platform admin read tenant B's learner records" with no audit row is an audit finding |
 | **MUST**, with no committed business transaction — `denied` outcomes, security events raised outside MediatR, **and any request whose transaction rolled back or whose commit outcome is unknown** | **Standalone**, through `IAuditStore.WriteStandaloneAsync`, on a connection outside the business transaction: `BEGIN;` `set_config('app.tenant_id', …)` **and** `set_config('app.organization_id', …)`; `INSERT; COMMIT` | **Fail closed only where there is something to fail closed on.** The `503 audit_unavailable` replaces the response when the operation would otherwise have **succeeded**; a row recording an operation that is already being **refused** keeps its own 403 / 404 ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)). Either way the failure logs at `Critical`, increments the standalone-write-failure counter and marks the audit health check unhealthy | There is no business transaction to ride, or the one that existed is gone. The row must still satisfy `audit_log`'s `WITH CHECK` — **both** halves of it, since the table is org-scoped — so it announces both session variables on its own terms. Reusing the *business* connection here would be a defect: a row written inside a transaction that is about to roll back rolls back with it |
 | **SHOULD / MAY** — operational, diagnostic | Outside any business transaction, best-effort, same standalone shape | Logged and dropped; the accepted loss is written down in the module's matrix, not assumed | Losing "course renamed" costs a support conversation |
+
+**Named standalone admission exception — Accepted 2026-10-20.**
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) admits at most
+600 authenticated rejected-assertion write attempts per independently defended
+host tenant per API instance in a first-request-anchored monotonic minute. A
+singleton `TenantAssertionAuditBudget` in API/Tenancy shares accounting across
+scoped recorders, actors, sources and dimensions. Failed writes spend allowance;
+suppressed occurrences make no store call and cannot extend the window. Each
+retains its refusal, mismatch count and exactly one attributed Warning (4006
+rather than normal 4001). Admitted events remain MUST-class with the table's
+standalone failure semantics. This is event admission, never a tenant
+`AuditConfig` override or a change to general mutation MUST durability.
+
+An attacker can exhaust that allowance and remove later actors' durable evidence
+for the window. Warnings/counters remain, with explicitly unbounded aggregate
+log volume. Anonymous bursts and tenantless refusal behavior remain separate.
+There is no independent tenant-registry cap; known host tenants bound keyspace,
+expired-only sweeps inspect at most 128 entries per call, and no timer or disposal
+owner is added. ADR-0065 owns the illustrative nominal 864,000 rows/24h/tenant/instance
+steady-saturation rate (not a calendar-day hard cap) and assumed storage costs;
+Phase 11 owns measured capacity and distributed admission.
+Acceptance precedes implementation and proves neither delivery nor production fit.
 
 **A granted read-sensitive query rides the first row, not the second.** It used to sit
 in the standalone class, on the reasoning that a read opens no transaction. Packet 6

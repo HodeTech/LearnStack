@@ -12,6 +12,9 @@ Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+Authenticated assertion admission derives from
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); acceptance
+precedes dependent implementation.
 Job additions derive from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
 (accepted 2026-10-15; P02b-4 runtime and enforcement implemented; the
@@ -103,7 +106,11 @@ shipped matrices — [Tenancy](../modules/tenancy/audit.md),
 | `ResourceB` | `module.resource_b.archive` / `module.resource_b.soft_delete` | **MUST** | Deletes are always MUST, and two operations that share a class and a reason share a row |
 | `ResourceC` | `module.resource_c.publish` `(planned)` | **MUST** | Classified ahead of the command that will raise it; the marker is what scopes the join |
 
-Legend: **MUST** = audit entry required for every occurrence. **SHOULD** = audit by default; module may justify an opt-out per-operation. **MAY** = audit is allowed but not required. **–** = operation does not apply.
+Legend: **MUST** = audit entry required for every admitted event. General
+mutation coverage admits every classified occurrence. The only bounded
+assertion-admission exception is stated in § Baseline Coverage below.
+**SHOULD** = audit by default; module may justify an opt-out per-operation.
+**MAY** = audit is allowed but not required. **–** = operation does not apply.
 
 The `Operation` cell carries **catalogue slugs**, plus the `(planned)` and `(off-path)`
 markers § The join below defines
@@ -187,7 +194,21 @@ will raise them — which this standard requires it to do.
 
 ## Baseline Coverage (LearnStack Core Modules)
 
-The following operations are MUST-audit across LearnStack regardless of which module owns them. Module matrices may add more rules but **cannot remove anything in this list**.
+The following operations are MUST-audit across LearnStack regardless of which
+module owns them. Module matrices and tenant `AuditConfig` overrides **cannot
+remove anything in this list**. [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
+names a narrow event-admission exception for authenticated rejected assertions:
+600 standalone write attempts per independently defended host tenant per API
+instance per first-request-anchored monotonic minute, shared across actors,
+subjects, dimensions and sources. Every admitted event remains MUST-class and
+failed writes consume allowance. Suppressed occurrences retain their refusal,
+mismatch counter and one attributed Warning, with no audit-store I/O. No tenant
+configuration overrides this budget. Anonymous bursts and tenantless refusals
+retain their separate contracts; general mutation MUST durability is unchanged.
+An attacker may exhaust the shared allowance, so later actors can have no durable
+record for that window. Real-time log volume remains unbounded. ADR-0065 owns the
+explicit evidence-loss and illustrative capacity costs; acceptance alone does
+not prove implementation or production fit.
 
 | Domain | MUST-audit operation |
 |--------|----------------------|
@@ -205,7 +226,7 @@ The following operations are MUST-audit across LearnStack regardless of which mo
 | Hub contract | Inbound Hub command received (`tenancy.tenant.create_from_hub`, and the entitlement push, which is the Tenancy row's `tenancy.entitlement.refresh` — one operation, one slug); outbound usage report (`platform.usage.report`); license verification result. |
 | Notifications | Template changed; outbound delivery to a recipient (SHOULD for non-PII channels; MUST for password reset / invitation / billing). |
 | Integrations | External provider credential created / rotated / revoked; webhook secret rotated. |
-| Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard; mTLS / signed-JWT / HMAC verification failure on `/api/internal/*`; cross-tenant assertion mismatch carrying a validated principal (`tenancy.tenant_assertion.reject`); anonymous assertion-mismatch burst beyond threshold (`tenancy.tenant_assertion.anonymous_burst`). |
+| Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard; mTLS / signed-JWT / HMAC verification failure on `/api/internal/*`; admitted cross-tenant assertion mismatch carrying a validated principal (`tenancy.tenant_assertion.reject`, bounded admission under ADR-0065); anonymous assertion-mismatch burst beyond threshold (`tenancy.tenant_assertion.anonymous_burst`). |
 
 There are **no vertical modules**. Tenant-specific extensions land as data via the
 Customization aggregates and inherit the MUST-audit rules above for schema changes.
