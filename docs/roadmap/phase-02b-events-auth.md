@@ -11850,7 +11850,7 @@ ordered middleware and route activation remain Step 4.
 
 ### P02b-5 Step 3 — attributed reconciliation and subject admission (2026-10-19)
 
-**Implementation validated; independent reviews pending.** Entry is `8f9ecff2`.
+**Complete after both independent review rounds.** Entry is `8f9ecff2`.
 Only the immutable validated identity supplies HTTP claim/actor signals. Raw
 principals cannot establish tenant authority. The resolver still calls the pure
 factory once and restores the prior accessor; no context is installed to attribute
@@ -11914,6 +11914,32 @@ failures or skips. They checked current source and positive/negative controls,
 including no-tenant omission, captured attribution and full-idle-only retirement.
 Production activation and exact endpoint census remain the named later steps.
 
+#### Step 3 independent review round 2 and closeout
+
+Two different fresh xhigh reviewers independently inspected
+`8f9ecff2..90724a54`. Both found no Blocker/Major or additional runtime defect;
+both confirmed one Minor: the new actor log properties exported Vogen wrappers
+instead of underlying UUIDs. Standards 02's emission rule applies. The recorder
+now exports Guid/nullable Guid values, and captured-log tests require those
+primitives; durable typed attribution and policy remain unchanged. Independent
+reruns passed the named 10 limiter/19 component cases and 39 focused unit/19
+component/nine app-role PostgreSQL cases respectively, with zero skips.
+
+A narrow coverage suggestion was verified too: shortening only the stock
+factory's default window escaped the original real-600 assertion. The shared
+Window constant already had a literal-60 middleware control; that broader gap
+was not present. The actual-default assertion now independently requires one
+minute. A temporary one-second factory mutant passed the old assertion and failed
+the strengthened assertion; production source was restored before final build.
+This changes no production quota policy.
+
+After correction, the warnings-as-errors solution build passes with zero warnings
+or errors, followed by 39 affected unit and 28 integration cases (19 component,
+nine PostgreSQL), zero failures/skips. Scoped formatting, whitespace and carrier
+checks pass. Implementation is `c0909708`; `90724a54` records round 1. Both review
+rounds and verified corrections are complete. Step 4 now owns atomic production
+activation, the real route, response policy and typed contract.
+
 ### Work deliberately retained by its first consumer
 
 - **P02b-6:** real Keycloak issuance, fresh/warm realm reconciliation, user-profile
@@ -11947,7 +11973,9 @@ partition. The
 [P02b-3 merge closeout](#p02b-3-merge-and-closeout-2026-10-15) owns final combined
 event verification. P02b-4's job infrastructure is locally complete, with exact
 qualification in its [local closeout](#p02b-4-local-closeout-2026-10-18). P02b-5 is
-in progress, with its isolated token foundation complete; P02b-6–8 remain pending.
+in progress, with its isolated token, read-only query and attributed admission
+components complete; production HTTP activation remains Step 4 and P02b-6–8
+remain pending.
 The whole phase is not complete.
 
 - An aggregate change and its outbox row commit together and roll back together,

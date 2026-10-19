@@ -244,8 +244,11 @@ foundation after both independent review rounds; its
 owns the verified metric-privacy correction. Step 2 completes the real read-only
 subject after both independent review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19)
-owns validation. Step 3 adds attributed reconciliation and subject admission;
-production authentication activation remains Step 4. Realm
+owns validation. Step 3 completes attributed reconciliation and subject admission
+after both independent reviews; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-3--attributed-reconciliation-and-subject-admission-2026-10-19)
+owns verified log-emission and default-window test corrections. Production
+authentication activation remains Step 4. Realm
 reconciliation, BFF sessions and phase exit remain
 P02b-6–8.
 Phase 06 retains the full

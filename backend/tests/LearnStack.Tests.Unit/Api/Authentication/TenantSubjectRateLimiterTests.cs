@@ -36,7 +36,7 @@ public sealed partial class TenantSubjectRateLimiterTests
         using var refused = owner.AttemptAcquire(identity);
         refused.IsAcquired.Should().BeFalse();
         refused.TryGetMetadata(MetadataName.RetryAfter, out var retry).Should().BeTrue();
-        retry.Should().BeGreaterThan(TimeSpan.Zero).And.BeLessThanOrEqualTo(Window);
+        retry.Should().Be(TimeSpan.FromMinutes(1), "the actual stock default must enforce the independently specified minute");
         // Both tuple positions and their ordinal casing distinguish identities.
         using var otherIssuer = owner.AttemptAcquire(identity with { Issuer = "https://other.example/realm" });
         using var otherSubject = owner.AttemptAcquire(identity with { Subject = "another-subject" });

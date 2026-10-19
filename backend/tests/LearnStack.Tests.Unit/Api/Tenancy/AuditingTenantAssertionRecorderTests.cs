@@ -261,7 +261,7 @@ public sealed class AuditingTenantAssertionRecorderTests
         var warning = signalLogger.Entries.Should().ContainSingle().Subject;
         warning.Level.Should().Be(LogLevel.Warning);
         warning.Properties.Should().ContainKey("AssertionSource").WhoseValue.Should().Be(label);
-        warning.Properties.Should().ContainKey("ActorUserId").WhoseValue.Should().Be(Actor);
+        warning.Properties.Should().ContainKey("ActorUserId").WhoseValue.Should().Be(Actor.Value);
         warning.Properties.Should().ContainKey("CorrelationId").WhoseValue.Should().Be(Correlation);
     }
 
@@ -317,7 +317,7 @@ public sealed class AuditingTenantAssertionRecorderTests
         diagnostic.Message.Should().StartWith("membership_unconfirmed");
         diagnostic.Properties.Keys.Should().BeEquivalentTo(
             ["AssertionSource", "Dimension", "ActorUserId", "CorrelationId", "{OriginalFormat}"]);
-        diagnostic.Properties["ActorUserId"].Should().Be(Actor);
+        diagnostic.Properties["ActorUserId"].Should().Be(Actor.Value);
         diagnostic.Properties["CorrelationId"].Should().Be(Correlation);
     }
 

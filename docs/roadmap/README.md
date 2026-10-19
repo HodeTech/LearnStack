@@ -132,8 +132,10 @@ not deferred to the showcase phase.
   owns the verified metric-privacy correction. Step 2 completes the real read-only
   subject after both independent review rounds; its
   [record](phase-02b-events-auth.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19)
-  owns validation. Step 3 adds attributed reconciliation and subject admission;
-  production activation remains Step 4. Realm reconciliation, BFF sessions and
+  owns validation. Step 3 completes attributed reconciliation and subject
+  admission after both independent reviews; its
+  [record](phase-02b-events-auth.md#p02b-5-step-3--attributed-reconciliation-and-subject-admission-2026-10-19)
+  owns verified corrections. Production activation remains Step 4. Realm reconciliation, BFF sessions and
   phase-exit enforcement remain P02b-6–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

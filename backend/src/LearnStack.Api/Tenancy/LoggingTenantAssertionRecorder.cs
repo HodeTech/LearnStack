@@ -1,5 +1,4 @@
 using System.Diagnostics.Metrics;
-using LearnStack.SharedKernel.Identifiers;
 using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Api.Tenancy;
@@ -82,7 +81,7 @@ public sealed partial class LoggingTenantAssertionRecorder : ITenantAssertionRec
             rejection.AssertedValue,
             rejection.IsAuthenticated,
             rejection.Source.ToLabel(),
-            rejection.ActorUserId,
+            rejection.ActorUserId?.Value,
             rejection.CorrelationId);
     }
 
@@ -98,7 +97,7 @@ public sealed partial class LoggingTenantAssertionRecorder : ITenantAssertionRec
         Guid assertedValue,
         bool isAuthenticated,
         string assertionSource,
-        UserId? actorUserId,
+        Guid? actorUserId,
         string? correlationId);
 
     public void RecordUnresolved(TenantAssertionDimension dimension)
@@ -129,13 +128,13 @@ public sealed partial class LoggingTenantAssertionRecorder : ITenantAssertionRec
             _logger,
             refusal.Source.ToLabel(),
             refusal.Dimension.ToString(),
-            refusal.ActorUserId,
+            refusal.ActorUserId.Value,
             refusal.CorrelationId,
             null);
     }
 
-    private static readonly Action<ILogger, string, string, UserId, string?, Exception?> MembershipUnconfirmed =
-        LoggerMessage.Define<string, string, UserId, string?>(
+    private static readonly Action<ILogger, string, string, Guid, string?, Exception?> MembershipUnconfirmed =
+        LoggerMessage.Define<string, string, Guid, string?>(
             LogLevel.Debug,
             new EventId(4005, nameof(MembershipUnconfirmed)),
             "membership_unconfirmed. Source: {AssertionSource}. Dimension: {Dimension}. "
