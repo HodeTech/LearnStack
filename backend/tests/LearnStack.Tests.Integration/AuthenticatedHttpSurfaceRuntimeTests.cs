@@ -7,6 +7,7 @@ using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,7 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -32,6 +34,7 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
         await using var factory = new SurfaceFactory(environment);
         using var client = factory.CreateClient();
         AssertGlobalFilterControls(factory.Services.GetRequiredService<IOptions<MvcOptions>>().Value);
+        AssertFilterProviders(factory.Services.GetServices<IFilterProvider>());
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints;
         endpoints.Should().OnlyContain(endpoint => endpoint is RouteEndpoint,
             "non-route endpoints cannot disappear from the closed production census");
@@ -42,7 +45,11 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
             var method = action?.MethodInfo ?? endpoint.Metadata.GetMetadata<MethodInfo>();
             method.Should().NotBeNull("every admitted endpoint has an explicitly enumerated handler");
             Type? request = null;
-            if (action is not null) request = await DispatchedRequest(action);
+            if (action is not null)
+            {
+                AssertEndpointAuthorizationControls(action, endpoint.Metadata);
+                request = await DispatchedRequest(action);
+            }
             actual.Add((endpoint.RoutePattern.RawText ?? string.Empty).TrimStart('/') + "|"
                 + string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? []) + "|"
                 + method!.DeclaringType!.FullName + "." + method.Name + "|" + (request?.FullName ?? "infrastructure"));
@@ -55,7 +62,61 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
         Action wrongRequest = () => AssertUnion(actual.Select(entry => entry.Replace(typeof(GetAccountSiteQuery).FullName!,
             typeof(GetPublicSiteQuery).FullName!, StringComparison.Ordinal)));
         wrongRequest.Should().Throw<Xunit.Sdk.XunitException>("an approved action may not dispatch another approved query");
+
+        await using var dirtyFactory = new SurfaceFactory(environment, addFilterProvider: true);
+        using var dirtyClient = dirtyFactory.CreateClient();
+        AssertGlobalFilters(dirtyFactory.Services.GetRequiredService<IOptions<MvcOptions>>().Value.Filters);
+        var dirtyProviders = dirtyFactory.Services.GetServices<IFilterProvider>().ToArray();
+        Action providerInventory = () => AssertFilterProviders(dirtyProviders);
+        providerInventory.Should().Throw<Xunit.Sdk.XunitException>(
+            "a real DI provider registration can replace effective filters while MvcOptions.Filters stays unchanged");
+        var filter = new AllowAnonymousFilter();
+        var context = new FilterProviderContext(new ActionContext(),
+            [new FilterItem(new FilterDescriptor(filter, 0), filter)]);
+        dirtyProviders.OfType<UnexpectedFilterProvider>().Single().OnProvidersExecuting(context);
+        context.Results[0].Filter.Should().BeOfType<UnexpectedAuthorizationFilter>();
+        AssertFilterProviders(factory.Services.GetServices<IFilterProvider>());
     }
+
+    private static void AssertEndpointAuthorizationControls(ControllerActionDescriptor action, EndpointMetadataCollection metadata)
+    {
+        AssertEndpointAuthorization(action, metadata);
+        Action extra = () => AssertEndpointAuthorization(action, metadata.Append(new UnexpectedAnonymousAttribute()));
+        extra.Should().Throw<Xunit.Sdk.XunitException>("custom IAllowAnonymous metadata cannot augment any approved MVC endpoint");
+        if (action.ControllerTypeInfo.AsType() != typeof(AccountController))
+        {
+            Action substitute = () => AssertEndpointAuthorization(action,
+                metadata.Where(item => item is not IAllowAnonymous).Append(new UnexpectedAnonymousAttribute()));
+            substitute.Should().Throw<Xunit.Sdk.XunitException>("a public endpoint requires the exact standard AllowAnonymousAttribute");
+        }
+        AssertEndpointAuthorization(action, metadata);
+    }
+
+    private static void AssertEndpointAuthorization(ControllerActionDescriptor action, IEnumerable<object> metadata)
+    {
+        var items = metadata.ToArray();
+        var anonymous = items.OfType<IAllowAnonymous>().ToArray();
+        var authorizations = items.OfType<IAuthorizeData>().ToArray();
+        if (action.ControllerTypeInfo.AsType() == typeof(AccountController))
+        {
+            anonymous.Should().BeEmpty("Account metadata must never bypass authorization");
+            var authorization = authorizations.Should().ContainSingle().Which.Should().BeOfType<AuthorizeAttribute>().Subject;
+            authorization.AuthenticationSchemes.Should().Be("TenantBearer");
+            authorization.Roles.Should().BeNull();
+            authorization.Policy.Should().BeNull();
+        }
+        else
+        {
+            authorizations.Should().BeEmpty("public endpoints have no authorization metadata");
+            anonymous.Should().ContainSingle().Which.Should().BeOfType<AllowAnonymousAttribute>();
+        }
+    }
+
+    private static void AssertFilterProviders(IEnumerable<IFilterProvider> providers) =>
+        providers.Select(provider => (Assembly: provider.GetType().Assembly.GetName().Name,
+            Type: provider.GetType().FullName, provider.Order)).Should().Equal(
+            [("Microsoft.AspNetCore.Mvc.Core", "Microsoft.AspNetCore.Mvc.Filters.DefaultFilterProvider", -1000)],
+            "Fix: preserve the exact framework MVC filter provider inventory and order");
 
     private static void AssertGlobalFilterControls(MvcOptions options)
     {
@@ -112,6 +173,22 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
     private sealed class UnexpectedAuthorizationFilter : IAuthorizationFilter
     {
         public void OnAuthorization(AuthorizationFilterContext context) => ArgumentNullException.ThrowIfNull(context);
+    }
+
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+    private sealed class UnexpectedAnonymousAttribute : Attribute, IAllowAnonymous;
+
+    private sealed class UnexpectedFilterProvider : IFilterProvider
+    {
+        public int Order => int.MaxValue;
+
+        public void OnProvidersExecuting(FilterProviderContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            context.Results[0].Filter = new UnexpectedAuthorizationFilter();
+        }
+
+        public void OnProvidersExecuted(FilterProviderContext context) => ArgumentNullException.ThrowIfNull(context);
     }
 
     private static async Task<Type> DispatchedRequest(ControllerActionDescriptor action)
@@ -173,7 +250,7 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
 
     private sealed class DispatchObservedException : Exception;
 
-    private sealed class SurfaceFactory(string environment) : ConstructionOnlyApiFactory
+    private sealed class SurfaceFactory(string environment, bool addFilterProvider = false) : ConstructionOnlyApiFactory
     {
         protected override void ConfigureTestHost(IWebHostBuilder builder)
         {
@@ -181,6 +258,8 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
             builder.UseSetting("Deployment:Mode", "SelfHostedOnline");
             builder.UseSetting("Tenancy:PlatformHosts:0", "localhost");
             builder.UseSetting("Authentication:Tenant:Issuer", "https://identity.example/realms/learnstack");
+            if (addFilterProvider)
+                builder.ConfigureTestServices(services => services.AddSingleton<IFilterProvider, UnexpectedFilterProvider>());
         }
     }
 }

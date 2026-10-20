@@ -70,7 +70,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         AssertPublicAuthorizationControls(map);
+        AssertAnonymousMetadataControls(map);
         AssertGlobalFilterControls(map);
+        AssertFilterProviderControls(map);
         var account = api.GetType(Account);
         var action = account.Methods.Single(method => method.Name == "GetSite");
         AuthenticationMetadata.WithCompiledRole(api, metadata =>
@@ -341,7 +343,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 if (Attributes(type, map).Concat(action.CustomAttributes).Any(attribute => attribute.AttributeType.FullName == "LearnStack.Api.Versioning.ApiVersionAttribute"
                         && attribute.ConstructorArguments[0].Value is not 1))
                     errors.Add("HTTP ceiling permits only the existing /api/v1 major: " + type.FullName);
-                if (!Authorized(type, action, map, authorizationPredicate)) errors.Add("Unexpected authorization metadata: " + type.FullName + "." + action.Name);
+                foreach (var offender in AuthorizationOffenders(type, action, map, authorizationPredicate)) errors.Add(offender);
                 if (!PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName))
                     errors.Add("Construct exactly " + entry.Request.FullName + " at the single direct ISender.Send: " + type.FullName + "." + action.Name);
             }
@@ -381,13 +383,22 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     {
         var attributes = Attributes(controller, map).Concat(action.CustomAttributes).ToArray();
         var authorizations = attributes.Where(attribute => (predicate ?? (type => AuthenticationMetadata.IsData(type, map)))(attribute.AttributeType)).ToArray();
-        var anonymous = attributes.Count(attribute => attribute.AttributeType.FullName == typeof(AllowAnonymousAttribute).FullName);
-        if (controller.FullName != Account) return anonymous == 1 && authorizations.Length == 0;
-        return anonymous == 0 && authorizations.Length == 1 && authorizations[0].ConstructorArguments.Count == 0
+        var anonymous = attributes.Where(attribute => AuthenticationMetadata.IsAnonymous(attribute.AttributeType, map)).ToArray();
+        if (controller.FullName != Account) return anonymous.Length == 1 && authorizations.Length == 0
+            && anonymous[0].AttributeType.FullName == typeof(AllowAnonymousAttribute).FullName
+            && anonymous[0].ConstructorArguments.Count == 0 && anonymous[0].Properties.Count == 0 && anonymous[0].Fields.Count == 0;
+        return anonymous.Length == 0 && authorizations.Length == 1 && authorizations[0].ConstructorArguments.Count == 0
             && authorizations[0].AttributeType.FullName == typeof(AuthorizeAttribute).FullName
             && authorizations[0].Properties.Count == 1
             && authorizations[0].Properties[0].Name == nameof(AuthorizeAttribute.AuthenticationSchemes)
             && authorizations[0].Properties[0].Argument.Value as string == "TenantBearer";
+    }
+
+    private static IEnumerable<string> AuthorizationOffenders(TypeDefinition controller, MethodDefinition action,
+        Dictionary<string, TypeDefinition> map, Func<TypeReference, bool>? predicate = null)
+    {
+        if (!Authorized(controller, action, map, predicate))
+            yield return "Unexpected authorization metadata: " + controller.FullName + "." + action.Name;
     }
 
     private static IEnumerable<string> NestedDispatchOffenders(TypeDefinition[] roots, Dictionary<string, TypeDefinition> map)

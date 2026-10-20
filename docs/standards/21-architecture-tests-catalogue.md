@@ -4641,8 +4641,12 @@ structural test proves — and what it does not.
   direct interface/concrete handler construction, fields, constructor parameters,
   locals and `Handle` calls, custom-interface implementations and generic service
   acquisition/non-Handle calls across distinct HTTP roots. Actual MVC filter
-  composition and source registrations are independently closed, with compiled
-  extra/removed/duplicate filter controls. Its
+  composition and source registrations are independently closed, including the
+  actual IFilterProvider DI inventory and bounded compiled provider capability
+  checks. A provider that changes effective filters without changing
+  MvcOptions.Filters fails independently. Custom/inherited IAllowAnonymous
+  metadata and actual endpoint authorization metadata have their own controls;
+  the exact public AllowAnonymous attribute remains required. Its
   companion methods plant route, method, request, controller, mapping and
   transitive-capability violations into those same Cecil subjects; missing
   subjects and weakened discovery predicates fail. Each dirty control requires

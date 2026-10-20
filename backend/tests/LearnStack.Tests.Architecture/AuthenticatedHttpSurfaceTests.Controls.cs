@@ -43,13 +43,86 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         }
     }
 
+    private static void AssertAnonymousMetadataControls(Dictionary<string, TypeDefinition> map)
+    {
+        foreach (var controller in map.Values.Where(type => type.FullName is Account or PublicSite or PublicEducation).ToArray())
+        {
+            var action = controller.Methods.First(IsAction);
+            AuthorizationOffenders(controller, action, map, null).Should().BeEmpty();
+            foreach (var inherited in new[] { false, true })
+                AuthenticationMetadata.WithCompiledAnonymous(controller.Module, inherited, metadata =>
+                {
+                    var definition = (TypeDefinition)metadata.AttributeType;
+                    map.Add(Key(definition), definition);
+                    action.CustomAttributes.Add(metadata);
+                    try
+                    {
+                        AuthenticationMetadata.IsAnonymous(metadata.AttributeType, map).Should().BeTrue(
+                            "direct and inherited custom anonymous contracts must be recognized");
+                        AssertRejected();
+                        if (controller.FullName != Account)
+                        {
+                            var standard = controller.CustomAttributes.Single(attribute =>
+                                attribute.AttributeType.FullName == typeof(AllowAnonymousAttribute).FullName);
+                            controller.CustomAttributes.Remove(standard);
+                            try { AssertRejected(); }
+                            finally { controller.CustomAttributes.Add(standard); }
+                        }
+                    }
+                    finally
+                    {
+                        action.CustomAttributes.Remove(metadata);
+                        map.Remove(Key(definition));
+                    }
+                    AuthorizationOffenders(controller, action, map, null).Should().BeEmpty(
+                        "restoring actual action metadata restores the same authorization predicate");
+
+                    void AssertRejected() => AuthorizationOffenders(controller, action, map, null).Should().ContainSingle()
+                        .Which.Should().Be("Unexpected authorization metadata: " + controller.FullName + "." + action.Name,
+                            "custom anonymous metadata cannot augment or replace the exact approved authorization contract");
+                });
+        }
+    }
+
     private static IEnumerable<string> GlobalFilterOffenders(Dictionary<string, TypeDefinition> map)
     {
-        var calls = map.Values.SelectMany(type => type.Methods).Where(method => method.HasBody)
-            .SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
-                    && (target.DeclaringType.FullName == "Microsoft.AspNetCore.Mvc.MvcOptions" && target.Name == "get_Filters"
-                        || IsFilterCollection(target.DeclaringType)))
-                .Select(instruction => (Owner: method, Target: (MethodReference)instruction.Operand))).ToArray();
+        // One fresh pass covers filter registration and statically typed provider
+        // capabilities. Runtime DI inventory separately covers the composed host.
+        var calls = new List<(MethodDefinition Owner, MethodReference Target)>();
+        foreach (var type in map.Values)
+        {
+            var provider = type.BaseType is { } parent && ProviderReference(parent)
+                || type.Interfaces.Any(contract => ProviderReference(contract.InterfaceType))
+                || type.Fields.Any(field => ProviderReference(field.FieldType))
+                || type.Properties.Any(property => ProviderReference(property.PropertyType))
+                || type.Events.Any(@event => ProviderReference(@event.EventType))
+                || type.GenericParameters.Any(ProviderConstraint);
+            foreach (var method in type.Methods)
+            {
+                provider |= MethodProviderReference(method) || method.GenericParameters.Any(ProviderConstraint);
+                if (!method.HasBody) continue;
+                provider |= method.Body.Variables.Any(variable => ProviderReference(variable.VariableType));
+                foreach (var instruction in method.Body.Instructions)
+                    switch (instruction.Operand)
+                    {
+                        case MethodReference target:
+                            provider |= MethodProviderReference(target);
+                            if (target.DeclaringType.FullName == "Microsoft.AspNetCore.Mvc.MvcOptions" && target.Name == "get_Filters"
+                                || IsFilterCollection(target.DeclaringType))
+                                calls.Add((method, target));
+                            break;
+                        case TypeReference reference:
+                            provider |= ProviderReference(reference);
+                            break;
+                        case FieldReference field:
+                            provider |= ProviderReference(field.DeclaringType) || ProviderReference(field.FieldType);
+                            break;
+                    }
+            }
+            if (provider)
+                yield return "Unexpected MVC filter provider capability: " + type.FullName
+                    + "; preserve the sole framework DefaultFilterProvider";
+        }
         var reads = calls.Where(site => site.Target.Name == "get_Filters").ToArray();
         var registrations = calls.Where(site => site.Target.Name != "get_Filters").ToArray();
         if (reads.Length != 1 || registrations.Length != 1
@@ -67,6 +140,63 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         static bool IsFilterCollection(TypeReference type) => type.FullName == "Microsoft.AspNetCore.Mvc.Filters.FilterCollection"
             || type is GenericInstanceType generic && generic.GenericArguments.Any(argument =>
                 argument.FullName == "Microsoft.AspNetCore.Mvc.Filters.IFilterMetadata");
+
+        static bool ProviderReference(TypeReference type) =>
+            type.Namespace == "Microsoft.AspNetCore.Mvc.Filters"
+                && type.Name is "IFilterProvider" or "FilterProviderContext" or "FilterItem"
+            || type is GenericInstanceType generic && generic.GenericArguments.Any(ProviderReference)
+            || type is TypeSpecification specification && ProviderReference(specification.ElementType);
+
+        static bool ProviderConstraint(GenericParameter parameter) =>
+            parameter.Constraints.Any(constraint => ProviderReference(constraint.ConstraintType));
+
+        static bool MethodProviderReference(MethodReference method) =>
+            ProviderReference(method.DeclaringType) || ProviderReference(method.ReturnType)
+            || method.Parameters.Any(parameter => ProviderReference(parameter.ParameterType))
+            || method is GenericInstanceMethod generic && generic.GenericArguments.Any(ProviderReference);
+    }
+
+    private static void AssertFilterProviderControls(Dictionary<string, TypeDefinition> map)
+    {
+        GlobalFilterOffenders(map).Should().BeEmpty();
+        var owner = map.Values.Single(type => type.FullName == Account);
+        using var compiled = ModuleDefinition.ReadModule(typeof(SurfaceCompositionProbe).Assembly.Location);
+        var probe = compiled.GetType(typeof(SurfaceCompositionProbe).FullName);
+        foreach (var name in new[] { nameof(SurfaceCompositionProbe.OrdinaryService), nameof(SurfaceCompositionProbe.Provider) })
+        {
+            var method = probe.Methods.Single(candidate => candidate.Name == name);
+            _ = method.Body.Instructions.Count;
+            probe.Methods.Remove(method);
+            owner.Methods.Add(method);
+            try
+            {
+                if (name == nameof(SurfaceCompositionProbe.OrdinaryService))
+                    GlobalFilterOffenders(map).Should().BeEmpty("ordinary typed DI registration remains legal");
+                else
+                    GlobalFilterOffenders(map).Should().Contain(error => error.StartsWith("Unexpected MVC filter provider capability:", StringComparison.Ordinal),
+                        "compiled generic DI registration can add effective filters without touching MvcOptions.Filters");
+            }
+            finally { owner.Methods.Remove(method); }
+        }
+        var provider = compiled.GetType(typeof(SurfaceFilterProvider).FullName);
+        _ = provider.Interfaces.Count;
+        _ = provider.Properties.Count;
+        foreach (var method in provider.Methods)
+            if (method.HasBody) _ = method.Body.Instructions.Count;
+        compiled.Types.Remove(provider);
+        owner.Module.Types.Add(provider);
+        map.Add(Key(provider), provider);
+        try
+        {
+            GlobalFilterOffenders(map).Should().Contain(error => error.StartsWith("Unexpected MVC filter provider capability:", StringComparison.Ordinal),
+                "a real compiled provider implementation is forbidden even before registration");
+        }
+        finally
+        {
+            map.Remove(Key(provider));
+            owner.Module.Types.Remove(provider);
+        }
+        GlobalFilterOffenders(map).Should().BeEmpty("restoring the production census must restore the provider predicate");
     }
 
     private static void AssertGlobalFilterControls(Dictionary<string, TypeDefinition> map)
@@ -168,6 +298,21 @@ internal static class SurfaceCompositionProbe
 {
     internal static void Anonymous(MvcOptions options) => options.Filters.Add(new AllowAnonymousFilter());
     internal static void Authorization(MvcOptions options) => options.Filters.Add<SurfaceAuthorizationFilter>();
+    internal static void OrdinaryService(IServiceCollection services) => services.AddSingleton<object>();
+    internal static void Provider(IServiceCollection services) => services.AddSingleton<IFilterProvider, SurfaceFilterProvider>();
+}
+
+internal sealed class SurfaceFilterProvider : IFilterProvider
+{
+    public int Order => int.MaxValue;
+
+    public void OnProvidersExecuting(FilterProviderContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        context.Results[0].Filter = new SurfaceAuthorizationFilter();
+    }
+
+    public void OnProvidersExecuted(FilterProviderContext context) => ArgumentNullException.ThrowIfNull(context);
 }
 
 internal sealed class SurfaceAuthorizationFilter : IAuthorizationFilter

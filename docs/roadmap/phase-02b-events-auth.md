@@ -12938,7 +12938,7 @@ do not qualify this delta. PR #33 remains open for maintainer review.
 
 ### Step 1 verification and review status
 
-Implementation is ready for its first correction commit. Warnings-as-errors
+Implementation is committed as `57f49ce0`. Warnings-as-errors
 Release builds with zero warnings/errors. Complete Unit passes 2,616; all five
 Contract cases pass; the 46-case architecture selection covers surface, mode,
 manifest, tenancy, authentication authority and corpus owners. The PostgreSQL
@@ -12955,10 +12955,42 @@ Serilog scalar/section combination and was reverted; the existing serialized
 logging collection remains authoritative. The corrected owners pass.
 
 The changed-document sweep resolves 2,216 relative file/fragment targets with
-none broken; seven ADR-parser controls and whitespace checks pass. Both fresh
-independent implementation review rounds remain pending until the frozen commit
-is inspected; complete architecture/Docker/native and managed demo qualification
-still belongs to final-source hosted CI.
+none broken; seven ADR-parser controls and whitespace checks pass. The first fresh
+independent implementation review round is recorded below; complete
+architecture/Docker/native and managed demo qualification still belongs to
+final-source hosted CI.
+
+#### Step 1 independent review round 1
+
+Three new read-only reviewers inspect `5daee8ad..57f49ce0`: GPT-6 Astra at
+xhigh covers runtime/security/resource lifetime; GPT-6.1 Sol at xhigh covers
+proof correctness and cost; another GPT-6.1 Sol at xhigh covers tenancy, real
+reader controls and corpus governance. Runtime and tenancy/corpus find no
+actionable issue. The proof review verifies two additional P2 coverage gaps:
+
+- A DI-registered `IFilterProvider` can replace effective executable filters
+  through `FilterItem.Filter` without changing `MvcOptions.Filters`. Pin the
+  actual provider inventory and bound production provider capability/registration,
+  with compiled dirty/restored controls.
+- A custom attribute implementing `IAllowAnonymous` is not the concrete
+  `AllowAnonymousAttribute`. Match inherited/implemented anonymous metadata,
+  preserve exactly the approved public attribute, and check actual endpoint
+  authorization metadata too.
+
+Neither finding demonstrates a production authentication bypass; no such
+provider/attribute is present, and the independent AccountSite gate remains.
+The verified fixes add the actual framework provider/ordering inventory and a
+real dirty DI provider that changes effective filter output while the options
+list remains unchanged. Compiled implementation/registration controls fail the
+provider diagnostic. Direct and inherited custom anonymous attributes fail the
+same authorization predicate; public actions still require the exact standard
+attribute. Actual endpoint metadata is checked independently.
+
+Release builds with zero warnings/errors and whitespace verification passes.
+Focused surface/authority architecture passes all 23 cases; actual runtime
+controls pass both Development/Production cases, with zero skips. These reviews are
+source inspections, not executed tests. The second fresh independent review
+round remains pending until the committed correction is inspected.
 
 ## Completion Criteria
 
