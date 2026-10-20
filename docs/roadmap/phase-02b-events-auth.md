@@ -13910,7 +13910,7 @@ version; its resource exposes no projection/filter parameter. The actual pinned
 PostgreSQL-backed HTTPS fixture returns **292,707 decoded bytes** on each of two
 authenticated reads, version `26.6.2`, identity encoding. The current production
 client correctly refuses this response at the accepted cap. Source:
-[pinned server information resource](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/info/ServerInfoAdminResource.java#L113-L160).
+[pinned server information resource](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/info/ServerInfoAdminResource.java#L120-L169).
 
 **Proposed delta.** Only the fixed, authenticated, read-only
 `GET /admin/serverinfo` exchange may consume at most **512 KiB decoded bytes**.
@@ -13922,8 +13922,10 @@ Wrong version, malformed JSON, overflow or uncertainty still refuses before
 the first mutation. The extra retained response allowance is at most 256 KiB for
 one sequential read; it is not a general transport-limit increase.
 
-**Alternatives.** Keeping the universal cap leaves actual reconciliation
-unusable. Skipping version validation would weaken the selected target contract.
+**Alternatives.** Keeping the universal cap with the current server-information
+probe leaves this implementation unusable. The authenticated partial-export
+alternative examined below can preserve that cap with a broader realm read.
+Skipping version validation would weaken the selected target contract.
 Parsing only a prefix and treating an aborted/truncated JSON response as success
 would not independently validate the complete version document. A general 512 KiB
 limit expands every exchange unnecessarily. A provider extension solely for a
@@ -13967,6 +13969,93 @@ system DNS, observes the supplied lookup and socket address, and verifies the
 unchanged localhost Host. The twenty transport cases pass in 10.141s with zero
 skips; the unchanged forty-six target/lock controls above remain applicable.
 This is an implementation checkpoint, not Step 2 review/qualification closure.
+
+### Additional version-source investigation (2026-10-21)
+
+The maintainer requested further research instead of accepting the proposed
+budget change. The proposal remains unaccepted; production code still uses the
+universal 256 KiB cap. The following read-only experiments run against isolated
+pinned PostgreSQL-backed HTTPS Keycloak, with owned CA/hostname validation and
+no redirects. They do not qualify the unfinished whole reconciler.
+
+| Fixed version-source probe | HTTP result | Decoded bytes | Live version available |
+|---|---|---:|---|
+| `GET /admin/serverinfo` | 200 | 292,705 | `26.6.2` |
+| Same GET with `fields=systemInfo.version` | 200 | 292,705 | `26.6.2`; no projection |
+| Same GET with `briefRepresentation=true` | 200 | 292,704 | `26.6.2`; no projection |
+| Same GET with `Range: bytes=0-262143` | 200, no Content-Range | 292,705 | `26.6.2`; range ignored |
+| `HEAD /admin/serverinfo` | 200, no qualified version header | 0 | No |
+| `POST /admin/realms/learnstack/partial-export?exportClients=false&exportGroupsAndRoles=false` | 200 | 44,655 | `26.6.2` |
+
+The four complete server-information documents use identity encoding and parse
+successfully; their one-byte variation is consistent with dynamic scalar fields.
+Earlier independent reads measured 292,707 bytes. Parsing takes 0.565–0.769ms in
+this small sample. The partial export parses in 0.245ms. These are diagnostic
+samples, not a latency comparison, capacity result or production percentile.
+Only the oversized measurement reads use the temporary 1 MiB measurement cap;
+the partial export succeeds through the unchanged 256 KiB client.
+
+**A genuine existing-budget alternative.** The fixed partial export is an
+authenticated read: its route/export implementation has no configuration-write
+or admin-event call, and it assigns `keycloakVersion` from the running JVM's
+`Version.VERSION`, not imported realm metadata. Independent tenant realm/user/
+client/profile/credential and Hub snapshots remain identical after the actual
+request. POST alone is not evidence of a mutation. Sources:
+[route](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/RealmAdminResource.java#L1356-L1398),
+[live version assignment](https://github.com/keycloak/keycloak/blob/26.6.2/model/storage-private/src/main/java/org/keycloak/exportimport/util/ExportUtils.java#L84-L96),
+[export and secret stripping](https://github.com/keycloak/keycloak/blob/26.6.2/model/storage-private/src/main/java/org/keycloak/storage/datastore/DefaultExportImportManager.java#L175-L183).
+
+False/false excludes users, client objects, role/group collections and service
+accounts. It still returns realm authentication/configuration data: the measured
+fixture contains 15 client scopes, 21 authentication flows, four authenticator
+configurations, 14 required actions and 15 component entries. The export source
+masks known secrets; this experiment has no positive credential-masking control
+and does not claim the complete document is nonsensitive. Its aggregate size
+depends on unrelated realm customization, which can exceed the existing cap.
+Scope/mapper and client-policy growth are not wholly new dependencies: the
+planner's existing scope-list read already includes all scopes and protocol
+mappers, and its realm GET includes client policies. Additional export coupling
+includes authentication flows/configurations, required actions, component trees,
+localization, IdPs/mappers and scope-role mappings, aggregated into one bounded
+document. Sources:
+[scope-list projection](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/ClientScopesResource.java#L95-L100),
+[scope and mapper projection](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/models/utils/ModelToRepresentation.java#L828-L841),
+[shared realm/client-policy projection](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/models/utils/ModelToRepresentation.java#L658-L674).
+Using it would require a fixed semantic read classification in the zero-write
+proofs; the current method-only test counter would misclassify that POST.
+
+**Other options.** `kcadm --fields` is client-side output filtering: the complete
+HTTP body is copied and parsed before filtering, so it does not solve this
+decoded-response limit. Source:
+[pinned CLI filtering](https://github.com/keycloak/keycloak/blob/26.6.2/integration/client-cli/admin-cli/src/main/java/org/keycloak/client/admin/cli/commands/AbstractRequestCmd.java#L364-L384).
+The Admin Console's resource-version value is not the live release-version
+contract. Container `kc.sh --version` is supported but starts another JVM and
+reports installed code, rather than an authenticated response from the running
+HTTP process. Sources:
+[console resource version](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/AdminConsole.java#L318-L353),
+[resource-version reassignment](https://github.com/keycloak/keycloak/blob/26.6.2/quarkus/runtime/src/main/java/org/keycloak/quarkus/runtime/storage/database/jpa/QuarkusJpaConnectionProviderFactory.java#L119-L143),
+[CLI version option](https://github.com/keycloak/keycloak/blob/26.6.2/quarkus/runtime/src/main/java/org/keycloak/quarkus/runtime/cli/command/Main.java#L57-L86),
+[JVM launcher](https://github.com/keycloak/keycloak/blob/26.6.2/quarkus/dist/src/main/content/bin/kc.sh#L82-L162).
+Prefix acceptance weakens complete-document validation; streaming the complete
+body or compressing it does not reduce total decoded bytes.
+
+**Recommendation, not acceptance.** Prefer the fixed 512 KiB server-information
+read because version qualification then remains independent of unrelated realm
+authentication/configuration growth and avoids exporting that configuration for
+a version check. The partial-export route is a viable alternative if retaining
+256 KiB universally takes priority. No technical minimum requires 512 KiB:
+320 KiB also fits the measured document, with approximately 34 KiB headroom;
+512 KiB leaves approximately 226 KiB. This is a bounded headroom choice, not an
+automatic expansion rule or a peak-memory guarantee. All other bounds and the
+proposed falsifiable controls above remain unchanged. Server-information size
+can itself grow with provider inventory; exceeding 512 KiB would still refuse
+before writes and require a new explicit decision, not a larger automatic limit.
+
+All temporary source/scenarios/output and compiled diagnostic classes are
+removed. Release integration builds pass with zero warnings/errors. Concrete
+owned provider/database/Ryuk containers and networks are independently confirmed
+absent. No configuration mutation, bound change or dependent activation is
+performed by this investigation.
 
 ## Completion Criteria
 
