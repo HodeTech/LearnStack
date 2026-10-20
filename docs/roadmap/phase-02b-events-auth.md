@@ -12888,7 +12888,8 @@ runbooks remain Phase 11 obligations.
 
 ## P02b-5 systematic proof and document corrections (2026-10-20)
 
-**In progress on development, starting at `5daee8ad`.** P02b-5's five
+**Both correction steps and review rounds complete on development, starting at
+`5daee8ad`.** P02b-5's five
 implementation steps and ADR-0065/0066 corrections are implemented and unmerged.
 This follow-up validates the current production subjects and their falsifiable
 controls. Earlier review conclusions are scoped to their source and inspected
@@ -13147,6 +13148,28 @@ observation now serves daemon ownership, while ordinary successful capture still
 waits for `close`. Both zero-then-23 and 17-then-23 retain the first daemon fault.
 All five ownership controls pass; the complete guarded frontend population passes
 1,699 (1,627 web and 72 SDK), zero skips/todos, with clean lint and typecheck.
+
+Both independent runtime and proof reviewers reinspect `49c2c431` and confirm
+the ordering finding closed, with no remaining actionable issue in the fix.
+These are source inspections, distinct from the locally executed controls.
+
+### Correction closeout and current-source PR qualification
+
+Both correction steps complete implementation, commits and two fresh independent
+review rounds. Verified findings from each round are fixed and committed; the
+targeted follow-up inspections close the final native-exit variant. No test
+population, timeout, required check, browser flag or audit threshold is relaxed.
+No new decision, schema, role, grant or deployment policy is introduced.
+
+The [live PR #33 handoff](https://github.com/HodeTech/LearnStack/pull/33) owns
+qualification of the exact current head and checkout merge: all hosted workers
+and required checks, API-bound immutable artifact identities, complete case
+unions, naturally completed cleanup and the frontend/browser/report proof.
+Local passing checks and earlier green runs do not qualify a later source. This
+record closes correction implementation/review, makes no merge or production
+readiness claim, and requires that current-source evidence before merge.
+P02b-6 remains unstarted. Phase 03 membership/authorization, P02b-7 BFF recovery
+and the named Phase 11 production-activation obligations retain their owners.
 
 ## Completion Criteria
 
