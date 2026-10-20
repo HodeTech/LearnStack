@@ -27,9 +27,12 @@ Realm reconciliation and BFF sessions remain P02b-6/P02b-7.
 [accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
 authorizes four implementation steps for real issuance, protected seed attributes,
 non-destructive development reconciliation, exact callbacks and issuance TTL.
-Runtime implementation remains pending; the current export and seed behavior
-described below remain the pre-implementation baseline. G13's BFF session part
-stays Open for P02b-7.
+Step 1 supplies the committed fresh-import scopes/profile/client definition and
+typed identity manifest. Warm reconciliation, entry-point wiring and complete
+provider/API security qualification remain Steps 2–4. G13's BFF session part
+stays Open for P02b-7. The
+[development realm guide](../../infra/keycloak/README.md) owns exact callbacks,
+private sources and current upgrade status.
 
 **Assertion diagnostics Accepted — 2026-10-20.**
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) admits 600
@@ -61,8 +64,9 @@ owns current implementation and proof status.
 that strict bearer boundary and exposes exact `GET /api/v1/account/site`.
 The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
 owns validation and review status. This updates the API-validation part of the
-2026-10-12 baseline above; realm mappers, BFF sessions and the application identity
-model remain with their named packets/phases. Public transport stays anonymous.
+2026-10-12 baseline above; P02b-6 owns the realm's issuance changes, P02b-7 the
+BFF session and Phase 03 the application identity model. Public transport stays
+anonymous.
 
 
 ## Why Not Build It Ourselves

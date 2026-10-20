@@ -1688,7 +1688,8 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 - **Asserts:** every test file in `LearnStack.Tests.Integration` that declares a test and
   needs a container — one under `Database/`, or one anywhere that names `SchemaFixture`,
-  `PostgresFixture` or the `SharedSchema` collection — carries
+  `PostgresFixture`, `KeycloakFixture` or the `SharedSchema` / `SharedKeycloakRealm`
+  collections — carries
   `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`.
   ADR-0062's shared native trait belongs to exactly the two complete native proof
   classes, including all predicate/theory/mutant rows. A nonempty source closure
@@ -1708,7 +1709,8 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   the whole project in Packet 9's fifth review. Its companion,
   `The_Docker_Trait_Sweep_Can_Actually_Fail`, feeds the predicate the shapes it must and
   must not flag, including the added native ownership/closure controls in P02b-4's
-  ADR-0062 follow-up. Actual discovered case IDs and complete partition results
+  ADR-0062 follow-up and P02b-6's provider-fixture/missing-trait controls.
+  Actual discovered case IDs and complete partition results
   are additionally checked by `scripts/ci-native-tests.py`.
 - **Phase:** 02a (Packet 6; widened in Packet 9).
 

@@ -55,7 +55,7 @@ pnpm --version
 (cd backend && dotnet restore LearnStack.slnx)
 (cd frontend && pnpm install --frozen-lockfile)
 
-# Docker must be running for the integration suite's Database/ cases
+# Docker must be running for Database/ and TenancyIdentity/ provider cases
 docker info >/dev/null && echo "docker OK"
 ```
 
@@ -66,8 +66,8 @@ backend/tests/
   LearnStack.Tests.Unit/           # No DB, no Docker. Pure unit tests.
   LearnStack.Tests.Architecture/   # Reflection + Roslyn + migration-scan rules.
   LearnStack.Tests.Integration/    # WebApplicationFactory HTTP tests (no Docker) AND the
-                                   # Testcontainers Postgres suite under Database/ (as
-                                   # learnstack_app), split by [Trait("Requires","Docker")].
+                                   # Postgres (learnstack_app) and TenancyIdentity/
+                                   # Keycloak/Postgres, split by [Trait("Requires","Docker")].
   LearnStack.Tests.Contract/       # OpenAPI / SDK contract assertions.
 
 frontend/apps/web/                 # Guarded Vitest unit/component/control suites.
@@ -118,7 +118,7 @@ before concluding a net is under you.
 | `MediatR_Pipeline_Order_Matches_Canonical_Sequence` | A behavior moved; the eight-step order is fixed by [ADR-0032](../../../docs/decisions/0032-exception-handling-logging-and-observability.md). |
 | `Integration_Event_TopicNames_FollowConvention` | Topic isn't `learnstack.{module}.{aggregate}`. |
 | `No_Source_Folder_Named_Verticals` | A `Verticals/` folder exists; ADR-0018 forbids it. |
-| `Every_Database_Test_Carries_The_Docker_Trait` | A test class under `Database/`, or one anywhere that takes a database fixture, is missing `[Trait(RequiresDocker.Key, RequiresDocker.Value)]` and would run in the wrong CI job. |
+| `Every_Database_Test_Carries_The_Docker_Trait` | A test class under `Database/`, or one anywhere referencing a database/Keycloak fixture or collection, is missing `[Trait(RequiresDocker.Key, RequiresDocker.Value)]` and would run in the wrong CI job. |
 | `Migrate_Target_Covers_Every_Migration_Chain` | A new chain exists that `make migrate` does not apply. |
 
 ### Step 5: Run integration tests

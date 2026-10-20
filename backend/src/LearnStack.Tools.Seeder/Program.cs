@@ -15,6 +15,11 @@ if (args is ["--demo-manifest"])
     Console.WriteLine(JsonSerializer.Serialize(DemoManifest.Create(), JsonSerializerOptions.Web));
     return 0;
 }
+if (args is ["--identity-manifest"])
+{
+    Console.WriteLine(JsonSerializer.Serialize(SeedIdentityManifest.Create(), JsonSerializerOptions.Web));
+    return 0;
+}
 if (args.Length != 0)
 {
     Console.Error.WriteLine("seed: unsupported arguments.");

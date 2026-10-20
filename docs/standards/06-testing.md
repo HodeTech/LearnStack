@@ -35,7 +35,9 @@ Text fallback (for renderers without Mermaid support — pyramid base → top):
 
 - **Unit tests** (base layer, widest) — domain + application + UI logic.
 - **Architecture tests** — module boundaries + tenant invariants.
-- **Integration tests** — Testcontainers **Postgres**. Valkey, SeaweedFS and the rest arrive with the phase that ships something calling them ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
+- **Integration tests** — Testcontainers **Postgres** and pinned Keycloak issuance.
+  Other providers arrive with their actual consumers
+  ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
 - **Contract & API tests** — OpenAPI + provider fakes.
 - **End-to-end / Playwright** (top, narrowest) — handful of golden flows.
 
@@ -60,7 +62,7 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 
 ### Integration Tests
 
-`LearnStack.Tests.Integration` holds **three populations**, and which one a test
+`LearnStack.Tests.Integration` holds **four populations**, and which one a test
 belongs to is decided by what it needs, not by what it is about:
 
 - **Host tests** — a real HTTP pipeline through `WebApplicationFactory`, no
@@ -91,12 +93,24 @@ belongs to is decided by what it needs, not by what it is about:
   resources. Test-only probes remain separate from the production endpoint set.
   These live under `Database/` with the rest of the Docker-bound suite and carry
   the same trait.
+- **Identity-provider tests** — P02b-6's `TenancyIdentity/KeycloakFixture` imports
+  the committed realms into Keycloak 26.6.2 with its own PostgreSQL database.
+  `SharedKeycloakRealm` shares that owned pair where state is read-only; mutation
+  cases own a separate fixture. The provider uses owned HTTPS with a generated
+  fixture CA, explicit custom-root trust and normal hostname verification; no
+  host trust-store mutation or certificate-validation bypass is allowed.
+  Code/S256 login and signed tokens are real;
+  capturing the registered HTTPS callback without following it does not prove a
+  browser/BFF session. Application isolation still requires the separate
+  `learnstack_app` fixture. Provider/admin credentials and tokens never enter
+  failure output. These cases carry the Docker trait and enter ordinary shards.
 
 **Where a Docker-bound test lives, and what it takes, is what routes it.**
 `Every_Database_Test_Carries_The_Docker_Trait` scans the whole of
 `LearnStack.Tests.Integration` and requires the trait on every test class under
 `Database/` and on every one elsewhere that takes a container fixture —
-`SchemaFixture`, `PostgresFixture` or the `SharedSchema` collection, as
+`SchemaFixture`, `PostgresFixture`, `KeycloakFixture`, or the `SharedSchema` /
+`SharedKeycloakRealm` collections, as
 `ApiHandlerCompositionTests` does. It scanned `Database/` alone until Packet 9's fifth
 review, which left a class beside the HTTP suites unchecked. A missing trait does not fail
 the class, it runs it in the `backend` job: the hosted runners also

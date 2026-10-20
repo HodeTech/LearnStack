@@ -280,7 +280,10 @@ trees. P02b-6's realm/TTL
 is Accepted — 2026-10-21. The maintainer approved the package at `6d75e532`
 and its four implementation steps. G12's realm/reconciliation/callback choices
 and G13's issuance-TTL part are Accepted; G13's session part stays Open.
-P02b-6 runtime implementation and P02b-7–8 remain pending;
+P02b-6 Step 1 is in progress; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
+owns implementation, fresh-provider qualification and review status.
+P02b-6 Steps 2–4 and P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full
 renderer/Studio expansion.

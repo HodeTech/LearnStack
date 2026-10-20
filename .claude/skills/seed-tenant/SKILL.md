@@ -223,4 +223,9 @@ localized schemas/bodies/pins supported by shipped contracts. Derive inventory a
 test expectations from the declaration. A new locale must be enabled before its
 translation is written. Domain-specific application behavior requires the owning
 phase's platform-feature decision; it cannot be hidden inside seed orchestration.
-Keycloak users still come from compose realm imports, not this tool.
+P02b-6 Step 1 declares development authentication personas in `SeedData.IdentityUsers`
+and exposes credential-free `--identity-manifest`; that mode opens no data source.
+Fresh Keycloak accounts come from the checked realm import. The accepted
+[P02b-6 package](../../../docs/roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+owns the separate development reconciler and its later seed/demo wiring.
+Direct .NET seeding creates no provider account or application membership.

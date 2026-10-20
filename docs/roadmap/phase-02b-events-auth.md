@@ -13791,6 +13791,55 @@ PostgreSQL, frontend and hosted qualification are not claimed by these checks.
   [account REST](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/account/AccountRestService.java),
   [built-in account client](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/managers/RealmManager.java).
 
+## P02b-6 Step 1 — executable realm and identity declaration (2026-10-21)
+
+**Status: local implementation and fresh-provider proofs pass; reviews pending.**
+Acceptance is committed at `285db56b`; implementation stays on `development`.
+This record claims no warm-realm reconciliation, BFF session or final-source CI
+qualification. Both independent implementation-review rounds remain pending.
+
+- `SeedData.IdentityUsers` owns four fixed actor identities and their tenant/host
+  association. The read-only `--identity-manifest` mode projects scalar facts,
+  including the host's organization and the narrowly recognized legacy value,
+  without credentials, persistence access or membership creation.
+- The tenant export defines the shared scalar-identity/access-only-audience scope,
+  actual pinned built-ins including `basic/sub`, protected admin-only profile
+  attributes, confidential code/S256 client, exact HTTPS callbacks and configured
+  900s realm lifespan without named-client overrides. Hub export is unchanged.
+- `.env.example` and Compose expose the selected server-only BFF secret source.
+  Existing confidential-secret verification and the refusal for an older private
+  file missing the key remain Step 2–3 work, before either entry invokes it.
+- `TenantRealmExportTests` compares the committed artifact to typed SeedData and
+  rejects 24 planted mapper, profile, client, scope, identity and TTL variants.
+  The Docker fixture imports the actual JSON into pinned Keycloak with a separate
+  PostgreSQL database and owned HTTPS/custom-root trust, with hostname validation
+  retained. No host certificate store is changed. Real code/S256 issuance passes
+  for all four declared identities; complete API/profile protection stays Step 4.
+- The existing Docker source census now covers `KeycloakFixture` and
+  `SharedKeycloakRealm` references outside `Database/`, with clean and missing-trait
+  controls. Existing catalogue counts are unchanged; both P02b-6 behavioural rules
+  stay Registered until their complete owners ship.
+
+**Current local validation.** Release solution build passes with zero warnings
+and errors. Two export cases, seven corpus/Docker-census cases and seven ADR
+parser controls and the existing demo-manifest case pass with zero skips. The
+guarded frontend run passes all 1,699 cases across both packages with zero
+skips/todos. Eleven actual Keycloak/PostgreSQL cases pass: all four signed token
+profiles, live TTL and scope/client configuration, both exact callbacks,
+missing/wrong secret and verifier, missing/plain challenge, unregistered redirect,
+disabled password grant and correct/wrong/correct CA controls. Fresh expiration
+uses the observed UTC/monotonic window with the explicit 2s fixture clock
+tolerance; exact realm configuration is independently checked. Owned containers
+and network are independently confirmed absent after the run.
+
+The fixture corrections retain normal provider behavior. Both realm imports use
+the unambiguous byte-array/file mapping: the pinned Testcontainers string/string
+overload interprets its target as a directory. Owned HTTPS resolves the pinned
+provider's Secure loopback cookie behavior without a cookie-forwarding workaround
+or changes to the production realm. Sources:
+[Testcontainers 4.15.0 mapping](https://github.com/testcontainers/testcontainers-dotnet/blob/4.15.0/src/Testcontainers/Builders/ContainerBuilder%603.cs#L208-L223),
+[Keycloak 26.6.2 secure context](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/utils/SecureContextResolver.java#L32-L55).
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

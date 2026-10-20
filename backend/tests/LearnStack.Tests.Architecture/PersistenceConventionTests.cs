@@ -921,6 +921,9 @@ public sealed partial class PersistenceConventionTests
             ("RootForgotTests.cs", "public class RootForgotTests(Database.SchemaFixture schema) { [Fact] public void A() { } }"),
             ("RootTraitedTests.cs", $"{Qualified} public class RootTraitedTests(Database.SchemaFixture schema) {{ [Theory] public void A() {{ }} }}"),
             ("HttpOnlyTests.cs", "public class HttpOnlyTests { [Fact] public void A() { } }"),
+            ("IdentityMissingTests.cs", "public class IdentityMissingTests(KeycloakFixture realm) { [Fact] public void A() { } }"),
+            ("IdentityCollectionMissingTests.cs", "[Collection(SharedKeycloakRealm.Name)] public class IdentityCollectionMissingTests { [Fact] public void A() { } }"),
+            ("IdentityTraitedTests.cs", $"{Trait} public class IdentityTraitedTests(KeycloakFixture realm) {{ [Fact] public void A() {{ }} }}"),
             ("Database/PartialMain.cs", $"namespace Valid; {Trait} public partial class SplitTests {{ }}"),
             ("Database/PartialCase.cs", "namespace Valid; public partial class SplitTests { [Fact] public void A() { } }"),
             ("Database/MissingPartialMain.cs", "namespace Missing; public partial class SplitTests { }"),
@@ -934,7 +937,7 @@ public sealed partial class PersistenceConventionTests
             ("Database/NonPartialTrait.cs", $"namespace Unmerged; {Trait} public class UnmergedTests {{ }}"),
             ("Database/NonPartialCase.cs", "namespace Unmerged; public class UnmergedTests { [Fact] public void A() { } }"),
         ]).Should().Equal("Database/CommentOnly.cs", "Database/ForeignTrait.cs", "Database/ForgotTests.cs", "Database/MissingPartialCase.cs",
-            "Database/NonPartialCase.cs", "Database/SameFile.cs", "RootForgotTests.cs");
+            "Database/NonPartialCase.cs", "Database/SameFile.cs", "IdentityCollectionMissingTests.cs", "IdentityMissingTests.cs", "RootForgotTests.cs");
 
         const string Native = "[Trait(NativeCrashProof.Key, NativeCrashProof.Value)]";
         const string Namespace = "namespace LearnStack.Tests.Integration.Database; ";
@@ -1268,7 +1271,8 @@ public sealed partial class PersistenceConventionTests
     }
 
     /// <summary>The fixtures that start a PostgreSQL container, by the names a test takes them under.</summary>
-    private static readonly string[] DockerFixtures = ["SchemaFixture", "PostgresFixture", "SharedSchema"];
+    private static readonly string[] DockerFixtures =
+        ["SchemaFixture", "PostgresFixture", "SharedSchema", "KeycloakFixture", "SharedKeycloakRealm"];
 
     [Fact]
     public void Migrate_Target_Covers_Every_Migration_Chain()
