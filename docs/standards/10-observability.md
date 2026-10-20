@@ -233,7 +233,9 @@ ordinary trace positive; ordinary destinations are not forbidden in all payloads
 The actual singleton-budget suppression path is also exported through the root's
 `LearnStack.Api` meter subscription. Its test waits for the correlated Warning
 while the logger owner is alive: a metrics flush is not a log-delivery receipt.
-The new ordinary-destination controls remain pending with ADR-0065's implementation.
+The ordinary-destination controls are implemented; the
+[P02b-5 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+owns their current qualification status.
 
 Step 3 implements recorder/claimless/quota diagnostics; Steps 4–5 qualify the
 complete active path. Acceptance alone claims none of these mechanisms delivered.

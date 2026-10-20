@@ -42,8 +42,10 @@ final-source hosted qualification),
 (Accepted 2026-10-19; P02b-5 obligations implemented; Step 5 owns final review
 and full hosted qualification),
 [ADR-0065 Bounded Tenant Assertion Diagnostics](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
-(Accepted 2026-10-20; extends existing obligations below; dependent audit-budget
-and additional telemetry controls remain pending implementation).
+(Accepted 2026-10-20; extends existing obligations below; audit-budget and
+telemetry controls implemented; the
+[P02b-5 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+owns current qualification status).
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
