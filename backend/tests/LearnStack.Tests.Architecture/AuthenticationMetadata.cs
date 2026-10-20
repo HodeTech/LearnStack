@@ -15,15 +15,21 @@ internal static class AuthenticationMetadata
     });
 
     internal static bool IsData(TypeReference reference, IReadOnlyDictionary<string, TypeDefinition> types) =>
-        Implements(reference, types, "Microsoft.AspNetCore.Authorization.AuthorizeAttribute",
-            "Microsoft.AspNetCore.Authorization.IAuthorizeData");
+        Implements(reference, types, "Microsoft.AspNetCore.Authorization.IAuthorizeData",
+            "Microsoft.AspNetCore.Authorization.AuthorizeAttribute");
 
     internal static bool IsAnonymous(TypeReference reference, IReadOnlyDictionary<string, TypeDefinition> types) =>
-        Implements(reference, types, "Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute",
-            "Microsoft.AspNetCore.Authorization.IAllowAnonymous");
+        Implements(reference, types, "Microsoft.AspNetCore.Authorization.IAllowAnonymous",
+            "Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute");
+
+    internal static bool IsRequirementData(TypeReference reference, IReadOnlyDictionary<string, TypeDefinition> types) =>
+        Implements(reference, types, "Microsoft.AspNetCore.Authorization.IAuthorizationRequirementData");
+
+    internal static bool IsFilterData(TypeReference reference, IReadOnlyDictionary<string, TypeDefinition> types) =>
+        Implements(reference, types, "Microsoft.AspNetCore.Mvc.Filters.IFilterMetadata");
 
     private static bool Implements(TypeReference reference, IReadOnlyDictionary<string, TypeDefinition> types,
-        string standardAttribute, string contractName)
+        string contractName, string? standardAttribute = null)
     {
         var visited = new HashSet<string>(StringComparer.Ordinal);
         return Visit(reference);

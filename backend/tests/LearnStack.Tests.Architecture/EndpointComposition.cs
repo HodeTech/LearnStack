@@ -17,6 +17,15 @@ internal static class EndpointComposition
         || method.Name is "AddApplicationPart" or "ConfigureApplicationPartManager"
             && method.DeclaringType.FullName.StartsWith("Microsoft.Extensions.DependencyInjection.", StringComparison.Ordinal)
         || method.Name == "get_ApplicationParts" && method.DeclaringType.FullName == "Microsoft.AspNetCore.Mvc.ApplicationParts.ApplicationPartManager"
+        || method.Name is "RequireAuthorization" or "AllowAnonymous" or "WithMetadata"
+            && method.DeclaringType.Namespace == "Microsoft.AspNetCore.Builder"
+        || method.Name is "Add" or "Finally" && method.DeclaringType.Namespace == "Microsoft.AspNetCore.Builder"
+            && method.Parameters.Any(parameter => parameter.ParameterType is GenericInstanceType callback
+                && callback.ElementType.FullName == "System.Action`1"
+                && callback.GenericArguments.Any(type => type.FullName == "Microsoft.AspNetCore.Builder.EndpointBuilder"))
+        || method.Name == "get_Metadata" && method.DeclaringType.FullName == "Microsoft.AspNetCore.Builder.EndpointBuilder"
+        || method.Name == "get_EndpointMetadata"
+            && method.DeclaringType.FullName == "Microsoft.AspNetCore.Mvc.ApplicationModels.SelectorModel"
         || method.Name == "UseEndpoints" && method.DeclaringType.FullName.StartsWith("Microsoft.AspNetCore.Builder.", StringComparison.Ordinal)
         || method.Name == "Run" && method.DeclaringType.FullName == "Microsoft.AspNetCore.Builder.RunExtensions";
 

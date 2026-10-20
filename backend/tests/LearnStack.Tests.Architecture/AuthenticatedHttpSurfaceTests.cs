@@ -71,6 +71,8 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         AssertPublicAuthorizationControls(map);
         AssertAnonymousMetadataControls(map);
+        AssertAttachedMetadataControls(map);
+        AssertEndpointConventionControls(api);
         AssertGlobalFilterControls(map);
         AssertFilterProviderControls(map);
         var account = api.GetType(Account);
@@ -344,6 +346,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                         && attribute.ConstructorArguments[0].Value is not 1))
                     errors.Add("HTTP ceiling permits only the existing /api/v1 major: " + type.FullName);
                 foreach (var offender in AuthorizationOffenders(type, action, map, authorizationPredicate)) errors.Add(offender);
+                foreach (var offender in AttachedFilterOffenders(type, action, map)) errors.Add(offender);
                 if (!PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName))
                     errors.Add("Construct exactly " + entry.Request.FullName + " at the single direct ISender.Send: " + type.FullName + "." + action.Name);
             }
@@ -371,8 +374,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var actualMappings = sites.Select(site => MappingName(site.Owner, site.Target)).ToArray();
         foreach (var mapping in InfrastructureMappings)
             if (actualMappings.Count(actual => actual == mapping) != 1) errors.Add("Require exactly one infrastructure mapping: " + mapping);
-        foreach (var mapping in actualMappings.Except(InfrastructureMappings, StringComparer.Ordinal))
-            errors.Add("Unapproved endpoint mapping: " + mapping);
+        foreach (var offender in UnapprovedMappingOffenders(sites)) errors.Add(offender);
         foreach (var site in sites)
             if (!InfrastructurePathIsApproved(site, map)) errors.Add("Unexpected infrastructure path/handler/signature: " + MappingName(site.Owner, site.Target));
         return errors;
@@ -382,6 +384,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         Func<TypeReference, bool>? predicate)
     {
         var attributes = Attributes(controller, map).Concat(action.CustomAttributes).ToArray();
+        if (attributes.Any(attribute => AuthenticationMetadata.IsRequirementData(attribute.AttributeType, map))) return false;
         var authorizations = attributes.Where(attribute => (predicate ?? (type => AuthenticationMetadata.IsData(type, map)))(attribute.AttributeType)).ToArray();
         var anonymous = attributes.Where(attribute => AuthenticationMetadata.IsAnonymous(attribute.AttributeType, map)).ToArray();
         if (controller.FullName != Account) return anonymous.Length == 1 && authorizations.Length == 0
@@ -400,6 +403,10 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         if (!Authorized(controller, action, map, predicate))
             yield return "Unexpected authorization metadata: " + controller.FullName + "." + action.Name;
     }
+
+    private static IEnumerable<string> UnapprovedMappingOffenders(IEnumerable<Mapping> sites) =>
+        sites.Select(site => MappingName(site.Owner, site.Target)).Except(InfrastructureMappings, StringComparer.Ordinal)
+            .Select(mapping => "Unapproved endpoint mapping: " + mapping);
 
     private static IEnumerable<string> NestedDispatchOffenders(TypeDefinition[] roots, Dictionary<string, TypeDefinition> map)
     {

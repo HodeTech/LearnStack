@@ -24,7 +24,7 @@ namespace LearnStack.Tests.Integration;
 
 /// <summary>ADR-0064's real endpoint union and the request each discovered MVC action actually sends.</summary>
 [Collection(TenantAuthenticationDiagnosticsTestGroup.Name)]
-public sealed class AuthenticatedHttpSurfaceRuntimeTests
+public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
 {
     [Theory]
     [InlineData("Development")]
@@ -47,6 +47,7 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
             Type? request = null;
             if (action is not null)
             {
+                AssertActionFilterControls(action);
                 AssertEndpointAuthorizationControls(action, endpoint.Metadata);
                 request = await DispatchedRequest(action);
             }
@@ -97,6 +98,8 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
         var items = metadata.ToArray();
         var anonymous = items.OfType<IAllowAnonymous>().ToArray();
         var authorizations = items.OfType<IAuthorizeData>().ToArray();
+        items.OfType<AuthorizationPolicy>().Should().BeEmpty("explicit policies are a separate framework authorization channel");
+        items.OfType<IAuthorizationRequirementData>().Should().BeEmpty("requirement metadata must not augment the approved authorization contract");
         if (action.ControllerTypeInfo.AsType() == typeof(AccountController))
         {
             anonymous.Should().BeEmpty("Account metadata must never bypass authorization");
@@ -172,7 +175,11 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
 
     private sealed class UnexpectedAuthorizationFilter : IAuthorizationFilter
     {
-        public void OnAuthorization(AuthorizationFilterContext context) => ArgumentNullException.ThrowIfNull(context);
+        public void OnAuthorization(AuthorizationFilterContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            context.Result = new UnauthorizedResult();
+        }
     }
 
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
@@ -250,7 +257,8 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
 
     private sealed class DispatchObservedException : Exception;
 
-    private sealed class SurfaceFactory(string environment, bool addFilterProvider = false) : ConstructionOnlyApiFactory
+    private sealed class SurfaceFactory(string environment, bool addFilterProvider = false,
+        Action<MvcOptions>? configureMvc = null) : ConstructionOnlyApiFactory
     {
         protected override void ConfigureTestHost(IWebHostBuilder builder)
         {
@@ -260,6 +268,8 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
             builder.UseSetting("Authentication:Tenant:Issuer", "https://identity.example/realms/learnstack");
             if (addFilterProvider)
                 builder.ConfigureTestServices(services => services.AddSingleton<IFilterProvider, UnexpectedFilterProvider>());
+            if (configureMvc is not null)
+                builder.ConfigureTestServices(services => services.Configure(configureMvc));
         }
     }
 }

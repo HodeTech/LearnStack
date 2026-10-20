@@ -12990,7 +12990,44 @@ Release builds with zero warnings/errors and whitespace verification passes.
 Focused surface/authority architecture passes all 23 cases; actual runtime
 controls pass both Development/Production cases, with zero skips. These reviews are
 source inspections, not executed tests. The second fresh independent review
-round remains pending until the committed correction is inspected.
+round inspects the committed correction below.
+
+#### Step 1 independent review round 2
+
+Three fresh read-only reviewers inspect `5daee8ad..6380fccc`: GPT-6 Astra at
+xhigh covers proof closure; GPT-6.1 Sol at xhigh covers runtime, cleanup and
+effective authorization; GPT-6.1 Sol at high covers corpus governance and
+tenancy proofs. Corpus and the runtime corrections have no actionable finding.
+The two proof findings concern supported MVC composition channels:
+
+- Attached/inherited action or controller filters can change effective
+  `ControllerActionDescriptor.FilterDescriptors` while the global options and
+  provider inventories remain unchanged. Inventory effective descriptors and
+  exercise attached filters/factories with dirty/restored controls.
+- Explicit `AuthorizationPolicy` or `IAuthorizationRequirementData` endpoint
+  metadata is consumed separately from `IAuthorizeData`/`IAllowAnonymous`.
+  Reject these additional channels on the approved endpoints and exercise a
+  real convention-injected policy as well as compiled metadata/conventions.
+
+Neither finding identifies a current production bypass. The runtime correction
+pins all six effective per-action descriptors, including framework factories,
+the inherited API marker, exact declared response type, scope, order, reuse and
+factory arguments. Added/removed/changed descriptors fail the same assertion.
+Three real attached-filter convention controls preserve global options/provider
+inventories while changing the effective descriptors. Two real endpoint
+conventions separately inject an explicit policy and requirement metadata;
+removing only that metadata restores the authorization assertion. All seven
+runtime cases pass with zero skips. Compiled direct/inherited attributes cover
+both filter and requirement interfaces; type/service factories and inherited
+controller metadata fail their intended diagnostics. The shared endpoint
+capability census covers the ordinary authorization/metadata conventions and
+their supported direct mutation APIs, with an unchanged display-name convention
+as the clean control. A getter alone is not treated as a metadata write: the
+existing idempotency OpenAPI transformer only reads metadata. No owner allowlist
+was added. Release builds with zero warnings/errors; all 53 focused
+surface/authority, public-surface, tenancy, job-manifest and corpus architecture
+cases pass with zero skips. Targeted reviewer confirmation remains in progress;
+Step 2 implementation has not started.
 
 ## Completion Criteria
 

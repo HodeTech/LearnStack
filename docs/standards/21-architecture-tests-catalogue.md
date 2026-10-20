@@ -4625,6 +4625,13 @@ structural test proves — and what it does not.
   the existing exact-type physical ReadOnly owner: a planted SQL write is refused.
   No-store covers early errors; served OpenAPI and disjoint exhaustive
   public/authenticated SDK GET ownership agree without a public AccountSite wrapper.
+  The real per-action MVC filter descriptors preserve the exact framework,
+  normalizer and response metadata, including scope, order, factory arguments and
+  reuse. Attached or inherited executable filters and explicit authorization
+  policy/requirement metadata fail independently. Compiled attached-attribute and
+  ordinary endpoint-convention controls cover these supported composition channels;
+  this bounded source/runtime proof does not model arbitrary reflection or dynamic
+  framework behavior.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
   § Closed authenticated read; ADR-0040 and ADR-0052's 2026-10-19 disclosures;
   [Security Standards](11-security.md#the-rule).
