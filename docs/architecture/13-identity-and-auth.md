@@ -39,9 +39,9 @@ or general mutation durability. Subject quota remains separate.
 all tenants/hosts, bounded idle-only cleanup and distinct quota/capacity/fault
 signals. Occupied live slots can deny other tenants' new subjects; there is no
 reserved share or end-to-end throughput promise. Its implementation has local
-runtime/exported proofs; both fresh implementation review rounds and final-source
-CI qualification remain pending in the
-[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
+runtime/exported proofs; the
+[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+owns independent reviews and final-source CI qualification.
 ADR-0065 also ratifies
 process-wide native HTTP/DNS metric
 projection and ordinary dependency-attribution loss while preserving ordinary

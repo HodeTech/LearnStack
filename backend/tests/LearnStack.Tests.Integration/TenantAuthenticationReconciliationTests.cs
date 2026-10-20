@@ -291,7 +291,7 @@ public sealed partial class TenantAuthenticationReconciliationTests
     internal static async Task AssertProblem(HttpResponseMessage response, HttpStatusCode status, string code)
     {
         response.StatusCode.Should().Be(status);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        (response.Content.Headers.ContentType?.MediaType).Should().Be("application/problem+json");
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var problem = document.RootElement;
         problem.GetProperty("status").GetInt32().Should().Be((int)status);

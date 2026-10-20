@@ -17,9 +17,9 @@ from [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
 2026-10-20 acceptance precedes dependent audit-budget implementation.
 Subject-admission refusal and cleanup-fault signals derive from
 [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md), Accepted —
-2026-10-20. Their implementation and local exported proofs are delivered; both
-fresh implementation review rounds and final-source CI qualification remain
-pending in the [implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
+2026-10-20. Their implementation and local exported proofs are delivered; the
+[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+owns independent reviews and final-source CI qualification.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -222,8 +222,9 @@ sticky cleanup-fault transition, including faults first observed by the timer.
 Neither metric carries issuer, subject, actor, tenant, host, token or correlation;
 retained exceptions are not metric values or exported provider diagnostics. No
 new per-refusal Warning or audit write is introduced. The signals have local
-actual-OTLP proofs; implementation review and final-source CI remain pending.
-These proofs install neither production alerts nor mapped readiness. Phase 11
+actual-OTLP proofs; the implementation record owns independent reviews and
+final-source CI qualification. These proofs install neither production alerts nor
+mapped readiness. Phase 11
 owns sizing, alert routing and the separate quota/capacity/fault production
 runbook; liveness and audit health do not diagnose this registry.
 

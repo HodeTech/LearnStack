@@ -242,7 +242,7 @@ public sealed class TenantAuthenticationHttpTests
 
     internal static void NoStore(HttpResponseMessage response)
     {
-        response.Headers.CacheControl?.NoStore.Should().BeTrue();
+        (response.Headers.CacheControl?.NoStore).Should().BeTrue();
         response.Headers.ETag.Should().BeNull();
         response.Content.Headers.LastModified.Should().BeNull();
     }

@@ -141,8 +141,8 @@ public sealed partial class TenantSubjectRateLimiterTests
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {
             _timer.Should().BeNull();
-            dueTime.Should().BeGreaterThan(TimeSpan.Zero);
-            period.Should().BeGreaterThan(TimeSpan.Zero);
+            dueTime.Should().Be(TimeSpan.FromSeconds(30), "ADR-0066 fixes the first retirement pass at 30 seconds");
+            period.Should().Be(TimeSpan.FromSeconds(30), "ADR-0066 fixes the retirement cadence at 30 seconds");
             _timer = new ManualTimer(callback, state);
             return _timer;
         }

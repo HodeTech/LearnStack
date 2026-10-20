@@ -266,10 +266,9 @@ The [second external-review follow-up](docs/roadmap/phase-02b-events-auth.md#p02
 owns subsequent runtime/proof corrections and their source-bound reviews.
 [ADR-0066](docs/decisions/0066-bounded-tenant-subject-admission.md) is Accepted —
 2026-10-20. Its retained-subject bound, cleanup ownership and closed fault/refusal
-signals are implemented with local runtime/exported proofs. Both fresh implementation
-review rounds and final-source CI qualification remain pending. The
+signals are implemented with local runtime/exported proofs. The
 [implementation record](docs/roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
-owns source-bound validation and review status.
+owns source-bound validation, independent reviews and final-source CI qualification.
 Phase 06 retains the full
 renderer/Studio expansion.
 

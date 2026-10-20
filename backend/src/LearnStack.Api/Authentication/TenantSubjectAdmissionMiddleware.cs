@@ -1,5 +1,6 @@
 using System.Globalization;
 using LearnStack.Api.Common;
+using LearnStack.Api.PublicReads;
 using LearnStack.Api.Tenancy;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -33,6 +34,9 @@ internal sealed class TenantSubjectAdmissionMiddleware(RequestDelegate next, Ten
             return;
         }
 
+        // Subject admission also protects classified, unmatched API paths.
+        // Their refusals need the same policy as known public/account routes.
+        PublicResponsePolicy.Apply(context.Response);
         if (outcome.Outcome == SubjectAdmissionOutcome.RegistryFault)
         {
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;

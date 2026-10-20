@@ -29,7 +29,7 @@ public sealed partial class TenantAuthenticationReconciliationTests
         var rotated = TenantAuthenticationIssuer.AddProperty(issuer.Without("organization_id"), "jti", "fresh-jti");
         using var rejected = await host.SendAsync(issuer.Token(rotated));
         await AssertProblem(rejected, HttpStatusCode.TooManyRequests, "rate_limited");
-        rejected.Headers.RetryAfter?.Delta.Should().BeGreaterThan(TimeSpan.Zero);
+        (rejected.Headers.RetryAfter?.Delta).Should().BeGreaterThan(TimeSpan.Zero);
         host.Recorder.Rejections.Should().HaveCount(3, "quota refusal does no downstream durable recording work");
         host.ResolvedRequests.Should().BeEmpty();
 
@@ -87,7 +87,7 @@ public sealed partial class TenantAuthenticationReconciliationTests
         using var refused = await host.SendAsync(authenticated ? issuer.Token(issuer.Without("organization_id")) : null,
             path: TenantAuthenticationReconciliationHost.PublicPath);
         await AssertProblem(refused, HttpStatusCode.TooManyRequests, "rate_limited");
-        refused.Headers.RetryAfter?.Delta.Should().BeGreaterThan(TimeSpan.Zero);
+        (refused.Headers.RetryAfter?.Delta).Should().BeGreaterThan(TimeSpan.Zero);
         host.Ports.HostLookups.Should().HaveCount(LearnStack.Api.Tenancy.RateLimitingExtensions.AnonymousPermitPerWindow,
             "the ingress refusal still precedes classification and JWT work");
         host.ResolvedRequests.Should().HaveCount(LearnStack.Api.Tenancy.RateLimitingExtensions.AnonymousPermitPerWindow);

@@ -12795,7 +12795,9 @@ Current local Release results, all with zero skips:
   PostgreSQL/OTLP rate-limit cases (three new rows).
 - Non-Docker integration selection: 276 passed.
 - Contract: five passed. SDK: 65 passed; generation/typecheck pass.
-- Warnings-as-errors builds pass; the full architecture run remains in progress.
+- Full architecture: 433 passed at implementation head `01799550`; this complete
+  run precedes the shared response-policy correction below.
+- Warnings-as-errors Release solution builds pass with zero warnings/errors.
 
 Early integration attempts exposed synthetic teardown assumptions: the web
 factory did not propagate an externally owned singleton's disposal exception,
@@ -12804,10 +12806,44 @@ the explicit owner, accept only the exact planted failure tree and separately
 exercise real sync/async service-provider shutdown. Earlier failed attempts are
 not counted as passes or reported as product runtime defects.
 
-The implementation commit and two fresh independent implementation review rounds
-remain pending. Revision reviews above qualify the proposal only. Final-source
-hosted CI, artifacts and PR reconciliation remain pending; historical receipts
-from earlier source heads do not qualify this implementation.
+Implementation is committed as `01799550`, after acceptance-only `c8b9d89e`.
+Revision reviews above qualify the proposal only. Final-source hosted CI, artifacts
+and PR reconciliation remain pending; historical receipts from earlier source
+heads do not qualify this implementation.
+
+#### ADR-0066 implementation independent review round 1
+
+Three fresh read-only reviewers inspect frozen `01799550` against `453d5c3a`:
+GPT-6 Astra at xhigh covers concurrency/security/resource ownership; GPT-6.1 Sol
+at xhigh covers proofs/DI/exported metrics; GPT-6.1 Sol at high covers the corpus,
+OpenAPI/SDK and authority closure. No build, runtime probe or hosted qualification
+is attributed to these inspections. Two findings are verified and corrected:
+
+- A classified unknown API path reaches subject admission outside the public/
+  AccountSite response wrapper. Subject refusals therefore missed `no-store`.
+  The shared response policy now applies to every subject refusal, independently
+  of endpoint matching, preserving the one Problem Details writer.
+- The manual timer accepted any positive cadence. Its first due time and period
+  now independently require the accepted 30 seconds.
+
+Root verification also exposes a false-green header helper: a null-conditional
+chain could skip the entire assertion when `Cache-Control` was absent. Grouped
+nullable values now fail for absent no-store, retry and content-type headers in
+these authentication helpers. Clean, absent and false no-store controls make this
+specific omission fail. Initial unknown-path cases passed through the weak helper;
+with the strict helper both signed rows fail on missing `Cache-Control` before the
+runtime fix. Those initial passes are not accepted as the regression proof.
+
+After the fix, both rows exercise unknown-path quota, capacity and cleanup-fault
+refusals with exact body/status/retry/no-store, unchanged resolution/audit/read
+observers and updated actual exported counts. The complete 147-case authentication
+selection passes, including all five focused PostgreSQL/OTLP rate cases. Thirty
+focused unit cases and 25 authentication-authority/corpus cases pass, all with zero
+skips. The Release solution build has zero warnings/errors. The 433-case complete
+architecture run above remains separately bound to the implementation before this
+small response-policy change; final-source hosted shards must qualify the full
+current population. A second fresh independent implementation review round remains
+pending after the correction commit.
 
 ## Completion Criteria
 

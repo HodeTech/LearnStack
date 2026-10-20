@@ -64,7 +64,7 @@ public sealed partial class AuthenticatedRateLimitTests(PublicReadFixture fixtur
             token: AccountSiteHttpTests.Token(issuer, SeedData.Yoga, organization: true,
                 tokenId: "fresh-token", actor: Guid.Parse("d63c55bb-38ca-4308-ad1a-d4f36997b497")));
         await TenantAuthenticationHttpTests.Problem(refused, HttpStatusCode.TooManyRequests, "rate_limited");
-        refused.Headers.RetryAfter?.Delta.Should().BeGreaterThan(TimeSpan.Zero);
+        (refused.Headers.RetryAfter?.Delta).Should().BeGreaterThan(TimeSpan.Zero);
         observed.Rejections.Count.Should().Be(3);
         fixture.Observation.Reads.Should().Be(reads, "subject refusal runs before the actual account reader");
 
@@ -122,7 +122,7 @@ public sealed partial class AuthenticatedRateLimitTests(PublicReadFixture fixtur
         using var rejected = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
             token: AccountSiteHttpTests.Token(issuer, SeedData.English, subject: "fresh-subject"));
         await TenantAuthenticationHttpTests.Problem(rejected, HttpStatusCode.TooManyRequests, "rate_limited");
-        rejected.Headers.RetryAfter?.Delta.Should().BeGreaterThan(TimeSpan.Zero);
+        (rejected.Headers.RetryAfter?.Delta).Should().BeGreaterThan(TimeSpan.Zero);
         fixture.Observation.Reads.Should().Be(reads + RateLimitingExtensions.AnonymousPermitPerWindow);
     }
 

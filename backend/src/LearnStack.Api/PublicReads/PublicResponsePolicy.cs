@@ -3,7 +3,7 @@ using LearnStack.Api.Versioning;
 
 namespace LearnStack.Api.PublicReads;
 
-/// <summary>Wraps public and exact account-site responses, including refusals before the tenant pipeline.</summary>
+/// <summary>Owns no-store headers for public/account responses and every subject-admission refusal.</summary>
 public static class PublicResponsePolicy
 {
     public static IApplicationBuilder UseLearnStackPublicResponsePolicy(this IApplicationBuilder app)
@@ -31,7 +31,7 @@ public static class PublicResponsePolicy
         });
     }
 
-    private static void Apply(HttpResponse response)
+    internal static void Apply(HttpResponse response)
     {
         response.Headers.CacheControl = "no-store";
         response.Headers.Remove("ETag");

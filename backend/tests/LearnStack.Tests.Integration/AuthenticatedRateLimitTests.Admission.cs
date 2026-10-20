@@ -21,6 +21,7 @@ namespace LearnStack.Tests.Integration;
 public sealed partial class AuthenticatedRateLimitTests
 {
     private static readonly TimeSpan AdmissionDeadline = TimeSpan.FromSeconds(15);
+    private const string UnknownAdmissionPath = "/api/v1/admission-unknown";
 
     [Theory]
     [InlineData(false)]
@@ -31,6 +32,7 @@ public sealed partial class AuthenticatedRateLimitTests
         await using var collector = await TenantAuthenticationDiagnosticCollector.StartAsync();
         using var scenario = new AdmissionScenario();
         AssertKnownFailureTreeControls(scenario.Failure);
+        AssertNoStoreHeaderControls();
         var observed = new SubjectQuotaObservation();
         var memberships = new AdmissionMembershipObservation();
         HttpClient? client = AdmissionClient(issuer, scenario, observed, memberships, collector.Endpoint);
@@ -62,8 +64,16 @@ public sealed partial class AuthenticatedRateLimitTests
             using (var quota = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
                        TenantAuthenticationHttpRequest.PublicPath, claimlessA))
                 await AdmissionProblem(quota, HttpStatusCode.TooManyRequests, "rate_limited", 60);
+            using (var unknownQuota = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
+                       UnknownAdmissionPath, claimlessA))
+                await AdmissionProblem(unknownQuota, HttpStatusCode.TooManyRequests, "rate_limited", 60);
             using (var capacity = await AdmissionSend(client, issuer, "admission-subject-C", organization: true))
                 await AdmissionProblem(capacity, HttpStatusCode.TooManyRequests, "rate_limited", 60);
+            var capacityToken = AccountSiteHttpTests.Token(issuer, SeedData.English,
+                organization: true, subject: "admission-subject-C");
+            using (var unknownCapacity = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
+                       UnknownAdmissionPath, capacityToken))
+                await AdmissionProblem(unknownCapacity, HttpStatusCode.TooManyRequests, "rate_limited", 60);
 
             // The injected partition delegates real quota/retry metadata to the
             // stock limiter. Only its idle/disposal boundary is controlled so
@@ -82,6 +92,9 @@ public sealed partial class AuthenticatedRateLimitTests
             }
             using (var fault = await AdmissionSend(client, issuer, "admission-subject-C", organization: true))
                 await AdmissionProblem(fault, HttpStatusCode.ServiceUnavailable, "dependency_unavailable", 30);
+            using (var unknownFault = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
+                       UnknownAdmissionPath, capacityToken))
+                await AdmissionProblem(unknownFault, HttpStatusCode.ServiceUnavailable, "dependency_unavailable", 30);
 
             var beforeReplay = scenario.Budgets.Sum(budget => budget.Attempts);
             var replay = new DefaultHttpContext { RequestServices = observed.Services };
@@ -115,7 +128,7 @@ public sealed partial class AuthenticatedRateLimitTests
             fixture.Observation.Reads.Should().Be(reads + 2);
             (await fixture.AuditCountAsync(SeedData.English)).Should().Be(audits + 2);
             meter.ForceFlush(5000).Should().BeTrue();
-            AssertAdmissionMetrics(collector, quota: 1, capacity: 1, fault: 2);
+            AssertAdmissionMetrics(collector, quota: 2, capacity: 2, fault: 3);
             foreach (var canary in new[] { issuer.Issuer, "admission-subject-A", "admission-subject-B",
                          "admission-subject-C", "replay-subject-canary", "admission-replay-canary.example",
                          TenantAuthenticationIssuer.Actor.ToString("D"), SeedData.English.TenantId.Value.ToString("D") })
@@ -133,6 +146,7 @@ public sealed partial class AuthenticatedRateLimitTests
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
         using var scenario = new AdmissionScenario();
         AssertKnownFailureTreeControls(scenario.Failure);
+        AssertNoStoreHeaderControls();
         var observed = new SubjectQuotaObservation();
         var memberships = new AdmissionMembershipObservation();
         HttpClient? client = AdmissionClient(issuer, scenario, observed, memberships);
@@ -215,10 +229,23 @@ public sealed partial class AuthenticatedRateLimitTests
             issuer, SeedData.English, organization: organization, subject: subject,
             claimedTenant: mismatch ? SeedData.Yoga.TenantId.Value : null));
 
+    private static void AssertNoStoreHeaderControls()
+    {
+        using var clean = new HttpResponseMessage();
+        clean.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoStore = true };
+        TenantAuthenticationHttpTests.NoStore(clean);
+        using var missing = new HttpResponseMessage();
+        Record.Exception(() => TenantAuthenticationHttpTests.NoStore(missing)).Should().NotBeNull(
+            "a missing Cache-Control header must fail rather than short-circuit its assertion");
+        clean.Headers.CacheControl.NoStore = false;
+        Record.Exception(() => TenantAuthenticationHttpTests.NoStore(clean)).Should().NotBeNull(
+            "presence alone does not satisfy the no-store policy");
+    }
+
     private static async Task AdmissionProblem(HttpResponseMessage response, HttpStatusCode status, string code, int retry)
     {
         await TenantAuthenticationHttpTests.Problem(response, status, code);
-        response.Headers.RetryAfter?.Delta.Should().Be(TimeSpan.FromSeconds(retry));
+        (response.Headers.RetryAfter?.Delta).Should().Be(TimeSpan.FromSeconds(retry));
         response.Headers.WwwAuthenticate.Should().BeEmpty();
     }
 
