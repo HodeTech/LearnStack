@@ -360,12 +360,19 @@ not a request to add an unused module, adapter or port.
   new decision explicitly changes it.
 - **Subject capacity.** The existing 4096-key registry is shared across tenants,
   so occupied live slots can refuse other valid subjects. Capacity and spent subject
-  quota currently share the HTTP 429 contract. The separate capacity/quota signal and
-  acquisition-path reclamation remain pending acceptance and implementation of
+  quota currently share the HTTP 429 contract. Distinct quota/capacity/fault signals
+  and acquisition-path reclamation remain pending acceptance and implementation of
   [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md); a proposed counter
-  is not an installed alert. Qualify the accepted implementation's live/idle pressure,
-  cleanup and multiple-instance behavior here, measure supported sizing, and publish
-  refusal thresholds. Do not use a restart or live eviction to restore spent quota.
+  is not an installed alert. Its revised proposal gives new-key cleanup fault 503,
+  preserves existing-key quota service and exposes an unlabelled fault-transition
+  counter. Qualify the accepted implementation's live/idle pressure, actual cleanup
+  and multiple-instance behavior here, measure supported sizing, and publish refusal
+  thresholds. The runbook must distinguish quota replenishment, capacity pressure
+  and sticky cleanup fault; only the fault branch recommends qualified instance
+  replacement. Exercise blocked-disposal/request/shutdown behavior: one synchronous
+  disposal has no wall-clock bound and a host grace deadline is not cleanup proof.
+  Do not use a restart or live eviction to restore spent quota or bypass ordinary
+  capacity admission. These ADR-0066-dependent duties require its approval first.
 - **Readiness and incident response.** There is no mapped auth readiness check today;
   `/healthz` proves liveness. Decide whether an unavailable IdP changes whole-instance
   readiness or authenticated-traffic admission, preserving the credential-free public

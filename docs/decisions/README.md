@@ -113,7 +113,7 @@ owns outstanding hosted CI/PR qualification. Phase 11 owns production qualificat
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0066 | [Bounded Tenant Subject Admission](0066-bounded-tenant-subject-admission.md) | Explicit 4096-subject process bound, bounded idle reclamation with joined cleanup and closed capacity/quota signals; existing code is not evidence of prior ADR-0064 approval | P02b-5 external-review follow-up; maintainer approval before dependent refinements |
+| 0066 | [Bounded Tenant Subject Admission](0066-bounded-tenant-subject-admission.md) | Explicit 4096-subject process bound, one-disposal acquisition reclamation, joined cleanup and distinct quota/capacity/fault signals; new-key cleanup fault proposes 503 while ordinary admission remains 429. Existing code is not prior ADR-0064 approval | P02b-5 external-review follow-up; maintainer approval before dependent refinements |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

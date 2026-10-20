@@ -12663,6 +12663,53 @@ not mark the overall review finished or authorize merge. ADR-0066, B1/M8 and
 its dependent subject-admission refinements remain explicitly approval-pending.
 No fresh decision is accepted by elapsed time or by a green test run.
 
+### ADR-0066 maintainer review revision (2026-10-20)
+
+The maintainer requests revision, not acceptance. This pass starts from
+`09e1a169dd61e02633860d03ad68052d1e86dfa8` on development and verifies the
+findings against the current limiter, middleware and real test owners.
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md) stays Proposed;
+no dependent runtime, Accepted-ADR erratum or acceptance is implemented here.
+The earlier ADR-0065 approval waiver does not authorize this decision.
+
+The three high findings are valid: the draft conflates permanent cleanup fault
+with ordinary capacity pressure, leaves acquiring allocation/debit ordering
+ambiguous, and omits the blocking cost of acquisition/shutdown disposal.
+Two independent read-only design/corpus inspections confirm these gaps; they
+are not runtime tests or qualification of the proposed implementation.
+
+| Finding | Verified revision / disposition |
+|---|---|
+| 1 — Fault visibility | Propose rejection reasons `quota`, `registry_capacity`, `registry_fault`; add an unlabelled once-per-instance cleanup-fault transition counter so timer faults are visible without a request. Phase 11 owns three-branch alert/runbook qualification. |
+| 2 — Allocation/debit ordering | Acquisition removes at most one eligible entry, completes its disposal and rechecks state before its own allocation/debit. Failure produces no owning debit or dispatch. Other requests can use free slots before fault publication; after publication no new allocation starts. Existing retained keys keep quota service. Lost-slot and same-key races need explicit controls. |
+| 3 — Blocking cost | Acquisition inspects at most 128 entries but disposes at most one. Timer batches remain at most 128 under the same sole retirement owner. Other requests never wait for cleanup; a full registry refuses immediately. One disposal can still block the owning request and joined shutdown indefinitely. Host grace expiry is not cleanup evidence; no fatal/restart owner is added. |
+| 4 — Reason transport | A closed result carries acquired/quota/capacity/fault plus detached retry metadata from limiter to middleware. Cache the first request result and emit a rejection exactly once; admission emits none. |
+| 5 — Active mutable carriers | Security Standards and Identity architecture now identify 4096 as current code under a Proposed decision, not a bound selected by ADR-0064. Derivation headers and Accepted-ADR attribution errata remain acceptance work. |
+| 6 — HTTP choice | Ordinary quota/capacity remain admission 429. Sticky cleanup fault proposes dependency 503, standard `dependency_unavailable` and the existing 30-second hint. Middleware must apply the common helper explicitly; outer bodyless-status handling alone does not. Compare the idempotency-store 503 precedent without changing it. |
+| 7 — Fair share | Add a separate tenant/host reservation alternative. Reject it for this packet because inventory, claimless attribution and measured share policy are absent; it is not equivalent to tenant-partitioning the quota key. Phase 11 owns comparison before changing the bound/policy. |
+| 8 — Proof ownership | Name the real unit and HTTP owners plus actual OTLP `TenantAuthenticationDiagnosticCollector.MetricPoints`. Include exact-default 4096/4097, single retirement, queue rotation, 4224 ownership, both failure paths, no further batches, existing-key service, joined failures, exact headers/body, no downstream work and exported closed labels. These proofs remain pending code. |
+| 9–10 — Carriers and wording | Add front-door/Phase 11/glossary/reference inventory, future runbook wording, explicit test-only constructor seam, no-allocation-on-refusal terminology and timeout limits. Served/snapshot OpenAPI must describe the new 503 cause and capacity hint uncertainty when implemented. |
+| 11 — Historical trailer | No defect requiring history rewrite: the trailer denotes implementation/derivation rather than every touched ADR. New revision/implementation commits include 0066; preserve old commits. |
+
+The shared resource bound remains 4096 retained plus at most 128 retiring.
+One acquisition can own only one retiring limiter; only the timer can hold a
+128-entry batch. Cleanup failure retains evidence/resources, attempts the whole
+owned batch, closes new allocation/batches and propagates through joined
+shutdown. Neither the new metric nor a retry hint clears this sticky state.
+
+The previous source's [CI run 39374628479](https://github.com/HodeTech/LearnStack/actions/runs/39374628479)
+passes all 27 jobs at `09e1a169`: 5,792 backend cases with zero skips, 1,656
+frontend cases and the required demo. Independently validated artifact unions,
+hashes and natural cleanup qualify that source, not this proposed policy or
+its unimplemented controls. This documentation pass needs its own parser,
+relative-link/fragment, format and independent review evidence below.
+
+Revision validation passes: seven ADR-parser controls, ADR-0066 parsed as
+Proposed, 1,113 real relative links/fragments across nine changed Markdown
+files with none broken, ADR prose wrapping and `git diff --check`. No runtime
+tests are rerun for this documentation-only proposal. Fresh independent review
+rounds remain required before resubmitting it for approval.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

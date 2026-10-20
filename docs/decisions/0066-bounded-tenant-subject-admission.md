@@ -22,8 +22,8 @@ quota, with dated source-attribution corrections in ADR-0064 and ADR-0065.
   credential, token identifier or actor must not create a fresh subject budget.
 - Refusing a previously unseen subject affects availability across tenants; it
   is an admission decision, not an invisible retirement implementation detail.
-- Operators need to distinguish subject-quota refusal from registry-capacity
-  refusal without exporting subject, issuer, tenant or credential identities.
+- Operators need to distinguish spent quota, temporary registry pressure and a
+  sticky cleanup fault without exporting subject, issuer, tenant or credentials.
 
 ## Considered Options
 
@@ -42,66 +42,147 @@ quota, with dated source-attribution corrections in ADR-0064 and ADR-0065.
 6. **Install distributed admission now** (rejected for this packet). Phase 11
    owns measured distributed/edge capacity; this change does not qualify its
    adapter or infrastructure early.
+7. **Reserve registry shares per tenant or host** (rejected for this packet).
+   This differs from changing the quota key, but needs tenant inventory,
+   attribution for claimless subjects and an explicit fair-share policy. A
+   tenant can still exhaust its share; arbitrary reservations would reduce
+   usable capacity without measured evidence. Phase 11 owns that comparison.
+8. **Dispose up to 128 entries on an acquiring request** (rejected). One retired
+   entry suffices to seek one slot. Keep the 128-entry inspection bound but
+   permit only one synchronous disposal on this path; background batches retain
+   the existing 128-entry bound.
+9. **Return 429 for a sticky cleanup fault** (rejected). Unlike ordinary quota or
+   capacity pressure, this state cannot clear through replenishment or idle
+   retirement. Report dependency failure separately, including a fault-transition
+   signal when no new request arrives.
 
 ## Decision
 
 LearnStack retains at most 4096 `(validated issuer, sub)` partitions per API
 instance, shared across tenants and hosts. A new key at capacity is refused
 before partition allocation unless a bounded idle-only reclamation pass frees
-capacity. Existing live keys retain their original quota. Both exhausted quota
-and unavailable registry capacity return the standard 429 response, no queue and
-an integer `Retry-After`; their internal reasons remain distinguishable through
-closed, identity-free metrics. ADR-0064's 600-per-minute subject quota and earlier
-visitor/physical-peer limits remain unchanged.
+capacity. Existing live keys retain their original quota. Quota and capacity
+refusals return 429; a sticky cleanup fault refuses new keys with 503. Closed,
+identity-free results and metrics distinguish them. ADR-0064's 600-per-minute
+subject quota and earlier visitor/physical-peer limits remain unchanged.
 
 ### Admission and retirement
 
-- `TenantSubjectRateLimiter.MaximumPartitions` is exactly 4096. This is a fixed
-  platform invariant, not a tenant setting or a throughput entitlement.
+- Production singleton registration uses `MaximumPartitions = 4096`. The
+  internal constructor's smaller-bound parameter is a test seam, not a
+  deployment setting or throughput entitlement.
 - New-key acquisition at capacity examines at most 128 queued entries before
-  refusal. Retire only entries with every permit available and at least one
-  complete window of idle time. Mere entry age, a rejected request or registry
-  pressure never restores spent quota.
+  refusal and retires at most **one** eligible limiter. Retire only entries with
+  every permit available and at least one complete window of idle time. Rotate
+  inspected survivors; stop at the first eligible entry. Mere entry age, a
+  rejected request or registry pressure never restores spent quota.
 - A fully eligible idle registry therefore releases a slot on the next
   new-subject acquisition; a request does not wait for all 32 background batches.
   If the inspected batch is live, capacity refusal remains possible even when an
   eligible idle entry exists later in the queue. Later acquisitions/background
   passes advance the queue; there is no unbounded scan or admission promise.
-- Keep the existing bounded background retirement cadence. Replenishment and
-  retirement clocks retain separate ownership; injected retirement time is not
-  represented as control of the stock limiter's replenishment timer.
-- Dispose retired limiters outside the registry lock. Shutdown closes admission,
-  joins the timer and all in-flight retirement cleanup, then disposes remaining
-  partitions. A returned lease is a detached snapshot and owns no partition.
-- The 4096 bound counts retained keys, not disposal witnesses. Timer and
-  acquisition share one retirement owner with at most one 128-limiter batch.
-  No second batch begins until actual disposal completes. Freed key slots may
-  be reused while cleanup runs, so at most 4224 limiters can remain owned:
-  4096 retained plus 128 retiring. A blocked disposal cannot accumulate batches.
-- A disposal error does not abandon later entries. Attempt cleanup for the whole
-  owned batch, retain failure/ownership evidence, stop new partition allocation
-  and further retirement batches, and propagate the failure through joined
-  shutdown. The acquiring request that owns failed cleanup does not continue to
-  business dispatch. Timer cleanup faults are observed by the same owner rather
-  than escaping as an unhandled callback failure. No timeout proves disposal.
-- Capacity refusal supplies a one-minute `Retry-After` hint. It does not promise
-  that capacity exists when the client retries. Subject-quota refusal preserves
-  the stock limiter's retry hint. Both retain the existing standard body.
+- The timer inspects at most 128 entries every 30 seconds and retires at most
+  128. Replenishment and retirement clocks retain separate ownership; injected
+  retirement time does not control the stock limiter's replenishment timer.
+- Timer and acquisition share one retirement owner, reserved under the registry
+  lock before removing entries. No second scan/batch begins until the owned
+  cleanup actually returns. Dispose outside the lock. Other requests never wait
+  for that owner: an existing key uses its quota, a new key can use an available
+  slot, and a full registry immediately refuses the new key with capacity 429.
+- The cleanup-owning acquisition removes its one eligible entry, completes its
+  disposal, then reacquires the lock and rechecks shutdown, fault, key existence
+  and capacity **before** allocating or debiting for its own request. A competing
+  request may take the freed slot; the owner then receives capacity 429. It does
+  not reserve a slot, loop for another batch, or debit on refusal.
+- The 4096 bound counts retained keys, not limiters awaiting disposal. Freed
+  slots can be reused by other requests while cleanup runs, so the maximum is
+  4224 owned limiters: 4096 retained plus one timer batch of 128. Acquisition can
+  own only one extra limiter. A blocked disposal cannot accumulate batches.
+- The first handled disposal exception publishes a sticky registry fault under
+  the lock. From that point, no new partition allocation or retirement batch
+  starts, even if slots are free. Already retained keys continue using their
+  original quotas; a partition allocated before fault publication is retained.
+  The acquiring request whose cleanup failed returns fault 503 without its own
+  allocation, debit or downstream dispatch, even if another request installed
+  its key while cleanup ran. Previously admitted requests are not revoked.
+- Attempt disposal of every member of a faulting timer batch. Retain failed
+  resources and exceptions; a thrown disposal is not proof that its resource
+  was released. Timer faults remain observed by the owner, not unhandled
+  callback exceptions. Do not retry a failed disposal or start another batch.
+  Joined shutdown observes the retained failure.
+
+### Result and HTTP contract
+
+The limiter returns a closed `SubjectAdmissionOutcome` together with detached
+retry metadata: `Acquired`, `QuotaExhausted`, `RegistryCapacity` or
+`RegistryFault`. This replaces reliance on an unclassified `RateLimitLease`;
+the result owns no partition or child lease. Middleware caches the first result
+in the request feature and emits any rejection metric once, before responding.
+Pipeline re-execution neither reacquires quota nor records a second rejection.
+
+| Result | HTTP code / body code | `Retry-After` |
+|---|---|---|
+| `Acquired` | Continue downstream | None from subject admission |
+| `QuotaExhausted` | 429 / `rate_limited` | Stock quota hint, rounded to integer seconds, minimum 1 |
+| `RegistryCapacity` | 429 / `rate_limited` | 60 seconds |
+| `RegistryFault` | 503 / `dependency_unavailable` | Existing common 503 fallback: 30 seconds |
+
+All refusals use the existing Problem Details/no-store path, create no tenant
+resolution or audit work, and queue no admission. Hints are not recovery
+promises; a sticky fault requires instance replacement, not a 30-second wait.
+An existing retained key can still receive quota 429 during a registry fault.
+The fault middleware explicitly applies the common 503 retry helper; the outer
+bodyless-status writer alone does not apply that header.
+
+Capacity 429 is an explicit rate-admission choice: no new operation entered the
+application. It is not a claim that all resource-capacity refusals use 429.
+Standards 04's idempotency-store capacity refusal stays 503 because that store
+cannot safely retain an operation outcome. Cleanup fault is likewise an
+unavailable local dependency and uses 503, preserving the common header rule.
+
+### Blocking and shutdown
+
+Acquisition cleanup is synchronous and can delay its owning request by **one**
+limiter disposal with no wall-clock bound. Other requests do not join it.
+A blocked timer batch likewise holds only its single retirement ownership;
+requests can use free slots but cannot initiate another reclamation pass.
+
+Both shutdown paths close all admission under the lock, join the retirement
+timer and any acquisition-owned cleanup, then attempt disposal of every
+remaining retained partition. Concurrent shutdown callers share that completion.
+Collect handled failures and propagate them through the joined shutdown; do not
+dispose the failed retirement batch again or drop its ownership evidence.
+Shutdown is not internally timed out and can wait indefinitely on blocked
+disposal. A host/deployment grace deadline may end the process without a cleanup
+witness; it does not free resources or prove graceful completion. This decision
+adds no fatal-process call, automatic restart owner or host-grace override.
+Elapsed time or a timeout is never evidence that disposal completed.
 
 ### Signals and operational ownership
 
 Emit `learnstack_tenant_subject_admission_rejected_total{reason}` with only
-`quota` or `registry_capacity`. It counts the first subject-admission decision
-once per request, including pipeline re-execution. No issuer, subject, token,
-actor, tenant, host or correlation becomes a metric label. No new per-refusal
-warning stream or durable audit write is introduced by this decision.
+`quota`, `registry_capacity` or `registry_fault`. Only rejected decisions count,
+once per request including re-execution; admitted requests do not increment it.
+Also emit `learnstack_tenant_subject_cleanup_failed_total` without labels once
+when the owner first publishes a sticky cleanup fault. The timer path therefore
+signals a fault even without a refused request. The acquiring fault owner also
+produces its normal single request-rejection signal. Later disposal failures in
+that instance do not repeat the transition counter.
+
+No issuer, subject, token, actor, tenant, host or correlation becomes a label.
+No new per-refusal Warning stream or durable audit write is introduced. Retained
+exceptions are not exported as metric values or raw provider diagnostics.
 
 Registry-capacity refusal is not a failed identity-provider check or an audit
 store failure. Existing liveness/audit health does not diagnose it. The counter
-is its explicit local signal; Phase 11 owns alert routing, supported instance
-sizing, distributed admission and deployment readiness before production
-exposure. The production runbook distinguishes capacity pressure from spent
-subject quota without recommending live eviction or a restart to replenish it.
+and transition counter are explicit local signals; they do not install mapped
+readiness. Phase 11 owns alert routing, supported instance sizing, distributed
+admission and deployment readiness before production exposure. Its production
+runbook must distinguish three branches: spent quota, live capacity pressure and
+sticky cleanup fault. Replenishment/idle retirement can resolve the first two;
+they cannot clear the third. Only the fault branch recommends qualified instance
+replacement for recovery, retaining its shutdown limits. Do not restart or evict
+live keys to replenish quota or evade ordinary capacity admission.
 
 ### Why 4096, and when to reopen
 
@@ -148,7 +229,7 @@ The independent target-tenant audit allowance remains ADR-0065's decision.
 - Partition allocation and retained resources have a falsifiable ceiling.
 - Live quota cannot be reset by cardinality pressure or scope changes.
 - Eligible idle state can release capacity without a full timer rotation.
-- Capacity and quota refusal have distinct bounded operational signals.
+- Capacity, quota and sticky cleanup fault have distinct bounded signals.
 
 ### Negative
 
@@ -158,41 +239,105 @@ The independent target-tenant audit allowance remains ADR-0065's decision.
 - Cleanup ownership adds bookkeeping; shutdown cannot abandon retired resources.
 - Cleanup can retain up to 128 extra limiter resources, and a cleanup fault can
   stop new subject allocation until the instance is replaced.
+- One synchronous acquisition disposal can block that request indefinitely;
+  joining it or a blocked timer disposal can also block shutdown indefinitely.
+  Limiting counts does not bound disposal latency. Existing keys and free slots
+  retain service until admission is closed or a sticky fault blocks allocation.
+- Other callers may consume a freed slot before its cleanup-owning request can
+  acquire it. A returned retry hint promises neither capacity nor fault recovery.
 
 ### Neutral
 
 - No role, grant, schema, bearer profile, membership or permission changes.
-- No tenant `AuditConfig`, configurable cap, new audit row or metric identity.
+- No tenant `AuditConfig`, deployment-configurable cap or new audit row; no
+  subject/tenant/issuer identity becomes a metric label.
 
 ## Implementation Notes
 
 After approval, update ADR-0064/0065 with their own dated disclosures and
 inline attribution errata; update the decision index, Standards 04/10/11/21,
-Architecture 13/33, glossary, roadmap and source ownership comments. The
+Architecture 13/33, glossary, phase roadmap, `CLAUDE.md`, roadmap README and
+source ownership comments. Add ADR-0066 to the deriving headers/sources only
+on acceptance; meanwhile mutable carriers label 4096 as existing code under
+this Proposed decision. Include this ADR in future implementation trailers;
+do not rewrite historical commits. The
 existing `Authenticated_Rate_Limits_Use_Validated_Subject` obligation gains the
 named cap/signal/cleanup proofs in the same change as their actual test owners;
 no new catalogue rule or Implemented count is inferred from this proposal.
 
-Unit `TenantSubjectRateLimiterTests` owns the exact default 4096 constant,
-allocation-before-refusal control, a 4097th-subject default-bound case,
-preserved spent existing quota, bounded/live/idle scan distinctions, and
-shutdown joining acquisition/timer retirement cleanup with blocking controls.
-They also prove the single-batch/4224 total-resource bound and drain-all behavior
-when one retired limiter's disposal throws; shutdown observes that failure.
-Middleware/integration subject-admission proofs own the two closed reasons,
-exact 429/retry headers and one signal across re-execution. Existing whole-chain
-reduced-quota and component actual-600 proofs retain their stated limits.
+Update the served and snapshot OpenAPI 503 descriptions for AccountSite and
+public routes reached with a validated subject; regenerate the SDK. The error
+shape/status already exists, but its new local-dependency cause needs disclosure.
+
+### Tests and proofs required before implementation closeout
+
+These are pending implementation obligations, not tests already executed.
+Extend the existing behavioural catalogue owner's Asserts/Source in the same
+change as these real owners; do not mark nonexistent controls Implemented.
+
+**Unit — `TenantSubjectRateLimiterTests`** in
+`backend/tests/LearnStack.Tests.Unit/Api/Authentication/`:
+
+- Actual production registration/default 4096, 4097th-subject refusal without
+  allocation/debit, and preserved existing spent quota. Internal small bounds
+  supplement, rather than substitute for, the default-bound proof.
+- Acquisition reads at most 128 idle states, rotates survivors, retires at most
+  one, and progresses past a first all-live batch on a later acquisition. Full
+  idle state works without waiting for a complete timer rotation.
+- Block acquisition disposal: its request stays pending; existing keys/free
+  slots proceed, full-capacity requests promptly refuse and no second batch
+  starts. No owning allocation/debit occurs before cleanup succeeds. Exercise
+  lost-slot, same-key race and shutdown-between-cleanup-and-allocation controls.
+- Block a full 128-limiter timer batch, refill 128 free key slots, and prove the
+  4224 owned-resource ceiling. Additional requests cannot create another batch;
+  acquisition cleanup separately owns at most one extra limiter.
+- Throw from acquisition/timer disposal: publish fault before remaining batch
+  cleanup, attempt every batch member, retain failed ownership, start no further
+  batch or new allocation, and preserve existing-key quota service. The acquiring
+  owner gets `RegistryFault` with no debit even if another caller added its key.
+- Timer faults do not escape the callback; the transition counter increments
+  once. Both shutdown forms join timer/acquisition cleanup, drain all remaining
+  partitions, observe retained failure, and do not redispose faulted entries.
+  Blocking controls release their gates in `finally` and have bounded test waits;
+  a test timeout is not a production disposal guarantee.
+- Middleware caches all four results, dispatches only `Acquired`, and records
+  one rejection across re-execution, zero on admission, with exact retry hints.
+
+**Integration — `AuthenticatedRateLimitTests.cs`** in
+`backend/tests/LearnStack.Tests.Integration/`:
+
+- Signed-token production pipeline with closed quota/capacity/fault results:
+  429/429/503, exact `rate_limited`/`dependency_unavailable` Problem Details,
+  no-store and Retry-After stock hint/60/30. Refusals reach neither resolution
+  nor the standalone audit writer; a fault does not reject an existing healthy
+  subject. Add a blocked-cleanup owner response/dispatch control.
+- Actual OTLP `TenantAuthenticationDiagnosticCollector.MetricPoints` observes
+  all three rejection reasons and the unlabelled once-only fault transition.
+  Verify only `reason` on rejection points, no labels on transition points, no
+  identity/canary values, no admission increment and no re-execution duplicate.
+  `SubjectQuotaObservation` remains a downstream/log observer, not a substitute
+  for exported metric evidence.
+- Served/snapshot contracts and generated SDK remain equal with the new 503
+  cause; existing reduced-quota whole-chain and actual-600 component proofs keep
+  their separate meanings. Dirty controls must fail the intended predicate.
 
 ## References
 
 - [ADR-0064](0064-tenant-api-authentication-boundary.md),
   [ADR-0065](0065-bounded-tenant-assertion-diagnostics.md),
-  [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md).
+  [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md),
+  [ADR-0053](0053-trusted-public-server-rendering.md),
+  [ADR-0054](0054-bounded-public-renderer-admission.md).
 - [API Design](../standards/04-api-design.md),
   [Observability](../standards/10-observability.md),
   [Security](../standards/11-security.md),
   [Documentation](../standards/13-documentation.md),
   [Architecture test catalogue](../standards/21-architecture-tests-catalogue.md).
 - [Identity architecture](../architecture/13-identity-and-auth.md),
+  [Cross-cutting concerns](../architecture/33-cross-cutting-concerns.md),
+  [Glossary](../glossary.md),
   [Phase 02b](../roadmap/phase-02b-events-auth.md),
   [Phase 11](../roadmap/phase-11-production-hardening.md).
+- [Current limiter](../../backend/src/LearnStack.Api/Authentication/TenantSubjectRateLimiter.cs)
+  and [middleware](../../backend/src/LearnStack.Api/Authentication/TenantSubjectAdmissionMiddleware.cs);
+  [Common 503 retry policy](../../backend/src/LearnStack.Api/Common/RetryAfter.cs).

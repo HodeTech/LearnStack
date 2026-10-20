@@ -33,8 +33,11 @@ attributed Warning without a durable row or database call. An attacker can
 exhaust another tenant's recording allowance; later actors lose durable evidence
 within that window, and aggregate real-time log volume remains unbounded.
 Admitted events remain MUST; tenant `AuditConfig` cannot override the allowance
-or general mutation durability. Subject quotas and their 4096-entry registry
-remain separate. ADR-0065 also ratifies process-wide native HTTP/DNS metric
+or general mutation durability. Subject quota remains separate. Current code's
+4096-entry registry has no selected bound in ADR-0064;
+[Proposed ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md) owns the
+pending cap, cleanup and refusal-signal decision. ADR-0065 also ratifies
+process-wide native HTTP/DNS metric
 projection and ordinary dependency-attribution loss while preserving ordinary
 traces/logs. Acceptance precedes dependent budget implementation; the
 [2026-10-20 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)

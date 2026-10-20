@@ -30,13 +30,15 @@ The exact authenticated read-mode extension derives from
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md). The composition
 declarations
 are frozen once in a singleton exact-type catalogue; request-scoped transaction
-behaviors share that immutable snapshot. The additional subject registry refuses
-new keys at its 4096-entry process bound without evicting live quota; only full-quota
-idle retirement creates space. This resource cap grants no throughput entitlement.
+behaviors share that immutable snapshot. Current code refuses new subject keys
+at 4096 retained entries and retires only full-quota idle entries. The exact cap
+was not selected by ADR-0064; [Proposed ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+seeks approval for that bound and dependent reclamation/fault signals. This
+description of existing code neither accepts the proposal nor grants throughput.
 Bounded authenticated assertion recording derives from
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); acceptance
 precedes its dependent code. Its tenant-only audit budget is separate from the
-4096-subject request registry and adds no tenant-registry admission cap.
+subject request registry and adds no tenant-registry admission cap.
 
 Producer announcement and common execution ownership derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).

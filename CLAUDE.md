@@ -264,8 +264,10 @@ sessions and phase exit remain
 P02b-6–8.
 The [second external-review follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
 owns subsequent runtime/proof corrections and their source-bound reviews.
-ADR-0066 remains Proposed; the missing subject-cap decision and dependent
-admission refinements await maintainer approval.
+ADR-0066 remains Proposed; its revised subject-cap/cleanup/fault contract and
+dependent admission refinements await maintainer approval. The
+[revision record](docs/roadmap/phase-02b-events-auth.md#adr-0066-maintainer-review-revision-2026-10-20)
+owns the verified decision gaps and pending implementation proofs.
 Phase 06 retains the full
 renderer/Studio expansion.
 
