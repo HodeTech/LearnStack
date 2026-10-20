@@ -4,6 +4,7 @@ using FluentAssertions;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using LearnStack.Infrastructure.MultiTenancy;
+using LearnStack.Api.Tenancy;
 using LearnStack.SharedKernel.Tenancy;
 using Xunit;
 
@@ -671,7 +672,7 @@ public sealed partial class TenancyConventionTests
         var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
         var owner = api.GetType(AssertionHeaderOwner);
         var headers = AssertionNames(owner, "X-");
-        headers.Should().HaveCount(2, "both assertion header constants are real production subjects");
+        AssertAssertionHeaderNames(owner);
         AssertionNameOffenders(modules, headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase)
             .Should().BeEmpty("Fix: compare assertions only in TenantAssertionMiddleware; never use headers as tenant authority (ADR-0036)");
         foreach (var module in modules.Where(module => module.Assembly.Name.Name is "LearnStack.Api" or "LearnStack.Modules.Tenancy.Application"))
@@ -680,6 +681,17 @@ public sealed partial class TenancyConventionTests
                 WithCompiledAssertionLiteral(module, probe, () =>
                     AssertionNameOffenders(modules, headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase)
                         .Should().Contain(error => error.StartsWith("AssertionOwnershipProbe:", StringComparison.Ordinal), probe + " in " + module.Name));
+        bool[] metadataSites = [false, true];
+        foreach (var module in modules.Where(module => module.Assembly.Name.Name is "LearnStack.Api" or "LearnStack.Modules.Tenancy.Application"))
+            foreach (var property in metadataSites)
+                WithCompiledAssertionHeader(module, property, () =>
+                    AssertionNameOffenders([module], headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase)
+                        .Should().Contain(error => error.StartsWith("AssertionOwnershipProbe:", StringComparison.Ordinal),
+                            "MVC parameter and property binding store the header name only in attribute metadata"));
+        AssertAssertionMetadataControls(api, headers);
+        WithRenamedAssertionVocabulary(owner, "X-Tenant-Id", "X-Other-Id", () =>
+            ((Action)(() => AssertAssertionHeaderNames(owner))).Should().Throw<Xunit.Sdk.XunitException>(
+                "retaining two declarations must not permit renaming a canonical assertion header"));
         AssertionNameOffenders(modules, headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase).Should().BeEmpty();
     });
 
@@ -689,7 +701,7 @@ public sealed partial class TenancyConventionTests
         var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
         var owner = api.GetType(AssertionMetricOwner);
         var counters = AssertionCounterNames(owner);
-        counters.Should().NotBeEmpty("the real recorder declares and creates its assertion counters");
+        AssertAssertionCounterNames(owner);
         AssertionNameOffenders(modules, counters, [AssertionMetricOwner]).Should().BeEmpty(
             "Fix: create assertion metrics only in LoggingTenantAssertionRecorder (ADR-0036 and ADR-0065)");
         foreach (var module in modules.Where(module => module.Assembly.Name.Name is "LearnStack.Api" or "LearnStack.Modules.Tenancy.Application"))
@@ -713,6 +725,10 @@ public sealed partial class TenancyConventionTests
                     "a newly declared counter must acquire the same sole-writer protection automatically"));
         }
         finally { owner.Fields.Remove(extra); }
+        AssertNestedAssertionCounterControls(api, owner);
+        WithRenamedAssertionVocabulary(owner, LoggingTenantAssertionRecorder.MismatchCounterName, "renamed_assertion_counter_total", () =>
+            ((Action)(() => AssertAssertionCounterNames(owner))).Should().Throw<Xunit.Sdk.XunitException>(
+                "a counter rename must not silently change the recognized assertion vocabulary"));
         AssertionNameOffenders(modules, counters, [AssertionMetricOwner]).Should().BeEmpty();
     });
 

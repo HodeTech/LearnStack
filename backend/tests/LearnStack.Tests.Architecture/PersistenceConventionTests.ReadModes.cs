@@ -48,7 +48,7 @@ public sealed partial class PersistenceConventionTests
             var projection = behaviorConstructor.Body.Instructions.Single(instruction => instruction.Operand is GenericInstanceMethod target
                 && target.Name == "Select" && target.GenericArguments.Any(argument => argument.FullName == ReadOnlyDeclaration));
             var singleton = registration.Body.Instructions.Single(instruction => instruction.Operand is GenericInstanceMethod target
-                && target.Name == "TryAddSingleton" && target.GenericArguments.Any(argument => argument.FullName == ReadOnlyDeclaration));
+                && target.Name == "AddSingleton" && target.GenericArguments.Any(argument => argument.FullName == ReadOnlyDeclaration));
             var originalProjection = projection.Operand;
             projection.Operand = singleton.Operand;
             AssertDirty();
@@ -121,6 +121,19 @@ public sealed partial class PersistenceConventionTests
             freeze.Operand = originalFreeze;
 
             var declaration = ReadOnlyTypes(modules).Single(type => type.FullName == ReadOnlyDeclaration);
+            AssertReadOnlySelectionControl(handle, modules);
+            AssertReadOnlyShapeControls(declaration, "System.Type", "RequestType", "System.Type");
+            AssertReadOnlyShapeControls(catalog, "System.Collections.Frozen.FrozenSet`1<System.Type>", "RequestTypes",
+                "System.Collections.Generic.IEnumerable`1<" + ReadOnlyDeclaration + ">");
+            var extraCatalogField = new FieldDefinition("ExtraState", FieldAttributes.Private | FieldAttributes.InitOnly, catalog.Module.TypeSystem.String);
+            catalog.Fields.Add(extraCatalogField);
+            try
+            {
+                ExplicitReadOnlyModeOffenders(modules).Should().Contain(
+                    "The read-only catalog exposes only its immutable exact-type snapshot",
+                    "malformed production field populations return the shape diagnostic instead of throwing");
+            }
+            finally { catalog.Fields.Remove(extraCatalogField); }
             var catalogGetter = catalog.Methods.Single(method => method.Name == "get_RequestTypes");
             var getterField = catalogGetter.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Ldfld);
             var originalGetterField = getterField.OpCode;
@@ -199,7 +212,7 @@ public sealed partial class PersistenceConventionTests
         var catalog = types.SingleOrDefault(type => type.FullName == ReadOnlyCatalog);
         if (behavior is null || declaration is null || !declaration.IsSealed || declaration.Fields.Any(field => !field.IsInitOnly))
             offenders.Add("Missing sealed immutable read-only declaration or transaction owner");
-        var snapshot = catalog?.Fields.SingleOrDefault();
+        var snapshot = catalog?.Fields.Count == 1 ? catalog.Fields[0] : null;
         if (snapshot is null || !snapshot.IsInitOnly || snapshot.FieldType.FullName != "System.Collections.Frozen.FrozenSet`1<System.Type>")
             offenders.Add("TransactionBehavior must freeze the exact Type set once");
         var catalogReference = behavior?.Fields.SingleOrDefault(field => field.Name == "_readOnlyRequests");
@@ -272,6 +285,9 @@ public sealed partial class PersistenceConventionTests
                 || readOnly.OpCode != OpCodes.Ldc_I4_1 || !IsReadOnlyFallback(branch, readOnly))
                 offenders.Add("Exact-type membership must select ReadOnly and only the existing admission selects the fallback");
         }
+        if (behavior?.Methods.SingleOrDefault(method => method.Name == "Handle") is not { } handle
+            || !ReadOnlyModeSelectionMatches(handle))
+            offenders.Add("Transaction mode must reach the coordinator only from exact membership or the approved public/job fallback");
         var freezes = sites.Where(site => site.Target.Name == "ToFrozenSet"
             && ReadOnlyOwner(site.Method) == ReadOnlyCatalog + "..ctor").ToArray();
         foreach (var site in freezes)
@@ -355,14 +371,14 @@ public sealed partial class PersistenceConventionTests
 
     private static bool IsReadOnlySingletonRegistration(MethodDefinition owner, GenericInstanceMethod target) =>
         owner.DeclaringType.FullName == ReadOnlyRegistration && owner.Name == "AddTenantSiteReads"
-        && target.DeclaringType.FullName == "Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions"
+        && target.DeclaringType.FullName == "Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions"
         && target.DeclaringType.Scope.Name == "Microsoft.Extensions.DependencyInjection.Abstractions"
-        && target.Name == "TryAddSingleton" && !target.HasThis
+        && target.Name == "AddSingleton" && !target.HasThis
         && target.GenericArguments.Select(argument => argument.FullName).SequenceEqual([ReadOnlyDeclaration])
         && target.Parameters.Count == 2
         && target.Parameters[0].ParameterType.FullName == "Microsoft.Extensions.DependencyInjection.IServiceCollection"
         && IsMethodTypeParameter(target.Parameters[1].ParameterType, 0)
-        && target.ReturnType.FullName == "System.Void";
+        && target.ReturnType.FullName == "Microsoft.Extensions.DependencyInjection.IServiceCollection";
 
     private static bool IsReadOnlySnapshotProjection(MethodDefinition owner, GenericInstanceMethod target) =>
         owner.DeclaringType.FullName == ReadOnlyCatalog && owner.Name == ".ctor"

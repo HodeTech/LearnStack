@@ -129,9 +129,9 @@ public sealed partial class TenantAuthenticationProfileTests
         await using var app = await CreateHost(issuer);
         using var client = app.GetTestClient();
         var token = issuer.Token();
-        // HttpClient drops empty values and normalizes authentication whitespace.
-        // Supply the actual server header bytes to exercise this grammar rather
-        // than accidentally testing HttpClient's permissive normalization.
+        // Populate TestServer's parsed headers directly to bypass HttpClient's
+        // empty-value/whitespace normalization. This qualifies the credential
+        // grammar on that collection, not raw socket bytes or Kestrel parsing.
         foreach (var value in new[] { "", "Bearer", "Bearer ", "Basic " + token, "Bearer  " + token,
             "Bearer\t" + token, "Bearer " + token + " ", "Bearer " + token + ",Bearer " + token,
             "Bearer " + token + ", " + token, "Bearer one.two", "Bearer one.two.three.four" })

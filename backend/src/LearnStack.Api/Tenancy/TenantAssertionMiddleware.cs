@@ -37,17 +37,6 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
     public const string TenantHeaderName = "X-Tenant-Id";
     public const string OrganizationHeaderName = "X-Organization-Id";
 
-    /// <summary>
-    /// The only prefix the comparison applies to. Registered globally, a
-    /// malformed <c>X-Tenant-Id</c> 400s the orchestrator's health probe and the
-    /// Hub's <c>/api/internal/*</c> surface — neither of which has a tenant
-    /// assertion to compare, and the first of which failing takes the pod out.
-    /// ADR-0036 scopes host classification to <c>/api/v1/*</c> for the same
-    /// reason; the assertion is part of that surface's binding, not of the
-    /// process's.
-    /// </summary>
-    public const string ScopedPrefix = "/api/v";
-
     public async Task InvokeAsync(
         HttpContext context,
         ITenantContext tenantContext,
@@ -57,7 +46,7 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         ArgumentNullException.ThrowIfNull(tenantContext);
         ArgumentNullException.ThrowIfNull(recorder);
 
-        if (!IsVersionedApiPath(context.Request.Path.Value))
+        if (!HostClassificationMiddleware.ClassifiesPath(context.Request.Path))
         {
             await next(context);
             return;
@@ -173,34 +162,6 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// <c>/api/v{N}</c> and nothing that merely starts the same way.
-    /// </summary>
-    /// <remarks>
-    /// A bare <c>StartsWith("/api/v")</c> also matches <c>/api/validate</c>,
-    /// <c>/api/vault</c> and <c>/api/verify</c>. The route convention makes
-    /// those unreachable today — every controller is prefixed <c>api/v{N}</c>
-    /// and only <c>api/internal</c> is exempt — so this is not a live bug. It is
-    /// a predicate that says what it means, which is what keeps it true when the
-    /// exemption list grows.
-    /// </remarks>
-    private static bool IsVersionedApiPath(string? path)
-    {
-        if (path is null || !path.StartsWith(ScopedPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var rest = path.AsSpan(ScopedPrefix.Length);
-        var digits = 0;
-        while (digits < rest.Length && char.IsAsciiDigit(rest[digits]))
-        {
-            digits++;
-        }
-
-        return digits > 0 && (digits == rest.Length || rest[digits] == '/');
     }
 
     /// <summary>

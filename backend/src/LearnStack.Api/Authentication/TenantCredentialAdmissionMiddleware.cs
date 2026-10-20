@@ -1,4 +1,5 @@
 using LearnStack.Api.Tenancy;
+using LearnStack.Api.PublicReads;
 
 namespace LearnStack.Api.Authentication;
 
@@ -12,6 +13,7 @@ internal sealed class TenantCredentialAdmissionMiddleware(RequestDelegate next)
             && context.Request.Headers.ContainsKey("Authorization")
             && context.Features.Get<TenantCredentialFeature>()?.Identity is null)
         {
+            PublicResponsePolicy.Apply(context.Response);
             context.Response.Headers.WWWAuthenticate = "Bearer";
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             // The outer status-code owner supplies the shared Problem Details body.

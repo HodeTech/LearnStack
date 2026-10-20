@@ -52,6 +52,22 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
     }
 
     [Fact]
+    public async Task Matching_tenant_and_organization_assertions_preserve_the_resolved_scope_without_a_rejection()
+    {
+        fixture.Recorder.Clear();
+        using var request = Get("/api/v1/assertionprobe");
+        request.Headers.Add(TenantAssertionMiddleware.TenantHeaderName, ResolvedTenantFixture.TenantId.ToString("D"));
+        request.Headers.Add(TenantAssertionMiddleware.OrganizationHeaderName, ResolvedTenantFixture.OrganizationId.ToString("D"));
+
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Contain(ResolvedTenantFixture.TenantId.ToString("D"));
+        fixture.Recorder.Rejections.Should().BeEmpty();
+        fixture.Recorder.Unresolved.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task No_Assertion_Changes_Nothing()
     {
         var response = await _client.GetAsync(new Uri("/api/v1/assertionprobe", UriKind.Relative));

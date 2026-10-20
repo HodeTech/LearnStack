@@ -241,8 +241,9 @@ keeps the two existing operation slugs and extends their captured evidence:
   when resolution refuses before any tenant context is installed. Its tenant is the
   defended host tenant, and `OrganizationId` remains null for tenant-wide visibility.
 - Row 7's rejected organization produces one authenticated rejection row under the host
-  tenant. Row 10 remains unaudited. Separate authenticated requests remain
-  separate rows.
+  tenant when admitted by ADR-0065's host-tenant allowance. Row 10 remains unaudited.
+  Separate admitted occurrences remain separate rows. Suppressed occurrences write
+  no row and retain their refusal, mismatch/suppression counters and one Warning.
 - Row 14 calls synchronous `RecordNoTenantRefusal` with no tenant or asserted value.
   The decorator performs no store I/O. Logging increments the existing unresolved
   counter with only `source=jwt-claim` and `dimension=Tenant`, and emits the fixed

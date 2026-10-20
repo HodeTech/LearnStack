@@ -3,6 +3,14 @@ using Serilog.Events;
 
 namespace LearnStack.Api.Authentication;
 
+internal enum TenantAuthenticationOutcome
+{
+    CredentialRejected,
+    ProfileRejected,
+    ValidationAccepted,
+    ValidationRejected,
+}
+
 /// <summary>Suppress vendor failure text before sinks; emit closed outcomes instead.</summary>
 internal static class TenantAuthenticationDiagnostics
 {
@@ -13,8 +21,18 @@ internal static class TenantAuthenticationDiagnostics
         entry.Properties.TryGetValue("SourceContext", out var source)
         && source is ScalarValue { Value: VendorCategory };
 
-    internal static void Outcome(ILogger logger, string stage, string reason) =>
+    internal static void Outcome(ILogger logger, TenantAuthenticationOutcome outcome)
+    {
+        var (stage, reason) = outcome switch
+        {
+            TenantAuthenticationOutcome.CredentialRejected => ("credential", "rejected"),
+            TenantAuthenticationOutcome.ProfileRejected => ("profile", "rejected"),
+            TenantAuthenticationOutcome.ValidationAccepted => ("validation", "accepted"),
+            TenantAuthenticationOutcome.ValidationRejected => ("validation", "rejected"),
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome)),
+        };
         AuthenticationOutcome(logger, stage, reason, null);
+    }
 
     private static readonly Action<ILogger, string, string, Exception?> AuthenticationOutcome =
         LoggerMessage.Define<string, string>(

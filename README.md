@@ -88,7 +88,7 @@ owns final verification.
 records all nine job-runtime steps, three CI steps, independent reviews and both
 complete final-source hosted assignments. Production business and recurrence
 definitions remain empty. **P02b-5 API authentication is locally complete and
-unmerged** under Accepted ADR-0064. All five steps completed both independent
+unmerged** under Accepted ADR-0064/0065/0066. All five steps completed both independent
 review rounds and verified corrections. Its
 [Step 5 closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
 records implementation, exact CI evidence and final PR-head qualification limits.

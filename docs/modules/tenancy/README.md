@@ -132,7 +132,8 @@ connection. The existing authoring reader above keeps its bounded failure behavi
 No caller tenant/org IDs or cross-module table join is introduced.
 
 - Require matching real factory HostScope. Tenant must be nondeleted Trial/Active;
-  a mapped organization must be nondeleted Active. Missing/suspended/archived scope
+  the resolved organization, whether mapped or claim-selected, must be nondeleted
+  Active. Missing/suspended/archived scope
   returns masked not_found. Credentials never widen institution public visibility.
 - Use canonical enabled tenant locales and exactly one enabled default. Valid no-row
   or all-disabled configurations authorize no content locale: bootstrap is `404`,

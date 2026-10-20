@@ -585,3 +585,16 @@ erratum/amendment, the [decision index](README.md), Standards
 and the [acceptance/delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
 Catalogue Asserts and runtime/test owners gain their new obligations together
 with actual implementation; acceptance alone is not proof of delivery.
+
+### Amendment 3 — read-mode instrument classification (2026-10-20)
+
+The Status summary groups the instruments under “Bounded supersession.”
+The exact relationship table is authoritative: only ADR-0036 row 14's audit
+clause is replaced. ADR-0040 Amendment 8 and ADR-0052 receive bounded read-mode
+scope extensions and exact-type selection, disclosed in each ADR's own dated
+amendment. No new read-mode authorization follows from the summary label.
+
+This clarification preserves the original Status, Decision, date, deciders and
+rationale. The [decision index](README.md) links this clarification; the
+[systematic correction record](../roadmap/phase-02b-events-auth.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
+owns the associated mutable-carrier reconciliation. No decision changes.

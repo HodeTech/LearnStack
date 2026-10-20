@@ -157,6 +157,7 @@ public sealed partial class TenantSubjectRateLimiterTests
         private int _asyncDisposals;
         public int AsyncDisposals => Volatile.Read(ref _asyncDisposals);
         public TaskCompletionSource DisposalRequested { get; } = Completion();
+        public Exception? DisposalFailure { get; set; }
         public bool Fire()
         {
             lock (_gate)
@@ -195,7 +196,12 @@ public sealed partial class TenantSubjectRateLimiterTests
         {
             Interlocked.Increment(ref _asyncDisposals);
             Dispose();
-            return new ValueTask(_joined.Task);
+            return new ValueTask(Join());
+        }
+        private async Task Join()
+        {
+            await _joined.Task;
+            if (DisposalFailure is { } failure) throw failure;
         }
     }
 }

@@ -1789,6 +1789,11 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 - **Status:** **Implemented** (Packet 6 step 6,
   `LearnStack.Tests.Architecture`, `PersistenceConventionTests`; P02b-5 Step 2
   extends the same owner with the exact authenticated read-only declaration).
+- **Additional controls:** the consumed coordinator mode admits only the
+  sanctioned exact-type selection and existing public/job fallback. A name-based
+  override and independent immutable declaration/catalog metadata mutations fail
+  the owning predicate. Additive composition retains every declaration while the
+  frozen exact-type set deduplicates them.
 - **Phase:** 02a (Packet 6); 02b (P02b-5 Step 2 extension).
 
 #### `A_Cross_Module_Read_Inside_The_Ambient_Transaction_Returns_Rows`
@@ -4452,7 +4457,9 @@ structural test proves — and what it does not.
   assemblies. **Kind:** structural.
 - **Status:** **Implemented** (`TenancyConventionTests`), in two halves.
   `Assertion_Recorder_Is_The_Only_Mismatch_Writer` derives counter names from the
-  actual recorder's constant declarations and `Meter.CreateCounter` calls.
+  actual recorder's constant declarations and `Meter.CreateCounter` calls,
+  recursively including nested/generated owner types, and pins the current exact
+  three-counter vocabulary.
   Inlined public-constant references and a fourth counter with a different prefix
   have planted second-writer controls; an unknown dynamic declaration refuses
   discovery. The compiled scan covers every production assembly.
@@ -4470,7 +4477,10 @@ structural test proves — and what it does not.
   qualified by their real assemblies. This is a type-owner census, not a claim
   that the current implementation scans exactly two source files. The assertion
   header reader guard likewise reads compiled constants and uses case-insensitive
-  comparison; lowercase header and public-constant controls must fail.
+  comparison. It recursively reads custom-attribute constructor/named arguments,
+  arrays and member/parameter/return metadata, and pins the exact two header
+  names; lowercase, public-constant, renamed-header and compiled FromHeader
+  controls must fail.
 - **Phase:** 02a (Packet 4; the second half, Packet 9).
 
 #### `Assertion_Budget_Does_Not_Depend_On_ICacheService`
@@ -4512,7 +4522,8 @@ structural test proves — and what it does not.
 #### `Backend_RequiresJwt_OnAllAuthenticatedRoutes`
 
 - **Asserts:** present invalid or undecidable tenant bearer credentials on known
-  hosts return 401 with a bare Bearer challenge, including public endpoints.
+  hosts return 401 with a bare Bearer challenge and no-store, including public
+  endpoints and classified unmatched API paths.
   Absent credentials on exact AccountSite return masked 404 `not_found` on tenant,
   organization and platform hosts; the scoped authorization result handler cannot
   fall back to default 401. A claimless valid profile keeps HostOnly/public-only
@@ -4628,7 +4639,10 @@ structural test proves — and what it does not.
   request construction, Off classification, controller/helper persistence and
   handler/helper nested dispatch across every production assembly, including
   direct interface/concrete handler construction, fields, constructor parameters,
-  locals and `Handle` calls. Its two
+  locals and `Handle` calls, custom-interface implementations and generic service
+  acquisition/non-Handle calls across distinct HTTP roots. Actual MVC filter
+  composition and source registrations are independently closed, with compiled
+  extra/removed/duplicate filter controls. Its
   companion methods plant route, method, request, controller, mapping and
   transitive-capability violations into those same Cecil subjects; missing
   subjects and weakened discovery predicates fail. Each dirty control requires
@@ -4683,7 +4697,9 @@ structural test proves — and what it does not.
   sole cleanup ownership and the 4224-resource bound. Blocking/fault controls
   cover disposal before owning allocation/debit, lost-slot/same-key/shutdown
   races, whole-batch attempts, sticky fault stopping new allocation/batches,
-  existing-key quota service, and joined sync/async cleanup failure.
+  existing-key quota service, and joined sync/async cleanup failure, including a
+  throwing fault-metric listener and failed timer join without skipped retained
+  resources or a stranded shared shutdown.
   Real signed HTTP and OTLP controls distinguish quota/capacity 429 from
   new-key fault 503, exact retry hints, one cached rejection across re-execution,
   and an unlabelled once-only fault transition without identity attributes.

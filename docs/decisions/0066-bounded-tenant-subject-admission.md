@@ -340,6 +340,30 @@ owns exact local results, two fresh implementation review rounds and final-sourc
 hosted qualification. Local controls do not establish production sizing, latency,
 mapped readiness or an exercised Phase 11 runbook.
 
+### Amendment 2 — acceptance-time proof list and cleanup evidence (2026-10-20)
+
+The “pending implementation obligations” introduction in Tests and proofs is
+an acceptance-time snapshot. Amendment 1 and the
+[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+record the delivered owners and actual results; the checklist is retained as
+the original proof requirement, not current pending status. The
+[systematic correction record](../roadmap/phase-02b-events-auth.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
+owns subsequent verification. No historical receipt qualifies later source.
+
+The 4224 ceiling is 4096 retained plus the single retirement owner, which has
+at most 128 limiters on the timer path or one on acquisition. There is no
+additional concurrent acquisition batch. “Existing retained keys” excludes
+keys already removed into a retirement batch. A throwing in-process metric
+listener cannot abandon the remainder of that owned batch; its error remains
+observed at joined shutdown alongside the cleanup failure. Both timer-join
+failure controls retain/drain the remaining partitions.
+
+This is implementation evidence and terminology clarification, not a change to
+admission, fault HTTP codes, indefinite-disposal/shutdown limits or ownership.
+Original Accepted body and metadata remain intact. The decision index,
+[phase record](../roadmap/phase-02b-events-auth.md),
+`TenantSubjectRateLimiter` and its unit proof owners are the changed carriers.
+
 ## References
 
 - [ADR-0064](0064-tenant-api-authentication-boundary.md),

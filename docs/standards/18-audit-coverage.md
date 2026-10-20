@@ -13,8 +13,9 @@ Producer additions derive from
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 Authenticated assertion admission derives from
-[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); acceptance
-precedes dependent implementation.
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
+implementation and local proofs are delivered in the
+[remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20).
 Job additions derive from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
 (accepted 2026-10-15; P02b-4 runtime and enforcement implemented; the

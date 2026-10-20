@@ -13,7 +13,7 @@ public static class TenantSiteRegistration
     public static IServiceCollection AddTenantSiteReads(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton(new ExplicitReadOnlyRequest(typeof(GetAccountSiteQuery)));
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetAccountSiteQuery)));
         services.TryAddScoped<IPublicTenantConfigurationReader, PublicTenantConfigurationReader>();
         return services;
     }

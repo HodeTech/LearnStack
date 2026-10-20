@@ -86,7 +86,7 @@ public sealed class TransactionBehaviorTests
     }
 
     [Fact]
-    public void Site_registration_is_idempotent_and_the_catalog_is_shared_across_scopes()
+    public void Repeated_site_declarations_leave_one_shared_catalog_entry_across_scopes()
     {
         var services = new ServiceCollection();
         services.AddLearnStackMediatRPipeline();
@@ -95,11 +95,28 @@ public sealed class TransactionBehaviorTests
         using var provider = services.BuildServiceProvider();
         using var first = provider.CreateScope();
         using var second = provider.CreateScope();
-        first.ServiceProvider.GetServices<ExplicitReadOnlyRequest>().Should().ContainSingle()
-            .Which.RequestType.Should().Be<GetAccountSiteQuery>();
+        first.ServiceProvider.GetServices<ExplicitReadOnlyRequest>().Select(declaration => declaration.RequestType)
+            .Distinct().Should().Equal(typeof(GetAccountSiteQuery));
         var catalog = first.ServiceProvider.GetRequiredService<ExplicitReadOnlyRequestCatalog>();
         second.ServiceProvider.GetRequiredService<ExplicitReadOnlyRequestCatalog>().Should().BeSameAs(catalog);
         catalog.RequestTypes.Should().Equal(typeof(GetAccountSiteQuery));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Site_registration_preserves_other_exact_read_only_declarations_in_either_order(bool existingFirst)
+    {
+        var services = new ServiceCollection();
+        services.AddLearnStackMediatRPipeline();
+        if (existingFirst) services.AddSingleton(new ExplicitReadOnlyRequest(typeof(DummyCommand)));
+        services.AddTenantSiteReads();
+        if (!existingFirst) services.AddSingleton(new ExplicitReadOnlyRequest(typeof(DummyCommand)));
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<ExplicitReadOnlyRequestCatalog>().RequestTypes.Should()
+            .BeEquivalentTo([typeof(DummyCommand), typeof(GetAccountSiteQuery)],
+                "each exact declaration survives regardless of module registration order");
     }
 
     [Fact]

@@ -78,7 +78,7 @@ public sealed partial class AuthenticatedRateLimitTests
             // The injected partition delegates real quota/retry metadata to the
             // stock limiter. Only its idle/disposal boundary is controlled so
             // both fault origins can be observed without waiting a minute.
-            scenario.Budgets[0].RetireWithFailure();
+            scenario.Budgets[0].ForceRetirementFailure();
             if (timerFault)
             {
                 scenario.Clock.Timer.Fire();
@@ -161,7 +161,7 @@ public sealed partial class AuthenticatedRateLimitTests
                 existing.StatusCode.Should().Be(HttpStatusCode.OK);
             var reads = fixture.Observation.Reads;
             var audits = await fixture.AuditCountAsync(SeedData.English);
-            scenario.Budgets[0].RetireWithFailure(() =>
+            scenario.Budgets[0].ForceRetirementFailure(() =>
             {
                 entered.TrySetResult();
                 release.Wait();
@@ -351,18 +351,25 @@ public sealed partial class AuthenticatedRateLimitTests
     {
         private readonly FixedWindowRateLimiter _inner = TenantSubjectRateLimiter.CreateBudget(2, autoReplenishment: false);
         private Action? _beforeFailure;
-        private int _eligible;
+        private int _forcedRetirement;
         internal int Attempts { get; private set; }
         internal int IdleReads { get; private set; }
         internal int Disposals { get; private set; }
-        internal void RetireWithFailure(Action? beforeFailure = null)
+        internal void ForceRetirementFailure(Action? beforeFailure = null)
         {
             _beforeFailure = beforeFailure;
-            Volatile.Write(ref _eligible, 1);
+            Volatile.Write(ref _forcedRetirement, 1);
         }
         public override TimeSpan? IdleDuration
         {
-            get { IdleReads++; return Volatile.Read(ref _eligible) == 0 ? null : TenantSubjectRateLimiter.Window; }
+            get
+            {
+                IdleReads++;
+                // Only the named fault injection overrides actual stock eligibility.
+                // The production stock/full-quota rule is proved separately by unit controls.
+                return Volatile.Read(ref _forcedRetirement) == 0
+                    ? _inner.IdleDuration : TenantSubjectRateLimiter.Window;
+            }
         }
         public override RateLimiterStatistics? GetStatistics() => _inner.GetStatistics();
         protected override RateLimitLease AttemptAcquireCore(int permitCount)
@@ -383,7 +390,7 @@ public sealed partial class AuthenticatedRateLimitTests
             {
                 if (!disposing) return;
                 Disposals++;
-                if (Volatile.Read(ref _eligible) != 0)
+                if (Volatile.Read(ref _forcedRetirement) != 0)
                 {
                     _beforeFailure?.Invoke();
                     throw failure;

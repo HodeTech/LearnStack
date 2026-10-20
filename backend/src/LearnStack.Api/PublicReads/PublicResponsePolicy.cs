@@ -3,7 +3,7 @@ using LearnStack.Api.Versioning;
 
 namespace LearnStack.Api.PublicReads;
 
-/// <summary>Owns no-store headers for public/account responses and every subject-admission refusal.</summary>
+/// <summary>Owns no-store headers for public/account responses and authentication/admission refusals.</summary>
 public static class PublicResponsePolicy
 {
     public static IApplicationBuilder UseLearnStackPublicResponsePolicy(this IApplicationBuilder app)

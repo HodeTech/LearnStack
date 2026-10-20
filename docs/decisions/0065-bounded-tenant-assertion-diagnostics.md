@@ -349,3 +349,20 @@ erratum/amendment, the [decision index](README.md), Standards
 and the [acceptance/delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
 The catalogue and actual runtime/test owners are updated with the implementation;
 this acceptance is not a claim that those controls already run.
+
+### Amendment 3 — delivered implementation and receipt chronology (2026-10-20)
+
+The Status and acceptance-time notes describe the state before dependent
+implementation. The singleton allowance, scoped recorder, closed suppression
+signal and outbound projection are implemented; the
+[remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+and subsequent correction records own executed results and source-bound CI.
+Acceptance is not itself a test receipt. Original Accepted text, decision,
+metadata and evidence-loss trade-offs remain intact.
+
+The [decision index](README.md), [glossary](../glossary.md), Standards
+[10](../standards/10-observability.md), [11](../standards/11-security.md) and
+[18](../standards/18-audit-coverage.md), and
+[Tenancy audit matrix](../modules/tenancy/audit.md) now state delivered status and
+distinguish separate admitted rows from suppressed occurrences. This changes no
+allowance, audit classification, signal vocabulary or HTTP disposition.

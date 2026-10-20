@@ -7,14 +7,18 @@ Producer additions derive from
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 Accepted job-lifecycle observation derives from
-[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md);
-implementation remains P02b-4 Steps 4 and 9.
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md).
+P02b-4 is implemented and merged; its
+[merge closeout](../roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+owns final qualification. Phase 11 owns production activation.
 Tenant-authentication diagnostics derive from
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md);
 P02b-5 Steps 1 and 3 implement the components; Step 4 activates the HTTP boundary.
 Bounded assertion diagnostics and process-wide outbound metric projection derive
 from [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
-2026-10-20 acceptance precedes dependent audit-budget implementation.
+audit-budget implementation and local proofs are delivered in the
+[remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20).
+Acceptance was committed before that implementation; production sizing remains open.
 Subject-admission refusal and cleanup-fault signals derive from
 [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md), Accepted —
 2026-10-20. Their implementation and local exported proofs are delivered; the
@@ -385,6 +389,9 @@ backend treat business rejections as system failures.
 |--------|------|--------|
 | `learnstack_http_request_duration_seconds` | histogram | route, method, status |
 | `learnstack_http_request_total` | counter | route, method, status |
+| `learnstack_tenant_assertion_mismatch_total` | counter | dimension, source, authenticated |
+| `learnstack_tenant_assertion_audit_suppressed_total` | counter | dimension, source, reason (`audit_budget_exhausted`) |
+| `learnstack_tenant_assertion_unresolved_total` | counter | dimension, source |
 | `learnstack_tenant_subject_admission_rejected_total` | counter | reason (`quota`, `registry_capacity`, `registry_fault`) |
 | `learnstack_tenant_subject_cleanup_failed_total` | counter | none |
 | `learnstack_db_query_duration_seconds` | histogram | module, operation |

@@ -12044,6 +12044,10 @@ reconciliation and complete local/hosted packet qualification before PR handoff.
 
 ### P02b-5 Step 5 — production enforcement and closeout (2026-10-19)
 
+> **Historical Step 5 entry.** The in-progress and pending receipts below precede
+> the [local implementation/review closeout](#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+> and subsequent correction records. They are not current packet status.
+
 **In progress; no PR or hosted qualification is claimed.** Steps 1–4 and both
 fresh independent review rounds per step are complete at `a7c9d5a3`.
 
@@ -12435,6 +12439,11 @@ inputs as untrusted data. Report only verified still-valid findings.
 
 ## P02b-5 second external review follow-up (2026-10-20)
 
+> **Historical snapshot — entry and reviews before ADR-0066 approval.**
+> Decision-pending and unimplemented statements in this follow-up describe that
+> source interval. The later [acceptance and implementation record](#adr-0066-acceptance-and-implementation-2026-10-20)
+> supersedes those states; original receipts remain intact.
+
 This follow-up starts from `9d4ec0e019af3b42edd7950c40a495a42034b933`
 on development. It verifies each new review claim against current production
 code and its actual test owner. Temporary review inputs are not permanent
@@ -12665,6 +12674,10 @@ No fresh decision is accepted by elapsed time or by a green test run.
 
 ### ADR-0066 maintainer review revision (2026-10-20)
 
+> **Historical proposal revision.** Proposed/pending statements below apply
+> before the subsequent [maintainer acceptance](#adr-0066-acceptance-and-implementation-2026-10-20),
+> not to the current implementation.
+
 The maintainer requests revision, not acceptance. This pass starts from
 `09e1a169dd61e02633860d03ad68052d1e86dfa8` on development and verifies the
 findings against the current limiter, middleware and real test owners.
@@ -12871,6 +12884,81 @@ historical source receipts. No historical green run qualifies a later source,
 and this local closeout makes no hosted-success or merge claim. P02b-6 is not
 started; production sizing, distributed admission, readiness and exercised
 runbooks remain Phase 11 obligations.
+
+
+## P02b-5 systematic proof and document corrections (2026-10-20)
+
+**In progress on development, starting at `5daee8ad`.** P02b-5's five
+implementation steps and ADR-0065/0066 corrections are implemented and unmerged.
+This follow-up validates the current production subjects and their falsifiable
+controls. Earlier review conclusions are scoped to their source and inspected
+paths; they are not a guarantee against a newly identified proof gap. No merge,
+new packet, production readiness or new decision is inferred here.
+
+### Correction plan and ownership
+
+1. **Backend proofs, hardening and corpus.** Close global MVC filter composition,
+   cross-root handler acquisition, attribute-based assertion ownership and
+   exact read-mode/OpenAPI proof gaps. Add isolated real-reader and recorder
+   controls, preserve cleanup ownership under diagnostic failure, and reconcile
+   current versus historical status. Commit, run two fresh independent review
+   rounds, verify findings and commit fixes.
+2. **Demo and SDK proof.** Preserve failure origin/status ownership, bind JSON and
+   HTML report bytes to one receipt, qualify clean/mid-run source identity and
+   distinguish local transport refusal. Preserve all browser budgets, flags,
+   deadlines, response contracts and retry behavior. Commit, run two new
+   independent review rounds, verify findings and commit fixes.
+
+Focused checks accompany each step. Full architecture, Docker/native, frontend
+and managed-demo qualification must cover the final source through the existing
+bounded hosted checks and exact artifact/result unions. Historical green runs
+do not qualify this delta. PR #33 remains open for maintainer review.
+
+### Validated dispositions
+
+| Area | Current finding and action |
+|---|---|
+| Global MVC filters | Missing composition/source census, not a demonstrated runtime auth bypass. Inventory actual MVC filters and compiled extra/removed/duplicate registrations. Endpoint authorization already precedes MVC. |
+| Nested HTTP handler roots | Reject a different root reached through a custom interface or generic service acquisition/non-Handle member. Preserve generated self-capture and ordinary helper positives. |
+| Assertion ownership | Inspect custom-attribute constructor/named/array metadata recursively; pin exact two header names and exact recursively discovered recorder counter vocabulary. |
+| Read-only selection | Protect the actual consumed mode from name-based overrides; preserve approved PublicSurface and two job pre-read fallbacks. Isolate immutable declaration/catalog shape controls. AddSingleton declarations must not silently discard an earlier different declaration; the immutable set still deduplicates exact types. |
+| Served contract | Pin parameter locations/types/formats/requiredness, no request body, exact declared ProblemDetails fields and existing leaf constraints. Preserve the accepted open extension representation; additionalProperties:false would be a contract change. Dirty controls must require their intended diagnostics. |
+| Credential and metadata paths | Credential 401 on classified unmatched paths also applies shared no-store. Reject ambiguous decoded dot-segment suffixes/control bytes before metadata I/O, retaining harmless escaped path positives. |
+| Authentication diagnostic vocabulary | Replace arbitrary stage/reason arguments with a closed typed outcome, preserving existing emitted values. Existing real OTLP ordinary-host/IP/port/path/query and exemplar controls already cover the two authorized native meters; no speculative meter is added. |
+| Startup and framework proof limits | Test missing/empty bootstrap issuer against a present ambient value. Source-owned pipeline checks are not published-host analysis. TestServer whitespace cases do not prove native Kestrel pre-normalization bytes. The event-3 adapter remains explicitly synthetic. |
+| Cleanup exception ownership | An in-process metric callback failure must not skip the rest of an owned faulting batch or strand shared shutdown. Retain errors and drain remaining resources. Exercise both timer-join failure/shutdown forms. The production factory remains stock FixedWindowRateLimiter; arbitrary throwing IdleDuration implementations are outside that production profile. |
+| Shutdown admission | Preserve the explicitly tested ObjectDisposedException after owner closure. Do not mislabel orderly closure as sticky RegistryFault or invent a fifth result/status policy. Host drain qualification remains Phase 11. |
+| Reconciliation and audit proofs | Use the live-version classifier for assertion paths; add unresolved-header, matching-organization and exact Warning-property controls, plus direct invalid audit-budget keys. Preserve recorder invariant failures for corrupt nil/sentinel defended tenants. |
+| Real configuration reader | Isolate physical read-write, missing/mismatched/sentinel HostScope and organization provenance refusals on real announced/enlisted app-role frames with same-context positives. Visibility follows the resolved organization, including claim-selected scope. |
+| Existing quota/isolation controls | Issuer-versus-subject tuple separation and actor/scope stability are already covered by the actual 600 component proof. Process-global logging tests already use a serialized collection; retain that explicit mitigation and the known-working child-host configuration. |
+| Future version and policy boundaries | Only v1 is authorized. No v2 route, new request or readiness policy is activated. Phase 03 owns affirmative live membership and no-host header-evidence policy before exposure; P02b-7 owns BFF recovery; Phase 11 owns capacity/readiness/alerts/drills. |
+| Demo diagnostics and receipts | Confirmed gaps concern deadline/spawn/daemon ownership, input/cleanup phases, HTML byte binding and dirty/mutating source identity. Step 2 owns their corrections and real-child/corruption controls. |
+| SDK/environment proof limits | The path fence already makes zero forbidden fetches and has no automatic retry. Required frontend CI already typechecks SDK tests; no missing CI gate is claimed. Constructed child environments do not prove Next never loads private dotenv; issuer is not a credential and no browser leak is established. |
+| Current versus historical corpus | Preserve dated proposal/pending receipts with explicit as-of banners. ADR-0066 Amendment 2 qualifies its acceptance-time proof list; ADR-0065 Amendment 3 records delivery. ADR-0064 Amendment 3 clarifies read-mode instrument classification without rewriting Status or its accepted decision. Separate admitted rows from suppressed occurrences in the Tenancy matrix. |
+
+### Step 1 verification and review status
+
+Implementation is ready for its first correction commit. Warnings-as-errors
+Release builds with zero warnings/errors. Complete Unit passes 2,616; all five
+Contract cases pass; the 46-case architecture selection covers surface, mode,
+manifest, tenancy, authentication authority and corpus owners. The PostgreSQL
+selection passes all 54 AccountSite/subject-admission cases. The earlier focused
+non-Docker HTTP selection passes 121, including startup with an ambient issuer.
+The complete non-Docker Integration population passes all 282 cases. All
+recorded tests have zero skips.
+
+Initial new-control failures were fixture errors, not waived runtime failures:
+unclassified paths need an explicitly empty collection assertion; a failed
+ReadWrite owner permanently poisons its unit, so the ReadOnly positive takes a
+fresh scope. Optional per-category Debug configuration produced an invalid
+Serilog scalar/section combination and was reverted; the existing serialized
+logging collection remains authoritative. The corrected owners pass.
+
+The changed-document sweep resolves 2,216 relative file/fragment targets with
+none broken; seven ADR-parser controls and whitespace checks pass. Both fresh
+independent implementation review rounds remain pending until the frozen commit
+is inspected; complete architecture/Docker/native and managed demo qualification
+still belongs to final-source hosted CI.
 
 ## Completion Criteria
 

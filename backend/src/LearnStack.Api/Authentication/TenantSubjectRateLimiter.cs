@@ -191,7 +191,16 @@ internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
             _cleanupFailures.Add(error);
             _failedResources.Add(resource);
         }
-        if (first) TenantSubjectAdmissionMetrics.RecordCleanupFailure();
+        if (first)
+        {
+            try { TenantSubjectAdmissionMetrics.RecordCleanupFailure(); }
+            catch (Exception diagnosticFailure)
+            {
+                // An in-process listener is application code. Its exception
+                // must not abandon the remaining owned resources in this batch.
+                lock (_gate) _cleanupFailures.Add(diagnosticFailure);
+            }
+        }
     }
 
     public void Dispose() => Shutdown(asynchronous: false).GetAwaiter().GetResult();
@@ -212,6 +221,17 @@ internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
     }
 
     private async Task CompleteShutdown(bool asynchronous, Task retirement)
+    {
+        try { await DrainShutdown(asynchronous, retirement).ConfigureAwait(false); }
+        catch (Exception error)
+        {
+            // Every shutdown caller observes the same completion even if an
+            // unexpected implementation failure interrupts the normal drain.
+            _shutdown.TrySetException(error);
+        }
+    }
+
+    private async Task DrainShutdown(bool asynchronous, Task retirement)
     {
         try { await _sweeper.DisposeAsync().ConfigureAwait(false); }
         catch (Exception error) { RecordCleanupFailure(_sweeper, error); }

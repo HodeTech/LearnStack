@@ -177,6 +177,25 @@ public sealed class TenantAuthenticationHttpTests
     }
 
     [Fact]
+    public async Task Invalid_credential_on_a_classified_unmapped_path_keeps_no_store_and_never_resolves()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var factory = new TenantAuthenticationApiFactory(issuer);
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/unmapped-credential-control");
+        request.Headers.Host = TenantAuthenticationReconciliationHost.TenantHost;
+        request.Headers.TryAddWithoutValidation("Authorization", "Bearer malformed");
+        using var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        NoStore(response);
+        BareBearer(response);
+        await Problem(response, HttpStatusCode.Unauthorized, "unauthorized");
+        factory.Ports.Memberships.Should().BeEmpty();
+        factory.Recorder!.Rejections.Should().BeEmpty();
+        issuer.MetadataRequests.Should().Be(0);
+    }
+
+    [Fact]
     public async Task A_trusted_signature_with_an_invalid_profile_is_401_on_an_actual_public_route()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();

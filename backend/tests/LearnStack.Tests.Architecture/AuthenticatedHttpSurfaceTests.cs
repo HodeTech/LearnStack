@@ -14,7 +14,7 @@ using Xunit;
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>ADR-0064's complete HTTP ceiling while application authorization passes through.</summary>
-public sealed class AuthenticatedHttpSurfaceTests
+public sealed partial class AuthenticatedHttpSurfaceTests
 {
     private const string PublicSite = "LearnStack.Api.PublicReads.PublicSiteController";
     private const string PublicEducation = "LearnStack.Api.PublicReads.PublicEducationController";
@@ -50,24 +50,27 @@ public sealed class AuthenticatedHttpSurfaceTests
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see> § Closed authenticated read.</summary>
     [Fact]
-    public void Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly() => WithProduction(modules =>
-        Violations(modules).Should().BeEmpty(
+    public void Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly() => WithProduction((modules, facts) =>
+        Violations(modules, facts).Should().BeEmpty(
             "Fix: retain only the eight approved public GET/HEAD actions, exact AccountSite GET and enumerated infrastructure mappings; dispatch the exact Off read through the existing pipeline"));
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see>'s controls mutate the same production route census.</summary>
     [Fact]
-    public void Authenticated_http_census_detects_extra_routes_mutations_and_missing_subjects() => WithProduction(modules =>
+    public void Authenticated_http_census_detects_extra_routes_mutations_and_missing_subjects() => WithProduction((modules, facts) =>
     {
-        Violations(modules).Should().BeEmpty("the unmodified production census is the clean control");
-        Violations(modules.Where(module => module.Assembly.Name.Name != "LearnStack.Api").ToArray())
+        Violations(modules, facts).Should().BeEmpty("the unmodified production census is the clean control");
+        Violations(modules.Where(module => module.Assembly.Name.Name != "LearnStack.Api").ToArray(), facts)
             .Should().Contain(error => error.StartsWith("Scan every production assembly", StringComparison.Ordinal),
                 "removing the production HTTP assembly must not produce a vacuous pass");
-        Violations(modules, _ => false).Should().Contain(error => error.StartsWith("Missing production controller:", StringComparison.Ordinal),
+        Violations(modules, facts, _ => false).Should().Contain(error => error.StartsWith("Missing production controller:", StringComparison.Ordinal),
             "a weakened controller classifier loses required real roots");
-        Violations(modules, mappingPredicate: _ => false).Should().Contain(error => error.StartsWith("Require exactly one infrastructure mapping:", StringComparison.Ordinal),
+        Violations(modules, facts, mappingPredicate: _ => false).Should().Contain(error => error.StartsWith("Require exactly one infrastructure mapping:", StringComparison.Ordinal),
             "a weakened map classifier loses real infrastructure mappings");
 
         var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
+        var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
+        AssertPublicAuthorizationControls(map);
+        AssertGlobalFilterControls(map);
         var account = api.GetType(Account);
         var action = account.Methods.Single(method => method.Name == "GetSite");
         AuthenticationMetadata.WithCompiledRole(api, metadata =>
@@ -76,7 +79,7 @@ public sealed class AuthenticatedHttpSurfaceTests
             try
             {
                 Dirty("Unexpected authorization metadata:", "a derived role attribute changes the actual AccountSite authorization policy");
-                Action blinded = () => Violations(modules, authorizationPredicate: type => type.FullName == typeof(AuthorizeAttribute).FullName)
+                Action blinded = () => Violations(modules, facts, authorizationPredicate: type => type.FullName == typeof(AuthorizeAttribute).FullName)
                     .Should().Contain(error => error.StartsWith("Unexpected authorization metadata:", StringComparison.Ordinal),
                         "concrete-only metadata matching must fail this same compiled control");
                 blinded.Should().Throw<Xunit.Sdk.XunitException>();
@@ -179,20 +182,20 @@ public sealed class AuthenticatedHttpSurfaceTests
             literal.Operand = original;
         }
 
-        Violations(modules).Should().BeEmpty("restoring the actual production metadata restores the clean verdict");
-        void Dirty(string prefix, string because) => Violations(modules).Should()
+        Violations(modules, facts).Should().BeEmpty("restoring the actual production metadata restores the clean verdict");
+        void Dirty(string prefix, string because) => Violations(modules, facts).Should()
             .Contain(error => error.StartsWith(prefix, StringComparison.Ordinal), because);
     });
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see>'s controls plant capabilities in real production roots.</summary>
     [Fact]
-    public void Authenticated_http_census_follows_production_helpers_and_nested_dispatch() => WithProduction(modules =>
+    public void Authenticated_http_census_follows_production_helpers_and_nested_dispatch() => WithProduction((modules, facts) =>
     {
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
         handlers.Should().HaveCount(5, "the four public queries and authenticated query have real production handlers");
-        Violations(modules).Should().BeEmpty();
+        Violations(modules, facts).Should().BeEmpty();
 
         var publicSite = map.Values.Single(type => type.FullName == PublicSite);
         PublicSurfaceTests.PersistenceOffenders([publicSite], map).Should().BeEmpty(
@@ -213,7 +216,7 @@ public sealed class AuthenticatedHttpSurfaceTests
                 helperModule.Types.Add(helper);
                 var edge = new FieldDefinition("ReadHelper", FieldAttributes.Private, owner.Module.ImportReference(helper));
                 owner.Fields.Add(edge);
-                Violations(modules).Should().BeEmpty("a data-free production helper is a clean control");
+                Violations(modules, facts).Should().BeEmpty("a data-free production helper is a clean control");
 
                 var dispatch = new FieldDefinition("Sender", FieldAttributes.Private, helperModule.ImportReference(typeof(ISender)));
                 helper.Fields.Add(dispatch);
@@ -287,24 +290,25 @@ public sealed class AuthenticatedHttpSurfaceTests
         account.NestedTypes.Add(nested);
         var nestedEdge = new FieldDefinition("NestedHelper", FieldAttributes.Private, nested);
         account.Fields.Add(nestedEdge);
-        Violations(modules).Should().BeEmpty("an ordinary nested data-free helper is legal");
+        Violations(modules, facts).Should().BeEmpty("an ordinary nested data-free helper is legal");
         nested.Fields.Add(new FieldDefinition("Sender", FieldAttributes.Private, account.Module.ImportReference(typeof(ISender))));
         Dirty("HTTP persistence/handler/helper bypass:", "non-generated nested helpers must not fall outside the transitive scan");
         account.Fields.Remove(nestedEdge);
         account.NestedTypes.Remove(nested);
-        Violations(modules).Should().BeEmpty("all planted production capabilities have been removed");
+        AssertRootDispatchControls(map);
+        Violations(modules, facts).Should().BeEmpty("all planted production capabilities have been removed");
 
-        void Dirty(string prefix, string because) => Violations(modules).Should()
+        void Dirty(string prefix, string because) => Violations(modules, facts).Should()
             .Contain(error => error.StartsWith(prefix, StringComparison.Ordinal), because);
     });
 
-    private static SortedSet<string> Violations(ModuleDefinition[] modules,
+    private static SortedSet<string> Violations(ModuleDefinition[] modules, CensusFacts facts,
         Func<TypeDefinition, bool>? controllerPredicate = null, Func<MethodReference, bool>? mappingPredicate = null,
         Func<TypeReference, bool>? authorizationPredicate = null)
     {
         var errors = new SortedSet<string>(StringComparer.Ordinal);
         if (!modules.Select(module => module.Assembly.Name.Name).Order(StringComparer.Ordinal)
-                .SequenceEqual(ProductionAssemblies.Names(), StringComparer.Ordinal))
+                .SequenceEqual(facts.AssemblyNames, StringComparer.Ordinal))
             errors.Add("Scan every production assembly from backend/src; do not filter the HTTP/helper census.");
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var controllers = map.Values.Where(controllerPredicate ?? (type => IsController(type, map))).ToArray();
@@ -346,7 +350,7 @@ public sealed class AuthenticatedHttpSurfaceTests
             errors.Add("HTTP persistence/handler/helper bypass: " + offender);
 
         var requests = Endpoints.Select(endpoint => endpoint.Request).Distinct().ToArray();
-        var catalogue = AuditCatalogDiscovery.Catalogue();
+        var catalogue = facts.Catalogue;
         foreach (var request in requests)
         {
             if (!catalogue.TryGet(request, out var registration) || !registration.WritesNoRow || registration.Entries.Count != 0)
@@ -359,6 +363,7 @@ public sealed class AuthenticatedHttpSurfaceTests
             if (handlers.Count(type => Handles(type, request.FullName!)) != 1)
                 errors.Add("Require exactly one production handler for " + request.FullName);
         foreach (var offender in NestedDispatchOffenders(handlers, map)) errors.Add(offender);
+        foreach (var offender in GlobalFilterOffenders(map)) errors.Add(offender);
 
         var sites = MappingSites(modules, mappingPredicate).ToArray();
         var actualMappings = sites.Select(site => MappingName(site.Owner, site.Target)).ToArray();
@@ -388,23 +393,40 @@ public sealed class AuthenticatedHttpSurfaceTests
     private static IEnumerable<string> NestedDispatchOffenders(TypeDefinition[] roots, Dictionary<string, TypeDefinition> map)
     {
         var rootKeys = roots.Select(Key).ToHashSet(StringComparer.Ordinal);
-        var visited = new HashSet<string>(StringComparer.Ordinal);
-        var queue = new Queue<TypeDefinition>(roots);
-        while (queue.TryDequeue(out var type))
+        var visited = new HashSet<(string Root, string Type)>();
+        var referencesByType = new Dictionary<string, TypeReference[]>(StringComparer.Ordinal);
+        var implementationsByType = new Dictionary<string, TypeDefinition[]>(StringComparer.Ordinal);
+        var capabilities = new Dictionary<string, bool>(StringComparer.Ordinal);
+        var queue = new Queue<(TypeDefinition Root, TypeDefinition Type)>(roots.Select(root => (root, root)));
+        while (queue.TryDequeue(out var current))
         {
-            if (!visited.Add(Key(type))) continue;
+            var (root, type) = current;
+            var typeKey = Key(type);
+            if (!visited.Add((Key(root), typeKey))) continue;
+            if (typeKey != Key(root) && rootKeys.Contains(typeKey))
+            {
+                yield return "Nested HTTP dispatch/helper handler: " + root.FullName + " -> " + type.FullName;
+                continue;
+            }
             if (type.IsInterface || type.IsAbstract)
-                foreach (var implementation in map.Values.Where(candidate => !candidate.IsInterface
-                             && PublicSurfaceTests.Implements(candidate, Key(type), map, []))) queue.Enqueue(implementation);
-            var references = Il.ReferencedTypeReferences(type).ToArray();
+            {
+                if (!implementationsByType.TryGetValue(typeKey, out var implementations))
+                    implementationsByType[typeKey] = implementations = map.Values.Where(candidate => !candidate.IsInterface
+                        && PublicSurfaceTests.Implements(candidate, typeKey, map, [])).ToArray();
+                foreach (var implementation in implementations) queue.Enqueue((root, implementation));
+            }
+            if (!referencesByType.TryGetValue(typeKey, out var references))
+                referencesByType[typeKey] = references = Il.ReferencedTypeReferences(type).ToArray();
+            if (!capabilities.TryGetValue(typeKey, out var capability))
+                capabilities[typeKey] = capability = HasHandlerCapability(type, map);
             if (references.Any(reference => reference.FullName is "MediatR.ISender" or "MediatR.IMediator" or "MediatR.Mediator" or "MediatR.IPublisher")
-                || HasHandlerCapability(type, map)
-                || (!rootKeys.Contains(Key(type)) && type.Interfaces.Any(contract => contract.InterfaceType.GetElementType().FullName == "MediatR.IRequestHandler`2")))
+                || capability
+                || (!rootKeys.Contains(typeKey) && type.Interfaces.Any(contract => contract.InterfaceType.GetElementType().FullName == "MediatR.IRequestHandler`2")))
                 yield return "Nested HTTP dispatch/helper handler: " + type.FullName;
             foreach (var reference in references)
                 if (map.TryGetValue(Key(reference), out var helper)
                     && !(type.IsValueType && reference.GetElementType().FullName == "LearnStack.SharedKernel.Identifiers.IStronglyTypedId`1"
-                        && type.Interfaces.Any(contract => Key(contract.InterfaceType) == Key(reference)))) queue.Enqueue(helper);
+                        && type.Interfaces.Any(contract => Key(contract.InterfaceType) == Key(reference)))) queue.Enqueue((root, helper));
         }
     }
 
@@ -434,7 +456,8 @@ public sealed class AuthenticatedHttpSurfaceTests
                         // that generated back-reference is not nested dispatch.
                         FieldReference field => field.Name != "<>4__this" && Handler(field.FieldType),
                         MethodReference target => (target.Name is "Handle" or ".ctor" && Handler(target.DeclaringType))
-                            || Handler(target.ReturnType) || target.Parameters.Any(parameter => Handler(parameter.ParameterType)),
+                            || Handler(target.ReturnType) || target.Parameters.Any(parameter => Handler(parameter.ParameterType))
+                            || target is GenericInstanceMethod generic && generic.GenericArguments.Any(Handler),
                         _ => false
                     })));
     }
@@ -554,10 +577,12 @@ public sealed class AuthenticatedHttpSurfaceTests
 
     private static IEnumerable<TypeDefinition> Flatten(TypeDefinition type) => new[] { type }.Concat(type.NestedTypes.SelectMany(Flatten));
 
-    private static void WithProduction(Action<ModuleDefinition[]> assertion)
+    private sealed record CensusFacts(string[] AssemblyNames, AuditCatalog Catalogue);
+
+    private static void WithProduction(Action<ModuleDefinition[], CensusFacts> assertion)
     {
         var modules = ProductionAssemblies.All().Select(assembly => ModuleDefinition.ReadModule(assembly.Location)).ToArray();
-        try { assertion(modules); }
+        try { assertion(modules, new CensusFacts(ProductionAssemblies.Names().ToArray(), AuditCatalogDiscovery.Catalogue())); }
         finally { foreach (var module in modules) module.Dispose(); }
     }
 

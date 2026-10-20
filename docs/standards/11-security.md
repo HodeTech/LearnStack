@@ -38,8 +38,9 @@ ownership and closed refusal/fault signals derive from
 owns independent reviews and final-source CI qualification.
 The bound grants no throughput entitlement.
 Bounded authenticated assertion recording derives from
-[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); acceptance
-precedes its dependent code. Its tenant-only audit budget is separate from the
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
+implementation and local proofs are delivered in the
+[remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20). Its tenant-only audit budget is separate from the
 subject request registry and adds no tenant-registry admission cap.
 
 Producer announcement and common execution ownership derive from

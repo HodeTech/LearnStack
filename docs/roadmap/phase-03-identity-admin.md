@@ -32,6 +32,15 @@ those flows. It owns durable subject/actor mapping, real membership, permissions
 and permission-sensitive routes. Bootstrap seed mapper emission remains P02b-6;
 this phase extends that integration to the live identity/membership lifecycle.
 
+Before replacing deny-all membership, qualify affirmative row-7 organization
+selection and row-14 claim-only resolution through real HTTP controls. Decide
+header-mismatch evidence ownership after a successful claim-only platform-host
+resolution: a confirmed claim/membership is not an independently defended tenant
+host. Do not silently reuse the host-tenant audit allowance or row-14 membership
+refusal signal for that distinct case. AccountSite retains its independent
+matching HostScope ceiling. This decision belongs to the first live-membership
+packet, before that currently unreachable path becomes exposed.
+
 ## Scope
 
 ### Identity Model

@@ -2,12 +2,30 @@ using System.Collections;
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.Api.Tenancy;
+using LearnStack.SharedKernel.Identifiers;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Api.Tenancy;
 
 public sealed class TenantAssertionAuditBudgetTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Invalid_defended_tenants_cannot_allocate_or_spend_a_budget(bool sentinel)
+    {
+        var budget = new TenantAssertionAuditBudget(new AuditBudgetTime());
+        var acquire = () => budget.TryAcquire(sentinel ? TenantId.PlatformSentinel.Value : Guid.Empty);
+
+        acquire.Should().Throw<ArgumentException>().WithMessage("An independently defended tenant is required.*");
+
+        State(budget).Windows.Count.Should().Be(0);
+        State(budget).Queue.Should().BeEmpty();
+        var tenant = Guid.NewGuid();
+        for (var attempt = 0; attempt < 600; attempt++) budget.TryAcquire(tenant).Should().BeTrue();
+        budget.TryAcquire(tenant).Should().BeFalse("rejecting an invalid key must not consume a real tenant's allowance");
+    }
+
     [Fact]
     public void Exactly_600_concurrent_attempts_are_admitted_per_tenant()
     {

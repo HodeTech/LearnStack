@@ -106,7 +106,7 @@ internal sealed class TenantAuthenticationEvents(
         else if (values.Count != 1 || !TryToken(values[0], out var token)
             || !TenantTokenProfile.HasClosedJoseHeader(token))
         {
-            TenantAuthenticationDiagnostics.Outcome(logger, "credential", "rejected");
+            TenantAuthenticationDiagnostics.Outcome(logger, TenantAuthenticationOutcome.CredentialRejected);
             context.Fail("Tenant credential refused.");
         }
         else
@@ -124,13 +124,13 @@ internal sealed class TenantAuthenticationEvents(
             || !TenantTokenProfile.TryReadValidated(
                 token.EncodedToken, settings, clock.UtcNow, out var identity, out _))
         {
-            TenantAuthenticationDiagnostics.Outcome(logger, "profile", "rejected");
+            TenantAuthenticationDiagnostics.Outcome(logger, TenantAuthenticationOutcome.ProfileRejected);
             context.Fail("Tenant credential refused.");
         }
         else
         {
             feature.Identity = identity;
-            TenantAuthenticationDiagnostics.Outcome(logger, "validation", "accepted");
+            TenantAuthenticationDiagnostics.Outcome(logger, TenantAuthenticationOutcome.ValidationAccepted);
         }
 
         return Task.CompletedTask;
@@ -143,7 +143,7 @@ internal sealed class TenantAuthenticationEvents(
             feature.Identity = null;
         }
 
-        TenantAuthenticationDiagnostics.Outcome(logger, "validation", "rejected");
+        TenantAuthenticationDiagnostics.Outcome(logger, TenantAuthenticationOutcome.ValidationRejected);
         // Replace the returned failure too: base-handler event 7 sees its message.
         context.Fail("Tenant credential refused.");
         return Task.CompletedTask;

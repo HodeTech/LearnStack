@@ -11,8 +11,11 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace LearnStack.Tests.Integration;
@@ -28,6 +31,7 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
     {
         await using var factory = new SurfaceFactory(environment);
         using var client = factory.CreateClient();
+        AssertGlobalFilterControls(factory.Services.GetRequiredService<IOptions<MvcOptions>>().Value);
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints;
         endpoints.Should().OnlyContain(endpoint => endpoint is RouteEndpoint,
             "non-route endpoints cannot disappear from the closed production census");
@@ -51,6 +55,63 @@ public sealed class AuthenticatedHttpSurfaceRuntimeTests
         Action wrongRequest = () => AssertUnion(actual.Select(entry => entry.Replace(typeof(GetAccountSiteQuery).FullName!,
             typeof(GetPublicSiteQuery).FullName!, StringComparison.Ordinal)));
         wrongRequest.Should().Throw<Xunit.Sdk.XunitException>("an approved action may not dispatch another approved query");
+    }
+
+    private static void AssertGlobalFilterControls(MvcOptions options)
+    {
+        AssertGlobalFilters(options.Filters);
+        var original = options.Filters.ToArray();
+        foreach (var mutate in new Action<FilterCollection>[]
+        {
+            filters => filters.Add(new AllowAnonymousFilter()),
+            filters => filters.Add(new UnexpectedAuthorizationFilter()),
+            filters => filters.RemoveAt(0),
+            filters => filters.RemoveAt(filters.Count - 1),
+            filters => filters.Add(original[0]),
+            filters => filters.Add(new TypeFilterAttribute(typeof(UnexpectedAuthorizationFilter))),
+        })
+        {
+            try
+            {
+                mutate(options.Filters);
+                Action assert = () => AssertGlobalFilters(options.Filters);
+                assert.Should().Throw<Xunit.Sdk.XunitException>("the actual global MVC filters must not change outside the closed surface");
+            }
+            finally
+            {
+                options.Filters.Clear();
+                foreach (var filter in original) options.Filters.Add(filter);
+            }
+        }
+        var normalizer = options.Filters.OfType<TypeFilterAttribute>().Single();
+        var order = normalizer.Order;
+        normalizer.Order = 100;
+        try
+        {
+            Action assert = () => AssertGlobalFilters(options.Filters);
+            assert.Should().Throw<Xunit.Sdk.XunitException>("filter factory order is part of the real composition");
+        }
+        finally { normalizer.Order = order; }
+        AssertGlobalFilters(options.Filters);
+    }
+
+    private static void AssertGlobalFilters(IEnumerable<IFilterMetadata> filters)
+    {
+        var actual = filters.Select(filter => (Kind: filter.GetType().FullName,
+            Implementation: filter is TypeFilterAttribute factory ? factory.ImplementationType.FullName : null,
+            Order: filter is IOrderedFilter ordered ? ordered.Order : 0,
+            Reusable: filter is IFilterFactory provider && provider.IsReusable,
+            Arguments: filter is TypeFilterAttribute typed ? typed.Arguments?.Length ?? 0 : 0)).ToArray();
+        actual.Should().Equal(
+        [
+            ("Microsoft.AspNetCore.Mvc.ModelBinding.UnsupportedContentTypeFilter", null, -3000, false, 0),
+            ("Microsoft.AspNetCore.Mvc.TypeFilterAttribute", "LearnStack.Api.Common.ProblemDetailsNormalizationFilter", 0, false, 0),
+        ], "Fix: preserve the exact framework and application global MVC filters; authorization cannot change outside the enumerated endpoint contract");
+    }
+
+    private sealed class UnexpectedAuthorizationFilter : IAuthorizationFilter
+    {
+        public void OnAuthorization(AuthorizationFilterContext context) => ArgumentNullException.ThrowIfNull(context);
     }
 
     private static async Task<Type> DispatchedRequest(ControllerActionDescriptor action)

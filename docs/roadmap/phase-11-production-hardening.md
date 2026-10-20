@@ -368,8 +368,10 @@ not a request to add an unused module, adapter or port.
   common 30-second helper. Existing retained subjects keep their quota service.
   Qualify the accepted implementation's live/idle pressure, actual cleanup,
   4224 retained-plus-retiring resource bound and multiple-instance behavior here;
-  measure supported sizing and publish refusal thresholds. Production operations
-  must route `learnstack_tenant_subject_admission_rejected_total{reason}` for
+  measure supported sizing and publish refusal thresholds. Evaluate retained occupancy/headroom signals, actual live/idle retirement
+  cost and the timer-only full-rotation horizon when selecting those thresholds;
+  current rejection counters alone are not proactive capacity evidence.
+  Production operations must route `learnstack_tenant_subject_admission_rejected_total{reason}` for
   `quota`, `registry_capacity` and `registry_fault`, plus the unlabelled once-only
   `learnstack_tenant_subject_cleanup_failed_total` transition. Accepted counters
   and local export proofs do not install alerts or mapped readiness. The future

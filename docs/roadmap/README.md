@@ -125,7 +125,7 @@ not deferred to the showcase phase.
   and both complete final-source hosted assignments. Production business and
   recurrence definitions remain empty. P02b-5's
   [decision package](phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
-  and ADR-0064 are Accepted — 2026-10-19; five implementation steps, each with two
+  and ADR-0064/0065/0066 are Accepted; five implementation steps, each with two
   fresh independent review rounds, are authorized. Step 1 completes the isolated
   token foundation after both independent reviews; its
   [record](phase-02b-events-auth.md#p02b-5-step-1--token-foundation-2026-10-19)
@@ -141,7 +141,8 @@ not deferred to the showcase phase.
   census, carrier reconciliation and both review rounds; its
   [local closeout](phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
   separates exact CI receipts from live PR-head qualification and merge. All five
-  steps are locally complete and unmerged. Next is P02b-6's realm/TTL decision pass.
+  steps are locally complete and unmerged. After P02b-5 merge, the next packet is
+  P02b-6's realm/TTL decision pass.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
   owns current corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
   is Accepted — 2026-10-20; its subject-cap, cleanup and refusal refinements are

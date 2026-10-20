@@ -29,6 +29,9 @@ public sealed partial class AuditingTenantAssertionRecorderTests
         }
         store.Attempts.Should().Be(600);
         signal.EventIds.Should().HaveCount(600).And.OnlyContain(id => id.Id == 4001);
+        signal.Entries[0].Properties.Keys.Should().BeEquivalentTo(
+            ["Dimension", "ResolvedTenantId", "AssertedValue", "IsAuthenticated", "AssertionSource", "ActorUserId", "CorrelationId", "{OriginalFormat}"],
+            "normal assertion warnings must not acquire credential, email or network properties");
         await recorder.RecordRejectionAsync(Rejection(true));
         store.Attempts.Should().Be(600, "a failed write still consumes its admission");
         store.Written.Should().HaveCount(storeFails ? 0 : 600);
@@ -36,6 +39,9 @@ public sealed partial class AuditingTenantAssertionRecorderTests
         signal.EventIds[^1].Should().Be(new EventId(4006, "AuditBudgetExhausted"));
         var suppressed = signal.Entries[^1];
         suppressed.Level.Should().Be(LogLevel.Warning);
+        suppressed.Properties.Keys.Should().BeEquivalentTo(
+            ["Dimension", "ResolvedTenantId", "AssertedValue", "Reason", "AssertionSource", "ActorUserId", "CorrelationId", "{OriginalFormat}"],
+            "suppression changes the closed reason field without widening diagnostic attribution");
         suppressed.Properties.Should().Contain("Reason", "audit_budget_exhausted")
             .And.Contain("ResolvedTenantId", Resolved).And.Contain("ActorUserId", Actor.Value)
             .And.Contain("CorrelationId", Correlation);

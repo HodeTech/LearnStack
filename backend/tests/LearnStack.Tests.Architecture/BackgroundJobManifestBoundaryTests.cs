@@ -23,7 +23,10 @@ public sealed partial class OutboxDispatchConventionTests
         using var census = ProductionCensus.Read();
         EvaluateDetector(census, JobManifestOffenders).Should().BeEmpty();
         EndpointCompositionControls.Plant(census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api"),
-            (_, because) => EvaluateDetector(census, JobManifestOffenders).Should().NotBeEmpty(because));
+            (prefix, because) => AssertEndpointControl(EvaluateDetector(census, JobManifestOffenders), prefix, because));
+        Action unrelated = () => AssertEndpointControl(["Missing live job manifest subject: unrelated"],
+            "Unexpected infrastructure path/handler/signature:", "an unrelated failure cannot satisfy the path control");
+        unrelated.Should().Throw<Xunit.Sdk.XunitException>();
         EvaluateDetector(census, JobManifestOffenders).Should().BeEmpty("restoring production composition restores the manifest");
         CheckJobFrameworkMetadata();
 
@@ -98,6 +101,17 @@ public sealed partial class OutboxDispatchConventionTests
             siteController.Methods.Add(action);
             return () => siteController.Methods.Remove(action);
         }, JobManifestOffenders);
+    }
+
+    private static void AssertEndpointControl(IEnumerable<string> offenders, string control, string because)
+    {
+        var expected = control switch
+        {
+            "Unexpected infrastructure path/handler/signature:" => "Only the direct literal /healthz infrastructure mapping is admitted:",
+            "Require exactly one infrastructure mapping:" or "Unapproved endpoint mapping:" => "exact endpoint registration capabilities:",
+            _ => throw new InvalidOperationException("Unclassified endpoint control: " + control),
+        };
+        offenders.Should().Contain(error => error.StartsWith(expected, StringComparison.Ordinal), because);
     }
 
     private static SortedSet<string> JobManifestOffenders(ProductionCensus census)

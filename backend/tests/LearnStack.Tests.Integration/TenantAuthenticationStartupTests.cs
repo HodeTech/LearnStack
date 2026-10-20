@@ -19,6 +19,9 @@ public sealed class TenantAuthenticationStartupTests
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
+        const string issuerVariable = "Authentication__Tenant__Issuer";
+        var ambientIssuer = Environment.GetEnvironmentVariable(issuerVariable);
+        Environment.SetEnvironmentVariable(issuerVariable, "https://ambient-issuer.invalid/realms/learnstack");
         try
         {
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -34,6 +37,7 @@ public sealed class TenantAuthenticationStartupTests
         }
         finally
         {
+            Environment.SetEnvironmentVariable(issuerVariable, ambientIssuer);
             listener.Stop();
         }
     }

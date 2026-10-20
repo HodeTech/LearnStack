@@ -35,6 +35,34 @@ Step 2 replaces socket-only anonymous partitioning with canonical-IP and peer
 budgets. APISIX remains Phase 11's gated adapter; the topology below is that target,
 not a prerequisite or delivery claim for the walking skeleton.
 
+## Current issuer topology and activation limits
+
+The API validates one canonical tenant-realm issuer and retrieves discovery/JWKS
+only from descendant paths at that exact origin. Private or split-horizon DNS
+must preserve that identity. Startup checks configuration syntax, not DNS, TLS or
+issuer availability; a separate metadata origin is not authorized.
+
+A cold cache or unavailable required signing key refuses authentication. A warm
+current configuration can still validate a known key during refresh failure;
+`UseLastKnownGoodConfiguration=false` does not discard that current cache.
+`TenantAuthenticationProfileTests.Transport` proves a request-driven new-key
+refresh, manually requested withdrawal and manually requested outage refresh.
+It does not prove an elapsed five-minute automatic refresh or immediate key
+revocation. Acceptance remains bounded by the token lifetime and observed cache.
+
+Current Information outcomes distinguish fixed credential/profile/validation
+stages and accepted/rejected results. They are not an operational failure
+taxonomy. Provider event-3 adapter injection tests the stock exception/log path,
+not a natural metadata-outage occurrence. Authentication also precedes tenant
+resolution, so early correlation/tenant attribution can be absent. Row 10's
+membership refusal has no audit row and only Debug visibility today.
+
+[Phase 11's activation gate](../roadmap/phase-11-production-hardening.md#tenant-authentication-production-activation)
+owns reachable issuer/DNS/TLS drills, operational failure signals, rotation,
+readiness, alerts and exercised runbooks before production exposure. P02b-6 owns
+real realm issuance; P02b-7 owns session custody and recovery. These are separate
+from P02b-5's locally implemented API boundary.
+
 ## 1. Topology
 
 ```mermaid

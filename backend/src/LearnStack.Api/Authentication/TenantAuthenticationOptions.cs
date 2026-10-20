@@ -65,9 +65,10 @@ internal sealed class TenantAuthenticationOptions
         && address.Segments.Skip(1).All(segment =>
         {
             var decoded = Uri.UnescapeDataString(segment.TrimEnd('/'));
+            var pathPart = decoded.Split(';', 2)[0].TrimEnd();
             // Preserve harmless escaped path data, but never let a server's
             // decoding introduce separators, traversal or a second escape layer.
-            return decoded is not ("." or "..")
+            return pathPart is not ("." or "..") && !decoded.Any(char.IsControl)
                 && !decoded.Contains('/') && !decoded.Contains('\\') && !decoded.Contains('%');
         });
 
