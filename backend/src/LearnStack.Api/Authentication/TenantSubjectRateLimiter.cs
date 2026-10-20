@@ -2,7 +2,7 @@ using System.Threading.RateLimiting;
 
 namespace LearnStack.Api.Authentication;
 
-/// <summary>Owns ADR-0064's additional stable issuer/subject quota and its lifetime.</summary>
+/// <summary>Owns ADR-0064's subject quota and ADR-0066's bounded registry/cleanup lifetime.</summary>
 internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
 {
     internal const int PermitPerWindow = 600;
@@ -18,8 +18,12 @@ internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
     private readonly Queue<Entry> _sweepOrder = new();
     private readonly ITimer _sweeper;
     private readonly TaskCompletionSource _shutdown = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly List<Exception> _cleanupFailures = [];
+    // A throwing Dispose is not evidence that its resource was released. Keep
+    // ownership, never try it twice, and surface the failure at joined shutdown.
+    private readonly List<object> _failedResources = [];
+    private Retirement? _retirement;
     private bool _closed;
-    private int _sweeping;
 
     public TenantSubjectRateLimiter()
         : this(() => CreateBudget(), Window, TimeProvider.System) { }
@@ -50,72 +54,144 @@ internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
         });
 
-    internal RateLimitLease AttemptAcquire(ValidatedTenantIdentity identity)
+    internal SubjectAdmissionDecision AttemptAcquire(ValidatedTenantIdentity identity)
     {
         ArgumentNullException.ThrowIfNull(identity);
+        var key = new SubjectKey(identity.Issuer, identity.Subject);
         RateLimitLease? lease = null;
         try
         {
+            Retirement? retirement;
             lock (_gate)
             {
                 ObjectDisposedException.ThrowIf(_closed, this);
-                // Record string equality is ordinal. No actor, scope, host or
-                // credential identifier participates in this private key.
-                var key = new SubjectKey(identity.Issuer, identity.Subject);
-                if (!_partitions.TryGetValue(key, out var entry))
-                {
-                    // Capacity refusal never evicts a live subject or restores its
-                    // spent quota. The bounded sweeper alone retires idle entries.
-                    if (_partitions.Count >= _maximumPartitions)
-                        return CapacityRefusal();
-                    entry = new Entry(key, _createPartition());
-                    _partitions.Add(key, entry);
-                    _sweepOrder.Enqueue(entry);
-                }
+                if (_partitions.TryGetValue(key, out var retained))
+                    return Acquire(retained, out lease);
+                if (_cleanupFailures.Count != 0) return FaultRefusal();
+                if (_partitions.Count < _maximumPartitions)
+                    return AllocateAndAcquire(key, out lease);
+                if (_retirement is not null) return CapacityRefusal();
+                retirement = BeginRetirement(maximumRetirements: 1);
+                if (retirement is null) return CapacityRefusal();
+            }
 
-                lease = entry.Limiter.AttemptAcquire(1);
-                // A caller may retain this snapshot beyond retirement/shutdown.
-                // It owns neither the child lease nor a reference to its limiter.
-                return new SnapshotLease(lease.IsAcquired,
-                    lease.GetAllMetadata().ToDictionary(StringComparer.Ordinal));
+            // Only this request joins its synchronous, one-resource cleanup.
+            // Other callers can use free slots; no slot is reserved for us.
+            CompleteRetirement(retirement);
+            lock (_gate)
+            {
+                ObjectDisposedException.ThrowIf(_closed, this);
+                // A competing caller may have installed this same key. Failed
+                // own cleanup still never debits or dispatches this request.
+                if (retirement.Failed) return FaultRefusal();
+                if (_partitions.TryGetValue(key, out var retained))
+                    return Acquire(retained, out lease);
+                if (_cleanupFailures.Count != 0) return FaultRefusal();
+                if (_partitions.Count >= _maximumPartitions) return CapacityRefusal();
+                return AllocateAndAcquire(key, out lease);
             }
         }
         finally
         {
-            // Even lease disposal is outside the registry owner lock.
+            // Even child-lease disposal is outside the registry owner lock.
             lease?.Dispose();
         }
     }
 
-    private SnapshotLease CapacityRefusal() => new(false, new Dictionary<string, object?>
-    { [MetadataName.RetryAfter.Name] = _window });
+    private SubjectAdmissionDecision AllocateAndAcquire(SubjectKey key, out RateLimitLease lease)
+    {
+        var entry = new Entry(key, _createPartition());
+        _partitions.Add(key, entry);
+        _sweepOrder.Enqueue(entry);
+        return Acquire(entry, out lease);
+    }
+
+    private SubjectAdmissionDecision Acquire(Entry entry, out RateLimitLease lease)
+    {
+        lease = entry.Limiter.AttemptAcquire(1);
+        return lease.IsAcquired
+            ? new(SubjectAdmissionOutcome.Acquired, null)
+            : new(SubjectAdmissionOutcome.QuotaExhausted,
+                lease.TryGetMetadata(MetadataName.RetryAfter, out var hint) ? hint : _window);
+    }
+
+    private static SubjectAdmissionDecision CapacityRefusal() =>
+        new(SubjectAdmissionOutcome.RegistryCapacity, Window);
+
+    private static SubjectAdmissionDecision FaultRefusal() =>
+        new(SubjectAdmissionOutcome.RegistryFault, null);
+
+    // Called under _gate. Reserve the sole cleanup owner before detaching any
+    // entries, so timer and acquisition can never accumulate retiring batches.
+    private Retirement? BeginRetirement(int maximumRetirements)
+    {
+        var retirement = new Retirement();
+        _retirement = retirement;
+        var count = Math.Min(_sweepOrder.Count, SweepBatchSize);
+        for (var index = 0; index < count; index++)
+        {
+            var entry = _sweepOrder.Dequeue();
+            // Stock IdleDuration exists only while all permits are available.
+            // Wall-clock age alone cannot restore a spent quota.
+            if (entry.Limiter.IdleDuration is { } idle && idle >= _window)
+            {
+                _partitions.Remove(entry.Key);
+                retirement.Limiters.Add(entry.Limiter);
+                if (retirement.Limiters.Count == maximumRetirements) break;
+            }
+            else _sweepOrder.Enqueue(entry);
+        }
+        if (retirement.Limiters.Count != 0) return retirement;
+        _retirement = null;
+        retirement.Completion.SetResult();
+        return null;
+    }
 
     private void Sweep()
     {
-        if (Interlocked.CompareExchange(ref _sweeping, 1, 0) != 0) return;
+        Retirement? retirement;
+        lock (_gate)
+        {
+            if (_closed || _retirement is not null || _cleanupFailures.Count != 0) return;
+            retirement = BeginRetirement(SweepBatchSize);
+        }
+        if (retirement is not null) CompleteRetirement(retirement);
+    }
+
+    private void CompleteRetirement(Retirement retirement)
+    {
         try
         {
-            List<RateLimiter> retired = [];
-            lock (_gate)
+            foreach (var limiter in retirement.Limiters)
             {
-                if (_closed) return;
-                var count = Math.Min(_sweepOrder.Count, SweepBatchSize);
-                for (var index = 0; index < count; index++)
+                try { limiter.Dispose(); }
+                catch (Exception error)
                 {
-                    var entry = _sweepOrder.Dequeue();
-                    // Stock IdleDuration exists only while all permits are
-                    // available. Wall-clock age alone cannot restore spent quota.
-                    if (entry.Limiter.IdleDuration is { } idle && idle >= _window)
-                    {
-                        _partitions.Remove(entry.Key);
-                        retired.Add(entry.Limiter);
-                    }
-                    else _sweepOrder.Enqueue(entry);
+                    retirement.Failed = true;
+                    RecordCleanupFailure(limiter, error);
                 }
             }
-            foreach (var limiter in retired) limiter.Dispose();
         }
-        finally { Volatile.Write(ref _sweeping, 0); }
+        finally
+        {
+            lock (_gate)
+            {
+                retirement.Completion.SetResult();
+                _retirement = null;
+            }
+        }
+    }
+
+    private void RecordCleanupFailure(object resource, Exception error)
+    {
+        bool first;
+        lock (_gate)
+        {
+            first = _cleanupFailures.Count == 0;
+            _cleanupFailures.Add(error);
+            _failedResources.Add(resource);
+        }
+        if (first) TenantSubjectAdmissionMetrics.RecordCleanupFailure();
     }
 
     public void Dispose() => Shutdown(asynchronous: false).GetAwaiter().GetResult();
@@ -124,27 +200,28 @@ internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
 
     private Task Shutdown(bool asynchronous)
     {
+        Task retirement;
         lock (_gate)
         {
             if (_closed) return _shutdown.Task;
             _closed = true;
+            retirement = _retirement?.Completion.Task ?? Task.CompletedTask;
         }
-        _ = CompleteShutdown(asynchronous);
+        _ = CompleteShutdown(asynchronous, retirement);
         return _shutdown.Task;
     }
 
-    private async Task CompleteShutdown(bool asynchronous)
+    private async Task CompleteShutdown(bool asynchronous, Task retirement)
     {
-        List<Exception> failures = [];
-        // DisposeAsync joins a callback that may already be disposing retired
-        // entries. Both sync and async shutdown must wait for that ownership.
         try { await _sweeper.DisposeAsync().ConfigureAwait(false); }
-        catch (Exception error) { failures.Add(error); }
+        catch (Exception error) { RecordCleanupFailure(_sweeper, error); }
+        // The timer join alone cannot witness an acquisition-owned cleanup.
+        await retirement.ConfigureAwait(false);
 
         Entry[] remaining;
         lock (_gate)
         {
-            remaining = _sweepOrder.ToArray();
+            remaining = _partitions.Values.ToArray();
             _sweepOrder.Clear();
             _partitions.Clear();
         }
@@ -155,20 +232,20 @@ internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
                 if (asynchronous) await entry.Limiter.DisposeAsync().ConfigureAwait(false);
                 else entry.Limiter.Dispose();
             }
-            catch (Exception error) { failures.Add(error); }
+            catch (Exception error) { RecordCleanupFailure(entry.Limiter, error); }
         }
-        if (failures.Count == 0) _shutdown.SetResult();
+        Exception[] failures;
+        lock (_gate) failures = _cleanupFailures.ToArray();
+        if (failures.Length == 0) _shutdown.SetResult();
         else _shutdown.SetException(new AggregateException(failures));
     }
 
     private readonly record struct SubjectKey(string Issuer, string Subject);
     private sealed record Entry(SubjectKey Key, RateLimiter Limiter);
-
-    private sealed class SnapshotLease(bool acquired, IReadOnlyDictionary<string, object?> metadata) : RateLimitLease
+    private sealed class Retirement
     {
-        public override bool IsAcquired => acquired;
-        public override IEnumerable<string> MetadataNames => metadata.Keys;
-        public override bool TryGetMetadata(string metadataName, out object? value) =>
-            metadata.TryGetValue(metadataName, out value);
+        internal List<RateLimiter> Limiters { get; } = [];
+        internal TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal bool Failed { get; set; }
     }
 }

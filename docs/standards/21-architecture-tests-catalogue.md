@@ -45,7 +45,11 @@ record own local/source evidence; PR #33 owns current-head hosted qualification)
 (Accepted 2026-10-20; extends existing obligations below; audit-budget and
 telemetry controls implemented; the
 [P02b-5 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
-owns current qualification status).
+owns current qualification status),
+[ADR-0066 Bounded Tenant Subject Admission](../decisions/0066-bounded-tenant-subject-admission.md)
+(Accepted 2026-10-20; extends the existing subject-admission obligation;
+the [delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+owns source-bound validation, reviews and hosted qualification).
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -4674,13 +4678,27 @@ structural test proves — and what it does not.
   first-refusal Retry-After/429, a finite partition registry with refusal before
   allocation, bounded idle retirement and timer disposal are
   controlled; refusal stops downstream audit work without resetting live quotas.
+  ADR-0066 controls use the actual default 4096/4097 boundary, at most 128
+  acquisition inspections and one disposal, timer batches of at most 128,
+  sole cleanup ownership and the 4224-resource bound. Blocking/fault controls
+  cover disposal before owning allocation/debit, lost-slot/same-key/shutdown
+  races, whole-batch attempts, sticky fault stopping new allocation/batches,
+  existing-key quota service, and joined sync/async cleanup failure.
+  Real signed HTTP and OTLP controls distinguish quota/capacity 429 from
+  new-key fault 503, exact retry hints, one cached rejection across re-execution,
+  and an unlabelled once-only fault transition without identity attributes.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
-  § Additional subject quota; ADR-0053 and ADR-0054's retained ingress floors.
+  § Additional subject quota;
+  [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md);
+  ADR-0053 and ADR-0054's retained ingress floors.
 - **Type:** real limiter concurrency/lifecycle controls and signed-token
   whole-chain HTTP tests, including actual-default boundary.
   **Kind:** behavioural.
 - **Test owner:**
-  `backend/tests/LearnStack.Tests.Integration/AuthenticatedRateLimitTests.cs`.
+  `backend/tests/LearnStack.Tests.Integration/AuthenticatedRateLimitTests.cs`
+  and its `Admission` partial; unit `Api/Authentication/TenantSubjectRateLimiterTests`
+  and its lifecycle/fault/middleware partials. Actual export decoding uses
+  `TenantAuthenticationDiagnosticCollector.MetricPoints`.
 - **Status:** **Implemented** (`AuthenticatedRateLimitTests`,
   `TenantSubjectRateLimiterTests`).
 - **Phase:** P02b-5 Step 3 bounded component; Step 4 whole-chain activation;

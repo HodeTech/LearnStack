@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Threading.RateLimiting;
+using LearnStack.Api.Common;
 using LearnStack.Api.Tenancy;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -18,29 +18,35 @@ internal sealed class TenantSubjectAdmissionMiddleware(RequestDelegate next, Ten
             return;
         }
 
-        var outcome = context.Features.Get<TenantSubjectAdmissionOutcome>();
+        var outcome = context.Features.Get<SubjectAdmissionDecision>();
         if (outcome is null)
         {
-            using var lease = limiter.AttemptAcquire(identity);
-            outcome = new TenantSubjectAdmissionOutcome(lease.IsAcquired,
-                lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter)
-                    ? retryAfter : TenantSubjectRateLimiter.Window);
+            outcome = limiter.AttemptAcquire(identity);
             context.Features.Set(outcome);
+            if (!outcome.IsAcquired)
+                TenantSubjectAdmissionMetrics.RecordRejected(outcome.Outcome);
         }
 
-        if (outcome.Acquired)
+        if (outcome.IsAcquired)
         {
             await next(context);
             return;
         }
 
-        context.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(outcome.RetryAfter.TotalSeconds))
+        if (outcome.Outcome == SubjectAdmissionOutcome.RegistryFault)
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            RetryAfter.Apply(context.Response, context.Response.StatusCode);
+            return;
+        }
+
+        context.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(
+                (outcome.RetryAfter ?? TenantSubjectRateLimiter.Window).TotalSeconds))
             .ToString(CultureInfo.InvariantCulture);
         // The existing outer status-code pages produce the one standard body.
         context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
     }
 
-    private sealed record TenantSubjectAdmissionOutcome(bool Acquired, TimeSpan RetryAfter);
 }
 
 /// <summary>Registers the owned additional subject budget used by the closed tenant HTTP boundary.</summary>

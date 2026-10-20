@@ -112,8 +112,10 @@ bounds retained-plus-retiring resources; synchronous cleanup can block its ownin
 request and joined shutdown indefinitely. No timeout proves cleanup and no new
 fatal-process policy is added. The exact lifecycle and HTTP contract live in the
 ADR; [Observability Standards](../standards/10-observability.md#tenant-authentication-diagnostics)
-owns the identity-free signals. Acceptance is 2026-10-20; dependent implementation
-and runtime/exported proofs remain pending.
+owns the identity-free signals. Acceptance is 2026-10-20; implementation and
+local runtime/exported proofs are delivered. Both fresh implementation review
+rounds and final-source CI qualification remain pending in the
+[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
 
 ADR-0065 also ratifies process-wide native outbound metric projection: HTTP keeps
 method/status/protocol/scheme/error; DNS keeps only `error.type`. Destination,

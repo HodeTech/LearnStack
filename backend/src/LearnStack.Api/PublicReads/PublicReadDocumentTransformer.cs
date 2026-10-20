@@ -72,9 +72,9 @@ internal sealed class PublicReadDocumentTransformer : IOpenApiDocumentTransforme
       ("404", "not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure."),
       ("405", "method_not_allowed from routing."),
       ("413", "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body."),
-      ("429", "rate_limited from early visitor/peer admission or the validated-subject limiter."),
+      ("429", "rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity."),
       ("500", "internal_error from unexpected failures; no exception or query details."),
-      ("503", "dependency_unavailable from invalid stored public configuration.") ];
+      ("503", "dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault.") ];
 
     internal static void DocumentResponses(OpenApiDocument document, OpenApiOperation operation, HttpMethod method,
         IEnumerable<(string Status, string Description)> errors, string allowedMethods = "GET, HEAD")
@@ -97,7 +97,7 @@ internal sealed class PublicReadDocumentTransformer : IOpenApiDocumentTransforme
             if (status is "429" or "503") response.Headers["Retry-After"] = new OpenApiHeader
             {
                 Required = true,
-                Description = status == "429" ? "Seconds until the first refusing quota permits another attempt."
+                Description = status == "429" ? "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission."
                     : "Suggested dependency retry delay in seconds; not a recovery guarantee.",
                 Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Minimum = "0" }
             };

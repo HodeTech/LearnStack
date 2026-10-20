@@ -12761,6 +12761,54 @@ visitor/peer admission changes are authorized by this addition. Phase 11 owns
 measured sizing, distributed admission, readiness and exercised production
 alerts/runbooks; the accepted request/shutdown blocking cost remains explicit.
 
+#### ADR-0066 implementation and local validation
+
+The singleton implements the closed detached decision and one shared retirement
+owner. Acquisition inspects at most 128 entries, retires at most one and waits
+for actual cleanup before its own allocation/debit. Other callers retain service
+under the accepted free-slot/fault rules. Timer retirement owns at most 128 extra
+resources; blocked and throwing controls verify the total 4224-resource bound,
+whole-batch attempts and joined shutdown. The fault owner records one sticky
+transition; middleware records one closed rejection per request, including
+re-execution. Quota/capacity remain 429; new-key cleanup fault is 503 with the
+common explicit 30-second hint. No timeout is a cleanup witness.
+
+The unit owners exercise actual singleton registration/default 4096/4097,
+allocation/debit refusal, bounded rotation, blocked disposal, lost-slot/same-key
+and shutdown races, sticky faults and sync/async DI shutdown. Three added Docker
+rows use signed tokens, real PostgreSQL audit state and the actual exported OTLP
+metric decoder. They distinguish downstream-positive controls from pre-resolution
+refusals and verify only the closed metric attributes. Controlled limiter
+wrappers inject disposal/idle conditions; they do not certify stock minute-clock
+advance or production disposal-fault frequency.
+
+OpenAPI's public and AccountSite 503 descriptions name cleanup fault; 429 hints
+promise no available capacity. The snapshot and generated SDK match the served
+contract. Planted removals fail the specific semantic predicates independently
+of snapshot parity. No route, response schema, business permission or tenant
+scope is added.
+
+Current local Release results, all with zero skips:
+
+- Unit: 2600 passed, including 30 focused subject-admission cases.
+- Authentication regression: 147 passed, including all five focused signed
+  PostgreSQL/OTLP rate-limit cases (three new rows).
+- Non-Docker integration selection: 276 passed.
+- Contract: five passed. SDK: 65 passed; generation/typecheck pass.
+- Warnings-as-errors builds pass; the full architecture run remains in progress.
+
+Early integration attempts exposed synthetic teardown assumptions: the web
+factory did not propagate an externally owned singleton's disposal exception,
+and the injected limiter needed its async cleanup hook. The controls now join
+the explicit owner, accept only the exact planted failure tree and separately
+exercise real sync/async service-provider shutdown. Earlier failed attempts are
+not counted as passes or reported as product runtime defects.
+
+The implementation commit and two fresh independent implementation review rounds
+remain pending. Revision reviews above qualify the proposal only. Final-source
+hosted CI, artifacts and PR reconciliation remain pending; historical receipts
+from earlier source heads do not qualify this implementation.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

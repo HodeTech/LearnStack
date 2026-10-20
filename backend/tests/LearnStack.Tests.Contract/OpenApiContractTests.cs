@@ -199,6 +199,14 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
                     if (status is "429" or "503" && (response["headers"]?["Retry-After"]?["schema"]?["type"]?.GetValue<string>() != "integer"
                         || response["headers"]?["Retry-After"]?["schema"]?["minimum"]?.GetValue<int>() != 0
                         || response["headers"]?["Retry-After"]?["required"]?.GetValue<bool>() != true)) errors.Add("retry-after");
+                    if (status == "503" && response["description"]?.GetValue<string>()
+                            .Contains("sticky subject-registry cleanup fault", StringComparison.Ordinal) != true)
+                        errors.Add("subject-cleanup-cause");
+                    if (status == "429" && (response["description"]?.GetValue<string>()
+                            .Contains("subject-registry capacity", StringComparison.Ordinal) != true
+                        || response["headers"]?["Retry-After"]?["description"]?.GetValue<string>()
+                            .Contains("A capacity hint does not promise an available registry slot; quota hints do not guarantee admission", StringComparison.Ordinal) != true))
+                        errors.Add("subject-capacity-hint");
                     if (status == "405" && (response["headers"]?["Allow"]?["required"]?.GetValue<bool>() != true
                         || response["headers"]?["Allow"]?["schema"]?["enum"]?[0]?.GetValue<string>()
                             != (authenticated ? "GET" : "GET, HEAD"))) errors.Add("allow");

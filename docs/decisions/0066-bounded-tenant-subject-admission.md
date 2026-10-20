@@ -324,6 +324,22 @@ change as these real owners; do not mark nonexistent controls Implemented.
   cause; existing reduced-quota whole-chain and actual-600 component proofs keep
   their separate meanings. Dirty controls must fail the intended predicate.
 
+## Amendments
+
+### Amendment 1 — implementation and local proof ownership (2026-10-20)
+
+The accepted contract is implemented by the API singleton, closed detached
+admission decision, request-cached middleware and identity-free metrics. The
+existing catalogue obligation gains its actual unit and signed PostgreSQL/OTLP
+owners in the same change; served/snapshot OpenAPI and the generated SDK disclose
+the capacity hint and sticky cleanup-fault cause. No policy in this ADR changes.
+Its Accepted body, date and deciders remain intact.
+
+The [implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+owns exact local results, two fresh implementation review rounds and final-source
+hosted qualification. Local controls do not establish production sizing, latency,
+mapped readiness or an exercised Phase 11 runbook.
+
 ## References
 
 - [ADR-0064](0064-tenant-api-authentication-boundary.md),

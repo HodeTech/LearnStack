@@ -38,8 +38,11 @@ or general mutation durability. Subject quota remains separate.
 2026-10-20, selects its 4096 retained issuer/subject partitions shared across
 all tenants/hosts, bounded idle-only cleanup and distinct quota/capacity/fault
 signals. Occupied live slots can deny other tenants' new subjects; there is no
-reserved share or end-to-end throughput promise. Its dependent implementation
-and runtime proofs remain pending. ADR-0065 also ratifies
+reserved share or end-to-end throughput promise. Its implementation has local
+runtime/exported proofs; both fresh implementation review rounds and final-source
+CI qualification remain pending in the
+[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
+ADR-0065 also ratifies
 process-wide native HTTP/DNS metric
 projection and ordinary dependency-attribution loss while preserving ordinary
 traces/logs. Acceptance precedes dependent budget implementation; the

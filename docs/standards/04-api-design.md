@@ -11,7 +11,9 @@ The accepted tenant-authentication contract derives from
 P02b-5 Step 4 activates the closed HTTP boundary; its delivery record owns proof
 and review status. Subject-registry capacity, cleanup and refusal semantics
 derive from [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md),
-Accepted — 2026-10-20; dependent implementation and runtime proofs are pending.
+Accepted — 2026-10-20. Implementation has local runtime/exported proofs; both
+fresh implementation review rounds and final-source CI qualification remain
+pending in the [implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -547,7 +549,8 @@ idempotency-store capacity rule remains 503 because an operation outcome cannot
 be safely retained there. Cleanup fault is an unavailable local dependency.
 Existing retained keys keep their quota service during that fault. Retry hints
 promise neither space nor recovery; fault recovery needs qualified instance
-replacement. Dependent implementation and exported/runtime proofs remain pending.
+replacement. Local signed-token HTTP and actual OTLP proofs cover these outcomes;
+the implementation record owns pending review and final-source CI qualification.
 
 **ADR-0054 accounting implemented — 2026-10-09; both review rounds passed.**
 Remediation Step 1 probes an owned known visitor limiter with zero permits and returns

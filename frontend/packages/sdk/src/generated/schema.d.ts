@@ -303,11 +303,11 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
                     "Retry-After": number;
                     [name: string]: unknown;
                 };
@@ -325,7 +325,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable from invalid stored public configuration. */
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -417,11 +417,11 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
                     "Retry-After": number;
                     [name: string]: unknown;
                 };
@@ -439,7 +439,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable from invalid stored public configuration. */
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -519,11 +519,11 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
                     "Retry-After": number;
                     [name: string]: unknown;
                 };
@@ -537,7 +537,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description dependency_unavailable from invalid stored public configuration. */
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -630,11 +630,11 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
                     "Retry-After": number;
                     [name: string]: unknown;
                 };
@@ -652,7 +652,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable from invalid stored public configuration. */
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -735,11 +735,11 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
                     "Retry-After": number;
                     [name: string]: unknown;
                 };
@@ -753,7 +753,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description dependency_unavailable from invalid stored public configuration. */
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -844,11 +844,11 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
                     "Retry-After": number;
                     [name: string]: unknown;
                 };
@@ -866,7 +866,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable from invalid stored public configuration. */
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -947,11 +947,11 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
                     "Retry-After": number;
                     [name: string]: unknown;
                 };
@@ -965,7 +965,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description dependency_unavailable from invalid stored public configuration. */
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -1048,11 +1048,11 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
                     "Retry-After": number;
                     [name: string]: unknown;
                 };
@@ -1070,7 +1070,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable from invalid stored public configuration. */
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -1143,11 +1143,11 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description rate_limited from early visitor/peer admission or the validated-subject limiter. */
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
             429: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description Seconds until the first refusing quota permits another attempt. */
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
                     "Retry-After": number;
                     [name: string]: unknown;
                 };
@@ -1161,7 +1161,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description dependency_unavailable from invalid stored public configuration. */
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";

@@ -24,7 +24,7 @@ public sealed partial class TenantSubjectRateLimiterTests
         {
             // The external identity remains stable while application attribution
             // and selected tenant/organization change between requests.
-            using var acquired = owner.AttemptAcquire(identity with
+            var acquired = owner.AttemptAcquire(identity with
             {
                 ActorUserId = UserId.From(Guid.NewGuid()),
                 TenantId = TenantId.From(Guid.NewGuid()),
@@ -33,14 +33,14 @@ public sealed partial class TenantSubjectRateLimiterTests
             acquired.IsAcquired.Should().BeTrue();
         }
 
-        using var refused = owner.AttemptAcquire(identity);
+        var refused = owner.AttemptAcquire(identity);
         refused.IsAcquired.Should().BeFalse();
-        refused.TryGetMetadata(MetadataName.RetryAfter, out var retry).Should().BeTrue();
-        retry.Should().Be(TimeSpan.FromMinutes(1), "the actual stock default must enforce the independently specified minute");
+        refused.Outcome.Should().Be(SubjectAdmissionOutcome.QuotaExhausted);
+        refused.RetryAfter.Should().Be(TimeSpan.FromMinutes(1), "the actual stock default must enforce the independently specified minute");
         // Both tuple positions and their ordinal casing distinguish identities.
-        using var otherIssuer = owner.AttemptAcquire(identity with { Issuer = "https://other.example/realm" });
-        using var otherSubject = owner.AttemptAcquire(identity with { Subject = "another-subject" });
-        using var caseSensitive = owner.AttemptAcquire(identity with { Subject = "SUBJECT" });
+        var otherIssuer = owner.AttemptAcquire(identity with { Issuer = "https://other.example/realm" });
+        var otherSubject = owner.AttemptAcquire(identity with { Subject = "another-subject" });
+        var caseSensitive = owner.AttemptAcquire(identity with { Subject = "SUBJECT" });
         otherIssuer.IsAcquired.Should().BeTrue();
         otherSubject.IsAcquired.Should().BeTrue();
         caseSensitive.IsAcquired.Should().BeTrue();
@@ -57,16 +57,16 @@ public sealed partial class TenantSubjectRateLimiterTests
             budgets.Add(budget);
             return budget;
         }, Window, clock, maximumPartitions: 2);
-        using var first = owner.AttemptAcquire(Identity("first"));
-        using var second = owner.AttemptAcquire(Identity("second"));
+        var first = owner.AttemptAcquire(Identity("first"));
+        var second = owner.AttemptAcquire(Identity("second"));
         for (var index = 0; index < 2048; index++)
         {
-            using var overflow = owner.AttemptAcquire(Identity($"overflow-{index}"));
+            var overflow = owner.AttemptAcquire(Identity($"overflow-{index}"));
             overflow.IsAcquired.Should().BeFalse();
-            overflow.TryGetMetadata(MetadataName.RetryAfter, out var retry).Should().BeTrue();
-            retry.Should().Be(Window);
+            overflow.Outcome.Should().Be(SubjectAdmissionOutcome.RegistryCapacity);
+            overflow.RetryAfter.Should().Be(Window);
         }
-        using var stillSpent = owner.AttemptAcquire(Identity("first"));
+        var stillSpent = owner.AttemptAcquire(Identity("first"));
         stillSpent.IsAcquired.Should().BeFalse();
         budgets.Should().HaveCount(2);
         clock.Timer.Fire();
@@ -74,10 +74,10 @@ public sealed partial class TenantSubjectRateLimiterTests
 
         budgets[0].Replenish(Window);
         clock.Timer.Fire();
-        using var newKey = owner.AttemptAcquire(Identity("new"));
+        var newKey = owner.AttemptAcquire(Identity("new"));
         newKey.IsAcquired.Should().BeTrue();
         budgets.Should().HaveCount(3);
-        using var otherStillSpent = owner.AttemptAcquire(Identity("second"));
+        var otherStillSpent = owner.AttemptAcquire(Identity("second"));
         otherStillSpent.IsAcquired.Should().BeFalse();
     }
 
@@ -133,7 +133,7 @@ public sealed partial class TenantSubjectRateLimiterTests
             await start.Task;
             return await Task.Run(() =>
             {
-                using var lease = owner.AttemptAcquire(Identity());
+                var lease = owner.AttemptAcquire(Identity());
                 return lease.IsAcquired;
             });
         }).ToArray();
@@ -156,10 +156,10 @@ public sealed partial class TenantSubjectRateLimiterTests
             allocations++;
             return TenantSubjectRateLimiter.CreateBudget(1, autoReplenishment: false);
         }, Window, clock);
-        using var admitted = owner.AttemptAcquire(Identity());
+        var admitted = owner.AttemptAcquire(Identity());
         clock.Advance(TimeSpan.FromDays(1));
         for (var index = 0; index < 4; index++) clock.Timer.Fire();
-        using var refused = owner.AttemptAcquire(Identity());
+        var refused = owner.AttemptAcquire(Identity());
 
         admitted.IsAcquired.Should().BeTrue();
         refused.IsAcquired.Should().BeFalse();
@@ -178,8 +178,8 @@ public sealed partial class TenantSubjectRateLimiterTests
             budgets.Add(budget);
             return budget;
         }, window, clock);
-        using var admitted = owner.AttemptAcquire(Identity());
-        using var refused = owner.AttemptAcquire(Identity());
+        var admitted = owner.AttemptAcquire(Identity());
+        var refused = owner.AttemptAcquire(Identity());
         var original = budgets[0];
         original.IdleDuration.Should().BeNull();
         clock.Timer.Fire();
@@ -199,14 +199,15 @@ public sealed partial class TenantSubjectRateLimiterTests
         clock.Timer.Fire();
         var retiredAcquire = () => original.AttemptAcquire();
         retiredAcquire.Should().Throw<ObjectDisposedException>();
-        using var replacement = owner.AttemptAcquire(Identity());
+        var replacement = owner.AttemptAcquire(Identity());
         budgets.Should().HaveCount(2);
         replacement.IsAcquired.Should().BeTrue();
         // The old child leases were already disposed; retained snapshots remain usable.
         admitted.IsAcquired.Should().BeTrue();
         refused.IsAcquired.Should().BeFalse();
-        refused.TryGetMetadata(MetadataName.RetryAfter, out var retry).Should().BeTrue();
-        retry.Should().BeGreaterThan(TimeSpan.Zero).And.BeLessThanOrEqualTo(window);
+        refused.Outcome.Should().Be(SubjectAdmissionOutcome.QuotaExhausted);
+        refused.RetryAfter.Should().NotBeNull();
+        refused.RetryAfter!.Value.Should().BeGreaterThan(TimeSpan.Zero).And.BeLessThanOrEqualTo(window);
     }
 
     [Fact]
@@ -222,7 +223,7 @@ public sealed partial class TenantSubjectRateLimiterTests
         }, Window, clock);
         for (var index = 0; index < 300; index++)
         {
-            using var lease = owner.AttemptAcquire(Identity(subject: $"subject-{index}"));
+            var lease = owner.AttemptAcquire(Identity(subject: $"subject-{index}"));
         }
 
         clock.Timer.Fire();
@@ -251,9 +252,9 @@ public sealed partial class TenantSubjectRateLimiterTests
             budgets.Add(budget);
             return budget;
         }, Window, clock);
-        using var admitted = owner.AttemptAcquire(Identity("retiring"));
-        using var retained = owner.AttemptAcquire(Identity("retained"));
-        using var refused = owner.AttemptAcquire(Identity("retained"));
+        var admitted = owner.AttemptAcquire(Identity("retiring"));
+        var retained = owner.AttemptAcquire(Identity("retained"));
+        var refused = owner.AttemptAcquire(Identity("retained"));
         var retiring = budgets[0];
         retiring.Replenish(Window);
         using var release = new ManualResetEventSlim();
@@ -270,7 +271,7 @@ public sealed partial class TenantSubjectRateLimiterTests
         {
             await entered.Task.WaitAsync(Timeout);
             // Retired limiter disposal must leave the owner lock available.
-            using var newAdmission = await Task.Run(() => owner.AttemptAcquire(Identity("during-retirement")))
+            var newAdmission = await Task.Run(() => owner.AttemptAcquire(Identity("during-retirement")))
                 .WaitAsync(Timeout);
             newAdmission.IsAcquired.Should().BeTrue();
             await Task.Run(clock.Timer.Fire).WaitAsync(Timeout);
@@ -303,8 +304,8 @@ public sealed partial class TenantSubjectRateLimiterTests
         admitted.IsAcquired.Should().BeTrue();
         retained.IsAcquired.Should().BeTrue();
         refused.IsAcquired.Should().BeFalse();
-        refused.TryGetMetadata(MetadataName.RetryAfter, out var retry).Should().BeTrue();
-        retry.Should().Be(Window);
+        refused.Outcome.Should().Be(SubjectAdmissionOutcome.QuotaExhausted);
+        refused.RetryAfter.Should().Be(Window);
         budgets.SelectMany(budget => budget.Leases).Should().OnlyContain(lease => lease.Disposals == 1);
     }
 
@@ -315,7 +316,7 @@ public sealed partial class TenantSubjectRateLimiterTests
     {
         var provider = new ServiceCollection().AddLearnStackTenantSubjectAdmission().BuildServiceProvider();
         var owner = provider.GetRequiredService<TenantSubjectRateLimiter>();
-        using var lease = owner.AttemptAcquire(Identity());
+        var lease = owner.AttemptAcquire(Identity());
         if (asynchronous) await provider.DisposeAsync();
         else provider.Dispose();
         var acquire = () => owner.AttemptAcquire(Identity());

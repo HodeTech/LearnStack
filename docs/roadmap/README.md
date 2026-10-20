@@ -145,9 +145,10 @@ not deferred to the showcase phase.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
   owns current corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
   is Accepted — 2026-10-20; its subject-cap, cleanup and refusal refinements are
-  authorized, with implementation and runtime proofs pending before PR #33 closeout.
-  Its [revision record](phase-02b-events-auth.md#adr-0066-maintainer-review-revision-2026-10-20)
-  owns the separate cleanup-fault response, allocation ordering and blocking costs.
+  implemented with local runtime/exported proofs. Both fresh implementation review
+  rounds and final-source CI qualification remain pending before PR #33 closeout.
+  Its [implementation record](phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+  owns source-bound validation and review status.
   Realm reconciliation, BFF sessions and phase-exit enforcement remain P02b-6–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

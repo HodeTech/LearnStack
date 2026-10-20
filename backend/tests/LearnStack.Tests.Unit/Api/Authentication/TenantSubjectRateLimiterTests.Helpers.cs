@@ -1,10 +1,40 @@
 using System.Threading.RateLimiting;
+using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using FluentAssertions;
+using LearnStack.Api.Authentication;
 
 namespace LearnStack.Tests.Unit.Api.Authentication;
 
 public sealed partial class TenantSubjectRateLimiterTests
 {
+    private sealed record SubjectMeasurement(string Name, long Value, Dictionary<string, object?> Tags);
+
+    private sealed class SubjectMetricCapture : IDisposable
+    {
+        private readonly MeterListener _listener = new();
+        private readonly ConcurrentQueue<SubjectMeasurement> _values = new();
+        public SubjectMetricCapture()
+        {
+            _listener.InstrumentPublished = (instrument, observed) =>
+            {
+                if (instrument.Meter.Name == TenantSubjectAdmissionMetrics.MeterName
+                    && instrument.Name is TenantSubjectAdmissionMetrics.RejectedCounterName
+                        or TenantSubjectAdmissionMetrics.CleanupFailedCounterName)
+                    observed.EnableMeasurementEvents(instrument);
+            };
+            _listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
+                _values.Enqueue(new SubjectMeasurement(instrument.Name, value,
+                    tags.ToArray().ToDictionary(tag => tag.Key, tag => tag.Value, StringComparer.Ordinal))));
+            _listener.Start();
+        }
+        public SubjectMeasurement[] Rejections => _values.Where(value =>
+            value.Name == TenantSubjectAdmissionMetrics.RejectedCounterName).ToArray();
+        public SubjectMeasurement[] CleanupFailures => _values.Where(value =>
+            value.Name == TenantSubjectAdmissionMetrics.CleanupFailedCounterName).ToArray();
+        public void Dispose() => _listener.Dispose();
+    }
+
     private sealed class TrackedBudget(int permits) : RateLimiter
     {
         private readonly int _permitLimit = permits;
@@ -13,18 +43,23 @@ public sealed partial class TenantSubjectRateLimiterTests
         private int _attempts;
         private int _idleReads;
         private int _disposals;
+        private int _completedDisposals;
         private int _asyncDisposals;
         public int Attempts => Volatile.Read(ref _attempts);
         public int IdleReads => Volatile.Read(ref _idleReads);
         public int Disposals => Volatile.Read(ref _disposals);
+        public int CompletedDisposals => Volatile.Read(ref _completedDisposals);
         public int AsyncDisposals => Volatile.Read(ref _asyncDisposals);
         public Action? OnDispose { get; set; }
+        public Action? OnIdleRead { get; set; }
+        public TimeSpan RetryAfter { get; set; } = Window;
         public List<TrackedLease> Leases { get; } = [];
         public override TimeSpan? IdleDuration
         {
             get
             {
                 Interlocked.Increment(ref _idleReads);
+                OnIdleRead?.Invoke();
                 return _idle;
             }
         }
@@ -44,7 +79,7 @@ public sealed partial class TenantSubjectRateLimiterTests
                 _remaining -= permitCount;
                 _idle = null;
             }
-            var lease = new TrackedLease(acquired);
+            var lease = new TrackedLease(acquired, RetryAfter);
             Leases.Add(lease);
             return lease;
         }
@@ -65,10 +100,11 @@ public sealed partial class TenantSubjectRateLimiterTests
         {
             Interlocked.Increment(ref _disposals);
             OnDispose?.Invoke();
+            Interlocked.Increment(ref _completedDisposals);
         }
     }
 
-    private sealed class TrackedLease(bool acquired) : RateLimitLease
+    private sealed class TrackedLease(bool acquired, TimeSpan retryAfter) : RateLimitLease
     {
         public int Disposals { get; private set; }
         public override bool IsAcquired
@@ -83,7 +119,7 @@ public sealed partial class TenantSubjectRateLimiterTests
         public override bool TryGetMetadata(string metadataName, out object? value)
         {
             ObjectDisposedException.ThrowIf(Disposals != 0, this);
-            value = !acquired && metadataName == MetadataName.RetryAfter.Name ? Window : null;
+            value = !acquired && metadataName == MetadataName.RetryAfter.Name ? retryAfter : null;
             return value is not null;
         }
         protected override void Dispose(bool disposing)

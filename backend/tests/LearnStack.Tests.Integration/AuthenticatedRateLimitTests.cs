@@ -19,7 +19,7 @@ namespace LearnStack.Tests.Integration;
 /// <summary>The actual production chain and durable recorder, below both unchanged ingress floors.</summary>
 [Collection(PublicReadTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class AuthenticatedRateLimitTests(PublicReadFixture fixture)
+public sealed partial class AuthenticatedRateLimitTests(PublicReadFixture fixture)
 {
     [Fact]
     public async Task Authenticated_Rate_Limits_Use_Validated_Subject()
@@ -128,12 +128,14 @@ public sealed class AuthenticatedRateLimitTests(PublicReadFixture fixture)
 
     private sealed class SubjectQuotaObservation : IStartupFilter, ILogEventSink
     {
+        internal IServiceProvider Services { get; private set; } = null!;
         internal ConcurrentQueue<IPAddress> PhysicalPeers { get; } = new();
         internal ConcurrentQueue<TenantAssertionRejection> Rejections { get; } = new();
         private int _claimlessEvents;
         internal int ClaimlessEvents => Volatile.Read(ref _claimlessEvents);
         public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
         {
+            Services = app.ApplicationServices;
             app.Use((context, continuation) =>
             {
                 // TestServer owns no socket. Supply only its physical-peer feature;

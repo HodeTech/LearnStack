@@ -26,7 +26,7 @@ public sealed partial class AuthenticationAuthorityTests
         [Events + ".MessageReceived"] = Signature(Events, "MessageReceived", TaskType, "Microsoft.AspNetCore.Authentication.JwtBearer.MessageReceivedContext"),
         [Events + ".AuthenticationFailed"] = Signature(Events, "AuthenticationFailed", TaskType, "Microsoft.AspNetCore.Authentication.JwtBearer.AuthenticationFailedContext"),
         [Events + ".TokenValidated"] = Signature(Events, "TokenValidated", TaskType, "Microsoft.AspNetCore.Authentication.JwtBearer.TokenValidatedContext"),
-        [Limiter + ".AttemptAcquire"] = Signature(Limiter, "AttemptAcquire", "System.Threading.RateLimiting.RateLimitLease", Identity),
+        [Limiter + ".AttemptAcquire"] = Signature(Limiter, "AttemptAcquire", Authentication + "SubjectAdmissionDecision", Identity),
         [Resolver + ".BuildAttemptAsync"] = Signature(Resolver, "BuildAttemptAsync", TaskType + "`1<" + Attempt + ">", Http, Host, ScopeValidator, Membership, Identity),
         [Resolver + ".RecordRefusalAsync"] = Signature(Resolver, "RecordRefusalAsync", TaskType, Attempt, Host, Identity, Recorder),
         [Resolver + ".InvokeAsync"] = Signature(Resolver, "InvokeAsync", TaskType, Http, ScopeValidator, Membership, Recorder),

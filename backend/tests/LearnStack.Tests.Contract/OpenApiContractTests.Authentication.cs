@@ -44,6 +44,18 @@ public sealed partial class OpenApiContractTests
         foreach (var path in new[] { "/api/v1/public/site", "/api/v1/account/site" })
         {
             dirty = clean.DeepClone();
+            dirty["paths"]![path]!["get"]!["responses"]!["503"]!["description"] =
+                "dependency_unavailable from invalid stored public configuration.";
+            ContractErrors(dirty).Should().Contain("subject-cleanup-cause");
+            dirty = clean.DeepClone();
+            dirty["paths"]![path]!["get"]!["responses"]!["429"]!["description"] =
+                "rate_limited from early visitor/peer admission or the validated-subject limiter.";
+            ContractErrors(dirty).Should().Contain("subject-capacity-hint");
+            dirty = clean.DeepClone();
+            dirty["paths"]![path]!["get"]!["responses"]!["429"]!["headers"]!["Retry-After"]!["description"] =
+                "Seconds until the first refusing quota permits another attempt.";
+            ContractErrors(dirty).Should().Contain("subject-capacity-hint");
+            dirty = clean.DeepClone();
             dirty["paths"]![path]!["get"]!["responses"]!.AsObject().Remove("413");
             ContractErrors(dirty).Should().Contain("responses", "the reachable body-limit refusal must stay documented");
             dirty = clean.DeepClone();

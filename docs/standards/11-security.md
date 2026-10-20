@@ -33,7 +33,9 @@ are frozen once in a singleton exact-type catalogue; request-scoped transaction
 behaviors share that immutable snapshot. The retained-subject bound, retirement
 ownership and closed refusal/fault signals derive from
 [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md), Accepted —
-2026-10-20; its dependent implementation and runtime proofs remain pending.
+2026-10-20. Implementation and local runtime/exported proofs are delivered; both
+fresh implementation review rounds and final-source CI qualification remain
+pending in the [implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
 The bound grants no throughput entitlement.
 Bounded authenticated assertion recording derives from
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); acceptance
@@ -696,7 +698,9 @@ fault stops new allocations and batches; already retained keys keep their
 original quota. Joined shutdown closes admission and observes timer/acquisition
 cleanup and retained failures. One blocked disposal can indefinitely delay its
 request and shutdown; a host deadline is not cleanup evidence and adds no fatal
-process policy. These ADR-0066 refinements require implementation proof.
+process policy. Local ownership, HTTP and actual OTLP proofs exercise these
+refinements; their review and final-source CI status live in the implementation
+record.
 The earlier visitor/peer limits apply to every credential, so this is an extra
 ceiling, not a promise of independent 600/min end-to-end throughput. Whole-chain
 reduced-budget proofs isolate the subject limit below those early floors; a

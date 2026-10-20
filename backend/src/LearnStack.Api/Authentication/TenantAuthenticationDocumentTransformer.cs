@@ -34,9 +34,9 @@ internal sealed class TenantAuthenticationDocumentTransformer : IOpenApiDocument
             ("404", "not_found for absent credentials, unknown hosts, membership refusals or missing host-backed authority; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure."),
             ("405", "method_not_allowed from routing after credential and host-backed authority admission; this operation admits GET only. Absent credentials remain masked as 404."),
             ("413", "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body."),
-            ("429", "rate_limited from early visitor/peer admission or the validated-subject limiter."),
+            ("429", "rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity."),
             ("500", "internal_error from unexpected failures; no exception or query details."),
-            ("503", "dependency_unavailable from invalid stored public configuration.")
+            ("503", "dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault.")
         ], allowedMethods: "GET");
         return Task.CompletedTask;
     }
