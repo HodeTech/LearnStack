@@ -266,8 +266,10 @@ named cap/signal/cleanup proofs in the same change as their actual test owners;
 no new catalogue rule or Implemented count is inferred from this proposal.
 
 Update the served and snapshot OpenAPI 503 descriptions for AccountSite and
-public routes reached with a validated subject; regenerate the SDK. The error
-shape/status already exists, but its new local-dependency cause needs disclosure.
+public routes reached with a validated subject; also update their 429 retry
+descriptions so a capacity hint does not promise replenished quota or available
+space. Regenerate the SDK. The error shapes/statuses already exist, but the new
+local-dependency cause and capacity-hint meaning need disclosure.
 
 ### Tests and proofs required before implementation closeout
 

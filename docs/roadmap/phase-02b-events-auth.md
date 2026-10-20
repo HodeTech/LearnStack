@@ -12710,6 +12710,17 @@ files with none broken, ADR prose wrapping and `git diff --check`. No runtime
 tests are rerun for this documentation-only proposal. Fresh independent review
 rounds remain required before resubmitting it for approval.
 
+#### ADR-0066 revision independent review round 1
+
+Two fresh reviewers inspect frozen `ed21d9fc` against `09e1a169`: GPT-6 Astra
+at xhigh effort covers concurrency/fault/HTTP ownership; GPT-6.1 Sol at high
+effort covers corpus, actual test owners and premise accuracy. Both approve the
+documentation revision, not the decision or runtime. One minor inventory gap
+is verified: the ADR names OpenAPI's new 503 cause but must also name the 429
+capacity-hint clarification already recorded here. The revision now does both.
+No runtime tests/builds are run by these read-only reviewers. A second fresh
+round is required after this correction.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
