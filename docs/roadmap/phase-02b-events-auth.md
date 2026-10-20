@@ -13026,8 +13026,12 @@ as the clean control. A getter alone is not treated as a metadata write: the
 existing idempotency OpenAPI transformer only reads metadata. No owner allowlist
 was added. Release builds with zero warnings/errors; all 53 focused
 surface/authority, public-surface, tenancy, job-manifest and corpus architecture
-cases pass with zero skips. Targeted reviewer confirmation remains in progress;
-Step 2 implementation has not started.
+cases pass with zero skips. Both findings are corrected in `09dcb111`. Their
+original round-2 reviewers independently inspect that committed delta and confirm
+their findings closed, with no remaining actionable issue in the targeted fixes.
+These are source inspections, not additional executed test runs. Step 1's two
+independent rounds and verified correction cycle are complete; Step 2 proceeds
+under the plan above. Final-source hosted qualification remains outstanding.
 
 ## Completion Criteria
 
