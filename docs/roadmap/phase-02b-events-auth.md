@@ -13253,8 +13253,8 @@ Neither failed historical attempt nor the offline replay qualifies that head.
 #### Step 3 provenance guard follow-up
 
 Source `b3abbce6` completes both full attempts of hosted run `39424514759`:
-A and B each pass all 27 jobs, 5,847 backend cases, 1,699 frontend cases,
-31 native cases and 27 JSON/HTML demo pairs. Independent API/archive/result
+A and B each pass all 27 jobs, 5,847 backend cases including 31 native cases,
+1,699 frontend cases and 27 JSON/HTML demo pairs. Independent API/archive/result
 validation verifies equal complete case populations, actual different method
 co-membership, matching toolchain identities and naturally completed cleanup.
 The live PR retains both attempt-specific receipts and their limits.
@@ -13272,10 +13272,18 @@ The plan bytes, weights, assignment algorithm and fixture lifetime do not
 change. Its digest remains
 `85ce77743fd83d924060ad7008899595908ec4fd466597078ae6509e022db01d`.
 This is source-shape validation, not API attestation of an arbitrary timing
-record. Two fresh independent follow-up review rounds remain pending. After
-closure, ADR-0063 requires one complete current-source assignment for this normal
-push; the earlier A/B receipts qualify the unchanged plan on their named source,
-not the subsequent guard commit. The live PR owns final-head qualification.
+record. Implementation `dbb2e9fd` completes two fresh independent follow-up review
+rounds, each with two GPT-6.1 Sol reviewers at high effort. All four approve with
+no actionable finding. Round 1 independently exercises 270 kind/identity
+combinations; Round 2 exercises separate 507- and 297-combination controls. Both
+rounds reproduce the three missing-identity failures against the preceding
+parser. These are local/source proofs, not independent hosted attestation.
+All 52 combined plan/result controls, 16 separate result controls and topology
+validation pass; 2,276 relative links/fragments remain valid.
+
+ADR-0063 requires one complete current-source assignment for this normal push;
+the earlier A/B receipts qualify the unchanged plan on their named source, not
+the subsequent guard commit. The live PR owns final-head qualification.
 
 ## Completion Criteria
 
