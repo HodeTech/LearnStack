@@ -13599,8 +13599,11 @@ only. The read-only identity projection never opens a data source.
   up front. Apply only named owned fields/resources, merge unrelated data and
   perform independent post-write readback. Never replay a full realm import,
   drop a database, recreate a realm or delete existing accounts/scopes/roles.
-- Bound each HTTP wait to 5s, each decoded response to 256 KiB and the complete
-  reconciliation to 120s; reject redirects on discovery, authentication and Admin
+- Bound each HTTP wait to 5s, ordinary decoded responses and every outbound body
+  to 256 KiB, and the complete reconciliation to 120s. Only the fixed authenticated
+  successful `GET /admin/serverinfo` read has the
+  [accepted 512 KiB allowance](#server-information-response-budget--proposal-2026-10-21).
+  Reject redirects on discovery, authentication and Admin
   REST alike. No automatic token-request or mutation retry loop.
   Creation conflicts permit one exact fresh-state check, not blind overwrite.
   Abort/close the owned request and await cleanup before dropping the lock;
@@ -13890,7 +13893,7 @@ correction changes only offline proof/docs, not provider configuration or code.
 
 ## P02b-6 Step 2 — owned warm-realm reconciliation (2026-10-21)
 
-**Status: implementation in progress; version-response budget approval pending.**
+**Status: implementation in progress; version-response budget Accepted.**
 Step 1 is closed at `95d0a0c8`. The shared development-only client, owned target/
 transport/lock boundaries and field planner are implemented locally. The first
 actual complete-core provider run refuses before writes at `version/body_limit`.
@@ -13898,12 +13901,14 @@ No completed Step 2, warm convergence or final-source CI proof is claimed yet.
 
 ### Server-information response budget — proposal (2026-10-21)
 
-**Status: Proposed — maintainer approval required before dependent activation.**
+**Status: Accepted — 2026-10-21.** The maintainer approved the named 512 KiB
+exception after the additional investigation below, recorded at `fbd9e7dd`.
+The acceptance receipt below precedes dependent implementation.
 This is a bounded adjustment to G12's accepted phase-package HTTP envelope, using
 its existing decision vehicle. It changes no Accepted ADR, runtime identity
 provider, credential, realm authority, mutation policy or application surface.
 
-**Observed conflict.** The package requires an authenticated server-version check
+**Observed conflict.** The original package requires an authenticated version check
 before writes and caps every decoded HTTP response at 256 KiB. Pinned Keycloak's
 `GET /admin/serverinfo` returns the full provider/mapper inventory along with the
 version; its resource exposes no projection/filter parameter. The actual pinned
@@ -13912,7 +13917,7 @@ authenticated reads, version `26.6.2`, identity encoding. The current production
 client correctly refuses this response at the accepted cap. Source:
 [pinned server information resource](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/info/ServerInfoAdminResource.java#L120-L169).
 
-**Proposed delta.** Only the fixed, authenticated, read-only
+**Accepted delta.** Only the fixed, authenticated, read-only
 `GET /admin/serverinfo` exchange may consume at most **512 KiB decoded bytes**.
 Every other response and every outbound body retains **256 KiB**. The 5s exchange
 and 120s whole-pass deadlines, redirect/compression refusals, full JSON parsing,
@@ -13951,7 +13956,7 @@ security review also inspects 240 pinned resource/runtime source files without
 finding a narrower authenticated version route. Neither reviewer reruns the
 measurement or claims implementation/hosted qualification. The response-byte
 allowance does not bound peak heap: retained chunks, concatenation, UTF-8 text
-and parsed JSON add memory overhead. Maintainer acceptance is still pending.
+and parsed JSON add memory overhead. Acceptance was pending at that checkpoint.
 
 **Independent progress.** Sixty-five offline transport/target/lock controls pass
 with zero skips in 10.162s. They cover actual HTTP deadline/body/redirect/abort
@@ -13972,9 +13977,9 @@ This is an implementation checkpoint, not Step 2 review/qualification closure.
 
 ### Additional version-source investigation (2026-10-21)
 
-The maintainer requested further research instead of accepting the proposed
-budget change. The proposal remains unaccepted; production code still uses the
-universal 256 KiB cap. The following read-only experiments run against isolated
+The maintainer requested further research before accepting the proposed budget
+change. At this research checkpoint the proposal remained unaccepted and code
+still used the universal 256 KiB cap. These read-only experiments run against isolated
 pinned PostgreSQL-backed HTTPS Keycloak, with owned CA/hostname validation and
 no redirects. They do not qualify the unfinished whole reconciler.
 
@@ -14056,6 +14061,20 @@ removed. Release integration builds pass with zero warnings/errors. Concrete
 owned provider/database/Ryuk containers and networks are independently confirmed
 absent. No configuration mutation, bound change or dependent activation is
 performed by this investigation.
+
+### Server-information allowance acceptance (2026-10-21)
+
+The maintainer explicitly selects the named 512 KiB server-information exception,
+after considering the viable 256 KiB partial-export alternative. Only a fixed
+authenticated successful `GET /admin/serverinfo`, without query parameters or a
+request body, can use it. All other responses and every outbound body remain at
+256 KiB; the 5s/120s deadlines and existing failure/ownership boundaries remain.
+There is no configurable limit, automatic fallback or partial-export activation.
+
+Acceptance updates this package and the current navigation carriers before
+dependent code. It claims no completed Step 2, implemented exception or new
+provider/hosted proof. The exact-boundary, negative-purpose and full provider
+controls above remain mandatory; the approved two-review-round loop is unchanged.
 
 ## Completion Criteria
 

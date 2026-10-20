@@ -152,7 +152,7 @@ not deferred to the showcase phase.
   [record](phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
   owns fresh-provider qualification and implementation reviews. Step 2 is in
   progress; its [record](phase-02b-events-auth.md#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21)
-  owns the pending server-information response-budget proposal. Steps 3–4 remain
+  owns the Accepted server-information response allowance. Steps 3–4 remain
   pending and G13's session part stays Open.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
   retains its source-bound corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)

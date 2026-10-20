@@ -285,7 +285,7 @@ P02b-6 Step 1 is complete locally after both review rounds; its
 owns implementation, fresh-provider qualification and review status.
 P02b-6 Step 2 is in progress; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21)
-owns the pending server-information response-budget proposal and current proofs.
+owns the Accepted server-information response allowance and current proofs.
 Steps 3–4 and P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full
@@ -505,7 +505,7 @@ Then read the phase that is live and the one it stands on:
   P02b-6's realm/TTL decision package and four-step plan above are Accepted —
   2026-10-21. Its [Step 1 record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
   owns the executable fresh import and provider proofs. Step 2's record above
-  owns the in-progress reconciler and pending response-budget decision;
+  owns the in-progress reconciler and Accepted response-budget decision;
   Steps 3–4 remain pending.
   P02b-7–8 retain their
   own decision passes; G13's session part stays Open.
