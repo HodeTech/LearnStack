@@ -13888,6 +13888,76 @@ closeout addition. Whitespace checks pass. Existing eleven-case provider and
 1,699-case frontend receipts above remain source-applicable; the second-round
 correction changes only offline proof/docs, not provider configuration or code.
 
+## P02b-6 Step 2 — owned warm-realm reconciliation (2026-10-21)
+
+**Status: implementation in progress; version-response budget approval pending.**
+Step 1 is closed at `95d0a0c8`. The shared development-only client, owned target/
+transport/lock boundaries and field planner are implemented locally. The first
+actual complete-core provider run refuses before writes at `version/body_limit`.
+No completed Step 2, warm convergence or final-source CI proof is claimed yet.
+
+### Server-information response budget — proposal (2026-10-21)
+
+**Status: Proposed — maintainer approval required before dependent activation.**
+This is a bounded adjustment to G12's accepted phase-package HTTP envelope, using
+its existing decision vehicle. It changes no Accepted ADR, runtime identity
+provider, credential, realm authority, mutation policy or application surface.
+
+**Observed conflict.** The package requires an authenticated server-version check
+before writes and caps every decoded HTTP response at 256 KiB. Pinned Keycloak's
+`GET /admin/serverinfo` returns the full provider/mapper inventory along with the
+version; its resource exposes no projection/filter parameter. The actual pinned
+PostgreSQL-backed HTTPS fixture returns **292,707 decoded bytes** on each of two
+authenticated reads, version `26.6.2`, identity encoding. The current production
+client correctly refuses this response at the accepted cap. Source:
+[pinned server information resource](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/info/ServerInfoAdminResource.java#L113-L160).
+
+**Proposed delta.** Only the fixed, authenticated, read-only
+`GET /admin/serverinfo` exchange may consume at most **512 KiB decoded bytes**.
+Every other response and every outbound body retains **256 KiB**. The 5s exchange
+and 120s whole-pass deadlines, redirect/compression refusals, full JSON parsing,
+exact version check and request/response cleanup remain unchanged. No caller,
+configuration or CLI option can widen this budget or choose another endpoint.
+Wrong version, malformed JSON, overflow or uncertainty still refuses before
+the first mutation. The extra retained response allowance is at most 256 KiB for
+one sequential read; it is not a general transport-limit increase.
+
+**Alternatives.** Keeping the universal cap leaves actual reconciliation
+unusable. Skipping version validation would weaken the selected target contract.
+Parsing only a prefix and treating an aborted/truncated JSON response as success
+would not independently validate the complete version document. A general 512 KiB
+limit expands every exchange unnecessarily. A provider extension solely for a
+version projection adds a custom deployment surface. The named read exception
+preserves the stock provider and the other bounds.
+
+**Qualification.** The two measurement reads use a temporary, explicitly
+measurement-only 1 MiB cap, owned HTTPS CA/hostname verification, 5s wait and no
+redirects. Only byte count, exact version and encoding leave the probe. Its
+temporary source is removed; this is feasibility evidence, not a committed
+regression or authorization to change the client. Approval must precede the
+dependent bound change. Committed controls must accept the actual document and
+an exact 512 KiB document, reject a 512 KiB + 1 overflow, malformed/truncated JSON
+and a wrong version before writes. Wrong method/path, unauthenticated/unsuccessful
+reads and ordinary exchanges retain the 256 KiB refusal boundary independently.
+The complete actual-core provider suite must pass after that implementation.
+
+**Proposal reviews.** Two fresh independent read-only reviewers, GPT-6 Astra at
+xhigh effort and GPT-6.1 Sol at high effort, approve this proposal for maintainer
+decision without a verified actionable finding. They confirm the endpoint's
+authenticated inventory/no-projection source and G12's decision vehicle. The
+security review also inspects 240 pinned resource/runtime source files without
+finding a narrower authenticated version route. Neither reviewer reruns the
+measurement or claims implementation/hosted qualification. The response-byte
+allowance does not bound peak heap: retained chunks, concatenation, UTF-8 text
+and parsed JSON add memory overhead. Maintainer acceptance is still pending.
+
+**Independent progress.** Sixty-five offline transport/target/lock controls pass
+with zero skips in 10.162s. They cover actual HTTP deadline/body/redirect/abort
+behavior, closed canary diagnostics, selected private-source agreement and local
+exclusive ownership. They establish local request/response/socket cleanup before
+settlement and separately bounded peer closure; neither claims remote rollback.
+Actual field-planner diagnostics remain separate from final whole-core proof.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
