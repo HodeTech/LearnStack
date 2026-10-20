@@ -358,21 +358,26 @@ not a request to add an unused module, adapter or port.
   bounded operational visibility for refused membership/scope cases before production.
   An observability change must preserve the accepted no-durable-row rule unless a
   new decision explicitly changes it.
-- **Subject capacity.** The existing 4096-key registry is shared across tenants,
-  so occupied live slots can refuse other valid subjects. Capacity and spent subject
-  quota currently share the HTTP 429 contract. Distinct quota/capacity/fault signals
-  and acquisition-path reclamation remain pending acceptance and implementation of
-  [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md); a proposed counter
-  is not an installed alert. Its revised proposal gives new-key cleanup fault 503,
-  preserves existing-key quota service and exposes an unlabelled fault-transition
-  counter. Qualify the accepted implementation's live/idle pressure, actual cleanup
-  and multiple-instance behavior here, measure supported sizing, and publish refusal
-  thresholds. The runbook must distinguish quota replenishment, capacity pressure
-  and sticky cleanup fault; only the fault branch recommends qualified instance
+- **Subject capacity.** [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+  is Accepted — 2026-10-20; dependent implementation and runtime/exported proofs
+  remain pending. Its 4096 retained keys are shared across tenants, so occupied
+  live slots can refuse other valid subjects. Quota/capacity use 429 with
+  stock-quota/60-second hints; new-key sticky cleanup fault uses 503 with the
+  common 30-second helper. Existing retained subjects keep their quota service.
+  Qualify the accepted implementation's live/idle pressure, actual cleanup,
+  4224 retained-plus-retiring resource bound and multiple-instance behavior here;
+  measure supported sizing and publish refusal thresholds. Production operations
+  must route `learnstack_tenant_subject_admission_rejected_total{reason}` for
+  `quota`, `registry_capacity` and `registry_fault`, plus the unlabelled once-only
+  `learnstack_tenant_subject_cleanup_failed_total` transition. Accepted counters
+  and local export proofs do not install alerts or mapped readiness. The future
+  production runbook must distinguish quota replenishment, capacity pressure and
+  sticky cleanup fault; only the fault branch recommends qualified instance
   replacement. Exercise blocked-disposal/request/shutdown behavior: one synchronous
   disposal has no wall-clock bound and a host grace deadline is not cleanup proof.
-  Do not use a restart or live eviction to restore spent quota or bypass ordinary
-  capacity admission. These ADR-0066-dependent duties require its approval first.
+  Preserve the single cleanup owner and no new allocation/debit before the
+  acquisition owner's successful cleanup/recheck. Do not use a restart or live
+  eviction to restore spent quota or bypass ordinary capacity admission.
 - **Readiness and incident response.** There is no mapped auth readiness check today;
   `/healthz` proves liveness. Decide whether an unavailable IdP changes whole-instance
   readiness or authenticated-traffic admission, preserving the credential-free public

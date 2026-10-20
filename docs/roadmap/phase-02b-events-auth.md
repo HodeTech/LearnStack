@@ -12738,6 +12738,29 @@ link/fragment and whitespace checks are repeated before commit. Runtime code
 and Accepted ADR-0064/0065 are unchanged throughout this revision. The concrete
 proposal is ready for maintainer reapproval; no elapsed wait supplies approval.
 
+### ADR-0066 acceptance and implementation (2026-10-20)
+
+The maintainer explicitly accepts the revised ADR-0066 and requests
+implementation after the two fresh revision review rounds. Acceptance is the
+first commit of this dependent work on development, before runtime changes.
+The ADR moves to Accepted; ADR-0064 and ADR-0065 each retain their original
+body/metadata and gain an adjacent source-attribution erratum plus their own
+dated Amendment 2. The index and mutable authorities record the new source.
+
+**Implementation plan.** One correction step covers the limiter, closed result,
+singleton cleanup ownership, two metrics, middleware and served/snapshot SDK
+contract. Unit and real signed PostgreSQL/OTLP integration controls deliver the
+accepted default, scan, race, fault, shutdown, resource-bound and label proofs.
+Then commit the implementation, run two fresh independent multidimensional
+review rounds, verify/fix/commit findings, and complete current-head CI evidence
+and PR reconciliation. The broader P02b-5 steps are not restarted.
+
+At acceptance, runtime implementation and its new controls remain pending.
+No schema, role, grant, RLS, bearer identity, 600/min subject quota or earlier
+visitor/peer admission changes are authorized by this addition. Phase 11 owns
+measured sizing, distributed admission, readiness and exercised production
+alerts/runbooks; the accepted request/shutdown blocking cost remains explicit.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

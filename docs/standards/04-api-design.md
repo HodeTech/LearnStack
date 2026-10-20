@@ -9,7 +9,9 @@ Public-read additions derive from
 The accepted tenant-authentication contract derives from
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md);
 P02b-5 Step 4 activates the closed HTTP boundary; its delivery record owns proof
-and review status.
+and review status. Subject-registry capacity, cleanup and refusal semantics
+derive from [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md),
+Accepted — 2026-10-20; dependent implementation and runtime proofs are pending.
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -529,7 +531,23 @@ a limit, and the first version of this table was four of those.
 | Rate limit (authenticated) | Additional 600 req/min per validated issuer + subject | [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md); P02b-5 Step 3 implements the component, Step 4 activates it after authentication and before resolution/audit. Existing early visitor/peer limits still apply |
 | Rate limit (write endpoints) | 60 req/min per token (planned) | No routed protected write; [Phase 03](../roadmap/phase-03-identity-admin.md) owns the first authorized writes and their admission policy |
 
-429 responses include `Retry-After`.
+429 responses include `Retry-After`. Accepted
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md) requires the
+subject-admission boundary to distinguish these outcomes before resolution or
+audit, using the existing Problem Details/no-store path:
+
+| Subject refusal | Status / body code | `Retry-After` |
+|---|---|---|
+| Spent quota | 429 / `rate_limited` | Stock quota hint, rounded up to seconds, minimum 1 |
+| Retained-key capacity | 429 / `rate_limited` | 60 seconds |
+| Sticky cleanup fault for a new key | 503 / `dependency_unavailable` | Common 503 retry helper: 30 seconds |
+
+Capacity is a rate-admission refusal, not an IdP or audit-store failure; the
+idempotency-store capacity rule remains 503 because an operation outcome cannot
+be safely retained there. Cleanup fault is an unavailable local dependency.
+Existing retained keys keep their quota service during that fault. Retry hints
+promise neither space nor recovery; fault recovery needs qualified instance
+replacement. Dependent implementation and exported/runtime proofs remain pending.
 
 **ADR-0054 accounting implemented — 2026-10-09; both review rounds passed.**
 Remediation Step 1 probes an owned known visitor limiter with zero permits and returns

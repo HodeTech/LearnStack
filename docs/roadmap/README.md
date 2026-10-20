@@ -143,8 +143,9 @@ not deferred to the showcase phase.
   separates exact CI receipts from live PR-head qualification and merge. All five
   steps are locally complete and unmerged. Next is P02b-6's realm/TTL decision pass.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
-  owns current corrections; ADR-0066 remains Proposed pending approval of the
-  subject-cap decision and dependent refinements before PR #33 closeout.
+  owns current corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+  is Accepted — 2026-10-20; its subject-cap, cleanup and refusal refinements are
+  authorized, with implementation and runtime proofs pending before PR #33 closeout.
   Its [revision record](phase-02b-events-auth.md#adr-0066-maintainer-review-revision-2026-10-20)
   owns the separate cleanup-fault response, allocation ordering and blocking costs.
   Realm reconciliation, BFF sessions and phase-exit enforcement remain P02b-6–8.

@@ -521,6 +521,12 @@ proves JWT handling, or a context-only stub proves database isolation.
 
 ### Amendment 1 — bounded assertion diagnostics (2026-10-20)
 
+> **Erratum — 2026-10-20.** The paragraph below calls the subject bound
+> "ADR-0064's 4096-subject registry". The original Decision selects no count;
+> § Additional subject quota and the subsequent implementation show the false
+> attribution. The Decision is unchanged. Current bound authority:
+> [ADR-0066](0066-bounded-tenant-subject-admission.md). Recorded in Amendment 2.
+
 **Status: Accepted.** The maintainer accepts
 [ADR-0065](0065-bounded-tenant-assertion-diagnostics.md) and authorizes its
 implementation after review corrections without another approval gate. Its
@@ -556,3 +562,26 @@ this is not an ADR-0041 false-when-written correction. The prior
 remains historical; the
 [2026-10-20 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
 owns subsequent implementation, proofs and current PR-head qualification.
+
+### Amendment 2 — explicit subject registry bound and attribution (2026-10-20)
+
+The maintainer accepts [ADR-0066](0066-bounded-tenant-subject-admission.md), an
+additive admission/resource decision. This ADR's original Decision chooses the
+stable issuer/subject quota and safe retirement but no partition count.
+Amendment 1's attribution of 4096 to this ADR was therefore false when written;
+its adjacent inline erratum preserves the original text under ADR-0041.
+The original Decision, date and deciders remain unchanged. ADR-0066 now owns the
+exact bound, cleanup/fault protocol and closed refusal signals; the 600 quota,
+authentication authority and ADR-0065's independent audit allowance are intact.
+
+The correction carriers are ADR-0066, this erratum and amendment, ADR-0065's own
+erratum/amendment, the [decision index](README.md), Standards
+[04](../standards/04-api-design.md), [10](../standards/10-observability.md) and
+[11](../standards/11-security.md), Architecture
+[13](../architecture/13-identity-and-auth.md) and
+[33](../architecture/33-cross-cutting-concerns.md), the
+[glossary](../glossary.md), [CLAUDE.md](../../CLAUDE.md), the
+[roadmap index](../roadmap/README.md), [Phase 11](../roadmap/phase-11-production-hardening.md)
+and the [acceptance/delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
+Catalogue Asserts and runtime/test owners gain their new obligations together
+with actual implementation; acceptance alone is not proof of delivery.

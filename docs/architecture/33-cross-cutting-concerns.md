@@ -5,6 +5,7 @@
 [ADR-0033](../decisions/0033-audit-durability-model.md),
 [ADR-0044](../decisions/0044-audit-write-path.md),
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md),
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md),
 [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md). For the
 day-to-day rules read [09-error-handling.md](../standards/09-error-handling.md),
 [10-observability.md](../standards/10-observability.md), and
@@ -100,6 +101,19 @@ after exhaustion, Warning 4006 replaces normal 4001 and no database I/O occurs.
 This can lose later actors' durable evidence and leaves aggregate real-time log
 volume unbounded. Admitted events remain MUST; general mutation durability and
 tenant `AuditConfig` floors are unchanged. Its acceptance precedes dependent code.
+
+Accepted [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+separately bounds the subject registry and its cleanup ownership. Its closed
+limiter result travels to middleware with detached retry metadata; a cached
+request result controls dispatch and once-only rejection metrics. Quota/capacity
+remain 429; new-key sticky cleanup fault uses 503 and the common retry helper.
+Already retained subjects keep their quota service. One shared retirement owner
+bounds retained-plus-retiring resources; synchronous cleanup can block its owning
+request and joined shutdown indefinitely. No timeout proves cleanup and no new
+fatal-process policy is added. The exact lifecycle and HTTP contract live in the
+ADR; [Observability Standards](../standards/10-observability.md#tenant-authentication-diagnostics)
+owns the identity-free signals. Acceptance is 2026-10-20; dependent implementation
+and runtime/exported proofs remain pending.
 
 ADR-0065 also ratifies process-wide native outbound metric projection: HTTP keeps
 method/status/protocol/scheme/error; DNS keeps only `error.type`. Destination,

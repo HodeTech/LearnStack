@@ -75,6 +75,12 @@ requests do not move its start. The same tenant restarts a consumed window only
 after elapsed expiry. No actor/source/dimension partitions, configuration key or
 tenant override multiply or alter the fixed allowance.
 
+> **Erratum — 2026-10-20.** The paragraph below calls the request registry
+> "ADR-0064's retained 4096-subject registry". ADR-0064's Decision selects no
+> partition count; its quota section and later code show the false attribution.
+> This Decision is unchanged. Current bound authority:
+> [ADR-0066](0066-bounded-tenant-subject-admission.md). Recorded in Amendment 2.
+
 The singleton owns an in-memory dictionary and queue with at most one retained
 entry per actual host tenant. Each call inspects at most 128 queued entries and
 reclaims only expired windows; live windows are never evicted or reset under
@@ -320,3 +326,26 @@ and the [catalogue](../standards/21-architecture-tests-catalogue.md) carry the
 same proof boundary. Source-bound review and hosted qualification belong to the
 [second remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20).
 The original Accepted body, decision, date and deciders remain intact.
+
+### Amendment 2 — subject registry source attribution (2026-10-20)
+
+The reference to "ADR-0064's retained 4096-subject registry" was false when
+written: ADR-0064's original quota Decision selects no partition count. The
+adjacent inline erratum preserves that text under ADR-0041. The maintainer now
+accepts [ADR-0066](0066-bounded-tenant-subject-admission.md), the additive
+subject-admission/resource decision. This ADR's audit allowance, tenant-only
+keyspace, destination/exemplar privacy, original Decision, date and deciders
+remain unchanged. Subject-registry fault and quota are not audit-store failure
+or assertion suppression.
+
+The correction carriers are ADR-0066, this erratum/amendment, ADR-0064's own
+erratum/amendment, the [decision index](README.md), Standards
+[04](../standards/04-api-design.md), [10](../standards/10-observability.md) and
+[11](../standards/11-security.md), Architecture
+[13](../architecture/13-identity-and-auth.md) and
+[33](../architecture/33-cross-cutting-concerns.md), the
+[glossary](../glossary.md), [CLAUDE.md](../../CLAUDE.md), the
+[roadmap index](../roadmap/README.md), [Phase 11](../roadmap/phase-11-production-hardening.md)
+and the [acceptance/delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
+The catalogue and actual runtime/test owners are updated with the implementation;
+this acceptance is not a claim that those controls already run.

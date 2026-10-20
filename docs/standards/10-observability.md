@@ -15,6 +15,9 @@ P02b-5 Steps 1 and 3 implement the components; Step 4 activates the HTTP boundar
 Bounded assertion diagnostics and process-wide outbound metric projection derive
 from [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
 2026-10-20 acceptance precedes dependent audit-budget implementation.
+Subject-admission refusal and cleanup-fault signals derive from
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md), Accepted —
+2026-10-20; their dependent implementation and exported proofs remain pending.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -207,6 +210,20 @@ existing rejection recorder; it introduces no second detector or audit slug.
   must qualify counter alerting and the 4006 tenant/actor/correlation triage
   runbook. Health alone cannot establish complete security-event coverage.
 
+Accepted [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+requires `learnstack_tenant_subject_admission_rejected_total{reason}` with only
+`quota`, `registry_capacity` or `registry_fault`, emitted once per refused request
+before responding. Admission emits no increment; cached pipeline re-execution
+neither reacquires nor increments again. Emit unlabelled
+`learnstack_tenant_subject_cleanup_failed_total` once on the instance's first
+sticky cleanup-fault transition, including faults first observed by the timer.
+Neither metric carries issuer, subject, actor, tenant, host, token or correlation;
+retained exceptions are not metric values or exported provider diagnostics. No
+new per-refusal Warning or audit write is introduced. These are accepted proof
+obligations, not yet installed signals or alerts. Phase 11 owns sizing, alert
+routing and the separate quota/capacity/fault production runbook; liveness and
+audit health do not diagnose this registry.
+
 The Step 1 vendor boundary suppresses the exact category
 `Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerHandler` at every level
 before any production sink. This includes stock failure events 1/3 and inherited
@@ -364,6 +381,8 @@ backend treat business rejections as system failures.
 |--------|------|--------|
 | `learnstack_http_request_duration_seconds` | histogram | route, method, status |
 | `learnstack_http_request_total` | counter | route, method, status |
+| `learnstack_tenant_subject_admission_rejected_total` | counter | reason (`quota`, `registry_capacity`, `registry_fault`); ADR-0066 implementation/proof pending |
+| `learnstack_tenant_subject_cleanup_failed_total` | counter | none; ADR-0066 implementation/proof pending |
 | `learnstack_db_query_duration_seconds` | histogram | module, operation |
 | `learnstack_outbox_pending_count` | gauge | — |
 | `learnstack_outbox_dispatch_duration_seconds` | histogram | event_type |

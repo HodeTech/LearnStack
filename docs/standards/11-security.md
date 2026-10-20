@@ -30,11 +30,11 @@ The exact authenticated read-mode extension derives from
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md). The composition
 declarations
 are frozen once in a singleton exact-type catalogue; request-scoped transaction
-behaviors share that immutable snapshot. Current code refuses new subject keys
-at 4096 retained entries and retires only full-quota idle entries. The exact cap
-was not selected by ADR-0064; [Proposed ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
-seeks approval for that bound and dependent reclamation/fault signals. This
-description of existing code neither accepts the proposal nor grants throughput.
+behaviors share that immutable snapshot. The retained-subject bound, retirement
+ownership and closed refusal/fault signals derive from
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md), Accepted —
+2026-10-20; its dependent implementation and runtime proofs remain pending.
+The bound grants no throughput entitlement.
 Bounded authenticated assertion recording derives from
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); acceptance
 precedes its dependent code. Its tenant-only audit budget is separate from the
@@ -680,14 +680,31 @@ request retains a limiter removed by retirement.
 P02b-5 Step 3 implements the subject component; Step 4 activates it in production.
 The stable issuer/subject key survives token rotation and tenant selection; actor,
 host and credential text do not select a partition. It uses a one-minute fixed
-window with no queue. Retirement inspects at most 128 entries per timer callback,
-reclaims only full-quota partitions idle for a complete window and joins owned
-timers on disposal. Exhausted live quotas cannot be evicted or reset by pressure.
+window with no queue. Accepted
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md) adds the
+process-wide 4096 retained-key bound; the internal smaller-bound constructor is
+only a test seam. Retirement reclaims only full-quota partitions idle for a
+complete window. Acquisition inspects at most 128 entries and disposes at most
+one; the timer inspects/retires at most 128 every 30 seconds. One shared cleanup
+owner prevents overlapping batches; at most 4224 limiters are owned, including
+retirement. Exhausted live quotas cannot be evicted or reset by pressure.
+
+The acquiring cleanup owner must complete disposal, then recheck shutdown,
+fault, key existence and capacity before its own allocation or debit. Other
+requests do not wait for cleanup and may take freed slots. A sticky cleanup
+fault stops new allocations and batches; already retained keys keep their
+original quota. Joined shutdown closes admission and observes timer/acquisition
+cleanup and retained failures. One blocked disposal can indefinitely delay its
+request and shutdown; a host deadline is not cleanup evidence and adds no fatal
+process policy. These ADR-0066 refinements require implementation proof.
 The earlier visitor/peer limits apply to every credential, so this is an extra
 ceiling, not a promise of independent 600/min end-to-end throughput. Whole-chain
 reduced-budget proofs isolate the subject limit below those early floors; a
-separate real-default proof exercises the 600 boundary. A quota refusal stops
-before reconciliation and durable rejection audit. See
+separate real-default proof exercises the 600 boundary. Subject refusals stop
+before reconciliation and durable rejection audit. Quota/capacity use 429 with
+stock-quota/60-second retry hints; new-key cleanup fault uses 503
+`dependency_unavailable` and the common 30-second retry helper. Hints do not
+promise capacity or recovery. See
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md#additional-subject-quota).
 
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) separately

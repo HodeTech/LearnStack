@@ -2,9 +2,10 @@
 
 ## Status
 
-Proposed — maintainer approval pending. Existing code already retains at most
-4096 subjects; this record proposes that bound explicitly rather than claiming
-ADR-0064 selected it. Approval precedes the dependent admission refinements.
+Accepted — maintainer approval on 2026-10-20. Existing code already retains at
+most 4096 subjects; this record selects that bound explicitly rather than
+claiming ADR-0064 selected it. Acceptance precedes dependent implementation;
+the Phase 02b delivery record owns its runtime and proof status.
 
 **Date:** 2026-10-20
 **Deciders:** @cemil
@@ -196,7 +197,7 @@ Many valid subjects can occupy all live slots and deny first requests from
 other legitimate subjects on the same instance, including other tenants. A
 subject does not receive a reserved slot. Idle reclamation cannot solve a live
 registry; multiple instances have independent state and multiply resources and
-admission. These are accepted costs if this proposal is approved.
+admission. These are accepted costs of this decision.
 
 Reopen before a deployment needs more than 4096 retained subjects per instance,
 or expected legitimate traffic produces capacity refusal. Phase 11 measures
@@ -217,8 +218,8 @@ become eligible. This proposal adds bounded acquisition-path reclamation while
 preserving actual cleanup ownership; elapsed timeout is never cleanup evidence.
 
 This is an additive decision, not a change to the 600 quota, and not a claim that
-the missing bound was already decided. On approval, append dated disclosures
-to ADR-0064 and ADR-0065. Correct their false source attributions through
+the missing bound was already decided. Acceptance adds dated disclosures to
+ADR-0064 and ADR-0065 and corrects their false source attributions through
 ADR-0041's inline erratum mechanism, retaining original rationale and metadata.
 The independent target-tenant audit allowance remains ADR-0065's decision.
 
@@ -254,16 +255,16 @@ The independent target-tenant audit allowance remains ADR-0065's decision.
 
 ## Implementation Notes
 
-After approval, update ADR-0064/0065 with their own dated disclosures and
+Acceptance updates ADR-0064/0065 with their own dated disclosures and
 inline attribution errata; update the decision index, Standards 04/10/11/21,
 Architecture 13/33, glossary, phase roadmap, `CLAUDE.md`, roadmap README and
-source ownership comments. Add ADR-0066 to the deriving headers/sources only
-on acceptance; meanwhile mutable carriers label 4096 as existing code under
-this Proposed decision. Include this ADR in future implementation trailers;
+source ownership comments. Add ADR-0066 to the deriving headers/sources;
+mutable carriers distinguish acceptance from pending runtime proofs.
+Include this ADR in implementation trailers;
 do not rewrite historical commits. The
 existing `Authenticated_Rate_Limits_Use_Validated_Subject` obligation gains the
 named cap/signal/cleanup proofs in the same change as their actual test owners;
-no new catalogue rule or Implemented count is inferred from this proposal.
+no new catalogue rule or Implemented count is inferred from acceptance.
 
 Update the served and snapshot OpenAPI 503 descriptions for AccountSite and
 public routes reached with a validated subject; also update their 429 retry
