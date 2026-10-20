@@ -280,7 +280,7 @@ trees. P02b-6's realm/TTL
 is Accepted — 2026-10-21. The maintainer approved the package at `6d75e532`
 and its four implementation steps. G12's realm/reconciliation/callback choices
 and G13's issuance-TTL part are Accepted; G13's session part stays Open.
-P02b-6 Step 1 is in progress; its
+P02b-6 Step 1 is complete locally after both review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
 owns implementation, fresh-provider qualification and review status.
 P02b-6 Steps 2–4 and P02b-7–8 remain pending;
@@ -500,7 +500,9 @@ Then read the phase that is live and the one it stands on:
   all five implementation steps and correction reviews are complete and merged
   through PR #33 on 2026-10-20. Its merge closeout above owns verification.
   P02b-6's realm/TTL decision package and four-step plan above are Accepted —
-  2026-10-21; runtime implementation remains pending. P02b-7–8 retain their
+  2026-10-21. Its [Step 1 record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
+  owns the executable fresh import and provider proofs; Steps 2–4 remain pending.
+  P02b-7–8 retain their
   own decision passes; G13's session part stays Open.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.

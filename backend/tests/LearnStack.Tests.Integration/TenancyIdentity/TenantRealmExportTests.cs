@@ -91,6 +91,13 @@ public sealed partial class TenantRealmExportTests
         };
         foreach (var destination in UnsafeOptionalDestinations)
             mutations.Add(("optional reserved destination " + destination, realm => AddOptionalClaim(realm, destination)));
+        foreach (var clientId in new[] { "user_id", "sub", "aud" })
+            mutations.Add(("interpolated client-role destination " + clientId, realm =>
+            {
+                realm["clients"]!.AsArray().Add(new JsonObject { ["clientId"] = clientId });
+                AddOptionalClientRoleClaim(realm, "${client_id}", clientId);
+            }
+            ));
         Violations(original).Should().BeEmpty("the control input is the real export");
         foreach (var (name, apply) in mutations)
         {
@@ -102,6 +109,9 @@ public sealed partial class TenantRealmExportTests
         var escapedLiteral = original.DeepClone().AsObject();
         AddOptionalClaim(escapedLiteral, @"user_id\.nested");
         Violations(escapedLiteral).Should().BeEmpty("an escaped dot produces a separate literal key, not an identity object");
+        var nestedClientRoles = original.DeepClone().AsObject();
+        AddOptionalClientRoleClaim(nestedClientRoles, "resource_access.${client_id}.roles", "learnstack-api");
+        Violations(nestedClientRoles).Should().BeEmpty("the pinned built-in client-role path has a fixed safe root");
     }
 
     internal static IReadOnlyList<string> Violations(JsonObject realm)
@@ -139,6 +149,10 @@ public sealed partial class TenantRealmExportTests
                 Require(effectiveMappers.All(mapper => !ReservedClaims.Contains(
                     ClaimRoot(Text(mapper?["config"]?["claim.name"])), StringComparer.Ordinal)),
                     "no configurable mapper overrides a reserved token property");
+                Require(effectiveMappers.All(mapper =>
+                    Text(mapper?["protocolMapper"]) != "oidc-usermodel-client-role-mapper"
+                    || !ClaimRoot(Text(mapper?["config"]?["claim.name"])).Contains("${client_id}", StringComparison.Ordinal)),
+                    "client-role interpolation cannot select a dynamic top-level claim");
                 foreach (var type in new[] { "oidc-sub-mapper", "oidc-audience-mapper", "oidc-audience-resolve-mapper" })
                     Require(effectiveMappers.Count(mapper => Text(mapper?["protocolMapper"]) == type) == 1,
                         "one qualified implicit subject/audience writer");
@@ -231,6 +245,16 @@ public sealed partial class TenantRealmExportTests
         var mapper = Mapper(realm, "user_id").DeepClone().AsObject();
         mapper["name"] = "additional-optional-claim";
         mapper["config"]!["claim.name"] = destination;
+        Scope(realm, "phone")["protocolMappers"]!.AsArray().Add(mapper);
+    }
+
+    private static void AddOptionalClientRoleClaim(JsonObject realm, string destination, string clientId)
+    {
+        var mapper = Scope(realm, "roles")["protocolMappers"]!.AsArray().Single(value =>
+            Text(value?["protocolMapper"]) == "oidc-usermodel-client-role-mapper")!.DeepClone().AsObject();
+        mapper["name"] = "additional-optional-client-role";
+        mapper["config"]!["claim.name"] = destination;
+        mapper["config"]!["usermodel.clientRoleMapping.clientId"] = clientId;
         Scope(realm, "phone")["protocolMappers"]!.AsArray().Add(mapper);
     }
 

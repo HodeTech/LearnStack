@@ -31,7 +31,9 @@ adds tmpfs volumes for ephemeral test runs — see `e2e.yml` below.
 
 Two realms imported on first boot from `infra/keycloak/realms/`:
 
-- `learnstack` (tenant users) — clients `learnstack-api` (confidential) + `learnstack-web` (public PKCE); demo users `demo-admin@tenant-a.test` and `demo-learner@tenant-a.test` (both `demo-dev-secret`).
+- `learnstack` (tenant users) — confidential API and code/S256 web clients, with
+  four declared tenant personas. The [realm guide](../keycloak/README.md) owns
+  the exact identities, private secret source and callbacks.
 - `learnstack-hub` (operators) — client `learnstack-hub-web` (public PKCE); demo user `demo-operator@learnstack.test` (`demo-dev-secret`). `CONFIGURE_TOTP` required-action present so the MFA flow surfaces in dev.
 
 See [../keycloak/README.md](../keycloak/README.md) for the realm-isolation
@@ -58,9 +60,9 @@ docker compose --env-file .env -f infra/compose/dev.yml exec -T postgres   sh -c
 It is idempotent, so re-running it against a cluster that already has the roles
 is a no-op rather than an error.
 
-Re-seeding the Keycloak realm structure requires either `down -v` (wipes all
-volumes) or a manual
-`DROP DATABASE keycloak; CREATE DATABASE keycloak OWNER learnstack;`.
+Fresh imports do not upgrade an existing realm. P02b-6 Step 2 owns the bounded
+warm-realm reconciler; until it ships, preserve existing accounts and credentials
+and follow the [realm guide's current delivery status](../keycloak/README.md).
 
 ### Live media (Phase 01 packet 5)
 

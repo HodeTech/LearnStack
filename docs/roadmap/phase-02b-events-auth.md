@@ -13793,11 +13793,11 @@ PostgreSQL, frontend and hosted qualification are not claimed by these checks.
 
 ## P02b-6 Step 1 — executable realm and identity declaration (2026-10-21)
 
-**Status: local implementation and fresh-provider proofs pass; reviews pending.**
+**Status: complete locally; both independent review rounds and fix review pass.**
 Acceptance is committed at `285db56b`; implementation stays on `development`.
 This record claims no warm-realm reconciliation, BFF session or final-source CI
-qualification. The first independent review round and its verified corrections
-are complete; the second fresh review round remains pending.
+qualification. Both independent review rounds and their verified corrections
+are complete. Step 2 starts next; final-source hosted qualification stays Step 4.
 
 - `SeedData.IdentityUsers` owns four fixed actor identities and their tenant/host
   association. The read-only `--identity-manifest` mode projects scalar facts,
@@ -13865,7 +13865,28 @@ warnings/errors. The complete domain-genericity class plus corpus/Docker-census
 controls pass 14 cases; export/manifest proofs pass three cases, including all
 43 dirty variants and the escaped-dot healthy control. All have zero skips.
 All 1,329 relative links/fragments in the twelve changed Markdown files resolve;
-whitespace checks pass. The second fresh independent review round remains pending.
+whitespace checks pass.
+
+**Review round 2.** Fresh GPT-6 Astra/xhigh and GPT-6.1 Sol/high reviewers
+approved with four Minor corrections. The boundary reviewer independently
+reproduced an offline drift gap: client-role `${client_id}` interpolation could
+select an identity/reserved top-level destination. The guard now refuses a
+dynamic claim root while preserving the fixed `resource_access` built-in shape.
+Three dirty cases extend the total to 46; a healthy prefixed interpolation
+control distinguishes the intended boundary from a blanket mapper refusal.
+The current committed export was clean throughout; no live mutant consequence
+is claimed. Source:
+[pinned role mapper](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/mappers/AbstractUserRoleMappingMapper.java#L72-L106).
+
+The delivery reviewer identified stale Docker prerequisites, first-import client/
+persona inventory and live-phase status. Those descriptions now match the
+delivered slice; the destructive warm-upgrade recipe is removed. A fresh
+GPT-6.1 Sol/high focused review approves all corrections without another finding.
+The two offline export cases pass with zero skips and a clean Release build;
+all 1,344 links/fragments in thirteen changed Markdown files resolve before this
+closeout addition. Whitespace checks pass. Existing eleven-case provider and
+1,699-case frontend receipts above remain source-applicable; the second-round
+correction changes only offline proof/docs, not provider configuration or code.
 
 ## Completion Criteria
 

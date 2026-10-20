@@ -123,10 +123,11 @@ before concluding a net is under you.
 
 ### Step 5: Run integration tests
 
-The assembly holds two kinds. The `WebApplicationFactory` HTTP tests need no
-Docker; everything under `Database/` does, and **a running Docker daemon is
-required** for it — Postgres only, no Valkey and no Kafka, because nothing the
-backend runs calls either
+The assembly holds Docker-free HTTP/offline tests and Docker-backed proofs.
+Everything under `Database/` requires PostgreSQL; `TenancyIdentity/` also includes
+the pinned Keycloak fixture with its separate PostgreSQL database. **A running
+Docker daemon is required** for both provider populations. Neither needs Valkey
+or Kafka, because nothing the backend runs calls either
 ([ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)). The two
 are split by `[Trait("Requires","Docker")]`; CI further partitions Docker tests
 into native/ordinary execution jobs behind the required integration aggregate. Locally
