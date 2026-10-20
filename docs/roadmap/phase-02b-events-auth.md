@@ -12721,6 +12721,23 @@ capacity-hint clarification already recorded here. The revision now does both.
 No runtime tests/builds are run by these read-only reviewers. A second fresh
 round is required after this correction.
 
+#### ADR-0066 revision independent review round 2
+
+Two new reviewers inspect frozen `4b4a9ac6` against `09e1a169`: GPT-6 Astra
+at xhigh effort independently checks the complete protocol and GPT-6.1 Sol
+at high effort checks the corpus, actual HTTP helpers and proof inventory.
+Both approve the documentation revision with no actionable finding. The
+first-round OpenAPI clarification is verified; all new implementation controls
+remain pending. These source inspections neither accept ADR-0066 nor qualify
+its unimplemented runtime or production sizing.
+
+The existing corpus consistency selection also runs against the current docs
+using unchanged Release test binaries: five passed, zero failed/skipped. Seven
+ADR-parser controls pass; ADR-0066 stays Proposed. The final changed-document
+link/fragment and whitespace checks are repeated before commit. Runtime code
+and Accepted ADR-0064/0065 are unchanged throughout this revision. The concrete
+proposal is ready for maintainer reapproval; no elapsed wait supplies approval.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
