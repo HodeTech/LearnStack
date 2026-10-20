@@ -272,8 +272,9 @@ owns source-bound validation, independent reviews and final-source CI qualificat
 The [systematic correction record](docs/roadmap/phase-02b-events-auth.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
 owns subsequent proof/diagnostic and document reconciliation; its two correction
 steps and both independent review rounds are complete. The live PR handoff owns
-exact current-source hosted qualification. No next packet or merge is authorized
-by this work.
+exact current-source hosted qualification. A subsequent hosted deadline refusal
+requires the record's measured advisory timing-plan correction and fresh A/B
+qualification under ADR-0063. No next packet or merge is authorized by this work.
 Phase 06 retains the full
 renderer/Studio expansion.
 

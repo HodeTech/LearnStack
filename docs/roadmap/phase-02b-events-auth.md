@@ -12888,8 +12888,9 @@ runbooks remain Phase 11 obligations.
 
 ## P02b-5 systematic proof and document corrections (2026-10-20)
 
-**Both correction steps and review rounds complete on development, starting at
-`5daee8ad`.** P02b-5's five
+**The two implementation correction steps and review rounds are complete on
+development, starting at `5daee8ad`; hosted qualification exposed an additional
+timing-plan correction below.** P02b-5's five
 implementation steps and ADR-0065/0066 corrections are implemented and unmerged.
 This follow-up validates the current production subjects and their falsifiable
 controls. Earlier review conclusions are scoped to their source and inspected
@@ -12909,6 +12910,12 @@ new packet, production readiness or new decision is inferred here.
    distinguish local transport refusal. Preserve all browser budgets, flags,
    deadlines, response contracts and retry behavior. Commit, run two new
    independent review rounds, verify findings and commit fixes.
+3. **Measured CI timing repair.** Reconcile the frozen advisory Architecture
+   weights with complete hosted TRXs after a current-source deadline refusal.
+   Preserve every selector, the A/B algorithm, six/twelve shard counts and all
+   deadlines. Commit and complete two fresh independent review rounds, then
+   qualify both complete assignments on one final source and plan under
+   ADR-0063.
 
 Focused checks accompany each step. Full architecture, Docker/native, frontend
 and managed-demo qualification must cover the final source through the existing
@@ -13170,6 +13177,55 @@ record closes correction implementation/review, makes no merge or production
 readiness claim, and requires that current-source evidence before merge.
 P02b-6 remains unstarted. Phase 03 membership/authorization, P02b-7 BFF recovery
 and the named Phase 11 production-activation obligations retain their owners.
+
+### Step 3 — Measured CI timing repair
+
+The two implementation correction steps close at `00a7877e`. Hosted
+[run 39417319998](https://github.com/HodeTech/LearnStack/actions/runs/39417319998)
+does not qualify that source: attempt 1 completes 25 successful jobs but refuses
+`ordinary-9` before tests on `docker_census_unreadable`; its integration aggregate
+fails closed. A full second attempt, without source or policy changes, completes
+that Docker job and 25 successful jobs overall, but `architecture-3` reaches
+`deadline_exhausted`; its backend aggregate fails closed. No successful sibling
+from one attempt substitutes for another attempt's missing result.
+
+The second attempt's failed Architecture artifact retains 26 of 27 completed
+case IDs, all passed, with owned cleanup complete and no forced cleanup. The
+remaining selector is
+`Background_job_authority_census_detects_extra_activation_and_removed_live_guards`.
+Three expensive selectors from the same `JobAuthorityMutationTests` class share
+that bin and execute serially. The separate local selector control passes in
+203.11 seconds of process wall time; this establishes neither hosted duration
+nor whole-shard fit. The detector and all clean/dirty/restored mutations remain
+unchanged.
+
+Under [ADR-0063's reviewed timing-plan revision](../decisions/0063-complete-bounded-ci-test-shards.md#versioned-plan-and-independence),
+refresh only weights observed in the five complete Architecture TRXs from
+attempt 2 (`architecture-0`, `1`, `2`, `4`, `5`). Their 406 passed case rows
+belong to 242 exact assembly/selector groups. Sum each group's observed case
+durations, round upward to milliseconds and retain a minimum of one millisecond.
+The failed bin's 21 selector estimates and provenance remain unchanged; the
+uncompleted selector's old 371-second estimate is not relabelled as a current
+measurement. Each new source names its API ZIP digest, artifact ID, run/attempt,
+owner, PR head and actual merge checkout. The closed `hosted_trx` kind describes
+this evidence without mislabelling it as local or rounded console data.
+
+These advisory weights influence ownership only. Method/theory grouping, exact
+case unions, default costs, fixed-cost unknowns, plan salt, assignment algorithm,
+six Architecture/twelve ordinary workers, the twenty-minute execution ceiling and
+five-minute aggregates remain unchanged. Offline A/B replay is not a runtime
+guarantee. A plan change requires fresh independent review and two genuinely
+different complete hosted assignments on the same final source, plan, toolchain
+and case population. Earlier frontend/demo successes remain source-bound
+historical receipts and cannot qualify that later head.
+
+The refreshed plan digest is
+`85ce77743fd83d924060ad7008899595908ec4fd466597078ae6509e022db01d`.
+Replay reconstructs the original actual B assignment and validates exact old/new
+A/B unions, whole-selector grouping, different co-membership and unchanged
+ordinary/base/native owners. All 52 shard controls, 16 result controls and the
+existing workflow topology validation pass. Fresh implementation review and
+complete hosted A/B qualification remain required.
 
 ## Completion Criteria
 

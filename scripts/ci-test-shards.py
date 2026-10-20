@@ -105,7 +105,7 @@ def validate_plan(plan):
         require(isinstance(name, str) and re.fullmatch(r'[a-z0-9_-]{1,64}', name)
                 and isinstance(source, dict) and set(source) == {'kind', 'artifactSha256',
                     'sourceSha', 'runId', 'note'}
-                and source['kind'] in ('local_trx', 'hosted_console')
+                and source['kind'] in ('local_trx', 'hosted_console', 'hosted_trx')
                 and isinstance(source['artifactSha256'], str)
                 and re.fullmatch(r'[0-9a-f]{64}', source['artifactSha256'])
                 and (source['sourceSha'] is None or isinstance(source['sourceSha'], str)

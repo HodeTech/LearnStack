@@ -276,6 +276,16 @@ class ShardControls(unittest.TestCase):
         dirty = copy.deepcopy(self.plan); next(iter(dirty['sources'].values()))['artifactSha256'] = 'not-a-hash'
         self.refuses('weight_source_invalid', OWNER.validate_plan, dirty)
 
+    def test_hosted_trx_provenance_is_explicit_and_unknown_kinds_are_refused(self):
+        plan = copy.deepcopy(self.plan)
+        source = next(iter(plan['sources'].values()))
+        source['kind'] = 'hosted_trx'
+        OWNER.validate_plan(plan)
+        for kind in ('hosted_trx_extra', 'hosted_results', '', None, True):
+            with self.subTest(kind=kind):
+                source['kind'] = kind
+                self.refuses('weight_source_invalid', OWNER.validate_plan, plan)
+
     def result_fixture(self, output, expected, actual):
         (output / 'results').mkdir(exist_ok=True)
         tag = lambda name: '{' + LAUNCHER.NS['t'] + '}' + name
