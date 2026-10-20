@@ -16,6 +16,7 @@ const canary = 'synthetic-private-canary-7fa6';
 
 async function endpoint(t, handler) {
   const sockets = new Set();
+  const socketClosures = [];
   const requests = [];
   const server = http.createServer((request, response) => {
     requests.push(request);
@@ -23,7 +24,10 @@ async function endpoint(t, handler) {
   });
   server.on('connection', (socket) => {
     sockets.add(socket);
-    socket.once('close', () => sockets.delete(socket));
+    socketClosures.push(new Promise(resolve => socket.once('close', () => {
+      sockets.delete(socket);
+      resolve();
+    })));
   });
   t.after(async () => {
     const closed = new Promise((resolve, reject) => {
@@ -31,6 +35,7 @@ async function endpoint(t, handler) {
     });
     for (const socket of sockets) socket.destroy();
     await closed;
+    await Promise.all(socketClosures);
     assert.equal(sockets.size, 0);
   });
   server.listen(0, '127.0.0.1');
@@ -242,6 +247,69 @@ test('chunked wire bytes cannot evade the response bound without Content-Length'
   });
   await assert.rejects(realmRequest(f.url), refusal('plan', 'body_limit'));
   assert.equal(f.requests.length, 1);
+});
+
+test('only the fixed authenticated successful server-information read accepts exactly 512 KiB', async (t) => {
+  const exact = Buffer.from(JSON.stringify({ systemInfo: { version: '26.6.2' }, padding: '' }));
+  const body = Buffer.concat([exact, Buffer.alloc(512 * 1024 - exact.length, 32)]);
+  const f = await endpoint(t, (_request, response) => response.end(body));
+  const result = await realmRequest(new URL('admin/serverinfo', f.url), { bearer: canary, stage: 'version' });
+  assert.equal(result.bytes.length, 512 * 1024);
+  assert.equal(realmJson(result, 'version').systemInfo.version, '26.6.2');
+  assert.equal(f.requests.length, 1);
+  assert.equal(f.requests[0].headers.authorization, `Bearer ${canary}`);
+});
+
+test('server information refuses 512 KiB plus one byte and closes the actual exchange', async (t) => {
+  const exchanges = observeExchanges(t);
+  const f = await endpoint(t, (_request, response) => {
+    response.writeHead(200);
+    response.write(Buffer.alloc(256 * 1024, 32));
+    response.end(Buffer.alloc(256 * 1024 + 1, 32));
+  });
+  await assert.rejects(realmRequest(new URL('admin/serverinfo', f.url), { bearer: canary, stage: 'version' }),
+    refusal('version', 'body_limit'));
+  assertClosed(exchanges);
+});
+
+for (const [name, path, options, status] of [
+  ['ordinary path', 'admin/realms/learnstack', { bearer: canary }, 200],
+  ['path suffix', 'admin/serverinfo/', { bearer: canary }, 200],
+  ['encoded path', 'admin/%73erverinfo', { bearer: canary }, 200],
+  ['query', 'admin/serverinfo?fields=systemInfo.version', { bearer: canary }, 200],
+  ['missing bearer', 'admin/serverinfo', {}, 200],
+  ['empty bearer', 'admin/serverinfo', { bearer: '' }, 200],
+  ['POST', 'admin/serverinfo', { method: 'POST', bearer: canary }, 200],
+  ['GET with JSON body', 'admin/serverinfo', { json: {}, bearer: canary }, 200],
+  ['GET with empty form', 'admin/serverinfo', { form: {}, bearer: canary }, 200],
+  ['unauthorized', 'admin/serverinfo', { bearer: canary }, 401],
+  ['forbidden', 'admin/serverinfo', { bearer: canary }, 403],
+  ['not found', 'admin/serverinfo', { bearer: canary }, 404],
+  ['partial content', 'admin/serverinfo', { bearer: canary }, 206],
+  ['upstream failure', 'admin/serverinfo', { bearer: canary }, 500],
+]) {
+  test(`the ${name} case retains 256 KiB despite a version stage or caller-supplied larger limit`, async (t) => {
+    const f = await endpoint(t, (request, response) => {
+      request.resume();
+      response.writeHead(status);
+      response.end(Buffer.alloc(256 * 1024 + 1, 32));
+    });
+    await assert.rejects(realmRequest(new URL(path, f.url), {
+      stage: 'version', responseBytes: 1024 * 1024, ...options,
+    }), refusal('version', 'body_limit'));
+    assert.equal(f.requests.length, 1);
+  });
+}
+
+test('the server-information exception cannot widen any outbound body', async (t) => {
+  const f = await endpoint(t, (_request, response) => response.end('{}'));
+  for (const payload of [
+    { json: { value: 'x'.repeat(256 * 1024) } },
+    { form: { value: 'x'.repeat(256 * 1024) } },
+  ]) assert.throws(() => realmRequest(new URL('admin/serverinfo', f.url), {
+    bearer: canary, stage: 'version', ...payload,
+  }), refusal('version', 'body_limit'));
+  assert.equal(f.requests.length, 0);
 });
 
 for (const encoding of ['gzip', 'br', 'deflate', 'gzip, identity']) {

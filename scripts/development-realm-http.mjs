@@ -4,6 +4,7 @@ import { RealmError, refuse } from './development-realm-errors.mjs';
 
 export const realmHttpMilliseconds = 5000;
 export const realmBodyBytes = 256 * 1024;
+const serverInformationBodyBytes = 512 * 1024;
 
 /** Each exchange owns its request, response and agent until actual close. */
 export function realmRequest(url, { method = 'GET', json, form, bearer, signal, ca, stage = 'plan' } = {}) {
@@ -66,9 +67,15 @@ export function realmRequest(url, { method = 'GET', json, form, bearer, signal, 
         if (value.statusCode >= 300 && value.statusCode < 400) return fail('redirect');
         if (value.headers['content-encoding'] && value.headers['content-encoding'] !== 'identity')
           return fail('response');
+        // The accepted exception belongs to this exact authenticated successful
+        // read, never a caller-supplied limit or a general Admin REST allowance.
+        const responseBytes = method === 'GET' && url.pathname === '/admin/serverinfo'
+          && !url.search && json === undefined && form === undefined
+          && typeof bearer === 'string' && bearer.length > 0 && !/\s/.test(bearer)
+          && value.statusCode === 200 ? serverInformationBodyBytes : realmBodyBytes;
         value.on('data', (chunk) => {
           size += chunk.length;
-          if (size > realmBodyBytes) fail('body_limit');
+          if (size > responseBytes) fail('body_limit');
           else chunks.push(chunk);
         });
         value.once('end', () => { ended = true; });
