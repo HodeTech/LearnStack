@@ -119,6 +119,11 @@ export class DemoProcesses {
         }
         resolve({ code: null, signal: null });
       });
+      child.once('exit', (code, signal) => {
+        // A failed leader is already authoritative even if inherited/paused
+        // streams delay close. Successful captured output still waits for EOF.
+        if (code !== 0 || signal !== null) resolve({ code, signal });
+      });
       child.once('close', (code, signal) => resolve({ code, signal }));
     });
     const running = {

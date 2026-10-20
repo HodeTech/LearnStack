@@ -649,6 +649,176 @@ describe('demo runtime boundaries', () => {
   });
 });
 
+describe('native exit and output closure ownership', () => {
+  it.each(['nonzero', 'signal'])(
+    'retains a native %s command failure before a later deadline despite paused stdout',
+    async (kind) => {
+      const processes = owner();
+      let running: ReturnType<DemoProcesses['start']> | undefined;
+      const start = processes.start.bind(processes);
+      processes.start = (...args) => {
+        running = start(...args);
+        return running;
+      };
+      const result = processes
+        .run(
+          process.execPath,
+          [
+            '-e',
+            `
+        process.once('SIGUSR2', () => {
+          process.stdout.write('late output\\n');
+          ${kind === 'nonzero' ? 'process.exit(17);' : 'process.kill(process.pid, "SIGTERM");'}
+        });
+        process.stdout.write('ready\\n');
+        setInterval(() => {}, 1000);
+      `,
+          ],
+          { capture: true, label: 'Native command exit control', timeout: 5000 },
+        )
+        .catch((error: unknown) => error);
+      if (!running || !running.child.stdout) throw new Error('Missing native exit control');
+      const child = running.child;
+      const stream = child.stdout!;
+      await once(stream, 'data');
+      const hold = () => stream.pause();
+      stream.on('resume', hold);
+      stream.pause();
+      let closed = false;
+      child.once('close', () => {
+        closed = true;
+      });
+      try {
+        const nativeExit = once(child, 'exit');
+        child.kill('SIGUSR2');
+        await nativeExit;
+        expect(closed).toBe(false);
+        expect(await result).toMatchObject({
+          reason: 'exit',
+          origin: 'command',
+          exitCode: kind === 'nonzero' ? 17 : null,
+          signalCode: kind === 'signal' ? 'SIGTERM' : null,
+        });
+        expect(closed).toBe(false);
+      } finally {
+        stream.off('resume', hold);
+        stream.resume();
+        await result;
+        await processes.dispose();
+      }
+    },
+    15000,
+  );
+
+  it('retains complete successful captured output through close after native exit', async () => {
+    const processes = owner();
+    let running: ReturnType<DemoProcesses['start']> | undefined;
+    const start = processes.start.bind(processes);
+    processes.start = (...args) => {
+      running = start(...args);
+      return running;
+    };
+    let settled = false;
+    const result = processes
+      .run(
+        process.execPath,
+        [
+          '-e',
+          `
+      const keepAlive = setInterval(() => {}, 1000);
+      process.once('SIGUSR2', () => {
+        clearInterval(keepAlive);
+        process.stdout.write('late output\\n');
+      });
+      process.stdout.write('ready\\n');
+    `,
+        ],
+        { capture: true, label: 'Native success output control', timeout: 5000 },
+      )
+      .then((output) => {
+        settled = true;
+        return output;
+      });
+    if (!running || !running.child.stdout) throw new Error('Missing native success control');
+    const child = running.child;
+    const stream = child.stdout!;
+    await once(stream, 'data');
+    const hold = () => stream.pause();
+    stream.on('resume', hold);
+    stream.pause();
+    try {
+      const nativeExit = once(child, 'exit');
+      child.kill('SIGUSR2');
+      await nativeExit;
+      expect(child.exitCode).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(settled).toBe(false);
+      stream.off('resume', hold);
+      stream.resume();
+      await expect(result).resolves.toBe('ready\nlate output\n');
+    } finally {
+      stream.off('resume', hold);
+      stream.resume();
+      await result;
+      await processes.dispose();
+    }
+  });
+
+  it('latches the first daemon leader failure before a second daemon closes its streams', async () => {
+    const processes = owner();
+    const daemons = [17, 23].map((code) =>
+      processes.daemon(
+        process.execPath,
+        [
+          '-e',
+          `
+      process.once('SIGUSR2', () => {
+        process.stdout.write('late output\\n');
+        process.exit(${code});
+      });
+      process.stdout.write('ready\\n');
+      setInterval(() => {}, 1000);
+    `,
+        ],
+        { label: 'Native daemon exit control' },
+      ),
+    );
+    const first = daemons[0]!;
+    const second = daemons[1]!;
+    await Promise.all(daemons.map((daemon) => once(daemon.child.stdout!, 'data')));
+    const stream = first.child.stdout!;
+    const hold = () => stream.pause();
+    stream.on('resume', hold);
+    stream.pause();
+    let firstClosed = false;
+    first.child.once('close', () => {
+      firstClosed = true;
+    });
+    try {
+      const nativeExit = once(first.child, 'exit');
+      first.child.kill('SIGUSR2');
+      await nativeExit;
+      expect(firstClosed).toBe(false);
+      second.child.kill('SIGUSR2');
+      await once(second.child, 'close');
+      const failure = await processes.failure;
+      expect(failure).toMatchObject({ reason: 'exit', origin: 'daemon', exitCode: 17 });
+      let activeFailure: unknown;
+      try {
+        processes.assertActive();
+      } catch (error) {
+        activeFailure = error;
+      }
+      expect(activeFailure).toBe(failure);
+      expect(firstClosed).toBe(false);
+    } finally {
+      stream.off('resume', hold);
+      stream.resume();
+      await processes.dispose();
+    }
+  });
+});
+
 describe('owned real process lifecycle', () => {
   it('captures split multibyte stdout intact and bounds accumulated bytes', async () => {
     const processes = owner();

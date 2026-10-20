@@ -13109,6 +13109,36 @@ Review conclusions above are source inspections; they do not independently rerun
 the recorded local tests. The corrected commit proceeds to a second review round
 with new independent reviewers.
 
+#### Step 2 independent review round 2
+
+Three new read-only reviewers inspect `09fdf8a2..9d08070e`: GPT-6 Astra at
+xhigh covers process lifetime, diagnostics and cleanup; GPT-6.1 Sol at xhigh
+covers source checkpoints and report integrity; another GPT-6.1 Sol at high
+covers SDK, declarations, consumers and corpus. The source/report and SDK/corpus
+reviews find no actionable issue. Source capture precedes the shared launcher's
+own restoration/build work; workflow browser-tool bootstrap precedes that
+checkpoint and ignored dependencies remain outside its attestation.
+
+The runtime review verifies one further P2: waiting for ChildProcess `close` to
+publish a failing native exit can let a later deadline, or another daemon's
+prompt closure, replace the earlier native failure while inherited output pipes
+remain open. The correction must publish failing `exit` status immediately while
+retaining successful output completion and bounded physical cleanup/stream drain.
+The existing exit-before-close lifecycle control makes this a supported process
+shape rather than an assumed provider behavior. Fix verification follows below.
+
+The four new real-child controls first show three failures and one existing
+successful-output positive. The fix publishes only failing native `exit`
+outcomes early; zero-exit commands still await `close` and complete captured
+output. Nonzero and signal failures beat a later deadline despite paused output;
+the first daemon leader's failure survives the second daemon's prompt closure.
+Physical group shutdown and separate bounded stream drainage remain owned.
+All four controls then pass. The complete guarded frontend population passes
+1,698 (1,626 web and 72 SDK), with zero skips/todos; lint and typecheck pass.
+Five final corpus controls, seven ADR-parser controls and the changed-document
+sweep (2,275 relative file/fragment targets, none broken) pass. The runtime fix
+receives targeted independent reinspection before correction closeout.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

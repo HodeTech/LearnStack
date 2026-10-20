@@ -244,9 +244,10 @@ browser profiles and raw process logs are excluded from artifacts. Human foregro
 [local test workflow](../../.claude/skills/run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
 owns the complete setup and artifact instructions.
 
-The CI lifecycle observes a clean Git commit and tree before dependency restoration
-or builds, verifies the owned repository root, and rechecks that identity on entry
-to the browser proof and before success. Inherited Git environment overrides do
+The shared CI launcher observes a clean Git commit and tree before its own
+dependency restoration or builds, verifies the owned repository root, and rechecks
+that identity on entry to the browser proof and before success. Workflow browser
+tool bootstrap precedes that launcher checkpoint. Inherited Git overrides do
 not select another repository. Tracked, staged or nonignored untracked changes
 refuse qualification; ignored runtime/build outputs remain permitted. These clean
 checkpoints are source observations, not hermetic build attestation: ignored
