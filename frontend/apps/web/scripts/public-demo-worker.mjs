@@ -162,7 +162,9 @@ async function timeoutControl(port) {
 }
 
 async function main(input, stage) {
+  stage('preflight');
   assert.deepEqual(readDemoToolchain(), expectedCensus.versions, 'Pinned tool/browser census');
+  stage('connect');
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${input.port}`, {
     timeout: 10000,
   });

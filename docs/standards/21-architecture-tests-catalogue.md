@@ -39,8 +39,8 @@ owns review, packet and exact PR-head CI/job-budget status),
 (Accepted 2026-10-18; general CI obligation implemented; the phase record owns
 final-source hosted qualification),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
-(Accepted 2026-10-19; P02b-5 obligations implemented; Step 5 owns final review
-and full hosted qualification),
+(Accepted 2026-10-19; P02b-5 obligations implemented; Step 5 and the remediation
+record own local/source evidence; PR #33 owns current-head hosted qualification),
 [ADR-0065 Bounded Tenant Assertion Diagnostics](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
 (Accepted 2026-10-20; extends existing obligations below; audit-budget and
 telemetry controls implemented; the
@@ -4444,17 +4444,29 @@ structural test proves — and what it does not.
   counter names. A new suppression counter must not create a second writer.
 - **Source:** ADR-0036 § Recording a rejected assertion;
   [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md).
-- **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
+- **Type:** xUnit source and compiled-IL/constant-field scans over production
+  assemblies. **Kind:** structural.
 - **Status:** **Implemented** (`TenancyConventionTests`), in two halves.
-  `Assertion_Recorder_Is_The_Only_Mismatch_Writer` is keyed on the existing
-  mismatch/unresolved/suppression counter names and scans `LearnStack.Api`.
-  Each has a real production owner and a planted second-writer control;
+  `Assertion_Recorder_Is_The_Only_Mismatch_Writer` derives counter names from the
+  actual recorder's constant declarations and `Meter.CreateCounter` calls.
+  Inlined public-constant references and a fourth counter with a different prefix
+  have planted second-writer controls; an unknown dynamic declaration refuses
+  discovery. The compiled scan covers every production assembly.
   `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs`, added in Packet 9, is
   keyed on the two audit slugs and covers the `IAuditStore` clause this row always
   claimed — the counter names cannot catch a second writer that goes straight to the
   store, which is the dangerous one, because the row's tenant is what keeps an anonymous
   caller from choosing whose audit log grows.
-- **The second half scans all of `backend/src`, not just the API project**, and that is the correction its own first draft needed: a module is precisely where `IAuditStore` is reachable from a handler, and a narrow scan exempts the dangerous half. Measured — planting the burst slug in `LearnStack.Modules.Tenancy.Application` passed the narrow version and fails the wide one. `TenancyAuditCatalogSource` is exempt because declaring a slug is not writing a row; removing that exemption turns the rule red, which is what makes it a real exemption rather than a decorative one. Its companion, `The_Slug_Scan_Finds_The_Files_It_Exempts`, runs the same scan with no exemptions and requires it to find exactly those two files — with nothing offending, a scan whose exemption logic had broken open would pass as well.
+- **The second half scans all production assemblies, not just the API project.**
+  A module is precisely where `IAuditStore` is reachable from a handler. Compiled
+  literal and constant-field discovery catches inlined references to both audit
+  slugs. `TenancyAuditCatalogSource` is exempt because declaring a slug is not
+  writing a row. Its companion, `The_Slug_Scan_Finds_The_Files_It_Exempts`, removes
+  exemptions and requires exactly the audit recorder and catalogue owner types,
+  qualified by their real assemblies. This is a type-owner census, not a claim
+  that the current implementation scans exactly two source files. The assertion
+  header reader guard likewise reads compiled constants and uses case-insensitive
+  comparison; lowercase header and public-constant controls must fail.
 - **Phase:** 02a (Packet 4; the second half, Packet 9).
 
 #### `Assertion_Budget_Does_Not_Depend_On_ICacheService`
@@ -4528,8 +4540,15 @@ structural test proves — and what it does not.
   and an ordinary distinct HTTP IP/port/path/query canary is absent from metrics
   while its ordinary trace remains visible. DNS retains only `error.type`; HTTP
   retains bounded method/status/protocol/scheme/error dimensions.
+  Programmatic `AlwaysOff` additionally closes metric exemplars: removed point
+  attributes must not survive in exemplar filtered attributes when standard or
+  histogram-specific environment filters request `always_on` or `trace_based`.
+  The OTLP decoder inspects exemplars as well as points; unprojected controls
+  establish that the rejected attributes would otherwise be exported.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
-  § Access-token profile and § Vendor diagnostic boundary.
+  § Access-token profile and § Vendor diagnostic boundary;
+  [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
+  § Outbound telemetry scope.
 - **Type:** real JwtBearer/OIDC handler with controlled signed-token issuer,
   discovery/JWKS server and actual logging/export/error-capture controls.
   **Kind:** behavioural.
@@ -4543,6 +4562,11 @@ structural test proves — and what it does not.
   `TenantAuthenticationDiagnosticsTests.SuppressionMetrics.cs` additionally
   qualifies the actual suppression counter through production OTLP, with a
   bounded receipt for the correlated Warning before its logger owner exits.
+  Actual Serilog factory/console controls cover configured-issuer and malformed
+  payload canaries. Event 3's adapter control is synthetic; the ordinary
+  configuration-manager branch is not claimed to emit it naturally. Warm cached
+  known-key acceptance during a failed refresh and cold missing-key refusal are
+  separate controls; manual refresh is not a five-minute automatic-cadence proof.
 - **Phase:** P02b-5 Step 1 isolated foundation; Steps 4–5 actual active path.
 
 #### `Authentication_Middleware_Order_Is_Enforced`
@@ -4590,10 +4614,13 @@ structural test proves — and what it does not.
   SDK/OpenAPI contract controls remain with their actual contract owners.
   The architecture owner now checks the nine real production actions, exact
   request construction, Off classification, controller/helper persistence and
-  handler/helper nested dispatch across every production assembly. Its two
+  handler/helper nested dispatch across every production assembly, including
+  direct interface/concrete handler construction, fields, constructor parameters,
+  locals and `Handle` calls. Its two
   companion methods plant route, method, request, controller, mapping and
   transitive-capability violations into those same Cecil subjects; missing
-  subjects and weakened discovery predicates fail. Complete runtime and
+  subjects and weakened discovery predicates fail. Each dirty control requires
+  its expected offender prefix, rather than any nonempty result. Complete runtime and
   cross-contract local proof ships in Step 4; Step 5 owns full hosted qualification.
 - **Status:** **Implemented** (`AuthenticatedHttpSurfaceTests`, `AccountSiteHttpTests`,
   `AccountSiteQueryTests`, `OpenApiContractTests`).
@@ -4618,7 +4645,10 @@ structural test proves — and what it does not.
   immutable shape and direct actor/scope/subject accessors. Signature, local,
   field, method and generic-argument uses close projection acquisition and
   forwarding, including object/generic formatting. Raw IdentityModel accessors
-  and inherited/implemented authorization metadata are covered too. Compiled
+  and inherited/implemented authorization metadata are covered too, including
+  `AuthenticateResult.Principal`, `AuthenticationTicket.Principal` and
+  `IAuthorizationService.AuthorizeAsync`. Exact base `AuthorizeAttribute.Roles`
+  has its own dirty control, separate from derived-attribute rejection. Compiled
   role/claim, header-reparse, derived-attribute, formatting, deconstruction and
   forged/clone probes use the same detectors; weakened predicates, missing real
   subjects and same-owner additional writes fail independently.

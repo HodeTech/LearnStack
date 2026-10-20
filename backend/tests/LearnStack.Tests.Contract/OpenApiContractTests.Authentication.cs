@@ -17,6 +17,10 @@ public sealed partial class OpenApiContractTests
         var clean = await Served();
         ContractErrors(clean).Should().BeEmpty();
         AccountSchemaErrors(clean).Should().BeEmpty();
+        clean["paths"]!["/api/v1/public/site"]!["get"]!["responses"]!["400"]!["description"]!.GetValue<string>()
+            .Should().Contain("malformed or repeated assertion headers");
+        clean["paths"]!["/api/v1/account/site"]!["get"]!["responses"]!["405"]!["description"]!.GetValue<string>()
+            .Should().Contain("after credential and host-backed authority admission").And.Contain("Absent credentials remain masked as 404");
 
         var dirty = clean.DeepClone();
         dirty["paths"]!["/api/v1/account/site"]!["get"]!.AsObject().Remove("security");
@@ -42,6 +46,9 @@ public sealed partial class OpenApiContractTests
             dirty = clean.DeepClone();
             dirty["paths"]![path]!["get"]!["responses"]!.AsObject().Remove("413");
             ContractErrors(dirty).Should().Contain("responses", "the reachable body-limit refusal must stay documented");
+            dirty = clean.DeepClone();
+            dirty["paths"]![path]!["get"]!["responses"]!["413"]!["headers"]!["Cache-Control"]!["required"] = true;
+            ContractErrors(dirty).Should().Contain("body-limit-headers", "the Kestrel backstop can refuse outside application response policy");
             foreach (var (status, header, expected) in new[] { ("401", "WWW-Authenticate", "challenge"), ("429", "Retry-After", "retry-after"), ("503", "Retry-After", "retry-after"), ("405", "Allow", "allow"), ("200", "Cache-Control", "headers") })
             {
                 dirty = clean.DeepClone();
@@ -73,6 +80,12 @@ public sealed partial class OpenApiContractTests
         dirty = clean.DeepClone();
         dirty["components"]!["schemas"]!["AccountSite"]!["properties"]!["site"] = new JsonObject { ["type"] = "object", ["additionalProperties"] = true };
         AccountSchemaErrors(dirty).Should().Contain("account-site");
+        foreach (var additional in new JsonNode[] { JsonValue.Create(true)!, new JsonObject { ["type"] = "string" } })
+        {
+            dirty = clean.DeepClone();
+            dirty["components"]!["schemas"]!["AccountSite"]!["additionalProperties"] = additional;
+            AccountSchemaErrors(dirty).Should().Contain("account-additional-properties");
+        }
     }
 
     private static List<string> AccountSchemaErrors(JsonNode document)
@@ -86,6 +99,9 @@ public sealed partial class OpenApiContractTests
         var schema = document["components"]?["schemas"]?["AccountSite"];
         var fields = new[] { "actorId", "tenantId", "organizationId", "site" };
         if (schema?["properties"] is not JsonObject properties) return ["account-fields"];
+        if (schema["additionalProperties"] is { } additional
+            && (additional is not JsonValue flag || !flag.TryGetValue<bool>(out var allowed) || allowed))
+            errors.Add("account-additional-properties");
         if (!properties.Select(property => property.Key).ToHashSet(StringComparer.Ordinal).SetEquals(fields)
             || schema["required"] is not JsonArray required
             || !required.Select(field => field!.GetValue<string>()).ToHashSet(StringComparer.Ordinal).SetEquals(fields)) errors.Add("account-fields");

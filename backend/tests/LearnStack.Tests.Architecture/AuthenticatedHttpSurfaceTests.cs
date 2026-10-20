@@ -60,9 +60,12 @@ public sealed class AuthenticatedHttpSurfaceTests
     {
         Violations(modules).Should().BeEmpty("the unmodified production census is the clean control");
         Violations(modules.Where(module => module.Assembly.Name.Name != "LearnStack.Api").ToArray())
-            .Should().NotBeEmpty("removing the production HTTP assembly must not produce a vacuous pass");
-        Violations(modules, _ => false).Should().NotBeEmpty("a weakened controller classifier loses required real roots");
-        Violations(modules, mappingPredicate: _ => false).Should().NotBeEmpty("a weakened map classifier loses real infrastructure mappings");
+            .Should().Contain(error => error.StartsWith("Scan every production assembly", StringComparison.Ordinal),
+                "removing the production HTTP assembly must not produce a vacuous pass");
+        Violations(modules, _ => false).Should().Contain(error => error.StartsWith("Missing production controller:", StringComparison.Ordinal),
+            "a weakened controller classifier loses required real roots");
+        Violations(modules, mappingPredicate: _ => false).Should().Contain(error => error.StartsWith("Require exactly one infrastructure mapping:", StringComparison.Ordinal),
+            "a weakened map classifier loses real infrastructure mappings");
 
         var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
         var account = api.GetType(Account);
@@ -72,9 +75,10 @@ public sealed class AuthenticatedHttpSurfaceTests
             action.CustomAttributes.Add(metadata);
             try
             {
-                Dirty("a derived role attribute changes the actual AccountSite authorization policy");
+                Dirty("Unexpected authorization metadata:", "a derived role attribute changes the actual AccountSite authorization policy");
                 Action blinded = () => Violations(modules, authorizationPredicate: type => type.FullName == typeof(AuthorizeAttribute).FullName)
-                    .Should().NotBeEmpty("concrete-only metadata matching must fail this same compiled control");
+                    .Should().Contain(error => error.StartsWith("Unexpected authorization metadata:", StringComparison.Ordinal),
+                        "concrete-only metadata matching must fail this same compiled control");
                 blinded.Should().Throw<Xunit.Sdk.XunitException>();
             }
             finally { action.CustomAttributes.Remove(metadata); }
@@ -82,28 +86,28 @@ public sealed class AuthenticatedHttpSurfaceTests
         var route = account.CustomAttributes.Single(attribute => attribute.AttributeType.FullName == Route);
         var resource = route.ConstructorArguments[0];
         route.ConstructorArguments[0] = new CustomAttributeArgument(api.TypeSystem.String, "account-extra");
-        Dirty("a changed resource route is outside the exact account/site contract");
+        Dirty("Unexpected method/route/operation:", "a changed resource route is outside the exact account/site contract");
         route.ConstructorArguments[0] = resource;
 
         var http = action.CustomAttributes.Single(attribute => attribute.AttributeType.FullName == typeof(HttpGetAttribute).FullName);
         action.CustomAttributes.Remove(http);
         action.CustomAttributes.Add(Attribute(api, typeof(HttpPostAttribute), "site"));
-        Dirty("a mutation verb cannot inherit AccountSite's approval");
+        Dirty("Unexpected method/route/operation:", "a mutation verb cannot inherit AccountSite's approval");
         action.CustomAttributes.RemoveAt(action.CustomAttributes.Count - 1);
         action.CustomAttributes.Add(http);
 
         var anonymous = Attribute(api, typeof(AllowAnonymousAttribute));
         action.CustomAttributes.Add(anonymous);
-        Dirty("action metadata must not bypass AccountSite's explicit authorization");
+        Dirty("Unexpected authorization metadata:", "action metadata must not bypass AccountSite's explicit authorization");
         action.CustomAttributes.Remove(anonymous);
 
         account.Methods.Remove(action);
-        Dirty("an approved action missing from the production census is a failure");
+        Dirty("Missing production action:", "an approved action missing from the production census is a failure");
         account.Methods.Add(action);
 
         var extraAction = new MethodDefinition("UndeclaredRead", MethodAttributes.Public, api.TypeSystem.Void);
         account.Methods.Add(extraAction);
-        Dirty("MVC treats an undecorated public instance method as an action too");
+        Dirty("Unapproved or overloaded action:", "MVC treats an undecorated public instance method as an action too");
         account.Methods.Remove(extraAction);
 
         foreach (var owner in modules.Where(module => module.Assembly.Name.Name is
@@ -112,7 +116,7 @@ public sealed class AuthenticatedHttpSurfaceTests
             var extra = new TypeDefinition("SurfaceProbe", "ExtraController", TypeAttributes.Public | TypeAttributes.Sealed,
                 owner.ImportReference(typeof(ControllerBase)));
             owner.Types.Add(extra);
-            Dirty("controller discovery must cover every production assembly: " + owner.Name);
+            Dirty("Unapproved production controller:", "controller discovery must cover every production assembly: " + owner.Name);
             owner.Types.Remove(extra);
         }
 
@@ -122,7 +126,7 @@ public sealed class AuthenticatedHttpSurfaceTests
             && instruction.Operand is MethodReference target && target.DeclaringType.FullName == typeof(GetAccountSiteQuery).FullName);
         var originalConstructor = construction.Operand;
         construction.Operand = api.ImportReference(typeof(GetPublicSiteQuery).GetConstructors().Single());
-        Dirty("another approved public request cannot replace the exact authenticated request");
+        Dirty("Construct exactly ", "another approved public request cannot replace the exact authenticated request");
         var contracts = modules.Single(module => module.Assembly.Name.Name == typeof(GetAccountSiteQuery).Assembly.GetName().Name);
         var unregistered = new TypeDefinition("SurfaceProbe", "UnregisteredQuery", TypeAttributes.Public | TypeAttributes.Sealed,
             contracts.TypeSystem.Object);
@@ -132,23 +136,38 @@ public sealed class AuthenticatedHttpSurfaceTests
         unregistered.Methods.Add(constructor);
         contracts.Types.Add(unregistered);
         construction.Operand = api.ImportReference(constructor);
-        Dirty("a planted unregistered production request cannot enter the HTTP pipeline");
+        Dirty("Construct exactly ", "a planted unregistered production request cannot enter the HTTP pipeline");
         construction.Operand = originalConstructor;
         contracts.Types.Remove(unregistered);
 
         var maps = MappingSites(modules).ToArray();
-        EndpointCompositionControls.Plant(api, because => Dirty(because));
+        EndpointCompositionControls.Plant(api, (prefix, because) => Dirty(prefix, because));
         var health = maps.Single(site => site.Target.Name == "MapGet");
         var duplicate = Instruction.Create(OpCodes.Call, health.Target);
         health.Owner.Body.Instructions.Add(duplicate);
-        Dirty("a second MapGet cannot borrow the same /healthz exception");
+        Dirty("Require exactly one infrastructure mapping:", "a second MapGet cannot borrow the same /healthz exception");
         health.Owner.Body.Instructions.Remove(duplicate);
         var helper = new MethodDefinition("HiddenHealthAlias", MethodAttributes.Private | MethodAttributes.Static, api.TypeSystem.Void);
         account.Methods.Add(helper);
         helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ldstr, "/healthz"));
         helper.Body.Instructions.Add(duplicate);
-        Dirty("the infrastructure exclusion belongs to its exact production owner, not a path string");
+        Dirty("Unapproved endpoint mapping:", "the infrastructure exclusion belongs to its exact production owner, not a path string");
         account.Methods.Remove(helper);
+
+        var callback = health.Owner.Body.Instructions.TakeWhile(instruction => instruction != health.Instruction)
+            .Where(instruction => instruction.OpCode == OpCodes.Ldftn).Select(instruction => (MethodReference)instruction.Operand).Last();
+        var callbackBody = Types(modules).Single(type => Key(type) == Key(callback.DeclaringType)).Methods
+            .Single(method => method.FullName == callback.FullName);
+        foreach (var opcode in new[] { OpCodes.Ldsfld, OpCodes.Ldfld, OpCodes.Ldsflda, OpCodes.Ldflda })
+        {
+            var field = new FieldDefinition("HiddenHealthData", FieldAttributes.Private | FieldAttributes.Static, api.TypeSystem.String);
+            callbackBody.DeclaringType.Fields.Add(field);
+            var read = Instruction.Create(opcode, field);
+            callbackBody.Body.Instructions.Add(read);
+            Dirty("Unexpected infrastructure path/handler/signature:", "the data-free health callback cannot read hidden fields: " + opcode.Name);
+            callbackBody.Body.Instructions.Remove(read);
+            callbackBody.DeclaringType.Fields.Remove(field);
+        }
 
         foreach (var mapping in maps.Where(site => site.Target.Name is "MapGet" or "MapOpenApi" or "MapScalarApiReference"))
         {
@@ -156,12 +175,13 @@ public sealed class AuthenticatedHttpSurfaceTests
                 .Last(instruction => instruction.OpCode == OpCodes.Ldstr);
             var original = literal.Operand;
             literal.Operand = "/extra-infrastructure";
-            Dirty("an approved mapping cannot serve a different infrastructure path: " + mapping.Target.Name);
+            Dirty("Unexpected infrastructure path/handler/signature:", "an approved mapping cannot serve a different infrastructure path: " + mapping.Target.Name);
             literal.Operand = original;
         }
 
         Violations(modules).Should().BeEmpty("restoring the actual production metadata restores the clean verdict");
-        void Dirty(string because) => Violations(modules).Should().NotBeEmpty(because);
+        void Dirty(string prefix, string because) => Violations(modules).Should()
+            .Contain(error => error.StartsWith(prefix, StringComparison.Ordinal), because);
     });
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see>'s controls plant capabilities in real production roots.</summary>
@@ -197,7 +217,7 @@ public sealed class AuthenticatedHttpSurfaceTests
 
                 var dispatch = new FieldDefinition("Sender", FieldAttributes.Private, helperModule.ImportReference(typeof(ISender)));
                 helper.Fields.Add(dispatch);
-                Dirty("a hidden nested sender must be followed from " + owner.FullName + " into " + helperModule.Name);
+                Dirty(owner == account ? "HTTP persistence/handler/helper bypass:" : "Nested HTTP dispatch/helper handler:", "a hidden nested sender must be followed from " + owner.FullName + " into " + helperModule.Name);
                 helper.Fields.Remove(dispatch);
 
                 if (owner == account)
@@ -206,7 +226,7 @@ public sealed class AuthenticatedHttpSurfaceTests
                         "the independent transitive guard checks helpers after a clean direct request construction");
                     helper.Fields.Add(new FieldDefinition("Database", FieldAttributes.Private,
                         helperModule.ImportReference(typeof(Npgsql.NpgsqlDataSource))));
-                    Dirty("controller helpers cannot acquire persistence before or after a sanctioned direct Send");
+                    Dirty("HTTP persistence/handler/helper bypass:", "controller helpers cannot acquire persistence before or after a sanctioned direct Send");
                     helper.Fields.Clear();
                 }
 
@@ -224,8 +244,43 @@ public sealed class AuthenticatedHttpSurfaceTests
             var method = owner.Methods.Single(candidate => candidate.Name == "Handle");
             var planted = Instruction.Create(OpCodes.Callvirt, owner.Module.ImportReference(send));
             method.Body.Instructions.Add(planted);
-            Dirty("nested dispatch in the actual handler is outside the exact HTTP request set: " + owner.FullName);
+            Dirty("Nested HTTP dispatch/helper handler:", "nested dispatch in the actual handler is outside the exact HTTP request set: " + owner.FullName);
             method.Body.Instructions.Remove(planted);
+        }
+
+        // Each approved handler is a root, not a collaborator another root may
+        // call directly. Exercise interface and concrete signatures, locals and
+        // actual Handle operands independently of the ISender controls above.
+        foreach (var owner in handlers)
+        {
+            var target = handlers.Single(candidate => Handles(candidate, typeof(GetAccountSiteQuery).FullName!));
+            foreach (var capability in new TypeReference[]
+                     { owner.Module.ImportReference(target.Interfaces.Single().InterfaceType), owner.Module.ImportReference(target) })
+            {
+                var field = new FieldDefinition("DirectHandler", FieldAttributes.Private, capability);
+                owner.Fields.Add(field);
+                Dirty("Nested HTTP dispatch/helper handler:", "direct handler injection must not bypass the pipeline: " + capability.FullName);
+                owner.Fields.Remove(field);
+
+                var constructor = owner.Methods.Single(method => method.IsConstructor && !method.IsStatic);
+                var parameter = new ParameterDefinition("directHandler", ParameterAttributes.None, capability);
+                constructor.Parameters.Add(parameter);
+                Dirty("Nested HTTP dispatch/helper handler:", "constructor-only handler injection remains a dispatch capability");
+                constructor.Parameters.Remove(parameter);
+
+                var method = owner.Methods.Single(candidate => candidate.Name == "Handle");
+                var local = new VariableDefinition(capability);
+                method.Body.Variables.Add(local);
+                Dirty("Nested HTTP dispatch/helper handler:", "a handler local must not evade the field/constructor census");
+                method.Body.Variables.Remove(local);
+
+                var handle = new MethodReference("Handle", target.Methods.Single(candidate => candidate.Name == "Handle").ReturnType, capability)
+                { HasThis = true };
+                var direct = Instruction.Create(OpCodes.Callvirt, handle);
+                method.Body.Instructions.Add(direct);
+                Dirty("Nested HTTP dispatch/helper handler:", "direct interface/concrete Handle calls must be rejected");
+                method.Body.Instructions.Remove(direct);
+            }
         }
 
         var nested = new TypeDefinition("", "NestedReadHelper", TypeAttributes.NestedPrivate | TypeAttributes.Sealed, account.Module.TypeSystem.Object);
@@ -234,12 +289,13 @@ public sealed class AuthenticatedHttpSurfaceTests
         account.Fields.Add(nestedEdge);
         Violations(modules).Should().BeEmpty("an ordinary nested data-free helper is legal");
         nested.Fields.Add(new FieldDefinition("Sender", FieldAttributes.Private, account.Module.ImportReference(typeof(ISender))));
-        Dirty("non-generated nested helpers must not fall outside the transitive scan");
+        Dirty("HTTP persistence/handler/helper bypass:", "non-generated nested helpers must not fall outside the transitive scan");
         account.Fields.Remove(nestedEdge);
         account.NestedTypes.Remove(nested);
         Violations(modules).Should().BeEmpty("all planted production capabilities have been removed");
 
-        void Dirty(string because) => Violations(modules).Should().NotBeEmpty(because);
+        void Dirty(string prefix, string because) => Violations(modules).Should()
+            .Contain(error => error.StartsWith(prefix, StringComparison.Ordinal), because);
     });
 
     private static SortedSet<string> Violations(ModuleDefinition[] modules,
@@ -342,6 +398,7 @@ public sealed class AuthenticatedHttpSurfaceTests
                              && PublicSurfaceTests.Implements(candidate, Key(type), map, []))) queue.Enqueue(implementation);
             var references = Il.ReferencedTypeReferences(type).ToArray();
             if (references.Any(reference => reference.FullName is "MediatR.ISender" or "MediatR.IMediator" or "MediatR.Mediator" or "MediatR.IPublisher")
+                || HasHandlerCapability(type, map)
                 || (!rootKeys.Contains(Key(type)) && type.Interfaces.Any(contract => contract.InterfaceType.GetElementType().FullName == "MediatR.IRequestHandler`2")))
                 yield return "Nested HTTP dispatch/helper handler: " + type.FullName;
             foreach (var reference in references)
@@ -349,6 +406,37 @@ public sealed class AuthenticatedHttpSurfaceTests
                     && !(type.IsValueType && reference.GetElementType().FullName == "LearnStack.SharedKernel.Identifiers.IStronglyTypedId`1"
                         && type.Interfaces.Any(contract => Key(contract.InterfaceType) == Key(reference)))) queue.Enqueue(helper);
         }
+    }
+
+    private static bool HasHandlerCapability(TypeDefinition type, Dictionary<string, TypeDefinition> map)
+    {
+        bool Handler(TypeReference reference) => Il.ExpandedTypeReferences(reference).Any(candidate =>
+            candidate.FullName is "MediatR.IRequestHandler`1" or "MediatR.IRequestHandler`2"
+            || map.TryGetValue(Key(candidate), out var definition) && definition.Interfaces.Any(contract =>
+                contract.InterfaceType.GetElementType().FullName is "MediatR.IRequestHandler`1" or "MediatR.IRequestHandler`2"));
+
+        static bool CapturedOwner(TypeReference reference, MethodDefinition method)
+        {
+            for (var generated = method.DeclaringType; generated is not null && generated.Name.Contains('<', StringComparison.Ordinal);
+                 generated = generated.DeclaringType)
+                if (generated.DeclaringType is { } owner && Key(reference) == Key(owner)) return true;
+            return false;
+        }
+
+        return type.Fields.Any(field => field.Name != "<>4__this" && Handler(field.FieldType))
+            || Il.Methods(type).Any(pair => Handler(pair.Definition.ReturnType)
+                || pair.Definition.Parameters.Any(parameter => Handler(parameter.ParameterType))
+                || pair.Definition.HasBody && (pair.Definition.Body.Variables.Any(variable => Handler(variable.VariableType) && !CapturedOwner(variable.VariableType, pair.Definition))
+                    || pair.Definition.Body.Instructions.Any(instruction => instruction.Operand switch
+                    {
+                        TypeReference reference => Handler(reference),
+                        // Async state machines capture their own handler as this;
+                        // that generated back-reference is not nested dispatch.
+                        FieldReference field => field.Name != "<>4__this" && Handler(field.FieldType),
+                        MethodReference target => (target.Name is "Handle" or ".ctor" && Handler(target.DeclaringType))
+                            || Handler(target.ReturnType) || target.Parameters.Any(parameter => Handler(parameter.ParameterType)),
+                        _ => false
+                    })));
     }
 
     private static IEnumerable<TypeDefinition> HandlerRoots(Dictionary<string, TypeDefinition> map) => map.Values.Where(type =>
@@ -438,6 +526,8 @@ public sealed class AuthenticatedHttpSurfaceTests
         if (callbacks.Length != 1 || !map.TryGetValue(Key(callbacks[0].DeclaringType), out var type)) return false;
         var callback = type.Methods.SingleOrDefault(method => method.FullName == callbacks[0].FullName);
         return callback is { HasBody: true } && callback.Parameters.Count == 0
+            && !callback.Body.Instructions.Any(instruction => instruction.OpCode == OpCodes.Ldfld || instruction.OpCode == OpCodes.Ldsfld
+                || instruction.OpCode == OpCodes.Ldflda || instruction.OpCode == OpCodes.Ldsflda)
             && callback.Body.Instructions.Any(instruction => instruction.Operand as string == "healthy")
             && callback.Body.Instructions.Select(instruction => instruction.Operand).OfType<MethodReference>().All(target =>
                 target.Name == ".ctor" && target.DeclaringType.Name.StartsWith("<>f__AnonymousType", StringComparison.Ordinal)

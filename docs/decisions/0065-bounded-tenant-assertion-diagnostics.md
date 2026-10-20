@@ -296,3 +296,25 @@ used as evidence for the independent target-tenant audit limit.
   [Architecture test catalogue](../standards/21-architecture-tests-catalogue.md),
   [Tenancy audit matrix](../modules/tenancy/audit.md),
   [P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19).
+
+## Amendments
+
+### Amendment 1 — exemplar export enforcement (2026-10-20)
+
+The outbound metric privacy contract includes exemplar filtered attributes,
+not only metric-point attributes. OpenTelemetry can retain attributes removed
+by a stream view in its exemplars. The API therefore sets the programmatic
+exemplar filter to `AlwaysOff`; standard and histogram-specific environment
+settings cannot enable them. This is an implementation qualification of the
+existing destination-exclusion contract, not a new identity-label exception or
+a change to ordinary trace/log visibility.
+
+`TenantAuthenticationDiagnosticCollector.Metrics` decodes exemplar attributes,
+identifiers and values. `TenantAuthenticationDiagnosticsTests.Metrics` retains
+unprojected positives and production negatives under both `always_on` and
+`trace_based`, for both environment-setting families. Point-only decoding is
+insufficient evidence. [Observability Standards](../standards/10-observability.md)
+and the [catalogue](../standards/21-architecture-tests-catalogue.md) carry the
+same proof boundary. Source-bound review and hosted qualification belong to the
+[second remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20).
+The original Accepted body, decision, date and deciders remain intact.

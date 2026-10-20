@@ -379,8 +379,11 @@ gateway — TLS termination, consumer-keyed limits, WAF — in
    evaluation. The backend never trusts the gateway alone.
 
 If APISIX is misconfigured, bypassed (someone hits the backend directly on the internal
-network), or compromised, the backend still rejects unauthenticated requests. This is
-non-negotiable.
+network), or compromised, the backend still enforces its own credential and scope
+boundary. Eligible public GET/HEAD reads remain available without credentials;
+AccountSite returns 404 for absent credentials. Present invalid credentials return
+401 after the earlier admission gates, including on public routes. Phase 03 supplies
+the permission checks for its protected routes.
 
 The backend currently carries the bearer-validation boundary on its own.
 Phase 11 activates the gateway's independent check when ADR-0035's trigger fires;
@@ -397,6 +400,25 @@ issuer, purpose, actor, JOSE, diagnostic and refresh contract. Configure
 Development permits loopback HTTP; other deployment modes require explicit HTTPS.
 Metadata is fetched from that configured issuer, never a URL selected by claims.
 No API client secret, live membership or BFF session is introduced here.
+
+### Current issuer topology and activation limits
+
+The API must resolve and reach the configured issuer itself, with the required TLS
+trust. Private HTTPS addresses and internal DNS names are supported; there is no
+separate `Authentication:Tenant:MetadataAddress` setting for an internal discovery
+origin paired with a different public issuer. Startup validates the URL without
+network I/O, so successful startup does not establish issuer reachability. Deployment
+DNS, proxy and certificate configuration must preserve the issuer's exact identity
+and the discovery/JWKS containment boundary.
+
+The current API maps `/healthz` liveness only. It has neither mapped authentication
+readiness nor a dedicated authentication outcome counter. Its stock manager caches
+current metadata; disabling last-known-good fallback does not promise either an
+outage grace period or immediate refusal of every warm-cache request. The
+[Phase 11 authentication activation gate](../roadmap/phase-11-production-hardening.md#tenant-authentication-production-activation)
+owns topology, cold/warm-cache and key-rotation drills, diagnostic/readiness decisions
+and operational runbooks before production use. P02b-6/7 still own actual realm
+issuance and browser-session integration.
 
 ## 6. Rate limit policy
 

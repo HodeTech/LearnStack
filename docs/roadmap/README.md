@@ -95,7 +95,7 @@ not deferred to the showcase phase.
   The [individual exit evidence](phase-02d-exit-evidence.md) maps each exit
   criterion to its actual proof and completed disposition.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
-  — **P02b-0 through P02b-3 complete; P02b-3 merged through PR #31 on 2026-10-15**. Its
+  — **P02b-0 through P02b-4 complete; P02b-1–4 merged through PRs #29–32**. Its
   [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
   verifies the inherited baseline; Accepted ADR-0057 and the
   [producer package](phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
@@ -142,6 +142,9 @@ not deferred to the showcase phase.
   [local closeout](phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
   separates exact CI receipts from live PR-head qualification and merge. All five
   steps are locally complete and unmerged. Next is P02b-6's realm/TTL decision pass.
+  The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
+  owns current corrections; ADR-0066 remains Proposed pending approval of the
+  subject-cap decision and dependent refinements before PR #33 closeout.
   Realm reconciliation, BFF sessions and phase-exit enforcement remain P02b-6–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

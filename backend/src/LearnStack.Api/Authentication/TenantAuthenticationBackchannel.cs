@@ -35,7 +35,7 @@ internal sealed class TenantOidcDocumentRetriever(
             || !string.IsNullOrEmpty(uri.Fragment)
             || !uri.IsWellFormedOriginalString()
             || !string.Equals(uri.AbsoluteUri, address, StringComparison.Ordinal)
-            || !address.StartsWith(settings.Issuer + "/", StringComparison.Ordinal))
+            || !settings.ContainsDocumentAddress(uri))
         {
             throw new IOException("Tenant authentication metadata refused.");
         }

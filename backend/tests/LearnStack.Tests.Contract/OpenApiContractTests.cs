@@ -188,7 +188,11 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
                 foreach (var (status, response) in responses)
                 {
                     if (response!["headers"]?["Cache-Control"]?["schema"]?["enum"]?[0]?.GetValue<string>() != "no-store") errors.Add("headers");
-                    if (response["headers"]?["Cache-Control"]?["required"]?.GetValue<bool>() != true) errors.Add("headers");
+                    if (status == "413")
+                    {
+                        if (response["headers"]?["Cache-Control"]?["required"]?.GetValue<bool>() == true) errors.Add("body-limit-headers");
+                    }
+                    else if (response["headers"]?["Cache-Control"]?["required"]?.GetValue<bool>() != true) errors.Add("headers");
                     if (status == "401" && (response["headers"]?["WWW-Authenticate"]?["schema"]?["enum"] is not JsonArray { Count: 1 } challenge
                         || challenge[0]?.GetValue<string>() != "Bearer"
                         || response["headers"]?["WWW-Authenticate"]?["required"]?.GetValue<bool>() != true)) errors.Add("challenge");

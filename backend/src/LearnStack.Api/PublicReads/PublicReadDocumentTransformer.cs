@@ -44,7 +44,7 @@ internal sealed class PublicReadDocumentTransformer : IOpenApiDocumentTransforme
                 operation.Description = "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.";
                 DocumentResponses(document, operation, method, Errors.Select(error =>
                     error.Status == "400" && path.EndsWith("/site", StringComparison.Ordinal)
-                        ? (error.Status, "validation_failed; the site bootstrap accepts no query parameters.") : error));
+                        ? (error.Status, "validation_failed; the site bootstrap accepts no query parameters, and malformed or repeated assertion headers are refused.") : error));
             }
         }
         foreach (var (name, value) in document.Components.Schemas)
@@ -91,7 +91,7 @@ internal sealed class PublicReadDocumentTransformer : IOpenApiDocumentTransforme
         {
             if (value is not OpenApiResponse response) continue;
             response.Headers ??= new Dictionary<string, IOpenApiHeader>();
-            response.Headers["Cache-Control"] = LiteralHeader("no-store");
+            response.Headers["Cache-Control"] = LiteralHeader("no-store", required: status != "413");
             if (status == "401") response.Headers["WWW-Authenticate"] = LiteralHeader("Bearer");
             if (status == "405") response.Headers["Allow"] = LiteralHeader(allowedMethods);
             if (status is "429" or "503") response.Headers["Retry-After"] = new OpenApiHeader
@@ -108,9 +108,9 @@ internal sealed class PublicReadDocumentTransformer : IOpenApiDocumentTransforme
             success.Content = new Dictionary<string, OpenApiMediaType> { ["application/json"] = content["application/json"] };
     }
 
-    private static OpenApiHeader LiteralHeader(string value) => new()
+    private static OpenApiHeader LiteralHeader(string value, bool required = true) => new()
     {
-        Required = true,
+        Required = required,
         Schema = new OpenApiSchema { Type = JsonSchemaType.String, Enum = [JsonValue.Create(value)!] }
     };
 

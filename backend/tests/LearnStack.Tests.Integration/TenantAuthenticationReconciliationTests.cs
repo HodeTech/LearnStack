@@ -155,7 +155,8 @@ public sealed partial class TenantAuthenticationReconciliationTests
     [Theory]
     [InlineData(TenantAuthenticationReconciliationHost.TenantHost, false)]
     [InlineData(TenantAuthenticationReconciliationHost.OrganizationHost, true)]
-    public async Task Claimless_profiles_keep_the_actor_and_HostOnly_ceiling_with_one_fixed_Debug_event_per_request(
+    [InlineData(TenantAuthenticationReconciliationHost.PlatformHost, false)]
+    public async Task Claimless_profiles_keep_the_HostOnly_or_unresolved_ceiling_with_one_fixed_Debug_event_per_request(
         string requestHost, bool organizationHost)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
@@ -164,20 +165,28 @@ public sealed partial class TenantAuthenticationReconciliationTests
         using var publicResponse = await host.SendAsync(token, requestHost, TenantAuthenticationReconciliationHost.PublicPath);
 
         publicResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var expected = new ReconciliationObservation(true, TenantAuthenticationIssuer.Tenant,
-            organizationHost ? TenantAuthenticationIssuer.Organization : null,
-            TenantAuthenticationIssuer.Actor, TenantContextOrigin.HostOnly, TenantAuthenticationIssuer.Tenant,
-            organizationHost ? TenantAuthenticationIssuer.Organization : null, Correlation(publicResponse), true);
+        var platformHost = requestHost == TenantAuthenticationReconciliationHost.PlatformHost;
+        var expected = platformHost
+            ? new ReconciliationObservation(false, null, null, null, null, null, null, null, true)
+            : new ReconciliationObservation(true, TenantAuthenticationIssuer.Tenant,
+                organizationHost ? TenantAuthenticationIssuer.Organization : null,
+                TenantAuthenticationIssuer.Actor, TenantContextOrigin.HostOnly, TenantAuthenticationIssuer.Tenant,
+                organizationHost ? TenantAuthenticationIssuer.Organization : null, Correlation(publicResponse), true);
         (await publicResponse.Content.ReadFromJsonAsync<ReconciliationObservation>()).Should().Be(expected);
         AssertClaimlessEvents(host, 1);
 
         using var protectedResponse = await host.SendAsync(token, requestHost);
         await AssertProblem(protectedResponse, HttpStatusCode.NotFound, "not_found");
         host.ResolvedRequests.Should().HaveCount(2);
-        host.ResolvedRequests.Last().Should().Be(expected with { Correlation = Correlation(protectedResponse) });
+        host.ResolvedRequests.Last().Should().Be(expected with { Correlation = platformHost ? null : Correlation(protectedResponse) });
         AssertClaimlessEvents(host, 2);
         host.Ports.Memberships.Should().BeEmpty();
+        host.Ports.OrganizationChecks.Should().BeEmpty();
         host.Recorder.Rejections.Should().BeEmpty();
+        host.Recorder.NoTenantRefusals.Should().BeEmpty("row 15 is unresolved rather than a rejected tenant claim");
+        host.Recorder.Unresolved.Should().BeEmpty();
+        issuer.MetadataRequests.Should().Be(1, "the claimless platform case still validates its signed JWT through discovery");
+        issuer.JwksRequests.Should().Be(1);
     }
 
     [Fact]

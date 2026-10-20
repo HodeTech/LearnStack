@@ -15,6 +15,7 @@ import {
   publicDemoFailure,
   publicDemoOperation,
   publicDemoWorkerStage,
+  publicDemoWorkerOutput,
 } from './public-demo-diagnostics.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 import { demoRequest } from '../../../../scripts/demo-http.mjs';
@@ -37,25 +38,13 @@ export async function verifyPublicDemo(runtime) {
     return Math.min(bound, deadline - Date.now());
   };
   const output = join(root, 'artifacts/public-demo');
-  if (existsSync(output)) throw new Error('Public proof artifact directory must be fresh');
-  mkdirSync(output, { recursive: true });
-  const identity = {
-    invocation: randomBytes(16).toString('hex'),
-    commit: (
-      await runtime.processes.run('git', ['rev-parse', 'HEAD'], {
-        cwd: root,
-        env: { PATH: process.env.PATH },
-        label: 'Read-only source provenance',
-        capture: true,
-      })
-    ).trim(),
-    build: readFileSync(join(root, 'frontend/apps/web/.next/BUILD_ID'), 'utf8').trim(),
-  };
-  assert.match(identity.commit, /^[a-f0-9]{40}$/);
-  const hosts = [...new Set(runtime.manifest.map((lane) => lane.host))];
-  const spki = createHash('sha256')
-    .update(runtime.leaf.publicKey.export({ type: 'spki', format: 'der' }))
-    .digest('base64');
+  let outputOwned = false;
+  let failure;
+  let phase = 'setup';
+  const identity = { invocation: randomBytes(16).toString('hex'), commit: null, build: null };
+  let hosts;
+  let spki;
+  let expected;
   const childrenEnv = {
     PATH: process.env.PATH,
     HOME: runtime.privateRoot,
@@ -83,19 +72,18 @@ export async function verifyPublicDemo(runtime) {
     passed: false,
   };
   receipt.configuration = census;
-  const expected = runtime.manifest.flatMap((lane) =>
-    ['catalog', 'course', 'lesson'].flatMap((kind) =>
-      [1, 2, 3].map((run) => ({
-        ...identity,
-        url: lane[kind + 'Url'],
-        run,
-        configDigest: receipt.configDigest,
-        browserVersion: census.versions.browserVersion,
-      })),
-    ),
-  );
-  receipt.expectedReports = expected;
-  const save = () => writeFileSync(join(output, 'receipt.json'), JSON.stringify(receipt, null, 2));
+  const save = () => {
+    if (!outputOwned) return false;
+    try {
+      writeFileSync(join(output, 'receipt.json'), JSON.stringify(receipt, null, 2));
+      return true;
+    } catch (error) {
+      receipt.passed = false;
+      receipt.failure ??= publicDemoFailure('result', error);
+      failure ??= error;
+      return false;
+    }
+  };
   let operationIndex = 0;
   async function operation(input, trust = spki) {
     const index = operationIndex++;
@@ -109,6 +97,7 @@ export async function verifyPublicDemo(runtime) {
       child: () => browser?.child,
       record: (failure) => {
         receipt.failure ??= failure;
+        save();
       },
       run: async (stage) => {
         mkdirSync(profile, { mode: 0o700 });
@@ -170,8 +159,7 @@ export async function verifyPublicDemo(runtime) {
             timeout: remaining(input.mode === 'browser' ? 135000 : 60000),
             // Fixed assertions/phase names only; provider/document logs stay suppressed.
             observe: (chunk) => {
-              if (chunk.toString().startsWith('Public demo worker refused:'))
-                console.error(chunk.toString().trim());
+              for (const line of publicDemoWorkerOutput(chunk)) console.error(line);
             },
           });
         } catch (error) {
@@ -190,7 +178,7 @@ export async function verifyPublicDemo(runtime) {
       cleanup: async () => {
         if (browser) {
           await stopTestChild(browser.child);
-          await browser.exit;
+          // The outer process owner performs the separately bounded stream drain.
         }
         if (profileOwned) rmSync(profile, { recursive: true, force: true });
       },
@@ -213,10 +201,40 @@ export async function verifyPublicDemo(runtime) {
     )
       await pause(20, undefined, { signal: runtime.signal });
     receipt.batches.push({ name, ...completionDelta(before, runtime.completions, expected) });
-    save();
+    if (!save()) throw failure;
   }
-  let failure;
   try {
+    if (existsSync(output)) throw new Error('Public proof artifact directory must be fresh');
+    mkdirSync(output, { recursive: true });
+    outputOwned = true;
+    if (!save()) throw failure;
+    identity.commit = (
+      await runtime.processes.run('git', ['rev-parse', 'HEAD'], {
+        cwd: root,
+        env: { PATH: process.env.PATH },
+        label: 'Read-only source provenance',
+        capture: true,
+      })
+    ).trim();
+    identity.build = readFileSync(join(root, 'frontend/apps/web/.next/BUILD_ID'), 'utf8').trim();
+    assert.match(identity.commit, /^[a-f0-9]{40}$/);
+    hosts = [...new Set(runtime.manifest.map((lane) => lane.host))];
+    spki = createHash('sha256')
+      .update(runtime.leaf.publicKey.export({ type: 'spki', format: 'der' }))
+      .digest('base64');
+    expected = runtime.manifest.flatMap((lane) =>
+      ['catalog', 'course', 'lesson'].flatMap((kind) =>
+        [1, 2, 3].map((run) => ({
+          ...identity,
+          url: lane[kind + 'Url'],
+          run,
+          configDigest: receipt.configDigest,
+          browserVersion: census.versions.browserVersion,
+        })),
+      ),
+    );
+    receipt.expectedReports = expected;
+    phase = 'proof';
     assert.equal(runtime.mode, 'ci');
     // Positive observer control uses already completed readiness, then a fresh
     // product document through independent CA/hostname verification.
@@ -263,7 +281,7 @@ export async function verifyPublicDemo(runtime) {
           remaining(1);
           if (runtime.completions.statuses[429] || runtime.completions.total - before.total > 48)
             throw new Error('Public audit quota/status bound');
-          save();
+          if (!save()) throw failure;
         }
       await finishBatch(before, 36, `audit-lane-${laneIndex}`);
     }
@@ -286,7 +304,8 @@ export async function verifyPublicDemo(runtime) {
     receipt.passed = true;
   } catch (error) {
     failure = error;
-    receipt.failure ??= publicDemoFailure('proof', error);
+    receipt.failure ??= publicDemoFailure(phase, error);
+    save();
   } finally {
     receipt.proofMilliseconds = Date.now() - started;
     const beforeCleanup = snapshot(runtime.completions);

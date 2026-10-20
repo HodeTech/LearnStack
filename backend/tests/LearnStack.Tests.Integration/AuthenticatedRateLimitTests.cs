@@ -89,10 +89,28 @@ public sealed class AuthenticatedRateLimitTests(PublicReadFixture fixture)
     }
 
     [Fact]
-    public async Task Actual_production_visitor_floor_still_applies_to_validated_subjects()
+    public async Task Production_visitor_quota_blocks_validated_subjects_with_replenishment_disabled()
     {
+        using var production = NoQueueAdmissionLimiter.CreateVisitorBudget();
+        RateLimitingExtensions.AnonymousPermitPerWindow.Should().Be(60);
+        RateLimitingExtensions.Window.Should().Be(TimeSpan.FromMinutes(1));
+        production.GetStatistics()!.CurrentAvailablePermits.Should().Be(60);
+        production.ReplenishmentPeriod.Should().Be(TimeSpan.FromMinutes(1));
+        production.IsAutoReplenishing.Should().BeTrue();
+
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        using var client = fixture.ClientFor(SeedData.English.Host, configureHost: builder =>
+        using var client = fixture.ClientFor(SeedData.English.Host, services =>
+        {
+            // Keep the production coordinator, quota and window. Disable only
+            // its visitor timer so slow DB-backed HTTP calls cannot replenish
+            // this proof's spent quota. Above asserts the stock automatic-timer
+            // configuration; this HTTP lane does not observe replenishment.
+            services.RemoveAll<NoQueueAdmissionLimiter>();
+            services.AddSingleton(_ => new NoQueueAdmissionLimiter(
+                RateLimitingExtensions.CreatePeerBudget(),
+                () => NoQueueAdmissionLimiter.CreateVisitorBudget(autoReplenishment: false),
+                RateLimitingExtensions.Window, TimeProvider.System));
+        }, builder =>
             builder.UseSetting(TenantAuthenticationOptions.IssuerConfigurationKey, issuer.Issuer));
         var token = AccountSiteHttpTests.Token(issuer, SeedData.English);
         var reads = fixture.Observation.Reads;

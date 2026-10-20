@@ -144,8 +144,9 @@ proof pass real CI; the seventh required context is active. The
 owns CI enforcement, reviews and the positive phase-exit verdict.
 [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; the
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
-owns final verification. P02b-0 through P02b-4 are complete; their merge closeouts
-above own final source/merge verification. P02b-3 Steps 1–5 implement durable
+owns final verification. P02b-0 through P02b-4 are complete. P02b-0 has an entry
+verification; P02b-1–4 have the merge closeouts above for final source/merge
+verification. P02b-3 Steps 1–5 implement durable
 acceptance, shared inbox/ledger, independent subscriber scheduling and both
 useful defaults with semantic Seeder handoff. Its
 [Step 6 record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)

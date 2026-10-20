@@ -35,7 +35,7 @@ internal sealed class TenantAuthenticationOptions
             || address.UserInfo.Length != 0
             || address.Query.Length != 0
             || address.Fragment.Length != 0
-            || address.AbsolutePath.Contains("//", StringComparison.Ordinal)
+            || !HasUnambiguousPath(address)
             || !address.AbsolutePath.EndsWith("/realms/learnstack", StringComparison.Ordinal)
             || !IsAllowedTransport(address, deploymentMode)
         )
@@ -49,6 +49,27 @@ internal sealed class TenantAuthenticationOptions
 
         return new TenantAuthenticationOptions(issuer);
     }
+
+    internal bool ContainsDocumentAddress(Uri address)
+    {
+        var root = new Uri(Issuer + "/");
+        return string.Equals(root.GetLeftPart(UriPartial.Authority),
+                address.GetLeftPart(UriPartial.Authority), StringComparison.Ordinal)
+            && HasUnambiguousPath(address)
+            && address.Segments.Length > root.Segments.Length
+            && root.Segments.SequenceEqual(address.Segments.Take(root.Segments.Length), StringComparer.Ordinal);
+    }
+
+    private static bool HasUnambiguousPath(Uri address) =>
+        !address.AbsolutePath.Contains("//", StringComparison.Ordinal)
+        && address.Segments.Skip(1).All(segment =>
+        {
+            var decoded = Uri.UnescapeDataString(segment.TrimEnd('/'));
+            // Preserve harmless escaped path data, but never let a server's
+            // decoding introduce separators, traversal or a second escape layer.
+            return decoded is not ("." or "..")
+                && !decoded.Contains('/') && !decoded.Contains('\\') && !decoded.Contains('%');
+        });
 
     private static bool IsAllowedTransport(Uri address, DeploymentMode deploymentMode) =>
         address.Scheme == Uri.UriSchemeHttps

@@ -280,6 +280,7 @@ public sealed class PublicSiteHttpTests(PublicReadFixture fixture)
         using var client = fixture.ClientFor(English.Host);
         using var post = await client.PostAsync(Path, null);
         await Error(post, HttpStatusCode.MethodNotAllowed, "method_not_allowed");
+        post.Content.Headers.Allow.Should().BeEquivalentTo(["GET", "HEAD"]);
         using var conditional = new HttpRequestMessage(HttpMethod.Get, Path);
         conditional.Headers.TryAddWithoutValidation("If-None-Match", "*");
         using var unchanged = await client.SendAsync(conditional);

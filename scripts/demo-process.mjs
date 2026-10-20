@@ -3,8 +3,10 @@ import { stopTestChild } from '../frontend/apps/web/scripts/stop-test-child.mjs'
 
 /** Only fixed caller-owned stage labels reach the foreground CLI. */
 export class DemoCommandError extends Error {
-  constructor(label, cause) {
+  constructor(label, cause, status) {
     super(`demo: ${label} failed`, { cause });
+    this.exitCode = status?.code ?? null;
+    this.signalCode = status?.signal ?? null;
   }
 }
 
@@ -79,8 +81,11 @@ export class DemoProcesses {
       });
     }
     const exit = new Promise((resolve) => {
-      child.once('error', () => resolve({ code: 1 }));
-      child.once('close', (code) => resolve({ code: code ?? 1 }));
+      child.once('error', (cause) => {
+        failed ??= cause;
+        resolve({ code: null, signal: null });
+      });
+      child.once('close', (code, signal) => resolve({ code, signal }));
     });
     const running = {
       child,
@@ -100,8 +105,12 @@ export class DemoProcesses {
   daemon(command, args, options) {
     const running = this.start(command, args, options);
     this.#children.get(running.child).daemon = true;
-    void running.exit.then(() => {
-      this.#failed = new DemoCommandError(`${options.label} exited`, running.result().failed);
+    void running.exit.then((status) => {
+      this.#failed = new DemoCommandError(
+        `${options.label} exited`,
+        running.result().failed,
+        status,
+      );
       this.#failure(this.#failed);
     });
     return running;
@@ -112,26 +121,37 @@ export class DemoProcesses {
     const signal = AbortSignal.any([this.#signal, timeout]);
     let cancelled;
     const aborted = new Promise((resolve) => {
-      cancelled = () => resolve({ code: 1, cancelled: true });
+      cancelled = () => resolve({ code: null, signal: null });
       signal.addEventListener('abort', cancelled, { once: true });
       if (signal.aborted) cancelled();
     });
+    let failure;
     try {
       const result = await Promise.race([
         running.exit,
         aborted,
-        this.failure.then(() => ({ code: 1 })),
+        this.failure.then(() => ({ code: null, signal: null })),
       ]);
       if (result.code !== 0 || running.result().failed)
         throw new DemoCommandError(
           options.label ?? command,
           running.result().failed ?? this.#failed,
+          result,
         );
       this.assertActive();
       return running.result().output;
+    } catch (error) {
+      failure = error;
+      throw error;
     } finally {
       signal.removeEventListener('abort', cancelled);
-      await stopTestChild(running.child);
+      try {
+        await stopTestChild(running.child);
+      } catch (error) {
+        // Retain this handle for dispose's cleanup failure; do not replace the
+        // triggering command failure or attribute teardown's signal to it.
+        if (!failure) throw error;
+      }
     }
   }
   async dispose() {

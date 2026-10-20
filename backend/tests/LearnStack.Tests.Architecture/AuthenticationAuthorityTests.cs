@@ -174,6 +174,12 @@ public sealed partial class AuthenticationAuthorityTests
         || target.DeclaringType.Namespace == "Microsoft.IdentityModel.Tokens"
             && target.DeclaringType.Name is not ("TokenValidationParameters" or "BaseConfiguration" or "BaseConfigurationManager")
         || target.DeclaringType.FullName == "Microsoft.AspNetCore.Http.HttpContext" && target.Name is "get_User" or "set_User"
+        || target.DeclaringType.FullName is "Microsoft.AspNetCore.Authentication.AuthenticateResult"
+            or "Microsoft.AspNetCore.Authentication.AuthenticationTicket" && target.Name == "get_Principal"
+        || target.DeclaringType.FullName is "Microsoft.AspNetCore.Authorization.IAuthorizationService"
+            or "Microsoft.AspNetCore.Authorization.AuthorizationServiceExtensions"
+            && target.Name == "AuthorizeAsync" && target.Parameters.Any(parameter =>
+                parameter.ParameterType.FullName == "System.Security.Claims.ClaimsPrincipal")
         || target.DeclaringType.FullName == "Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder"
             && target.Name is "RequireRole" or "RequireClaim"
         || target.DeclaringType.FullName is

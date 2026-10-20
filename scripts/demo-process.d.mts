@@ -1,7 +1,13 @@
 import type { ChildProcess } from 'node:child_process';
 export function installDemoCancellation(cancel: () => void): () => void;
 export class DemoCommandError extends Error {
-  constructor(label: string, cause?: unknown);
+  constructor(
+    label: string,
+    cause?: unknown,
+    status?: { code: number | null; signal: string | null },
+  );
+  readonly exitCode: number | null;
+  readonly signalCode: string | null;
 }
 interface Options {
   cwd?: string;
@@ -13,7 +19,7 @@ interface Options {
 }
 interface Running {
   child: ChildProcess;
-  exit: Promise<{ code: number }>;
+  exit: Promise<{ code: number | null; signal: string | null }>;
   result(): { output: string; failed?: Error };
 }
 export class DemoProcesses {

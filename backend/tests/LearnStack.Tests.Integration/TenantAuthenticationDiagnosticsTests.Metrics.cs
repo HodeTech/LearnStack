@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Metrics;
 using System.Net.Sockets;
@@ -15,16 +16,34 @@ namespace LearnStack.Tests.Integration;
 
 public sealed partial class TenantAuthenticationDiagnosticsTests
 {
-    [Fact]
-    public async Task Metadata_native_metrics_preserve_durations_without_exporting_private_hostnames()
+    [Theory]
+    [InlineData("OTEL_METRICS_EXEMPLAR_FILTER", "always_on")]
+    [InlineData("OTEL_METRICS_EXEMPLAR_FILTER", "trace_based")]
+    [InlineData("OTEL_DOTNET_EXPERIMENTAL_METRICS_EXEMPLAR_FILTER_HISTOGRAMS", "always_on")]
+    [InlineData("OTEL_DOTNET_EXPERIMENTAL_METRICS_EXEMPLAR_FILTER_HISTOGRAMS", "trace_based")]
+    public async Task Metadata_native_metrics_preserve_durations_without_exporting_private_hostnames(
+        string exemplarVariable, string exemplarFilter)
     {
         // The collection owns process-wide telemetry and proxy state. Bypass
         // ambient proxies so the owned backchannel really resolves these DNS
         // names, including on CI machines with an HTTP(S)_PROXY configured.
         var originalProxy = HttpClient.DefaultProxy;
+        const string filterVariable = "OTEL_METRICS_EXEMPLAR_FILTER";
+        const string histogramFilterVariable = "OTEL_DOTNET_EXPERIMENTAL_METRICS_EXEMPLAR_FILTER_HISTOGRAMS";
+        var originalFilter = Environment.GetEnvironmentVariable(filterVariable);
+        var originalHistogramFilter = Environment.GetEnvironmentVariable(histogramFilterVariable);
         HttpClient.DefaultProxy = new DiagnosticDirectProxy();
+        Environment.SetEnvironmentVariable(filterVariable, null);
+        Environment.SetEnvironmentVariable(histogramFilterVariable, null);
+        Environment.SetEnvironmentVariable(exemplarVariable, exemplarFilter);
         try
         {
+            // TraceBased must be exercised under a sampled W3C context; it must
+            // not pass simply because the native measurements lack an activity.
+            using var activity = new Activity("tenant-authentication-metric-proof")
+                .SetIdFormat(ActivityIdFormat.W3C);
+            activity.ActivityTraceFlags = ActivityTraceFlags.Recorded;
+            activity.Start();
             await using var issuer = await TenantAuthenticationIssuer.StartAsync();
             var privateHost = "private-tenant-metadata-" + Guid.NewGuid().ToString("N") + ".invalid";
             var settings = TenantAuthenticationOptions.Create(
@@ -66,6 +85,55 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
                 controlCollector.Metrics.Should().Contain(canary,
                     "the real ordinary request supplies destination and enriched URL dimensions before projection");
 
+            await using var exemplarCollector = await TenantAuthenticationDiagnosticCollector.StartAsync();
+            // Keep the production point-tag projection, but deliberately omit
+            // AlwaysOff. Real environment configuration must enable exemplars
+            // carrying precisely the attributes that the point view removed.
+            using (var meters = Sdk.CreateMeterProviderBuilder()
+                .AddView(instrument => instrument.Meter.Name switch
+                {
+                    "System.Net.Http" => new MetricStreamConfiguration
+                    {
+                        TagKeys = ["http.request.method", "http.response.status_code", "network.protocol.version",
+                            "url.scheme", "error.type"],
+                    },
+                    "System.Net.NameResolution" => new MetricStreamConfiguration { TagKeys = ["error.type"] },
+                    _ => null,
+                })
+                .AddHttpClientInstrumentation()
+                .AddOtlpExporter(options =>
+                {
+                    options.Endpoint = new Uri(exemplarCollector.Endpoint);
+                    options.Protocol = OtlpExportProtocol.Grpc;
+                    options.TimeoutMilliseconds = 5000;
+                }).Build())
+            {
+                await using var control = await CreateHost(issuer, settings: settings);
+                await RetrieveMetadata(control.Services, settings, localSettings);
+                meters.ForceFlush(5000).Should().BeTrue();
+                await RetrieveOrdinary(issuer, ordinary, () => meters.ForceFlush(5000).Should().BeTrue());
+            }
+            var projectedPoints = exemplarCollector.MetricPoints;
+            projectedPoints.SelectMany(point => point.Attributes.Keys).Should()
+                .NotContain(["server.address", "server.port", "dns.question.name", "url.full", "url.path", "url.query"]);
+            var exemplars = projectedPoints.SelectMany(point => point.Exemplars).ToArray();
+            exemplars.Should().Contain(exemplar => exemplar.Value > 0
+                && exemplar.TraceId.Length == 32 && exemplar.SpanId.Length == 16,
+                "real sampled native measurements must reach the decoded OTLP exemplar messages");
+            var exemplarAttributes = exemplars.SelectMany(exemplar => exemplar.FilteredAttributes).ToArray();
+            exemplarAttributes.Should().Contain(attribute => attribute.Key == "server.address"
+                && attribute.Value.Equals(privateHost));
+            exemplarAttributes.Should().Contain(attribute => attribute.Key == "dns.question.name"
+                && attribute.Value.Equals(privateHost));
+            exemplarAttributes.Should().Contain(attribute => attribute.Key == "server.port"
+                && attribute.Value.Equals((long)ordinary.Port),
+                "numeric destination ports must be decoded inside exemplars, separately from point attributes");
+            foreach (var canary in ordinary.Canaries)
+                exemplarAttributes.Should().Contain(attribute =>
+                    attribute.Value is string && ((string)attribute.Value).Contains(canary, StringComparison.Ordinal));
+            exemplarAttributes.Select(attribute => attribute.Key).Should().Contain(
+                ["server.address", "server.port", "dns.question.name", "url.full", "url.path", "url.query"]);
+
             await using var collector = await TenantAuthenticationDiagnosticCollector.StartAsync();
             var observation = new DiagnosticObservation();
             await using (var app = await CreateHost(issuer, observed: observation,
@@ -103,6 +171,8 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
                 collector.Metrics.Should().NotContain(canary,
                     "ordinary destinations and URL data are private in metrics, separately from preserved traces");
             var points = collector.MetricPoints;
+            points.SelectMany(point => point.Exemplars).Should().BeEmpty(
+                "the production AlwaysOff setting must override the real " + exemplarVariable + "=" + exemplarFilter);
             points.SelectMany(point => point.Attributes.Values).Should().NotContain((long)ordinary.Port);
             var http = points.Where(point => point.ScopeName == "System.Net.Http").ToArray();
             http.Should().Contain(point => point.Name == "http.client.request.duration" && point.Value > 0);
@@ -117,10 +187,13 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
         finally
         {
             HttpClient.DefaultProxy = originalProxy;
+            Environment.SetEnvironmentVariable(filterVariable, originalFilter);
+            Environment.SetEnvironmentVariable(histogramFilterVariable, originalHistogramFilter);
         }
     }
 
-    private static async Task RetrieveOrdinary(TenantAuthenticationIssuer issuer, OrdinaryMetricDestinations destinations)
+    private static async Task RetrieveOrdinary(TenantAuthenticationIssuer issuer,
+        OrdinaryMetricDestinations destinations, Action? afterRequest = null)
     {
         var actual = new Uri(issuer.Issuer);
         using var client = new HttpClient(new SocketsHttpHandler
@@ -174,6 +247,7 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
             using var response = await client.SendAsync(request);
             response.StatusCode.Should().Be(HttpStatusCode.NotFound,
                 "the real controlled issuer has no ordinary diagnostic route");
+            afterRequest?.Invoke();
         }
     }
 

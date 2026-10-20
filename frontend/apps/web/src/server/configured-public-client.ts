@@ -155,7 +155,10 @@ export function createConfiguredPublicClient(
     const url = new URL(path, configuration.apiOrigin);
     if (
       url.origin !== configuration.apiOrigin ||
-      !url.pathname.startsWith('/api/v1/public/') ||
+      !/^\/api\/v1\/public\/(?:site|courses(?:\/[^/]+(?:\/lessons\/[^/]+)?)?)$/.test(
+        url.pathname,
+      ) ||
+      /%(?:25)*(?:2f|5c)/i.test(url.pathname) ||
       url.pathname + url.search !== path
     )
       throw new Error('Invalid public API operation');

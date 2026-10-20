@@ -659,7 +659,7 @@
                 }
               }
             },
-            "description": "method_not_allowed from routing; this authenticated operation admits GET only.",
+            "description": "method_not_allowed from routing after credential and host-backed authority admission; this operation admits GET only. Absent credentials remain masked as 404.",
             "headers": {
               "Allow": {
                 "required": true,
@@ -692,7 +692,6 @@
             "description": "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body.",
             "headers": {
               "Cache-Control": {
-                "required": true,
                 "schema": {
                   "enum": [
                     "no-store"
@@ -966,7 +965,6 @@
             "description": "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body.",
             "headers": {
               "Cache-Control": {
-                "required": true,
                 "schema": {
                   "enum": [
                     "no-store"
@@ -1191,7 +1189,6 @@
             "description": "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body.",
             "headers": {
               "Cache-Control": {
-                "required": true,
                 "schema": {
                   "enum": [
                     "no-store"
@@ -1450,7 +1447,6 @@
             "description": "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body.",
             "headers": {
               "Cache-Control": {
-                "required": true,
                 "schema": {
                   "enum": [
                     "no-store"
@@ -1686,7 +1682,6 @@
             "description": "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body.",
             "headers": {
               "Cache-Control": {
-                "required": true,
                 "schema": {
                   "enum": [
                     "no-store"
@@ -1936,7 +1931,6 @@
             "description": "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body.",
             "headers": {
               "Cache-Control": {
-                "required": true,
                 "schema": {
                   "enum": [
                     "no-store"
@@ -2163,7 +2157,6 @@
             "description": "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body.",
             "headers": {
               "Cache-Control": {
-                "required": true,
                 "schema": {
                   "enum": [
                     "no-store"
@@ -2272,7 +2265,7 @@
                 }
               }
             },
-            "description": "validation_failed; the site bootstrap accepts no query parameters.",
+            "description": "validation_failed; the site bootstrap accepts no query parameters, and malformed or repeated assertion headers are refused.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -2377,7 +2370,6 @@
             "description": "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body.",
             "headers": {
               "Cache-Control": {
-                "required": true,
                 "schema": {
                   "enum": [
                     "no-store"
@@ -2491,7 +2483,7 @@
             }
           },
           "400": {
-            "description": "validation_failed; the site bootstrap accepts no query parameters.",
+            "description": "validation_failed; the site bootstrap accepts no query parameters, and malformed or repeated assertion headers are refused.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -2568,7 +2560,6 @@
             "description": "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body.",
             "headers": {
               "Cache-Control": {
-                "required": true,
                 "schema": {
                   "enum": [
                     "no-store"

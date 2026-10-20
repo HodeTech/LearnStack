@@ -249,6 +249,9 @@ public static class CrossCuttingFoundationExtensions
             })
             .WithMetrics(m =>
             {
+                // A view's removed tags survive in exemplar filtered attributes.
+                // Pin this in code so environment settings cannot reopen that path.
+                m.SetExemplarFilter(ExemplarFilterType.AlwaysOff);
                 m.AddAspNetCoreInstrumentation();
                 // Native HTTP/DNS meters ignore request-local trace suppression.
                 // Omit destination names for every outbound request so metadata

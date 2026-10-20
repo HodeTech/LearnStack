@@ -48,19 +48,15 @@ export type ServerSdk = {
   ): Promise<ApiResult<PublicSuccess<'GetPublicLesson'>>>;
 };
 
-export type PublicGetPath =
-  | '/api/v1/public/site'
-  | '/api/v1/public/courses'
-  | '/api/v1/public/courses/{slug}'
-  | '/api/v1/public/courses/{slug}/lessons/{lessonSlug}';
-
 /** The exact public subset; generated GETs never acquire public ownership implicitly. */
-export const PUBLIC_GET_CONTRACTS = {
+export const PUBLIC_GET_CONTRACTS = Object.freeze({
   '/api/v1/public/site': 'GetPublicSite',
   '/api/v1/public/courses': 'GetPublicCourses',
   '/api/v1/public/courses/{slug}': 'GetPublicCourse',
   '/api/v1/public/courses/{slug}/lessons/{lessonSlug}': 'GetPublicLesson',
-} as const satisfies Record<PublicGetPath, PublicGetOperation>;
+} as const satisfies Record<string, PublicGetOperation>);
+
+export type PublicGetPath = keyof typeof PUBLIC_GET_CONTRACTS;
 
 /** Both path and operation ownership must remain disjoint, correctly paired and exhaustive. */
 export const GET_CONTRACT_OWNERSHIP = true satisfies GetContractOwnership<
@@ -71,12 +67,18 @@ export const GET_CONTRACT_OWNERSHIP = true satisfies GetContractOwnership<
 >;
 
 /** Every declared public GET has a wrapper; authenticated GETs have their own contract. */
-export const PUBLIC_GET_WRAPPERS = {
+type PublicWrappers = {
+  [P in PublicGetPath]: (typeof PUBLIC_GET_CONTRACTS)[P] extends `GetPublic${infer Resource}`
+    ? Uncapitalize<`Get${Resource}`> & keyof ServerSdk
+    : never;
+};
+
+export const PUBLIC_GET_WRAPPERS = Object.freeze({
   '/api/v1/public/site': 'getSite',
   '/api/v1/public/courses': 'getCourses',
   '/api/v1/public/courses/{slug}': 'getCourse',
   '/api/v1/public/courses/{slug}/lessons/{lessonSlug}': 'getLesson',
-} as const satisfies Record<keyof typeof PUBLIC_GET_CONTRACTS, keyof ServerSdk>;
+} as const satisfies PublicWrappers);
 
 function queryString(query: Record<string, string | undefined>): string {
   const parameters = new URLSearchParams();

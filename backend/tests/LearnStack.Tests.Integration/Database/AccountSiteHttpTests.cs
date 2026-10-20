@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Authentication;
+using LearnStack.Api.Common;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
@@ -61,6 +62,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
         using var invalid = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
             TenantAuthenticationHttpRequest.PublicPath, Token(issuer, SeedData.English));
         await TenantAuthenticationHttpTests.Problem(invalid, HttpStatusCode.Unauthorized, "unauthorized");
+        TenantAuthenticationHttpTests.NoStore(invalid);
         invalid.Headers.WwwAuthenticate.Should().ContainSingle().Which.ToString().Should().Be("Bearer");
         fixture.Observation.Reads.Should().Be(reads);
         issuer.MetadataRequests.Should().BeGreaterThan(0);
@@ -68,6 +70,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
         using var stillAnonymous = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
             TenantAuthenticationHttpRequest.PublicPath);
         stillAnonymous.StatusCode.Should().Be(HttpStatusCode.OK);
+        TenantAuthenticationHttpTests.NoStore(stillAnonymous);
         fixture.Observation.Reads.Should().Be(reads + 1);
     }
 
@@ -86,6 +89,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
         var reads = fixture.Observation.Reads;
         using var protectedResponse = await Send(client, SeedData.Yoga, token);
         await TenantAuthenticationHttpTests.Problem(protectedResponse, HttpStatusCode.NotFound, "not_found");
+        TenantAuthenticationHttpTests.NoStore(protectedResponse);
 
         fixture.Observation.Reads.Should().Be(reads, "a claimless actor has no authority to invoke the protected read");
         (await fixture.AuditCountAsync(SeedData.Yoga)).Should().Be(audits);
@@ -107,6 +111,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
         {
             using var refused = await Send(client, SeedData.Yoga, token);
             await TenantAuthenticationHttpTests.Problem(refused, HttpStatusCode.NotFound, "not_found");
+            TenantAuthenticationHttpTests.NoStore(refused);
             (await fixture.AuditCountAsync(SeedData.Yoga)).Should().Be(audits);
         }
         finally
@@ -130,6 +135,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
             token: Token(issuer, SeedData.Yoga, organization: true));
 
         await TenantAuthenticationHttpTests.Problem(response, HttpStatusCode.NotFound, "not_found");
+        TenantAuthenticationHttpTests.NoStore(response);
         membership.Calls.Should().Be(1, "this is row 14 with a future affirmative membership answer");
         fixture.Observation.Reads.Should().Be(reads, "ClaimAndMembership supplies no independently classified institution host");
         (await fixture.AuditCountAsync(SeedData.Yoga)).Should().Be(audits);
@@ -151,10 +157,38 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
             token: Token(issuer, SeedData.English), method: method);
 
         response.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
+        response.Content.Headers.Allow.Should().BeEquivalentTo(["GET"]);
         TenantAuthenticationHttpTests.NoStore(response);
         fixture.Observation.Reads.Should().Be(reads);
         if (method == "HEAD") (await response.Content.ReadAsByteArrayAsync()).Should().BeEmpty();
         else await TenantAuthenticationHttpTests.Problem(response, HttpStatusCode.MethodNotAllowed, "method_not_allowed");
+
+        using var absent = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host, method: method);
+        absent.StatusCode.Should().Be(HttpStatusCode.NotFound, "credential admission precedes method disclosure");
+        TenantAuthenticationHttpTests.NoStore(absent);
+        absent.Content.Headers.Allow.Should().BeEmpty();
+        absent.Headers.WwwAuthenticate.Should().BeEmpty();
+        if (method == "HEAD") (await absent.Content.ReadAsByteArrayAsync()).Should().BeEmpty();
+        else await TenantAuthenticationHttpTests.Problem(absent, HttpStatusCode.NotFound, "not_found");
+        fixture.Observation.Reads.Should().Be(reads);
+    }
+
+    [Theory]
+    [InlineData(TenantAuthenticationHttpRequest.AccountPath)]
+    [InlineData(TenantAuthenticationHttpRequest.PublicPath)]
+    public async Task Application_body_limit_refusals_keep_no_store_before_credential_admission(string path)
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        using var client = Client(issuer, SeedData.English.Host);
+        var reads = fixture.Observation.Reads;
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.TryAddWithoutValidation("Authorization", "Bearer invalid");
+        request.Content = new ByteArrayContent(new byte[checked((int)RequestBodyLimit.MaxBytes + 1)]);
+        using var response = await client.SendAsync(request);
+        await TenantAuthenticationHttpTests.Problem(response, HttpStatusCode.RequestEntityTooLarge, "payload_too_large");
+        TenantAuthenticationHttpTests.NoStore(response);
+        fixture.Observation.Reads.Should().Be(reads);
+        issuer.MetadataRequests.Should().Be(0);
     }
 
     [Fact]
@@ -168,6 +202,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
             Token(issuer, SeedData.English));
 
         await TenantAuthenticationHttpTests.Problem(response, HttpStatusCode.BadRequest, "validation_failed");
+        TenantAuthenticationHttpTests.NoStore(response);
         fixture.Observation.Reads.Should().Be(reads);
     }
 

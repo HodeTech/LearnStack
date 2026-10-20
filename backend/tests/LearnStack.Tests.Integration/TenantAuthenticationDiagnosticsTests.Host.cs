@@ -34,13 +34,15 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
 {
     private static async Task<WebApplication> CreateHost(TenantAuthenticationIssuer issuer,
         DiagnosticObservation? observed = null, string? endpoint = null, DiagnosticVendorProvider? control = null,
-        bool configurationAdapter = false, TenantAuthenticationOptions? settings = null)
+        bool configurationAdapter = false, TenantAuthenticationOptions? settings = null,
+        LogEventLevel minimumLevel = LogEventLevel.Verbose, bool categoryWarning = false)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Configuration.Sources.Clear();
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        builder.Configuration.AddEnvironmentVariables().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Serilog:MinimumLevel:Default"] = "Verbose",
+            ["Serilog:MinimumLevel:Default"] = minimumLevel.ToString(),
+            ["Serilog:MinimumLevel:Override:Microsoft.AspNetCore"] = categoryWarning ? "Warning" : null,
             ["Telemetry:OtlpEndpoint"] = endpoint,
         });
         builder.Logging.ClearProviders();
@@ -66,8 +68,7 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
         if (control is not null)
         {
             builder.Logging.AddProvider(control);
-            builder.Services.PostConfigure<LoggerFilterOptions>(options => options.Rules.Add(
-                new LoggerFilterRule(null, TenantAuthenticationDiagnostics.VendorCategory, LogLevel.Trace, null)));
+            builder.Logging.SetMinimumLevel(LogLevel.Trace);
         }
         var app = builder.Build();
         if (observed is not null) app.UseExceptionHandler();
@@ -134,6 +135,21 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
     }
 
     private sealed record DiagnosticVendorEvent(string Category, EventId Event, string Message, Exception? Exception);
+
+    private sealed class DiagnosticConsoleCapture : IDisposable
+    {
+        private readonly TextWriter _original = Console.Out;
+        private readonly StringWriter _capture = new(System.Globalization.CultureInfo.InvariantCulture);
+
+        internal DiagnosticConsoleCapture() => Console.SetOut(TextWriter.Synchronized(_capture));
+        internal string Output => _capture.ToString();
+
+        public void Dispose()
+        {
+            Console.SetOut(_original);
+            _capture.Dispose();
+        }
+    }
 
     private sealed class DiagnosticConfigurationAdapter(IConfigurationManager<OpenIdConnectConfiguration> manager)
         : IConfigurationManager<OpenIdConnectConfiguration>

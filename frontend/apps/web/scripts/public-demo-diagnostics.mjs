@@ -1,4 +1,14 @@
-const stages = new Set(['proof', 'browser-spawn', 'startup-port', 'worker', 'result', 'cleanup']);
+import { DemoCommandError } from '../../../../scripts/demo-process.mjs';
+
+const stages = new Set([
+  'setup',
+  'proof',
+  'browser-spawn',
+  'startup-port',
+  'worker',
+  'result',
+  'cleanup',
+]);
 const reasons = new Set([
   'chromium-exited',
   'port-invalid',
@@ -26,6 +36,8 @@ const signals = new Set([
   'SIGXCPU',
   'SIGXFSZ',
 ]);
+// Only this fixed portable diagnostic vocabulary reaches artifacts. Other native
+// signals remain null; provider error text never supplies a signal classification.
 
 /** Explicit local outcomes, never classifications inferred from provider error text. */
 export class PublicDemoFailure extends Error {
@@ -44,6 +56,14 @@ export const publicDemoChildExited = (child) =>
 /** Only closed phase/context and native process status may enter public artifacts. */
 export function publicDemoFailure(stage, error, input = {}, child) {
   const phase = stages.has(stage) ? stage : 'proof';
+  const status =
+    phase === 'worker'
+      ? error instanceof DemoCommandError
+        ? error
+        : undefined
+      : ['browser-spawn', 'startup-port', 'cleanup'].includes(phase)
+        ? child
+        : undefined;
   return {
     stage: phase,
     reason:
@@ -61,11 +81,19 @@ export function publicDemoFailure(stage, error, input = {}, child) {
     run: Number.isInteger(input.run) && input.run >= 1 && input.run <= 3 ? input.run : null,
     workerStage: phase === 'worker' ? publicDemoWorkerStage(input.workerStage) : null,
     exitCode:
-      Number.isInteger(child?.exitCode) && child.exitCode >= 0 && child.exitCode <= 255
-        ? child.exitCode
+      Number.isInteger(status?.exitCode) && status.exitCode >= 0 && status.exitCode <= 255
+        ? status.exitCode
         : null,
-    signal: signals.has(child?.signalCode) ? child.signalCode : null,
+    signal: signals.has(status?.signalCode) ? status.signalCode : null,
   };
+}
+
+/** Emit only a complete validated worker line, even when dependency text shares a chunk. */
+export function publicDemoWorkerOutput(chunk) {
+  const lines = chunk.toString().split(/\r?\n/);
+  return lines.filter((line) =>
+    /^Public demo worker refused: (connect|preflight|audit|report|unknown)$/.test(line),
+  );
 }
 
 /** Preserve the original failure when owned operation cleanup also refuses. */

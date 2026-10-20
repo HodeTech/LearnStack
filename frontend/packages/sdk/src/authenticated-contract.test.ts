@@ -3,14 +3,19 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import { AUTHENTICATED_GET_CONTRACTS } from './authenticated-contract';
 import type {
   AccountSite,
-  AccountSiteQuery,
   AccountSiteSuccess,
   AuthenticatedGetOperation,
   GetContractOwnership,
 } from './authenticated-contract';
 import type { components, operations, paths } from './generated/schema';
-import { GET_CONTRACT_OWNERSHIP, PUBLIC_GET_CONTRACTS } from './server';
-import type { ServerSdk, PUBLIC_GET_WRAPPERS } from './server';
+import { AUTHENTICATED_GET_CONTRACTS as RootContracts } from './index';
+import type {
+  AccountSite as RootAccountSite,
+  AccountSiteSuccess as RootAccountSiteSuccess,
+  AuthenticatedGetOperation as RootAuthenticatedGetOperation,
+} from './index';
+import { GET_CONTRACT_OWNERSHIP, PUBLIC_GET_CONTRACTS, PUBLIC_GET_WRAPPERS } from './server';
+import type { ServerSdk } from './server';
 import snapshot from '../../../../backend/openapi/v1.json';
 
 type Public = typeof PUBLIC_GET_CONTRACTS;
@@ -56,7 +61,10 @@ describe('generated GET contract ownership', () => {
     expect(ownershipErrors(PUBLIC_GET_CONTRACTS, AUTHENTICATED_GET_CONTRACTS)).toEqual([]);
     expectTypeOf<Ownership>().toEqualTypeOf<true>();
     expectTypeOf<AuthenticatedGetOperation>().toEqualTypeOf<'GetAccountSite'>();
-    expectTypeOf<AccountSiteQuery>().toEqualTypeOf<undefined>();
+    expect(RootContracts).toBe(AUTHENTICATED_GET_CONTRACTS);
+    expectTypeOf<RootAccountSite>().toEqualTypeOf<AccountSite>();
+    expectTypeOf<RootAccountSiteSuccess>().toEqualTypeOf<AccountSiteSuccess>();
+    expectTypeOf<RootAuthenticatedGetOperation>().toEqualTypeOf<AuthenticatedGetOperation>();
     expectTypeOf<AccountSite>().toEqualTypeOf<AccountSiteSuccess>();
     expectTypeOf<AccountSite['actorId']>().toEqualTypeOf<string>();
     expectTypeOf<AccountSite['tenantId']>().toEqualTypeOf<string>();
@@ -65,6 +73,15 @@ describe('generated GET contract ownership', () => {
     expectTypeOf<
       operations['GetAccountSite']['responses'][413]['content']['application/problem+json']
     >().toEqualTypeOf<components['schemas']['ProblemDetails']>();
+    expectTypeOf<
+      operations['GetAccountSite']['responses'][413]['headers']['Cache-Control']
+    >().toEqualTypeOf<'no-store' | undefined>();
+    expectTypeOf<
+      operations['GetPublicSite']['responses'][413]['headers']['Cache-Control']
+    >().toEqualTypeOf<'no-store' | undefined>();
+    expectTypeOf<
+      operations['GetAccountSite']['responses'][200]['headers']['Cache-Control']
+    >().toEqualTypeOf<'no-store'>();
     expectTypeOf<paths['/api/v1/account/site']['get']>().toEqualTypeOf<
       operations['GetAccountSite']
     >();
@@ -72,6 +89,14 @@ describe('generated GET contract ownership', () => {
       Extract<keyof typeof PUBLIC_GET_WRAPPERS, '/api/v1/account/site'>
     >().toEqualTypeOf<never>();
     expectTypeOf<Extract<keyof ServerSdk, 'getAccountSite'>>().toEqualTypeOf<never>();
+  });
+
+  it('freezes contract and wrapper ownership at runtime', () => {
+    for (const map of [PUBLIC_GET_CONTRACTS, AUTHENTICATED_GET_CONTRACTS, PUBLIC_GET_WRAPPERS]) {
+      expect(Object.isFrozen(map)).toBe(true);
+      expect(Reflect.set(map, '/api/v1/future', 'GetUnowned')).toBe(false);
+      expect(map).not.toHaveProperty('/api/v1/future');
+    }
   });
 
   it('refuses unowned, overlapping and incorrectly paired paths and operation ids', () => {

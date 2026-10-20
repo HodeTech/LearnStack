@@ -32,7 +32,7 @@ internal sealed class TenantAuthenticationDocumentTransformer : IOpenApiDocument
             ("400", "validation_failed; no query parameters are accepted, and malformed or repeated assertion headers are refused."),
             ("401", "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details."),
             ("404", "not_found for absent credentials, unknown hosts, membership refusals or missing host-backed authority; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure."),
-            ("405", "method_not_allowed from routing; this authenticated operation admits GET only."),
+            ("405", "method_not_allowed from routing after credential and host-backed authority admission; this operation admits GET only. Absent credentials remain masked as 404."),
             ("413", "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body."),
             ("429", "rate_limited from early visitor/peer admission or the validated-subject limiter."),
             ("500", "internal_error from unexpected failures; no exception or query details."),

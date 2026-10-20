@@ -90,6 +90,11 @@ public sealed partial class TenantAuthenticationProfileTests
             var value = parsed.RootElement.GetProperty(name);
             failures.Add(($"equal duplicate security property {name}",
                 payload[..^1] + "," + JsonSerializer.Serialize(name) + ":" + value.GetRawText() + "}"));
+            var unequal = value.ValueKind == JsonValueKind.Number
+                ? (value.GetInt64() + 1).ToString(CultureInfo.InvariantCulture)
+                : JsonSerializer.Serialize(value.GetString() + "-different");
+            failures.Add(($"unequal duplicate security property {name}",
+                payload[..^1] + "," + JsonSerializer.Serialize(name) + ":" + unequal + "}"));
         }
 
         foreach (var (reason, payload) in failures)
@@ -128,6 +133,8 @@ public sealed partial class TenantAuthenticationProfileTests
             var value = parsed.RootElement.GetProperty(name).GetString();
             await AssertRejected(client, issuer.Token(header:
                 TenantAuthenticationIssuer.AddProperty(baseline, name, value)), "equal duplicate JOSE " + name);
+            await AssertRejected(client, issuer.Token(header:
+                TenantAuthenticationIssuer.AddProperty(baseline, name, value + "-different")), "unequal duplicate JOSE " + name);
             foreach (var raw in new[] { "null", "{}", "[]", "1", "true", "\"\"" })
             {
                 var header = "{" + string.Join(",", parsed.RootElement.EnumerateObject().Select(property =>
@@ -272,7 +279,7 @@ public sealed partial class TenantAuthenticationProfileTests
     }
 
     private static async Task<WebApplication> CreateHost(TenantAuthenticationIssuer issuer,
-        Action<JwtBearerOptions>? configure = null)
+        Action<JwtBearerOptions>? configure = null, Action<IServiceCollection>? configureServices = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
@@ -283,6 +290,7 @@ public sealed partial class TenantAuthenticationProfileTests
         {
             builder.Services.PostConfigure(TenantAuthenticationRegistration.Scheme, configure);
         }
+        configureServices?.Invoke(builder.Services);
         var app = builder.Build();
         app.Use((context, next) =>
         {

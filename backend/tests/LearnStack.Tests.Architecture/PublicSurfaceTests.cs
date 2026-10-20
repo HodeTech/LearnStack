@@ -54,7 +54,8 @@ public sealed class PublicSurfaceTests
                 Dispatches(type, action.Name).Should().BeTrue($"{controller.Name}.{action.Name} must construct a marked query and call ISender.Send");
         }
         MinimalBypasses(module).Should().BeEmpty("the only direct data-free MapGet admitted here is the existing healthz bootstrap");
-        EndpointCompositionControls.Plant(module, because => MinimalBypasses(module).Should().NotBeEmpty(because));
+        EndpointCompositionControls.Plant(module, (prefix, because) => MinimalBypasses(module).Should().Contain(
+            prefix == "Unapproved endpoint mapping:" ? "SurfaceProbe.HiddenEndpointComposition" : "Program", because));
         MinimalBypasses(module).Should().BeEmpty("restoring production composition restores the clean control");
     }
 
@@ -294,11 +295,15 @@ public sealed class PublicSurfaceTests
     private static IEnumerable<string> MinimalBypasses(ModuleDefinition module) => Types([module]).Where(type =>
     {
         var methods = Il.Methods(type).Where(method => method.Definition.HasBody).ToArray();
-        var calls = methods.SelectMany(method => method.Definition.Body.Instructions
+        var composition = methods.SelectMany(method => method.Definition.Body.Instructions
                 .Where(instruction => instruction.Operand is MethodReference call && EndpointComposition.IsCapability(call))
                 .Select(instruction => (method.Definition, Instruction: instruction, Call: (MethodReference)instruction.Operand)))
-            .Where(site => !EndpointComposition.IsMapping(site.Call)
-                || site.Call.Name is not ("MapControllers" or "MapOpenApi" or "MapScalarApiReference")).ToArray();
+            .ToArray();
+        var calls = composition.Where(site => !(site.Instruction.OpCode == OpCodes.Call
+            && composition.Count(candidate => candidate.Call.Name == site.Call.Name) == 1
+            && (site.Call.Name == "MapControllers" && type.FullName == "Program" && site.Definition.Name == "<Main>$"
+                || site.Call.Name is "MapOpenApi" or "MapScalarApiReference"
+                    && type.FullName == "LearnStack.Api.Versioning.ApiVersioningExtensions" && site.Definition.Name == "MapLearnStackOpenApi"))).ToArray();
         return calls.Length != 0 && !(type.Name == "Program" && calls.Length == 1 && calls[0].Call.Name == "MapGet"
             && calls[0].Instruction.OpCode == OpCodes.Call
             && EndpointComposition.HasLiteralPath(calls[0].Definition, calls[0].Instruction, "/healthz"));

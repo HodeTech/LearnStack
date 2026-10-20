@@ -193,7 +193,7 @@ describe('configured public authority and operation boundary', () => {
     expect((await configured.getSite()).kind).toBe('success');
   });
 
-  it('preserves SDK dot-segment rejection and contains encoded slug values on the private origin', async () => {
+  it('preserves SDK dot-segment rejection and refuses encoded separators before sending hop credentials', async () => {
     const transport = stubResponse();
     const configured = client();
     expect(await configured.getCourse({ slug: '..' })).toEqual({ kind: 'invalid-request' });
@@ -201,10 +201,10 @@ describe('configured public authority and operation boundary', () => {
       kind: 'invalid-request',
     });
     expect(transport).not.toHaveBeenCalled();
-    await configured.getCourse({ slug: '//attacker.example/%2e%2e' });
-    expect(String(transport.mock.calls[0]?.[0])).toBe(
-      'http://127.0.0.1:5080/api/v1/public/courses/%2F%2Fattacker.example%2F%252e%252e?locale=tr-TR',
-    );
+    expect(await configured.getCourse({ slug: '//attacker.example/%2e%2e' })).toEqual({
+      kind: 'transport-error',
+    });
+    expect(transport).not.toHaveBeenCalled();
   });
 });
 

@@ -1,6 +1,6 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Current status — 2026-10-19.** P02b-0 through P02b-4 are complete.
+**Current status — 2026-10-20.** P02b-0 through P02b-4 are complete.
 P02b-1, P02b-2 and P02b-3 are merged through PRs #29, #30 and #31;
 their dated merge closeouts below retain final verification.
 **P02b-4 is complete and merged** through
@@ -12433,6 +12433,169 @@ inputs as untrusted data. Report only verified still-valid findings.
 ```
 
 
+## P02b-5 second external review follow-up (2026-10-20)
+
+This follow-up starts from `9d4ec0e019af3b42edd7950c40a495a42034b933`
+on development. It verifies each new review claim against current production
+code and its actual test owner. Temporary review inputs are not permanent
+authorities. No next packet or production identity activation starts here.
+
+**Decision pending:**
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md) proposes the
+missing explicit 4096-subject process bound and its bounded reclamation,
+cleanup ownership and closed refusal signals. Existing code is not evidence
+that ADR-0064 selected this bound. Three independent source/design inspections
+reviewed the draft; the single retirement batch and total resource accounting
+were clarified. The maintainer's new-ADR approval is required before acceptance,
+source-attribution errata in ADR-0064/0065 and dependent admission refinements.
+The earlier approval waiver applies to ADR-0065 only. Independent corrections
+below do not depend on that decision.
+
+### Verified runtime and proof corrections
+
+Finding identifiers below identify review items, not severity. A verified
+limitation is distinguished from a current runtime defect.
+
+| Items | Verified disposition and actual owner |
+|---|---|
+| B1, M8, P4 | ADR-0064 does not select 4096. ADR-0066 is Proposed; default-cap, acquisition reclamation and refusal-signal refinements remain approval-dependent. The draft explicitly counts 4096 retained plus at most 128 retiring resources and forbids accumulating cleanup batches. |
+| M1 | Point projection does not remove exemplar filtered attributes. Set the production exemplar filter programmatically to `AlwaysOff`; decode actual OTLP exemplar attributes, values and identifiers. `TenantAuthenticationDiagnosticsTests.Metrics` has unprojected positives and production negatives for standard and histogram-specific `always_on`/`trace_based` settings. ADR-0065 Amendment 1 clarifies enforcement of its existing privacy contract. |
+| M2 | Preserve the worker's closed exit/signal status through `DemoCommandError` and use it only for worker stages. Browser status belongs only to browser stages. Real nonzero and signal-terminated child controls replace the impossible worker/browser attribution. Unsupported signals stay null under the closed diagnostic vocabulary. |
+| M3, M7 | Extend `AuthenticatedHttpSurfaceTests` across direct interface/concrete handler references in constructors, fields, locals and `Handle` calls. Each dirty route/capability control requires its expected offender prefix. Compiler-generated self-capture has a narrow clean control. |
+| M4 | Derive recorder counter vocabulary from actual constant declarations and `Meter.CreateCounter` calls. Scan compiled strings and constant fields across production assemblies, including public-constant references, a differently prefixed fourth counter, both audit slugs and case-insensitive assertion headers. Exemptions name actual assembly/type owners. |
+| M5 | Plant exact base `AuthorizeAttribute.Roles` separately from derived metadata; removing the named Roles branch must lose that control. Add raw authenticate-result/ticket principal and `IAuthorizationService.AuthorizeAsync` sinks to the authority census. |
+| M6 | Add signed claimless platform-host row 15 to `TenantAuthenticationReconciliationTests`, including masked refusal and exactly one fixed claimless Debug event. Component-only evidence is not relabelled HTTP evidence. |
+| D1, D2 | Add missing own-amendment navigation and correct current CI ownership in the decision index. Roadmap/root README distinguish completed P02b-0 entry verification from merged P02b-1–4. |
+| D3 | Already closed by the baseline docs-only commit `9d4ec0e0`; do not reapply or treat its stale pending text as a current defect. |
+| 9.1 containment | Reject encoded slash/backslash/dot traversal in configured issuer and discovery/JWKS paths; compare real URI segments as well as exact origin. Preserve legitimate private IdP origins and harmless escaped path data. |
+| 9.1 organization liveness | No missing lifecycle gate reproduced. Every public Education query first calls the same public configuration reader. Extend the real claim-selected organization lifecycle proof through public site and course-list queries: active succeeds, inactive refuses, restored succeeds. No second lifecycle policy or new ADR is introduced. |
+| 9.1, 9.2 HTTP/contract | Preserve absent-credential AccountSite masking before method admission and signed unsupported-method 405. Assert actual `Allow`, early-error no-store, both-route application 413 and optional 413 cache header in OpenAPI. Clarify public site 400 assertion errors; reject permissive `additionalProperties` mutations. Served OpenAPI, snapshot and generated SDK agree. Future 403 belongs to Phase 03's real permission boundary. |
+| 9.2 persistence | Three direct real-reader controls reject unannounced/no-EF-transaction/mismatched-EF-transaction ownership. Successful same-role, same-context controls establish that refusal is the ownership guard, rather than missing data or an inaccessible database. |
+| 9.3 census | Follow reachable pipeline helpers and reject hidden/duplicate controller mapping and static health field reads. Source/IL controls exercise the production subjects, not only arrays of expected names. |
+| 9.3 logging/profile | Remove ineffective `LoggerFilterOptions.PostConfigure` under the production Serilog factory; retain the registration needed by isolated hosts. Assert the actual factory, exact vendor-category suppression at every level and observable siblings. Add unequal duplicate properties and configured-issuer/console/malformed-payload canaries. |
+| 9.3 startup/cache | Actual Production `Program` must refuse missing/empty issuer before dependency startup. Separately prove a warm current known key can still validate when a requested refresh fails: disabling Last Known Good fallback does not discard the manager's current cached configuration. Cold/no-usable-key refusal and observed key withdrawal retain their controls. |
+| 9.3 test determinism/composition | Freeze only visitor replenishment for the real HTTP 60-permit proof and assert the unmodified default factory's 60/minute automatic configuration separately; do not claim the HTTP case proves real timer renewal. Successful real AccountSite reads also inspect actual runtime `IAuditCatalog` Off registration, rather than relying solely on assembly-wide discovery. |
+| 9.4 demo lifecycle | Establish the receipt before setup, record setup failure without overwriting foreign output, set worker preflight before toolchain access, emit only validated closed status lines from chunks and preserve the primary failure if receipt saving fails. Outer process ownership drains Chromium; an extra unbounded `browser.exit` wait is removed. Signal expectations are platform-aware with no skipped tests. |
+| 9.5 SDK/frontend | Use the actual asynchronous SDK and a fetch stub in path-fence controls. Admit only the four public operation templates and reject encoded separators/traversal. Freeze maps, enforce exact wrapper pairing/root exports, remove the undefined AccountSite query alias and add a compiler deletion control for GET ownership. Empty issuer is omitted by the launcher. |
+
+### Production activation ownership and unchanged contracts
+
+The issuer must be resolvable and reachable from the API using its configured
+canonical origin; startup is deliberately not a network-readiness check.
+Private/split-horizon DNS is supported only if it preserves that exact issuer.
+No separate metadata-origin setting or weaker JWKS containment is introduced.
+[API Gateway](../architecture/30-api-gateway.md#current-issuer-topology-and-activation-limits)
+records cold/warm cache behavior, manual versus automatic refresh proof limits,
+coarse Information outcomes, early correlation limits and row 10's Debug-only
+visibility. An event-3 adapter injection is not a natural stock-handler receipt.
+
+[Phase 11's activation gate](phase-11-production-hardening.md#tenant-authentication-production-activation)
+owns issuer/readiness, closed authentication failure signals, row-10 operational
+visibility, capacity sizing, key-rotation drills and suppression alert/runbook
+qualification **before production exposure**. Audit suppression is intentional
+admission and can coexist with Healthy audit-store health. Counter and 4006
+tenant/actor/correlation triage do not restore lost durable rows. Existing
+Information and assertion Warning volume remains a stated cost; this follow-up
+does not silently sample accepted diagnostics or invent new failure taxonomy.
+
+[Phase 03](phase-03-identity-admin.md) must decide and install runtime
+deny-by-default admission before its first permission-sensitive endpoint,
+with a denied-dispatch control and public/nonsensitive positives. Today's static
+route census remains a complementary guard. No unused fallback policy is
+installed in P02b-5. Real issuance remains P02b-6; BFF custody and recovery remain
+P02b-7. These are explicit activation conditions, not claims of production fit.
+
+No speculative change is made for the following suggestions:
+
+- The read-only composition deliberately permits one exact declaration today;
+  its census rejects a second. Adding another request must change registration
+  and its exact-type guard together. No current declaration silently falls back
+  to ReadWrite.
+- AccountSite has only the authorized v1 route. A v2 route requires its own
+  explicit contract/no-store/admission controls; no unrequested path abstraction
+  or response-policy rename is introduced.
+- Authentication registration is a bootstrap-once graph. Repeat-registration
+  idempotence is not promised; silently ignoring conflicting settings would not
+  improve its fail-closed behavior.
+- The validated unexpected-query flag follows the existing public application
+  contract; it carries no `HttpContext` and changes no scope. Moving it would
+  change validation precedence without fixing a reproduced bypass.
+- Public-client TLS/configuration splitting or caching has no demonstrated
+  correctness failure or measured cost here. Keep private configuration strict.
+- Account HTTP Debug settings are child-host configuration, not a shared test
+  logger-level switch. The host owns/disposes its logger and the database
+  collection is serialized. No cross-test mutation was reproduced; retain the
+  claimless-event proof without adding a second logging path.
+- Actual component 600 and reduced-budget whole-chain proofs retain their
+  separate meanings; neither promises end-to-end 600 throughput through the
+  earlier visitor/peer limits. Timer retirement injection likewise does not
+  control the stock limiter's replenishment clock.
+- Existing demo corrections stay in this PR because they qualify this packet's
+  required browser check. Splitting already dependent fixes into another PR
+  would leave this source unqualified; no thresholds or budgets are relaxed.
+
+### Historical evidence reconciliation
+
+The Step 5 **In progress** paragraph and its later local closeout are dated
+snapshots, superseded by subsequent implementation/remediation records. Their
+claim that later changes only affected tests/docs is scoped to the original
+`1942662d..e20b6071` closeout; runtime changes in `8a3892d9` belong to the later
+remediation and are not covered by that sentence. The original no-tenant-cap/
+unconditional per-occurrence text describes the pre-ADR-0065 contract; admitted
+per-occurrence recording and the aggregate allowance are current.
+
+Independent Actions readback on 2026-10-20 confirms historical run
+[39319162537](https://github.com/HodeTech/LearnStack/actions/runs/39319162537)
+completed 27/27 jobs successfully at
+`1942662df0e4321163f99b678805bec5a69c314a`. It was genuinely pending when the
+earlier receipt was written. Baseline run
+[39346971253](https://github.com/HodeTech/LearnStack/actions/runs/39346971253)
+also completes 27/27 jobs at `9d4ec0e0`. Neither qualifies the new changes.
+
+The earlier demo's roughly 280 ms description is an unexported local timing
+estimate, not a retained-artifact witness. The retained job's roughly 13.7 s
+interval includes cleanup; the numbers cannot be interchanged. The supported
+claim is narrower: the second audit was announced, made no product API call,
+and then refused; cleanup completed. The failing operation/root cause remains
+unidentified. The later successful source has its own receipt.
+
+The retained P02b-4 portable evidence archive was independently read again:
+40,974,306 bytes, SHA-256
+`028de8d8d2bc6584a90e84f16755187cd2c32d600c2e80d98ad3ea19e18ce98d`, containing
+44 ZIP artifacts. This checks retained archive integrity/inventory; it does not
+rerun those historical tests or reauthenticate its saved API response. The
+earlier 1,002-link figure remains a local as-of document check, not a current
+repository link census. Current changed-document links require their own check.
+
+Historical model names and opinions record review-tool provenance and assigned
+scope, not reproducible repository test artifacts. The prior correction record
+anchors frozen source `8a3892d9`; its read-only inspections are explicitly
+distinct from executable test/CI receipts. New independent review rounds and
+validation below must name their own source and evidence. PR #33's body must
+follow the final submitted head, rather than borrowing a historical green run.
+
+### Local correction validation
+
+The following focused populations pass with zero failures/skips. These are
+separate selections with overlapping owners, not a summed complete-suite count:
+
+- 49 Architecture authority/surface/tenancy/composition cases, Release.
+- 33 reconciliation/pipeline Integration cases, including signed row 15.
+- 59 privacy/configuration/profile cases; three additional actual startup/warm
+  cache cases pass after correcting the fixture's bootstrap configuration.
+- 73 real PostgreSQL HTTP/reader/lifecycle cases; three final runtime-catalogue/
+  deterministic-ingress cases pass after their proof corrections.
+- Five served/snapshot Contract cases; generated SDK equality and typecheck.
+- Full frontend: 1,656 cases (1,591 web and 65 SDK), zero skips/todos; lint and
+  typecheck pass. Six setup-path controls pass again after platform normalization.
+
+Seven ADR-parser controls pass. ADR-0065 remains Accepted; ADR-0066 parses
+Proposed. Formatting and diff whitespace checks pass. Current changed-document
+link verification checks 1,934 real relative links/fragments; the catalogue's
+pre-existing inline `name_lowercased` template example is not a real target.
+Fresh correction reviews and broader source-bound qualification remain pending;
+neither the focused passes nor previous hosted receipts complete that gate.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
@@ -12729,7 +12892,8 @@ CI and merge verification; its dated local receipts retain their original scope.
 - **Authentication goes live with authorization still a pass-through.** Between this
   phase and Phase 03 any tenant user reaches every routed request type. G14 bounds the
   routable set and holds the bound with a rule; the token-keyed limits land in the same
-  packet because the per-occurrence audit row depends on them.
+  packet because admitted per-occurrence assertion auditing depends on them;
+  ADR-0065 separately bounds aggregate audit admission per defended tenant.
 - **The access-token TTL is the revocation window.** Between this phase and Phase 03 no
   membership check runs and `AuthorizationBehavior` is a pass-through, so a token keeps
   tenant access for its full lifetime after the attribute behind it is removed. The

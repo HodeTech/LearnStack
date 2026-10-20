@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Authentication;
+using LearnStack.SharedKernel.Hosting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -241,6 +242,53 @@ public sealed partial class TenantAuthenticationProfileTests
     }
 
     [Fact]
+    public async Task Warm_current_configuration_survives_an_observed_failed_manual_refresh_without_LKG_fallback()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        var settings = TenantAuthenticationOptions.Create(issuer.Issuer, DeploymentMode.Development);
+        var failedRetrieval = new TaskCompletionSource<IOException>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var app = await CreateHost(issuer, configureServices: services =>
+            services.AddOptions<JwtBearerOptions>(TenantAuthenticationRegistration.Scheme)
+                .Configure<TenantAuthenticationBackchannel>((options, backchannel) =>
+                {
+                    var original = (ConfigurationManager<OpenIdConnectConfiguration>)options.ConfigurationManager!;
+                    // Observe and rethrow the exact production retriever's failure;
+                    // the real stock manager retains control of its cache/refresh.
+                    options.ConfigurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(
+                        settings.MetadataAddress, new OpenIdConnectConfigurationRetriever(),
+                        new RefreshFailureDocumentRetriever(new TenantOidcDocumentRetriever(settings, backchannel), failedRetrieval),
+                        new TenantOidcConfigurationValidator(settings))
+                    {
+                        AutomaticRefreshInterval = original.AutomaticRefreshInterval,
+                        RefreshInterval = original.RefreshInterval,
+                        UseLastKnownGoodConfiguration = original.UseLastKnownGoodConfiguration,
+                    };
+                }));
+        using var client = app.GetTestClient();
+        var token = issuer.Token();
+        await AssertAccepted(client, token, issuer);
+        var options = app.Services.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+            .Get(TenantAuthenticationRegistration.Scheme);
+        var manager = (ConfigurationManager<OpenIdConnectConfiguration>)options.ConfigurationManager!;
+        manager.UseLastKnownGoodConfiguration.Should().BeFalse();
+        var current = await manager.GetConfigurationAsync();
+        var requests = issuer.MetadataRequests;
+        issuer.DiscoveryStatusCode = 503;
+
+        // First manual refresh is immediately eligible under the stock manager.
+        // This is no elapsed-time proof of the five-minute automatic schedule.
+        manager.RequestRefresh();
+        (await failedRetrieval.Task.WaitAsync(TimeSpan.FromSeconds(8))).Message
+            .Should().Be("Tenant authentication metadata refused.");
+        issuer.MetadataRequests.Should().BeGreaterThan(requests);
+        (await manager.GetConfigurationAsync()).Should().BeSameAs(current);
+        await AssertAccepted(client, token, issuer);
+        await AssertRejected(client, issuer.Token(key: issuer.NewKey("unavailable-during-outage")),
+            "a warmed current key set cannot validate an unavailable new signing key");
+        await AssertAccepted(client, token, issuer);
+    }
+
+    [Fact]
     public async Task Real_configuration_manager_refreshes_new_key_and_never_reaccepts_withdrawn_unexpired_key()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
@@ -306,6 +354,20 @@ public sealed partial class TenantAuthenticationProfileTests
             "a currently trusted signature cannot revive a withdrawn kid selector");
         await AssertAccepted(client, newToken, issuer);
         await AssertRejected(client, oldToken, "last-known-good fallback must not revive the observed withdrawal");
+    }
+
+    private sealed class RefreshFailureDocumentRetriever(
+        IDocumentRetriever inner, TaskCompletionSource<IOException> failed) : IDocumentRetriever
+    {
+        public async Task<string> GetDocumentAsync(string address, CancellationToken cancel)
+        {
+            try { return await inner.GetDocumentAsync(address, cancel); }
+            catch (IOException exception)
+            {
+                failed.TrySetResult(exception);
+                throw;
+            }
+        }
     }
 
     private sealed class ConfigurationUpdateObservation(Func<OpenIdConnectConfiguration, bool> observed)

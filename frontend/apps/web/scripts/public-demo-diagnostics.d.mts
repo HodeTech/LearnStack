@@ -21,6 +21,7 @@ export type PublicDemoChildStatus = {
 };
 
 export function publicDemoWorkerStage(stage: unknown): string | null;
+export function publicDemoWorkerOutput(chunk: Buffer): string[];
 export function publicDemoChildExited(child: {
   exitCode: number | null;
   signalCode: string | null;

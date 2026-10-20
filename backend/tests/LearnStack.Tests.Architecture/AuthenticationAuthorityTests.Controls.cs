@@ -23,6 +23,8 @@ public sealed partial class AuthenticationAuthorityTests
         foreach (var name in new[] { nameof(AuthorityProbe.Role), nameof(AuthorityProbe.InterfaceRole), nameof(AuthorityProbe.IdentityName),
                      nameof(AuthorityProbe.Claim), nameof(AuthorityProbe.ClaimSet),
                      nameof(AuthorityProbe.Email), nameof(AuthorityProbe.Authenticated), nameof(AuthorityProbe.RawUser),
+                     nameof(AuthorityProbe.AuthenticatedPrincipal), nameof(AuthorityProbe.TicketPrincipal),
+                     nameof(AuthorityProbe.AuthorizePolicy), nameof(AuthorityProbe.AuthorizeRequirements),
                      nameof(AuthorityProbe.RolePolicy), nameof(AuthorityProbe.ClaimPolicy), nameof(AuthorityProbe.InterfaceRoleMetadata),
                      nameof(AuthorityProbe.RawTokenClaim), nameof(AuthorityProbe.RawTokenSubject),
                      nameof(AuthorityProbe.LegacyTokenPayload), nameof(AuthorityProbe.RawHeaderReparse),
@@ -100,6 +102,23 @@ public sealed partial class AuthenticationAuthorityTests
         Offenders(modules).Should().Contain(value => value.StartsWith("Direct identity backing-field write:", StringComparison.Ordinal));
         feature.Methods.Remove(bypass);
         var action = api.GetType("LearnStack.Api.Account.AccountController").Methods.Single(method => method.Name == "GetSite");
+        // Exact framework metadata must exercise the Roles named-property
+        // branch independently of the derived-attribute type classifier.
+        var nonController = api.GetType(Profile).Methods.Single(method => method.Name == "TryReadValidated");
+        var baseAuthorization = new CustomAttribute(api.ImportReference(typeof(AuthorizeAttribute).GetConstructor(Type.EmptyTypes)!));
+        nonController.CustomAttributes.Add(baseAuthorization);
+        try
+        {
+            Offenders(modules).Should().BeEmpty("a plain base AuthorizeAttribute does not itself grant realm-role authority");
+            baseAuthorization.Properties.Add(new CustomAttributeNamedArgument(nameof(AuthorizeAttribute.Roles),
+                new CustomAttributeArgument(api.TypeSystem.String, "tenant-admin")));
+            Offenders(modules).Should().Contain(value => value == "Realm-role authorization metadata: " + nonController.DeclaringType.FullName,
+                "exact base AuthorizeAttribute.Roles on a non-controller method must be detected by the named-property branch");
+            baseAuthorization.Properties.Clear();
+            Offenders(modules).Should().BeEmpty("removing Roles restores the clean base attribute control");
+        }
+        finally { nonController.CustomAttributes.Remove(baseAuthorization); }
+
         AuthenticationMetadata.WithCompiledRole(api, metadata =>
         {
             action.CustomAttributes.Add(metadata);
@@ -337,6 +356,12 @@ public sealed partial class AuthenticationAuthorityTests
         internal static string Email(Claim claim) => claim.Value;
         internal static bool Authenticated(System.Security.Principal.IIdentity identity) => identity.IsAuthenticated;
         internal static ClaimsPrincipal RawUser(HttpContext context) => context.User;
+        internal static ClaimsPrincipal? AuthenticatedPrincipal(Microsoft.AspNetCore.Authentication.AuthenticateResult result) => result.Principal;
+        internal static ClaimsPrincipal TicketPrincipal(Microsoft.AspNetCore.Authentication.AuthenticationTicket ticket) => ticket.Principal;
+        internal static Task<AuthorizationResult> AuthorizePolicy(IAuthorizationService service, ClaimsPrincipal principal) =>
+            service.AuthorizeAsync(principal, null, "tenant-admin");
+        internal static Task<AuthorizationResult> AuthorizeRequirements(IAuthorizationService service, ClaimsPrincipal principal) =>
+            service.AuthorizeAsync(principal, null, Array.Empty<IAuthorizationRequirement>());
         internal static AuthorizationPolicyBuilder RolePolicy(AuthorizationPolicyBuilder builder) => builder.RequireRole("tenant-admin");
         internal static AuthorizationPolicyBuilder ClaimPolicy(AuthorizationPolicyBuilder builder) => builder.RequireClaim("permission", "write");
         internal static IAuthorizeData InterfaceRoleMetadata(IAuthorizeData metadata)

@@ -1,14 +1,18 @@
 // @vitest-environment node
 import { randomBytes } from 'node:crypto';
 
+import type * as Sdk from '@learnstack/sdk/server';
 import { afterEach, expect, it, vi } from 'vitest';
 
-const probe = vi.hoisted(() => ({ path: '/api/v1/public/site' }));
-vi.mock('@learnstack/sdk/server', () => ({
-  createServerSdk: (transport: (path: string) => unknown) => ({
-    getSite: () => transport(probe.path),
-  }),
-}));
+const probe = vi.hoisted(() => ({ path: undefined as string | undefined }));
+vi.mock('@learnstack/sdk/server', async (importOriginal) => {
+  const sdk = await importOriginal<typeof Sdk>();
+  return {
+    ...sdk,
+    createServerSdk: (transport: Sdk.PublicFetch) =>
+      sdk.createServerSdk((path, init) => transport(probe.path ?? path, init)),
+  };
+});
 
 import { createConfiguredPublicClient } from './configured-public-client';
 import { mintProvenance } from './ingress';
@@ -30,7 +34,7 @@ it('checks the normalized destination before the private public hop sends any re
   vi.stubGlobal('fetch', fetch);
   const client = createConfiguredPublicClient(
     mintProvenance(
-      { host: 'tenant.example', peer: '127.0.0.1', method: 'GET', target: '/en' },
+      { host: 'tenant.example', peer: '127.0.0.1', method: 'GET', target: '/en/courses' },
       secret,
     ),
   );
@@ -39,13 +43,25 @@ it('checks the normalized destination before the private public hop sends any re
     '/api/v1/public/../account/site',
     '/api/v1/public/%2e%2e/account/site',
     '/api/v1/public/site#fragment',
+    '/api/v1/public/unknown',
+    '/api/v1/public/courses/a%2fb',
+    '/api/v1/public/courses/a%5Cb',
+    '/api/v1/public/courses/..%2faccount',
+    '/api/v1/public/courses/a%252fb',
     '//attacker.example/api/v1/public/site',
   ]) {
     probe.path = path;
-    expect(() => client!.getSite()).toThrow('Invalid public API operation');
+    await expect(client!.getSite()).resolves.toEqual({ kind: 'transport-error' });
   }
   expect(fetch).not.toHaveBeenCalled();
-  probe.path = '/api/v1/public/site';
+  probe.path = undefined;
+  await expect(client!.getCourse({ slug: '..' })).resolves.toEqual({ kind: 'invalid-request' });
+  for (const slug of ['a/b', 'a\\b', '..%2faccount', 'a%5cb', 'a%252fb'])
+    await expect(client!.getCourse({ slug })).resolves.toEqual({ kind: 'transport-error' });
+  await expect(client!.getLesson({ slug: 'safe', lessonSlug: 'a/b' })).resolves.toEqual({
+    kind: 'transport-error',
+  });
+  expect(fetch).not.toHaveBeenCalled();
   await client!.getSite();
   expect(fetch).toHaveBeenCalledOnce();
   expect(fetch.mock.calls[0]![0].toString()).toBe('http://127.0.0.1:5080/api/v1/public/site');

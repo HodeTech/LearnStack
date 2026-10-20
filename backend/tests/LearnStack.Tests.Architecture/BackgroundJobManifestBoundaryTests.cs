@@ -23,7 +23,7 @@ public sealed partial class OutboxDispatchConventionTests
         using var census = ProductionCensus.Read();
         EvaluateDetector(census, JobManifestOffenders).Should().BeEmpty();
         EndpointCompositionControls.Plant(census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api"),
-            because => EvaluateDetector(census, JobManifestOffenders).Should().NotBeEmpty(because));
+            (_, because) => EvaluateDetector(census, JobManifestOffenders).Should().NotBeEmpty(because));
         EvaluateDetector(census, JobManifestOffenders).Should().BeEmpty("restoring production composition restores the manifest");
         CheckJobFrameworkMetadata();
 

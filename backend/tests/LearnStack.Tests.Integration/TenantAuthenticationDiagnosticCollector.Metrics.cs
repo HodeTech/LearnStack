@@ -26,24 +26,34 @@ internal sealed partial class TenantAuthenticationDiagnosticCollector
                             ?? throw new InvalidDataException("OTLP metric data must be a message."), 1))
                         {
                             var attributeField = data.Number switch { 9 => 9, 10 => 1, _ => 7 };
-                            var attributes = Nested(point, attributeField).ToDictionary(
-                                attribute => Text(attribute, 1),
-                                attribute => ReadAttribute(Nested(attribute, 2).Single()), StringComparer.Ordinal);
+                            var attributes = ReadAttributes(point, attributeField);
                             var fields = Fields(point);
                             var value = data.Number is 5 or 7
                                 ? ReadNumber(fields)
                                 : fields.Single(field => field.Number == 4).Scalar;
-                            yield return new DiagnosticMetricPoint(scopeName, name, attributes, value);
+                            var exemplarField = data.Number switch { 9 => 8, 10 => 11, 5 or 7 => 5, _ => 0 };
+                            var exemplars = Nested(point, exemplarField).Select(exemplar => new DiagnosticMetricExemplar(
+                                ReadAttributes(exemplar, 7),
+                                ReadNumber(Fields(exemplar), doubleField: 3),
+                                Convert.ToHexString(Nested(exemplar, 5).SingleOrDefault() ?? []),
+                                Convert.ToHexString(Nested(exemplar, 4).SingleOrDefault() ?? []))).ToArray();
+                            yield return new DiagnosticMetricPoint(scopeName, name, attributes, value, exemplars);
                         }
                 }
             }
     }
 
-    private static double ReadNumber(WireField[] fields) => fields.Single(field => field.Number is 4 or 6) switch
-    {
-        { Number: 6 } integer => unchecked((long)integer.Scalar),
-        var number => BitConverter.Int64BitsToDouble(unchecked((long)number.Scalar)),
-    };
+    private static Dictionary<string, object> ReadAttributes(byte[] payload, int number) =>
+        Nested(payload, number).ToDictionary(
+            attribute => Text(attribute, 1),
+            attribute => ReadAttribute(Nested(attribute, 2).Single()), StringComparer.Ordinal);
+
+    private static double ReadNumber(WireField[] fields, int doubleField = 4) =>
+        fields.Single(field => field.Number == doubleField || field.Number == 6) switch
+        {
+            { Number: 6 } integer => unchecked((long)integer.Scalar),
+            var number => BitConverter.Int64BitsToDouble(unchecked((long)number.Scalar)),
+        };
 
     private static object ReadAttribute(byte[] payload) => Fields(payload).Single() switch
     {
@@ -93,4 +103,8 @@ internal sealed partial class TenantAuthenticationDiagnosticCollector
 }
 
 internal sealed record DiagnosticMetricPoint(
-    string ScopeName, string Name, IReadOnlyDictionary<string, object> Attributes, double Value);
+    string ScopeName, string Name, IReadOnlyDictionary<string, object> Attributes, double Value,
+    DiagnosticMetricExemplar[] Exemplars);
+
+internal sealed record DiagnosticMetricExemplar(
+    IReadOnlyDictionary<string, object> FilteredAttributes, double Value, string TraceId, string SpanId);

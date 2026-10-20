@@ -201,6 +201,11 @@ existing rejection recorder; it introduces no second detector or audit slug.
   real-time log volume remains unbounded; an attacker can exhaust the durable
   tenant allowance and later actors have no durable row during that window.
   Counters/warnings do not restore complete durable actor evidence.
+  Suppression is intentional admission, not a store failure: the `audit` health
+  check can remain Healthy while rows are omitted. Before production exposure,
+  [Phase 11's authentication activation gate](../roadmap/phase-11-production-hardening.md#tenant-authentication-production-activation)
+  must qualify counter alerting and the 4006 tenant/actor/correlation triage
+  runbook. Health alone cannot establish complete security-event coverage.
 
 The Step 1 vendor boundary suppresses the exact category
 `Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerHandler` at every level
@@ -225,11 +230,22 @@ payment and media dependencies. Destination attribution is unavailable there.
 Ordinary HTTP traces and application logs remain observable. Phase 11 qualifies
 a finite source-declared dependency identity before its first consumer.
 
+The API sets the exemplar filter to `AlwaysOff` programmatically. A point-tag
+allowlist alone does not enforce this boundary: OpenTelemetry exemplars can
+retain removed point attributes as filtered attributes. Standard and
+histogram-specific `always_on`/`trace_based` environment settings cannot widen
+the API's export. This enforces ADR-0065's existing metric privacy contract;
+it introduces no destination-label exception.
+
 `TenantAuthenticationDiagnosticsTests.Metrics` proves real HTTP/DNS duration and
 bounded-tag positives. Metadata hostname/address canaries must be absent from
 all exported channels. A separate ordinary HTTP request with a distinct IP/port
 and path/query canaries must omit those values from metrics while preserving its
 ordinary trace positive; ordinary destinations are not forbidden in all payloads.
+The decoder includes exemplar attributes, span/trace identifiers and values.
+Both environment filter families have real unprojected controls and production
+privacy negatives. This distinguishes absent exemplars from a decoder that never
+read them.
 The actual singleton-budget suppression path is also exported through the root's
 `LearnStack.Api` meter subscription. Its test waits for the correlated Warning
 while the logger owner is alive: a metrics flush is not a log-delivery receipt.

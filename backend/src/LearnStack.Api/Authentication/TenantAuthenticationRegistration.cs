@@ -25,22 +25,7 @@ internal static class TenantAuthenticationRegistration
         services.AddSingleton(settings);
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<TenantAuthenticationBackchannel>();
-        services.AddLogging(logging => logging.Services.PostConfigure<LoggerFilterOptions>(options =>
-        {
-            // Category rules match prefixes. Apply the exact-category veto to
-            // every selectable rule while retaining unrelated thresholds and
-            // provider filters, including the original no-rule fallback.
-            var rules = options.Rules.ToArray();
-            options.Rules.Clear();
-            options.Rules.Add(new LoggerFilterRule(null, null, options.MinLevel,
-                (_, category, _) => category != TenantAuthenticationDiagnostics.VendorCategory));
-            foreach (var rule in rules)
-            {
-                options.Rules.Add(new LoggerFilterRule(rule.ProviderName, rule.CategoryName, rule.LogLevel,
-                    (provider, category, level) => category != TenantAuthenticationDiagnostics.VendorCategory
-                        && (rule.Filter?.Invoke(provider, category, level) ?? true)));
-            }
-        }));
+        services.AddLogging();
         services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = Scheme;

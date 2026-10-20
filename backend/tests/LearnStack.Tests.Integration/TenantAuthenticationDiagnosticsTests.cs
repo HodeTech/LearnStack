@@ -1,7 +1,6 @@
 using System.Net;
 using FluentAssertions;
 using LearnStack.Api.Authentication;
-using LearnStack.SharedKernel.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -30,38 +29,34 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
         LoggerMessage.Define<string>(LogLevel.Warning, new EventId(920, "AllowedWarning"), "{AllowedDiagnostic}");
 
     [Theory]
-    [InlineData(LogLevel.Trace, false)]
-    [InlineData(LogLevel.Warning, false)]
-    [InlineData(LogLevel.Trace, true)]
-    public async Task The_ILogger_filter_suppresses_only_the_exact_vendor_category_and_preserves_other_thresholds(
-        LogLevel minimumLevel, bool categoryWarning)
+    [InlineData(LogEventLevel.Verbose, false)]
+    [InlineData(LogEventLevel.Warning, false)]
+    [InlineData(LogEventLevel.Verbose, true)]
+    public async Task Production_ILogger_factory_suppresses_only_the_exact_vendor_category_and_preserves_thresholds(
+        LogEventLevel minimumLevel, bool categoryWarning)
     {
-        using var observed = new DiagnosticVendorProvider();
-        var services = new ServiceCollection();
-        services.AddLogging(logging =>
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        var observed = new DiagnosticObservation();
+        await using (var app = await CreateHost(issuer, observed: observed,
+            minimumLevel: minimumLevel, categoryWarning: categoryWarning))
         {
-            logging.AddProvider(observed).SetMinimumLevel(minimumLevel);
-            if (categoryWarning) logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
-        });
-        services.AddLearnStackTenantAuthentication(TenantAuthenticationOptions.Create(
-            "https://issuer.invalid/realms/learnstack", DeploymentMode.SaaS));
-        await using var provider = services.BuildServiceProvider();
-        var factory = provider.GetRequiredService<ILoggerFactory>();
-
-        var vendor = factory.CreateLogger(TenantAuthenticationDiagnostics.VendorCategory);
-        foreach (var level in Enum.GetValues<LogLevel>().Where(level => level != LogLevel.None))
-        {
-            LoggerMessage.Define<string>(level, new EventId(919, "VendorDiagnostic"), "{PrivateDiagnostic}")
-                (vendor, VendorSinkCanary, null);
+            var factory = app.Services.GetRequiredService<ILoggerFactory>();
+            factory.Should().BeOfType<Serilog.Extensions.Logging.SerilogLoggerFactory>();
+            var vendor = factory.CreateLogger(TenantAuthenticationDiagnostics.VendorCategory);
+            foreach (var level in Enum.GetValues<LogLevel>().Where(level => level != LogLevel.None))
+            {
+                LoggerMessage.Define<string>(level, new EventId(919, "VendorDiagnostic"), "{PrivateDiagnostic}")
+                    (vendor, VendorSinkCanary, null);
+            }
+            var sibling = factory.CreateLogger(TenantAuthenticationDiagnostics.VendorCategory + ".Unrelated");
+            AllowedLoggerMessage(sibling, AllowedLog, null);
+            AllowedWarningMessage(sibling, AllowedLog + "-warning", null);
         }
-        AllowedLoggerMessage(factory.CreateLogger(TenantAuthenticationDiagnostics.VendorCategory + ".Unrelated"), AllowedLog, null);
-        AllowedWarningMessage(factory.CreateLogger(TenantAuthenticationDiagnostics.VendorCategory + ".Unrelated"), AllowedLog + "-warning", null);
-
-        observed.Entries.Should().OnlyContain(entry =>
-            entry.Category == TenantAuthenticationDiagnostics.VendorCategory + ".Unrelated");
-        observed.Entries.Should().ContainSingle(entry => entry.Message == AllowedLog + "-warning");
-        observed.Entries.Count(entry => entry.Message == AllowedLog).Should()
-            .Be(minimumLevel <= LogLevel.Information && !categoryWarning ? 1 : 0);
+        observed.Events.Should().NotContain(entry => TenantAuthenticationDiagnostics.IsVendorEvent(entry));
+        var allowed = observed.Events.Where(entry => entry.Properties.TryGetValue("AllowedDiagnostic", out _)).ToArray();
+        allowed.Should().ContainSingle(entry => entry.Properties["AllowedDiagnostic"].ToString() == "\"" + AllowedLog + "-warning\"");
+        allowed.Count(entry => entry.Properties["AllowedDiagnostic"].ToString() == "\"" + AllowedLog + "\"").Should()
+            .Be(minimumLevel <= LogEventLevel.Information && !categoryWarning ? 1 : 0);
     }
 
     [Theory]
@@ -71,6 +66,7 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
     [InlineData("metadata-processing", 3, "validation")]
     [InlineData("profile", 7, "profile")]
     [InlineData("credential", 7, "credential")]
+    [InlineData("malformed-payload", 1, "validation")]
     public async Task Vendor_failures_are_closed_before_production_sinks_and_error_capture(
         string failure, int vendorEvent, string stage)
     {
@@ -87,10 +83,15 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
             "profile" => issuer.Payload(("sub", ClaimCanary), ("user_id", ClaimCanary)),
             _ => issuer.Payload(("sub", ClaimCanary)),
         };
-        var token = failure == "credential" ? "malformed." + ClaimCanary : issuer.Token(payload);
+        var token = failure switch
+        {
+            "credential" => "malformed." + ClaimCanary,
+            "malformed-payload" => issuer.Token(ClaimCanary),
+            _ => issuer.Token(payload),
+        };
 
-        // This separate host lifts only the exact-category ILogger rule. The
-        // stock handler must actually emit the event being qualified below.
+        // This separate host omits the production Serilog filter. The stock
+        // handler must actually emit the event being qualified below.
         using var control = new DiagnosticVendorProvider();
         await using (var app = await CreateHost(issuer, control: control,
             configurationAdapter: failure == "metadata-processing"))
@@ -118,6 +119,11 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
             actualEvent.Exception.Should().BeOfType<SecurityTokenInvalidAudienceException>()
                 .Which.Message.Should().Contain("Audience validation failed");
         }
+        else if (failure == "malformed-payload")
+        {
+            actualEvent.Exception.Should().NotBeNull(
+                "a valid closed header must reach the stock token reader's event 1 refusal");
+        }
         else if (failure.StartsWith("metadata", StringComparison.Ordinal))
         {
             actualEvent.Exception.Should().NotBeNull();
@@ -143,6 +149,8 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
 
         await using var collector = await TenantAuthenticationDiagnosticCollector.StartAsync();
         var observed = new DiagnosticObservation();
+        using var console = new DiagnosticConsoleCapture();
+        var traceCanary = new Uri(new Uri(issuer.Issuer), "/ordinary-diagnostic-positive").AbsoluteUri;
         var metadataRequestsBeforeProduction = issuer.MetadataRequests;
         await using (var app = await CreateHost(issuer, observed: observed, endpoint: collector.Endpoint,
             configurationAdapter: failure == "metadata-processing"))
@@ -157,9 +165,10 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
                     "the production composition must itself enter the failing metadata transport");
             }
 
-            // Challenge Serilog itself as well as ILogger's earlier rule. This
-            // reaches the actual root filter even if ILogger already removed
-            // every real vendor event above, and checks every vendor level.
+            // Challenge the same production Serilog filter through its native
+            // API at every level as well as the stock handler's ILogger path.
+            app.Services.GetRequiredService<ILoggerFactory>().Should()
+                .BeOfType<Serilog.Extensions.Logging.SerilogLoggerFactory>();
             var logger = app.Services.GetRequiredService<Serilog.ILogger>();
             logger.IsEnabled(LogEventLevel.Verbose).Should().BeTrue(
                 "a minimum-level threshold must not make the all-level sink challenge vacuous");
@@ -183,8 +192,8 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
             // A real exported outbound span is the positive control for the
             // suppressed discovery/JWKS HTTP diagnostics, using another URL.
             using var outbound = new HttpClient();
-            using var canaryResponse = await outbound.GetAsync(issuer.CanaryAddress);
-            canaryResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            using var canaryResponse = await outbound.GetAsync(traceCanary);
+            canaryResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
         }
 
         IdentityModelEventSource.ShowPII.Should().BeFalse();
@@ -203,10 +212,10 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
         var logs = collector.Logs;
         logs.Should().Contain("Tenant authentication stage").And.Contain(stage).And.Contain("rejected")
             .And.Contain(AllowedLog).And.Contain(AllowedError);
-        collector.Traces.Should().Contain(issuer.CanaryAddress,
+        collector.Traces.Should().Contain(traceCanary,
             "the production OTLP trace exporter must actually deliver HTTP spans");
         var privateValues = new[] { token, ClaimCanary, IssuerCanary, AudienceCanary,
-            ProviderCanary, VendorSinkCanary, issuer.MetadataAddress, issuer.Issuer + "/keys" };
+            ProviderCanary, VendorSinkCanary, issuer.Issuer, issuer.MetadataAddress, issuer.Issuer + "/keys" };
         var structured = string.Join('\n', observed.Events.Select(entry => entry.ToString()
             + " " + string.Join(' ', entry.Properties.Select(property => property.ToString()))
             + " " + entry.Exception));
@@ -217,7 +226,9 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
             structured.Should().NotContain(value);
             collector.AllPayloads.Should().NotContain(value);
             captures.Should().NotContain(value);
+            console.Output.Should().NotContain(value);
         }
         structured.Should().Contain(AllowedLog + "-ILogger").And.Contain(AllowedError);
+        console.Output.Should().Contain(AllowedLog + "-ILogger").And.Contain(AllowedError);
     }
 }

@@ -37,6 +37,7 @@ public sealed partial class AccountSiteHttpTests
 
         await TenantAuthenticationHttpTests.Problem(response, HttpStatusCode.NotFound,
             row is 7 or 10 ? "not_found" : "tenant_mismatch");
+        TenantAuthenticationHttpTests.NoStore(response);
         fixture.Observation.Reads.Should().Be(reads, "claim/membership refusal precedes controller dispatch and header assertions");
         var correlation = TenantAuthenticationReconciliationTests.Correlation(response);
         var records = await AccountHttpAudit.Read(fixture, tenant, correlation);
@@ -75,6 +76,7 @@ public sealed partial class AccountSiteHttpTests
             token, organizationAssertion: SeedData.English.DefaultOrganization.OrganizationId.Value.ToString("D"));
 
         await TenantAuthenticationHttpTests.Problem(response, HttpStatusCode.NotFound, "tenant_mismatch");
+        TenantAuthenticationHttpTests.NoStore(response);
         fixture.Observation.Reads.Should().Be(reads);
         var correlation = TenantAuthenticationReconciliationTests.Correlation(response);
         var record = (await AccountHttpAudit.Read(fixture, SeedData.Yoga, correlation)).Should().ContainSingle().Subject;
@@ -83,8 +85,10 @@ public sealed partial class AccountSiteHttpTests
             SeedData.English.DefaultOrganization.OrganizationId.Value);
     }
 
-    [Fact]
-    public async Task Anonymous_header_mismatch_and_malformed_assertions_keep_their_distinct_errors_without_query_reads()
+    [Theory]
+    [InlineData(TenantAuthenticationHttpRequest.AccountPath)]
+    [InlineData(TenantAuthenticationHttpRequest.PublicPath)]
+    public async Task Anonymous_header_mismatch_and_malformed_assertions_keep_their_distinct_errors_without_query_reads(string path)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
         using var client = Client(issuer, SeedData.English.Host);
@@ -92,13 +96,16 @@ public sealed partial class AccountSiteHttpTests
         using var anonymous = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
             TenantAuthenticationHttpRequest.PublicPath, tenantAssertion: SeedData.Yoga.TenantId.Value.ToString("D"));
         await TenantAuthenticationHttpTests.Problem(anonymous, HttpStatusCode.NotFound, "not_found");
+        TenantAuthenticationHttpTests.NoStore(anonymous);
         using var malformed = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
-            token: Token(issuer, SeedData.English), tenantAssertion: "not-a-guid");
+            path, token: Token(issuer, SeedData.English), tenantAssertion: "not-a-guid");
         await TenantAuthenticationHttpTests.Problem(malformed, HttpStatusCode.BadRequest, "validation_failed");
+        TenantAuthenticationHttpTests.NoStore(malformed);
         using var repeated = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
-            token: Token(issuer, SeedData.English), tenantAssertion:
+            path, token: Token(issuer, SeedData.English), tenantAssertion:
             SeedData.English.TenantId.Value.ToString("D") + ", " + SeedData.English.TenantId.Value.ToString("D"));
         await TenantAuthenticationHttpTests.Problem(repeated, HttpStatusCode.BadRequest, "validation_failed");
+        TenantAuthenticationHttpTests.NoStore(repeated);
 
         fixture.Observation.Reads.Should().Be(reads);
         foreach (var response in new[] { anonymous, malformed, repeated })

@@ -282,7 +282,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description method_not_allowed from routing; this authenticated operation admits GET only. */
+            /** @description method_not_allowed from routing after credential and host-backed authority admission; this operation admits GET only. Absent credentials remain masked as 404. */
             405: {
                 headers: {
                     Allow: "GET";
@@ -296,7 +296,7 @@ export interface operations {
             /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
-                    "Cache-Control": "no-store";
+                    "Cache-Control"?: "no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -410,7 +410,7 @@ export interface operations {
             /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
-                    "Cache-Control": "no-store";
+                    "Cache-Control"?: "no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -514,7 +514,7 @@ export interface operations {
             /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
-                    "Cache-Control": "no-store";
+                    "Cache-Control"?: "no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -623,7 +623,7 @@ export interface operations {
             /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
-                    "Cache-Control": "no-store";
+                    "Cache-Control"?: "no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -730,7 +730,7 @@ export interface operations {
             /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
-                    "Cache-Control": "no-store";
+                    "Cache-Control"?: "no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -837,7 +837,7 @@ export interface operations {
             /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
-                    "Cache-Control": "no-store";
+                    "Cache-Control"?: "no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -942,7 +942,7 @@ export interface operations {
             /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
-                    "Cache-Control": "no-store";
+                    "Cache-Control"?: "no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -996,7 +996,7 @@ export interface operations {
                     "application/json": components["schemas"]["PublicSite"];
                 };
             };
-            /** @description validation_failed; the site bootstrap accepts no query parameters. */
+            /** @description validation_failed; the site bootstrap accepts no query parameters, and malformed or repeated assertion headers are refused. */
             400: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -1041,7 +1041,7 @@ export interface operations {
             /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
-                    "Cache-Control": "no-store";
+                    "Cache-Control"?: "no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -1101,7 +1101,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description validation_failed; the site bootstrap accepts no query parameters. */
+            /** @description validation_failed; the site bootstrap accepts no query parameters, and malformed or repeated assertion headers are refused. */
             400: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -1138,7 +1138,7 @@ export interface operations {
             /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
             413: {
                 headers: {
-                    "Cache-Control": "no-store";
+                    "Cache-Control"?: "no-store";
                     [name: string]: unknown;
                 };
                 content?: never;

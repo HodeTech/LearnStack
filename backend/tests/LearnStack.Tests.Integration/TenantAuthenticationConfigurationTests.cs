@@ -23,6 +23,12 @@ public sealed class TenantAuthenticationConfigurationTests
     [InlineData("https://issuer.invalid/realms/learnstack-hub")]
     [InlineData("https://issuer.invalid/realms/learnstack/")]
     [InlineData("https://issuer.invalid//realms/learnstack")]
+    [InlineData("https://issuer.invalid/auth/..%2fother/realms/learnstack")]
+    [InlineData("https://issuer.invalid/auth%2Fother/realms/learnstack")]
+    [InlineData("https://issuer.invalid/auth%5cother/realms/learnstack")]
+    [InlineData("https://issuer.invalid/auth/%2e%2e/realms/learnstack")]
+    [InlineData("https://issuer.invalid/auth/%252e%252e/realms/learnstack")]
+    [InlineData("https://issuer.invalid/auth%252fother/realms/learnstack")]
     [InlineData("https://issuer.invalid:443/realms/learnstack")]
     [InlineData("https://issuer.invalid/realms/learnstack?secret=query-canary")]
     [InlineData("https://issuer.invalid/realms/learnstack#fragment-canary")]
@@ -57,6 +63,10 @@ public sealed class TenantAuthenticationConfigurationTests
     [InlineData("http://127.0.0.1:8080/realms/learnstack")]
     [InlineData("http://[::1]:8080/realms/learnstack")]
     [InlineData("https://issuer.invalid/auth/realms/learnstack")]
+    [InlineData("https://keycloak.identity.svc.cluster.local:8443/auth/realms/learnstack")]
+    [InlineData("https://10.20.30.40:8443/auth/realms/learnstack")]
+    [InlineData("https://issuer.invalid/auth%20portal/realms/learnstack")]
+    [InlineData("https://issuer.invalid/caf%C3%A9/realms/learnstack")]
     public void Configuration_preserves_the_explicit_canonical_issuer(string issuer)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(

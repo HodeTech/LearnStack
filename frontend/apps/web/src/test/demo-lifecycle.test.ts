@@ -496,7 +496,9 @@ describe('demo runtime boundaries', () => {
     const configuration = { apiOrigin: 'http://127.0.0.1:5080', secret: 'private' };
     expect(publicApiEnvironment(values, configuration, {})[key]).toBe(issuer);
     expect(publicWebEnvironment(values, root, { [key]: issuer })).not.toHaveProperty(key);
-    expect(publicApiEnvironment({ ...values, [key]: '' }, configuration, {})[key]).toBe('');
+    expect(publicApiEnvironment({ ...values, [key]: '' }, configuration, {})).not.toHaveProperty(
+      key,
+    );
     expect(
       publicApiEnvironment(
         {

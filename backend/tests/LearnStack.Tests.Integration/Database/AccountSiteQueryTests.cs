@@ -1,7 +1,9 @@
 using System.Text.Json;
 using FluentAssertions;
+using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -87,6 +89,7 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
         }).Value! : Context(tenant, organization);
         await using var host = CreateHost(context);
         (await Send(host)).IsSuccess.Should().BeTrue("the same stored scope is visible before its lifecycle changes");
+        if (claimSelected) await AssertPublicConfigurationLiveness(host, visible: true);
         var before = await fixture.AuditCountAsync(tenant);
         var table = organization ? "organizations" : "tenants";
         var predicate = organization ? "tenant_id=@tenant AND id=@organization" : "id=@tenant";
@@ -96,6 +99,7 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
         try
         {
             Hidden(await Send(host));
+            if (claimSelected) await AssertPublicConfigurationLiveness(host, visible: false);
             (await fixture.AuditCountAsync(tenant)).Should().Be(before);
         }
         finally
@@ -104,6 +108,8 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
                 $"UPDATE {table} SET status='{(organization ? "Active" : "Trial")}',deleted_at=NULL,deleted_by=NULL WHERE {predicate}");
         }
         (await Send(host)).IsSuccess.Should().BeTrue("restoring the exact scope restores the live read");
+        if (claimSelected) await AssertPublicConfigurationLiveness(host, visible: true);
+        (await fixture.AuditCountAsync(tenant)).Should().Be(before);
     }
 
     [Theory]
@@ -161,9 +167,38 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
         (await fixture.AuditCountAsync(tenant)).Should().Be(before);
     }
 
+    private static async Task AssertPublicConfigurationLiveness(WebApplicationFactory<Program> host, bool visible)
+    {
+        Result<PublicSite> site;
+        await using (var scope = host.Services.CreateAsyncScope())
+            site = await scope.ServiceProvider.GetRequiredService<ISender>().Send(new GetPublicSiteQuery());
+        Result<PublicCourseCatalog> courses;
+        await using (var scope = host.Services.CreateAsyncScope())
+            courses = await scope.ServiceProvider.GetRequiredService<ISender>().Send(new GetPublicCoursesQuery(
+                new PublicReadInput("en", null, null, "claim-selected-organization-liveness", [])));
+        if (visible)
+        {
+            site.IsSuccess.Should().BeTrue();
+            site.Value!.DisplayName.Should().Be(SeedData.Yoga.DisplayName);
+            courses.IsSuccess.Should().BeTrue();
+            courses.Value!.Locale.Should().Be("en");
+        }
+        else
+        {
+            site.IsFailure.Should().BeTrue();
+            site.Error!.Code.Should().Be("not_found");
+            courses.IsFailure.Should().BeTrue();
+            courses.Error!.Code.Should().Be("not_found");
+        }
+    }
+
     private async Task<AccountSite> ReadSite(SeedTenant tenant, bool mappedOrganization)
     {
         await using var host = CreateHost(Context(tenant, mappedOrganization));
+        var catalog = host.Services.GetRequiredService<IAuditCatalog>();
+        catalog.TryGet(typeof(GetAccountSiteQuery), out var registration).Should().BeTrue();
+        registration.WritesNoRow.Should().BeTrue("the actual API composition must register this exact read Off");
+        registration.Entries.Should().BeEmpty();
         var result = await Send(host);
         result.IsSuccess.Should().BeTrue();
         return result.Value!;

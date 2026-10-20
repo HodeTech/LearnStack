@@ -2,17 +2,21 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { DemoCommandError, DemoProcesses } from '../../../../../scripts/demo-process.mjs';
 import {
   PublicDemoFailure,
   publicDemoChildExited,
   publicDemoFailure,
   publicDemoOperation,
+  publicDemoWorkerOutput,
+  publicDemoWorkerStage,
 } from '../../scripts/public-demo-diagnostics.mjs';
 
 const canary = 'private-provider-token-host-url-canary';
@@ -20,11 +24,121 @@ const context = { mode: 'audit', laneIndex: 0, kind: 'catalog', run: 2, workerSt
 
 describe('closed public demo operation diagnostics', () => {
   it.each(['normal', 'signal'])(
+    'reports the actual worker %s failure through process ownership',
+    async (kind) => {
+      const root = mkdtempSync(join(tmpdir(), 'learnstack-demo-worker-status-'));
+      const processes = new DemoProcesses(new AbortController().signal);
+      let connected: () => void = () => {};
+      const connection = new Promise<void>((resolve) => {
+        connected = resolve;
+      });
+      const server = createServer(() => connected());
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Missing control listener');
+      const start = processes.start.bind(processes);
+      let worker: ReturnType<typeof start> | undefined;
+      processes.start = (...args) => {
+        worker = start(...args);
+        return worker;
+      };
+      let recorded: unknown;
+      const workerInput = { ...context, workerStage: null as string | null };
+      try {
+        const input = join(root, 'input.json');
+        writeFileSync(
+          input,
+          JSON.stringify({
+            ...context,
+            port: kind === 'signal' ? address.port : 0,
+            result: join(root, 'result.json'),
+          }),
+        );
+        const operation = publicDemoOperation({
+          input: workerInput,
+          // Deliberately conflicting browser status must never be attributed to the worker.
+          child: () => ({ exitCode: 73, signalCode: 'SIGABRT' }),
+          run: async (stage) => {
+            stage('worker');
+            try {
+              return await processes.run(
+                process.execPath,
+                [
+                  fileURLToPath(new URL('../../scripts/public-demo-worker.mjs', import.meta.url)),
+                  input,
+                ],
+                { label: 'Worker control', timeout: 15000 },
+              );
+            } catch (error) {
+              try {
+                workerInput.workerStage = publicDemoWorkerStage(
+                  JSON.parse(readFileSync(join(root, 'result.json'), 'utf8'))?.failure?.stage,
+                );
+              } catch {
+                // Signal death may leave no private worker result.
+              }
+              throw error;
+            }
+          },
+          cleanup: async () => {},
+          record: (row) => {
+            recorded ??= row;
+          },
+        }).catch((error: unknown) => error);
+        if (kind === 'signal') {
+          await Promise.race([
+            connection,
+            operation.then(() => {
+              throw new Error('Worker exited before control connection');
+            }),
+          ]);
+          if (!worker) throw new Error('Missing owned worker');
+          worker.child.kill('SIGTERM');
+        }
+        const error = await operation;
+        expect(error).toBeInstanceOf(DemoCommandError);
+        if (!worker) throw new Error('Missing owned worker');
+        expect(error).toMatchObject({
+          exitCode: worker.child.exitCode,
+          signalCode: worker.child.signalCode,
+        });
+        if (kind === 'normal') expect(worker.child.exitCode).toBe(1);
+        else if (process.platform !== 'win32') expect(worker.child.signalCode).toBe('SIGTERM');
+        expect(recorded).toMatchObject({
+          stage: 'worker',
+          reason: 'worker-failure',
+          exitCode: worker.child.exitCode,
+          signal: worker.child.signalCode,
+          workerStage: kind === 'normal' ? 'connect' : null,
+        });
+        expect(JSON.stringify(recorded)).not.toContain(canary);
+      } finally {
+        await processes.dispose();
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+    20000,
+  );
+
+  it('emits only complete closed worker lines when dependency output shares a chunk', () => {
+    expect(
+      publicDemoWorkerOutput(Buffer.from(`Public demo worker refused: audit\n${canary}\n`)),
+    ).toEqual(['Public demo worker refused: audit']);
+    expect(
+      publicDemoWorkerOutput(Buffer.from(`Public demo worker refused: audit ${canary}\n`)),
+    ).toEqual([]);
+    expect(publicDemoWorkerOutput(Buffer.from(`Public demo worker refused: ${canary}\n`))).toEqual(
+      [],
+    );
+  });
+  it.each(['normal', 'signal'])(
     'recognizes an actual native child %s exit before the startup deadline',
     async (kind) => {
       const child = spawn(
         process.execPath,
-        ['-e', kind === 'normal' ? 'process.exit(0)' : 'process.kill(process.pid, "SIGTERM")'],
+        ['-e', kind === 'normal' ? 'process.exit(0)' : 'setInterval(() => {}, 1000)'],
         { stdio: 'ignore' },
       );
       const operationChild = (() => child) satisfies Parameters<
@@ -33,14 +147,14 @@ describe('closed public demo operation diagnostics', () => {
       const exited = once(child, 'exit');
       try {
         expect(publicDemoChildExited(child)).toBe(false);
+        if (kind === 'signal') child.kill('SIGTERM');
         await exited;
         expect(publicDemoChildExited(child)).toBe(true);
         const status = { exitCode: child.exitCode, signalCode: child.signalCode };
-        expect(status).toEqual(
-          kind === 'normal'
-            ? { exitCode: 0, signalCode: null }
-            : { exitCode: null, signalCode: 'SIGTERM' },
-        );
+        if (kind === 'normal') expect(status).toEqual({ exitCode: 0, signalCode: null });
+        else if (process.platform !== 'win32')
+          expect(status).toEqual({ exitCode: null, signalCode: 'SIGTERM' });
+        else expect(status.exitCode !== null || status.signalCode !== null).toBe(true);
         expect(
           publicDemoFailure(
             'startup-port',
@@ -118,7 +232,7 @@ describe('closed public demo operation diagnostics', () => {
       kind: 'catalog',
       run: 2,
       workerStage: stage === 'worker' ? 'audit' : null,
-      exitCode: 1,
+      exitCode: ['browser-spawn', 'startup-port'].includes(stage) ? 1 : null,
       signal: null,
     });
     expect(JSON.stringify(failure)).not.toContain(canary);
@@ -244,6 +358,39 @@ describe('closed public demo operation diagnostics', () => {
       expect(execution.stdout + execution.stderr + readFileSync(result, 'utf8')).not.toContain(
         canary,
       );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('attributes an actual toolchain refusal to preflight before CDP connection', () => {
+    const root = mkdtempSync(join(tmpdir(), 'learnstack-demo-toolchain-status-'));
+    try {
+      const input = join(root, 'input.json');
+      const result = join(root, 'result.json');
+      writeFileSync(input, JSON.stringify({ port: 0, result }));
+      const execution = spawnSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `
+        import fs from 'node:fs';
+        import { syncBuiltinESMExports } from 'node:module';
+        const read = fs.readFileSync;
+        fs.readFileSync = (path, ...args) => String(path).endsWith('/frontend/package.json')
+          ? JSON.stringify({ devDependencies: { lighthouse: '0.0.0', playwright: '1.64.0' } })
+          : read(path, ...args);
+        syncBuiltinESMExports();
+        process.argv[2] = ${JSON.stringify(input)};
+        await import(${JSON.stringify(new URL('../../scripts/public-demo-worker.mjs', import.meta.url).href)});
+      `,
+        ],
+        { encoding: 'utf8', timeout: 15000 },
+      );
+      expect(execution.status).toBe(1);
+      expect(JSON.parse(readFileSync(result, 'utf8'))).toEqual({ failure: { stage: 'preflight' } });
+      expect(execution.stderr).toContain('Public demo worker refused: preflight');
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
