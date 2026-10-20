@@ -12469,7 +12469,7 @@ limitation is distinguished from a current runtime defect.
 | D3 | Already closed by the baseline docs-only commit `9d4ec0e0`; do not reapply or treat its stale pending text as a current defect. |
 | 9.1 containment | Reject encoded slash/backslash/dot traversal in configured issuer and discovery/JWKS paths; compare real URI segments as well as exact origin. Preserve legitimate private IdP origins and harmless escaped path data. |
 | 9.1 organization liveness | No missing lifecycle gate reproduced. Every public Education query first calls the same public configuration reader. Extend the real claim-selected organization lifecycle proof through public site and course-list queries: active succeeds, inactive refuses, restored succeeds. No second lifecycle policy or new ADR is introduced. |
-| 9.1, 9.2 HTTP/contract | Preserve absent-credential AccountSite masking before method admission and signed unsupported-method 405. Assert actual `Allow`, early-error no-store, both-route application 413 and optional 413 cache header in OpenAPI. Clarify public site 400 assertion errors; reject permissive `additionalProperties` mutations. Served OpenAPI, snapshot and generated SDK agree. Future 403 belongs to Phase 03's real permission boundary. |
+| 9.1, 9.2 HTTP/contract | Preserve absent-credential AccountSite masking before method admission and signed unsupported-method 405. Assert actual `Allow`, early-error no-store, both-route application 413 and optional 413 cache header in OpenAPI. Clarify public site 400 assertion errors; reject explicit `additionalProperties: true`/schema changes. Exact CLR fields and schema property/required censuses own the representation boundary; an omitted keyword does not reject unknown fields in JSON Schema. Served OpenAPI, snapshot and generated SDK agree. Future 403 belongs to Phase 03's real permission boundary. |
 | 9.2 persistence | Three direct real-reader controls reject unannounced/no-EF-transaction/mismatched-EF-transaction ownership. Successful same-role, same-context controls establish that refusal is the ownership guard, rather than missing data or an inaccessible database. |
 | 9.3 census | Follow reachable pipeline helpers and reject hidden/duplicate controller mapping and static health field reads. Source/IL controls exercise the production subjects, not only arrays of expected names. |
 | 9.3 logging/profile | Remove ineffective `LoggerFilterOptions.PostConfigure` under the production Serilog factory; retain the registration needed by isolated hosts. Assert the actual factory, exact vendor-category suppression at every level and observable siblings. Add unequal duplicate properties and configured-issuer/console/malformed-payload canaries. |
@@ -12517,6 +12517,10 @@ No speculative change is made for the following suggestions:
 - Authentication registration is a bootstrap-once graph. Repeat-registration
   idempotence is not promised; silently ignoring conflicting settings would not
   improve its fail-closed behavior.
+- ADR-0064's exact relationship table and the own dated ADR-0040/0052
+  disclosures distinguish read-only scope extensions from row 14's audit
+  replacement. Preserve those instruments and the Accepted body; its broad
+  status summary is not a new independent read-mode authorization.
 - The validated unexpected-query flag follows the existing public application
   contract; it carries no `HttpContext` and changes no scope. Moving it would
   change validation precedence without fixing a reproduced bypass.
@@ -12590,11 +12594,11 @@ separate selections with overlapping owners, not a summed complete-suite count:
   typecheck pass. Six setup-path controls pass again after platform normalization.
 
 Seven ADR-parser controls pass. ADR-0065 remains Accepted; ADR-0066 parses
-Proposed. Formatting and diff whitespace checks pass. Current changed-document
+Proposed. Formatting and diff whitespace checks pass. At `15c2f49d`, changed-doc
 link verification checks 1,934 real relative links/fragments; the catalogue's
 pre-existing inline `name_lowercased` template example is not a real target.
-Fresh correction reviews and broader source-bound qualification remain pending;
-neither the focused passes nor previous hosted receipts complete that gate.
+The following review records govern correction closure; neither focused passes
+nor previous hosted receipts complete current-source hosted qualification.
 
 ### Second follow-up independent review round 1
 
@@ -12623,6 +12627,27 @@ failures/skips. The complete Release solution builds with warnings as errors,
 zero warnings/errors. This receipt precedes the two review corrections; their
 changed owners need their own rerun. Complete Architecture/Docker/native and
 public-demo qualification still belongs to current-source hosted CI.
+
+### Second follow-up independent review round 2
+
+Three new reviewers inspect frozen fix commit `653404ad` against `9d4ec0e0`,
+covering security/runtime, frontend/contracts/docs and production proofs.
+Security and frontend/docs find no additional actionable issue. The proof
+review confirms the round-1 corrections and finds a fluent receiver gap:
+`return app.UseMiddleware<TenantResolverMiddleware>().UseAuthentication()`
+silently skipped its outer call while preserving the expected inner leaf.
+
+The verified correction refuses fluent application receivers, including
+framework builder returns and source-declared builder-returning helpers.
+Parenthesized/cast receivers and builder-valued aliases cannot evade this
+specific predicate. Immutable mutations of both the actual Program statement
+and actual resolver return statement require the precise fluent/leaf-shape
+diagnostic. The actual HTTP pipeline owner passes again in warnings-as-errors
+Release, one passed, zero failures/skips. Existing health endpoint naming stays
+clean: its endpoint-convention builder is not an application-builder receiver.
+This remains a bounded source proof, complemented by actual HTTP/IL censuses;
+it is not a universal C# analyzer. Targeted independent fix verification and
+the final submitted-head CI receipt are required before handoff.
 
 ## Completion Criteria
 

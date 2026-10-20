@@ -145,6 +145,23 @@ internal static class TenantAuthenticationPipelineProof
             }
         }
 
+        var chained = SyntaxFactory.GlobalStatement(SyntaxFactory.ParseStatement(
+            "app.UseLearnStackTenantResolution().UseAuthentication();"));
+        Calls(production.ReplaceNode(Statement(production, "UseLearnStackTenantResolution"), chained), helpers)
+            .Should().Contain(value => value.StartsWith("Unverifiable fluent application receiver:", StringComparison.Ordinal),
+                "a fluent extra registration in the actual Program statement cannot hide behind its inner call");
+        var resolutionOwner = helpers.Single(root => root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Any(method => method.Identifier.ValueText == "UseLearnStackTenantResolution"));
+        var resolution = resolutionOwner.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "UseLearnStackTenantResolution");
+        var returned = resolution.Body!.Statements.OfType<ReturnStatementSyntax>().Single();
+        var chainedReturn = returned.WithExpression(SyntaxFactory.ParseExpression(returned.Expression + ".UseAuthentication()"));
+        var chainedOwner = resolutionOwner.ReplaceNode(returned, chainedReturn);
+        Calls(production, helpers.Select(root => root == resolutionOwner ? chainedOwner : root))
+            .Should().Contain(value => value.StartsWith("Unexpected helper middleware: UseLearnStackTenantResolution:", StringComparison.Ordinal)
+                && value.Contains("Unverifiable fluent application receiver:", StringComparison.Ordinal),
+                "a chained call inside the actual resolution wrapper must invalidate its specific leaf shape");
+
         Inspect(production).Should().Equal(OrderedCalls, "all mutants are immutable copies of the real source");
 
         IEnumerable<string> Inspect(CompilationUnitSyntax source) => Calls(source, helpers);
@@ -165,18 +182,23 @@ internal static class TenantAuthenticationPipelineProof
             // Copying that receiver is deliberately unverifiable, so an alias
             // cannot silently hide registrations from the inspected sequence.
             foreach (var alias in body.DescendantNodes().OfType<VariableDeclaratorSyntax>()
-                         .Where(variable => variable.Initializer is { } initializer && IsReceiver(initializer.Value, receiver)))
+                         .Where(variable => variable.Initializer is { } initializer && CarriesApplication(initializer.Value, receiver)))
                 yield return "Unverifiable application alias: " + receiver + " -> " + alias.Identifier.ValueText;
             foreach (var alias in body.DescendantNodes().OfType<AssignmentExpressionSyntax>()
-                         .Where(assignment => IsReceiver(assignment.Right, receiver)))
+                         .Where(assignment => CarriesApplication(assignment.Right, receiver)))
                 yield return "Unverifiable application alias: " + receiver + " -> " + alias.Left;
 
             foreach (var call in body.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
                 var member = call.Expression as MemberAccessExpressionSyntax;
-                var instance = member?.Expression is IdentifierNameSyntax identifier && identifier.Identifier.ValueText == receiver;
+                if (member is not null && !IsReceiver(member.Expression, receiver) && CarriesApplication(member.Expression, receiver))
+                {
+                    yield return "Unverifiable fluent application receiver: " + member;
+                    continue;
+                }
+                var instance = member is not null && IsReceiver(member.Expression, receiver);
                 var appArgument = call.ArgumentList.Arguments.Select((argument, index) => (argument, index))
-                    .Where(pair => pair.argument.Expression is IdentifierNameSyntax name && name.Identifier.ValueText == receiver)
+                    .Where(pair => IsReceiver(pair.argument.Expression, receiver))
                     .Select(pair => (int?)pair.index).FirstOrDefault();
                 if (!instance && appArgument is null) continue;
                 var name = member?.Name.Identifier.ValueText ?? (call.Expression as IdentifierNameSyntax)?.Identifier.ValueText;
@@ -214,6 +236,24 @@ internal static class TenantAuthenticationPipelineProof
                 else
                     foreach (var registration in registrations) yield return registration;
             }
+        }
+
+        bool CarriesApplication(ExpressionSyntax expression, string receiver)
+        {
+            if (IsReceiver(expression, receiver)) return true;
+            if (expression is ParenthesizedExpressionSyntax parenthesized) return CarriesApplication(parenthesized.Expression, receiver);
+            if (expression is CastExpressionSyntax cast) return CarriesApplication(cast.Expression, receiver);
+            if (expression is PostfixUnaryExpressionSyntax postfix && postfix.IsKind(SyntaxKind.SuppressNullableWarningExpression))
+                return CarriesApplication(postfix.Operand, receiver);
+            if (expression is not InvocationExpressionSyntax call) return false;
+            var member = call.Expression as MemberAccessExpressionSyntax;
+            var name = member?.Name.Identifier.ValueText ?? (call.Expression as IdentifierNameSyntax)?.Identifier.ValueText;
+            var returnsBuilder = name is "Use" or "UseMiddleware" or "UseExceptionHandler" or "UseStatusCodePages"
+                or "UseRateLimiter" or "UseAuthentication" or "UseAuthorization"
+                || methods.Any(method => method.Identifier.ValueText == name && method.ReturnType.DescendantTokens()
+                    .LastOrDefault(token => token.IsKind(SyntaxKind.IdentifierToken)).ValueText is "IApplicationBuilder" or "WebApplication");
+            return returnsBuilder && ((member is not null && CarriesApplication(member.Expression, receiver))
+                || call.ArgumentList.Arguments.Any(argument => IsReceiver(argument.Expression, receiver)));
         }
     }
 

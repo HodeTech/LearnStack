@@ -4582,6 +4582,9 @@ structural test proves — and what it does not.
   framework terminals and checks real middleware/OpenAPI wrapper leaf shapes.
   Direct extra authentication and copied-receiver mutations inside the existing
   wrappers fail; direct receiver aliases refuse unverifiable composition. This
+  includes fluent extra calls in the actual Program/resolver statements:
+  application-builder receiver chains fail with a specific diagnostic, while
+  the existing health endpoint-convention builder remains clean. This
   is not a general C# semantic analysis of arbitrary reflection or dynamic code.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
   § Pipeline and error precedence.
