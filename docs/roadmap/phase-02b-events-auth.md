@@ -13250,6 +13250,33 @@ A/B attempts for this timing revision on one final source, plan, toolchain and
 population, preserving current-attempt evidence and exact required checks.
 Neither failed historical attempt nor the offline replay qualifies that head.
 
+#### Step 3 provenance guard follow-up
+
+Source `b3abbce6` completes both full attempts of hosted run `39424514759`:
+A and B each pass all 27 jobs, 5,847 backend cases, 1,699 frontend cases,
+31 native cases and 27 JSON/HTML demo pairs. Independent API/archive/result
+validation verifies equal complete case populations, actual different method
+co-membership, matching toolchain identities and naturally completed cleanup.
+The live PR retains both attempt-specific receipts and their limits.
+
+A subsequent inspection confirms a Minor parser gap: the new `hosted_trx` kind
+accepted a null source or run identity, despite requiring identified hosted
+timing evidence. All five committed hosted sources already have both values;
+neither their measured provenance nor the successful receipts are defective.
+The guard now requires both identities for this kind. Its actual-owner control
+fails in all three null combinations before the fix and passes afterwards;
+complete hosted records and the disclosed nullable local/console shapes remain
+accepted. The existing field-format and unknown-kind refusals still apply.
+
+The plan bytes, weights, assignment algorithm and fixture lifetime do not
+change. Its digest remains
+`85ce77743fd83d924060ad7008899595908ec4fd466597078ae6509e022db01d`.
+This is source-shape validation, not API attestation of an arbitrary timing
+record. Two fresh independent follow-up review rounds remain pending. After
+closure, ADR-0063 requires one complete current-source assignment for this normal
+push; the earlier A/B receipts qualify the unchanged plan on their named source,
+not the subsequent guard commit. The live PR owns final-head qualification.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

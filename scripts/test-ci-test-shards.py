@@ -276,11 +276,25 @@ class ShardControls(unittest.TestCase):
         dirty = copy.deepcopy(self.plan); next(iter(dirty['sources'].values()))['artifactSha256'] = 'not-a-hash'
         self.refuses('weight_source_invalid', OWNER.validate_plan, dirty)
 
-    def test_hosted_trx_provenance_is_explicit_and_unknown_kinds_are_refused(self):
+    def test_hosted_trx_provenance_is_complete_and_unknown_kinds_are_refused(self):
         plan = copy.deepcopy(self.plan)
         source = next(iter(plan['sources'].values()))
         source['kind'] = 'hosted_trx'
+        source['sourceSha'] = '1' * 40
+        source['runId'] = '1'
         OWNER.validate_plan(plan)
+        for sha, run in ((None, '1'), ('1' * 40, None), (None, None)):
+            with self.subTest(sourceSha=sha, runId=run):
+                dirty = copy.deepcopy(plan)
+                record = next(iter(dirty['sources'].values()))
+                record['sourceSha'], record['runId'] = sha, run
+                self.refuses('weight_source_invalid', OWNER.validate_plan, dirty)
+        for kind in ('local_trx', 'hosted_console'):
+            with self.subTest(legacyKind=kind):
+                legacy = copy.deepcopy(plan)
+                record = next(iter(legacy['sources'].values()))
+                record['kind'], record['sourceSha'], record['runId'] = kind, None, None
+                OWNER.validate_plan(legacy)
         for kind in ('hosted_trx_extra', 'hosted_results', '', None, True):
             with self.subTest(kind=kind):
                 source['kind'] = kind

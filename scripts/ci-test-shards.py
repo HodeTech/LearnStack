@@ -106,6 +106,8 @@ def validate_plan(plan):
                 and isinstance(source, dict) and set(source) == {'kind', 'artifactSha256',
                     'sourceSha', 'runId', 'note'}
                 and source['kind'] in ('local_trx', 'hosted_console', 'hosted_trx')
+                and (source['kind'] != 'hosted_trx'
+                     or source['sourceSha'] is not None and source['runId'] is not None)
                 and isinstance(source['artifactSha256'], str)
                 and re.fullmatch(r'[0-9a-f]{64}', source['artifactSha256'])
                 and (source['sourceSha'] is None or isinstance(source['sourceSha'], str)
