@@ -13958,6 +13958,16 @@ exclusive ownership. They establish local request/response/socket cleanup before
 settlement and separately bounded peer closure; neither claims remote rollback.
 Actual field-planner diagnostics remain separate from final whole-core proof.
 
+**Independent transport foundation.** The unused-by-entrypoints transport and
+target/lock primitives are committed separately from the incomplete planner/core
+and the proposed larger read. All their exchanges still enforce 256 KiB. A later
+loopback refinement pins `localhost` lookup to IPv4 loopback while preserving the
+issuer, HTTP Host and normal TLS hostname checks. Its actual HTTP control poisons
+system DNS, observes the supplied lookup and socket address, and verifies the
+unchanged localhost Host. The twenty transport cases pass in 10.141s with zero
+skips; the unchanged forty-six target/lock controls above remain applicable.
+This is an implementation checkpoint, not Step 2 review/qualification closure.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
