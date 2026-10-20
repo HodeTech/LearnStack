@@ -12596,6 +12596,34 @@ pre-existing inline `name_lowercased` template example is not a real target.
 Fresh correction reviews and broader source-bound qualification remain pending;
 neither the focused passes nor previous hosted receipts complete that gate.
 
+### Second follow-up independent review round 1
+
+Frozen correction commit `15c2f49d` receives three fresh read-only reviews:
+security/runtime, frontend/contracts/docs and production proofs. The first two
+find no additional actionable issue in their assigned scopes. The proof review
+finds two verified gaps: counter/header checks still pass only the API module to
+their otherwise broad scanner, and `Use*` names stop source helper expansion
+before its body can reveal another middleware. These are proof defects, not
+observed production bypasses. Both require correction and actual dirty controls
+before round 2; a review opinion alone does not establish their closure.
+
+The verified fixes now scan every production module for counters/headers, with
+compiled controls in both API and Tenancy.Application. Custom source helpers
+resolve before framework terminals; existing middleware wrappers must preserve
+their actual leaf shape, and the OpenAPI wrapper must add no middleware.
+Immutable direct/receiver-alias extra-authentication mutations inside both real
+resolution and OpenAPI helpers fail. Clean data-free and `Use`-prefixed helpers
+remain distinguishable. All 16 Tenancy convention cases and the actual HTTP
+pipeline owner pass again in warnings-as-errors Release, zero failures/skips.
+
+Broader local validation on the frozen `15c2f49d` source passes: full Unit
+2,581; full non-Docker Integration 276; full Contract five; selected authority,
+surface, tenancy, public, corpus and persistence Architecture 80. All have zero
+failures/skips. The complete Release solution builds with warnings as errors,
+zero warnings/errors. This receipt precedes the two review corrections; their
+changed owners need their own rerun. Complete Architecture/Docker/native and
+public-demo qualification still belongs to current-source hosted CI.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

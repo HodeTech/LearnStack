@@ -4578,6 +4578,11 @@ structural test proves — and what it does not.
   prevents durable mismatch recording. A planted reorder fails. Production scheme
   and authorization registration remain absent until atomic Step 4 activation,
   including minimal hosting's implicit middleware behavior.
+  The complementary bounded source proof resolves custom `Use*` helpers before
+  framework terminals and checks real middleware/OpenAPI wrapper leaf shapes.
+  Direct extra authentication and copied-receiver mutations inside the existing
+  wrappers fail; direct receiver aliases refuse unverifiable composition. This
+  is not a general C# semantic analysis of arbitrary reflection or dynamic code.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
   § Pipeline and error precedence.
 - **Type:** whole-chain actual-host HTTP controls plus a planted reorder control.

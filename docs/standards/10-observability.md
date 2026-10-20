@@ -235,7 +235,8 @@ allowlist alone does not enforce this boundary: OpenTelemetry exemplars can
 retain removed point attributes as filtered attributes. Standard and
 histogram-specific `always_on`/`trace_based` environment settings cannot widen
 the API's export. This enforces ADR-0065's existing metric privacy contract;
-it introduces no destination-label exception.
+it introduces no destination-label exception. Metric-to-trace exemplar
+correlation is unavailable; ordinary trace export is unchanged.
 
 `TenantAuthenticationDiagnosticsTests.Metrics` proves real HTTP/DNS duration and
 bounded-tag positives. Metadata hostname/address canaries must be absent from

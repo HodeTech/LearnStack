@@ -672,14 +672,15 @@ public sealed partial class TenancyConventionTests
         var owner = api.GetType(AssertionHeaderOwner);
         var headers = AssertionNames(owner, "X-");
         headers.Should().HaveCount(2, "both assertion header constants are real production subjects");
-        AssertionNameOffenders([api], headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase)
+        AssertionNameOffenders(modules, headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase)
             .Should().BeEmpty("Fix: compare assertions only in TenantAssertionMiddleware; never use headers as tenant authority (ADR-0036)");
-        foreach (var probe in new[] { nameof(AssertionLiteralProbe.TenantHeader), nameof(AssertionLiteralProbe.OrganizationHeader),
+        foreach (var module in modules.Where(module => module.Assembly.Name.Name is "LearnStack.Api" or "LearnStack.Modules.Tenancy.Application"))
+            foreach (var probe in new[] { nameof(AssertionLiteralProbe.TenantHeader), nameof(AssertionLiteralProbe.OrganizationHeader),
                      nameof(AssertionLiteralProbe.LowercaseTenantHeader), nameof(AssertionLiteralProbe.LowercaseOrganizationHeader) })
-            WithCompiledAssertionLiteral(api, probe, () =>
-                AssertionNameOffenders([api], headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase)
-                    .Should().Contain(error => error.StartsWith("AssertionOwnershipProbe:", StringComparison.Ordinal), probe));
-        AssertionNameOffenders([api], headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase).Should().BeEmpty();
+                WithCompiledAssertionLiteral(module, probe, () =>
+                    AssertionNameOffenders(modules, headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase)
+                        .Should().Contain(error => error.StartsWith("AssertionOwnershipProbe:", StringComparison.Ordinal), probe + " in " + module.Name));
+        AssertionNameOffenders(modules, headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase).Should().BeEmpty();
     });
 
     [Fact]
@@ -689,12 +690,13 @@ public sealed partial class TenancyConventionTests
         var owner = api.GetType(AssertionMetricOwner);
         var counters = AssertionCounterNames(owner);
         counters.Should().NotBeEmpty("the real recorder declares and creates its assertion counters");
-        AssertionNameOffenders([api], counters, [AssertionMetricOwner]).Should().BeEmpty(
+        AssertionNameOffenders(modules, counters, [AssertionMetricOwner]).Should().BeEmpty(
             "Fix: create assertion metrics only in LoggingTenantAssertionRecorder (ADR-0036 and ADR-0065)");
-        foreach (var probe in new[] { nameof(AssertionLiteralProbe.MismatchCounter), nameof(AssertionLiteralProbe.UnresolvedCounter),
+        foreach (var module in modules.Where(module => module.Assembly.Name.Name is "LearnStack.Api" or "LearnStack.Modules.Tenancy.Application"))
+            foreach (var probe in new[] { nameof(AssertionLiteralProbe.MismatchCounter), nameof(AssertionLiteralProbe.UnresolvedCounter),
                      nameof(AssertionLiteralProbe.SuppressionCounter) })
-            WithCompiledAssertionLiteral(api, probe, () => AssertionNameOffenders([api], counters, [AssertionMetricOwner])
-                .Should().Contain(error => error.StartsWith("AssertionOwnershipProbe:", StringComparison.Ordinal), probe));
+                WithCompiledAssertionLiteral(module, probe, () => AssertionNameOffenders(modules, counters, [AssertionMetricOwner])
+                    .Should().Contain(error => error.StartsWith("AssertionOwnershipProbe:", StringComparison.Ordinal), probe + " in " + module.Name));
 
         // The counter vocabulary comes from the real owner, rather than a list
         // that silently ignores the next counter added to that owner.
@@ -706,12 +708,12 @@ public sealed partial class TenancyConventionTests
         {
             var expanded = AssertionCounterNames(owner);
             expanded.Should().Contain((string)extra.Constant);
-            WithAssertionLiteral(api, (string)extra.Constant, () => AssertionNameOffenders([api], expanded, [AssertionMetricOwner])
+            WithAssertionLiteral(api, (string)extra.Constant, () => AssertionNameOffenders(modules, expanded, [AssertionMetricOwner])
                 .Should().Contain(error => error.Contains((string)extra.Constant, StringComparison.Ordinal),
                     "a newly declared counter must acquire the same sole-writer protection automatically"));
         }
         finally { owner.Fields.Remove(extra); }
-        AssertionNameOffenders([api], counters, [AssertionMetricOwner]).Should().BeEmpty();
+        AssertionNameOffenders(modules, counters, [AssertionMetricOwner]).Should().BeEmpty();
     });
 
     [Fact]

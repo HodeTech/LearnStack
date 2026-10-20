@@ -308,6 +308,8 @@ exemplar filter to `AlwaysOff`; standard and histogram-specific environment
 settings cannot enable them. This is an implementation qualification of the
 existing destination-exclusion contract, not a new identity-label exception or
 a change to ordinary trace/log visibility.
+Metric-to-trace exemplar correlation is consequently unavailable; ordinary
+traces remain exported under their existing rules.
 
 `TenantAuthenticationDiagnosticCollector.Metrics` decodes exemplar attributes,
 identifiers and values. `TenantAuthenticationDiagnosticsTests.Metrics` retains
