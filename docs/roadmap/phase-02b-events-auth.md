@@ -12888,9 +12888,9 @@ runbooks remain Phase 11 obligations.
 
 ## P02b-5 systematic proof and document corrections (2026-10-20)
 
-**The two implementation correction steps and review rounds are complete on
-development, starting at `5daee8ad`; hosted qualification exposed an additional
-timing-plan correction below.** P02b-5's five
+**All three correction steps and review rounds are complete on development,
+starting at `5daee8ad`; current-source hosted A/B qualification is owned by the
+live PR handoff below.** P02b-5's five
 implementation steps and ADR-0065/0066 corrections are implemented and unmerged.
 This follow-up validates the current production subjects and their falsifiable
 controls. Earlier review conclusions are scoped to their source and inspected
@@ -13224,8 +13224,31 @@ The refreshed plan digest is
 Replay reconstructs the original actual B assignment and validates exact old/new
 A/B unions, whole-selector grouping, different co-membership and unchanged
 ordinary/base/native owners. All 52 shard controls, 16 result controls and the
-existing workflow topology validation pass. Fresh implementation review and
-complete hosted A/B qualification remain required.
+existing workflow topology validation pass. Review closure follows below;
+offline replay alone does not satisfy the required complete hosted A/B
+qualification.
+
+#### Step 3 independent review rounds and local closeout
+
+The implementation is committed at `9014ec66`. Round 1 uses two fresh read-only
+reviewers: GPT-6 Astra at xhigh independently reconstructs raw provenance and
+assignment arithmetic; GPT-6.1 Sol at high reviews contract, parser and corpus.
+Both approve with no actionable finding. Round 2 uses two new GPT-6.1 Sol
+reviewers, at xhigh for raw evidence and high for contract/corpus. Both approve
+with no actionable finding. The second raw-evidence review independently checks
+all five ZIP digests, archive/extracted-byte equality, result file hashes,
+406 TRX rows, exact tick arithmetic and all 5,847 case IDs across old/new A/B.
+These are read-only calculations and inspections, not independently rerun test
+suites or hosted-fit claims.
+
+Testing 06 also repeats ADR-0063's exact qualification boundary: rollout and plan,
+algorithm or fixture-lifetime changes require both complete layouts; normal
+future pushes run one complete assignment. No new authority or decision is
+introduced. All three correction steps now complete implementation, commits and
+both independent review rounds. The live PR handoff must verify two fresh full
+A/B attempts for this timing revision on one final source, plan, toolchain and
+population, preserving current-attempt evidence and exact required checks.
+Neither failed historical attempt nor the offline replay qualifies that head.
 
 ## Completion Criteria
 

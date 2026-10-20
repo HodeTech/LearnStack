@@ -171,7 +171,9 @@ Use **Re-run all jobs**, not failed-job or single-job reruns. All producer
 siblings must belong to the current run attempt. Odd/even attempts select the
 two deterministic layouts; final qualification requires genuinely distinct
 co-membership, including SharedSchema methods, on the same source, plan,
-toolchain and complete case population. The
+toolchain and complete case population. Plan, algorithm or fixture-lifetime
+changes require both layouts. Normal future pushes execute one complete
+assignment. The
 [CI follow-up record](../roadmap/phase-02b-events-auth.md#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
 owns actual hosted fit and the two complete attempts; local controls do not
 establish either.
