@@ -7,7 +7,7 @@ namespace LearnStack.SharedKernel.Identifiers;
 /// Lives in <see cref="LearnStack.SharedKernel"/> (per ADR-0023's
 /// cross-cutting value-object placement) so audit metadata and other
 /// kernel surfaces can reference users without depending on the Identity
-/// module that lands in Phase 02b. The Identity module consumes the same
+/// module whose domain lands in Phase 03. The Identity module consumes the same
 /// type once it ships; there is exactly one <c>UserId</c> shape.
 /// </summary>
 /// <remarks>

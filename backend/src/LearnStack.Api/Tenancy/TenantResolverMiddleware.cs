@@ -1,4 +1,8 @@
 using System.Diagnostics;
+using LearnStack.Api.Authentication;
+using LearnStack.Api.Common;
+using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -40,11 +44,9 @@ namespace LearnStack.Api.Tenancy;
 /// the accessor a tenant that no longer has a request.
 /// </para>
 /// <para>
-/// <b>It writes no body.</b> A refusal is a bodyless <c>404</c> that
-/// <c>UseStatusCodePages</c> renders through the one Problem Details shape, exactly
-/// as host classification's refusal is. A second writer here would produce a body
-/// that differs from the classification 404 — same status, different bytes — which
-/// is precisely what an anonymous caller must not be able to tell apart.
+/// Anonymous and membership refusals retain the masked <c>not_found</c> 404.
+/// Authenticated claim/host disagreements use the same Problem Details factory
+/// with <c>tenant_mismatch</c>; the pure factory's refusal stays unchanged.
 /// </para>
 /// </remarks>
 public sealed class TenantResolverMiddleware(
@@ -55,11 +57,13 @@ public sealed class TenantResolverMiddleware(
     public async Task InvokeAsync(
         HttpContext context,
         IOrganizationScopeValidator organizationScopes,
-        ITenantMembershipReader memberships)
+        ITenantMembershipReader memberships,
+        ITenantAssertionRecorder recorder)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(organizationScopes);
         ArgumentNullException.ThrowIfNull(memberships);
+        ArgumentNullException.ThrowIfNull(recorder);
 
         // Keyed off the feature, not off a second path predicate. A request host
         // classification did not classify — /healthz, /openapi, the Hub's
@@ -74,7 +78,9 @@ public sealed class TenantResolverMiddleware(
             return;
         }
 
-        var attempt = await BuildAttemptAsync(context, classification, organizationScopes, memberships);
+        var identity = context.Features.Get<TenantCredentialFeature>()?.Identity;
+        if (identity is { TenantId: null }) LogClaimless(logger, null);
+        var attempt = await BuildAttemptAsync(context, classification, organizationScopes, memberships, identity);
 
         // Rows 13 and 15. A platform host legitimately resolves no tenant, and that
         // is not a refusal: the request proceeds on the unresolved context and the
@@ -85,7 +91,7 @@ public sealed class TenantResolverMiddleware(
 
         try
         {
-            if (attempt.NamesNoTenant)
+            if (!attempt.HasIncoherentClaims && attempt.NamesNoTenant)
             {
                 accessor.Current = UnresolvedTenantContext.Instance;
                 await next(context);
@@ -97,7 +103,15 @@ public sealed class TenantResolverMiddleware(
             if (!resolution.IsSuccess)
             {
                 LogRefused(logger, classification.Class, null);
+                await RecordRefusalAsync(attempt, classification, identity, recorder);
                 context.Response.StatusCode = StatusCodes.Status404NotFound;
+                if (identity is not null && !attempt.ClaimAgreesWithHost)
+                {
+                    await context.Response.WriteAsJsonAsync(
+                        ProblemDetailsFactory.For(TenantMismatch, context),
+                        options: null, contentType: ProblemDetailsMediaType.Value,
+                        cancellationToken: context.RequestAborted);
+                }
                 return;
             }
 
@@ -126,12 +140,11 @@ public sealed class TenantResolverMiddleware(
         HttpContext context,
         HostClassification classification,
         IOrganizationScopeValidator organizationScopes,
-        ITenantMembershipReader memberships)
+        ITenantMembershipReader memberships,
+        ValidatedTenantIdentity? identity)
     {
-        // Signal J is absent until Phase 02b: there is no UseAuthentication to have
-        // populated a principal, so every claim field stays null and the matrix
-        // collapses to its anonymous rows. Left as one place to change rather than
-        // spread through the branches below.
+        // Only the cryptographically validated typed projection supplies signal J.
+        // A raw principal/claim is not a second identity or resolution authority.
         //
         // No module name, and NOT because routing has not run — measured, it has:
         // minimal hosting inserts UseRouting ahead of every user middleware, so
@@ -143,6 +156,10 @@ public sealed class TenantResolverMiddleware(
         {
             HostTenantId = classification.TenantId,
             HostOrganizationId = classification.OrganizationId,
+            HasValidatedPrincipal = identity is not null,
+            ClaimTenantId = identity?.TenantId,
+            ClaimOrganizationId = identity?.OrganizationId,
+            UserId = identity?.ActorUserId,
             // Activity.Current.Id, not TraceIdentifier — the same expression
             // CorrelationHeaderMiddleware, ProblemDetailsFactory and the L1 handler
             // already use, and for the reason CorrelationHeaderMiddleware states by
@@ -191,6 +208,44 @@ public sealed class TenantResolverMiddleware(
 
         return attempt;
     }
+
+    private static Task RecordRefusalAsync(TenantResolutionAttempt attempt,
+        HostClassification host, ValidatedTenantIdentity? identity, ITenantAssertionRecorder recorder)
+    {
+        if (identity is null) return Task.CompletedTask;
+        if (host.TenantId is null)
+        {
+            recorder.RecordNoTenantRefusal(new TenantNoTenantRefusal(
+                TenantAssertionSource.JwtClaim, TenantAssertionDimension.Tenant,
+                identity.ActorUserId, attempt.CorrelationId));
+            return Task.CompletedTask;
+        }
+
+        // Rows 8/11/12 defend the independently classified host tenant. Row 7 also
+        // records its rejected organization. Row 10 has no rejected claim scope
+        // and the accepted matrix deliberately leaves it unaudited.
+        var tenantDisagrees = attempt.ClaimTenantId is { } claimedTenant
+            && claimedTenant != host.TenantId;
+        if (!attempt.ClaimAgreesWithHost || attempt.RequiresOrganizationScopeCheck)
+        {
+            var dimension = tenantDisagrees ? TenantAssertionDimension.Tenant
+                : TenantAssertionDimension.Organization;
+            var asserted = tenantDisagrees ? attempt.ClaimTenantId!.Value.Value
+                : attempt.ClaimOrganizationId!.Value.Value;
+            return recorder.RecordRejectionAsync(new TenantAssertionRejection(
+                host.TenantId.Value.Value, dimension, asserted, IsAuthenticated: true,
+                TenantAssertionSource.JwtClaim, identity.ActorUserId,
+                attempt.CorrelationId, host.OrganizationId is { } organization
+                    && LearnStack.SharedKernel.Identifiers.StronglyTypedId.IsAssigned(organization) ? organization : null));
+        }
+        return Task.CompletedTask;
+    }
+
+    private static readonly Error TenantMismatch = new(new LocalizedMessage("lockey_tenant_mismatch"));
+
+    private static readonly Action<ILogger, Exception?> LogClaimless = LoggerMessage.Define(
+        LogLevel.Debug, new EventId(2, "TenantClaimAbsent"),
+        "Tenant authentication outcome tenant_claim_absent.");
 
     // The host class and nothing else. Which host was addressed is attacker-authored
     // on every anonymous request; host classification already keeps it at Debug for

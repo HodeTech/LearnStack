@@ -4,6 +4,7 @@ using FluentAssertions;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using LearnStack.Infrastructure.MultiTenancy;
+using LearnStack.Api.Tenancy;
 using LearnStack.SharedKernel.Tenancy;
 using Xunit;
 
@@ -666,93 +667,95 @@ public sealed partial class TenancyConventionTests
     }
 
     [Fact]
-    public void Tenant_Headers_Are_Never_A_Resolution_Source()
+    public void Tenant_Headers_Are_Never_A_Resolution_Source() => WithAssertionProduction(modules =>
     {
-        // The header is an assertion the API compares against its own answer.
-        // The moment a second file reads it, the question "did this select a
-        // tenant, or check one?" stops having one answer.
-        Offenders(
-                except: Path.Combine("Tenancy", "TenantAssertionMiddleware.cs"),
-                banned: ["X-Tenant-Id", "X-Organization-Id"])
-            .Should().BeEmpty(
-                "X-Tenant-Id and X-Organization-Id are compared, never resolved from "
-                + "(ADR-0036 § The reconciliation matrix)");
-    }
+        var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
+        var owner = api.GetType(AssertionHeaderOwner);
+        var headers = AssertionNames(owner, "X-");
+        AssertAssertionHeaderNames(owner);
+        AssertionNameOffenders(modules, headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase)
+            .Should().BeEmpty("Fix: compare assertions only in TenantAssertionMiddleware; never use headers as tenant authority (ADR-0036)");
+        foreach (var module in modules.Where(module => module.Assembly.Name.Name is "LearnStack.Api" or "LearnStack.Modules.Tenancy.Application"))
+            foreach (var probe in new[] { nameof(AssertionLiteralProbe.TenantHeader), nameof(AssertionLiteralProbe.OrganizationHeader),
+                     nameof(AssertionLiteralProbe.LowercaseTenantHeader), nameof(AssertionLiteralProbe.LowercaseOrganizationHeader) })
+                WithCompiledAssertionLiteral(module, probe, () =>
+                    AssertionNameOffenders(modules, headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase)
+                        .Should().Contain(error => error.StartsWith("AssertionOwnershipProbe:", StringComparison.Ordinal), probe + " in " + module.Name));
+        bool[] metadataSites = [false, true];
+        foreach (var module in modules.Where(module => module.Assembly.Name.Name is "LearnStack.Api" or "LearnStack.Modules.Tenancy.Application"))
+            foreach (var property in metadataSites)
+                WithCompiledAssertionHeader(module, property, () =>
+                    AssertionNameOffenders([module], headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase)
+                        .Should().Contain(error => error.StartsWith("AssertionOwnershipProbe:", StringComparison.Ordinal),
+                            "MVC parameter and property binding store the header name only in attribute metadata"));
+        AssertAssertionMetadataControls(api, headers);
+        WithRenamedAssertionVocabulary(owner, "X-Tenant-Id", "X-Other-Id", () =>
+            ((Action)(() => AssertAssertionHeaderNames(owner))).Should().Throw<Xunit.Sdk.XunitException>(
+                "retaining two declarations must not permit renaming a canonical assertion header"));
+        AssertionNameOffenders(modules, headers, [AssertionHeaderOwner], StringComparer.OrdinalIgnoreCase).Should().BeEmpty();
+    });
 
     [Fact]
-    public void Assertion_Recorder_Is_The_Only_Mismatch_Writer()
+    public void Assertion_Recorder_Is_The_Only_Mismatch_Writer() => WithAssertionProduction(modules =>
     {
-        // A rejected assertion is a security event. One writer means one place that
-        // decides the metric's label cardinality — and, since Packet 9, one place that
-        // decides which tenant the row carries, which is the whole of why the row is safe
-        // to write at all.
-        Offenders(
-                except: Path.Combine("Tenancy", "LoggingTenantAssertionRecorder.cs"),
-                banned: [
-                    "learnstack_tenant_assertion_mismatch_total",
-                    "learnstack_tenant_assertion_unresolved_total",
-                ])
-            .Should().BeEmpty(
-                "only an ITenantAssertionRecorder writes a tenant-assertion mismatch "
-                + "(ADR-0036 § Recording a rejected assertion)");
-    }
+        var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
+        var owner = api.GetType(AssertionMetricOwner);
+        var counters = AssertionCounterNames(owner);
+        AssertAssertionCounterNames(owner);
+        AssertionNameOffenders(modules, counters, [AssertionMetricOwner]).Should().BeEmpty(
+            "Fix: create assertion metrics only in LoggingTenantAssertionRecorder (ADR-0036 and ADR-0065)");
+        foreach (var module in modules.Where(module => module.Assembly.Name.Name is "LearnStack.Api" or "LearnStack.Modules.Tenancy.Application"))
+            foreach (var probe in new[] { nameof(AssertionLiteralProbe.MismatchCounter), nameof(AssertionLiteralProbe.UnresolvedCounter),
+                     nameof(AssertionLiteralProbe.SuppressionCounter) })
+                WithCompiledAssertionLiteral(module, probe, () => AssertionNameOffenders(modules, counters, [AssertionMetricOwner])
+                    .Should().Contain(error => error.StartsWith("AssertionOwnershipProbe:", StringComparison.Ordinal), probe + " in " + module.Name));
+
+        // The counter vocabulary comes from the real owner, rather than a list
+        // that silently ignores the next counter added to that owner.
+        var extra = new FieldDefinition("AdditionalCounterName", Mono.Cecil.FieldAttributes.Public | Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Literal,
+            api.TypeSystem.String)
+        { Constant = "additional_assertion_counter_total" };
+        owner.Fields.Add(extra);
+        try
+        {
+            var expanded = AssertionCounterNames(owner);
+            expanded.Should().Contain((string)extra.Constant);
+            WithAssertionLiteral(api, (string)extra.Constant, () => AssertionNameOffenders(modules, expanded, [AssertionMetricOwner])
+                .Should().Contain(error => error.Contains((string)extra.Constant, StringComparison.Ordinal),
+                    "a newly declared counter must acquire the same sole-writer protection automatically"));
+        }
+        finally { owner.Fields.Remove(extra); }
+        AssertNestedAssertionCounterControls(api, owner);
+        WithRenamedAssertionVocabulary(owner, LoggingTenantAssertionRecorder.MismatchCounterName, "renamed_assertion_counter_total", () =>
+            ((Action)(() => AssertAssertionCounterNames(owner))).Should().Throw<Xunit.Sdk.XunitException>(
+                "a counter rename must not silently change the recognized assertion vocabulary"));
+        AssertionNameOffenders(modules, counters, [AssertionMetricOwner]).Should().BeEmpty();
+    });
 
     [Fact]
-    public void Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs()
+    public void Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs() => WithAssertionProduction(modules =>
     {
-        // The other half this rule always claimed and, until the slugs existed, could not
-        // check: "a log, a metric OR IAuditStore". The counter names above cannot catch a
-        // second writer that goes straight to the store, and that writer is the dangerous
-        // one — the row's tenant is what keeps an anonymous caller from choosing whose
-        // audit log grows, and a second composer is a second chance to get it wrong.
-        // Scanned across ALL of backend/src, not just LearnStack.Api. Measured: planting
-        // the burst slug in LearnStack.Modules.Tenancy.Application passed the first
-        // version of this rule — and a module is precisely where IAuditStore is reachable
-        // from a handler, so the narrow scan exempted the dangerous half. Its exemption
-        // named a path outside its own scan root, so it could never match either: coverage
-        // that reads as real and is not.
-        //
-        // The declaring catalogue source is the one legitimate second namer. Declaring a
-        // slug is not writing a row, and removing that exemption turns this red — measured.
-        SourceOffenders(
-                banned: [
-                    "tenancy.tenant_assertion.reject",
-                    "tenancy.tenant_assertion.anonymous_burst",
-                ],
-                except: [
-                    Path.Combine("LearnStack.Api", "Tenancy", "AuditingTenantAssertionRecorder.cs"),
-                    Path.Combine("Audit", "TenancyAuditCatalogSource.cs"),
-                ])
-            .Should().BeEmpty(
-                "only AuditingTenantAssertionRecorder names the two assertion slugs "
-                + "(ADR-0036 § Recording a rejected assertion)");
-    }
+        var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
+        var slugs = AssertionNames(api.GetType(AssertionAuditOwner), "tenancy.tenant_assertion.");
+        slugs.Should().HaveCount(2, "the reject and anonymous-burst operations are real production subjects");
+        AssertionNameOffenders(modules, slugs, [AssertionAuditOwner, AssertionCatalogueOwner]).Should().BeEmpty(
+            "Fix: write assertion audit operations only through AuditingTenantAssertionRecorder; catalogue declarations are the sole second namer (ADR-0036)");
+        foreach (var module in modules.Where(module => module.Assembly.Name.Name is "LearnStack.Api" or "LearnStack.Modules.Tenancy.Application"))
+            foreach (var probe in new[] { nameof(AssertionLiteralProbe.RejectOperation), nameof(AssertionLiteralProbe.BurstOperation) })
+                WithCompiledAssertionLiteral(module, probe, () => AssertionNameOffenders(modules, slugs, [AssertionAuditOwner, AssertionCatalogueOwner])
+                    .Should().Contain(error => error.StartsWith("AssertionOwnershipProbe:", StringComparison.Ordinal), probe + " in " + module.Name));
+    });
 
     [Fact]
-    public void The_Slug_Scan_Finds_The_Files_It_Exempts()
+    public void The_Slug_Scan_Finds_The_Files_It_Exempts() => WithAssertionProduction(modules =>
     {
-        // The rule above passes when NOTHING offends, which is also what it does when the
-        // exemption logic is broken open — measured: replacing the suffix match with a
-        // tautology left it green, because no third file in backend/src names either slug.
-        // A rule that cannot distinguish "clean" from "blind" is the exact defect its own
-        // first draft had, one layer up.
-        //
-        // So: run the same scan with NO exemptions and require it to find precisely the
-        // two files the rule exempts. That pins the scanner's reach and makes the
-        // exemptions load-bearing in both directions.
-        var found = SourceOffenders(
-            banned: [
-                "tenancy.tenant_assertion.reject",
-                "tenancy.tenant_assertion.anonymous_burst",
-            ],
-            except: []);
-
-        found.Should().HaveCount(2);
-        found.Should().ContainSingle(path => path.EndsWith(
-            Path.Combine("Tenancy", "AuditingTenantAssertionRecorder.cs"), StringComparison.Ordinal));
-        found.Should().ContainSingle(path => path.EndsWith(
-            Path.Combine("Audit", "TenancyAuditCatalogSource.cs"), StringComparison.Ordinal));
-    }
+        var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
+        var slugs = AssertionNames(api.GetType(AssertionAuditOwner), "tenancy.tenant_assertion.");
+        var found = AssertionNameOffenders(modules, slugs, []);
+        found.Select(value => value[..value.IndexOf(':', StringComparison.Ordinal)]).Distinct(StringComparer.Ordinal)
+            .Should().BeEquivalentTo([AssertionAuditOwner, AssertionCatalogueOwner],
+                "the unexempted production census must find exactly both permitted namers");
+    });
 
     [Fact]
     public void Assertion_Budget_Does_Not_Depend_On_ICacheService()
@@ -852,46 +855,6 @@ public sealed partial class TenancyConventionTests
                     .Any(field => cache.IsAssignableFrom(field.FieldType)))
             .Select(type => type.FullName!)
             .ToList();
-    }
-
-    /// <summary>
-    /// Files anywhere under <c>backend/src</c> that mention a banned literal in code.
-    /// </summary>
-    /// <remarks>
-    /// The wide sibling of <see cref="Offenders"/>, for a rule whose subject is not the
-    /// API project. Exemptions match as path SUFFIXES, so a caller names as much of the
-    /// path as it needs to be unambiguous and no more.
-    /// </remarks>
-    private static List<string> SourceOffenders(
-        IReadOnlyList<string> banned, IReadOnlyList<string> except)
-    {
-        var root = RepositoryPaths.BackendSrc();
-        var offenders = new List<string>();
-
-        foreach (var file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
-        {
-            var relative = Path.GetRelativePath(root, file);
-
-            if (relative.Split(Path.DirectorySeparatorChar) is var segments
-                && (segments.Contains("obj") || segments.Contains("bin")))
-            {
-                continue;
-            }
-
-            if (except.Any(exempt => relative.EndsWith(exempt, StringComparison.Ordinal)))
-            {
-                continue;
-            }
-
-            var code = SourceText.WithoutComments(File.ReadAllText(file));
-
-            if (banned.Any(literal => code.Contains(literal, StringComparison.Ordinal)))
-            {
-                offenders.Add(relative);
-            }
-        }
-
-        return offenders;
     }
 
     /// <summary>

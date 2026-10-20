@@ -24,6 +24,23 @@ phase could avoid it because no tenant admin could write a person's attributes y
 From this phase forward one can, and the answer has to exist before the first custom
 field is stored.
 
+**P02b-5 handoff — 2026-10-19.**
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) delivers only
+the closed tenant API bearer boundary and nonsensitive AccountSite read. This
+phase consumes P02b-6 realm issuance and P02b-7 sessions; it does not first wire
+those flows. It owns durable subject/actor mapping, real membership, permissions
+and permission-sensitive routes. Bootstrap seed mapper emission remains P02b-6;
+this phase extends that integration to the live identity/membership lifecycle.
+
+Before replacing deny-all membership, qualify affirmative row-7 organization
+selection and row-14 claim-only resolution through real HTTP controls. Decide
+header-mismatch evidence ownership after a successful claim-only platform-host
+resolution: a confirmed claim/membership is not an independently defended tenant
+host. Do not silently reuse the host-tenant audit allowance or row-14 membership
+refusal signal for that distinct case. AccountSite retains its independent
+matching HostScope ceiling. This decision belongs to the first live-membership
+packet, before that currently unreachable path becomes exposed.
+
 ## Scope
 
 ### Identity Model
@@ -250,6 +267,20 @@ refresh token storage, or brute-force protection — those are Keycloak responsi
 
 ### Authorization
 
+**Gate before the first permission-sensitive route.** P02b-5's
+`AuthorizationBehavior` remains pass-through; its AccountSite admission middleware
+and production census constrain that one nonsensitive read. They do not install a
+general runtime policy for a newly added endpoint. This phase's first authorization
+packet must decide and implement a deny-by-default runtime gate before exposing its
+first protected route. Select the endpoint/application policy mechanism in that
+packet's decision pass; do not infer a shipped fallback policy or authorize a route
+merely by adding it to the census. Preserve explicit public anonymous reads.
+
+The gate's real HTTP controls must show that an unclassified protected endpoint and
+an authenticated principal without the required permission cannot dispatch the
+handler. Keep the endpoint census as an independent structural check, alongside
+tenant membership, permission and resource-scope enforcement.
+
 - Role-based authorization.
 - Permission-based authorization.
 - Tenant-scoped permission checks (`Membership.Roles → Permissions`).
@@ -459,6 +490,8 @@ find the result row already written rather than record a second one.
   definition editor, and the schema-driven membership form.
 - Category-driven redaction of custom-field values in logs and error-tracking payloads.
 - `AuthorizationBehavior` as a real implementation, replacing the Phase 02a shell.
+- The [runtime authorization gate](#authorization), decided and installed before
+  the first permission-sensitive route, with real denied-dispatch controls.
 - The Platform-scope permission gate replacing `DenyAllPlatformAdminGate`, with the
   killswitch toggle command, its permission key and its runbook.
 - Admin login, tenant switcher and organization switcher via OIDC PKCE.
@@ -495,6 +528,10 @@ find the result row already written rather than record a second one.
   rejection (Tenant vs Organization) returns the correct Problem Details code.
 - Unauthorized users cannot reach admin endpoints, and a denied command returns
   `Result.Fail(forbidden)` rather than throwing.
+- The [runtime authorization gate](#authorization) refuses an unclassified protected
+  endpoint and a valid principal lacking its permission before handler execution;
+  explicit public routes still work anonymously. Updating the static route census
+  alone cannot make either negative control pass.
 - Invitation flow is covered by integration tests, including email mismatch, revoked,
   expired, and cross-organization cases.
 - MUST-class identity audit entries commit in the same transaction as the write they

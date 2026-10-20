@@ -3,6 +3,7 @@ using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LearnStack.Api.Tenancy;
 
@@ -254,6 +255,8 @@ public static class TenancyCompositionExtensions
         // detector counts to one per request and crosses nothing (ADR-0036 § Recording a
         // rejected assertion).
         services.AddSingleton<TenantAssertionBurstDetector>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<TenantAssertionAuditBudget>();
         // Validated at boot, like both of its neighbours in this method, and for a sharper
         // reason than either. Measured: with Window = 00:00:00 the detector resets on every
         // occurrence, so Count never exceeds 1 and the MUST-class burst row is NEVER

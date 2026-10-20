@@ -1,7 +1,6 @@
 using System.Globalization;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
-using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.Logging;
 
@@ -25,17 +24,15 @@ namespace LearnStack.Api.Tenancy;
 /// profiles</b>
 /// (<see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
 /// § Recording a rejected assertion</see>). A mismatch carrying a validated principal is
-/// bounded by token issuance and the actor is the finding, so every occurrence is a row
-/// with no coalescing and no per-tenant ceiling. An anonymous mismatch is bounded by
-/// nothing, so it is not itself audited — the <b>burst</b> is, once per
+/// admitted against the singleton target-tenant allowance (ADR-0065). Each admitted
+/// occurrence gets its own row; later occurrences keep only their warning and counters.
+/// An anonymous mismatch is not itself audited — the <b>burst</b> is, once per
 /// <c>(resolved tenant, dimension, window)</c>.
 /// </para>
 /// <para>
-/// <b>The authenticated tier is dormant in Phase 02a.</b> There is no
-/// <c>UseAuthentication</c> yet, so <c>IsAuthenticated</c> is constant-false and every
-/// caller takes the anonymous branch. The branch ships anyway: which tenant the row
-/// carries is a one-way door, and writing it for the first time under Phase 02b's
-/// authenticated traffic is the worst moment to decide it.
+/// The authenticated tier uses the immutable validated projection captured by the
+/// resolver or assertion middleware. No tenant context is installed merely to record
+/// a refused resolution; actor, correlation and trusted organization travel on the record.
 /// </para>
 /// <para>
 /// <b>A failed write never changes the response.</b> A rejected assertion has no
@@ -53,13 +50,13 @@ public sealed class AuditingTenantAssertionRecorder(
     IAuditCatalog catalog,
     IAuditStore store,
     TenantAssertionBurstDetector bursts,
-    ITenantContext tenantContext,
+    TenantAssertionAuditBudget auditBudget,
     IClock clock,
     IGuidFactory guidFactory,
     ILogger<AuditingTenantAssertionRecorder> logger)
     : ITenantAssertionRecorder
 {
-    /// <summary>Written per occurrence, for a mismatch carrying a validated principal.</summary>
+    /// <summary>Written for each admitted authenticated occurrence (ADR-0065).</summary>
     public const string RejectOperation = "tenancy.tenant_assertion.reject";
 
     /// <summary>Written once per <c>(resolved tenant, dimension, window)</c>.</summary>
@@ -74,8 +71,8 @@ public sealed class AuditingTenantAssertionRecorder(
     private readonly TenantAssertionBurstDetector _bursts =
         bursts ?? throw new ArgumentNullException(nameof(bursts));
 
-    private readonly ITenantContext _tenantContext =
-        tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+    private readonly TenantAssertionAuditBudget _auditBudget =
+        auditBudget ?? throw new ArgumentNullException(nameof(auditBudget));
 
     private readonly IClock _clock = clock ?? throw new ArgumentNullException(nameof(clock));
 
@@ -88,20 +85,21 @@ public sealed class AuditingTenantAssertionRecorder(
     /// <inheritdoc />
     public async Task RecordRejectionAsync(TenantAssertionRejection rejection)
     {
-        // The signal first, and unconditionally. It costs no I/O and it is the half that
-        // survives an audit store being unreachable.
-        _inner.Record(rejection);
-
-        // The authenticated tier writes every occurrence; the anonymous tier writes only
-        // the crossing. RecordAndCheckCrossing is called ONLY on the anonymous branch —
-        // feeding authenticated mismatches into the same counter would let a token holder
-        // consume the anonymous budget, and the two tiers are separated precisely because
-        // one of them is bounded and the other is not.
+        if (rejection.ResolvedTenantId == Guid.Empty
+            || rejection.ResolvedTenantId == TenantId.PlatformSentinel.Value)
+            throw new ArgumentException("A defended tenant is required.", nameof(rejection));
+        // Admission is process-wide and spent before I/O. Anonymous crossings retain
+        // their separate accounting; neither tier can consume the other's allowance.
+        var auditSuppressed = rejection.IsAuthenticated
+            && !_auditBudget.TryAcquire(rejection.ResolvedTenantId);
         var operation = rejection.IsAuthenticated
-            ? RejectOperation
+            ? auditSuppressed ? null : RejectOperation
             : _bursts.RecordAndCheckCrossing(rejection.ResolvedTenantId, rejection.Dimension)
                 ? BurstOperation
                 : null;
+
+        // Exactly one real-time occurrence, even when no durable attempt is admitted.
+        _inner.Record(rejection, auditSuppressed);
 
         if (operation is null)
         {
@@ -119,6 +117,12 @@ public sealed class AuditingTenantAssertionRecorder(
         // tenant admin watches. ADR-0036 states the absence as the rule rather than as a
         // gap, which is why this override exists only to say so.
         _inner.RecordUnresolved(dimension);
+
+    /// <inheritdoc />
+    public void RecordNoTenantRefusal(TenantNoTenantRefusal refusal) =>
+        // Row 14 has no independently defended tenant. Forward the bounded signal
+        // synchronously without consulting the catalogue or touching the store.
+        _inner.RecordNoTenantRefusal(refusal);
 
     private async Task WriteAsync(string operation, TenantAssertionRejection rejection)
     {
@@ -149,10 +153,7 @@ public sealed class AuditingTenantAssertionRecorder(
             // the reader this event is for.
             OrganizationId = null,
 
-            // No principal exists in this process until Phase 02b. `IsAuthenticated` is
-            // the tier, not an actor, and inventing one would put a fabricated identity on
-            // an append-only table.
-            ActorUserId = null,
+            ActorUserId = rejection.ActorUserId,
             ActorEmail = null,
 
             ModuleName = declared.ModuleName,
@@ -175,13 +176,9 @@ public sealed class AuditingTenantAssertionRecorder(
             AfterState = null,
             Changes = null,
 
-            // The resolver sets this, and the resolver runs BEFORE this middleware — so
-            // the row, the `X-Correlation-Id` response header, the Problem Details body
-            // and the Warning line all carry one value. Without it the only durable record
-            // of a cross-tenant probe cannot be joined to its own trace, and
-            // ix_audit_log_correlation_id — filtered WHERE correlation_id IS NOT NULL —
-            // could never return one of these rows.
-            CorrelationId = _tenantContext.CorrelationId,
+            // Captured before resolution can refuse: ambient context is unavailable on
+            // that path, but the row still joins the response and Problem Details.
+            CorrelationId = rejection.CorrelationId,
 
             // NEVER the source IP and never the effective host. Both are attacker-chosen,
             // and ADR-0036 keeps them out of the metric labels for the same reason.
@@ -199,8 +196,8 @@ public sealed class AuditingTenantAssertionRecorder(
             // abandoned here would leave the detector silent for the rest of the window
             // with nothing recorded anywhere.
             //
-            // The crossing stays consumed even when the write fails, and that is
-            // deliberate: releasing it would make every later occurrence retry the write,
+            // The crossing or authenticated allowance stays consumed even when the write
+            // fails. This is deliberate: releasing it would make every later occurrence retry the write,
             // which is one database round trip per anonymous request — the amplification
             // the burst event exists to bound. The failure is not lost, it is LOUD
             // somewhere else: the store logs Critical, counts
@@ -242,7 +239,7 @@ public sealed class AuditingTenantAssertionRecorder(
     /// A <see cref="Guid"/>, so it is an opaque identifier and never attacker-authored
     /// free text. It goes in <c>metadata</c> rather than in <c>tenant_id</c> for the
     /// reason the tenant column gives, and the key names the dimension it came from so a
-    /// reader does not have to consult a second column to know which header lied.
+    /// reader does not have to consult a second column to know which assertion disagreed.
     /// <para>
     /// It carries no <c>event</c> key. The slug is already the row's <c>operation</c>
     /// column, and a second copy inside a JSON document is a field that can disagree with
@@ -259,7 +256,12 @@ public sealed class AuditingTenantAssertionRecorder(
             "{\"dimension\":" + AuditJson.Quote(rejection.Dimension.ToString())
             + ",\"" + key + "\":" + AuditJson.Quote(
                 rejection.AssertedValue.ToString(null, CultureInfo.InvariantCulture))
-            + ",\"authenticated\":" + (rejection.IsAuthenticated ? "true" : "false") + "}");
+            + ",\"authenticated\":" + (rejection.IsAuthenticated ? "true" : "false")
+            + ",\"assertionSource\":" + AuditJson.Quote(rejection.Source.ToLabel())
+            + ",\"trustedOrganizationId\":" + (rejection.TrustedOrganizationId is { } organization
+                && StronglyTypedId.IsAssigned(organization)
+                ? AuditJson.Quote(organization.Value.ToString(null, CultureInfo.InvariantCulture))
+                : "null") + "}");
     }
 
     private static readonly Action<ILogger, string, Exception?> LogRowNotWritten =

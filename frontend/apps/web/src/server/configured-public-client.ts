@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import 'server-only';
 
-import { createServerSdk } from '@learnstack/sdk/server';
+import { createServerSdk, PublicRequestRefusalError } from '@learnstack/sdk/server';
 import type { ServerSdk } from '@learnstack/sdk/server';
 
 import { publicServerConfiguration, verifyProvenance } from './ingress';
@@ -153,8 +153,15 @@ export function createConfiguredPublicClient(
     // Only the SDK's four fixed operations can call this closure. Recheck origin
     // after URL normalization before attaching credentials to the request.
     const url = new URL(path, configuration.apiOrigin);
-    if (url.origin !== configuration.apiOrigin || !path.startsWith('/api/v1/public/'))
-      throw new Error('Invalid public API operation');
+    if (
+      url.origin !== configuration.apiOrigin ||
+      !/^\/api\/v1\/public\/(?:site|courses(?:\/[^/]+(?:\/lessons\/[^/]+)?)?)$/.test(
+        url.pathname,
+      ) ||
+      /%(?:25)*(?:2f|5c)/i.test(url.pathname) ||
+      url.pathname + url.search !== path
+    )
+      throw new PublicRequestRefusalError();
     return boundedResponse(url, headers, signal);
   });
   const requestOptions = { signal };

@@ -2,7 +2,6 @@ using LearnStack.Infrastructure.Jobs;
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
-using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Customization.Application.Audit;
@@ -169,6 +168,7 @@ public static class PersistenceCompositionExtensions
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
         services.AddTenantSettingsReads();
+        services.AddTenantSiteReads();
         services.AddModuleDbContext<CustomizationDbContext>();
         services.AddCustomizationProjectionReads();
         services.AddModuleDbContext<EducationDbContext>();
@@ -311,7 +311,6 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
         services.TryAddScoped<IExactCustomizationDefinitionReader, ExactCustomizationDefinitionReader>();
         services.TryAddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
-        services.TryAddScoped<IPublicTenantConfigurationReader, PublicTenantConfigurationReader>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.IPublicEducationReadStore, PublicEducationReadStore>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.PublicReads.PublicEducationDisplay>();
         services.TryAddScoped<LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader, TenancySeedStateReader>();

@@ -15,6 +15,7 @@ export function disposeDemoResources(options: {
 }): Promise<void>;
 export function startDemo(mode: 'local' | 'ci'): Promise<{
   mode: 'local' | 'ci';
+  source?: import('./demo-source.mjs').DemoSource;
   manifest: DemoLane[];
   configuration: import('../frontend/apps/web/src/server/ingress').PublicServerConfiguration;
   ca: string[] | Buffer;

@@ -276,11 +276,19 @@ export function reportInventory(rows, expected) {
   );
   for (const row of rows) {
     assert.equal(row.commit, expected[0].commit, 'Exact invocation commit');
+    assert.equal(row.tree, expected[0].tree, 'Exact invocation source tree');
     assert.equal(row.build, expected[0].build, 'Exact invocation build');
     assert.equal(row.invocation, expected[0].invocation, 'Fresh invocation receipt');
     assert.equal(row.configDigest, expected[0].configDigest, 'Exact audited configuration');
     assert.equal(row.browserVersion, expected[0].browserVersion, 'Exact audited browser');
   }
+}
+
+/** Both renderings belong to the same admitted worker result, not just a filename. */
+export function validateReportPair(row, json, html) {
+  assert.equal(digest(json), row.reportDigest, 'Fresh complete JSON report bytes');
+  assert.equal(digest(html), row.htmlDigest, 'Fresh complete HTML report bytes');
+  assert.ok(html.length > 1000, 'Complete HTML report');
 }
 
 /** Reconcile independent Lighthouse events with the complete source gatherer's window. */

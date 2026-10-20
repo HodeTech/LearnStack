@@ -203,7 +203,8 @@ server caller in `apps/web/src/server/configured-public-client.ts`.
   using locked `openapi-typescript` 7.13.0 into checked-in `schema.d.ts`.
   Production served/snapshot equality and required frontend regeneration/drift
   checks are part of P02d-4; generator output remains outside formatter rewriting.
-- The root exports generated types only. `/server` supplies four thin public GET
+- The root exports generated types and the exact authenticated path/operation
+  contract, with no authenticated transport. `/server` supplies four thin public GET
   wrappers using generated operation types and an injected Fetch-compatible
   transport that resolves relative URLs; no global-fetch default.
 - The unused client factory/export is removed. No tenant-ID option, authority-header
@@ -213,6 +214,12 @@ server caller in `apps/web/src/server/configured-public-client.ts`.
   strings, matching Standards 09's carrier. Transport failure, malformed JSON,
   invalid local path input and caller cancellation remain distinct from a valid
   API error; cancellation precedes URL construction.
+- The server-only `PublicRequestRefusalError` port marks a transport's local
+  operation-construction or validation refusal before network I/O. The SDK maps
+  this exact type to `invalid-request`; it does not infer refusal from provider
+  error text or names. Cancellation takes precedence. Other transport failures
+  remain `transport-error`, and body-consumption failures are not reclassified.
+  This local result is neither an HTTP 400 nor an automatic retry instruction.
 - P02d-5/G35 delivers the configured trusted server caller. P02d-6 supplies all
   public page consumers. HEAD is the HTTP companion, not a browser JSON wrapper.
 

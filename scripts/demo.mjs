@@ -21,6 +21,7 @@ import { defaultServices, waitCompose } from './wait-compose.mjs';
 import { publicDemoApiEnvironment, publicWebEnvironment } from './public-runtime.mjs';
 import { apiCompletionObserver } from './demo-observation.mjs';
 import { publicSeederEnvironment, validateDemoDatabaseConfiguration } from './demo-database.mjs';
+import { demoSource } from './demo-source.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
 const backendRoot = join(repositoryRoot, 'backend');
@@ -100,6 +101,7 @@ export async function startDemo(mode) {
   let disposed;
   let completions;
   let signalRequested = false;
+  let source;
   const cancel = () => {
     signalRequested = true;
     controller.abort();
@@ -197,6 +199,18 @@ export async function startDemo(mode) {
   try {
     if (process.platform === 'win32')
       throw new Error('The demo requires the documented POSIX/WSL environment');
+    if (mode === 'ci') {
+      // The workflow already owns the absolute setup/proof allowance. Manual CI
+      // use retains the existing finite prerequisite-command bound.
+      const workflowDeadline = process.env.PUBLIC_DEMO_DEADLINE === undefined
+        ? null : Number(process.env.PUBLIC_DEMO_DEADLINE) * 1000;
+      source = await demoSource(processes, repositoryRoot, (bound) => {
+        if (workflowDeadline === null) return bound;
+        if (!Number.isSafeInteger(workflowDeadline))
+          throw new Error('CI demo deadline is invalid');
+        return Math.min(bound, workflowDeadline - Date.now());
+      });
+    }
     mkdirSync(join(repositoryRoot, '.data'), { recursive: true });
     try {
       mkdirSync(lock, { mode: 0o700 });
@@ -320,7 +334,7 @@ export async function startDemo(mode) {
     for (const [key, value] of Object.entries(rawValues))
       if (process.env[key] !== undefined && process.env[key] !== value)
         throw new Error('Environment disagrees with private root configuration');
-    const values = loadLocalEnvironment(repositoryRoot, process.env);
+    const values = loadLocalEnvironment(repositoryRoot, process.env, { apiAuthentication: true });
     const configuration = publicServerConfiguration(values, repositoryRoot);
     await vacant(Number(new URL(configuration.apiOrigin).port || '80'));
     validateDemoDatabaseConfiguration(rawValues);
@@ -487,6 +501,7 @@ export async function startDemo(mode) {
       for (const url of [lane.catalogUrl, lane.courseUrl, lane.lessonUrl]) console.log(url);
     return {
       mode,
+      source,
       manifest,
       configuration,
       ca,

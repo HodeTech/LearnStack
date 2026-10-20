@@ -13,15 +13,17 @@ using Xunit;
 
 namespace LearnStack.Tests.Contract;
 
-public sealed class OpenApiContractTests(DevelopmentWebApplicationFactory factory) : IClassFixture<DevelopmentWebApplicationFactory>
+public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactory factory) : IClassFixture<DevelopmentWebApplicationFactory>
 {
-    private static readonly string[] Statuses = ["200", "400", "404", "405", "429", "500", "503"];
+    private static readonly string[] Statuses = ["200", "400", "401", "404", "405", "413", "429", "500", "503"];
+    private static readonly string[] ProblemTextFields = ["title", "instance", "code", "messageKey", "correlationId"];
     private static readonly Dictionary<string, string[]> Operations = new(StringComparer.Ordinal)
     {
         ["/api/v1/public/site"] = ["GetPublicSite", "HeadPublicSite"],
         ["/api/v1/public/courses"] = ["GetPublicCourses", "HeadPublicCourses"],
         ["/api/v1/public/courses/{slug}"] = ["GetPublicCourse", "HeadPublicCourse"],
         ["/api/v1/public/courses/{slug}/lessons/{lessonSlug}"] = ["GetPublicLesson", "HeadPublicLesson"],
+        ["/api/v1/account/site"] = ["GetAccountSite"],
     };
     private static readonly Dictionary<string, (Type Type, string[] Fields)> Dtos = new(StringComparer.Ordinal)
     {
@@ -74,6 +76,7 @@ public sealed class OpenApiContractTests(DevelopmentWebApplicationFactory factor
         missing = clean.DeepClone();
         missing["paths"]!["/api/v1/public/courses"]!["get"]!["parameters"]!.AsArray().Clear();
         ContractErrors(missing).Should().Contain("parameters");
+        AssertParameterAndProblemControls(clean);
         var reordered = new JsonObject(clean.AsObject().Reverse().Select(member => KeyValuePair.Create(member.Key, member.Value?.DeepClone())));
         JsonNode.DeepEquals(clean, reordered).Should().BeTrue();
         var arrayDrift = clean.DeepClone();
@@ -103,6 +106,7 @@ public sealed class OpenApiContractTests(DevelopmentWebApplicationFactory factor
     {
         var served = await Served();
         SchemaErrors(served).Should().BeEmpty();
+        AccountSchemaErrors(served).Should().BeEmpty();
         foreach (var (name, descriptor) in Dtos)
         {
             ClrFields(descriptor.Type).Should().BeEquivalentTo(descriptor.Fields.Where(field => field != "state"
@@ -158,12 +162,21 @@ public sealed class OpenApiContractTests(DevelopmentWebApplicationFactory factor
         foreach (var (path, ids) in Operations)
         {
             if (paths[path] is not JsonObject methods) { errors.Add("operations"); continue; }
-            if (!methods.Select(method => method.Key).ToHashSet(StringComparer.Ordinal).SetEquals(["get", "head"])) errors.Add("operations");
-            foreach (var (index, method) in new[] { (0, "get"), (1, "head") })
+            var authenticated = path == "/api/v1/account/site";
+            var expectedMethods = authenticated ? new[] { "get" } : ["get", "head"];
+            if (!methods.Select(method => method.Key).ToHashSet(StringComparer.Ordinal).SetEquals(expectedMethods)) errors.Add("operations");
+            foreach (var (index, method) in expectedMethods.Index())
             {
                 if (methods[method] is not JsonObject operation) continue;
                 count++;
                 if (operation["operationId"]?.GetValue<string>() != ids[index]) errors.Add("operations");
+                if (authenticated)
+                {
+                    if (operation["security"] is not JsonArray { Count: 1 } security
+                        || security[0] is not JsonObject { Count: 1 } requirement
+                        || requirement["TenantBearer"] is not JsonArray { Count: 0 }) errors.Add("security");
+                }
+                else if (operation["security"] is JsonArray { Count: > 0 }) errors.Add("public-security");
                 var expected = path.EndsWith("/site", StringComparison.Ordinal) ? Array.Empty<string>()
                     : path.EndsWith("/lessons/{lessonSlug}", StringComparison.Ordinal) ? new[] { "slug", "lessonSlug", "locale" }
                     : path.EndsWith("/{slug}", StringComparison.Ordinal) ? new[] { "slug", "locale", "lessonCursor", "lessonLimit" }
@@ -171,17 +184,40 @@ public sealed class OpenApiContractTests(DevelopmentWebApplicationFactory factor
                 var parameters = operation["parameters"]?.AsArray() ?? new JsonArray();
                 if (!parameters.Select(parameter => parameter!["name"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal).SetEquals(expected)
                     || parameters.Count != expected.Length
-                    || parameters.Any(parameter => parameter!["name"]!.GetValue<string>() == "locale" && parameter["required"]?.GetValue<bool>() != true)) errors.Add("parameters");
+                    || parameters.Any(parameter => !ParameterMatches(parameter!))) errors.Add("parameters");
+                if (operation.ContainsKey("requestBody")) errors.Add("request-body");
                 var responses = operation["responses"]!.AsObject();
                 if (!responses.Select(response => response.Key).ToHashSet(StringComparer.Ordinal).SetEquals(Statuses)) errors.Add("responses");
                 foreach (var (status, response) in responses)
                 {
                     if (response!["headers"]?["Cache-Control"]?["schema"]?["enum"]?[0]?.GetValue<string>() != "no-store") errors.Add("headers");
+                    if (status == "413")
+                    {
+                        if (response["headers"]?["Cache-Control"]?["required"]?.GetValue<bool>() == true) errors.Add("body-limit-headers");
+                    }
+                    else if (response["headers"]?["Cache-Control"]?["required"]?.GetValue<bool>() != true) errors.Add("headers");
+                    if (status == "401" && (response["headers"]?["WWW-Authenticate"]?["schema"]?["enum"] is not JsonArray { Count: 1 } challenge
+                        || challenge[0]?.GetValue<string>() != "Bearer"
+                        || response["headers"]?["WWW-Authenticate"]?["required"]?.GetValue<bool>() != true)) errors.Add("challenge");
+                    if (status is "429" or "503" && (response["headers"]?["Retry-After"]?["schema"]?["type"]?.GetValue<string>() != "integer"
+                        || response["headers"]?["Retry-After"]?["schema"]?["minimum"]?.GetValue<int>() != 0
+                        || response["headers"]?["Retry-After"]?["required"]?.GetValue<bool>() != true)) errors.Add("retry-after");
+                    if (status == "503" && response["description"]?.GetValue<string>()
+                            .Contains("sticky subject-registry cleanup fault", StringComparison.Ordinal) != true)
+                        errors.Add("subject-cleanup-cause");
+                    if (status == "429" && (response["description"]?.GetValue<string>()
+                            .Contains("subject-registry capacity", StringComparison.Ordinal) != true
+                        || response["headers"]?["Retry-After"]?["description"]?.GetValue<string>()
+                            .Contains("A capacity hint does not promise an available registry slot; quota hints do not guarantee admission", StringComparison.Ordinal) != true))
+                        errors.Add("subject-capacity-hint");
+                    if (status == "405" && (response["headers"]?["Allow"]?["required"]?.GetValue<bool>() != true
+                        || response["headers"]?["Allow"]?["schema"]?["enum"]?[0]?.GetValue<string>()
+                            != (authenticated ? "GET" : "GET, HEAD"))) errors.Add("allow");
                     if (method == "head") { if (response["content"] is not null) errors.Add("head-body"); }
                     else if (status != "200" && response["content"]?["application/problem+json"]?["schema"]?["$ref"]?.GetValue<string>() != "#/components/schemas/ProblemDetails") errors.Add("problem");
                     else if (status == "200")
                     {
-                        var root = path.EndsWith("/site", StringComparison.Ordinal) ? "PublicSite"
+                        var root = authenticated ? "AccountSite" : path.EndsWith("/site", StringComparison.Ordinal) ? "PublicSite"
                             : path.EndsWith("/lessons/{lessonSlug}", StringComparison.Ordinal) ? "PublicLessonDetail"
                             : path.EndsWith("/{slug}", StringComparison.Ordinal) ? "PublicCourseDetail" : "PublicCourseCatalog";
                         if (response["content"]!.AsObject().Count != 1
@@ -190,11 +226,24 @@ public sealed class OpenApiContractTests(DevelopmentWebApplicationFactory factor
                 }
             }
         }
-        if (count != 8) errors.Add("operations");
+        if (count != 9) errors.Add("operations");
+        if (document["security"] is JsonArray { Count: > 0 }) errors.Add("security");
+        var schemes = document["components"]?["securitySchemes"]?.AsObject();
+        if (schemes is not { Count: 1 } || schemes["TenantBearer"]?["type"]?.GetValue<string>() != "http"
+            || schemes["TenantBearer"]?["scheme"]?.GetValue<string>() != "bearer"
+            || schemes["TenantBearer"]?["bearerFormat"]?.GetValue<string>() != "JWT") errors.Add("security");
         if (document["servers"] is JsonArray { Count: > 0 }) errors.Add("servers");
         var problem = document["components"]!["schemas"]!["ProblemDetails"]!;
         if (!problem["required"]!.AsArray().Select(node => node!.GetValue<string>()).ToHashSet(StringComparer.Ordinal)
             .SetEquals(["type", "title", "status", "instance", "code", "messageKey", "correlationId"])) errors.Add("problem");
+        if (problem["type"]?.GetValue<string>() != "object" || problem["properties"] is not JsonObject properties
+            || !properties.Select(property => property.Key).ToHashSet(StringComparer.Ordinal)
+                .SetEquals(["type", "title", "status", "instance", "code", "messageKey", "correlationId", "errors"])
+            || !ProblemTextFields.All(field =>
+                JsonNode.DeepEquals(properties[field], new JsonObject { ["type"] = "string" }))
+            || !JsonNode.DeepEquals(properties["type"], new JsonObject { ["type"] = "string", ["format"] = "uri" })
+            || !JsonNode.DeepEquals(properties["status"], new JsonObject { ["type"] = "integer", ["minimum"] = 400, ["maximum"] = 599 }))
+            errors.Add("problem-fields");
         var messages = problem["properties"]?["errors"]?["additionalProperties"];
         var localized = messages?["items"];
         if (problem["properties"]?["errors"]?["type"]?.GetValue<string>() != "object"
@@ -209,12 +258,80 @@ public sealed class OpenApiContractTests(DevelopmentWebApplicationFactory factor
         return errors;
     }
 
+    private static bool ParameterMatches(JsonNode parameter)
+    {
+        var name = parameter["name"]?.GetValue<string>();
+        var path = name is "slug" or "lessonSlug";
+        var required = path || name == "locale";
+        var schema = name switch
+        {
+            "slug" or "lessonSlug" => new JsonObject { ["type"] = "string", ["minLength"] = 1, ["maxLength"] = 160 },
+            "locale" => new JsonObject { ["type"] = "string", ["minLength"] = 2, ["maxLength"] = 35 },
+            "cursor" or "lessonCursor" => new JsonObject { ["type"] = "string", ["minLength"] = 1, ["maxLength"] = 1024 },
+            "limit" or "lessonLimit" => new JsonObject { ["type"] = "string" },
+            _ => null,
+        };
+        return schema is not null && parameter["in"]?.GetValue<string>() == (path ? "path" : "query")
+            && (parameter["required"]?.GetValue<bool>() ?? false) == required
+            && JsonNode.DeepEquals(parameter["schema"], schema);
+    }
+
+    private static void AssertParameterAndProblemControls(JsonNode clean)
+    {
+        foreach (var (path, ids) in Operations)
+        {
+            foreach (var method in ids.Length == 1 ? new[] { "get" } : ["get", "head"])
+            {
+                var dirty = clean.DeepClone();
+                dirty["paths"]![path]![method]!["requestBody"] = new JsonObject
+                {
+                    ["content"] = new JsonObject { ["application/json"] = new JsonObject { ["schema"] = new JsonObject { ["type"] = "object" } } }
+                };
+                ContractErrors(dirty).Should().Contain("request-body");
+                var parameters = clean["paths"]![path]![method]!["parameters"]?.AsArray() ?? [];
+                foreach (var (index, parameter) in parameters.Index())
+                {
+                    foreach (var mutation in new Action<JsonNode>[]
+                    {
+                        value => value["in"] = "header",
+                        value => value["required"] = !(parameter!["required"]?.GetValue<bool>() ?? false),
+                        value => value["schema"]!["type"] = "integer",
+                        value => value["schema"]!["format"] = "uuid",
+                    })
+                    {
+                        dirty = clean.DeepClone();
+                        mutation(dirty["paths"]![path]![method]!["parameters"]![index]!);
+                        ContractErrors(dirty).Should().Contain("parameters");
+                    }
+                }
+            }
+        }
+        foreach (var mutation in new Action<JsonNode>[]
+        {
+            problem => problem["properties"]!["token"] = new JsonObject { ["type"] = "string" },
+            problem => problem["properties"]!.AsObject().Remove("correlationId"),
+            problem => problem["properties"]!["code"]!["type"] = "object",
+            problem => problem["properties"]!["type"]!["format"] = "uuid",
+            problem => problem["properties"]!["status"]!["maximum"] = 600,
+        })
+        {
+            var dirty = clean.DeepClone();
+            mutation(dirty["components"]!["schemas"]!["ProblemDetails"]!);
+            ContractErrors(dirty).Should().Contain("problem-fields");
+        }
+        // The published ProblemDetails schema permits extensions. Pin its
+        // declared fields without silently introducing a closed-schema contract.
+        var extensible = clean.DeepClone();
+        extensible["components"]!["schemas"]!["ProblemDetails"]!["additionalProperties"] = true;
+        ContractErrors(extensible).Should().BeEmpty();
+    }
+
     private static List<string> SchemaErrors(JsonNode document)
     {
         var errors = new List<string>();
         var schemas = document["components"]!["schemas"]!.AsObject();
         var expectedNames = Dtos.Keys.Concat(["PublicCourseAccess", "PublicDisplayState", "ProblemDetails"]);
-        if (!schemas.Select(schema => schema.Key).ToHashSet(StringComparer.Ordinal).SetEquals(expectedNames)) errors.Add("schema-census");
+        if (!schemas.Select(schema => schema.Key).ToHashSet(StringComparer.Ordinal).SetEquals(expectedNames.Concat(AccountSchemaNames))) errors.Add("schema-census");
         foreach (var (name, descriptor) in Dtos)
         {
             if (schemas[name] is not JsonObject schema) { errors.Add(name); continue; }

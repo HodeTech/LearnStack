@@ -26,6 +26,22 @@ ingress/caller and anonymous visitor budgets derive from
 native admission and redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+The exact authenticated read-mode extension derives from
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md). The composition
+declarations
+are frozen once in a singleton exact-type catalogue; request-scoped transaction
+behaviors share that immutable snapshot. The retained-subject bound, retirement
+ownership and closed refusal/fault signals derive from
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md), Accepted —
+2026-10-20. Implementation and local runtime/exported proofs are delivered; the
+[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+owns independent reviews and final-source CI qualification.
+The bound grants no throughput entitlement.
+Bounded authenticated assertion recording derives from
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
+implementation and local proofs are delivered in the
+[remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20). Its tenant-only audit budget is separate from the
+subject request registry and adds no tenant-registry admission cap.
 
 Producer announcement and common execution ownership derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
@@ -307,15 +323,25 @@ transaction by the step-6 `TransactionBehavior` adapter through
 `TransactionExecutionCoordinator`, from the context admitted at step 4.
 Default ReadWrite transactions announce them as their first SQL statement.
 
-For a physical PublicSurface ReadOnly owner only,
+For a physical PublicSurface ReadOnly owner or the exact authenticated
+`GetAccountSiteQuery` ReadOnly owner only,
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) and
 [ADR-0040 Amendment 8](../decisions/0040-ambient-unit-of-work.md#amendment-8--read-only-public-frames-2026-10-03)
+with each ADR's 2026-10-19 dated scope-extension disclosure under
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md),
 authorize one predecessor: begin READ COMMITTED, execute and await
 `SET TRANSACTION READ ONLY`, then return the owner frame. The existing tenant/
 organization setter follows before any data SQL or handler dispatch. Mode setup
 alone never stamps the tenant-announced marker. If setup fails or is cancelled,
 Begin cleans up the partial transaction and marks rollback-only before rethrowing.
 Mode resets per transaction; poisoning remains sticky for the unit's lifetime.
+
+The authenticated-query extension is implemented by
+[P02b-5 Step 2](../roadmap/phase-02b-events-auth.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19);
+Step 4 owns HTTP activation. Selection is by exact request type, never a
+query-name suffix, public marker or general authenticated
+read category. It reuses the existing physical owner and tenant announcement;
+the closed setter set and transaction-ownership contracts do not change.
 
 Every institution public read dispatches a marked request through ISender, audit
 Off and GET/HEAD only. Factory HostScope is an independent host ceiling intersected
@@ -390,9 +416,10 @@ yet:
 | The tenant-flag loader (`FeatureFlags`) | its own short read-only one | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
 
 > **`IOrganizationScopeValidator` is registered and has no reachable caller yet.** Its
-> only non-vacuous caller is the reconciliation matrix's row 7, which needs a validated
-> claim, and there is no `UseAuthentication` until Phase 02b — so no request can reach the
-> call. The assertion path ADR-0036 § What the assertions do names as its caller is
+> only non-vacuous caller is the reconciliation matrix's row 7. P02b-5 activates
+> validated claims, but `DenyAllTenantMembershipReader` refuses row 7 before
+> organization-scope validation. Phase 03 owns the live membership path that can
+> reach it. The assertion path ADR-0036 § What the assertions do names as its caller is
 > subsumed by `TenantAssertionMiddleware`, which refuses on any difference between the
 > asserted and the resolved value before belonging can matter. This table lists it because
 > the set of setters is closed and a closed set is worth stating whole; it is not evidence
@@ -647,11 +674,56 @@ request retains a limiter removed by retirement.
 | Surface | Limit |
 |---------|-------|
 | `/api/v1/auth/*` (login, password reset, register) | 5 req/min per IP |
-| Anonymous API | 60 req/min per canonical IP + 600 req/min per physical peer (P5 Step 2) |
-| Authenticated API | 600 req/min per token |
-| Write endpoints | 60 req/min per token |
+| Early API admission (all credentials) | 60 req/min per canonical IP + 600 req/min per physical peer (P02d-5 Step 2) |
+| Authenticated API | Additional 600 req/min per validated issuer + subject (ADR-0064) |
+| Write endpoints (planned; Phase 03) | 60 req/min per token |
 | Webhook endpoints | 1000 req/min per provider |
 | Hub internal API (`/api/internal/*`) | 60 req/min per mTLS client cert |
+
+P02b-5 Step 3 implements the subject component; Step 4 activates it in production.
+The stable issuer/subject key survives token rotation and tenant selection; actor,
+host and credential text do not select a partition. It uses a one-minute fixed
+window with no queue. Accepted
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md) adds the
+process-wide 4096 retained-key bound; the internal smaller-bound constructor is
+only a test seam. Retirement reclaims only full-quota partitions idle for a
+complete window. Acquisition inspects at most 128 entries and disposes at most
+one; the timer inspects/retires at most 128 every 30 seconds. One shared cleanup
+owner prevents overlapping batches; at most 4224 limiters are owned, including
+retirement. Exhausted live quotas cannot be evicted or reset by pressure.
+
+The acquiring cleanup owner must complete disposal, then recheck shutdown,
+fault, key existence and capacity before its own allocation or debit. Other
+requests do not wait for cleanup and may take freed slots. A sticky cleanup
+fault stops new allocations and batches; already retained keys keep their
+original quota. Joined shutdown closes admission and observes timer/acquisition
+cleanup and retained failures. One blocked disposal can indefinitely delay its
+request and shutdown; a host deadline is not cleanup evidence and adds no fatal
+process policy. Local ownership, HTTP and actual OTLP proofs exercise these
+refinements; their review and final-source CI status live in the implementation
+record.
+The earlier visitor/peer limits apply to every credential, so this is an extra
+ceiling, not a promise of independent 600/min end-to-end throughput. Whole-chain
+reduced-budget proofs isolate the subject limit below those early floors; a
+separate real-default proof exercises the 600 boundary. Subject refusals stop
+before reconciliation and durable rejection audit. Quota/capacity use 429 with
+stock-quota/60-second retry hints; new-key cleanup fault uses 503
+`dependency_unavailable` and the common 30-second retry helper. Hints do not
+promise capacity or recovery. See
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md#additional-subject-quota).
+
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) separately
+limits authenticated rejection audit attempts to 600 per independently defended
+host tenant per API instance per first-request-anchored monotonic minute. The
+singleton audit budget is shared by all scoped recorders and has no actor,
+subject, source or dimension split. Failed writes spend permits; suppression
+retains the refusal, count and exactly one attributed Warning without database
+I/O or extending expiry. Admitted events remain MUST; tenant `AuditConfig` cannot
+override the allowance or weaken general mutation durability. Ten admitted IPs
+can exhaust the allowance through the physical-peer floor, so later actors may
+have no durable evidence in that window; aggregate log volume remains unbounded.
+Subject admission therefore supplies no independent actor-coverage guarantee.
+Anonymous bursts and tenantless refusals retain their separate contracts.
 
 429 responses include `Retry-After`. The edge half runs on **APISIX**
 (`limit-req` / `limit-count` plugins); the application half runs in ASP.NET, where

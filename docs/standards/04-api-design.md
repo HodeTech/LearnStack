@@ -6,6 +6,14 @@
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); anonymous accounting derives from
 [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
+The accepted tenant-authentication contract derives from
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md);
+P02b-5 Step 4 activates the closed HTTP boundary; its delivery record owns proof
+and review status. Subject-registry capacity, cleanup and refusal semantics
+derive from [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md),
+Accepted — 2026-10-20. Implementation has local runtime/exported proofs; the
+[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+owns independent reviews and final-source CI qualification.
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -71,7 +79,7 @@ shape, and per-deployment-mode behaviour — see ADR-0024 directly.
 | 202 | Accepted for async work |
 | 204 | Success, no body |
 | 400 | Client validation failure |
-| 401 | Missing/invalid authentication |
+| 401 | Invalid present tenant bearer credentials; missing authentication only where the surface permits a challenge |
 | 403 | Authenticated but not authorized |
 | 404 | Not found (also used to hide cross-tenant existence) |
 | 405 | Method not allowed; the `Allow` header lists the methods that are permitted |
@@ -127,6 +135,15 @@ Two things a reader of this document needs, because both are easy to get wrong:
 - Service-to-service uses client-credentials grants with limited scopes.
 - API keys are forbidden in the MVP; if added later, they live in `Integrations` with rotation + audit.
 
+**P02b-5 HTTP activation — 2026-10-19.**
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) defines the
+strict tenant bearer profile and ordered HTTP admission. On classified known
+hosts, present invalid or undecidable credentials return 401 with a bare Bearer
+challenge, including on public endpoints. Unknown hosts retain their masked 404
+before JWT validation; credential-free public reads retain anonymous behavior.
+Production authentication and authorization services/middleware activate together
+with the complete Step 4 boundary.
+
 ## Tenant Context
 
 **[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) is the single
@@ -162,8 +179,9 @@ reconciliation matrix are the separate case — no tenant context resolves at al
   else — failing with `lockey_not_found`, so the body it renders is byte-identical to
   the one an unresolvable host gets, because anything a client can tell apart confirms
   to an anonymous caller that the tenant exists. Not `lockey_tenant_mismatch`: a
-  `HostOnly` context is anonymous by construction and `tenant_mismatch` is the
-  authenticated code. The mechanism differs and the wire result must not —
+  `HostOnly` context records host-only tenant authority, including a validated
+  actor whose tenant claim is absent under ADR-0064. Authentication cannot lift that
+  ceiling. The mechanism differs and the wire result must not —
   host classification writes a bodyless **404** that `UseStatusCodePages` fills in through
   `ProblemDetailsFactory.ForStatus(404)`, while a step-4 failure carries its own Problem
   Details body through `ProblemDetailsActionResult`; since
@@ -193,6 +211,12 @@ reconciliation matrix are the separate case — no tenant context resolves at al
   tenant host under the ceiling and an unknown host both carry `not_found`. That
   discloses membership of `Tenancy:PlatformHosts` — a short static list an operator
   publishes as its own entry point — and nothing about any tenant.
+  This generic unresolved MediatR result remains `tenant_mismatch`.
+  ADR-0064's exact AccountSite endpoint instead refuses at outer HTTP admission:
+  absent credentials on tenant, organization and platform hosts return the masked
+  `not_found` 404, as does a validated principal without usable host-backed tenant
+  authority. Its scoped authorization result handler preserves that result before
+  dispatch; it does not change the generic pipeline gate.
 - **Permitted methods default to `GET` / `HEAD`.** An entry declaring a mutating method
   states why, in the table.
 - **No `[PublicSurface]` type performs a tenant-owned write.**
@@ -242,6 +266,24 @@ decision the pipeline never enforces. `PublicSurface_Requests_Are_Never_ReadSens
 cross-checks the merged `IAuditCatalog` and fails any marked request registered as
 MUST-class `read-sensitive`. Its companion proves the forbidden classification is
 detected even when all shipped requests are correctly Off.
+
+### Closed authenticated read
+
+**Accepted by ADR-0064 — 2026-10-19; HTTP activation in P02b-5 Step 4.**
+The additional operation is exact `GET /api/v1/account/site`, `GetAccountSite`,
+dispatching non-public `GetAccountSiteQuery`. It returns the validated actor,
+resolved tenant/organization and existing live `PublicSite` projection, accepts
+no query parameters or client-selected identifiers, and is audit Off. Before any
+reader, the query requires `HostAndClaim`, a real non-system actor and matching
+real resolved/host scope; `ClaimAndMembership` remains ineligible even after live
+membership arrives. The exact query receives physical ReadOnly through the
+existing owner; it gains no public marker or general authenticated-read exemption.
+
+Step 4 adds this GET to the eight public GET/HEAD actions in the closed production
+census, with explicit infrastructure exclusions, bearer OpenAPI security and
+no-store on success and early errors. Generated GETs have exact disjoint public
+and authenticated ownership with an exhaustive union. The public transport stays
+credential-free; P02b-7 owns authenticated session transport.
 
 ## Pagination
 
@@ -488,10 +530,27 @@ a limit, and the first version of this table was four of those.
 | Multipart upload (excluding files) | — | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
 | File upload, per content type | see [architecture/16 § Validation](../architecture/16-media-pipeline.md) | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
 | Rate limit (anonymous) | 60 req/min per canonical IP + 600 req/min per physical peer | [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) / P02d-5 G34 delivers both budgets. Fixed one-minute windows, no queue; no host/cookie partition. ADR-0054 coordinated accounting is implemented by remediation Step 1; both independent review rounds passed. See below |
-| Rate limit (authenticated) | 600 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
-| Rate limit (write endpoints) | 60 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
+| Rate limit (authenticated) | Additional 600 req/min per validated issuer + subject | [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md); P02b-5 Step 3 implements the component, Step 4 activates it after authentication and before resolution/audit. Existing early visitor/peer limits still apply |
+| Rate limit (write endpoints) | 60 req/min per token (planned) | No routed protected write; [Phase 03](../roadmap/phase-03-identity-admin.md) owns the first authorized writes and their admission policy |
 
-429 responses include `Retry-After`.
+429 responses include `Retry-After`. Accepted
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md) requires the
+subject-admission boundary to distinguish these outcomes before resolution or
+audit, using the existing Problem Details/no-store path:
+
+| Subject refusal | Status / body code | `Retry-After` |
+|---|---|---|
+| Spent quota | 429 / `rate_limited` | Stock quota hint, rounded up to seconds, minimum 1 |
+| Retained-key capacity | 429 / `rate_limited` | 60 seconds |
+| Sticky cleanup fault for a new key | 503 / `dependency_unavailable` | Common 503 retry helper: 30 seconds |
+
+Capacity is a rate-admission refusal, not an IdP or audit-store failure; the
+idempotency-store capacity rule remains 503 because an operation outcome cannot
+be safely retained there. Cleanup fault is an unavailable local dependency.
+Existing retained keys keep their quota service during that fault. Retry hints
+promise neither space nor recovery; fault recovery needs qualified instance
+replacement. Local signed-token HTTP and actual OTLP proofs cover these outcomes;
+the implementation record owns independent reviews and final-source CI qualification.
 
 **ADR-0054 accounting implemented — 2026-10-09; both review rounds passed.**
 Remediation Step 1 probes an owned known visitor limiter with zero permits and returns

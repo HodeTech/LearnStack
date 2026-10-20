@@ -55,7 +55,7 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
                     new TransactionExecutionCoordinator(
                         unit, Context, Store(scope.ServiceProvider, capture), capture, producer,
                         new DomainEventCollector(producer, new Mediator(scope.ServiceProvider)),
-                        NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty());
+                        NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]));
                 var reached = false;
                 var attempt = async () => await behavior.Handle(new PublicProbe(), async () =>
                 {
@@ -151,12 +151,12 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
             ? async () => await new TransactionBehavior<PublicProbe, Result<string>>(
                 new TransactionExecutionCoordinator(
                     unit, Context, store, capture, producer, collector,
-                    NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty())
+                    NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]))
                 .Handle(new PublicProbe(), next, default)
             : async () => await new TransactionBehavior<WritableProbe, Result<string>>(
                 new TransactionExecutionCoordinator(
                     unit, Context, store, capture, producer, collector,
-                    NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty())
+                    NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]))
                 .Handle(new WritableProbe(), next, default);
         await join.Should().ThrowAsync<InvalidOperationException>().WithMessage("*mixed-mode*");
         handlerInvoked.Should().BeFalse();
@@ -220,7 +220,7 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
                 new TransactionExecutionCoordinator(
                     unit, Context, Store(scope.ServiceProvider, capture), capture, producer,
                     new DomainEventCollector(producer, new Mediator(scope.ServiceProvider)),
-                    NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty());
+                    NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]));
             var attempt = async () => await behavior.Handle(new PublicProbe(), () =>
             {
                 unit.Mode.Should().Be(TransactionMode.ReadOnly);

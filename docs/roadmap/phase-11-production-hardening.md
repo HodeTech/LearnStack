@@ -5,6 +5,14 @@
 Turn a working product into an operable one, and build the infrastructure that was
 deliberately not built earlier.
 
+**Tenant authentication handoff — P02b-5.**
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) qualifies the
+closed API boundary with a controlled issuer; P02b-6/7 own actual realm/session
+integration. This phase owns production IdP provisioning, key/lifetime operational
+qualification, mapped readiness and distributed/edge quota capacity. Existing
+visitor/peer floors still apply; the in-process subject limit promises no
+independent end-to-end throughput or immediate JWT/session revocation.
+
 Phase 11 carries two distinct bodies of work that share one exit gate.
 
 The first is the classical hardening surface: security posture, reliability, backups,
@@ -299,6 +307,102 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   them. Until they land, the backend's gate is the one Phase 02a Packet 9 shipped: NuGet
   audit over the whole graph, at any severity, failing CI.
 
+### Tenant authentication production activation
+
+Before production use of tenant authentication, complete P02b-6 realm issuance and
+P02b-7 sessions and qualify the following operational work in this phase. An earlier
+production rollout must bring these tasks forward through its decision pass; local
+P02b-5 proofs do not establish production readiness. This is operational ownership,
+not a request to add an unused module, adapter or port.
+
+- **Issuer topology.** Prove DNS resolution, connection routing and TLS trust from
+  the deployed API to its configured issuer, including its discovery and JWKS paths.
+  [API Gateway § Current issuer topology](../architecture/30-api-gateway.md#current-issuer-topology-and-activation-limits)
+  owns the current same-issuer constraint. A split metadata origin needs a separate
+  accepted design and containment proofs before deployment; do not substitute an
+  internal issuer merely to make the network request succeed.
+- **Outage and key rotation.** Exercise cold start without metadata, a warmed known
+  signing key during an outage, a new key while refresh fails, recovery, and rejection
+  of a withdrawn unexpired key after the replacement set has been observed. Current
+  configuration caching is distinct from last-known-good fallback: disabling the
+  latter does not make every refresh failure a hard 401 outage, and it supplies no
+  guaranteed outage grace period or immediate revocation. The existing controlled
+  issuer proofs do not establish production DNS/TLS or mixed-version rollout behavior.
+  The five-minute automatic refresh interval is asserted as configuration; manual
+  `RequestRefresh()` and reduced on-demand intervals are not elapsed five-minute
+  automatic-refresh evidence. Run that automatic cadence and mixed-version rollout
+  drill here against the actual deployment.
+- **Diagnostic contract and volume.** Current auth outcomes log at Information with
+  stages `credential`, `profile` or `validation` and reasons `accepted` or `rejected`.
+  The profile's internal `TenantTokenFailure` distinctions are not emitted, and there
+  is no dedicated closed authentication outcome metric. These signals cannot
+  distinguish expired-token traffic, issuer failure and key-rotation faults. Decide
+  the required bounded taxonomy, counters, alert thresholds and success sampling or
+  level before activation, preserving the raw vendor-data exclusion in
+  [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md#vendor-diagnostic-boundary).
+  Authentication precedes subject admission, so its per-attempt Information volume
+  is not bounded by the later subject quota. Measure cost under accepted and rejected
+  traffic instead of silently changing the current log contract.
+- **Correlation and proof limits.** Early auth failure events occur before tenant
+  context is installed; the context-based enricher need not supply `correlation.id`
+  on those events. Current privacy/positive-outcome tests do not prove correlation
+  on every production failure. Qualify a safe pre-resolution correlation contract
+  here without exporting credential or arbitrary claim text. Vendor event 3 coverage
+  uses an interface-only configuration adapter to reach that handler catch boundary;
+  natural production initial-metadata failure is covered through event 1. The event 3
+  control is not evidence that the current production manager naturally follows it.
+- **Organization-host refusal visibility.** ADR-0064 row 10, a tenant-only token on
+  an organization host, remains 404 while membership denies everyone. It emits the
+  resolver's generic Debug refusal, with no durable rejection row or dedicated
+  mismatch counter. Phase 03 owns live membership; this phase decides and tests
+  bounded operational visibility for refused membership/scope cases before production.
+  An observability change must preserve the accepted no-durable-row rule unless a
+  new decision explicitly changes it.
+- **Subject capacity.** [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+  is Accepted — 2026-10-20. Implementation and local runtime/exported proofs are
+  delivered; the [implementation record](phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+  owns independent reviews and final-source CI qualification.
+  Its 4096 retained keys are shared across tenants, so occupied
+  live slots can refuse other valid subjects. Quota/capacity use 429 with
+  stock-quota/60-second hints; new-key sticky cleanup fault uses 503 with the
+  common 30-second helper. Existing retained subjects keep their quota service.
+  Qualify the accepted implementation's live/idle pressure, actual cleanup,
+  4224 retained-plus-retiring resource bound and multiple-instance behavior here;
+  measure supported sizing and publish refusal thresholds. Evaluate retained occupancy/headroom signals, actual live/idle retirement
+  cost and the timer-only full-rotation horizon when selecting those thresholds;
+  current rejection counters alone are not proactive capacity evidence.
+  Production operations must route `learnstack_tenant_subject_admission_rejected_total{reason}` for
+  `quota`, `registry_capacity` and `registry_fault`, plus the unlabelled once-only
+  `learnstack_tenant_subject_cleanup_failed_total` transition. Accepted counters
+  and local export proofs do not install alerts or mapped readiness. The future
+  production runbook must distinguish quota replenishment, capacity pressure and
+  sticky cleanup fault; only the fault branch recommends qualified instance
+  replacement. Exercise blocked-disposal/request/shutdown behavior: one synchronous
+  disposal has no wall-clock bound and a host grace deadline is not cleanup proof.
+  Preserve the single cleanup owner and no new allocation/debit before the
+  acquisition owner's successful cleanup/recheck. Do not use a restart or live
+  eviction to restore spent quota or bypass ordinary capacity admission.
+- **Readiness and incident response.** There is no mapped auth readiness check today;
+  `/healthz` proves liveness. Decide whether an unavailable IdP changes whole-instance
+  readiness or authenticated-traffic admission, preserving the credential-free public
+  contract. Keep IdP state, subject capacity and audit-store failure distinguishable.
+  Platform operations owns runbooks under `docs/runbooks/` for DNS/TLS/metadata failure,
+  signing-key rollout and withdrawal, authentication-volume spikes and capacity
+  refusal. Each runbook names the signal, diagnostic access, safe recovery and an
+  exercised recovery control before production activation.
+
+**Assertion-audit suppression is a separate incident.**
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) accepts that an
+attacker can consume a target tenant's durable allowance and later actors lose
+durable rows during that window. Suppression attempts no store write; it is not an
+audit-store failure, and the `audit` health check can remain healthy. It does not
+mean complete durable actor evidence exists. Platform operations must alert on
+`learnstack_tenant_assertion_audit_suppressed_total` deltas over a named window and
+triage event 4006 `AuditBudgetExhausted` with its sanctioned typed attribution.
+Exercise suppression and actual store-write failure separately, publish thresholds
+and recovery instructions, and retain the budget and privacy boundary. Warnings and
+counters continue during suppression; their volume and retention need sizing too.
+
 ### Reliability
 
 - **Process supervision and crash recovery.** Select and qualify deployment-specific
@@ -559,6 +663,9 @@ same `ILiveClassProvider`.
   topology decision against measured shared-failure/scaling triggers.
 - Security baseline and the expanded tenant + organization isolation regression suite.
 - Observability baseline: dashboards, alerts, and per-tenant resource metrics.
+- [Tenant authentication activation](#tenant-authentication-production-activation)
+  evidence, explicit diagnostic/readiness decisions, and exercised IdP, key,
+  subject-capacity and assertion-suppression runbooks.
 - Backup and restore process with a completed drill.
 - Performance baseline against the budgets in
   [15-performance.md](../standards/15-performance.md).
@@ -638,6 +745,10 @@ same `ILiveClassProvider`.
 - No network telemetry exporter is wired under `SelfHostedAirGapped`, asserted by test
   rather than by review.
 - Critical flows have sufficient logging and tracing, including the Hub contract surface.
+- Every [tenant authentication activation task](#tenant-authentication-production-activation)
+  has deployment-specific evidence. Cold/warm cache, failing refresh, key withdrawal,
+  capacity refusal, assertion suppression and real audit-store failure have distinct
+  operational controls; no liveness success substitutes for them.
 - Public site performance meets the stated budgets, with the customization runtime's cost
   measured on a page composed of multiple `data_source` blocks.
 - File uploads are safely constrained.
@@ -697,7 +808,8 @@ LearnStack is production-ready when all of the following hold:
 - ADR-0026 is Accepted and the release process follows it.
 - The operational runbooks under `docs/runbooks/` cover the incidents this phase's
   subsystems can produce: Hub outage, licence expiry, partition-management failure,
-  certificate renewal failure, broker outage, and a tenant saturating a shared resource.
+  certificate renewal failure, broker outage, a tenant saturating a shared resource,
+  and the [tenant authentication activation incidents](#tenant-authentication-production-activation).
 
 Anything not true at this gate is either finished before launch or removed from the
 support claim. There is no third option — a mode or capability that is documented,

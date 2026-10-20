@@ -26,6 +26,8 @@ write path, not on the `tenants` CHECK**),
 ships unwritten**).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+Tenant API authentication additions derive from
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
 Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 Delivery/recovery additions derive from
@@ -91,6 +93,12 @@ Everything else on that table takes the forms above — `ck_audit_log_outcome`,
 migration adds from here.
 
 ## Tenant-Owned and Organization-Scoped Tables
+
+P02b-5's [tenant API boundary](../decisions/0064-tenant-api-authentication-boundary.md)
+adds no table, role, grant or RLS exception. Its actor/scope projection is not a
+persisted User/Membership model; Phase 03 owns that identity domain. AccountSite
+uses the existing application-role physical ReadOnly owner and independently
+checked host scope. The canonical isolation templates below remain unchanged.
 
 Every tenant-owned table **must** carry `tenant_id` + one RLS policy + an EF filter.
 Org-scoped tables additionally carry an `organization_id` column (nullable when the row

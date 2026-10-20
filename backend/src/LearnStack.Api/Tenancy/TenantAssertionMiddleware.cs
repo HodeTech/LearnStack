@@ -1,4 +1,8 @@
 using LearnStack.Api.Common;
+using LearnStack.Api.Authentication;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -33,17 +37,6 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
     public const string TenantHeaderName = "X-Tenant-Id";
     public const string OrganizationHeaderName = "X-Organization-Id";
 
-    /// <summary>
-    /// The only prefix the comparison applies to. Registered globally, a
-    /// malformed <c>X-Tenant-Id</c> 400s the orchestrator's health probe and the
-    /// Hub's <c>/api/internal/*</c> surface — neither of which has a tenant
-    /// assertion to compare, and the first of which failing takes the pod out.
-    /// ADR-0036 scopes host classification to <c>/api/v1/*</c> for the same
-    /// reason; the assertion is part of that surface's binding, not of the
-    /// process's.
-    /// </summary>
-    public const string ScopedPrefix = "/api/v";
-
     public async Task InvokeAsync(
         HttpContext context,
         ITenantContext tenantContext,
@@ -53,7 +46,7 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         ArgumentNullException.ThrowIfNull(tenantContext);
         ArgumentNullException.ThrowIfNull(recorder);
 
-        if (!IsVersionedApiPath(context.Request.Path.Value))
+        if (!HostClassificationMiddleware.ClassifiesPath(context.Request.Path))
         {
             await next(context);
             return;
@@ -114,29 +107,23 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         var mismatch = Mismatch(tenantContext, assertedTenant, assertedOrganization);
         if (mismatch is not null)
         {
+            var identity = context.Features.Get<TenantCredentialFeature>()?.Identity;
             await recorder.RecordRejectionAsync(new TenantAssertionRejection(
-                // Value, not the id: TenantAssertionRejection carries a Guid and
-                // feeds it to a metric tag, so keeping the underlying value here
-                // holds the exported dimension byte-identical across this
-                // conversion. Safe unconditionally — the !IsResolved branch
-                // above has already returned.
-                tenantContext.TenantId.Value,
-                mismatch.Value.Dimension,
-                mismatch.Value.Asserted,
-                context.User.Identity?.IsAuthenticated == true));
+                tenantContext.TenantId.Value, mismatch.Value.Dimension, mismatch.Value.Asserted,
+                IsAuthenticated: identity is not null, TenantAssertionSource.Header,
+                identity?.ActorUserId, tenantContext.CorrelationId,
+                tenantContext.OrganizationId is { } organization && StronglyTypedId.IsAssigned(organization)
+                    ? organization : null));
 
-            // 404, not 403: saying "wrong tenant" confirms the other tenant
-            // exists. From Phase 02b the code differs by caller —
-            // `tenant_mismatch` for an authenticated one, `not_found` for an
-            // anonymous one — so the header adds no bit an anonymous client
-            // could not already get by retrying without it. Until then the
-            // authenticated tier is dormant per ADR-0036 § Staging across
-            // packets — there is no UseAuthentication to be ordered after and
-            // the `authenticated` label is constant-false — so every caller
-            // takes the anonymous branch, and Phase 02b's split needs this
-            // middleware to write the authenticated code itself rather than
-            // leaving the body to UseStatusCodePages.
-            await WriteAsync(context, StatusCodes.Status404NotFound);
+            if (identity is not null)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                await context.Response.WriteAsJsonAsync(
+                    ProblemDetailsFactory.For(TenantMismatch, context),
+                    options: null, contentType: ProblemDetailsMediaType.Value,
+                    cancellationToken: context.RequestAborted);
+            }
+            else await WriteAsync(context, StatusCodes.Status404NotFound);
             return;
         }
 
@@ -178,34 +165,6 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
     }
 
     /// <summary>
-    /// <c>/api/v{N}</c> and nothing that merely starts the same way.
-    /// </summary>
-    /// <remarks>
-    /// A bare <c>StartsWith("/api/v")</c> also matches <c>/api/validate</c>,
-    /// <c>/api/vault</c> and <c>/api/verify</c>. The route convention makes
-    /// those unreachable today — every controller is prefixed <c>api/v{N}</c>
-    /// and only <c>api/internal</c> is exempt — so this is not a live bug. It is
-    /// a predicate that says what it means, which is what keeps it true when the
-    /// exemption list grows.
-    /// </remarks>
-    private static bool IsVersionedApiPath(string? path)
-    {
-        if (path is null || !path.StartsWith(ScopedPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var rest = path.AsSpan(ScopedPrefix.Length);
-        var digits = 0;
-        while (digits < rest.Length && char.IsAsciiDigit(rest[digits]))
-        {
-            digits++;
-        }
-
-        return digits > 0 && (digits == rest.Length || rest[digits] == '/');
-    }
-
-    /// <summary>
     /// Reads one assertion. Absent is fine; malformed or repeated is not.
     /// </summary>
     private static bool TryReadAssertion(HttpContext context, string header, out Guid? value)
@@ -226,6 +185,8 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         value = parsed;
         return true;
     }
+
+    private static readonly Error TenantMismatch = new(new LocalizedMessage("lockey_tenant_mismatch"));
 
     private static Task WriteAsync(HttpContext context, int status)
     {

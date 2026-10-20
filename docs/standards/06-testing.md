@@ -171,7 +171,9 @@ Use **Re-run all jobs**, not failed-job or single-job reruns. All producer
 siblings must belong to the current run attempt. Odd/even attempts select the
 two deterministic layouts; final qualification requires genuinely distinct
 co-membership, including SharedSchema methods, on the same source, plan,
-toolchain and complete case population. The
+toolchain and complete case population. Plan, algorithm or fixture-lifetime
+changes require both layouts. Normal future pushes execute one complete
+assignment. The
 [CI follow-up record](../roadmap/phase-02b-events-auth.md#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
 owns actual hosted fit and the two complete attempts; local controls do not
 establish either.
@@ -243,6 +245,23 @@ browser profiles and raw process logs are excluded from artifacts. Human foregro
 `make demo` retains manual hosts/CA/leaf setup and persistent local data. The
 [local test workflow](../../.claude/skills/run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
 owns the complete setup and artifact instructions.
+
+The shared CI launcher observes a clean Git commit and tree before its own
+dependency restoration or builds, verifies the owned repository root, and rechecks
+that identity on entry to the browser proof and before success. Workflow browser
+tool bootstrap precedes that launcher checkpoint. Inherited Git overrides do
+not select another repository. Tracked, staged or nonignored untracked changes
+refuse qualification; ignored runtime/build outputs remain permitted. These clean
+checkpoints are source observations, not hermetic build attestation: ignored
+configuration/dependencies and an edit restored between observations are not
+certified. Foreground local development retains its existing dirty-tree workflow.
+
+Each report receipt binds the JSON and HTML byte digests to the same invocation,
+commit/tree, build, URL/run, configuration and browser identity. A missing,
+corrupt or substituted member refuses the pair. Closed operation diagnostics
+distinguish actual child exit, spawn, deadline, cancellation and daemon failure;
+cleanup never borrows a signal sent intentionally during teardown. Raw provider
+messages and private configuration do not enter these receipt diagnostics.
 
 The frontend workspace pins Playwright and Lighthouse as development tools.
 Lighthouse's transitive development `axe-core@4.14.0` does not supply a standalone

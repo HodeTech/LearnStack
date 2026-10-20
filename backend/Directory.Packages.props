@@ -12,6 +12,7 @@
          range of a high-severity advisory (GHSA-v5pm-xwqc-g5wc); 10.0.12 requires
          2.12.0 or later. -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
 
     <!-- EF Core (per-module Infrastructure projects). One servicing release for the
          whole EF set, and every project that references the Npgsql provider references

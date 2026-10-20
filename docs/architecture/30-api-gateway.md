@@ -16,24 +16,17 @@ the LearnStack core API and the LearnStack Hub API.
 > header normalisation. [ADR-0015](../decisions/0015-api-gateway-apisix.md) stands as the
 > decision that APISIX is the gateway LearnStack uses; ADR-0035 decides when.
 >
-> **A gap worth naming rather than discovering.** In the shipped
-> `infra/apisix/apisix.yaml`, route 100's `openid-connect` block is **commented out**, so
-> today every `/api/v*` request reaches the backend unauthenticated **at the gateway**.
-> **Neither layer authenticates today.** The backend does not re-validate, because there
-> is nothing yet to re-validate against: `grep AddAuthentication\|UseAuthentication` over
-> `backend/src` returns no registration, and `AuthorizationBehavior.Handle` is
-> `return next()` with a Phase 03 TODO. Authentication lands in
-> [Phase 02b](../roadmap/phase-02b-events-auth.md) and authorization in
-> [Phase 03](../roadmap/phase-03-identity-admin.md). Tenant-owned tables now exist;
-> authoring commands remain unrouted and HostOnly pipeline admission requires a
-> `[PublicSurface]` marker. P02d-4 supplies marked anonymous GET/HEAD routes under ADR-0052.
-> The "validated twice" property in § 5 describes the Phase 11 target, not
-> the running system — and the first half of it arrives well before the gateway half.
-> The block is uncommented in
-> [Phase 11](../roadmap/phase-11-production-hardening.md), with the rest of APISIX:
-> [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) demand-gates the gateway,
-> so [Phase 03](../roadmap/phase-03-identity-admin.md) delivers authorization in ASP.NET
-> middleware and corrects this route table, but does not stand APISIX up in front of it.
+> **Backend boundary — P02b-5 Step 4, 2026-10-19.** The gateway remains gated
+> and route 100's `openid-connect` block remains commented out. The backend now
+> validates the closed tenant bearer profile under
+> [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md), before tenant
+> reconciliation. Its production surface is the existing anonymous reads plus
+> exact AccountSite GET; application authorization still passes through until
+> [Phase 03](../roadmap/phase-03-identity-admin.md). No authoring command is routed.
+> Present invalid credentials return 401 even on public routes; absent AccountSite
+> credentials return masked 404. The “validated twice” property in § 5 remains
+> the Phase 11 target. The [Step 4 delivery record](../roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+> owns validation and review status, rather than this topology claiming completion.
 
 **Accepted P02d-5 local topology — 2026-10-08.**
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) uses native loopback
@@ -41,6 +34,34 @@ HTTPS Next ingress and loopback HTTP API with authenticated host/visitor metadat
 Step 2 replaces socket-only anonymous partitioning with canonical-IP and peer
 budgets. APISIX remains Phase 11's gated adapter; the topology below is that target,
 not a prerequisite or delivery claim for the walking skeleton.
+
+## Current issuer topology and activation limits
+
+The API validates one canonical tenant-realm issuer and retrieves discovery/JWKS
+only from descendant paths at that exact origin. Private or split-horizon DNS
+must preserve that identity. Startup checks configuration syntax, not DNS, TLS or
+issuer availability; a separate metadata origin is not authorized.
+
+A cold cache or unavailable required signing key refuses authentication. A warm
+current configuration can still validate a known key during refresh failure;
+`UseLastKnownGoodConfiguration=false` does not discard that current cache.
+`TenantAuthenticationProfileTests.Transport` proves a request-driven new-key
+refresh, manually requested withdrawal and manually requested outage refresh.
+It does not prove an elapsed five-minute automatic refresh or immediate key
+revocation. Acceptance remains bounded by the token lifetime and observed cache.
+
+Current Information outcomes distinguish fixed credential/profile/validation
+stages and accepted/rejected results. They are not an operational failure
+taxonomy. Provider event-3 adapter injection tests the stock exception/log path,
+not a natural metadata-outage occurrence. Authentication also precedes tenant
+resolution, so early correlation/tenant attribution can be absent. Row 10's
+membership refusal has no audit row and only Debug visibility today.
+
+[Phase 11's activation gate](../roadmap/phase-11-production-hardening.md#tenant-authentication-production-activation)
+owns reachable issuer/DNS/TLS drills, operational failure signals, rotation,
+readiness, alerts and exercised runbooks before production exposure. P02b-6 owns
+real realm issuance; P02b-7 owns session custody and recovery. These are separate
+from P02b-5's locally implemented API boundary.
 
 ## 1. Topology
 
@@ -386,38 +407,46 @@ gateway — TLS termination, consumer-keyed limits, WAF — in
    evaluation. The backend never trusts the gateway alone.
 
 If APISIX is misconfigured, bypassed (someone hits the backend directly on the internal
-network), or compromised, the backend still rejects unauthenticated requests. This is
-non-negotiable.
+network), or compromised, the backend still enforces its own credential and scope
+boundary. Eligible public GET/HEAD reads remain available without credentials;
+AccountSite returns 404 for absent credentials. Present invalid credentials return
+401 after the earlier admission gates, including on public routes. Phase 03 supplies
+the permission checks for its protected routes.
 
-That property is what makes today's state a gap rather than a breach: with route 100's
-`openid-connect` block commented out, layer 1 is absent and layer 2 carries the whole
-load. The system is not open — it is running on one line of defense where the design
-calls for two, and the cheap fast rejection at the edge is not happening. Restoring
-layer 1 is [Phase 03](../roadmap/phase-03-identity-admin.md) work; nothing about the
-backend's obligations changes when it lands.
+The backend currently carries the bearer-validation boundary on its own.
+Phase 11 activates the gateway's independent check when ADR-0035's trigger fires;
+Phase 03 supplies application permissions. Neither changes the backend's duty
+to validate and reconcile its own trusted inputs.
 
-```csharp
-// LearnStack.Host/Program.cs
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = "http://keycloak:8080/realms/learnstack";
-        options.Audience = "learnstack-api";
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-        options.MapInboundClaims = false;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = "https://auth.learnstack.dev/realms/learnstack",  // PUBLIC issuer
-            // Authority above is the INTERNAL URL for JWKS fetch; ValidIssuer is what's
-            // in the JWT `iss` claim (set by Keycloak's KC_HOSTNAME).
-            // Documented in 13-identity-and-auth.md.
-        };
-    });
-```
+The running registration is
+[`TenantAuthenticationRegistration`](../../backend/src/LearnStack.Api/Authentication/TenantAuthenticationRegistration.cs),
+installed in the explicit order in
+[`Program.cs`](../../backend/src/LearnStack.Api/Program.cs).
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) owns its strict
+issuer, purpose, actor, JOSE, diagnostic and refresh contract. Configure
+`Authentication:Tenant:Issuer` as the canonical tenant-realm issuer. Only
+Development permits loopback HTTP; other deployment modes require explicit HTTPS.
+Metadata is fetched from that configured issuer, never a URL selected by claims.
+No API client secret, live membership or BFF session is introduced here.
+
+### Current issuer topology and activation limits
+
+The API must resolve and reach the configured issuer itself, with the required TLS
+trust. Private HTTPS addresses and internal DNS names are supported; there is no
+separate `Authentication:Tenant:MetadataAddress` setting for an internal discovery
+origin paired with a different public issuer. Startup validates the URL without
+network I/O, so successful startup does not establish issuer reachability. Deployment
+DNS, proxy and certificate configuration must preserve the issuer's exact identity
+and the discovery/JWKS containment boundary.
+
+The current API maps `/healthz` liveness only. It has neither mapped authentication
+readiness nor a dedicated authentication outcome counter. Its stock manager caches
+current metadata; disabling last-known-good fallback does not promise either an
+outage grace period or immediate refusal of every warm-cache request. The
+[Phase 11 authentication activation gate](../roadmap/phase-11-production-hardening.md#tenant-authentication-production-activation)
+owns topology, cold/warm-cache and key-rotation drills, diagnostic/readiness decisions
+and operational runbooks before production use. P02b-6/7 still own actual realm
+issuance and browser-session integration.
 
 ## 6. Rate limit policy
 
@@ -523,7 +552,12 @@ Phase 11 deliverables:
 - `Apisix_NeverFronts_InternalApi` — integration test asserts requests to
   `app.learnstack.dev/api/internal/*` return 404 from APISIX (route not defined).
 - `Backend_RequiresJwt_OnAllAuthenticatedRoutes` — `WebApplicationFactory` integration
-  test: every endpoint outside the public allow-list returns 401 without a bearer token.
+  test under [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md):
+  present invalid credentials on known hosts return 401, including public routes.
+  Exact AccountSite absent credentials return masked `not_found` 404 on tenant,
+  organization and platform hosts. Unknown hosts refuse before JWT work; the
+  generic unresolved MediatR gate is unchanged. P02b-5 Step 4 activates this
+  boundary; its delivery record above owns the actual proof and review receipts.
   This is the test that holds the line while the gateway's OIDC block is commented out.
 
 ## 12. Non-goals

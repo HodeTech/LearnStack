@@ -14,11 +14,13 @@ import {
   admitProduct,
   assertConfiguration,
   decodedSource,
+  digest,
   normalizedJavaScript,
   reconcileScriptInventory,
   reportAdvisories,
   reportInventory,
   validateReport,
+  validateReportPair,
 } from '../../scripts/public-demo-contract.mjs';
 import { PublicDemoDocument, resolvedDemoCensus } from '../../scripts/public-demo-gatherer.mjs';
 import {
@@ -357,6 +359,7 @@ describe('Public_Lighthouse_Reports_Enforce_Budgets', () => {
       url: 'https://public.example/' + Math.floor(index / 3),
       run: (index % 3) + 1,
       commit: 'a',
+      tree: 'tree-a',
       build: 'b',
       invocation: 'c',
       configDigest: 'd',
@@ -367,11 +370,29 @@ describe('Public_Lighthouse_Reports_Enforce_Budgets', () => {
       expected.slice(1),
       expected.map((row, index) => (index ? row : expected[1])),
       expected.map((row, index) => (index ? row : { ...row, commit: 'stale' })),
+      expected.map((row, index) => (index ? row : { ...row, tree: 'stale-tree' })),
       expected.map((row, index) => (index ? row : { ...row, invocation: 'foreign' })),
       expected.map((row, index) => (index ? row : { ...row, configDigest: 'different' })),
       expected.map((row, index) => (index ? row : { ...row, browserVersion: 'different' })),
     ])
       expect(() => reportInventory(rows, expected)).toThrow();
+  });
+  it('binds JSON and HTML bytes to the same admitted report receipt', () => {
+    const json = Buffer.from(JSON.stringify(cleanReport()));
+    const html = Buffer.from('<!doctype html>' + 'report content '.repeat(100));
+    const row = { reportDigest: digest(json), htmlDigest: digest(html) };
+    expect(() => validateReportPair(row, json, html)).not.toThrow();
+    for (const [actualJson, actualHtml] of [
+      [Buffer.concat([json, Buffer.from(' ')]), html],
+      [json, Buffer.concat([html, Buffer.from(' ')])],
+      [json, Buffer.from('<!doctype html>' + 'foreign report '.repeat(100))],
+      [json, Buffer.alloc(0)],
+      [Buffer.alloc(0), html],
+    ])
+      expect(() => validateReportPair(row, actualJson!, actualHtml!)).toThrow();
+    expect(() => validateReportPair({ ...row, htmlDigest: '' }, json, html)).toThrow();
+    const short = Buffer.from('incomplete');
+    expect(() => validateReportPair({ ...row, htmlDigest: digest(short) }, json, short)).toThrow();
   });
 });
 

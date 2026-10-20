@@ -11,8 +11,9 @@ public sealed partial class OutboxDispatchConventionTests
 {
     private static readonly (string Controller, string[] Actions)[] JobManifestControllerActions =
     [
-        ("PublicSiteController", ["Get", "Head"]),
-        ("PublicEducationController", ["Catalog", "HeadCatalog", "Course", "HeadCourse", "Lesson", "HeadLesson"]),
+        ("LearnStack.Api.PublicReads.PublicSiteController", ["Get", "Head"]),
+        ("LearnStack.Api.PublicReads.PublicEducationController", ["Catalog", "HeadCatalog", "Course", "HeadCourse", "Lesson", "HeadLesson"]),
+        ("LearnStack.Api.Account.AccountController", ["GetSite"]),
     ];
 
     /// <summary>ADR-0047: disk-discovered modules cannot hide declarations outside the live handler scan.</summary>
@@ -21,6 +22,12 @@ public sealed partial class OutboxDispatchConventionTests
     {
         using var census = ProductionCensus.Read();
         EvaluateDetector(census, JobManifestOffenders).Should().BeEmpty();
+        EndpointCompositionControls.Plant(census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api"),
+            (prefix, because) => AssertEndpointControl(EvaluateDetector(census, JobManifestOffenders), prefix, because));
+        Action unrelated = () => AssertEndpointControl(["Missing live job manifest subject: unrelated"],
+            "Unexpected infrastructure path/handler/signature:", "an unrelated failure cannot satisfy the path control");
+        unrelated.Should().Throw<Xunit.Sdk.XunitException>();
+        EvaluateDetector(census, JobManifestOffenders).Should().BeEmpty("restoring production composition restores the manifest");
         CheckJobFrameworkMetadata();
 
         var scaffold = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Modules.Media.Application");
@@ -85,6 +92,7 @@ public sealed partial class OutboxDispatchConventionTests
         AssertMutation(census, "dashboard activation hidden in a generic middleware argument", () =>
             AddCallProbe(scaffold, "HiddenGenericDashboard", useDashboard, OpCodes.Call), JobManifestOffenders);
         foreach (var siteController in new[] { types[("LearnStack.Api", "LearnStack.Api.PublicReads.PublicSiteController")],
+                     types[("LearnStack.Api", "LearnStack.Api.Account.AccountController")],
                      types[("LearnStack.Api", "LearnStack.Api.Common.ApiControllerBase")] })
             AssertMutation(census, "a new declared or inherited public action on an approved controller", () =>
         {
@@ -93,6 +101,17 @@ public sealed partial class OutboxDispatchConventionTests
             siteController.Methods.Add(action);
             return () => siteController.Methods.Remove(action);
         }, JobManifestOffenders);
+    }
+
+    private static void AssertEndpointControl(IEnumerable<string> offenders, string control, string because)
+    {
+        var expected = control switch
+        {
+            "Unexpected infrastructure path/handler/signature:" => "Only the direct literal /healthz infrastructure mapping is admitted:",
+            "Require exactly one infrastructure mapping:" or "Unapproved endpoint mapping:" => "exact endpoint registration capabilities:",
+            _ => throw new InvalidOperationException("Unclassified endpoint control: " + control),
+        };
+        offenders.Should().Contain(error => error.StartsWith(expected, StringComparison.Ordinal), because);
     }
 
     private static SortedSet<string> JobManifestOffenders(ProductionCensus census)
@@ -153,11 +172,11 @@ public sealed partial class OutboxDispatchConventionTests
                 || type.Fields.Any(field => DashboardCapability(field.FieldType)))
                 offenders.Add("Production Hangfire dashboard holder: " + TypeId(type));
         CheckSet(offenders, "complete production controller population", types.Values.Where(IsController).Select(TypeId),
-            ["LearnStack.Api:LearnStack.Api.PublicReads.PublicSiteController", "LearnStack.Api:LearnStack.Api.PublicReads.PublicEducationController"]);
-        CheckSet(offenders, "exact public controller actions", types.Values.Where(IsController)
+            JobManifestControllerActions.Select(controller => "LearnStack.Api:" + controller.Controller));
+        CheckSet(offenders, "exact production controller actions", types.Values.Where(IsController)
                 .SelectMany(ControllerActions).Select(MethodId),
             JobManifestControllerActions.SelectMany(controller => controller.Actions.Select(name =>
-                Method(types[("LearnStack.Api", "LearnStack.Api.PublicReads." + controller.Controller)], name))));
+                Method(types[("LearnStack.Api", controller.Controller)], name))));
         foreach (var contract in new[] { typeof(IBackgroundJobDefinitionCatalog), typeof(IBackgroundJobRequestCatalog) })
         {
             var declaration = types[(KernelAssembly, contract.FullName!)];
@@ -182,6 +201,9 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "exact endpoint registration capabilities", sites.Where(site => EndpointCapability(site.Target))
                 .Select(site => MethodId(site.Owner) + "|" + MethodId(site.Target) + "|" + site.Instruction.OpCode.Name),
             approvedRoutes.Select(route => route.Item1 + "|" + MethodId(api.ImportReference(route.Item2)) + "|call"));
+        foreach (var site in sites.Where(site => site.Target.Name == "MapGet" && EndpointCapability(site.Target)))
+            if (!EndpointComposition.HasLiteralPath(site.Owner, site.Instruction, "/healthz"))
+                offenders.Add("Only the direct literal /healthz infrastructure mapping is admitted: " + MethodId(site.Owner));
         return offenders;
 
         IEnumerable<MethodDefinition> ControllerActions(TypeDefinition controller)
@@ -250,8 +272,6 @@ public sealed partial class OutboxDispatchConventionTests
         || DashboardCapability(method.ReturnType) || method.Parameters.Any(parameter => DashboardCapability(parameter.ParameterType))
         || method is GenericInstanceMethod generic && generic.GenericArguments.Any(DashboardCapability);
 
-    private static bool EndpointCapability(MethodReference method) => method.Name.StartsWith("Map", StringComparison.Ordinal)
-        && (method.DeclaringType.Namespace.StartsWith("Microsoft.AspNetCore.Builder", StringComparison.Ordinal)
-            || method.DeclaringType.Namespace == "Scalar.AspNetCore"
-            || DashboardCapability(method.DeclaringType));
+    private static bool EndpointCapability(MethodReference method) => EndpointComposition.IsCapability(method)
+        || method.Name.StartsWith("Map", StringComparison.Ordinal) && DashboardCapability(method.DeclaringType);
 }

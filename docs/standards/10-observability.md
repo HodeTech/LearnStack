@@ -7,8 +7,23 @@ Producer additions derive from
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 Accepted job-lifecycle observation derives from
-[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md);
-implementation remains P02b-4 Steps 4 and 9.
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md).
+P02b-4 is implemented and merged; its
+[merge closeout](../roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+owns final qualification. Phase 11 owns production activation.
+Tenant-authentication diagnostics derive from
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md);
+P02b-5 Steps 1 and 3 implement the components; Step 4 activates the HTTP boundary.
+Bounded assertion diagnostics and process-wide outbound metric projection derive
+from [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
+audit-budget implementation and local proofs are delivered in the
+[remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20).
+Acceptance was committed before that implementation; production sizing remains open.
+Subject-admission refusal and cleanup-fault signals derive from
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md), Accepted —
+2026-10-20. Their implementation and local exported proofs are delivered; the
+[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+owns independent reviews and final-source CI qualification.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -144,6 +159,129 @@ Structured JSON, one event per line. Example:
 - Stack traces logged at `Error` and `Fatal` only.
 - Avoid logging large objects; log identifiers and a sample summary instead.
 
+### Tenant-authentication diagnostics
+
+**Accepted contract — 2026-10-19; HTTP activation in P02b-5 Step 4.**
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) extends the
+existing rejection recorder; it introduces no second detector or audit slug.
+
+- The closed `TenantAssertionSource` maps only to `header` or `jwt-claim`.
+  Recorder metadata/counters consume that source. Arbitrary claims, opaque
+  subjects, actors and correlation IDs never become metric labels.
+- Rejection records capture typed actor, request correlation and trusted
+  organization explicitly. A host-backed JWT rejection is recorded under the
+  host tenant, with `OrganizationId=null` and trusted organization in metadata;
+  failed resolution does not install a tenant context for attribution.
+- Row 7 gains its required single rejection audit; row 10 stays unaudited.
+  Row 14 uses synchronous `RecordNoTenantRefusal`: one existing
+  `learnstack_tenant_assertion_unresolved_total` increment with only
+  `source=jwt-claim`, `dimension=Tenant`, and fixed `membership_unconfirmed`
+  diagnostic. Its decorator performs no audit-store I/O and writes zero rows;
+  no claimed tenant or sentinel supplies an audit target. The glossary names this
+  [tenantless membership refusal](../glossary.md#multi-tenancy).
+- A validated profile with absent tenant claim emits one fixed
+  `tenant_claim_absent` **Debug log event** per admitted request after subject
+  admission. It has no claim value or labels, creates no metric or error/message
+  key, and preserves public 200/protected 404 and the actor's attribution.
+- Resolution short-circuits at its first disagreement, before header assertions.
+  Separate authenticated requests remain distinct diagnostic occurrences.
+  Subject-quota refusal precedes durable mismatch recording; admitted audit
+  failure preserves the refusal and existing Critical/health behavior.
+- [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) admits 600
+  authenticated audit attempts per independently defended host tenant per API
+  instance in a first-request-anchored monotonic minute. A singleton
+  `TenantAssertionAuditBudget` shares allowance across scoped recorders, actors,
+  sources and dimensions. Failed writes spend permits. Later occurrences make
+  no audit-store call and retain their refusal. There is no tenant configuration
+  override or independent tenant-registry cap; suppressed calls do not extend
+  expiry. Anonymous bursts and tenantless recording retain their contracts.
+- Every mismatch increments
+  `learnstack_tenant_assertion_mismatch_total{dimension,source,authenticated}`;
+  tenant UUIDs are absent. Every suppressed occurrence also increments
+  `learnstack_tenant_assertion_audit_suppressed_total{dimension,source,reason}`,
+  with only `reason=audit_budget_exhausted`. Actor/subject/correlation values are
+  absent from all metric labels. A positive counter delta directly counts skipped
+  durable attempts, without joining logs to rows; Phase 11 owns production alert
+  routing and thresholds.
+- Emit exactly one Warning occurrence event: normal 4001, or suppressed 4006
+  `AuditBudgetExhausted`, retaining typed tenant/actor/correlation properties.
+  A suppressed occurrence emits no additional 4001. Its reason belongs to logs
+  and telemetry, never `AuditEntryDraft.Reason` or Problem Details. Aggregate
+  real-time log volume remains unbounded; an attacker can exhaust the durable
+  tenant allowance and later actors have no durable row during that window.
+  Counters/warnings do not restore complete durable actor evidence.
+  Suppression is intentional admission, not a store failure: the `audit` health
+  check can remain Healthy while rows are omitted. Before production exposure,
+  [Phase 11's authentication activation gate](../roadmap/phase-11-production-hardening.md#tenant-authentication-production-activation)
+  must qualify counter alerting and the 4006 tenant/actor/correlation triage
+  runbook. Health alone cannot establish complete security-event coverage.
+
+Accepted [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+requires `learnstack_tenant_subject_admission_rejected_total{reason}` with only
+`quota`, `registry_capacity` or `registry_fault`, emitted once per refused request
+before responding. Admission emits no increment; cached pipeline re-execution
+neither reacquires nor increments again. Emit unlabelled
+`learnstack_tenant_subject_cleanup_failed_total` once on the instance's first
+sticky cleanup-fault transition, including faults first observed by the timer.
+Neither metric carries issuer, subject, actor, tenant, host, token or correlation;
+retained exceptions are not metric values or exported provider diagnostics. No
+new per-refusal Warning or audit write is introduced. The signals have local
+actual-OTLP proofs; the implementation record owns independent reviews and
+final-source CI qualification. These proofs install neither production alerts nor
+mapped readiness. Phase 11
+owns sizing, alert routing and the separate quota/capacity/fault production
+runbook; liveness and audit health do not diagnose this registry.
+
+The Step 1 vendor boundary suppresses the exact category
+`Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerHandler` at every level
+before any production sink. This includes stock failure events 1/3 and inherited
+event 7. Emit independent LearnStack closed stage/reason outcomes without vendor
+exceptions, their message/inner/data, token, subject or issuer/audience text.
+IdentityModel PII/security-artifact output and backchannel diagnostics follow
+the same boundary. Actual Serilog-to-OTLP/error-capture and collector canary
+controls must prove both absence of raw failures and presence of closed outcomes;
+a Warning threshold or response-only setting is insufficient. Unrelated logging
+and sanctioned typed UUID/correlation recorder attribution remain observable.
+
+Metadata HTTP spans are suppressed. Native `System.Net.Http` and
+`System.Net.NameResolution` metrics do not honor request-local suppression.
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) ratifies the
+API export projection shipped in `c6108bf9`: HTTP retains only
+`http.request.method`, `http.response.status_code`, `network.protocol.version`,
+`url.scheme` and `error.type`; DNS retains only `error.type`. Counts and durations
+remain observable. Hostname/address/port, DNS question, full URL, path and query
+are omitted from metrics for every outbound request, including ordinary Hub,
+payment and media dependencies. Destination attribution is unavailable there.
+Ordinary HTTP traces and application logs remain observable. Phase 11 qualifies
+a finite source-declared dependency identity before its first consumer.
+
+The API sets the exemplar filter to `AlwaysOff` programmatically. A point-tag
+allowlist alone does not enforce this boundary: OpenTelemetry exemplars can
+retain removed point attributes as filtered attributes. Standard and
+histogram-specific `always_on`/`trace_based` environment settings cannot widen
+the API's export. This enforces ADR-0065's existing metric privacy contract;
+it introduces no destination-label exception. Metric-to-trace exemplar
+correlation is unavailable; ordinary trace export is unchanged.
+
+`TenantAuthenticationDiagnosticsTests.Metrics` proves real HTTP/DNS duration and
+bounded-tag positives. Metadata hostname/address canaries must be absent from
+all exported channels. A separate ordinary HTTP request with a distinct IP/port
+and path/query canaries must omit those values from metrics while preserving its
+ordinary trace positive; ordinary destinations are not forbidden in all payloads.
+The decoder includes exemplar attributes, span/trace identifiers and values.
+Both environment filter families have real unprojected controls and production
+privacy negatives. This distinguishes absent exemplars from a decoder that never
+read them.
+The actual singleton-budget suppression path is also exported through the root's
+`LearnStack.Api` meter subscription. Its test waits for the correlated Warning
+while the logger owner is alive: a metrics flush is not a log-delivery receipt.
+The ordinary-destination controls are implemented; the
+[P02b-5 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+owns their current qualification status.
+
+Step 3 implements recorder/claimless/quota diagnostics; Steps 4–5 qualify the
+complete active path. Acceptance alone claims none of these mechanisms delivered.
+
 ### Sampling
 
 - Production sampling: 100% of `Information`+ logs by default.
@@ -251,6 +389,11 @@ backend treat business rejections as system failures.
 |--------|------|--------|
 | `learnstack_http_request_duration_seconds` | histogram | route, method, status |
 | `learnstack_http_request_total` | counter | route, method, status |
+| `learnstack_tenant_assertion_mismatch_total` | counter | dimension, source, authenticated |
+| `learnstack_tenant_assertion_audit_suppressed_total` | counter | dimension, source, reason (`audit_budget_exhausted`) |
+| `learnstack_tenant_assertion_unresolved_total` | counter | dimension, source |
+| `learnstack_tenant_subject_admission_rejected_total` | counter | reason (`quota`, `registry_capacity`, `registry_fault`) |
+| `learnstack_tenant_subject_cleanup_failed_total` | counter | none |
 | `learnstack_db_query_duration_seconds` | histogram | module, operation |
 | `learnstack_outbox_pending_count` | gauge | — |
 | `learnstack_outbox_dispatch_duration_seconds` | histogram | event_type |

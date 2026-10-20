@@ -36,8 +36,9 @@ namespace LearnStack.SharedKernel.Tenancy;
 public enum TenantContextOrigin
 {
     /// <summary>
-    /// The host named the tenant and nothing else did — an anonymous page load.
-    /// Reaches <c>[PublicSurface]</c> request types and nothing else.
+    /// The host alone named the tenant. This includes anonymous page loads and
+    /// validated claimless actors retained only for attribution. Authentication
+    /// never raises this ceiling: only <c>[PublicSurface]</c> requests may run.
     /// </summary>
     HostOnly,
 

@@ -39,11 +39,13 @@ public sealed partial class BackgroundJobControlTests
         for (var candidates = 0; candidates <= 1; candidates++)
         {
             if (candidates == 1) due = await SeedTerminalNoStartPlanCandidateAsync(database);
-            await SchemaQueries.ExecuteAsync(owner, null, """
-                ANALYZE background_jobs;
-                ANALYZE background_job_attempts;
-                ANALYZE background_job_reservations;
-                """);
+            // Guarded seed updates leave obsolete index entries whose bitmap
+            // TIDs are counted by EXPLAIN even when no live row is due. Make
+            // maintenance explicit before measuring the live future backlog;
+            // retain the normal planner and the same dirty/clean visit bounds.
+            foreach (var maintenance in new[] { "VACUUM (ANALYZE) background_jobs",
+                         "VACUUM (ANALYZE) background_job_attempts", "VACUUM (ANALYZE) background_job_reservations" })
+                await SchemaQueries.ExecuteAsync(owner, null, maintenance);
             var cleanJson = await ExplainControlAsync((NpgsqlConnection)dispatcher, sql);
             var clean = PlanNodes(cleanJson);
             clean.Where(node => node.TryGetProperty("Index Cond", out _))

@@ -1,5 +1,6 @@
 using System.Reflection;
 using FluentAssertions;
+using LearnStack.Api.Account;
 using LearnStack.Api.Jobs;
 using LearnStack.Api.Messaging;
 using LearnStack.Api.PublicReads;
@@ -170,8 +171,10 @@ public sealed class BackgroundJobProductionManifestTests
                 + string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? []) + "|"
                 + (method is null ? endpoint.DisplayName : method.DeclaringType?.FullName + "." + method.Name);
         }).Order(StringComparer.Ordinal).ToArray();
-        var publicRoutes = new[]
+        var applicationRoutes = new[]
         {
+            // ADR-0064 adds one authenticated read, never a job operator route.
+            "account/site|GET|" + typeof(AccountController).FullName + ".GetSite",
             "public/site|GET|" + typeof(PublicSiteController).FullName + ".Get",
             "public/site|HEAD|" + typeof(PublicSiteController).FullName + ".Head",
             "public/courses|GET|" + typeof(PublicEducationController).FullName + ".Catalog",
@@ -190,7 +193,7 @@ public sealed class BackgroundJobProductionManifestTests
             "docs/scalar.aspnetcore.js|GET|Scalar.AspNetCore.ScalarEndpointRouteBuilderExtensions+<>c.<MapStaticAssetsEndpoints>b__10_1",
             "docs/favicon.svg|GET|Scalar.AspNetCore.ScalarEndpointRouteBuilderExtensions+<>c.<MapStaticAssetsEndpoints>b__10_2",
         };
-        actual.Should().Equal(publicRoutes.Concat(infrastructure).Order(StringComparer.Ordinal),
+        actual.Should().Equal(applicationRoutes.Concat(infrastructure).Order(StringComparer.Ordinal),
             "only the approved production route/method/handler multiset is served; actual: {0}", string.Join("; ", actual));
     }
 

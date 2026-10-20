@@ -132,7 +132,8 @@ connection. The existing authoring reader above keeps its bounded failure behavi
 No caller tenant/org IDs or cross-module table join is introduced.
 
 - Require matching real factory HostScope. Tenant must be nondeleted Trial/Active;
-  a mapped organization must be nondeleted Active. Missing/suspended/archived scope
+  the resolved organization, whether mapped or claim-selected, must be nondeleted
+  Active. Missing/suspended/archived scope
   returns masked not_found. Credentials never widen institution public visibility.
 - Use canonical enabled tenant locales and exactly one enabled default. Valid no-row
   or all-disabled configurations authorize no content locale: bootstrap is `404`,
@@ -155,6 +156,27 @@ owns serialized fields; HTTP/database positive controls are required before exit
 No platform locale registry is introduced. Admission uses the existing `LocaleTag`
 grammar, canonicalization and 35-character application bound; membership is the
 tenant's own enabled rows, not a speculative platform language allowlist.
+
+### P02b-5 authenticated account-site read
+
+`GetAccountSiteQuery` is a non-public, audit Off request under
+[ADR-0064's closed authenticated read](../../decisions/0064-tenant-api-authentication-boundary.md#closed-authenticated-read).
+It accepts no scope selector and returns `AccountSite`: the context's stable
+`ActorId`, resolved `TenantId` and nullable `OrganizationId`, plus the existing
+`PublicSite` projection. It discloses no permission-sensitive configuration and
+adds no permission key; Phase 03 owns membership and permissions.
+
+Before any configuration, settings or feature read, its own guard requires
+`HostAndClaim`, a real non-system actor and matching real resolved/host scope.
+Missing provenance and `ClaimAndMembership` return `not_found`, including future
+membership-confirmed platform contexts with an apparently matching host scope.
+Both site handlers call the same projection directly within the pipeline-owned
+physical READ ONLY frame. The live configuration reader independently retains
+its host, enlistment, tenant/organization lifecycle and locale checks. Theme/null
+and attribution follow the public contract above; `branding.theme` stays
+tenant-wide. P02b-5 Step 4 exposes only `GET /api/v1/account/site`; its
+[delivery record](../../roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+owns HTTP validation and review status.
 
 ### Whole-theme setting and public boundary
 

@@ -4,6 +4,8 @@
 [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md),
 [ADR-0033](../decisions/0033-audit-durability-model.md),
 [ADR-0044](../decisions/0044-audit-write-path.md),
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md),
+[ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md),
 [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md). For the
 day-to-day rules read [09-error-handling.md](../standards/09-error-handling.md),
 [10-observability.md](../standards/10-observability.md), and
@@ -82,6 +84,45 @@ unhandled exception (Sentry-captured, 500 Problem Details). Per
 [09-error-handling.md § Hierarchy](../standards/09-error-handling.md).
 
 ## 2. MediatR Pipeline Order
+
+P02b-5's [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+adds HTTP authentication/admission before this unchanged pipeline. Only the
+closed AccountSite GET gains authenticated reachability; its exact query is Off
+and uses the existing physical ReadOnly owner alongside PublicSurface reads.
+The HTTP middleware order and error precedence live in that ADR and
+[API Design](../standards/04-api-design.md#authentication); they do not add a ninth
+MediatR stage or implement Phase 03 permission checks. Independent rejected
+assertions keep the recorder's standalone audit path. Accepted
+[ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) adds a shared
+singleton host-tenant admission budget before authenticated store calls: 600
+attempts per API instance per first-request-anchored monotonic minute, including
+failed writes. Scoped recorders retain one Warning and counter per occurrence;
+after exhaustion, Warning 4006 replaces normal 4001 and no database I/O occurs.
+This can lose later actors' durable evidence and leaves aggregate real-time log
+volume unbounded. Admitted events remain MUST; general mutation durability and
+tenant `AuditConfig` floors are unchanged. Its acceptance precedes dependent code.
+
+Accepted [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+separately bounds the subject registry and its cleanup ownership. Its closed
+limiter result travels to middleware with detached retry metadata; a cached
+request result controls dispatch and once-only rejection metrics. Quota/capacity
+remain 429; new-key sticky cleanup fault uses 503 and the common retry helper.
+Already retained subjects keep their quota service. One shared retirement owner
+bounds retained-plus-retiring resources; synchronous cleanup can block its owning
+request and joined shutdown indefinitely. No timeout proves cleanup and no new
+fatal-process policy is added. The exact lifecycle and HTTP contract live in the
+ADR; [Observability Standards](../standards/10-observability.md#tenant-authentication-diagnostics)
+owns the identity-free signals. Acceptance is 2026-10-20; implementation and
+local runtime/exported proofs are delivered. The
+[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+owns independent reviews and final-source CI qualification.
+
+ADR-0065 also ratifies process-wide native outbound metric projection: HTTP keeps
+method/status/protocol/scheme/error; DNS keeps only `error.type`. Destination,
+full URL, path/query and IP/port are absent from metrics for metadata and ordinary
+dependencies. Ordinary traces/logs remain observable; metadata canaries stay absent
+from every exported channel. Standards 10 owns channel-specific positive/negative
+proofs. Phase 11 qualifies finite dependency attribution before its first consumer.
 
 P02d-4's [accepted boundary](../decisions/0052-anonymous-public-read-boundary.md)
 adds factory host-ceiling admission and read-only transaction intent.

@@ -4,6 +4,8 @@
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (Problem Details + Result\<T\> baseline), [ADR 0032 — Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md) (implementation patterns), [04-api-design.md](04-api-design.md) § Error Responses.
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+Tenant API authentication additions derive from
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
 Public UI message mapping derives from [ADR-0027](../decisions/0027-frontend-i18n.md)
 and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
 Bootstrap response ownership and renderer Retry-After qualification derive from
@@ -136,6 +138,14 @@ matching localization key adds the `lockey_` prefix.
 | `payload_too_large` | Request body over the published limit — *framework-minted* | 413 |
 | `unsupported_media_type` | `Content-Type` the endpoint does not accept — *framework-minted* | 415 |
 | `request_rejected` | Any other 4xx nothing else names — *framework-minted* | 4xx as sent |
+
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) distinguishes
+HTTP credential failures from tenant refusal: invalid present credentials on
+known hosts return bare-challenge 401, while missing AccountSite credentials
+return masked `not_found` 404. Authenticated host/header disagreement remains
+`tenant_mismatch`; membership refusal remains `not_found`. Early 413/429 retain
+their existing precedence and shared Problem Details owner. The complete ongoing
+contract lives in [API Design](04-api-design.md#authentication).
 
 A **framework-minted** code is one no handler produced: routing or the server
 rejected the request before an `Error` could exist, so the code is derived from

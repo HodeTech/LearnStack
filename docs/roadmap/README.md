@@ -95,7 +95,7 @@ not deferred to the showcase phase.
   The [individual exit evidence](phase-02d-exit-evidence.md) maps each exit
   criterion to its actual proof and completed disposition.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
-  — **P02b-0 through P02b-3 complete; P02b-3 merged through PR #31 on 2026-10-15**. Its
+  — **P02b-0 through P02b-4 complete; P02b-1–4 merged through PRs #29–32**. Its
   [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
   verifies the inherited baseline; Accepted ADR-0057 and the
   [producer package](phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
@@ -119,13 +119,37 @@ not deferred to the showcase phase.
   P02b-3 is complete and merged through PR #31 on 2026-10-15; its
   [merge closeout](phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
   owns final verification.
-  P02b-4's transactional job infrastructure is implemented under Accepted ADR-0047
-  and its lifecycle decisions. ADR-0062/0063 supply the bounded CI implementation.
-  The [live Phase 02b status](phase-02b-events-auth.md) owns current remediation,
-  review and final-source A/B qualification; new source requires both complete
-  assignments. Production business and recurrence definitions remain empty.
-  API authentication, realm reconciliation, BFF sessions and phase-exit
-  enforcement remain P02b-5–8.
+  P02b-4 is complete and merged through PR #32 on 2026-10-19. Its
+  [merge closeout](phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+  records all nine runtime steps, three CI steps, completed independent reviews
+  and both complete final-source hosted assignments. Production business and
+  recurrence definitions remain empty. P02b-5's
+  [decision package](phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
+  and ADR-0064/0065/0066 are Accepted; five implementation steps, each with two
+  fresh independent review rounds, are authorized. Step 1 completes the isolated
+  token foundation after both independent reviews; its
+  [record](phase-02b-events-auth.md#p02b-5-step-1--token-foundation-2026-10-19)
+  owns the verified metric-privacy correction. Step 2 completes the real read-only
+  subject after both independent review rounds; its
+  [record](phase-02b-events-auth.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19)
+  owns validation. Step 3 completes attributed reconciliation and subject
+  admission after both independent reviews; its
+  [record](phase-02b-events-auth.md#p02b-5-step-3--attributed-reconciliation-and-subject-admission-2026-10-19)
+  owns verified corrections. Step 4 installs the complete HTTP boundary and typed
+  contract; its [record](phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+  owns validation and both completed reviews. Step 5 completes the authority
+  census, carrier reconciliation and both review rounds; its
+  [local closeout](phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+  separates exact CI receipts from live PR-head qualification and merge. All five
+  steps are locally complete and unmerged. After P02b-5 merge, the next packet is
+  P02b-6's realm/TTL decision pass.
+  The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
+  owns current corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+  is Accepted — 2026-10-20; its subject-cap, cleanup and refusal refinements are
+  implemented with local runtime/exported proofs. Its
+  [implementation record](phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+  owns source-bound validation, independent reviews and final-source CI qualification.
+  Realm reconciliation, BFF sessions and phase-exit enforcement remain P02b-6–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)

@@ -128,12 +128,8 @@ public sealed class TenantResolverMiddlewareTests
         // transaction each, on the pre-authentication path, so calling either
         // unconditionally would put two round trips on every anonymous page load.
         //
-        // The ORDER of the two — membership first, so a row-14 attempt never
-        // announces a caller-supplied, unconfirmed tenant id through
-        // set_config('app.tenant_id', …) — is not observable here and is not
-        // asserted here: it needs a claim, and there is no UseAuthentication until
-        // Phase 02b. Saying so is better than a case that passes because nothing
-        // reached the branch.
+        // The authenticated chain separately proves membership precedes structural
+        // organization lookup. This control keeps anonymous requests free of both.
         var validator = new CountingValidator();
         var memberships = new CountingMemberships();
 
@@ -175,7 +171,7 @@ public sealed class TenantResolverMiddlewareTests
         await middleware.InvokeAsync(
             context,
             validator ?? new CountingValidator(),
-            memberships ?? new CountingMemberships());
+            memberships ?? new CountingMemberships(), new NoopRecorder());
 
         return context;
     }
@@ -204,6 +200,13 @@ public sealed class TenantResolverMiddlewareTests
             Calls++;
             return Task.FromResult(true);
         }
+    }
+
+    private sealed class NoopRecorder : ITenantAssertionRecorder
+    {
+        public Task RecordRejectionAsync(TenantAssertionRejection rejection) => Task.CompletedTask;
+        public void RecordUnresolved(TenantAssertionDimension dimension) { }
+        public void RecordNoTenantRefusal(TenantNoTenantRefusal refusal) { }
     }
 
     private sealed class StubContext : ITenantContext

@@ -31,6 +31,14 @@ two scopes (tenant + organization):
 
 ## Defense-in-depth layers
 
+P02b-5's [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+activates the strict tenant bearer boundary. Only its immutable validated
+projection feeds the existing factory; a raw principal, role, email or free claim
+is not a second authority. The exact AccountSite read independently requires
+HostAndClaim plus matching real host provenance before any reader. Claimless
+actors retain HostOnly/public-only authority; Phase 03 owns live membership and
+permissions. Existing filters, RLS, grants and context writers are unchanged.
+
 P02d-4's accepted public boundary adds immutable factory-preserved HostScope,
 intersected with normal context, filters and RLS. Tenant hosts expose tenant-wide
 rows only; organization hosts add only their own organization's rows. Claim-only,
@@ -73,10 +81,10 @@ sequenceDiagram
     APISIX->>APISIX: Gateway checks when Phase 11 adapter is active
     APISIX->>API: Forward with X-Correlation-Id
     API->>MW: HTTP pipeline
-    MW->>MW: Resolve host via platform_host_to_tenant AND read JWT claims#59;<br/>reject on disagreement (ADR-0036 — agreement, not priority)
+    MW->>MW: Reconcile host + validated scope; reject disagreement (ADR-0036/0064)
     MW->>Accessor: Current = reconciled context and immutable host ceiling
     MW->>API: continue
-    API->>EF: Begin with selected mode, complete RO setup when public,<br/>then tenant announcement before data (step 6)
+    API->>EF: Begin approved mode, RO setup first, then tenant announcement
     API->>EF: Query tenant-owned aggregate
     EF->>EF: Apply global filter (tenant + org)
     EF->>PG: Query with WHERE tenant_id = X AND (organization_id = Y OR IS NULL)
@@ -86,11 +94,13 @@ sequenceDiagram
 
 In text, for a reader whose renderer does not draw it:
 
-1. The browser sends a host-based request; authenticated claims arrive in Phase 02b.
+1. The browser sends a host-based request. P02b-5 validates optional tenant bearer
+   credentials; credential-free public rendering remains independent of the issuer.
 2. APISIX is demand-gated to Phase 11; until then API middleware owns ingress
    controls. Active gateway configurations forward correlation metadata.
 3. Middleware resolves the host through `platform_host_to_tenant` **and** reads
-   the JWT claims, rejecting on disagreement — agreement, not priority
+   the validated scalar claim projection, rejecting on disagreement — agreement,
+   not priority
    ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
 4. It writes the ambient context — `ITenantContextAccessor.Current`, the
    accessor's only member
@@ -98,7 +108,8 @@ In text, for a reader whose renderer does not draw it:
    and the request continues.
 5. `TransactionBehavior` selects ambient mode and delegates to
    `TransactionExecutionCoordinator`. Default writers announce tenant first;
-   physical public reads complete only the approved READ ONLY setup first, then
+   physical public reads and exact AccountSite complete the approved READ ONLY setup
+   first, then
    announce tenant before data under [Security's rule](../standards/11-security.md#the-rule).
 6. EF Core applies the global query filter, so the SQL carries the tenant and
    organization predicate before it leaves the process.

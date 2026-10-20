@@ -41,30 +41,10 @@ internal sealed class PublicReadDocumentTransformer : IOpenApiDocumentTransforme
                             "Positive ASCII decimal, including leading zeros. Default 20; values above 100 clamp to 100. Zero, signs, whitespace and repeats are refused."));
                     }
                 }
-                operation.Description = "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.";
-                operation.Responses ??= [];
-                foreach (var (status, description) in Errors)
-                    operation.Responses[status] = new OpenApiResponse
-                    {
-                        Description = status == "400" && path.EndsWith("/site", StringComparison.Ordinal)
-                            ? "validation_failed; the site bootstrap accepts no query parameters." : description,
-                        Content = method == HttpMethod.Head ? null : new Dictionary<string, OpenApiMediaType>
-                        { ["application/problem+json"] = new() { Schema = new OpenApiSchemaReference("ProblemDetails", document) } }
-                    };
-                foreach (var response in operation.Responses.Values.OfType<OpenApiResponse>())
-                {
-                    response.Headers ??= new Dictionary<string, IOpenApiHeader>();
-                    response.Headers["Cache-Control"] = new OpenApiHeader
-                    {
-                        Required = true,
-                        Schema = new OpenApiSchema
-                        { Type = JsonSchemaType.String, Enum = [JsonValue.Create("no-store")!] }
-                    };
-                    if (method == HttpMethod.Head) response.Content = null;
-                }
-                // The controller formatter emits JSON; MVC's default text alternatives are not this contract.
-                if (method == HttpMethod.Get && operation.Responses["200"] is OpenApiResponse success && success.Content is { } content)
-                    success.Content = new Dictionary<string, OpenApiMediaType> { ["application/json"] = content["application/json"] };
+                operation.Description = "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.";
+                DocumentResponses(document, operation, method, Errors.Select(error =>
+                    error.Status == "400" && path.EndsWith("/site", StringComparison.Ordinal)
+                        ? (error.Status, "validation_failed; the site bootstrap accepts no query parameters, and malformed or repeated assertion headers are refused.") : error));
             }
         }
         foreach (var (name, value) in document.Components.Schemas)
@@ -88,13 +68,54 @@ internal sealed class PublicReadDocumentTransformer : IOpenApiDocumentTransforme
 
     private static readonly (string Status, string Description)[] Errors =
     [ ("400", "validation_failed or unsupported_locale; bounded localizable field errors where applicable."),
-      ("404", "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure."),
-      ("405", "method_not_allowed from routing."), ("429", "rate_limited from the anonymous limiter."),
+      ("401", "unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details."),
+      ("404", "not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure."),
+      ("405", "method_not_allowed from routing."),
+      ("413", "payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body."),
+      ("429", "rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity."),
       ("500", "internal_error from unexpected failures; no exception or query details."),
-      ("503", "dependency_unavailable from invalid stored public configuration.") ];
+      ("503", "dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault.") ];
+
+    internal static void DocumentResponses(OpenApiDocument document, OpenApiOperation operation, HttpMethod method,
+        IEnumerable<(string Status, string Description)> errors, string allowedMethods = "GET, HEAD")
+    {
+        operation.Responses ??= [];
+        foreach (var (status, description) in errors)
+            operation.Responses[status] = new OpenApiResponse
+            {
+                Description = description,
+                Content = method == HttpMethod.Head ? null : new Dictionary<string, OpenApiMediaType>
+                { ["application/problem+json"] = new() { Schema = new OpenApiSchemaReference("ProblemDetails", document) } }
+            };
+        foreach (var (status, value) in operation.Responses)
+        {
+            if (value is not OpenApiResponse response) continue;
+            response.Headers ??= new Dictionary<string, IOpenApiHeader>();
+            response.Headers["Cache-Control"] = LiteralHeader("no-store", required: status != "413");
+            if (status == "401") response.Headers["WWW-Authenticate"] = LiteralHeader("Bearer");
+            if (status == "405") response.Headers["Allow"] = LiteralHeader(allowedMethods);
+            if (status is "429" or "503") response.Headers["Retry-After"] = new OpenApiHeader
+            {
+                Required = true,
+                Description = status == "429" ? "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission."
+                    : "Suggested dependency retry delay in seconds; not a recovery guarantee.",
+                Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Minimum = "0" }
+            };
+            if (method == HttpMethod.Head) response.Content = null;
+        }
+        // The controller formatter emits JSON; MVC's default text alternatives are not this contract.
+        if (method == HttpMethod.Get && operation.Responses["200"] is OpenApiResponse success && success.Content is { } content)
+            success.Content = new Dictionary<string, OpenApiMediaType> { ["application/json"] = content["application/json"] };
+    }
+
+    private static OpenApiHeader LiteralHeader(string value, bool required = true) => new()
+    {
+        Required = required,
+        Schema = new OpenApiSchema { Type = JsonSchemaType.String, Enum = [JsonValue.Create(value)!] }
+    };
 
     private static OpenApiSchema Text() => new() { Type = JsonSchemaType.String };
-    private static OpenApiSchema Problem() => new()
+    internal static OpenApiSchema Problem() => new()
     {
         Type = JsonSchemaType.Object,
         Required = new HashSet<string> { "type", "title", "status", "instance", "code", "messageKey", "correlationId" },

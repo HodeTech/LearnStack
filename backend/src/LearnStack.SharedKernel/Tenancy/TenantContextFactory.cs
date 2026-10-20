@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Results;
 
 namespace LearnStack.SharedKernel.Tenancy;
@@ -27,14 +28,11 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// another way.
 /// </para>
 /// <para>
-/// <b>The error it returns is not the wire.</b> The refusal a client sees is a
-/// bodyless <c>404</c> rendered by <c>UseStatusCodePages</c>, byte-identical to the
-/// one an unresolvable host gets — because anything a client can tell apart confirms
-/// to an anonymous caller that the tenant exists. The <see cref="Error"/> here names
-/// the reason for a reader of the code and for the middleware's own logging; it
-/// carries <c>lockey_not_found</c> rather than <c>lockey_tenant_mismatch</c> because
-/// the wire result must match the anonymous case, and <c>tenant_mismatch</c> is the
-/// authenticated code.
+/// <b>The error is independent of HTTP classification.</b> Every factory refusal
+/// carries <c>lockey_not_found</c>. The HTTP resolver uses validated attempt facts
+/// to distinguish authenticated claim/host disagreement from membership refusal
+/// through the shared Problem Details factory (ADR-0064). Anonymous refusals stay
+/// indistinguishable from an unknown host. This pure factory performs no I/O.
 /// </para>
 /// </remarks>
 public static class TenantContextFactory
@@ -43,18 +41,10 @@ public static class TenantContextFactory
     /// The one refusal — for every failing row, and for the pipeline's ceiling.
     /// </summary>
     /// <remarks>
-    /// One <see cref="Error"/> and not one per row: a caller who could tell row 8
-    /// (a tenant that exists, claimed by a token for another) from row 10 (an
-    /// organization no membership covers) would have an oracle over which tenants
-    /// and organizations exist. The distinction that matters to an operator is
-    /// carried by the middleware's log line, not by the response.
-    /// <para>
-    /// <b>Shared with <c>TenantContextBehavior</c>'s authority-ceiling gate</b>, which
-    /// is not a row of the matrix. The coupling is deliberate and it is to the wire
-    /// result rather than to the matrix: both refusals must be byte-identical to an
-    /// unresolvable host's <c>404</c>, and one <see cref="Error"/> makes that a
-    /// compile-time fact instead of two tests agreeing by coincidence.
-    /// </para>
+    /// One pure refusal for every failed matrix row. The generic authority ceiling
+    /// also uses it for a resolved context that cannot reach the requested surface.
+    /// HTTP-specific authenticated mismatch classification belongs to the resolver,
+    /// not to this shared error or the generic unresolved MediatR gate.
     /// </remarks>
     public static Error Refused { get; } = new(new LocalizedMessage("lockey_not_found"));
 
@@ -74,42 +64,19 @@ public static class TenantContextFactory
     {
         ArgumentNullException.ThrowIfNull(attempt);
 
-        // Rows 13 and 15, defensively. Callers must not arrive here with NamesNoTenant
-        // set — the middleware leaves those requests on UnresolvedTenantContext,
-        // because "this host serves no tenant" is what a platform host legitimately is
-        // and not an error. Refused is simply the safe answer for a caller that ignores
-        // that contract; it is not the path traffic takes.
-        if (attempt.NamesNoTenant)
-        {
+        // Validate every supplied signal before the no-tenant shortcut. Incoherent
+        // actor/organization signals cannot become a legitimate platform request.
+        if (attempt.HasIncoherentClaims
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.HostTenantId)
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.ClaimTenantId)
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.HostOrganizationId)
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.ClaimOrganizationId)
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.UserId)
+            || attempt.HostTenantId == TenantId.PlatformSentinel
+            || attempt.ClaimTenantId == TenantId.PlatformSentinel
+            || attempt.UserId == UserId.SystemActor
+            || attempt.NamesNoTenant)
             return Result.Fail<TenantContext>(Refused);
-        }
-
-        // Neither shape is a row. Refused before the cross-check, because the
-        // cross-check reasons about signals that agree and these signals are not
-        // well-formed enough to disagree.
-        if (attempt.HasIncoherentClaims)
-        {
-            return Result.Fail<TenantContext>(Refused);
-        }
-
-        // A claim without a validated principal is not a claim. HasValidatedPrincipal is
-        // declared as the bit that separates rows 13 and 15 — "both resolve no tenant, and
-        // only one of them has a principal" — and until now nothing read it, so an attempt
-        // carrying ClaimTenantId with the bit clear produced a HostAndClaim context and the
-        // matrix's own trust distinction was decorative.
-        //
-        // Unreachable today: authentication registers in Phase 02b and the bit is constant
-        // false, so no caller populates a claim at all. That is exactly why it is worth
-        // closing now — the first caller that populates one will populate both or neither,
-        // and this decides which of those is a mistake rather than leaving it to whoever
-        // writes the middleware.
-        if (!attempt.HasValidatedPrincipal
-            && (attempt.ClaimTenantId is not null
-                || attempt.ClaimOrganizationId is not null
-                || attempt.UserId is not null))
-        {
-            return Result.Fail<TenantContext>(Refused);
-        }
 
         // Rows 8, 11 and 12 — the cross-check. Evaluated before any port answer is
         // consulted, so a refused request never spends a database round trip.
@@ -120,7 +87,7 @@ public static class TenantContextFactory
 
         // Rows 7, 10 and 14. `is not true` and not `== false`: an unanswered question
         // is a refusal, so a caller that forgot to ask cannot widen anything. This is
-        // where DenyAllTenantMembershipReader makes rows 7 and 14 fail closed until
+        // where DenyAllTenantMembershipReader makes rows 7, 10 and 14 fail closed until
         // Phase 03.
         if (attempt.RequiresMembershipCheck && attempt.MembershipCovers is not true)
         {

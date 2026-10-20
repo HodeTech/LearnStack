@@ -40,7 +40,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// </para>
 /// <para>
 /// The scope is constructed directly with a permissive gate double. The shipped gate
-/// refuses everyone — correctly, there is no principal — and the property under test here
+/// refuses everyone — correctly, application permissions await Phase 03 — and the property under test here
 /// is the connection, not the gate; the gate's own behaviour is asserted separately and
 /// without Docker.
 /// </para>
@@ -564,7 +564,7 @@ public sealed class PlatformAdminScopeTests
         reader.GetString(5).Should().Be(nameof(OperationClass.Must));
         reader.GetString(6).Should().Be("success", "entry succeeded; what follows it is not this row");
         reader.IsDBNull(7).Should().BeTrue(
-            "there is no principal in the process until Phase 02b, and inventing one here "
+            "this scope does not acquire an authenticated tenant principal, and inventing one here "
             + "would put a fabricated actor on a permanent record");
 
         reader.GetString(8).Should().Be(nameof(Entry_Is_On_The_Record_Before_The_Operation_Runs),

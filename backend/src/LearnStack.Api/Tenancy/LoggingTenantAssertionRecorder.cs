@@ -11,18 +11,18 @@ namespace LearnStack.Api.Tenancy;
 /// <see cref="AuditingTenantAssertionRecorder"/> decorates it with the <c>audit_log</c>
 /// row. It stays a separate type on purpose: the counter and the warning cost no I/O and
 /// are what a deployment still has when the audit store is unreachable, and the
-/// architecture rule that says only one file may name these two counters is easier to keep
+/// architecture rule that says only one file may name these counters is easier to keep
 /// true of a file that does nothing else.
 /// <para>
-/// The metric labels are fixed and bounded — tenant id, dimension, source, and
+/// The metric labels are fixed and bounded — dimension, source, and
 /// whether a principal was attached. Per
 /// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
-/// § Recording a rejected assertion</see>, the effective host and the source IP
-/// are <b>never</b> labels: both are attacker-chosen and unbounded, and a
-/// cardinality explosion in the metrics store is a self-inflicted outage.
+/// § Recording a rejected assertion</see> and ADR-0065, effective hosts, source IPs
+/// and tenant UUIDs are <b>never</b> labels. Host/IP values are attacker-chosen;
+/// tenant-series cardinality grows with deployment size. Attribution stays in logs.
 /// </para>
 /// </remarks>
-public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
+public sealed partial class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
 {
     /// <summary>The meter name every LearnStack metric hangs off.</summary>
     public const string MeterName = "LearnStack.Api";
@@ -30,9 +30,12 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
     public const string MismatchCounterName = "learnstack_tenant_assertion_mismatch_total";
     public const string UnresolvedCounterName = "learnstack_tenant_assertion_unresolved_total";
 
+    public const string SuppressedCounterName = "learnstack_tenant_assertion_audit_suppressed_total";
+
     private readonly ILogger<LoggingTenantAssertionRecorder> _logger;
     private readonly Counter<long> _mismatches;
     private readonly Counter<long> _unresolved;
+    private readonly Counter<long> _suppressed;
 
     public LoggingTenantAssertionRecorder(
         ILogger<LoggingTenantAssertionRecorder> logger,
@@ -44,6 +47,7 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
         var meter = meterFactory.Create(MeterName);
         _mismatches = meter.CreateCounter<long>(MismatchCounterName);
         _unresolved = meter.CreateCounter<long>(UnresolvedCounterName);
+        _suppressed = meter.CreateCounter<long>(SuppressedCounterName);
     }
 
     /// <inheritdoc />
@@ -60,14 +64,25 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
     }
 
     /// <summary>The metric and the warning, for a decorator that has more to do after.</summary>
-    public void Record(TenantAssertionRejection rejection)
+    public void Record(TenantAssertionRejection rejection, bool auditSuppressed = false)
     {
         _mismatches.Add(
             1,
-            new KeyValuePair<string, object?>("tenant", rejection.ResolvedTenantId),
             new KeyValuePair<string, object?>("dimension", rejection.Dimension.ToString()),
-            new KeyValuePair<string, object?>("source", "header"),
+            new KeyValuePair<string, object?>("source", rejection.Source.ToLabel()),
             new KeyValuePair<string, object?>("authenticated", rejection.IsAuthenticated));
+
+        if (auditSuppressed)
+        {
+            _suppressed.Add(1,
+                new KeyValuePair<string, object?>("dimension", rejection.Dimension.ToString()),
+                new KeyValuePair<string, object?>("source", rejection.Source.ToLabel()),
+                new KeyValuePair<string, object?>("reason", "audit_budget_exhausted"));
+            AuditBudgetExhausted(_logger, rejection.Dimension.ToString(), rejection.ResolvedTenantId,
+                rejection.AssertedValue, rejection.Source.ToLabel(), rejection.ActorUserId?.Value,
+                rejection.CorrelationId, "audit_budget_exhausted");
+            return;
+        }
 
         // Warning, not Error: the request was refused, which is the system
         // working. It is worth a human's attention because the usual cause is
@@ -80,18 +95,33 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
             rejection.ResolvedTenantId,
             rejection.AssertedValue,
             rejection.IsAuthenticated,
-            null);
+            rejection.Source.ToLabel(),
+            rejection.ActorUserId?.Value,
+            rejection.CorrelationId);
     }
 
-    // LoggerMessage source-generated delegate (CA1848), matching the house
-    // pattern in LoggingBehavior and AuditLogBehavior.
-    private static readonly Action<ILogger, string, Guid, Guid, bool, Exception?> AssertionRejected =
-        LoggerMessage.Define<string, Guid, Guid, bool>(
-            LogLevel.Warning,
-            new EventId(4001, nameof(AssertionRejected)),
-            "Rejected a {Dimension} assertion on tenant {ResolvedTenantId}: the client "
+    [LoggerMessage(4001, LogLevel.Warning,
+        "Rejected a {Dimension} assertion on tenant {ResolvedTenantId}: the client "
             + "asserted {AssertedValue}. Authenticated: {IsAuthenticated}. An authenticated "
-            + "mismatch is audited per occurrence; an anonymous one is audited as a burst.");
+            + "mismatch is subject to audit admission; an anonymous one is audited as a burst. "
+            + "Source: {AssertionSource}. Actor: {ActorUserId}. Correlation: {CorrelationId}.")]
+    private static partial void AssertionRejected(
+        ILogger logger,
+        string dimension,
+        Guid resolvedTenantId,
+        Guid assertedValue,
+        bool isAuthenticated,
+        string assertionSource,
+        Guid? actorUserId,
+        string? correlationId);
+
+    [LoggerMessage(4006, LogLevel.Warning,
+        "Rejected a {Dimension} assertion on tenant {ResolvedTenantId}: the client "
+            + "asserted {AssertedValue}. Audit suppressed: {Reason}. Source: {AssertionSource}. "
+            + "Actor: {ActorUserId}. Correlation: {CorrelationId}.")]
+    private static partial void AuditBudgetExhausted(ILogger logger, string dimension,
+        Guid resolvedTenantId, Guid assertedValue, string assertionSource,
+        Guid? actorUserId, string? correlationId, string reason);
 
     public void RecordUnresolved(TenantAssertionDimension dimension)
     {
@@ -109,4 +139,30 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
             new KeyValuePair<string, object?>("source", "header"),
             new KeyValuePair<string, object?>("dimension", dimension.ToString()));
     }
+
+    public void RecordNoTenantRefusal(TenantNoTenantRefusal refusal)
+    {
+        if (refusal.Source != TenantAssertionSource.JwtClaim
+            || refusal.Dimension != TenantAssertionDimension.Tenant)
+            throw new ArgumentException("Only claim-only tenant membership refusals use this signal.", nameof(refusal));
+        _unresolved.Add(
+            1,
+            new KeyValuePair<string, object?>("source", refusal.Source.ToLabel()),
+            new KeyValuePair<string, object?>("dimension", refusal.Dimension.ToString()));
+
+        MembershipUnconfirmed(
+            _logger,
+            refusal.Source.ToLabel(),
+            refusal.Dimension.ToString(),
+            refusal.ActorUserId.Value,
+            refusal.CorrelationId,
+            null);
+    }
+
+    private static readonly Action<ILogger, string, string, Guid, string?, Exception?> MembershipUnconfirmed =
+        LoggerMessage.Define<string, string, Guid, string?>(
+            LogLevel.Debug,
+            new EventId(4005, nameof(MembershipUnconfirmed)),
+            "membership_unconfirmed. Source: {AssertionSource}. Dimension: {Dimension}. "
+            + "Actor: {ActorUserId}. Correlation: {CorrelationId}.");
 }

@@ -2,6 +2,7 @@ using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.Modules.Customization.Application.IntegrationEvents;
 using LearnStack.Api.Common;
+using LearnStack.Api.Authentication;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.ErrorTracking;
 using LearnStack.Infrastructure.Observability;
@@ -165,6 +166,7 @@ public static class CrossCuttingFoundationExtensions
         {
             cfg.ReadFrom.Configuration(ctx.Configuration)
                 .ReadFrom.Services(services)
+                .Filter.ByExcluding(TenantAuthenticationDiagnostics.IsVendorEvent)
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("service.name", "learnstack-api")
                 // ADR-0032 § Sub-decision 8: the correlation-context enricher
@@ -247,7 +249,23 @@ public static class CrossCuttingFoundationExtensions
             })
             .WithMetrics(m =>
             {
+                // A view's removed tags survive in exemplar filtered attributes.
+                // Pin this in code so environment settings cannot reopen that path.
+                m.SetExemplarFilter(ExemplarFilterType.AlwaysOff);
                 m.AddAspNetCoreInstrumentation();
+                // Native HTTP/DNS meters ignore request-local trace suppression.
+                // Omit destination names for every outbound request so metadata
+                // cannot escape through metrics; preserve bounded dimensions.
+                m.AddView(instrument => instrument.Meter.Name switch
+                {
+                    "System.Net.Http" => new MetricStreamConfiguration
+                    {
+                        TagKeys = ["http.request.method", "http.response.status_code", "network.protocol.version",
+                            "url.scheme", "error.type"],
+                    },
+                    "System.Net.NameResolution" => new MetricStreamConfiguration { TagKeys = ["error.type"] },
+                    _ => null,
+                });
                 m.AddHttpClientInstrumentation();
                 m.AddMeter("learnstack.*");
                 if (exportOverNetwork)

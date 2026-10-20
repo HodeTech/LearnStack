@@ -17,8 +17,8 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// <b>explicitly</b> on the requests that
 /// legitimately have no tenant — a platform host, matrix rows 13 and 15. That is not
 /// a refusal: the pipeline decides what may run without a tenant. Every request that
-/// classification never classified, and every non-HTTP entry point until Phase 02b
-/// wires its own, still arrives here by default.
+/// classification never classified still arrives here by default. Jobs and durable
+/// subscriber delivery install their separately owned contexts when executing work.
 /// </remarks>
 public sealed class UnresolvedTenantContext : ITenantContext
 {

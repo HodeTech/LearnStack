@@ -37,7 +37,19 @@ owns review, packet and exact PR-head CI/job-budget status),
 (Accepted 2026-10-18; native execution authority implemented),
 [ADR-0063 Complete Bounded CI Test Shards](../decisions/0063-complete-bounded-ci-test-shards.md)
 (Accepted 2026-10-18; general CI obligation implemented; the phase record owns
-final-source hosted qualification).
+final-source hosted qualification),
+[ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
+(Accepted 2026-10-19; P02b-5 obligations implemented; Step 5 and the remediation
+record own local/source evidence; PR #33 owns current-head hosted qualification),
+[ADR-0065 Bounded Tenant Assertion Diagnostics](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
+(Accepted 2026-10-20; extends existing obligations below; audit-budget and
+telemetry controls implemented; the
+[P02b-5 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+owns current qualification status),
+[ADR-0066 Bounded Tenant Subject Admission](../decisions/0066-bounded-tenant-subject-admission.md)
+(Accepted 2026-10-20; extends the existing subject-admission obligation;
+the [delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+owns source-bound validation, reviews and hosted qualification).
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -130,7 +142,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**254 test methods run in
+**263 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -141,6 +153,10 @@ Its nineteen packet obligations are implemented with actual canonical owners and
 complementary structural, native-runtime and PostgreSQL controls. The
 [Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 distinguishes local enforcement qualification from pending review/packet/CI closeout.
+P02b-5 adds the authenticated route/helper census and closed claim/role authority
+controls; its seven obligations have actual local owners. Its Step 5 and
+[review remediation](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+records distinguish prior hosted qualification from the current correction head.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -167,8 +183,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**222 rules in this catalogue are Implemented, and 131 of them are in that assembly.**
-The other 91 are no less binding, and most could not live there. The table says where
+**229 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
+The other 96 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -1761,12 +1777,24 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   against the **project file** as well as the emitted assembly-reference table,
   because the compiler elides a reference whose types the IL never touches, so a
   dangling `<ProjectReference>` would leave a reflection-only check green. The
-  assembly half carries a positive control.
-- **Source:** ADR-0040; ADR-0033.
-- **Type:** xUnit + assembly-reference and constructor inspection. **Kind:** structural.
+  assembly half carries a positive control. The immutable exact-Type read-only
+  declaration is constructed only by Tenancy's shared site-read registration for
+  `GetAccountSiteQuery` and consumed only by the existing transaction owner as a
+  frozen Type set. API and Seeder call that registration. Complete production IL
+  construction/consumer/caller censuses include clean and planted mutation controls;
+  this authenticated exception does not acquire the public marker.
+- **Source:** ADR-0040; ADR-0033; ADR-0064 § Closed authenticated read.
+- **Type:** xUnit + assembly-reference, constructor and production IL inspection.
+  **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6,
-  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
-- **Phase:** 02a (Packet 6).
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`; P02b-5 Step 2
+  extends the same owner with the exact authenticated read-only declaration).
+- **Additional controls:** the consumed coordinator mode admits only the
+  sanctioned exact-type selection and existing public/job fallback. A name-based
+  override and independent immutable declaration/catalog metadata mutations fail
+  the owning predicate. Additive composition retains every declaration while the
+  frozen exact-type set deduplicates them.
+- **Phase:** 02a (Packet 6); 02b (P02b-5 Step 2 extension).
 
 #### `A_Cross_Module_Read_Inside_The_Ambient_Transaction_Returns_Rows`
 
@@ -3821,7 +3849,6 @@ implements it.
 | Test | Rule | Kind | Owning phase | Named in |
 |---|---|---|---|---|
 | `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. A superset of [`Adapters_Wrap_Provider_Exceptions`](#adapters_wrap_provider_exceptions), which already holds the exception types of the SDKs it lists — the one slice of this rule that runs today | structural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with the first provider adapter; it then binds per provider as each adapter lands | [Tenant Isolation](../architecture/09-tenant-isolation.md) |
-| `Backend_RequiresJwt_OnAllAuthenticatedRoutes` | Every endpoint outside the public allow-list answers `401` without a bearer token — the guard that holds while the gateway's OIDC block is commented out | behavioural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with authentication | [API Gateway](../architecture/30-api-gateway.md) |
 | `LicenseKey_Payload_MatchesSchema` | `entitlement-v1.schema.json` is pinned by a snapshot test run in **both** repositories against the same checked-in schema | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with the schema | [Hybrid License Model](../architecture/26-hybrid-license-model.md); [ADR-0021](../decisions/0021-feature-based-entitlement.md), as `EntitlementProjection_Shape_IsStable` — see § Canonical names |
 | `Entitlement_Read_Path_Falls_Through_To_Durable_Row` | With L1 and L2 flushed and the Hub unreachable, the tenant resolves from `platform_entitlement_cache` and no exception escapes the flag read | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with `HubEntitlementProvider` | [Hybrid License Model](../architecture/26-hybrid-license-model.md) |
 | `CustomDomain_TenantId_NeverReadFrom_RequestBody` | Custom-domain submission derives the tenant from the authenticated session, never from the body or the query | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), Hub side, per [ADR-0022](../decisions/0022-custom-domain-tls.md) | ADR-0022; [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
@@ -4282,11 +4309,37 @@ structural test proves — and what it does not.
 
 #### `Tenant_Assertions_Are_Compared_Not_Resolved`
 
-- **Asserts:** `X-Tenant-Id` and `X-Organization-Id` never select anything. An assertion that agrees with what the API resolved passes; one that disagrees is **404**, not 403 — a wrong tenant id must not be able to tell the difference between "exists, not yours" and "does not exist"; a malformed or repeated one is **400** and counted; and an unresolved context passes the request through to be refused downstream rather than inventing a tenant.
-- **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + HTTP. **Kind:** behavioural.
-- **Status:** **Implemented** (`TenantAssertionHttpTests`).
-- **Phase:** 02a (Packet 4).
+- **Asserts:** `X-Tenant-Id` and `X-Organization-Id` never select anything. An
+  agreeing assertion passes; a disagreement is 404, a malformed/repeated one is
+  400 and counted, and unresolved context cannot invent a tenant. ADR-0065 adds
+  at most 600 authenticated audit attempts per defended host tenant per instance
+  per first-request-anchored monotonic minute across scoped recorders, actors,
+  sources and dimensions. Failed writes spend permits; suppression preserves
+  refusal, counts and exactly one attributed Warning without I/O or extending
+  expiry. Anonymous and tenantless behavior remains separate. Expired-only
+  sweeps inspect at most 128 entries per call, never evict live quotas and never
+  duplicate retained queue keys; a 4097th actual host tenant remains independent.
+- **Source:** ADR-0036 § The reconciliation matrix;
+  [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md).
+- **Type:** xUnit component/concurrency and actual registered HTTP/DI controls.
+  **Kind:** behavioural.
+- **Test owner:** Integration `TenantAssertionHttpTests.cs` owns refusal and
+  actual singleton registration across request scopes. Unit
+  `Api/Tenancy/TenantAssertionAuditBudgetTests.cs` owns concurrent 600, independent
+  tenants, monotonic expiry, suppression not extending expiry, same-tenant reset,
+  128-entry sweep and more-than-4096-host-tenant controls. Unit
+  `Api/Tenancy/AuditingTenantAssertionRecorderTests.cs` owns write-failure spending,
+  suppressed no-I/O, actor/source/dimension sharing, anonymous/tenantless behavior,
+  closed metric labels, typed attribution and exactly one Warning (4001 or 4006).
+  Integration `TenantAssertionAuditAdmissionTests.cs` owns at least 601 concurrent
+  calls through actual registered scoped recorders sharing the singleton and one
+  observable fake store; exactly 600 store attempts prove cross-scope accounting.
+- **Status:** **Implemented** (`TenantAssertionHttpTests`,
+  `TenantAssertionAuditAdmissionTests`, `TenantAssertionAuditBudgetTests` and
+  `AuditingTenantAssertionRecorderTests`). The 2026-10-20 remediation implements
+  ADR-0065's allowance and proves scope sharing against a scoped-budget mutant;
+  acceptance alone was not implementation evidence.
+- **Phase:** 02a (Packet 4); P02b-5 2026-10-20 review remediation owns ADR-0065.
 
 #### `Anonymous_Requests_Are_Rate_Limited_Per_Peer`
 
@@ -4395,29 +4448,288 @@ structural test proves — and what it does not.
 
 #### `Assertion_Recorder_Is_The_Only_Mismatch_Writer`
 
-- **Asserts:** no type other than an `ITenantAssertionRecorder` implementation writes a tenant-assertion mismatch to a log, a metric or `IAuditStore`.
-- **Source:** ADR-0036 § Recording a rejected assertion.
-- **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
-- **Status:** **Implemented** (`TenancyConventionTests`), in two halves. `Assertion_Recorder_Is_The_Only_Mismatch_Writer` is keyed on the two counter names and scans `LearnStack.Api`; `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs`, added in Packet 9, is keyed on the two audit slugs and covers the `IAuditStore` clause this row always claimed — the counter names cannot catch a second writer that goes straight to the store, which is the dangerous one, because the row's tenant is what keeps an anonymous caller from choosing whose audit log grows.
-- **The second half scans all of `backend/src`, not just the API project**, and that is the correction its own first draft needed: a module is precisely where `IAuditStore` is reachable from a handler, and a narrow scan exempts the dangerous half. Measured — planting the burst slug in `LearnStack.Modules.Tenancy.Application` passed the narrow version and fails the wide one. `TenancyAuditCatalogSource` is exempt because declaring a slug is not writing a row; removing that exemption turns the rule red, which is what makes it a real exemption rather than a decorative one. Its companion, `The_Slug_Scan_Finds_The_Files_It_Exempts`, runs the same scan with no exemptions and requires it to find exactly those two files — with nothing offending, a scan whose exemption logic had broken open would pass as well.
+- **Asserts:** only `ITenantAssertionRecorder` implementations write mismatch
+  logs/metrics/audit rows, including the mismatch, unresolved and suppression
+  counter names. A new suppression counter must not create a second writer.
+- **Source:** ADR-0036 § Recording a rejected assertion;
+  [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md).
+- **Type:** xUnit source and compiled-IL/constant-field scans over production
+  assemblies. **Kind:** structural.
+- **Status:** **Implemented** (`TenancyConventionTests`), in two halves.
+  `Assertion_Recorder_Is_The_Only_Mismatch_Writer` derives counter names from the
+  actual recorder's constant declarations and `Meter.CreateCounter` calls,
+  recursively including nested/generated owner types, and pins the current exact
+  three-counter vocabulary.
+  Inlined public-constant references and a fourth counter with a different prefix
+  have planted second-writer controls; an unknown dynamic declaration refuses
+  discovery. The compiled scan covers every production assembly.
+  `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs`, added in Packet 9, is
+  keyed on the two audit slugs and covers the `IAuditStore` clause this row always
+  claimed — the counter names cannot catch a second writer that goes straight to the
+  store, which is the dangerous one, because the row's tenant is what keeps an anonymous
+  caller from choosing whose audit log grows.
+- **The second half scans all production assemblies, not just the API project.**
+  A module is precisely where `IAuditStore` is reachable from a handler. Compiled
+  literal and constant-field discovery catches inlined references to both audit
+  slugs. `TenancyAuditCatalogSource` is exempt because declaring a slug is not
+  writing a row. Its companion, `The_Slug_Scan_Finds_The_Files_It_Exempts`, removes
+  exemptions and requires exactly the audit recorder and catalogue owner types,
+  qualified by their real assemblies. This is a type-owner census, not a claim
+  that the current implementation scans exactly two source files. The assertion
+  header reader guard likewise reads compiled constants and uses case-insensitive
+  comparison. It recursively reads custom-attribute constructor/named arguments,
+  arrays and member/parameter/return metadata, and pins the exact two header
+  names; lowercase, public-constant, renamed-header and compiled FromHeader
+  controls must fail.
 - **Phase:** 02a (Packet 4; the second half, Packet 9).
 
 #### `Assertion_Budget_Does_Not_Depend_On_ICacheService`
 
-- **Asserts:** the anonymous-burst counters resolve no `ICacheService`. A cache outage must not decide whether a MUST-class security event is recorded.
-- **Source:** ADR-0036 § Recording a rejected assertion.
+- **Asserts:** anonymous-burst counters and the authenticated singleton
+  `TenantAssertionAuditBudget` resolve no `ICacheService`. Cache availability must
+  not determine admitted MUST-class security-event recording. The source and
+  dependency predicates cover the new budget without claiming accounting proof.
+- **Source:** ADR-0036 § Recording a rejected assertion;
+  [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md).
 - **Type:** xUnit reflection check over the `LearnStack.Api.Tenancy` namespace **and** a source scan over `LearnStack.Api/Tenancy`. **Kind:** structural.
 - **Status:** **Implemented** (`TenancyConventionTests`). It shipped in Packet 4 as a **tripwire**, because `ICacheService` did not exist yet; Packet 5 ships the port, so the rule now carries the dependency check it was always meant to be. Both forms are kept: reflection catches an injected dependency, the scan catches a service-locator resolve, and neither sees the other's case.
-- **Phase:** 02a (Packet 4).
+- **ADR-0065 extension:** `TenancyConventionTests` covers the shipped singleton
+  under the same structural owner. Unit `TenantAssertionAuditBudgetTests` and Integration
+  `TenantAssertionAuditAdmissionTests` own behavioural allowance/expiry/scope
+  accounting under `Tenant_Assertions_Are_Compared_Not_Resolved` above.
+- **Phase:** 02a (Packet 4); P02b-5 2026-10-20 remediation extends coverage.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`
 
-- **Asserts:** the composition root registers exactly one JWT authority for `/api/v1/*`, the `learnstack` realm. A `learnstack-hub` token on a tenant-facing endpoint is 401.
-- **Source:** ADR-0036 § The signals; ADR-0004 Amendment 1.
-- **Type:** xUnit + DI inspection. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 02b.
-- **Note:** The integration test is the load-bearing half: the structural test passes while issuer validation is disabled in configuration.
+- **Asserts:** the composition root registers exactly one tenant bearer scheme,
+  pinned to the configured `learnstack` issuer. A real-handler request rejects a
+  wrong issuer even under a trusted signing key, including `learnstack-hub`.
+  DI inspection alone cannot prove issuer enforcement. Unknown hosts retain 404
+  before validation and unclassified infrastructure/internal paths remain outside
+  this tenant scheme.
+- **Source:** ADR-0036 § The signals; ADR-0004 Amendment 1;
+  [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
+- **Type:** xUnit DI inspection plus real-handler signed-token HTTP controls.
+  **Kind:** behavioural, with complementary structural inspection.
+- **Test owner:**
+  `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationProfileTests.cs`;
+  active-host controls in `TenantAuthenticationHttpTests.cs` in that project.
+- **Status:** **Implemented** (`TenantAuthenticationHttpTests`,
+  `TenantAuthenticationProfileTests`).
+- **Phase:** P02b-5 Step 1 isolated handler proof; Step 4 production activation;
+  Step 5 final enforcement. No production registration before Step 4.
+
+#### `Backend_RequiresJwt_OnAllAuthenticatedRoutes`
+
+- **Asserts:** present invalid or undecidable tenant bearer credentials on known
+  hosts return 401 with a bare Bearer challenge and no-store, including public
+  endpoints and classified unmatched API paths.
+  Absent credentials on exact AccountSite return masked 404 `not_found` on tenant,
+  organization and platform hosts; the scoped authorization result handler cannot
+  fall back to default 401. A claimless valid profile keeps HostOnly/public-only
+  authority. Unknown hosts refuse before JWT work. Generic unresolved MediatR
+  `tenant_mismatch` is unchanged; no blanket missing-token 401 is promised.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Pipeline and error precedence; [API Design](04-api-design.md#public-surface);
+  [API Gateway](../architecture/30-api-gateway.md).
+- **Type:** actual API-host signed-token/absence HTTP matrix with correlation
+  normalization, public IdP-unavailable regression and scoped challenge controls.
+  **Kind:** behavioural.
+- **Test owner:**
+  `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationHttpTests.cs`.
+- **Status:** **Implemented** (`TenantAuthenticationHttpTests`, `AccountSiteHttpTests`).
+- **Phase:** P02b-5 Step 4 activation and Step 5 enforcement.
+
+#### `Tenant_Authentication_Profile_Is_Closed`
+
+- **Asserts:** the real stock handler enforces ADR-0064's signed RS256, issuer,
+  audience, purpose/client, bounded lifetime, stable actor and scalar UUID profile;
+  duplicate JSON/security properties and duplicate or unsupported JOSE parameters
+  fail. Credential shape/size and configured-key-only discovery are bounded.
+  Controlled metadata proves added-key refresh and rejection after observed key
+  withdrawal, respecting stock refresh minima. Canary controls cover vendor events
+  1/3/7 across enabled sinks, while independent closed LearnStack outcomes remain
+  visible. Invalid credentials never become absence. ADR-0065 additionally
+  qualifies process-wide native HTTP/DNS metric projection: real durations and
+  bounded tags remain, metadata canaries are absent from all exported channels,
+  and an ordinary distinct HTTP IP/port/path/query canary is absent from metrics
+  while its ordinary trace remains visible. DNS retains only `error.type`; HTTP
+  retains bounded method/status/protocol/scheme/error dimensions.
+  Programmatic `AlwaysOff` additionally closes metric exemplars: removed point
+  attributes must not survive in exemplar filtered attributes when standard or
+  histogram-specific environment filters request `always_on` or `trace_based`.
+  The OTLP decoder inspects exemplars as well as points; unprojected controls
+  establish that the rejected attributes would otherwise be exported.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Access-token profile and § Vendor diagnostic boundary;
+  [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
+  § Outbound telemetry scope.
+- **Type:** real JwtBearer/OIDC handler with controlled signed-token issuer,
+  discovery/JWKS server and actual logging/export/error-capture controls.
+  **Kind:** behavioural.
+- **Test owner:**
+  `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationProfileTests.cs`;
+  actual sink/export controls in `TenantAuthenticationDiagnosticsTests.cs` and
+  `TenantAuthenticationDiagnosticsTests.Metrics.cs` in the same project.
+- **Status:** **Implemented** (`TenantAuthenticationProfileTests` and the
+  diagnostic owners above). ADR-0065's ordinary HTTP hostname/IP/numeric-port/
+  path/query negatives retain real unprojected positives and ordinary traces.
+  `TenantAuthenticationDiagnosticsTests.SuppressionMetrics.cs` additionally
+  qualifies the actual suppression counter through production OTLP, with a
+  bounded receipt for the correlated Warning before its logger owner exits.
+  Actual Serilog factory/console controls cover configured-issuer and malformed
+  payload canaries. Event 3's adapter control is synthetic; the ordinary
+  configuration-manager branch is not claimed to emit it naturally. Warm cached
+  known-key acceptance during a failed refresh and cold missing-key refusal are
+  separate controls; manual refresh is not a five-minute automatic-cadence proof.
+- **Phase:** P02b-5 Step 1 isolated foundation; Steps 4–5 actual active path.
+
+#### `Authentication_Middleware_Order_Is_Enforced`
+
+- **Asserts:** the actual chain preserves early admission/body limits, host
+  classification, authentication, credential enforcement, subject quota, tenant
+  resolution/assertions, authorization, closed-surface admission and dispatch in
+  ADR-0064 order. Unknown-host/early-quota precedence survives; subject refusal
+  prevents durable mismatch recording. A planted reorder fails. Production scheme
+  and authorization registration remain absent until atomic Step 4 activation,
+  including minimal hosting's implicit middleware behavior.
+  The complementary bounded source proof resolves custom `Use*` helpers before
+  framework terminals and checks real middleware/OpenAPI wrapper leaf shapes.
+  Direct extra authentication and copied-receiver mutations inside the existing
+  wrappers fail; direct receiver aliases refuse unverifiable composition. This
+  includes fluent extra calls in the actual Program/resolver statements:
+  application-builder receiver chains fail with a specific diagnostic, while
+  the existing health endpoint-convention builder remains clean. This
+  is not a general C# semantic analysis of arbitrary reflection or dynamic code.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Pipeline and error precedence.
+- **Type:** whole-chain actual-host HTTP controls plus a planted reorder control.
+  **Kind:** behavioural.
+- **Test owner:**
+  `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationHttpTests.cs`.
+- **Status:** **Implemented** (`TenantAuthenticationHttpTests`,
+  `AuthenticatedRateLimitTests`).
+- **Phase:** P02b-5 Step 3 component harness; Step 4 actual activation; Step 5
+  complete production enforcement.
+
+#### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
+
+- **Asserts:** the nonempty complete production route/method/transitive-request
+  census contains only the eight existing public GET/HEAD actions and exact
+  AccountSite GET, with enumerated infrastructure exclusions. Extra controller,
+  minimal-route, mutation and unregistered/nested dispatch controls fail.
+  `GetAccountSiteQuery` independently requires valid HostAndClaim actor and
+  matching real host provenance before any reader, rejecting future
+  ClaimAndMembership too. It reads actual host-scoped public data as
+  `learnstack_app`, is explicitly Off with zero normal query audit rows, and uses
+  the existing exact-type physical ReadOnly owner: a planted SQL write is refused.
+  No-store covers early errors; served OpenAPI and disjoint exhaustive
+  public/authenticated SDK GET ownership agree without a public AccountSite wrapper.
+  The real per-action MVC filter descriptors preserve the exact framework,
+  normalizer and response metadata, including scope, order, factory arguments and
+  reuse. Attached or inherited executable filters and explicit authorization
+  policy/requirement metadata fail independently. Compiled attached-attribute and
+  ordinary endpoint-convention controls cover these supported composition channels;
+  this bounded source/runtime proof does not model arbitrary reflection or dynamic
+  framework behavior.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Closed authenticated read; ADR-0040 and ADR-0052's 2026-10-19 disclosures;
+  [Security Standards](11-security.md#the-rule).
+- **Type:** complete production source/IL/route census with dirty/clean controls,
+  actual HTTP/app-role PostgreSQL and generated/served contract controls.
+  **Kind:** behavioural, with complementary structural controls.
+- **Test owner:**
+  `backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.cs`
+  and `backend/tests/LearnStack.Tests.Integration/Database/AccountSiteHttpTests.cs`;
+  SDK/OpenAPI contract controls remain with their actual contract owners.
+  The architecture owner now checks the nine real production actions, exact
+  request construction, Off classification, controller/helper persistence and
+  handler/helper nested dispatch across every production assembly, including
+  direct interface/concrete handler construction, fields, constructor parameters,
+  locals and `Handle` calls, custom-interface implementations and generic service
+  acquisition/non-Handle calls across distinct HTTP roots. Actual MVC filter
+  composition and source registrations are independently closed, including the
+  actual IFilterProvider DI inventory and bounded compiled provider capability
+  checks. A provider that changes effective filters without changing
+  MvcOptions.Filters fails independently. Custom/inherited IAllowAnonymous
+  metadata and actual endpoint authorization metadata have their own controls;
+  the exact public AllowAnonymous attribute remains required. Its
+  companion methods plant route, method, request, controller, mapping and
+  transitive-capability violations into those same Cecil subjects; missing
+  subjects and weakened discovery predicates fail. Each dirty control requires
+  its expected offender prefix, rather than any nonempty result. Complete runtime and
+  cross-contract local proof ships in Step 4; Step 5 owns full hosted qualification.
+- **Status:** **Implemented** (`AuthenticatedHttpSurfaceTests`, `AccountSiteHttpTests`,
+  `AccountSiteQueryTests`, `OpenApiContractTests`).
+- **Phase:** P02b-5 Step 2 query/database boundary; Step 4 route/contract
+  activation; Step 5 complete transitive enforcement.
+
+#### `Keycloak_Roles_Are_Not_Application_Authority`
+
+- **Asserts:** no production call site treats realm/client roles, email, display
+  name or arbitrary claim/scope text as application permission or promotes tenant
+  authority from authentication alone. The complete call-site census has real
+  subjects and planted role/claim-based authorization violations, plus clean
+  controls; missing subjects or a weakened predicate fail. Phase 03 retains
+  membership and permission authority.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Access-token profile and § Resolution and attribution; ADR-0004.
+- **Type:** complete production source/IL call-site census with planted compiled
+  violations and predicate-mutation controls. **Kind:** structural.
+- **Test owner:**
+  `backend/tests/LearnStack.Tests.Architecture/AuthenticationAuthorityTests.cs`.
+  Its real production graph closes typed projection creation, feature writes,
+  immutable shape and direct actor/scope/subject accessors. Signature, local,
+  field, method and generic-argument uses close projection acquisition and
+  forwarding, including object/generic formatting. Raw IdentityModel accessors
+  and inherited/implemented authorization metadata are covered too, including
+  `AuthenticateResult.Principal`, `AuthenticationTicket.Principal` and
+  `IAuthorizationService.AuthorizeAsync`. Exact base `AuthorizeAttribute.Roles`
+  has its own dirty control, separate from derived-attribute rejection. Compiled
+  role/claim, header-reparse, derived-attribute, formatting, deconstruction and
+  forged/clone probes use the same detectors; weakened predicates, missing real
+  subjects and same-owner additional writes fail independently.
+- **Status:** **Implemented** (`AuthenticationAuthorityTests`).
+- **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.
+
+#### `Authenticated_Rate_Limits_Use_Validated_Subject`
+
+- **Asserts:** the additional 600/min fixed-window quota uses validated issuer
+  and opaque subject, with no queue. Token rotation or tenant/organization changes
+  cannot reset quota; distinct subjects have independent state. Invalid tokens
+  gain no quota identity or early bypass. Existing visitor/peer limits remain.
+  Whole-chain reduced-budget controls isolate subject accounting beneath those
+  floors; a separate proof covers the actual 600 boundary. Concurrent accounting,
+  first-refusal Retry-After/429, a finite partition registry with refusal before
+  allocation, bounded idle retirement and timer disposal are
+  controlled; refusal stops downstream audit work without resetting live quotas.
+  ADR-0066 controls use the actual default 4096/4097 boundary, at most 128
+  acquisition inspections and one disposal, timer batches of at most 128,
+  sole cleanup ownership and the 4224-resource bound. Blocking/fault controls
+  cover disposal before owning allocation/debit, lost-slot/same-key/shutdown
+  races, whole-batch attempts, sticky fault stopping new allocation/batches,
+  existing-key quota service, and joined sync/async cleanup failure, including a
+  throwing fault-metric listener and failed timer join without skipped retained
+  resources or a stranded shared shutdown.
+  Real signed HTTP and OTLP controls distinguish quota/capacity 429 from
+  new-key fault 503, exact retry hints, one cached rejection across re-execution,
+  and an unlabelled once-only fault transition without identity attributes.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  § Additional subject quota;
+  [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md);
+  ADR-0053 and ADR-0054's retained ingress floors.
+- **Type:** real limiter concurrency/lifecycle controls and signed-token
+  whole-chain HTTP tests, including actual-default boundary.
+  **Kind:** behavioural.
+- **Test owner:**
+  `backend/tests/LearnStack.Tests.Integration/AuthenticatedRateLimitTests.cs`
+  and its `Admission` partial; unit `Api/Authentication/TenantSubjectRateLimiterTests`
+  and its lifecycle/fault/middleware partials. Actual export decoding uses
+  `TenantAuthenticationDiagnosticCollector.MetricPoints`.
+- **Status:** **Implemented** (`AuthenticatedRateLimitTests`,
+  `TenantSubjectRateLimiterTests`).
+- **Phase:** P02b-5 Step 3 bounded component; Step 4 whole-chain activation;
+  Step 5 production enforcement. Phase 11 retains distributed capacity.
 
 #### `Resolving_Host_Is_Set_In_One_Place`
 
@@ -4737,12 +5049,13 @@ of structural detection.
 
 - **Asserts:** production composition and committed snapshot have the same document
   after object-key normalization, preserving array order; exactly eight public
-  operations and four generated GET wrappers exist. Drift and policy-breaking
+  operations and four public GET wrappers exist, alongside the separate
+  authenticated AccountSite GET contract (nine operations and five GET contracts). Drift and policy-breaking
   fixtures fail the pinned diff/generation checks.
 - **Source:** ADR-0024; ADR-0052; accepted P02d-4 G31.
 - **Type:** xUnit + served OpenAPI + SDK/CLI fixtures. **Kind:** behavioural +
   structural.
-- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4); eight-operation, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
+- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4); nine-operation, disjoint public/authenticated GET ownership, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
 - **Phase:** 02d (P02d-4 Step 4).
 
 ## P02d-5 public server rendering controls
@@ -5064,6 +5377,9 @@ and the always-running `public demo + lighthouse` job through `make demo`.
 `src/test/public-demo.test.ts` and `src/test/demo-lifecycle.test.ts` execute
 planted failing and clean controls in the required frontend job. Actual browser
 mutants, TLS refusals and a real Lighthouse timeout also run in the full proof.
+`src/test/demo-source.test.ts` uses disposable Git repositories for clean/mutated
+source checkpoints; `src/test/public-demo-diagnostics.test.ts` covers closed
+failure attribution with real children and provider canaries.
 `src/test/public-demo-ci.test.ts` executes the actual workflow deadline shell;
 `scripts/ci-public-chromium.test.mjs` tests owned Linux sandbox preparation and
 cleanup before the job runs the real managed-browser launch smoke.
@@ -5088,7 +5404,9 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 
 - **Asserts:** all 27 current report pairs pass actual-page admission and exact
   invocation/configuration census; hard budgets and advisory timing medians are
-  distinguished without permitting missing or invalid measurements.
+  distinguished without permitting missing or invalid measurements. Both JSON
+  and HTML byte digests bind each pair to its invocation and source commit/tree;
+  missing, corrupt or substituted members fail the same pair validation.
 - **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#lab-profile-and-budgets).
 - **Scope:** pinned Lighthouse/Chromium; every seed lane/URL/run.
 - **Type:** Node report validation and real audits, with stale/missing/error and
@@ -5111,6 +5429,11 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 
 - **Asserts:** real quotas, positive API observation, stopped CI-owned Keycloak,
   scoped TLS trust, serial deadlines and confirmed owned cleanup remain intact.
+  CI observes the owned repository's clean commit/tree before restore/build,
+  entering proof and before success, without inherited Git environment overrides.
+  These checkpoints do not attest ignored inputs or edits restored between them.
+  Closed diagnostics retain failure origin and status ownership; intentional
+  teardown signals do not become a cleanup failure's process status.
 - **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#pacing-runtime-and-artifacts).
 - **Scope:** the shared demo lifecycle and full-stack CI job.
 - **Type:** Node lifecycle/proof controls and real production navigation.

@@ -33,8 +33,9 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// <para>
 /// <b>No cache, deliberately.</b> ADR-0036 § Consequences budgets for this read to be
 /// cached, and it should be — when there is traffic to size it against. Its only
-/// caller is the reconciliation matrix's row 7, which needs a validated claim and is
-/// therefore unreachable until Phase 02b. A TTL chosen now would be a number picked
+/// caller is the reconciliation matrix's row 7. P02b-5 supplies validated claims,
+/// but the deny-all membership reader short-circuits this read until Phase 03.
+/// A TTL chosen now would be a number picked
 /// with nothing to measure, copied forward, and outliving the guess; the same
 /// argument <c>HostResolutionOptions</c> makes for keeping its own numbers beside
 /// their measurement. The cache lands with the traffic.

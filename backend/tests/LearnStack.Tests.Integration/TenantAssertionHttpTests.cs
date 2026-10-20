@@ -52,6 +52,22 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
     }
 
     [Fact]
+    public async Task Matching_tenant_and_organization_assertions_preserve_the_resolved_scope_without_a_rejection()
+    {
+        fixture.Recorder.Clear();
+        using var request = Get("/api/v1/assertionprobe");
+        request.Headers.Add(TenantAssertionMiddleware.TenantHeaderName, ResolvedTenantFixture.TenantId.ToString("D"));
+        request.Headers.Add(TenantAssertionMiddleware.OrganizationHeaderName, ResolvedTenantFixture.OrganizationId.ToString("D"));
+
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Contain(ResolvedTenantFixture.TenantId.ToString("D"));
+        fixture.Recorder.Rejections.Should().BeEmpty();
+        fixture.Recorder.Unresolved.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task No_Assertion_Changes_Nothing()
     {
         var response = await _client.GetAsync(new Uri("/api/v1/assertionprobe", UriKind.Relative));
@@ -100,7 +116,7 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
             "and the client's claim travels as metadata, never as the row's tenant");
         rejection.Dimension.Should().Be(TenantAssertionDimension.Tenant);
         rejection.IsAuthenticated.Should().BeFalse(
-            "there is no UseAuthentication until Phase 02b, so the tier is constant-false");
+            "this fixture supplies no bearer credential, so its requests remain anonymous");
     }
 
     [Fact]
@@ -432,6 +448,27 @@ public sealed class AssertionRecorderCompositionTests(RegisteredRecorderFixture 
     }
 
     [Fact]
+    public void The_Assertion_Audit_Budget_Is_A_Singleton()
+    {
+        AssertSingleton(fixture.Services);
+
+        using var scoped = fixture.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.Replace(ServiceDescriptor.Scoped<TenantAssertionAuditBudget, TenantAssertionAuditBudget>())));
+        Action changedLifetime = () => AssertSingleton(scoped.Services);
+        changedLifetime.Should().Throw<Xunit.Sdk.XunitException>(
+            "a scoped budget would give each request another 600 audit attempts");
+
+        static void AssertSingleton(IServiceProvider services)
+        {
+            using var first = services.CreateScope();
+            using var second = services.CreateScope();
+            first.ServiceProvider.GetRequiredService<TenantAssertionAuditBudget>()
+                .Should().BeSameAs(second.ServiceProvider.GetRequiredService<TenantAssertionAuditBudget>(),
+                    "the defended-tenant audit allowance belongs to the API instance across request scopes");
+        }
+    }
+
+    [Fact]
     public void A_Non_Positive_Burst_Window_Is_Refused_At_Boot()
     {
         // A MUST-class security event that a config typo switches off is the one outcome
@@ -548,6 +585,8 @@ public class ResolvedTenantFixture : ConstructionOnlyApiFactory
         {
             lock (_unresolved) { _unresolved.Add(dimension); }
         }
+
+        public void RecordNoTenantRefusal(TenantNoTenantRefusal refusal) { }
     }
 
     internal sealed class ResolvedContext : ITenantContext

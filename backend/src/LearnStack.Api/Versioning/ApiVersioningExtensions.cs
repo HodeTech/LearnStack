@@ -126,6 +126,7 @@ public static class ApiVersioningExtensions
             // carries the bare GUID.
             options.AddSchemaTransformer(new StronglyTypedIdSchemaTransformer());
             options.AddDocumentTransformer(new PublicReads.PublicReadDocumentTransformer());
+            options.AddDocumentTransformer(new Authentication.TenantAuthenticationDocumentTransformer());
 
             options.AddDocumentTransformer((document, _, _) =>
             {

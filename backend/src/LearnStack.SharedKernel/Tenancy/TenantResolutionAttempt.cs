@@ -60,8 +60,8 @@ public sealed record TenantResolutionAttempt
     public OrganizationId? HostOrganizationId { get; init; }
 
     /// <summary>
-    /// Whether a token was validated for this request. Constant <c>false</c> until
-    /// Phase 02b registers authentication.
+    /// Whether the closed tenant token profile was validated for this request.
+    /// A raw principal alone cannot set this signal.
     /// </summary>
     /// <remarks>
     /// Separate from <see cref="ClaimTenantId"/> because rows 13 and 15 differ only
@@ -142,7 +142,10 @@ public sealed record TenantResolutionAttempt
     /// </para>
     /// </remarks>
     public bool HasIncoherentClaims =>
-        (ClaimTenantId is not null && UserId is null)
+        (!HasValidatedPrincipal && (ClaimTenantId is not null || ClaimOrganizationId is not null || UserId is not null))
+        || (HasValidatedPrincipal && UserId is null)
+        || (HostOrganizationId is not null && HostTenantId is null)
+        || (ClaimTenantId is not null && UserId is null)
         || (ClaimOrganizationId is not null && ClaimTenantId is null);
 
     /// <summary>

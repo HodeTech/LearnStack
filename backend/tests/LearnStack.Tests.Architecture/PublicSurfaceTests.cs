@@ -54,6 +54,9 @@ public sealed class PublicSurfaceTests
                 Dispatches(type, action.Name).Should().BeTrue($"{controller.Name}.{action.Name} must construct a marked query and call ISender.Send");
         }
         MinimalBypasses(module).Should().BeEmpty("the only direct data-free MapGet admitted here is the existing healthz bootstrap");
+        EndpointCompositionControls.Plant(module, (prefix, because) => MinimalBypasses(module).Should().Contain(
+            prefix == "Unapproved endpoint mapping:" ? "SurfaceProbe.HiddenEndpointComposition" : "Program", because));
+        MinimalBypasses(module).Should().BeEmpty("restoring production composition restores the clean control");
     }
 
     [Fact]
@@ -82,7 +85,9 @@ public sealed class PublicSurfaceTests
         var call = Il.Methods(module.GetType(typeof(MinimalProbe).FullName!.Replace('+', '/'))).SelectMany(method => method.Definition.Body.Instructions)
             .Select(instruction => instruction.Operand).OfType<MethodReference>().Single(reference => reference.Name == "MapGet");
         var writer = map.Body.GetILProcessor();
+        writer.Emit(Mono.Cecil.Cil.OpCodes.Ldnull);
         writer.Emit(Mono.Cecil.Cil.OpCodes.Ldstr, "/healthz");
+        writer.Emit(Mono.Cecil.Cil.OpCodes.Ldnull);
         writer.Emit(Mono.Cecil.Cil.OpCodes.Call, call);
         MinimalBypasses(module).Should().NotContain("Program", "one existing health bootstrap is the clean control");
         writer.Emit(Mono.Cecil.Cil.OpCodes.Call, call);
@@ -219,7 +224,7 @@ public sealed class PublicSurfaceTests
 
     // Each action is checked independently, including its generated async body.
     // Merely finding Send somewhere else in the same controller is insufficient.
-    private static bool Dispatches(TypeDefinition type, string action)
+    internal static bool Dispatches(TypeDefinition type, string action, string? exactRequest = null)
     {
         var actionNames = type.Methods.Where(method => method.IsPublic && method.CustomAttributes.Any(attribute =>
                 attribute.AttributeType.FullName == typeof(HttpGetAttribute).FullName
@@ -246,7 +251,9 @@ public sealed class PublicSurfaceTests
         while (position >= 0 && definition.Body.Instructions[position].OpCode == OpCodes.Nop) position--;
         return position >= 0 && definition.Body.Instructions[position].OpCode == OpCodes.Newobj
             && definition.Body.Instructions[position].Operand is MethodReference constructor
-            && MarkedNames.Contains(constructor.DeclaringType.FullName.Replace('/', '+'));
+            && (exactRequest is null
+                ? MarkedNames.Contains(constructor.DeclaringType.FullName.Replace('/', '+'))
+                : constructor.DeclaringType.FullName == exactRequest);
     }
 
     // Walk the cancellation-token expression backwards. Stop at control flow and
@@ -288,29 +295,38 @@ public sealed class PublicSurfaceTests
     private static IEnumerable<string> MinimalBypasses(ModuleDefinition module) => Types([module]).Where(type =>
     {
         var methods = Il.Methods(type).Where(method => method.Definition.HasBody).ToArray();
-        var calls = methods.SelectMany(method => method.Definition.Body.Instructions)
-            .Select(instruction => instruction.Operand).OfType<MethodReference>()
-            .Where(call => call.Name is "MapGet" or "MapPost" or "MapPut" or "MapDelete" or "MapPatch" or "MapMethods").ToArray();
-        return calls.Length != 0 && !(type.Name == "Program" && calls.Length == 1
-            && methods.Any(method => method.Definition.Body.Instructions.Any(item => item.Operand is string path && path == "/healthz")));
+        var composition = methods.SelectMany(method => method.Definition.Body.Instructions
+                .Where(instruction => instruction.Operand is MethodReference call && EndpointComposition.IsCapability(call))
+                .Select(instruction => (method.Definition, Instruction: instruction, Call: (MethodReference)instruction.Operand)))
+            .ToArray();
+        var calls = composition.Where(site => !(site.Instruction.OpCode == OpCodes.Call
+            && composition.Count(candidate => candidate.Call.Name == site.Call.Name) == 1
+            && (site.Call.Name == "MapControllers" && type.FullName == "Program" && site.Definition.Name == "<Main>$"
+                || site.Call.Name is "MapOpenApi" or "MapScalarApiReference"
+                    && type.FullName == "LearnStack.Api.Versioning.ApiVersioningExtensions" && site.Definition.Name == "MapLearnStackOpenApi"))).ToArray();
+        return calls.Length != 0 && !(type.Name == "Program" && calls.Length == 1 && calls[0].Call.Name == "MapGet"
+            && calls[0].Instruction.OpCode == OpCodes.Call
+            && EndpointComposition.HasLiteralPath(calls[0].Definition, calls[0].Instruction, "/healthz"));
     }).Select(type => type.FullName.Replace('/', '+'));
 
-    private static IEnumerable<string> PersistenceOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map)
+    internal static IEnumerable<string> PersistenceOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map)
     {
         var controllers = roots.ToArray();
         var controllerKeys = controllers.Select(Key).ToHashSet(StringComparer.Ordinal);
-        var queue = new Queue<TypeDefinition>(controllers);
+        var queue = new Queue<(TypeDefinition Type, bool ExpandImplementations)>(controllers.Select(type => (type, true)));
         var paths = controllers.ToDictionary(Key, type => type.FullName, StringComparer.Ordinal);
         var visited = new HashSet<string>(StringComparer.Ordinal);
-        while (queue.TryDequeue(out var type))
+        var expanded = new HashSet<string>(StringComparer.Ordinal);
+        while (queue.TryDequeue(out var current))
         {
-            if (!visited.Add(Key(type))) continue;
-            if (type.IsInterface || type.IsAbstract)
+            var type = current.Type;
+            if (current.ExpandImplementations && (type.IsInterface || type.IsAbstract) && expanded.Add(Key(type)))
                 foreach (var implementation in map.Values.Where(candidate => !candidate.IsInterface && Implements(candidate, Key(type), map, [])))
                 {
                     paths.TryAdd(Key(implementation), paths[Key(type)] + " -> " + implementation.FullName);
-                    queue.Enqueue(implementation);
+                    queue.Enqueue((implementation, true));
                 }
+            if (!visited.Add(Key(type))) continue;
             var references = Il.ReferencedTypeReferences(type).ToArray();
             if (references.Any(reference => Forbidden(reference.FullName))
                 || (!controllerKeys.Contains(Key(type)) && references.Any(reference =>
@@ -332,12 +348,23 @@ public sealed class PublicSurfaceTests
                         && helper.CustomAttributes.Any(attribute => attribute.AttributeType.Name == "CompilerGeneratedAttribute")))
                 {
                     paths.TryAdd(Key(helper), paths[Key(type)] + " -> " + helper.FullName);
-                    queue.Enqueue(helper);
+                    // Inheriting a base class acquires its members, not every
+                    // sibling implementation. An actual abstract collaborator
+                    // in a field/signature still expands its concrete services.
+                    var inherited = type.BaseType is { } parent && Key(parent) == Key(reference);
+                    queue.Enqueue((helper, !inherited || Acquires(type, Key(reference))));
                 }
         }
     }
 
-    private static bool Implements(TypeDefinition type, string contract, Dictionary<string, TypeDefinition> map, HashSet<string> visited)
+    private static bool Acquires(TypeDefinition owner, string dependency) => owner.Fields
+        .SelectMany(field => Il.ExpandedTypeReferences(field.FieldType))
+        .Concat(owner.Properties.SelectMany(property => Il.ExpandedTypeReferences(property.PropertyType)))
+        .Concat(owner.Methods.SelectMany(method => method.Parameters.SelectMany(parameter => Il.ExpandedTypeReferences(parameter.ParameterType))
+            .Concat(Il.ExpandedTypeReferences(method.ReturnType))))
+        .Any(reference => Key(reference) == dependency);
+
+    internal static bool Implements(TypeDefinition type, string contract, Dictionary<string, TypeDefinition> map, HashSet<string> visited)
     {
         if (!visited.Add(Key(type))) return false;
         return type.Interfaces.Select(item => item.InterfaceType).Concat(type.BaseType is { } parent ? [parent] : [])

@@ -1,7 +1,19 @@
 import type { ChildProcess } from 'node:child_process';
 export function installDemoCancellation(cancel: () => void): () => void;
 export class DemoCommandError extends Error {
-  constructor(label: string, cause?: unknown);
+  constructor(
+    label: string,
+    cause?: unknown,
+    status?: { code: number | null; signal: string | null },
+    outcome?: {
+      reason?: 'exit' | 'deadline' | 'cancelled' | 'spawn' | 'output' | 'cleanup' | 'unknown';
+      origin?: 'command' | 'daemon';
+    },
+  );
+  readonly reason: 'exit' | 'deadline' | 'cancelled' | 'spawn' | 'output' | 'cleanup' | 'unknown';
+  readonly origin: 'command' | 'daemon';
+  readonly exitCode: number | null;
+  readonly signalCode: string | null;
 }
 interface Options {
   cwd?: string;
@@ -13,8 +25,12 @@ interface Options {
 }
 interface Running {
   child: ChildProcess;
-  exit: Promise<{ code: number }>;
-  result(): { output: string; failed?: Error };
+  /** Native failures publish at exit; success retains complete output through close. */
+  exit: Promise<{ code: number | null; signal: string | null }>;
+  /** Every daemon leader exit is unexpected, independently of stream closure. */
+  nativeExit: Promise<{ code: number | null; signal: string | null }>;
+  refusal: Promise<{ cause: unknown; reason: 'spawn' | 'output' }>;
+  result(): { output: string; failed?: Error; failureReason?: 'spawn' | 'output' };
 }
 export class DemoProcesses {
   constructor(signal: AbortSignal);
