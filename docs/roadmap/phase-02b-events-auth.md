@@ -13796,7 +13796,8 @@ PostgreSQL, frontend and hosted qualification are not claimed by these checks.
 **Status: local implementation and fresh-provider proofs pass; reviews pending.**
 Acceptance is committed at `285db56b`; implementation stays on `development`.
 This record claims no warm-realm reconciliation, BFF session or final-source CI
-qualification. Both independent implementation-review rounds remain pending.
+qualification. The first independent review round and its verified corrections
+are complete; the second fresh review round remains pending.
 
 - `SeedData.IdentityUsers` owns four fixed actor identities and their tenant/host
   association. The read-only `--identity-manifest` mode projects scalar facts,
@@ -13810,7 +13811,8 @@ qualification. Both independent implementation-review rounds remain pending.
   Existing confidential-secret verification and the refusal for an older private
   file missing the key remain Step 2–3 work, before either entry invokes it.
 - `TenantRealmExportTests` compares the committed artifact to typed SeedData and
-  rejects 24 planted mapper, profile, client, scope, identity and TTL variants.
+  initially rejects 24 planted mapper, profile, client, scope, identity and TTL
+  variants; round 1 extends this to 43 as recorded below.
   The Docker fixture imports the actual JSON into pinned Keycloak with a separate
   PostgreSQL database and owned HTTPS/custom-root trust, with hostname validation
   retained. No host certificate store is changed. Real code/S256 issuance passes
@@ -13839,6 +13841,31 @@ provider's Secure loopback cookie behavior without a cookie-forwarding workaroun
 or changes to the production realm. Sources:
 [Testcontainers 4.15.0 mapping](https://github.com/testcontainers/testcontainers-dotnet/blob/4.15.0/src/Testcontainers/Builders/ContainerBuilder%603.cs#L208-L223),
 [Keycloak 26.6.2 secure context](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/utils/SecureContextResolver.java#L32-L55).
+
+**Review round 1.** Two fresh GPT-6.1 Sol reviewers used xhigh effort for
+security/correctness and high effort for proof/lifecycle/corpus. The latter
+found the new `identity-username` vocabulary kind absent from the existing G20
+completeness allowlist. The existing architecture case was independently run
+and failed on that exact discrepancy. The correction includes every declared
+username/actor in the completeness assertion and the decoded-literal controls.
+It also removes stale PostgreSQL-only skill input descriptions and reconciles
+the testing standard's population count.
+
+The security reviewer reproduced a separate offline export-predicate gap:
+optional `sub`, `aud` and dotted identity destinations passed the previous
+collision check. The committed realm is clean; no live provider vulnerability
+was claimed. The correction checks decoded top-level claim roots, reserved token
+setters, known implicit subject/audience writers and unknown effective mapper
+types across direct, default and optional sources. Forty-three dirty variants and
+an escaped-dot healthy control qualify the extended predicate. Pinned semantics:
+[claim setters](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/mappers/OIDCAttributeMapperHelper.java#L295-L324),
+[escaped claim paths](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/utils/JsonUtils.java#L35-L58).
+**Round 1 fix validation.** Release solution/integration builds pass with zero
+warnings/errors. The complete domain-genericity class plus corpus/Docker-census
+controls pass 14 cases; export/manifest proofs pass three cases, including all
+43 dirty variants and the escaped-dot healthy control. All have zero skips.
+All 1,329 relative links/fragments in the twelve changed Markdown files resolve;
+whitespace checks pass. The second fresh independent review round remains pending.
 
 ## Completion Criteria
 

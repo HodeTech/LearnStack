@@ -57,7 +57,7 @@ architecture test) plus any other invariant the change touches. See
 |-------|----------|-------------|
 | Scenario | Yes | A short name + setup + act + assert. |
 | Seed | Yes | Minimum tenants / orgs / users / customization data the scenario needs. |
-| Required containers | Yes | **Postgres, always and only.** Not Valkey, not Kafka — nothing the backend runs calls them. Meilisearch / LiveKit / SeaweedFS only for a provider-contract test, and only from the phase that ships the adapter. |
+| Required containers | Yes | PostgreSQL for application data; pinned Keycloak with its separate PostgreSQL for actual identity-provider proofs. Other providers require a shipping adapter consumer under ADR-0035. |
 | Tenant context | Yes | Which tenant + org the act phase runs as. |
 
 ## Workflow

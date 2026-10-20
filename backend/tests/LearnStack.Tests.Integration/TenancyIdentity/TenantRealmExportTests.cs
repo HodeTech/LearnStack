@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Tools.Seeder;
 using Xunit;
@@ -6,8 +7,23 @@ using Xunit;
 namespace LearnStack.Tests.Integration.TenancyIdentity;
 
 /// <summary>Offline drift controls; live provider behavior belongs to the Docker issuance proofs.</summary>
-public sealed class TenantRealmExportTests
+public sealed partial class TenantRealmExportTests
 {
+    private static readonly string[] ReservedClaims =
+        ["iss", "sub", "aud", "azp", "typ", "scope", "iat", "exp", "nbf"];
+    private static readonly string[] UnsafeOptionalDestinations =
+    [
+        "sub", "aud", "azp", "iss", "iat", "exp", "nbf", "typ", "scope",
+        "user_id.nested", "tenant_id.nested", "organization_id.nested", @"user\_id", @"tenant\_id.nested",
+    ];
+    private static readonly string[] KnownMapperTypes =
+    [
+        "oidc-acr-mapper", "oidc-address-mapper", "oidc-allowed-origins-mapper",
+        "oidc-audience-mapper", "oidc-audience-resolve-mapper", "oidc-full-name-mapper",
+        "oidc-organization-membership-mapper", "oidc-sub-mapper", "oidc-usermodel-attribute-mapper",
+        "oidc-usermodel-client-role-mapper", "oidc-usermodel-property-mapper",
+        "oidc-usermodel-realm-role-mapper", "oidc-usersessionmodel-note-mapper",
+    ];
     [Fact]
     public void The_committed_realm_matches_typed_identity_and_security_declarations()
     {
@@ -28,7 +44,7 @@ public sealed class TenantRealmExportTests
     public void Export_controls_reject_unsafe_mapper_profile_client_and_identity_variants()
     {
         var original = ReadRealm();
-        var mutations = new (string Name, Action<JsonObject> Apply)[]
+        var mutations = new List<(string Name, Action<JsonObject> Apply)>
         {
             ("wrong realm TTL", realm => realm["accessTokenLifespan"] = 1800),
             ("client TTL override", realm => Client(realm, "learnstack-web")["attributes"]!["access.token.lifespan"] = "900"),
@@ -60,7 +76,21 @@ public sealed class TenantRealmExportTests
             ("writable actor", realm => ChangeProfile(realm, "user_id", "edit")),
             ("visible tenant", realm => ChangeProfile(realm, "tenant_id", "view")),
             ("writable organization", realm => ChangeProfile(realm, "organization_id", "edit")),
+            ("optional implicit subject", realm => Scope(realm, "phone")["protocolMappers"]!.AsArray().Add(
+                Scope(realm, "basic")["protocolMappers"]!.AsArray().Single(mapper =>
+                    Text(mapper?["protocolMapper"]) == "oidc-sub-mapper")!.DeepClone())),
+            ("optional implicit API audience", realm => Scope(realm, "phone")["protocolMappers"]!.AsArray()
+                .Add(Mapper(realm, "learnstack-api-audience").DeepClone())),
+            ("optional audience resolver", realm => Scope(realm, "phone")["protocolMappers"]!.AsArray().Add(
+                Scope(realm, "roles")["protocolMappers"]!.AsArray().Single(mapper =>
+                    Text(mapper?["protocolMapper"]) == "oidc-audience-resolve-mapper")!.DeepClone())),
+            ("role audience in ID token", realm => Scope(realm, "roles")["protocolMappers"]!.AsArray().Single(mapper =>
+                Text(mapper?["protocolMapper"]) == "oidc-audience-resolve-mapper")!["config"]!["id.token.claim"] = "true"),
+            ("unknown implicit mapper", realm => Scope(realm, "phone")["protocolMappers"]!.AsArray().Add(
+                new JsonObject { ["name"] = "unqualified", ["protocolMapper"] = "unqualified-provider-mapper" })),
         };
+        foreach (var destination in UnsafeOptionalDestinations)
+            mutations.Add(("optional reserved destination " + destination, realm => AddOptionalClaim(realm, destination)));
         Violations(original).Should().BeEmpty("the control input is the real export");
         foreach (var (name, apply) in mutations)
         {
@@ -69,6 +99,9 @@ public sealed class TenantRealmExportTests
             Violations(mutant).Should().NotBeEmpty(name);
         }
         Violations(original).Should().BeEmpty("mutants cannot contaminate the control");
+        var escapedLiteral = original.DeepClone().AsObject();
+        AddOptionalClaim(escapedLiteral, @"user_id\.nested");
+        Violations(escapedLiteral).Should().BeEmpty("an escaped dot produces a separate literal key, not an identity object");
     }
 
     internal static IReadOnlyList<string> Violations(JsonObject realm)
@@ -99,8 +132,19 @@ public sealed class TenantRealmExportTests
                     Scope(realm, name)["protocolMappers"]?.AsArray() ?? []).Concat(
                     client["protocolMappers"]?.AsArray() ?? []).ToArray();
                 foreach (var name in identityNames)
-                    Require(effectiveMappers.Count(mapper => Text(mapper?["config"]?["claim.name"]) == name) == 1,
+                    Require(effectiveMappers.Count(mapper => ClaimRoot(Text(mapper?["config"]?["claim.name"])) == name) == 1,
                         "one effective identity mapper");
+                Require(effectiveMappers.All(mapper => KnownMapperTypes.Contains(Text(mapper?["protocolMapper"]), StringComparer.Ordinal)),
+                    "every effective mapper type is qualified against the pinned provider");
+                Require(effectiveMappers.All(mapper => !ReservedClaims.Contains(
+                    ClaimRoot(Text(mapper?["config"]?["claim.name"])), StringComparer.Ordinal)),
+                    "no configurable mapper overrides a reserved token property");
+                foreach (var type in new[] { "oidc-sub-mapper", "oidc-audience-mapper", "oidc-audience-resolve-mapper" })
+                    Require(effectiveMappers.Count(mapper => Text(mapper?["protocolMapper"]) == type) == 1,
+                        "one qualified implicit subject/audience writer");
+                var resolver = effectiveMappers.Single(mapper => Text(mapper?["protocolMapper"]) == "oidc-audience-resolve-mapper");
+                Require(Text(resolver?["config"]?["access.token.claim"]) == "true"
+                    && Text(resolver?["config"]?["id.token.claim"]) != "true", "role audience resolution is access-only");
                 if (clientId == "learnstack-web")
                 {
                     Require(client["standardFlowEnabled"]?.GetValue<bool>() == true, "web code flow");
@@ -182,6 +226,27 @@ public sealed class TenantRealmExportTests
     private static JsonArray Mappers(JsonObject realm) => Scope(realm, "learnstack-tenant-api")["protocolMappers"]!.AsArray();
     private static JsonObject Mapper(JsonObject realm, string name) =>
         Mappers(realm).Single(mapper => Text(mapper?["name"]) == name)!.AsObject();
+    private static void AddOptionalClaim(JsonObject realm, string destination)
+    {
+        var mapper = Mapper(realm, "user_id").DeepClone().AsObject();
+        mapper["name"] = "additional-optional-claim";
+        mapper["config"]!["claim.name"] = destination;
+        Scope(realm, "phone")["protocolMappers"]!.AsArray().Add(mapper);
+    }
+
+    // Keycloak 26.6.2 JsonUtils.splitClaimPath: backslash escapes any character,
+    // and an unescaped dot terminates a nonempty component. Leading dots stay literal.
+    private static string ClaimRoot(string claim)
+    {
+        var component = ClaimComponent().Match(claim);
+        return BackslashedCharacter().Replace(component.Success ? component.Groups[1].Value : claim, "$1");
+    }
+
+    [GeneratedRegex(@"^((\\.|[^\\.])+?)\.", RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex ClaimComponent();
+
+    [GeneratedRegex(@"\\(.)", RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex BackslashedCharacter();
     private static JsonNode ProfileValue(JsonObject realm) => realm["components"]!
         ["org.keycloak.userprofile.UserProfileProvider"]![0]!["config"]!["kc.user.profile.config"]!;
     private static JsonObject Profile(JsonObject realm) => JsonNode.Parse(Text(ProfileValue(realm)[0]))!.AsObject();

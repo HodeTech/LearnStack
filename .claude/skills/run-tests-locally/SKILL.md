@@ -35,7 +35,7 @@ flags, and a triage map for the most common failure shapes.
 |-------|----------|-------------|
 | Suite | Yes | `unit` / `integration` / `architecture` / `contract` / `frontend` / `public-demo` (P02d-7). Phase 06 owns the broader Playwright Test/axe suite. |
 | Filter | No | `--filter <expr>` to run a subset. |
-| Docker available? | Integration (`Requires=Docker`) | A running daemon. Postgres only — no Valkey, no Kafka. |
+| Docker available? | Integration (`Requires=Docker`) | A running daemon for PostgreSQL and the pinned Keycloak/PostgreSQL provider fixture. Other adapters retain their named triggers. |
 
 ## Workflow
 

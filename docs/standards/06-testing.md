@@ -122,8 +122,8 @@ All Docker executions and their aggregate additionally require their exact
 discovered case identities, complete results and zero skips: a filter matching
 nothing exits `0` without those guards.
 
-All three: real module configuration, no mocked repositories, and coverage of the
-happy path and the edges.
+All four: real provider/module configuration, no mocked repositories, and
+coverage of the happy path and the edges.
 
 Under [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md),
 `scripts/ci-native-tests.py` owns the complementary Docker populations:
