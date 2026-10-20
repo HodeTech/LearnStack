@@ -29,7 +29,11 @@ rounds with verified corrections. **P02b-5 is complete and merged** through
 [merge closeout](#p02b-5-merge-and-closeout-2026-10-20) owns final-source CI,
 unchanged-plan A/B qualification and identical merge trees. The next packet is
 P02b-6's realm/TTL decision pass.
-P02b-6 realm reconciliation, P02b-7 BFF sessions and P02b-8 enforcement/erasure
+**P02b-6 decision pass is in progress.** Its
+[proposed package](#p02b-6-decision-package-2026-10-20) reviews realm reconciliation
+and issuance lifetime before implementation. G12's remaining realm choices and
+G13's issuance-lifetime part remain Open until explicit maintainer acceptance.
+P02b-6 implementation, P02b-7 BFF sessions and P02b-8 enforcement/erasure
 inventory remain pending; Phase 02b remains in progress. Earlier dated delivery
 and failed-run receipts keep their as-of state.
 
@@ -13387,6 +13391,401 @@ and the dated P02b-5 decision/delivery/review records are byte-preserved against
 the final PR head. The local run covers these status/navigation edits; the
 runtime, Docker/native and browser qualification remains source-bound to the
 completed hosted receipts above. This closeout starts no next packet.
+
+## P02b-6 decision package (2026-10-20)
+
+**Status: Proposed — maintainer acceptance pending.** The request opens this
+packet's document/decision pass on `development`, against `b4945705` after the
+P02b-5 merge. It authorizes inspection and this proposal, not the remaining
+G12/G13 answers. No realm, seed identity, runtime or CI implementation is changed
+by this record. P02b-7's session portion of G13 stays Open independently.
+
+### Problem, scope and decision vehicle
+
+P02b-5 validates the strict API profile, but the committed development realm does
+not issue it. P02b-6 makes actual Keycloak issuance agree with that profile on
+both fresh and existing development databases. It supplies protected identity
+attributes, one repeatable development reconciliation path and real token/API
+proofs, while preserving existing accounts and the separate operator realm.
+
+G12 explicitly selects a phase-document vehicle unless reconciliation becomes
+ADR-0004's runtime `IIdentityProvider`. This proposal keeps a bounded Node.js
+Admin REST client in development tooling; no application port, runtime provider
+SDK, endpoint, database role/grant or schema is introduced. G13 delegates the
+issuance-lifetime answer to this record and the reconciled Security standard.
+A new ADR is therefore not proposed. Any implementation requiring a different
+provider/runtime boundary reopens this pass before code; approval of this
+package does not authorize that change.
+
+The existing decisions remain authoritative:
+[ADR-0004](../decisions/0004-authentication-strategy.md),
+[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) and
+[ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
+No Accepted ADR body or acceptance metadata is rewritten. This proposal adds no
+supersession of their authentication, tenant authority or audit contracts.
+
+### Reviewed premises and necessary document actions
+
+| Current source | Verified premise | Required disposition |
+|---|---|---|
+| `infra/keycloak/realms/learnstack.json` | Public `learnstack-web`, no custom client scope/mappers, slug-valued tenant attributes and no stable actor attributes | Configure the already Accepted confidential PKCE profile and real seed UUIDs; do not loosen the API to accept the old export. |
+| `scripts/seed.sh`, `scripts/wait-compose.mjs` | Seed checks both realm issuers, then invokes the application Seeder; no Admin REST reconciliation | Add the shared bounded tooling call after readiness and application seed convergence; preserve the selected Compose/env identity. |
+| `scripts/demo.mjs` | Demo invokes the .NET Seeder directly, then CI stops its Keycloak | Invoke the same reconciler before that stop. A seed-script-only change cannot converge this entry point. |
+| `SeedData.cs`, `DemoIdentities.cs`, Seeder `Program.cs` | Tenant/org/host identities already have typed, read-only tooling projections; no identity-user declaration | Add stable actor/seed-user declarations and a credential-free projection without a new application identity table or production Seeder reference. |
+| Realm `accessTokenLifespan`, API client override, Keycloak README, Security 11 | Realm/API override are 1800s; README recommends 900s for production; API permits at most one hour | Select one development issuance value, remove conflicting client overrides and distinguish issuance from API acceptance/session lifetimes. |
+| This phase's identity completion criterion: `exp - iat` equals the configured lifetime | Pinned Keycloak reads the issuance and expiration clocks separately; a second rollover can make that difference 901 for a 900s setting | At acceptance, replace exact subtraction equality with exact realm/no-override checks and bounded observed-issuance evidence below; retain independent drift controls. |
+| Keycloak 26.6.2 profile/import source | Profile configuration is a declarative-user-profile component; runtime Admin REST uses `users/profile`. Declaring a custom `clientScopes` list can suppress automatic built-in creation | Use the supported component/config representation; include/verify actual `basic` and its `sub` mapper, not merely a scope name in a client list. |
+| Keycloak account REST and profile source | Account permission is checked before attribute-edit policy; profile PUT and user-attribute PUT can replace supplied configuration/maps | Pair self-service refusals with a successful ordinary profile edit, merge unrelated definitions/attributes and verify retained state. A generic 403 proves neither protection nor preservation. |
+| Standards 06, integration skills and runner instructions | Container guidance still describes Postgres as the only current integration dependency | Add the named Keycloak fixture and Docker-trait/source controls with its first tests; preserve the real app-role PostgreSQL requirement for API/database assertions. |
+| Standards 21 provider-SDK backfill row and this phase's enforcement scope | The reconciler introduces no runtime provider SDK subject | Resolve the row's owning-phase handoff explicitly at acceptance, as specified below; do not claim this script implements that structural rule. |
+
+The review includes the full identity architecture, realm README/exports,
+P02b-5 accepted profile and handoff, G12/G13, current completion/risk clauses,
+Security/Testing/Infrastructure/Documentation standards, authentication and
+SDK-boundary catalogue entries, Phase 03/11 ownership, seed/demo orchestration
+and their existing environment/process boundaries. Historical dated delivery
+receipts retain their original words; mutable current descriptions are corrected
+with their actual implementing slice.
+
+### Proposed G12/G13 answers
+
+**Alternatives.** Startup-import-only cannot update an existing realm. A realm
+overwrite/database reset violates preserved-account upgrade requirements. General
+declarative realm-management tools remain viable for Phase 11 production
+provisioning; this small development-only operation instead owns an explicit
+Admin REST field allowlist and its preservation tests without introducing a
+second configuration-state tool. This is a maintenance responsibility, not a
+claim that those tools cannot preserve unrelated state or are more expensive.
+
+For issuance, keeping the existing 1800s development value reduces refresh churn
+but leaves a longer stale-scope window. The proposed 900s follows the existing
+Keycloak README's production target while reducing that window for new tokens.
+It is a selected development default, not a measured production capacity claim.
+The API's 3600s rejection ceiling is not an issuance recommendation; BFF session
+lifetimes are a different decision.
+
+| Gate part | Proposed answer | What acceptance does not close |
+|---|---|---|
+| G12: realm and reconciliation | One owned development Admin REST reconciler, reused by `make seed` and `make demo`, with the exact profile, identity/preservation and failure rules below | No production realm provisioning, runtime identity-provider port, membership service or browser session |
+| G12: callbacks | Exact HTTPS Auth.js Keycloak callback on each existing seed host at port 3000; exact same-host root post-logout URI | No callback implementation, login transaction/session cookie, return-URL/CSRF policy or production domain registration |
+| G13: access-token issuance lifetime | Security 11 owns the rule: the tenant development realm's configured access-token lifespan is 900s; `learnstack.json` owns its executable value and reconciliation enforces it without a conflicting client override. Actual timestamps follow the provider semantics below | BFF idle/absolute session life, refresh custody/serialization, CSRF and logout remain P02b-7; API's one-hour acceptance ceiling and 30s skew remain unchanged |
+
+**Client and claim configuration.** Preserve the Accepted `learnstack-web`
+confidential client with S256, `azp=learnstack-web` and `learnstack-api` resource
+audience. Keep standard code flow; disable implicit flow, direct access grants
+and service accounts on that client. The resource client's legacy service
+account is not converted into a tenant user; its tokens still fail ADR-0064's
+user profile. Disable the resource client's browser code flow and remove its
+old localhost callback list; it does not act as a second login client. Preserve
+its existing service credential. The API receives no client secret.
+
+Use one named default client scope, `learnstack-tenant-api`, attached to both
+named clients. Its three scalar String user-attribute mappers emit `user_id`,
+`tenant_id` and optional `organization_id` in access/ID tokens, without placing
+those attributes in the user-info response. Its explicit audience mapper adds
+`learnstack-api` to access tokens only. Preserve/declare actual built-in scopes,
+especially `basic` and its `sub` mapper; do not replace all existing default or
+optional scope assignments with a partial list. Reject another effective mapper
+that can contradict the protected identity claims, rather than deleting an
+unrecognized administrator customization. The API audience need not be exclusive;
+standard account audiences do not grant application permission.
+
+Declare all three identity attributes single-valued, with admin-only view/edit,
+including `organization_id`. Missing tenant/org attributes remain optional;
+self-registration is not an actor-provisioning mechanism. Leave unrelated
+profile attributes/groups and the existing unmanaged-attribute policy intact.
+The disabled unmanaged policy is omitted/null in 26.6.2, not a `DISABLED` enum.
+Legacy tenant roles and assignments remain inert authentication metadata;
+P02b-5's complete role-authority census still forbids application permission from
+them. No new application role, membership or implicit administrator is seeded.
+
+For each `SeedData` host the exact redirect is
+`https://<seed-host>:3000/api/auth/callback/keycloak`; its post-logout URI is
+`https://<seed-host>:3000/`. No localhost HTTP/wildcard callback, alternate host
+or browser client secret is accepted for this BFF. Encode the two post-logout
+values with Keycloak's supported multivalue representation. Retain manual hosts,
+leaf certificate and trust setup. These registrations reserve P02b-7's callback
+contract without claiming a browser login exists.
+
+**Identity preservation.** `SeedData` owns four stable, distinct, nonreserved
+actor UUIDs and their tenant/org references. Keep the two existing English demo
+usernames; add `demo-admin@tenant-b.test` and `demo-learner@tenant-b.test` for
+Yoga with its existing default organization. These are development personas,
+not application permission grants; their credentials use the existing
+create-only development password convention.
+The declaration/projection owns their exact usernames and UUIDs; the realm
+export must agree with it. Do not derive actor identity from email, username or
+Keycloak `sub`, or generate one on each reconciliation/login.
+
+- Preserve the Keycloak ID/`sub` of every existing account, including seed users.
+- Create a missing named demo account with its declared development credential.
+  Never reset an existing password, credential, MFA factor, required action,
+  enabled state, email/name or role assignment to make a proof pass.
+- On the two legacy English accounts only, accept the known old `tenant-a`
+  attribute as a named migration to their declared tenant UUID. Missing identity
+  values may be installed; semantically matching UUIDs are retained. Conflicting
+  nonempty actor/tenant/org values refuse, including an unexpected organization
+  on a tenant-wide English identity. No reassignment of a real UUID is guessed.
+- Preserve unrelated user attributes through a read/merge/write operation.
+  Do not send only the three attributes: that can delete the others.
+- Do not update nonmanifest accounts. Their missing actor/scope is not filled by
+  invention: the API continues to refuse an incomplete profile until Phase 03
+  owns its durable mapping. Never modify `learnstack-hub` or master users/roles.
+
+**Client-secret continuity.** Add one private development source,
+`KEYCLOAK_WEB_CLIENT_SECRET`, documented in `.env.example`. Fresh import and the
+reconciler must agree with the selected value. Converting the old public client
+installs that selected BFF secret once; any unused generated public-client
+secret is not a previously consumed confidential contract. An already
+confidential client's secret is verified and preserved; a mismatch fails without
+rotation. A missing key in an older private environment is reported with setup
+instructions, never silently filled or printed. P02b-7 receives only this BFF
+credential, never the admin credential. Production secrets remain Phase 11's
+provisioning responsibility.
+
+**TTL semantics.** Remove the named clients' `access.token.lifespan` overrides;
+they inherit the realm's configured 900s value. Keycloak 26.6.2 sets `iat` and
+calculates expiration from separate clock reads: crossing a second boundary can
+yield `exp - iat == 901`, and a scheduling pause can widen it further. Do not
+assert exact subtraction equality or substitute a fixed 901s ceiling.
+
+Check the exact realm value and absence of either client override independently.
+For a fresh code exchange, record UTC and monotonic bounds around the request,
+with its finite HTTP deadline, and require the signed expiration to lie within
+that observed interval plus the configured lifespan. Any qualified fixture/
+provider clock tolerance is explicit, at most the existing 30s API clock skew;
+an indeterminate clock/window fails the proof rather than widening the tolerance.
+The measurement bound is test evidence, not a new production token-acceptance
+rule. Separate session-clamping coverage permits shorter late-session issuance.
+Exact configuration/override controls and independent wrong-expiration mutants
+prevent timing tolerance from hiding a different configured lifespan.
+
+Changing the realm does not invalidate earlier
+1800s tokens; they remain subject to the API acceptance bound. The reduced TTL
+reduces the ordinary stale-scope window; 900s is the configured lifespan, not a
+hard `exp - iat` guarantee. It does not implement immediate revocation, live
+membership checks or refresh-token rotation. The latter's existing Phase 11
+owner is unchanged.
+
+### Reconciler ownership, failure and security boundaries
+
+The implementation is a closed tooling client under `scripts/`, using Node's
+HTTP support rather than a new Keycloak SDK/application service. Both entry
+points await it after successful application seed convergence and before API/web
+launch or CI-owned Keycloak stop. Direct .NET Seeder remains application-data
+only. The read-only identity projection never opens a data source.
+
+- Validate selected Compose project/service and pinned-image identity, loopback
+  development endpoint, exact realm discovery issuer and private source agreement
+  before admin authentication. Verify authenticated server version before writes.
+  Do not accept arbitrary realm,
+  URL, command, import file or destructive-reset CLI arguments. Test transport
+  injection stays internal and cannot widen the production CLI.
+- Read the selected environment as data; inherited aliases cannot silently point
+  reconciliation at a different instance. Admin credentials, access tokens and
+  BFF secret stay in memory and the specifically owned tooling environment,
+  never argv, URLs, temp JSON, stdout/stderr, receipts or the API/public renderer
+  environment. The .NET Seeder keeps its existing credential allowlist.
+- Use one local lock owner per selected target for both entry points; refuse a
+  second invocation rather than interleave. Hold through actual HTTP/child
+  cleanup. A stale lock is not removed merely because time elapsed. This is a
+  local tooling boundary, not a distributed lock against another checkout or
+  Admin Console. Concurrent external administration is unsupported: operators
+  run reconciliation while this development realm is otherwise quiescent.
+- Read and validate the complete bounded change plan before the first write.
+  Detect conflicting users, scope/mappers, secret and unsupported configuration
+  up front. Apply only named owned fields/resources, merge unrelated data and
+  perform independent post-write readback. Never replay a full realm import,
+  drop a database, recreate a realm or delete existing accounts/scopes/roles.
+- Bound each HTTP wait to 5s, each decoded response to 256 KiB and the complete
+  reconciliation to 120s; reject redirects on discovery, authentication and Admin
+  REST alike. No automatic token-request or mutation retry loop.
+  Creation conflicts permit one exact fresh-state check, not blind overwrite.
+  Abort/close the owned request and await cleanup before dropping the lock;
+  elapsed time is not evidence that a remote write failed.
+- A partial/uncertain run exits nonzero. Previously completed mutations stay
+  durable; the next explicit run reads current state and resumes missing acts.
+  No cross-Keycloak/application transaction or automatic rollback is promised.
+  A completed third run performs zero mutating Admin REST calls.
+- Errors emit a fixed stage/reason, never an upstream body/exception or arbitrary
+  claim/mapper/user values. Exercise credential/token/URL canaries and positive
+  closed diagnostics. No LearnStack audit row is added for development setup;
+  Keycloak retains its own administrative event mechanism.
+
+These choices deliberately trade broad realm-management convenience for safe
+local convergence. A customized incompatible identity or confidential secret
+requires explicit operator reconciliation. Existing nonmanifest users are
+preserved but may lack the strict API profile. Admin credentials remain powerful
+local setup credentials, never production runtime authority. A deadline can
+leave a remotely committed partial update; a later run must verify it.
+
+### Test ownership and required controls
+
+Acceptance registers the following two canonical behavioural obligations in
+Standards 21, with actual owners and **Registered** status until shipped. Their
+sources are ADR-0004/0064, Security 11 and this accepted package, not a new
+architecture decision. Counts/status assertions change with the same registry
+edit; no new Implemented rule is claimed by approval.
+
+| Proposed canonical obligation | Owner/level | Required evidence |
+|---|---|---|
+| `Tenant_Realm_Issuance_Matches_The_Api_Profile` | `TenantRealmIssuanceTests` and `TenantRealmProfileProtectionTests`, backend Integration with Docker | Import committed JSON into pinned Keycloak, exercise real code/S256 issuance, validate through real API handler/AccountSite and app-role PostgreSQL; protect profile attributes with a working account-edit positive control. |
+| `Development_Realm_Reconciliation_Preserves_Accounts` | `TenantRealmReconciliationTests`, backend Integration with Docker; Node tooling controls for bounded transport/process/CLI | Execute the actual shared reconciler against a pre-mapper warm realm; preserve users/credentials/IDs/unrelated data/Hub, converge protected mappers/attributes/TTL, and prove a third run has zero mutations. |
+
+Required controls include:
+
+- All four seed identities: real `sub`, fixed actor, expected tenant and Yoga org,
+  correct scalar JSON types, API audience/`azp`, RS256/purpose, exact configured
+  900s lifespan and bounded fresh-issuance evidence under the TTL semantics above.
+  Compare export and issued values to typed `SeedData`, not duplicated test IDs.
+- Exact registered callbacks on both seed hosts, missing/wrong secret, missing
+  challenge, plain challenge and missing/wrong verifier refusals; unregistered
+  redirect rejection, direct grant
+  still disabled, and ID tokens without API audience. The fixture consumes the
+  code callback without requiring the unimplemented BFF; it does not launch a
+  browser or bypass TLS validation to claim a browser cookie proof.
+- Actual AccountSite 200 on both host classes with their real tokens, cross-tenant
+  and cross-organization refusal, claimless protected refusal, Hub-issuer refusal,
+  and the unchanged absent-token/public-IdP-down path. API/database reads stay
+  `learnstack_app`; Keycloak uses its own separate fixture database.
+- Through the built-in account-console code/S256 flow for the same seed user,
+  prove an ordinary profile edit succeeds. Then try each protected attribute and
+  read it independently as admin: no user write or deletion succeeds. Admin-only
+  profile/account attribute visibility and registration attempts need their own
+  controls; deliberate token claims are not profile visibility. A
+  user-editable variant must make the protection proof fail.
+- Removed/misattached identity/audience/basic mappers, duplicate/conflicting
+  identity mappers, wrong scalar types/UUIDs, writable profile attributes, ID-token
+  audience, client override and TTL drift all have planted dirty/clean controls.
+- Warm legacy migration plus additional unrelated users/attributes/profile groups,
+  changed passwords, required actions, client scopes/roles, confidential secret
+  and Hub account state; exact snapshots remain preserved. Also cover an
+  incompatible managed identity, duplicate lookup, partial-write interruption,
+  failed readback, uncertain HTTP result, a race and zero-write completed rerun.
+- Shared `make seed`/`make demo` wiring, target/env mismatch before writes,
+  secret leakage across child environments, timeout/cancellation/cleanup and
+  lock ownership; errors never turn into success or erase another owner's lock.
+
+The new fixture uses Keycloak 26.6.2 with its separate PostgreSQL database and
+actual committed import. No ROPC shortcut or test-only mapper/client weakening
+is made in the production realm. Every consuming class carries the Docker trait;
+the source sweep must detect fixture references outside `Database/` too, with a
+planted missing-trait control. Offline Node controls run in the existing meta
+job; real provider cases enter ordinary Docker shards through normal discovery.
+Preserve the seven required names, complete assignment and existing time ceilings.
+Measure fixture/hosted costs; tune only within ADR-0063's accepted plan envelope.
+
+`Provider_SDK_Types_NotImportedOutsideInfrastructure` remains unimplemented: the
+script introduces no runtime SDK type. Acceptance moves its owning-phase cell
+from Phase 02b to Phase 03's first runtime identity-provider adapter, with actual
+SDK introduction as the trigger. Phase 03 re-verifies that subject before its
+first writer; a direct-HTTP implementation cannot be reported as SDK coverage.
+The existing SDK exception rule remains enforced. This is the explicit handoff
+required by this phase's enforcement scope, not missing P02b-6 work.
+
+### Four implementation steps after acceptance
+
+Each step ends in a clean local commit, then two fresh independent review-agent
+rounds. Reviewers first run standards-check, then the security, correctness,
+operation/lifecycle, testing and corpus lenses. Confirmed findings are reproduced,
+fixed and committed before the next round/step. Fresh focused review verifies a
+material correction after round two. Routine progress automatically proceeds;
+a new architectural choice returns for maintainer approval.
+
+| Step | Deliverable | Validation before review/commit closure |
+|---|---|---|
+| 1 — executable realm and identity declaration | Register accepted gates/rules and current carriers; typed seed identity projection, complete import/profile/scopes/mapper/client configuration, private secret source and drift controls | JSON/schema/source and SeedData agreement; real fresh import/code-token smoke; unsafe mapper/profile/basic/TTL variants fail. No warm overwrite or BFF session claimed. |
+| 2 — owned warm-realm reconciliation | Closed Admin REST tooling, explicit owned-field diff/merge/readback, preflight, secrets, locking and deadlines; actual fresh/warm/partial/no-op integration tests | Real pre-mapper PostgreSQL-backed Keycloak retains identities, passwords, unrelated state and Hub; conflict/timeout/uncertainty/race/canary controls; zero writes on completed third pass. |
+| 3 — unified seed/demo lifecycle | Both existing entries call the same implementation after application seed; preserve exact configuration/credential/process ownership and CI's stopped-Keycloak public proof | Real fresh/warm `make seed` and repeated convergence; demo lifecycle wiring/proof, no foreign cleanup, private environments and bounded cancellation. Preserve public routes, API authentication and generated contract. |
+| 4 — real identity/security qualification and closeout | Full production-token API/profile protection/mutation proofs, Docker fixture census, measured ordinary CI assignment, remaining mutable carriers and packet status | All relevant backend/frontend/meta suites; complete hosted PR qualification and unchanged required checks, public production demo regression. Account/registration positive and dirty controls prove the tests can fail. |
+
+Do not start the next feature packet as part of this work. P02b-7 retains Auth.js
+session/callback implementation, custody/refresh/CSRF/logout and SDK bearer
+transport. Phase 03 retains `User`/membership/permission/provisioning/mapping and
+tenant switching; Phase 06 retains the full browser OIDC journey; Phase 11 retains
+production realm provisioning, rotation and deployment identity hardening.
+
+### Acceptance carriers and remaining approval
+
+At acceptance, mark only G12's realm/reconciliation part and G13's issuance-TTL
+part Accepted with this anchor; preserve G13's session portion Open. Commit that
+acceptance and the Registered catalogue owners before runtime changes. Update
+Security 11's authority/pointer without duplicating the executable TTL in target
+sketches. Preserve dated old observations while marking current status clearly.
+
+| Carrier | Action and implementing owner |
+|---|---|
+| This phase, `CLAUDE.md`, roadmap README | Decision status, steps, source-bound evidence and the exact-equality TTL completion-criterion correction above; completed only after implementation/reviews/qualification. |
+| `docs/standards/11-security.md`, architecture 13 | Distinguish issuance/acceptance/session TTL, scalar identity controls and current real-issuance boundary; Steps 1/4. |
+| Standards 06/12/21 and integration/run-test skills | Keycloak container/trait, tooling secret/CLI boundaries, two named rules and explicit provider-SDK handoff; Steps 1/4. |
+| `infra/keycloak/README.md`, Compose README and root README | Exact local client/callback/secret/migration and non-destructive warm setup; remove the database wipe as the upgrade recipe; Steps 1/3/4. |
+| Realm JSON, `.env.example`, seed/demo and source/fixture controls | Apply only after acceptance; Steps 1–4. No Hub-realm edit. |
+| Phase 03/11, architecture 14/30 and glossary | Explicit identity-provider handoff, consumer/production boundaries and updated terminology/status; Steps 1/4. |
+
+The maintainer's decision is required on the package as a whole: 900s development
+issuance, four stable seed identities/legacy migration, exact callbacks, secret
+continuity/refusal and the bounded development-only reconciler. These are
+proposals, not acceptance inferred from the implementation request. Independent
+review and local mechanical validation below precede the approval request.
+
+### Decision-pass inspection and review evidence
+
+Two independent read-only inspections used GPT-6.1 Sol at xhigh effort: one
+covered the identity/profile/upstream boundary, the other covered reconciliation,
+seed/demo and credential/lifecycle ownership. Their findings informed the
+premise/action inventory above, including the demo bypass, real `basic` scope,
+protected organization attribute and account-edit positive control.
+
+Isolated pinned-26.6.2 development-container feasibility probes confirmed the
+profile component import, protected definitions, merged unrelated account data
+and credential preservation, generated-once/retained client secrets and actual
+`basic` attachment. A custom-scope-only variant lost built-in `basic`; the
+corrected explicit definition restored its attachment. Form-based authorization
+experiments did not complete successfully: no code-flow, token or TTL success
+is claimed. Both owned containers and temporary imports were removed and their
+absence independently checked. These experiments support the design, not a
+committed regression suite or PostgreSQL/production qualification.
+
+**Review round 1.** Two new independent reviewers used GPT-6.1 Sol at xhigh
+(security/correctness) and high (corpus/ownership) effort. Both approved the
+current proposal for maintainer decision without a verified actionable finding.
+They checked Accepted decision compatibility, G12/G13 vehicle and split,
+Keycloak update/profile/scope/TTL source semantics, real protection controls,
+client-secret continuity, bounded HTTP/lifecycle and the provider-SDK handoff.
+This is document approval, not maintainer acceptance or implementation proof.
+
+**Review round 2 correction.** Fresh reviewers used GPT-6 Astra at xhigh
+(boundary/security) and GPT-6.1 Sol at high (delivery/corpus) effort. The latter
+approved; the boundary reviewer found the exact TTL assertion incompatible with
+the pinned provider's separate clock reads. Independent source inspection
+confirmed the counterexample: `iat` sampled at 1,000,999ms is 1000; expiration
+sampled at 1,001,000ms plus 900s is 1901. This is a source-level control, not a
+runtime reproduction. The gate, TTL contract, proof obligations and acceptance
+carrier inventory now distinguish configured lifespan from measured issuance.
+The old equality completion criterion is explicitly replaced at acceptance.
+The original boundary reviewer and a fresh GPT-6.1 Sol xhigh reviewer independently
+verified the correction and approved without another actionable finding.
+
+**Local document validation.** Five Release corpus-consistency cases and seven
+ADR parser/lifecycle controls pass with zero failures/skips. All 757 relative
+links/fragments in the five changed Markdown files resolve. Added prose wrapping,
+whitespace and private-reference checks pass. Accepted ADRs and the complete
+dated P02b-5 decision/delivery record remain unchanged. Runtime, real-token,
+PostgreSQL, frontend and hosted qualification are not claimed by these checks.
+
+### Source references
+
+- [Keycloak import semantics](https://www.keycloak.org/server/importExport),
+  [Auth.js Keycloak callback/client guidance](https://authjs.dev/getting-started/providers/keycloak).
+- Keycloak 26.6.2:
+  [default/basic scopes](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/OIDCLoginProtocolFactory.java),
+  [token issuance/expiration](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java),
+  [issuance timestamp](https://github.com/keycloak/keycloak/blob/26.6.2/core/src/main/java/org/keycloak/representations/JsonWebToken.java#L140),
+  [clock reads](https://github.com/keycloak/keycloak/blob/26.6.2/common/src/main/java/org/keycloak/common/util/Time.java#L31),
+  [profile resource](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/UserProfileResource.java),
+  [user updates](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/UserResource.java),
+  [account REST](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/account/AccountRestService.java),
+  [built-in account client](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/managers/RealmManager.java).
 
 ## Completion Criteria
 

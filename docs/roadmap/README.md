@@ -144,7 +144,9 @@ not deferred to the showcase phase.
   through [PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20.
   Its [merge closeout](phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
   owns final-source CI, unchanged-plan A/B qualification and identical merge
-  trees. The next packet is P02b-6's realm/TTL decision pass.
+  trees. P02b-6's realm/TTL
+  [decision pass](phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+  is in progress; the package remains Proposed pending maintainer acceptance.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
   retains its source-bound corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
   is Accepted — 2026-10-20; its subject-cap, cleanup and refusal refinements are

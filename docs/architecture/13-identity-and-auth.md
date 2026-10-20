@@ -23,6 +23,12 @@ owns delivery, correction reviews and final-source qualification. Authentication
 and authorization registration activate together with the closed surface in Step 4.
 Realm reconciliation and BFF sessions remain P02b-6/P02b-7.
 
+**P02b-6 decision pass — 2026-10-20.** The
+[proposed package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+reviews real issuance, protected seed attributes, non-destructive development
+reconciliation and issuance TTL. It remains subject to maintainer acceptance;
+the current export and seed behavior described below are unchanged by the draft.
+
 **Assertion diagnostics Accepted — 2026-10-20.**
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) admits 600
 rejected-assertion audit attempts per independently defended host tenant per API

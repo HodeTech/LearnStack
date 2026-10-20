@@ -275,8 +275,11 @@ all three correction steps and both independent review rounds are complete.
 [PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
 owns exact final-head CI, unchanged-plan A/B qualification and identical merge
-trees. The next packet is P02b-6's realm/TTL decision pass; P02b-6–8 remain
-unstarted and Phase 02b remains in progress.
+trees. P02b-6's realm/TTL
+[decision pass](docs/roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+is in progress; its package is Proposed and needs maintainer acceptance before
+implementation. P02b-6 implementation and P02b-7–8 remain unstarted;
+Phase 02b remains in progress.
 Phase 06 retains the full
 renderer/Studio expansion.
 
@@ -491,7 +494,9 @@ Then read the phase that is live and the one it stands on:
   above owns final verification. P02b-5's decision package and ADR-0064 are Accepted;
   all five implementation steps and correction reviews are complete and merged
   through PR #33 on 2026-10-20. Its merge closeout above owns verification.
-  P02b-6–8 remain pending, with each packet accepting its gates first.
+  P02b-6's proposed realm/TTL decision package above is under review;
+  implementation and P02b-7–8 remain pending, with each packet accepting its
+  gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency
