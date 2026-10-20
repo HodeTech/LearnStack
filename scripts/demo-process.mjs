@@ -110,6 +110,8 @@ export class DemoProcesses {
         }
       });
     }
+    let publishNativeExit;
+    const nativeExit = new Promise((resolve) => { publishNativeExit = resolve; });
     const exit = new Promise((resolve) => {
       child.once('error', (cause) => {
         if (!failed) {
@@ -117,18 +119,23 @@ export class DemoProcesses {
           failureReason = 'spawn';
           publishRefusal({ cause: failed, reason: failureReason });
         }
-        resolve({ code: null, signal: null });
+        const status = { code: null, signal: null };
+        publishNativeExit(status);
+        resolve(status);
       });
       child.once('exit', (code, signal) => {
+        const status = { code, signal };
+        publishNativeExit(status);
         // A failed leader is already authoritative even if inherited/paused
         // streams delay close. Successful captured output still waits for EOF.
-        if (code !== 0 || signal !== null) resolve({ code, signal });
+        if (code !== 0 || signal !== null) resolve(status);
       });
       child.once('close', (code, signal) => resolve({ code, signal }));
     });
     const running = {
       child,
       exit,
+      nativeExit,
       refusal,
       result: () => ({
         output: Buffer.concat(output).toString('utf8'),
@@ -157,7 +164,7 @@ export class DemoProcesses {
       this.#failure(this.#failed);
     };
     void running.refusal.then(({ cause, reason }) => fail(cause, undefined, reason));
-    void running.exit.then((status) => {
+    void running.nativeExit.then((status) => {
       fail(running.result().failed, status, running.result().failureReason ?? 'exit');
     });
     return running;

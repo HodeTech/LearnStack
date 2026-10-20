@@ -13139,6 +13139,15 @@ Five final corpus controls, seven ADR-parser controls and the changed-document
 sweep (2,275 relative file/fragment targets, none broken) pass. The runtime fix
 receives targeted independent reinspection before correction closeout.
 
+Targeted reinspection of `9b6794da` finds the same ordering gap for a daemon's
+unexpected zero exit: ordinary command success correctly waits for `close`, but
+daemon success is itself a failure and must publish immediately too. The added
+zero-then-23 control fails before the follow-up fix. A distinct all-native-exit
+observation now serves daemon ownership, while ordinary successful capture still
+waits for `close`. Both zero-then-23 and 17-then-23 retain the first daemon fault.
+All five ownership controls pass; the complete guarded frontend population passes
+1,699 (1,627 web and 72 SDK), zero skips/todos, with clean lint and typecheck.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

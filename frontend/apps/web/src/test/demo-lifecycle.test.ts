@@ -764,14 +764,16 @@ describe('native exit and output closure ownership', () => {
     }
   });
 
-  it('latches the first daemon leader failure before a second daemon closes its streams', async () => {
-    const processes = owner();
-    const daemons = [17, 23].map((code) =>
-      processes.daemon(
-        process.execPath,
-        [
-          '-e',
-          `
+  it.each([0, 17])(
+    'latches the first daemon leader exit %s before a second daemon closes its streams',
+    async (firstCode) => {
+      const processes = owner();
+      const daemons = [firstCode, 23].map((code) =>
+        processes.daemon(
+          process.execPath,
+          [
+            '-e',
+            `
       process.once('SIGUSR2', () => {
         process.stdout.write('late output\\n');
         process.exit(${code});
@@ -779,44 +781,45 @@ describe('native exit and output closure ownership', () => {
       process.stdout.write('ready\\n');
       setInterval(() => {}, 1000);
     `,
-        ],
-        { label: 'Native daemon exit control' },
-      ),
-    );
-    const first = daemons[0]!;
-    const second = daemons[1]!;
-    await Promise.all(daemons.map((daemon) => once(daemon.child.stdout!, 'data')));
-    const stream = first.child.stdout!;
-    const hold = () => stream.pause();
-    stream.on('resume', hold);
-    stream.pause();
-    let firstClosed = false;
-    first.child.once('close', () => {
-      firstClosed = true;
-    });
-    try {
-      const nativeExit = once(first.child, 'exit');
-      first.child.kill('SIGUSR2');
-      await nativeExit;
-      expect(firstClosed).toBe(false);
-      second.child.kill('SIGUSR2');
-      await once(second.child, 'close');
-      const failure = await processes.failure;
-      expect(failure).toMatchObject({ reason: 'exit', origin: 'daemon', exitCode: 17 });
-      let activeFailure: unknown;
+          ],
+          { label: 'Native daemon exit control' },
+        ),
+      );
+      const first = daemons[0]!;
+      const second = daemons[1]!;
+      await Promise.all(daemons.map((daemon) => once(daemon.child.stdout!, 'data')));
+      const stream = first.child.stdout!;
+      const hold = () => stream.pause();
+      stream.on('resume', hold);
+      stream.pause();
+      let firstClosed = false;
+      first.child.once('close', () => {
+        firstClosed = true;
+      });
       try {
-        processes.assertActive();
-      } catch (error) {
-        activeFailure = error;
+        const nativeExit = once(first.child, 'exit');
+        first.child.kill('SIGUSR2');
+        await nativeExit;
+        expect(firstClosed).toBe(false);
+        second.child.kill('SIGUSR2');
+        await once(second.child, 'close');
+        const failure = await processes.failure;
+        expect(failure).toMatchObject({ reason: 'exit', origin: 'daemon', exitCode: firstCode });
+        let activeFailure: unknown;
+        try {
+          processes.assertActive();
+        } catch (error) {
+          activeFailure = error;
+        }
+        expect(activeFailure).toBe(failure);
+        expect(firstClosed).toBe(false);
+      } finally {
+        stream.off('resume', hold);
+        stream.resume();
+        await processes.dispose();
       }
-      expect(activeFailure).toBe(failure);
-      expect(firstClosed).toBe(false);
-    } finally {
-      stream.off('resume', hold);
-      stream.resume();
-      await processes.dispose();
-    }
-  });
+    },
+  );
 });
 
 describe('owned real process lifecycle', () => {
