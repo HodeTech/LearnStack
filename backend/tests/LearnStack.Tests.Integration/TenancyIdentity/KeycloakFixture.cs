@@ -1,11 +1,13 @@
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.Json;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Configurations;
 using DotNet.Testcontainers.Networks;
 using Microsoft.Extensions.Logging.Abstractions;
+using LearnStack.Tools.Seeder;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -146,6 +148,25 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
     }
 
     internal KeycloakBrowserFlow Browser() => new(BaseAddress, RootCertificate);
+
+    // The child owns this pipe. Bootstrap credentials have no public projection or diagnostic record.
+    internal async Task WriteReconciliationInputAsync(Stream destination, string scenario,
+        CancellationToken cancellationToken)
+    {
+        using var desired = JsonDocument.Parse(await File.ReadAllTextAsync(RealmPath("learnstack"), cancellationToken));
+        await JsonSerializer.SerializeAsync(destination, new
+        {
+            baseUrl = BaseAddress.AbsoluteUri,
+            expectedIssuer = Issuer,
+            adminUsername = AdminUsername,
+            adminPassword = _adminPassword,
+            webSecret = WebClientSecret,
+            manifest = SeedIdentityManifest.Create(),
+            desired = desired.RootElement,
+            ca = RootCertificate.ExportCertificatePem(),
+            scenario,
+        }, JsonSerializerOptions.Web, cancellationToken);
+    }
 
     internal static string RealmPath(string realm) => Path.Combine(RepositoryRoot(), "infra", "keycloak", "realms", realm + ".json");
 

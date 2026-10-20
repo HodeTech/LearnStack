@@ -13893,11 +13893,13 @@ correction changes only offline proof/docs, not provider configuration or code.
 
 ## P02b-6 Step 2 — owned warm-realm reconciliation (2026-10-21)
 
-**Status: implementation in progress; version-response budget Accepted.**
+**Status: local implementation delivered; independent review rounds pending.**
 Step 1 is closed at `95d0a0c8`. The shared development-only client, owned target/
 transport/lock boundaries and field planner are implemented locally. The first
-actual complete-core provider run refuses before writes at `version/body_limit`.
-No completed Step 2, warm convergence or final-source CI proof is claimed yet.
+actual complete-core provider run refused before writes at `version/body_limit`;
+the accepted allowance and complete-core receipt below resolve that conflict.
+Step 2 remains open until its independent reviews close. Entry-point activation
+and final-source hosted qualification remain Steps 3–4.
 
 ### Server-information response budget — proposal (2026-10-21)
 
@@ -13963,7 +13965,8 @@ with zero skips in 10.162s. They cover actual HTTP deadline/body/redirect/abort
 behavior, closed canary diagnostics, selected private-source agreement and local
 exclusive ownership. They establish local request/response/socket cleanup before
 settlement and separately bounded peer closure; neither claims remote rollback.
-Actual field-planner diagnostics remain separate from final whole-core proof.
+Actual field-planner diagnostics at this checkpoint remain separate from the
+later complete-core receipt below.
 
 **Independent transport foundation.** The unused-by-entrypoints transport and
 target/lock primitives are committed separately from the incomplete planner/core
@@ -14071,10 +14074,93 @@ request body, can use it. All other responses and every outbound body remain at
 256 KiB; the 5s/120s deadlines and existing failure/ownership boundaries remain.
 There is no configurable limit, automatic fallback or partial-export activation.
 
-Acceptance updates this package and the current navigation carriers before
-dependent code. It claims no completed Step 2, implemented exception or new
-provider/hosted proof. The exact-boundary, negative-purpose and full provider
+The acceptance commit updates this package and the current navigation carriers
+before dependent code. At that checkpoint it claims no completed Step 2,
+implemented exception or new provider/hosted proof. The exact-boundary,
+negative-purpose and full provider
 controls above remain mandatory; the approved two-review-round loop is unchanged.
+
+### Shared implementation and pre-review verification (2026-10-21)
+
+The shared core, field planner and closed launcher are implemented under
+`scripts/`. Seed/demo activation remains Step 3; neither entry point invokes
+this implementation yet. Step 2's two independent review rounds remain open at
+this checkpoint; the local complete-provider receipt follows below.
+
+The launcher verifies the selected local Compose service, private-source
+agreement and exact issuer before admin authentication, then verifies the live
+version before planning. Its compiled Seeder identity projection receives only
+the existing public tooling environment. A target-specific exclusive file lock
+is held through actual owned HTTP/child cleanup; uncertain cleanup retains it.
+The accepted response allowance above is implemented without a caller-selected
+limit or broader transport change.
+
+The planner reads the complete bounded plan before applying owned field changes.
+Missing named users use one fixed single-user `partialImport`, with
+`ifResourceExists: FAIL`, their create-only credential and declared inert role.
+It never replays a realm import or assigns a role/password to an existing user.
+Independent readback covers preserved state as well as desired values; a fresh
+post-apply plan must be empty.
+
+Actual-provider investigation and pinned-source inspection corrected these
+preservation details before review:
+
+- A profile can project email into username. Census and exact username lookup
+  must agree on the declared name and provider ID before treating a user as
+  present or missing. The conflicting imported case refuses before any write.
+- Client attributes merge on PUT. Removing the token-lifespan override requires
+  an explicit null tombstone, rather than omission. Other attributes are retained.
+- Client PUT can derive origins, disable authorization services or change service
+  accounts. Requests explicitly retain the declared origin list and existing
+  authorization state while omitting unchanged service-account flags. Incompatible
+  service-account transitions/cleanup refuse before writes; scope assignments
+  receive exact merged-state readback.
+- A needed client PUT refuses existing expiry/rotated-secret metadata that the
+  provider would discard. Ordinary secret creation time is preserved. Existing
+  credentials are not rotated to force convergence.
+
+The offline provider double now models these pinned merge/default/cleanup
+semantics. Dirty omission/tombstone controls must fail independent readback;
+successful repetitions are not a substitute for the first pass's verification.
+The five Node control files pass **122 cases, zero failures/skips**, in 10.210s.
+They cover exact response boundaries and negative purposes, real HTTP cleanup/
+deadlines, credential canaries, target/source/lock refusals, complete preflight,
+preservation, 409 checks, partial progress and the closed production CLI.
+Syntax and whitespace checks pass. No final-source hosted proof is claimed here.
+
+**Complete actual-core provider receipt.** All four
+`TenantRealmReconciliationTests` cases pass with zero failures/skips in 1.7384min
+against isolated PostgreSQL-backed HTTPS Keycloak 26.6.2. The actual shared
+transport/core uses the accepted allowance without a version projection, cap
+override or diagnostic code. The TRX SHA-256 is
+`02ffba155dcf5662ed7a7db6e15a849cd9f631f1c63830a93f3973189cc08b77`.
+
+The controlled warm import preserves provider IDs, changed passwords, MFA,
+disabled state, required actions, role assignments, nonmanifest accounts,
+unrelated profile/client data, the API service credential/resource-server
+settings and the Hub realm. A deliberately removed service-account scope stays
+removed; both clients retain empty web origins. Actual code/S256 logins witness
+old/new credential continuity and strict signed identity claims. Second/third
+completed passes perform zero mutating Admin REST calls.
+
+The acknowledgement-loss control injects refusal after one real successful
+response closes; it does not claim packet loss or remote rollback. Cancellation
+and failed readback require explicit verified reruns. Planted identity, mapper,
+secret, duplicate and username-projection conflicts refuse before any write even
+with a legitimate TTL change pending. Local lock/HTTP race/deadline boundaries
+are established by the separate actual-resource Node controls above.
+
+Account preservation compares exact full stored-account details resolved through
+their provider IDs. The intentionally changed global user-profile metadata is
+verified separately; including it in an account's preservation baseline would
+mistake the owned profile change for a stored-account mutation. All temporary
+diagnostic source is removed before the passing complete run. Formal independent
+Step 2 review rounds have not yet started. Destruction events and independent
+post-run inventories confirm all five owned provider/database pairs, Ryuk and
+five networks are gone; foreign resources are untouched.
+Fourteen Release corpus, domain-genericity and Docker-trait controls pass with
+zero failures/skips in 13s; the changed-file link/fragment audit has zero broken
+targets. The scoped C# whitespace verification passes.
 
 ## Completion Criteria
 
