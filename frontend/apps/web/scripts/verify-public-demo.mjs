@@ -106,6 +106,7 @@ export async function verifyPublicDemo(runtime) {
     let profileOwned = false;
     return publicDemoOperation({
       input,
+      signal: runtime.signal,
       child: () => browser?.child,
       record: (failure) => {
         receipt.failure ??= failure;
@@ -328,7 +329,7 @@ export async function verifyPublicDemo(runtime) {
     receipt.passed = true;
   } catch (error) {
     failure = error;
-    receipt.failure ??= publicDemoFailure(phase, error);
+    receipt.failure ??= publicDemoFailure(phase, error, {}, undefined, runtime.signal);
     save();
   } finally {
     receipt.proofMilliseconds = Date.now() - started;

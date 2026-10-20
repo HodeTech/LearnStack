@@ -61,12 +61,21 @@ export const publicDemoChildExited = (child) =>
   child.exitCode !== null || child.signalCode !== null;
 
 /** Only closed phase/context and native process status may enter public artifacts. */
-export function publicDemoFailure(stage, error, input = {}, child) {
+export function publicDemoFailure(stage, error, input = {}, child, signal) {
   const phase = stages.has(stage) ? stage : 'proof';
   let reason =
     phase === 'cleanup' ? 'cleanup-failure' : phase === 'worker' ? 'worker-failure' : 'unknown';
   let process = null;
   let status;
+  // Only the coordinator's owned signal classifies an otherwise untyped async
+  // failure. Known first faults and cleanup are independent of later teardown.
+  if (
+    phase !== 'cleanup' &&
+    !(error instanceof PublicDemoFailure) &&
+    !(error instanceof DemoCommandError) &&
+    signal?.aborted
+  )
+    reason = 'cancelled';
   if (error instanceof PublicDemoFailure && reasons.has(error.reason)) reason = error.reason;
   if (error instanceof DemoCommandError) {
     if (error.origin === 'daemon') {
@@ -120,7 +129,7 @@ export function publicDemoWorkerOutput(chunk) {
 }
 
 /** Preserve the original failure when owned operation cleanup also refuses. */
-export async function publicDemoOperation({ input, run, cleanup, child, record }) {
+export async function publicDemoOperation({ input, signal, run, cleanup, child, record }) {
   let stage = 'browser-spawn';
   let failed = false;
   let failure;
@@ -132,7 +141,7 @@ export async function publicDemoOperation({ input, run, cleanup, child, record }
   } catch (error) {
     failed = true;
     failure = error;
-    record(publicDemoFailure(stage, error, input, child()));
+    record(publicDemoFailure(stage, error, input, child(), signal));
   } finally {
     try {
       await cleanup();

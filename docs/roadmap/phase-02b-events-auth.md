@@ -13035,7 +13035,7 @@ under the plan above. Final-source hosted qualification remains outstanding.
 
 ### Step 2 implementation and verification
 
-**Implementation verified locally; independent reviews pending.** The SDK's
+**Initial implementation at `8f433a73`, before independent reviews.** The SDK's
 fixed, parameterless `PublicRequestRefusalError` is
 available only from its server entry. Exact typed transport refusals become the
 existing local `invalid-request`; cancellation still takes precedence, provider
@@ -13069,9 +13069,45 @@ run passes 1,688 cases (1,616 web and 72 SDK), zero skips/todos; lint, typecheck
 production build pass. Import-order and test-only environment typing failures
 were corrected without changing the runtime contract. The document sweep resolves
 2,275 relative links/fragments with zero broken; seven ADR-parser controls and
-whitespace checks pass. Neither independent Step 2 review round has started.
+whitespace checks pass. Neither independent Step 2 review round had started at
+that implementation point.
 Actual full-stack browser/audit and final-source backend qualification remain
 with the existing hosted checks.
+
+#### Step 2 independent review round 1
+
+Three fresh read-only reviewers inspect `09fdf8a2..8f433a73`: GPT-6 Astra at
+xhigh covers process lifetime and diagnostic ownership; GPT-6.1 Sol at xhigh
+covers source/report proof; GPT-6.1 Sol at high covers SDK, declarations and
+corpus consistency. Source/report and SDK/corpus approve their scopes. The
+process review verifies three P2 diagnostic/first-failure gaps:
+
+- Native cancellation from coordinator timers or its positive HTTP observer
+  can bypass the command owner's typed path and be recorded as `unknown`.
+- An observed output refusal is stored before physical child closure, but the
+  command race omits that refusal. A later shorter deadline can replace it while
+  an owned signal-resistant child awaits bounded escalation.
+- A second daemon exit replaces the activity check's stored failure while the
+  public failure promise still retains the first daemon's error.
+
+These findings concern diagnostic correctness and ownership; no budget or
+authentication bypass is demonstrated. Regression controls first reproduce all
+three against `8f433a73`. Trusted coordinator cancellation now classifies raw
+timer/HTTP aborts using only its owned signal, retaining typed first faults and
+excluding cleanup. Spawn/output refusal is published immediately and raced
+separately from physical closure; the same existing bounded stop is still joined.
+The daemon owner latches one error for both its public promise and active checks.
+Real signal-resistant children prove output beats the later deadline and that
+daemon refusal precedes physical closure; two daemon exits preserve the original
+17 outcome after the later 23 outcome. The daemon publication control compares
+event order without a narrow scheduling-time assertion. Native waits exercise
+the two distinct startup/proof classification contexts; the HTTP abort is real.
+
+All six distinct regression cases pass within the complete guarded frontend run:
+1,694 passed (1,622 web and 72 SDK), zero skips/todos. Lint and typecheck pass.
+Review conclusions above are source inspections; they do not independently rerun
+the recorded local tests. The corrected commit proceeds to a second review round
+with new independent reviewers.
 
 ## Completion Criteria
 

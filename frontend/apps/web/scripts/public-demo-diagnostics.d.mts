@@ -32,9 +32,11 @@ export function publicDemoFailure(
   error: unknown,
   input?: Record<string, unknown>,
   child?: PublicDemoChildStatus,
+  signal?: AbortSignal,
 ): PublicDemoFailureRecord;
 export function publicDemoOperation<T>(options: {
   input?: Record<string, unknown>;
+  signal?: AbortSignal;
   run: (stage: (value: string) => void) => Promise<T>;
   cleanup: () => Promise<unknown>;
   child: () => PublicDemoChildStatus | undefined;

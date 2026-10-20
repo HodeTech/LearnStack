@@ -84,10 +84,13 @@ export class DemoProcesses {
     let outputBytes = 0;
     let failed;
     let failureReason;
+    let publishRefusal;
+    const refusal = new Promise((resolve) => { publishRefusal = resolve; });
     const refuseOutput = (cause) => {
       if (!failed) {
         failed = new Error(`${label} output refused`, { cause });
         failureReason = 'output';
+        publishRefusal({ cause: failed, reason: failureReason });
       }
       // dispose still owns a failed stop; do not create an unhandled rejection.
       void stopTestChild(child).catch(() => {});
@@ -112,6 +115,7 @@ export class DemoProcesses {
         if (!failed) {
           failed = cause;
           failureReason = 'spawn';
+          publishRefusal({ cause: failed, reason: failureReason });
         }
         resolve({ code: null, signal: null });
       });
@@ -120,6 +124,7 @@ export class DemoProcesses {
     const running = {
       child,
       exit,
+      refusal,
       result: () => ({
         output: Buffer.concat(output).toString('utf8'),
         failed,
@@ -136,14 +141,19 @@ export class DemoProcesses {
   daemon(command, args, options) {
     const running = this.start(command, args, options);
     this.#children.get(running.child).daemon = true;
-    void running.exit.then((status) => {
+    const fail = (cause, status, reason) => {
+      if (this.#failed) return;
       this.#failed = new DemoCommandError(
-        `${options.label} exited`,
-        running.result().failed,
+        `${options.label} ${reason === 'exit' ? 'exited' : 'refused'}`,
+        cause,
         status,
-        { reason: running.result().failureReason ?? 'exit', origin: 'daemon' },
+        { reason, origin: 'daemon' },
       );
       this.#failure(this.#failed);
+    };
+    void running.refusal.then(({ cause, reason }) => fail(cause, undefined, reason));
+    void running.exit.then((status) => {
+      fail(running.result().failed, status, running.result().failureReason ?? 'exit');
     });
     return running;
   }
@@ -161,10 +171,15 @@ export class DemoProcesses {
     try {
       const result = await Promise.race([
         running.exit.then((status) => ({ kind: 'exit', status })),
+        running.refusal.then((outcome) => ({ kind: 'refusal', outcome })),
         aborted,
         this.failure.then((error) => ({ kind: 'daemon', error })),
       ]);
       if (result.kind === 'daemon') throw result.error;
+      if (result.kind === 'refusal')
+        throw new DemoCommandError(options.label ?? command, result.outcome.cause, undefined, {
+          reason: result.outcome.reason,
+        });
       if (result.kind === 'aborted')
         throw new DemoCommandError(
           options.label ?? command,

@@ -3,12 +3,16 @@ import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { createServer as createNetServer } from 'node:net';
+import type { Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { demoRequest } from '../../../../../scripts/demo-http.mjs';
 import { DemoCommandError, DemoProcesses } from '../../../../../scripts/demo-process.mjs';
 import {
   PublicDemoFailure,
@@ -22,6 +26,241 @@ import { stopTestChild } from '../../scripts/stop-test-child.mjs';
 
 const canary = 'private-provider-token-host-url-canary';
 const context = { mode: 'audit', laneIndex: 0, kind: 'catalog', run: 2, workerStage: 'audit' };
+
+describe('R1 regression controls', () => {
+  it.each(['startup-port', 'proof'])(
+    'attributes a native wait abort at the trusted %s coordinator boundary',
+    async (stageName) => {
+      const controller = new AbortController();
+      let started: () => void = () => {};
+      const waiting = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      let recorded: ReturnType<typeof publicDemoFailure> | undefined;
+      const operation = publicDemoOperation({
+        input: context,
+        signal: controller.signal,
+        child: () => ({ exitCode: 73, signalCode: 'SIGABRT' }),
+        record: (row) => {
+          recorded = row;
+        },
+        run: async (stage) => {
+          stage(stageName);
+          started();
+          await pause(30000, undefined, { signal: controller.signal });
+        },
+        cleanup: async () => {},
+      }).catch((error: unknown) => error);
+      await waiting;
+      controller.abort(new Error(canary));
+      const error = await operation;
+      expect(recorded).toMatchObject({
+        stage: stageName,
+        reason: 'cancelled',
+        exitCode: null,
+        signal: null,
+      });
+      expect(publicDemoFailure('proof', error, {}, undefined, controller.signal)).toMatchObject({
+        reason: 'cancelled',
+        exitCode: null,
+        signal: null,
+      });
+      expect(JSON.stringify(recorded)).not.toContain(canary);
+      expect(
+        publicDemoFailure(
+          'proof',
+          new PublicDemoFailure('deadline'),
+          {},
+          undefined,
+          controller.signal,
+        ),
+      ).toMatchObject({ reason: 'deadline' });
+      const exited = new DemoCommandError(
+        'Worker control',
+        undefined,
+        { code: 17, signal: null },
+        { reason: 'exit' },
+      );
+      expect(publicDemoFailure('worker', exited, {}, undefined, controller.signal)).toMatchObject({
+        reason: 'worker-failure',
+        exitCode: 17,
+      });
+      expect(
+        publicDemoFailure('cleanup', new Error(canary), {}, undefined, controller.signal),
+      ).toMatchObject({ reason: 'cleanup-failure', signal: null });
+    },
+  );
+
+  it('attributes actual demoRequest abort at the trusted coordinator boundary', async () => {
+    const controller = new AbortController();
+    let connected: () => void = () => {};
+    const accepted = new Promise<void>((resolve) => {
+      connected = resolve;
+    });
+    const sockets = new Set<Socket>();
+    const server = createNetServer((socket) => {
+      sockets.add(socket);
+      socket.once('close', () => sockets.delete(socket));
+      connected();
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing abort control listener');
+    let recorded: ReturnType<typeof publicDemoFailure> | undefined;
+    try {
+      const operation = publicDemoOperation({
+        input: context,
+        signal: controller.signal,
+        child: () => ({ exitCode: 73, signalCode: 'SIGABRT' }),
+        record: (row) => {
+          recorded = row;
+        },
+        run: async (stage) => {
+          stage('proof');
+          return demoRequest(`https://127.0.0.1:${address.port}/`, {
+            ca: [],
+            signal: controller.signal,
+          });
+        },
+        cleanup: async () => {},
+      }).catch((error: unknown) => error);
+      await accepted;
+      controller.abort(new Error(canary));
+      const error = await operation;
+      expect(recorded).toMatchObject({ reason: 'cancelled', exitCode: null, signal: null });
+      expect(publicDemoFailure('proof', error, {}, undefined, controller.signal)).toMatchObject({
+        reason: 'cancelled',
+        exitCode: null,
+        signal: null,
+      });
+      expect(JSON.stringify(recorded)).not.toContain(canary);
+    } finally {
+      controller.abort();
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('retains output refusal before a shorter timeout while joining a signal-resistant child', async () => {
+    const processes = new DemoProcesses(new AbortController().signal);
+    let observed = false;
+    let child: ReturnType<DemoProcesses['start']> | undefined;
+    const start = processes.start.bind(processes);
+    processes.start = (...args) => {
+      child = start(...args);
+      return child;
+    };
+    try {
+      const error = await processes
+        .run(
+          process.execPath,
+          ['-e', 'process.on("SIGTERM",()=>{});console.log("ready");setInterval(()=>{},1000)'],
+          {
+            label: 'Output refusal control',
+            timeout: 1500,
+            observe: () => {
+              observed = true;
+              throw new Error(canary);
+            },
+          },
+        )
+        .catch((error: unknown) => error);
+      expect(observed).toBe(true);
+      expect(error).toMatchObject({
+        reason: 'output',
+        origin: 'command',
+        exitCode: null,
+        signalCode: null,
+      });
+      expect(publicDemoFailure('worker', error, context)).toMatchObject({
+        reason: 'output',
+        process: 'worker',
+      });
+      if (!child) throw new Error('Missing owned output control');
+      expect(publicDemoChildExited(child.child)).toBe(true);
+      expect(JSON.stringify(publicDemoFailure('worker', error, context))).not.toContain(canary);
+    } finally {
+      await processes.dispose();
+    }
+  }, 10000);
+
+  it('publishes daemon output refusal before physical exit and retains bounded cleanup', async () => {
+    const processes = new DemoProcesses(new AbortController().signal);
+    let observed: () => void = () => {};
+    const refused = new Promise<void>((resolve) => {
+      observed = resolve;
+    });
+    const daemon = processes.daemon(
+      process.execPath,
+      ['-e', 'process.on("SIGTERM",()=>{});console.log("ready");setInterval(()=>{},1000)'],
+      {
+        label: 'Daemon output refusal control',
+        observe: () => {
+          observed();
+          throw new Error(canary);
+        },
+      },
+    );
+    const events: string[] = [];
+    const failure = processes.failure.then((error) => {
+      events.push('refusal');
+      return error;
+    });
+    const exited = daemon.exit.then(() => {
+      events.push('closed');
+    });
+    try {
+      await refused;
+      const first = await failure;
+      await exited;
+      expect(events).toEqual(['refusal', 'closed']);
+      expect(first).toMatchObject({
+        reason: 'output',
+        origin: 'daemon',
+        exitCode: null,
+        signalCode: null,
+      });
+      expect(JSON.stringify(publicDemoFailure('proof', first))).not.toContain(canary);
+    } finally {
+      await expect(processes.dispose()).rejects.toThrow('Owned process cleanup failed');
+    }
+    expect(publicDemoChildExited(daemon.child)).toBe(true);
+  }, 10000);
+
+  it('latches the first of two real daemon exits for both failure promise and active checks', async () => {
+    const processes = new DemoProcesses(new AbortController().signal);
+    const daemons = [17, 23].map((code) =>
+      processes.daemon(
+        process.execPath,
+        [
+          '-e',
+          `process.on("SIGTERM",()=>process.exit(${code}));console.log("ready");setInterval(()=>{},1000)`,
+        ],
+        { label: 'First daemon failure control' },
+      ),
+    );
+    try {
+      await Promise.all(daemons.map((daemon) => once(daemon.child.stdout!, 'data')));
+      daemons[0]!.child.kill('SIGTERM');
+      await daemons[0]!.exit;
+      const first = await processes.failure;
+      expect(first).toMatchObject({ exitCode: 17, origin: 'daemon', reason: 'exit' });
+      daemons[1]!.child.kill('SIGTERM');
+      await daemons[1]!.exit;
+      expect(daemons[1]!.child.exitCode).toBe(23);
+      let activeFailure: unknown;
+      try {
+        processes.assertActive();
+      } catch (error) {
+        activeFailure = error;
+      }
+      expect(activeFailure).toBe(first);
+      await expect(processes.failure).resolves.toBe(first);
+    } finally {
+      await processes.dispose();
+    }
+  });
+});
 
 describe('closed public demo operation diagnostics', () => {
   it.each(['normal', 'signal'])(

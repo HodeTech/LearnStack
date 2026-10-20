@@ -26,6 +26,7 @@ interface Options {
 interface Running {
   child: ChildProcess;
   exit: Promise<{ code: number | null; signal: string | null }>;
+  refusal: Promise<{ cause: unknown; reason: 'spawn' | 'output' }>;
   result(): { output: string; failed?: Error; failureReason?: 'spawn' | 'output' };
 }
 export class DemoProcesses {
