@@ -3849,7 +3849,7 @@ implements it.
 
 | Test | Rule | Kind | Owning phase | Named in |
 |---|---|---|---|---|
-| `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. A superset of [`Adapters_Wrap_Provider_Exceptions`](#adapters_wrap_provider_exceptions), which already holds the exception types of the SDKs it lists — the one slice of this rule that runs today | structural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with the first provider adapter; it then binds per provider as each adapter lands | [Tenant Isolation](../architecture/09-tenant-isolation.md) |
+| `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. A superset of [`Adapters_Wrap_Provider_Exceptions`](#adapters_wrap_provider_exceptions), which already holds the exception types of the SDKs it lists — the one slice of this rule that runs today | structural | [Phase 03](../roadmap/phase-03-identity-admin.md#goal), at the first runtime identity-provider adapter's actual SDK introduction; re-verify before its first writer. Direct-HTTP tooling does not qualify; it then binds per provider as each SDK adapter lands | [Tenant Isolation](../architecture/09-tenant-isolation.md); [P02b-6 accepted handoff](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20) |
 | `LicenseKey_Payload_MatchesSchema` | `entitlement-v1.schema.json` is pinned by a snapshot test run in **both** repositories against the same checked-in schema | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with the schema | [Hybrid License Model](../architecture/26-hybrid-license-model.md); [ADR-0021](../decisions/0021-feature-based-entitlement.md), as `EntitlementProjection_Shape_IsStable` — see § Canonical names |
 | `Entitlement_Read_Path_Falls_Through_To_Durable_Row` | With L1 and L2 flushed and the Hub unreachable, the tenant resolves from `platform_entitlement_cache` and no exception escapes the flag read | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with `HubEntitlementProvider` | [Hybrid License Model](../architecture/26-hybrid-license-model.md) |
 | `CustomDomain_TenantId_NeverReadFrom_RequestBody` | Custom-domain submission derives the tenant from the authenticated session, never from the body or the query | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), Hub side, per [ADR-0022](../decisions/0022-custom-domain-tls.md) | ADR-0022; [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
@@ -4499,6 +4499,51 @@ structural test proves — and what it does not.
   `TenantAssertionAuditAdmissionTests` own behavioural allowance/expiry/scope
   accounting under `Tenant_Assertions_Are_Compared_Not_Resolved` above.
 - **Phase:** 02a (Packet 4); P02b-5 2026-10-20 remediation extends coverage.
+
+#### `Tenant_Realm_Issuance_Matches_The_Api_Profile`
+
+- **Asserts:** the committed tenant realm imported into pinned Keycloak issues
+  ADR-0064's real scalar identity/API profile through code/S256 exchange for all
+  four declared seed identities. Exact callbacks, confidential-secret/PKCE
+  refusals, protected admin-only attributes and the actual `basic`/identity/
+  audience mappers hold. Real tokens reach AccountSite through the API handler
+  and app-role PostgreSQL; cross-scope/Hub/claimless requests refuse.
+  Exact realm lifespan and absent client overrides are checked independently
+  from bounded observed fresh expiration and shorter late-session issuance.
+  Ordinary account-edit success, independent admin readback and dirty/clean
+  mapper/profile/TTL variants prove protection and drift controls can fail.
+- **Source:** ADR-0004; ADR-0064;
+  [Security 11](11-security.md#authentication);
+  [accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
+- **Type:** xUnit Integration with Docker, real Keycloak code exchange, API
+  HTTP and `learnstack_app` database controls. **Kind:** behavioural.
+- **Test owner:** `TenantRealmIssuanceTests` and
+  `TenantRealmProfileProtectionTests` in
+  `backend/tests/LearnStack.Tests.Integration`.
+- **Status:** **Registered** — Accepted 2026-10-21; runtime proofs not delivered.
+- **Phase:** P02b-6 Steps 1/4.
+
+#### `Development_Realm_Reconciliation_Preserves_Accounts`
+
+- **Asserts:** the actual shared development reconciler converges fresh and
+  pre-mapper warm realms without resetting existing credentials or changing
+  account IDs, unrelated user/profile/client state or the Hub realm. Conflicting
+  managed identity/configuration refuses; partial/uncertain writes require an
+  explicit verified rerun. Independent readback checks protected claims/TTL;
+  a completed third run performs zero mutations. Both seed/demo entries retain
+  exact target/environment identity, bounded HTTP/process cleanup, secret
+  confinement and local lock ownership under failure/cancellation/races.
+- **Source:** ADR-0004; ADR-0064;
+  [Security 11](11-security.md#authentication);
+  [accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
+- **Type:** xUnit Integration with Docker and actual warm Keycloak Admin REST;
+  offline Node tooling transport/process/CLI controls in meta.
+  **Kind:** behavioural.
+- **Test owner:** `TenantRealmReconciliationTests` in
+  `backend/tests/LearnStack.Tests.Integration`; shared reconciler Node controls
+  under `scripts/` own bounded transport/process/CLI evidence.
+- **Status:** **Registered** — Accepted 2026-10-21; runtime proofs not delivered.
+- **Phase:** P02b-6 Steps 2–4.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`
 

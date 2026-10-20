@@ -146,7 +146,9 @@ not deferred to the showcase phase.
   owns final-source CI, unchanged-plan A/B qualification and identical merge
   trees. P02b-6's realm/TTL
   [decision pass](phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
-  is in progress; the package remains Proposed pending maintainer acceptance.
+  is Accepted — 2026-10-21, including its four implementation steps. G12's
+  realm/reconciliation/callback choices and G13's issuance-TTL part are Accepted;
+  runtime implementation remains pending and G13's session part stays Open.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
   retains its source-bound corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
   is Accepted — 2026-10-20; its subject-cap, cleanup and refusal refinements are

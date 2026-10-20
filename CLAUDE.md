@@ -277,8 +277,10 @@ all three correction steps and both independent review rounds are complete.
 owns exact final-head CI, unchanged-plan A/B qualification and identical merge
 trees. P02b-6's realm/TTL
 [decision pass](docs/roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
-is in progress; its package is Proposed and needs maintainer acceptance before
-implementation. P02b-6 implementation and P02b-7–8 remain unstarted;
+is Accepted — 2026-10-21. The maintainer approved the package at `6d75e532`
+and its four implementation steps. G12's realm/reconciliation/callback choices
+and G13's issuance-TTL part are Accepted; G13's session part stays Open.
+P02b-6 runtime implementation and P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full
 renderer/Studio expansion.
@@ -494,9 +496,9 @@ Then read the phase that is live and the one it stands on:
   above owns final verification. P02b-5's decision package and ADR-0064 are Accepted;
   all five implementation steps and correction reviews are complete and merged
   through PR #33 on 2026-10-20. Its merge closeout above owns verification.
-  P02b-6's proposed realm/TTL decision package above is under review;
-  implementation and P02b-7–8 remain pending, with each packet accepting its
-  gates first.
+  P02b-6's realm/TTL decision package and four-step plan above are Accepted —
+  2026-10-21; runtime implementation remains pending. P02b-7–8 retain their
+  own decision passes; G13's session part stays Open.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency

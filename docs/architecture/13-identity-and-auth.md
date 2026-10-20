@@ -23,11 +23,13 @@ owns delivery, correction reviews and final-source qualification. Authentication
 and authorization registration activate together with the closed surface in Step 4.
 Realm reconciliation and BFF sessions remain P02b-6/P02b-7.
 
-**P02b-6 decision pass — 2026-10-20.** The
-[proposed package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
-reviews real issuance, protected seed attributes, non-destructive development
-reconciliation and issuance TTL. It remains subject to maintainer acceptance;
-the current export and seed behavior described below are unchanged by the draft.
+**P02b-6 decision Accepted — 2026-10-21.** The
+[accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+authorizes four implementation steps for real issuance, protected seed attributes,
+non-destructive development reconciliation, exact callbacks and issuance TTL.
+Runtime implementation remains pending; the current export and seed behavior
+described below remain the pre-implementation baseline. G13's BFF session part
+stays Open for P02b-7.
 
 **Assertion diagnostics Accepted — 2026-10-20.**
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) admits 600
@@ -149,8 +151,10 @@ Key details:
 
 - **PKCE only.** No implicit flow, no client secrets in the browser.
 - **Cookies, not localStorage.** Tokens never enter JavaScript; the BFF holds them.
-- **Short access token TTL.** P02b-6's realm export/reconciler owns actual
-  issuance lifetime. ADR-0064 bounds API acceptance; P02b-7 owns BFF refresh.
+- **Short access token TTL.** [Security Standards](../standards/11-security.md#authentication)
+  owns the accepted issuance rule; P02b-6's realm export/reconciler owns its
+  executable value and enforcement. ADR-0064 bounds API acceptance; P02b-7 owns
+  BFF refresh and session lifetimes.
 - **JWKS rotation.** API validates tokens against Keycloak's JWKS endpoint, with key caching and rotation handling built into the .NET OIDC middleware.
 
 ## Tenant Resolution Across Identity

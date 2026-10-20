@@ -154,6 +154,27 @@ General rules:
 - Account lockout after 5 failed attempts in 10 minutes; lifted after 15 minutes or
   admin unlock.
 
+**Development access-token issuance — Accepted 2026-10-21.** This standard owns
+the issuance-lifetime rule accepted in the
+[P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20):
+the tenant development realm uses a configured 900-second access-token lifespan.
+[`learnstack.json`](../../infra/keycloak/realms/learnstack.json) owns the executable
+value; the development reconciler enforces it with no conflicting override on
+either named client. Runtime implementation remains pending. ADR-0064's one-hour
+API acceptance ceiling and 30-second skew remain separate from issuance.
+P02b-7 owns BFF idle/absolute lifetimes and refresh custody; that part of G13
+remains Open.
+
+Keycloak 26.6.2 reads issuance and expiration clocks separately. The configured
+lifespan is not an exact `exp - iat` guarantee or a fixed 901-second ceiling.
+Qualify exact realm configuration and absence of client overrides independently;
+fresh signed expiration must fit the observed UTC/monotonic code-exchange window
+plus that lifespan. Any explicit fixture/provider clock tolerance is at most the
+API's existing skew; an indeterminate clock/window fails qualification. Preserve
+session-clamping coverage for shorter late-session issuance and independent
+mutants with wrong expiration or configuration. Existing tokens retain their API
+acceptance bound; a shorter issuance setting does not revoke them immediately.
+
 ## Ingress / Gateway (APISIX)
 
 All tenant-facing traffic enters through **APISIX** in standalone mode per

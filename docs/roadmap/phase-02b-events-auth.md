@@ -1,6 +1,6 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Current status — 2026-10-20.** P02b-0 through P02b-5 are complete.
+**Current status — 2026-10-21.** P02b-0 through P02b-5 are complete.
 P02b-1, P02b-2 and P02b-3 are merged through PRs #29, #30 and #31;
 their dated merge closeouts below retain final verification.
 **P02b-4 is complete and merged** through
@@ -27,12 +27,11 @@ completes the authority census, carrier reconciliation and both independent revi
 rounds with verified corrections. **P02b-5 is complete and merged** through
 [PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20. Its
 [merge closeout](#p02b-5-merge-and-closeout-2026-10-20) owns final-source CI,
-unchanged-plan A/B qualification and identical merge trees. The next packet is
-P02b-6's realm/TTL decision pass.
-**P02b-6 decision pass is in progress.** Its
-[proposed package](#p02b-6-decision-package-2026-10-20) reviews realm reconciliation
-and issuance lifetime before implementation. G12's remaining realm choices and
-G13's issuance-lifetime part remain Open until explicit maintainer acceptance.
+unchanged-plan A/B qualification and identical merge trees.
+**P02b-6 decision pass is Accepted — 2026-10-21.** The maintainer approved the
+[package](#p02b-6-decision-package-2026-10-20) at `6d75e532` and its four-step
+implementation plan. G12's realm/reconciliation/callback choices and G13's
+issuance-lifetime part are Accepted; G13's session part stays Open for P02b-7.
 P02b-6 implementation, P02b-7 BFF sessions and P02b-8 enforcement/erasure
 inventory remain pending; Phase 02b remains in progress. Earlier dated delivery
 and failed-run receipts keep their as-of state.
@@ -345,8 +344,8 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G9 | Which record decides the background-job runtime — its storage under the closed four-role model, the single tenant-context writer, the job frame's transaction owner, the enqueue-site rule *and who may enqueue whose job type*, the retry contract (whose class, slug and posture adopt **G7**'s), the tenantless platform-job class a purge needs, the ADR-0035 classification, the queue grammar, and the package pins with their licence verdict? | One record answering all of it; business execution uses the existing announced request owner through `ISender`, retaining the eight setters; the chosen storage/scheduler authority is separately explicit | **ADR-0047** + a dated **ADR-0003 Amendment** for any schema/role/grant-confinement extension (not merely a new tenant table under the existing policy) + a dated **ADR-0036 Amendment** disclosing the selected context-writer contract; then Standards 05/20. A decision change is not an erratum | P02b-4 | Accepted — 2026-10-15 under ADR-0047 and the nine-step P02b-4 package; bounded prior-ADR Amendments accompany acceptance; runtime and all nineteen canonical obligations implemented; [P02b-4 merge closeout](#p02b-4-merge-and-closeout-2026-10-19) records final qualification and merge |
 | G10 | Does the active tenant travel as a scalar `tenant_id` claim, a `memberships` array, or both — and what value does `UserId` hold? | The scalar claim, whose 02b source is an admin-set user attribute; a second UUID-valued `user_id` attribute for the actor, with `sub` staying Keycloak's subject | Phase-doc: [ADR-0036 § What is out of scope](../decisions/0036-tenant-resolution-trusted-inputs.md#what-is-out-of-scope-and-what-is-not) hands the shape to this phase by name. Reconcile `architecture/13`'s array sketch in the same change | P02b-5 | Accepted — 2026-10-19; [P02b-5 package](#p02b-5-decision-package-2026-10-19) |
 | G11 | Which [ADR-0036 matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) rows resolve in this phase, given that row 10 consults a reader that denies everyone — and what row covers a signature-valid token carrying no `tenant_id` claim on a tenant host? | Issue a matching organization claim for row 9. Rows 7/10/14 remain membership-dependent refusals until Phase 03; a claimless principal retains public-only HostOnly authority. Row 14 records no tenant audit without a confirmed host tenant, as bounded by ADR-0064 | A dated **ADR-0036** amendment plus errata beside § Staging across packets and the 2026-09-02 erratum, both of which assign row 10 to this phase without noting that its `M covers (T, O)` term is denied until Phase 03 — which groups it with rows 7 and 14 rather than with 6 and 9 | P02b-5 | Accepted — 2026-10-19; [P02b-5 package](#p02b-5-decision-package-2026-10-19) |
-| G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? Native HTTPS on retained `*.learnstack.local` hosts, with manual hosts/trust setup, is delivered by Phase 02d and re-verified by P02b-0 | A confidential BFF client with one redirect URI per seed host, retaining native HTTPS and `Secure` cookies; and an idempotent reconciler inside `make seed` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-0 re-verifies [Phase 02d G32](phase-02d-walking-skeleton.md#the-decision-register), ADR-0053/0054 and ADR-0055; P02b-5 (which client the BFF redeems the code with: the API pins `azp` against it), P02b-6 | Accepted — BFF-client choice, 2026-10-19; realm/reconciliation remains Open for P02b-6 |
-| G13 | What is the BFF session — its custody of the refresh token, its store, its idle and absolute lifetimes, its refresh serialisation under concurrent requests, its terminal `invalid_grant` behaviour, its CSRF control and its logout — and which document owns the access-token lifetime? | The `HttpOnly` cookie Security Standards already describes, encrypted by the session adapter, read only by server code, with single-flight refresh and one authority for the TTL | Phase-doc + one reconciled [Security Standards § Authentication](../standards/11-security.md#authentication); a **new ADR** only for a server-side session store | P02b-6 (which document owns the access-token lifetime: the realm export and its reconciler write it), P02b-7 | Open |
+| G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? Native HTTPS on retained `*.learnstack.local` hosts, with manual hosts/trust setup, is delivered by Phase 02d and re-verified by P02b-0 | A confidential BFF client with one redirect URI per seed host, retaining native HTTPS and `Secure` cookies; and an idempotent reconciler shared by `make seed` and `make demo` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-0 re-verifies [Phase 02d G32](phase-02d-walking-skeleton.md#the-decision-register), ADR-0053/0054 and ADR-0055; P02b-5 (which client the BFF redeems the code with: the API pins `azp` against it), P02b-6 | Accepted — BFF-client choice, 2026-10-19; realm/reconciliation/callback choices, [2026-10-21 package](#p02b-6-decision-package-2026-10-20) |
+| G13 | What is the BFF session — its custody of the refresh token, its store, its idle and absolute lifetimes, its refresh serialisation under concurrent requests, its terminal `invalid_grant` behaviour, its CSRF control and its logout — and which document owns the access-token lifetime? | The `HttpOnly` cookie Security Standards already describes, encrypted by the session adapter, read only by server code, with single-flight refresh and one authority for the TTL | Phase-doc + one reconciled [Security Standards § Authentication](../standards/11-security.md#authentication); a **new ADR** only for a server-side session store | P02b-6 (which document owns the access-token lifetime: the realm export and its reconciler write it), P02b-7 | Accepted — issuance-TTL part, [2026-10-21 package](#p02b-6-decision-package-2026-10-20); session part Open for P02b-7 |
 | G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject. The early anonymous stage already runs before authentication: P02d-5 delivers 60/min per canonical direct or authenticated-hop visitor IP plus 600/min peer acquisitions/allocations under ADR-0053 and ADR-0054. Exhausted known visitors refuse before peer debit; unknown visitor allocation remains peer-gated. These remain IP/peer quotas, not token quotas; a request they reject never reaches the token stage. Re-verify the [P5 remediation decision](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09) before choosing authenticated accounting, preserving pre-classification protection against unknown-host abuse | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 (the token-keyed stage and the early stage's treatment of validated callers); G34's anonymous-hop policy and ADR-0054's bounded accounting replacement are Accepted and delivered in P02d-5 | Accepted — 2026-10-19; [P02b-5 package](#p02b-5-decision-package-2026-10-19) |
 | G15 | What initiates a replay in this phase? | Targeted internal subscriber replay in P02b-3; producer/operator reset and fencing require a separate Phase 03 contract | Phase-doc; the URL space is its own decision record, per ADR-0036 | — (answered in § The consumer side; recorded so the question travels with the deferral) | Accepted — internal subscriber replay implemented by P02b-3 Step 4; operator contract Phase 03 |
 | G16 | What is `LS0002`'s rule name, which project trees does it run over, what does it inspect, and what escalates it to Error? | The name and scope recorded the way Amendment 1 recorded `LS0001`, with the scope reaching the assemblies that actually handle tokens | A dated **ADR-0032** amendment + a catalogue entry + an `AnalyzerReleases` row | P02b-8 | Open |
@@ -10755,11 +10754,11 @@ What this phase owes the catalogue beyond implementing those rows:
   already carries `public_<module>_<concept>`; it has no subject, no marker identifying
   a table as a read model and no catalogue row, and the first phase that ships a
   projection registers it with its first subject. The provider-SDK rule is the
-  catalogue's and is wider than the paraphrase this document carried — and because its
-  row is stamped 02b, the Phase-field obligation above would otherwise sweep a rule with
-  no subject, so `P02b-6`'s decision pass, where **G12** settles the Keycloak
-  reconciler, either makes that reconciler the first provider adapter and gives the rule
-  its first subject here, or moves its owning-phase cell to the phase that lands one.
+  catalogue's and is wider than the paraphrase this document carried. The
+  [accepted P02b-6 package](#p02b-6-decision-package-2026-10-20) introduces no
+  runtime SDK subject and hands its owning-phase cell to Phase 03's first runtime
+  identity-provider adapter, triggered by actual SDK introduction. It remains
+  Awaiting backfill there; direct HTTP does not qualify as SDK coverage.
 
 Two notes on what "green in CI" can mean. Several of this phase's rows are behavioural
 rather than structural, and CI runs those in a separate job under a Docker trait filter,
@@ -13394,11 +13393,14 @@ completed hosted receipts above. This closeout starts no next packet.
 
 ## P02b-6 decision package (2026-10-20)
 
-**Status: Proposed — maintainer acceptance pending.** The request opens this
-packet's document/decision pass on `development`, against `b4945705` after the
-P02b-5 merge. It authorizes inspection and this proposal, not the remaining
-G12/G13 answers. No realm, seed identity, runtime or CI implementation is changed
-by this record. P02b-7's session portion of G13 stays Open independently.
+**Status: Accepted — 2026-10-21.** The maintainer approved the decision package
+at `6d75e532` and the four-step implementation plan on `development`. Acceptance
+closes G12's realm/reconciliation/callback choices and G13's issuance-TTL part.
+P02b-7's session portion of G13 stays Open independently. This acceptance record
+and the two Registered catalogue obligations precede runtime implementation;
+no realm, seed identity, runtime or CI implementation is delivered by acceptance.
+The decision pass originally inspected `b4945705` after the P02b-5 merge; dated
+inspection and review receipts below retain their as-of proposal status.
 
 ### Problem, scope and decision vehicle
 
@@ -13409,7 +13411,7 @@ attributes, one repeatable development reconciliation path and real token/API
 proofs, while preserving existing accounts and the separate operator realm.
 
 G12 explicitly selects a phase-document vehicle unless reconciliation becomes
-ADR-0004's runtime `IIdentityProvider`. This proposal keeps a bounded Node.js
+ADR-0004's runtime `IIdentityProvider`. This package keeps a bounded Node.js
 Admin REST client in development tooling; no application port, runtime provider
 SDK, endpoint, database role/grant or schema is introduced. G13 delegates the
 issuance-lifetime answer to this record and the reconciled Security standard.
@@ -13421,7 +13423,7 @@ The existing decisions remain authoritative:
 [ADR-0004](../decisions/0004-authentication-strategy.md),
 [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) and
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
-No Accepted ADR body or acceptance metadata is rewritten. This proposal adds no
+No Accepted ADR body or acceptance metadata is rewritten. This package adds no
 supersession of their authentication, tenant authority or audit contracts.
 
 ### Reviewed premises and necessary document actions
@@ -13433,7 +13435,7 @@ supersession of their authentication, tenant authority or audit contracts.
 | `scripts/demo.mjs` | Demo invokes the .NET Seeder directly, then CI stops its Keycloak | Invoke the same reconciler before that stop. A seed-script-only change cannot converge this entry point. |
 | `SeedData.cs`, `DemoIdentities.cs`, Seeder `Program.cs` | Tenant/org/host identities already have typed, read-only tooling projections; no identity-user declaration | Add stable actor/seed-user declarations and a credential-free projection without a new application identity table or production Seeder reference. |
 | Realm `accessTokenLifespan`, API client override, Keycloak README, Security 11 | Realm/API override are 1800s; README recommends 900s for production; API permits at most one hour | Select one development issuance value, remove conflicting client overrides and distinguish issuance from API acceptance/session lifetimes. |
-| This phase's identity completion criterion: `exp - iat` equals the configured lifetime | Pinned Keycloak reads the issuance and expiration clocks separately; a second rollover can make that difference 901 for a 900s setting | At acceptance, replace exact subtraction equality with exact realm/no-override checks and bounded observed-issuance evidence below; retain independent drift controls. |
+| This phase's former identity completion criterion: `exp - iat` equals the configured lifetime | Pinned Keycloak reads the issuance and expiration clocks separately; a second rollover can make that difference 901 for a 900s setting | Replaced at acceptance with exact realm/no-override checks and bounded observed-issuance evidence below; independent drift controls remain required. |
 | Keycloak 26.6.2 profile/import source | Profile configuration is a declarative-user-profile component; runtime Admin REST uses `users/profile`. Declaring a custom `clientScopes` list can suppress automatic built-in creation | Use the supported component/config representation; include/verify actual `basic` and its `sub` mapper, not merely a scope name in a client list. |
 | Keycloak account REST and profile source | Account permission is checked before attribute-edit policy; profile PUT and user-attribute PUT can replace supplied configuration/maps | Pair self-service refusals with a successful ordinary profile edit, merge unrelated definitions/attributes and verify retained state. A generic 403 proves neither protection nor preservation. |
 | Standards 06, integration skills and runner instructions | Container guidance still describes Postgres as the only current integration dependency | Add the named Keycloak fixture and Docker-trait/source controls with its first tests; preserve the real app-role PostgreSQL requirement for API/database assertions. |
@@ -13447,7 +13449,7 @@ and their existing environment/process boundaries. Historical dated delivery
 receipts retain their original words; mutable current descriptions are corrected
 with their actual implementing slice.
 
-### Proposed G12/G13 answers
+### Accepted G12/G13 answers
 
 **Alternatives.** Startup-import-only cannot update an existing realm. A realm
 overwrite/database reset violates preserved-account upgrade requirements. General
@@ -13458,13 +13460,13 @@ second configuration-state tool. This is a maintenance responsibility, not a
 claim that those tools cannot preserve unrelated state or are more expensive.
 
 For issuance, keeping the existing 1800s development value reduces refresh churn
-but leaves a longer stale-scope window. The proposed 900s follows the existing
+but leaves a longer stale-scope window. The accepted 900s follows the existing
 Keycloak README's production target while reducing that window for new tokens.
 It is a selected development default, not a measured production capacity claim.
 The API's 3600s rejection ceiling is not an issuance recommendation; BFF session
 lifetimes are a different decision.
 
-| Gate part | Proposed answer | What acceptance does not close |
+| Gate part | Accepted answer | What acceptance does not close |
 |---|---|---|
 | G12: realm and reconciliation | One owned development Admin REST reconciler, reused by `make seed` and `make demo`, with the exact profile, identity/preservation and failure rules below | No production realm provisioning, runtime identity-provider port, membership service or browser session |
 | G12: callbacks | Exact HTTPS Auth.js Keycloak callback on each existing seed host at port 3000; exact same-host root post-logout URI | No callback implementation, login transaction/session cookie, return-URL/CSRF policy or production domain registration |
@@ -13627,10 +13629,10 @@ sources are ADR-0004/0064, Security 11 and this accepted package, not a new
 architecture decision. Counts/status assertions change with the same registry
 edit; no new Implemented rule is claimed by approval.
 
-| Proposed canonical obligation | Owner/level | Required evidence |
+| Canonical obligation | Owner/level | Required evidence |
 |---|---|---|
-| `Tenant_Realm_Issuance_Matches_The_Api_Profile` | `TenantRealmIssuanceTests` and `TenantRealmProfileProtectionTests`, backend Integration with Docker | Import committed JSON into pinned Keycloak, exercise real code/S256 issuance, validate through real API handler/AccountSite and app-role PostgreSQL; protect profile attributes with a working account-edit positive control. |
-| `Development_Realm_Reconciliation_Preserves_Accounts` | `TenantRealmReconciliationTests`, backend Integration with Docker; Node tooling controls for bounded transport/process/CLI | Execute the actual shared reconciler against a pre-mapper warm realm; preserve users/credentials/IDs/unrelated data/Hub, converge protected mappers/attributes/TTL, and prove a third run has zero mutations. |
+| [`Tenant_Realm_Issuance_Matches_The_Api_Profile`](../standards/21-architecture-tests-catalogue.md#tenant_realm_issuance_matches_the_api_profile) | `TenantRealmIssuanceTests` and `TenantRealmProfileProtectionTests`, backend Integration with Docker | Import committed JSON into pinned Keycloak, exercise real code/S256 issuance, validate through real API handler/AccountSite and app-role PostgreSQL; protect profile attributes with a working account-edit positive control. |
+| [`Development_Realm_Reconciliation_Preserves_Accounts`](../standards/21-architecture-tests-catalogue.md#development_realm_reconciliation_preserves_accounts) | `TenantRealmReconciliationTests`, backend Integration with Docker; Node tooling controls for bounded transport/process/CLI | Execute the actual shared reconciler against a pre-mapper warm realm; preserve users/credentials/IDs/unrelated data/Hub, converge protected mappers/attributes/TTL, and prove a third run has zero mutations. |
 
 Required controls include:
 
@@ -13705,13 +13707,14 @@ transport. Phase 03 retains `User`/membership/permission/provisioning/mapping an
 tenant switching; Phase 06 retains the full browser OIDC journey; Phase 11 retains
 production realm provisioning, rotation and deployment identity hardening.
 
-### Acceptance carriers and remaining approval
+### Acceptance carriers and implementation handoff
 
-At acceptance, mark only G12's realm/reconciliation part and G13's issuance-TTL
-part Accepted with this anchor; preserve G13's session portion Open. Commit that
-acceptance and the Registered catalogue owners before runtime changes. Update
-Security 11's authority/pointer without duplicating the executable TTL in target
-sketches. Preserve dated old observations while marking current status clearly.
+The 2026-10-21 acceptance closes G12's realm/reconciliation/callback choices and
+G13's issuance-TTL part with this anchor; G13's session portion stays Open.
+The acceptance and Registered catalogue owners form the first commit before
+runtime changes. Security 11 owns the issuance rule and points to the executable
+value; target sketches link to that authority. Dated old observations retain
+their as-of state. The implementation carriers below remain owned by their steps.
 
 | Carrier | Action and implementing owner |
 |---|---|
@@ -13722,11 +13725,12 @@ sketches. Preserve dated old observations while marking current status clearly.
 | Realm JSON, `.env.example`, seed/demo and source/fixture controls | Apply only after acceptance; Steps 1–4. No Hub-realm edit. |
 | Phase 03/11, architecture 14/30 and glossary | Explicit identity-provider handoff, consumer/production boundaries and updated terminology/status; Steps 1/4. |
 
-The maintainer's decision is required on the package as a whole: 900s development
-issuance, four stable seed identities/legacy migration, exact callbacks, secret
-continuity/refusal and the bounded development-only reconciler. These are
-proposals, not acceptance inferred from the implementation request. Independent
-review and local mechanical validation below precede the approval request.
+The maintainer explicitly approved the package as a whole on 2026-10-21:
+900s development issuance, four stable seed identities/legacy migration, exact
+callbacks, secret continuity/refusal, the bounded development-only reconciler
+and the four implementation steps. The independent review and mechanical
+validation receipts below qualify the reviewed proposal; they do not claim
+runtime delivery or final-source hosted qualification.
 
 ### Decision-pass inspection and review evidence
 
@@ -13984,8 +13988,12 @@ CI and merge verification; its dated local receipts retain their original scope.
   JSON leaves every existing account and the `learnstack-hub` realm intact, applies the
   client scope and the mappers, and yields a token carrying a UUID-valued `tenant_id`. A
   third run changes nothing.
-- `exp - iat` on a dev-realm token equals the lifetime the realm export declares, so
-  raising one without the other fails.
+- The development realm declares the exact accepted access-token lifespan with
+  no override on either named client. Fresh signed expiration fits the observed
+  UTC/monotonic code-exchange window plus that configured lifespan, under the
+  accepted [TTL semantics](#accepted-g12g13-answers). Independent configuration,
+  client-override and wrong-expiration controls detect drift; shorter late-session
+  issuance is covered separately. Exact `exp - iat` equality is not required.
 - The callback route rejects a response whose `state` does not match the transaction
   cookie and one with no `code_verifier`; the session cookie is `HttpOnly`, `Secure`,
   `SameSite=Lax`, `Path=/` with no `Domain`; and no response body or script-readable
