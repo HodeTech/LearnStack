@@ -61,9 +61,9 @@ expired-only sweeps inspect at most 128 entries per call, and no timer or dispos
 owner is added. ADR-0065 owns the illustrative nominal 864,000 rows/24h/tenant/instance
 steady-saturation rate (not a calendar-day hard cap) and assumed storage costs;
 Phase 11 owns measured capacity and distributed admission.
-Implementation and local proofs are delivered; the
-[P02b-5 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
-owns source-bound qualification. Production capacity remains unqualified.
+Implementation and local proofs are delivered and merged; the
+[P02b-5 merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+owns final-source qualification. Production capacity remains unqualified.
 
 **A granted read-sensitive query rides the first row, not the second.** It used to sit
 in the standalone class, on the reasoning that a read opens no transaction. Packet 6

@@ -87,13 +87,14 @@ owns final verification.
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
 records all nine job-runtime steps, three CI steps, independent reviews and both
 complete final-source hosted assignments. Production business and recurrence
-definitions remain empty. **P02b-5 API authentication is locally complete and
-unmerged** under Accepted ADR-0064/0065/0066. All five steps completed both independent
-review rounds and verified corrections. Its
-[Step 5 closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
-records implementation, exact CI evidence and final PR-head qualification limits.
-Realm reconciliation, BFF sessions and phase exit remain P02b-6–8; browser sign-in
-is not implemented.
+definitions remain empty. **P02b-5 API authentication is complete and merged**
+through [PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20,
+under Accepted ADR-0064/0065/0066. All five steps and verified correction bundles
+completed their independent review rounds. Its
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+records final-source CI, unchanged-plan A/B qualification and identical merge trees.
+Next is P02b-6's realm/TTL decision pass. Realm reconciliation, BFF sessions and
+phase exit remain P02b-6–8; browser sign-in is not implemented.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.

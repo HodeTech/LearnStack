@@ -140,15 +140,18 @@ not deferred to the showcase phase.
   owns validation and both completed reviews. Step 5 completes the authority
   census, carrier reconciliation and both review rounds; its
   [local closeout](phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
-  separates exact CI receipts from live PR-head qualification and merge. All five
-  steps are locally complete and unmerged. After P02b-5 merge, the next packet is
-  P02b-6's realm/TTL decision pass.
+  retains its source-bound pre-merge scope. **P02b-5 is complete and merged**
+  through [PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20.
+  Its [merge closeout](phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+  owns final-source CI, unchanged-plan A/B qualification and identical merge
+  trees. The next packet is P02b-6's realm/TTL decision pass.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
-  owns current corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+  retains its source-bound corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
   is Accepted — 2026-10-20; its subject-cap, cleanup and refusal refinements are
   implemented with local runtime/exported proofs. Its
   [implementation record](phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
-  owns source-bound validation, independent reviews and final-source CI qualification.
+  retains source-bound validation and independent reviews; the merge closeout
+  above owns final-source qualification.
   Realm reconciliation, BFF sessions and phase-exit enforcement remain P02b-6–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

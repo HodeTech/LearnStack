@@ -254,27 +254,29 @@ owns validation and completed reviews. Step 5 completes production enforcement
 and both independent review rounds; its
 [local closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
 separates source-bound CI receipts from live PR-head qualification and merge.
-All five steps are locally complete and unmerged. A subsequent
+All five steps are complete. A subsequent
 [review remediation](docs/roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
 verifies external findings. ADR-0065 is Accepted on 2026-10-20 after maintainer
 review. Its implementation and local proofs are delivered; the remediation
-record owns completed independent correction reviews and current PR-head CI
-qualification. Realm reconciliation, BFF
-sessions and phase exit remain
-P02b-6–8.
+record retains completed independent correction reviews and pre-merge receipts.
+Realm reconciliation, BFF sessions and phase exit remain P02b-6–8.
 The [second external-review follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
 owns subsequent runtime/proof corrections and their source-bound reviews.
 [ADR-0066](docs/decisions/0066-bounded-tenant-subject-admission.md) is Accepted —
 2026-10-20. Its retained-subject bound, cleanup ownership and closed fault/refusal
 signals are implemented with local runtime/exported proofs. The
 [implementation record](docs/roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
-owns source-bound validation, independent reviews and final-source CI qualification.
+retains source-bound validation and independent reviews; the merge closeout below
+owns final-source qualification.
 The [systematic correction record](docs/roadmap/phase-02b-events-auth.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
 owns subsequent proof/diagnostic, document and measured CI timing reconciliation;
 all three correction steps and both independent review rounds are complete.
-The live PR handoff owns exact current-source hosted qualification, including
-fresh A/B qualification of the reviewed timing revision under ADR-0063.
-No next packet or merge is authorized by this work.
+**P02b-5 is complete and merged** through
+[PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20. Its
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+owns exact final-head CI, unchanged-plan A/B qualification and identical merge
+trees. The next packet is P02b-6's realm/TTL decision pass; P02b-6–8 remain
+unstarted and Phase 02b remains in progress.
 Phase 06 retains the full
 renderer/Studio expansion.
 
@@ -487,10 +489,9 @@ Then read the phase that is live and the one it stands on:
   completed both review rounds. Its merge closeout above owns final verification.
   P02b-4 is complete and merged through PR #32 on 2026-10-19; its merge closeout
   above owns final verification. P02b-5's decision package and ADR-0064 are Accepted;
-  all five implementation steps and both review rounds per step are locally
-  complete and unmerged. Its closeout above owns CI/handoff status. P02b-6–8 remain
-  pending, with each
-  packet accepting its gates first.
+  all five implementation steps and correction reviews are complete and merged
+  through PR #33 on 2026-10-20. Its merge closeout above owns verification.
+  P02b-6–8 remain pending, with each packet accepting its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency

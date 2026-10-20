@@ -61,7 +61,8 @@ membership refusal has no audit row and only Debug visibility today.
 owns reachable issuer/DNS/TLS drills, operational failure signals, rotation,
 readiness, alerts and exercised runbooks before production exposure. P02b-6 owns
 real realm issuance; P02b-7 owns session custody and recovery. These are separate
-from P02b-5's locally implemented API boundary.
+from P02b-5's
+[merged API boundary](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20).
 
 ## 1. Topology
 

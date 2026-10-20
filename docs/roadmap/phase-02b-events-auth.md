@@ -1,6 +1,6 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Current status — 2026-10-20.** P02b-0 through P02b-4 are complete.
+**Current status — 2026-10-20.** P02b-0 through P02b-5 are complete.
 P02b-1, P02b-2 and P02b-3 are merged through PRs #29, #30 and #31;
 their dated merge closeouts below retain final verification.
 **P02b-4 is complete and merged** through
@@ -24,8 +24,11 @@ after both independent reviews. [Step 4](#p02b-5-step-4--atomic-http-activation-
 installs the complete HTTP boundary after both review rounds.
 [Step 5](#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
 completes the authority census, carrier reconciliation and both independent review
-rounds with verified corrections. All five steps are locally complete; the
-closeout distinguishes exact source receipts from live PR-head CI and merge.
+rounds with verified corrections. **P02b-5 is complete and merged** through
+[PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20. Its
+[merge closeout](#p02b-5-merge-and-closeout-2026-10-20) owns final-source CI,
+unchanged-plan A/B qualification and identical merge trees. The next packet is
+P02b-6's realm/TTL decision pass.
 P02b-6 realm reconciliation, P02b-7 BFF sessions and P02b-8 enforcement/erasure
 inventory remain pending; Phase 02b remains in progress. Earlier dated delivery
 and failed-run receipts keep their as-of state.
@@ -83,8 +86,8 @@ before adding BFF/session behavior; auth routes may not shadow enabled
 `/{locale}/courses...` paths. This handoff accepts no Phase 02b auth or BFF gate.
 
 **Review follow-up — 2026-10-20.** [P02b-5 remediation](#p02b-5-external-review-remediation-2026-10-20)
-delivers the verified fixes and Accepted ADR-0065's implementation/local proofs;
-its record separates final review and current PR-head CI qualification.
+retains the verified fixes and Accepted ADR-0065's implementation/local proofs;
+the merge closeout above owns final-source qualification.
 
 ## Goal
 
@@ -301,7 +304,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-2** | **Complete and merged — [PR #30 closeout](#p02b-2-merge-and-closeout-2026-10-13).** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
 | **P02b-3** | **Complete and merged — [PR #31 closeout](#p02b-3-merge-and-closeout-2026-10-15).** Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | **Complete and merged — [PR #32 closeout](#p02b-4-merge-and-closeout-2026-10-19).** Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; all nine implementation steps and their review gates delivered; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
-| **P02b-5** | **[Locally complete](#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19); unmerged.** Five steps and both independent review rounds per step complete under Accepted ADR-0064. API authentication: closed JWT profile, ordered reconciliation and existing rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
+| **P02b-5** | **Complete and merged — [PR #33 closeout](#p02b-5-merge-and-closeout-2026-10-20).** Five steps and correction reviews complete under Accepted ADR-0064/0065/0066. API authentication: closed JWT profile, ordered reconciliation and attributed rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: the shared client scope, the mappers, the user-profile declaration, UUID attributes agreeing with `SeedData`, the warm-realm reconciler, the Keycloak test fixture | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
 | **P02b-7** | BFF session: Auth.js, the cookie session, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
 | **P02b-8** | `LS0002`, the carrier reconciliations this phase owes, the re-verification that the behavioural check is still required under the name it reports, and the exit checks | G16, G18 (the erasure inventory) Accepted |
@@ -13285,6 +13288,106 @@ ADR-0063 requires one complete current-source assignment for this normal push;
 the earlier A/B receipts qualify the unchanged plan on their named source, not
 the subsequent guard commit. The live PR owns final-head qualification.
 
+## P02b-5 merge and closeout (2026-10-20)
+
+**P02b-5 is complete and merged.** The maintainer merges
+[PR #33](https://github.com/HodeTech/LearnStack/pull/33) at
+`2026-10-20T20:18:42Z`. The verified final PR head is
+`419e456260dc2023f3e6d538a46ede8b1d7e8f20`; the squash merge is
+`24705a7a81ddfb7e0f5f5349370a53a55ca9e4eb`, whose parent is
+`b81006c7af7d38f1587ecb3bf93dbcca16f353e0`. The PR head, tested merge checkout
+`be8417c3a289d26e9062bd40bf163d51987d3e11` and actual squash merge all have tree
+`7adeacfe81a15cc5e36a77cf79006da201f01e26`; their tracked contents are identical.
+
+| Step | Delivered scope | Review status |
+|---|---|---|
+| 1 | Isolated strict token foundation, bounded metadata and private diagnostics | Both independent rounds complete |
+| 2 | Host-backed AccountSite query, exact physical read-only ownership and audit Off | Both independent rounds complete |
+| 3 | Attributed host/claim reconciliation and stable validated-subject admission | Both independent rounds complete |
+| 4 | Atomic HTTP activation, masked refusal contracts and authenticated SDK contract | Both independent rounds complete |
+| 5 | Production authority census, real negative controls and corpus reconciliation | Both independent rounds complete |
+
+The subsequent ADR-0065 audit-budget/telemetry and ADR-0066 retained-subject/
+cleanup refinements are delivered with their recorded independent reviews.
+The [systematic corrections](#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
+close backend proof boundaries, SDK/demo failure ownership, paired report/source
+identity and measured CI weights. All three correction steps and the final
+hosted-source identity guard complete two fresh independent review rounds.
+Earlier delivery records remain source-bound history, including their original
+unmerged, running and failed observations.
+
+### Final-source qualification
+
+[Run 39431896517, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/39431896517/attempts/1)
+passes **27/27 jobs** on the final PR head. The independently downloaded,
+API-bound archives verify job/artifact identities, ZIP and exported-file hashes,
+complete actual case-ID unions and both aggregate results:
+
+- **5,847 backend cases**, zero failures/skips: 2,616 Unit, 433 Architecture,
+  five Contract, 287 non-Docker Integration, 2,475 ordinary Docker and 31 native.
+  The backend and integration aggregates count 3,341 and 2,506 respectively.
+  All 20 execution owners complete with joined cleanup and no forced cleanup;
+  native refusal evidence is empty.
+- **1,699 frontend cases** across web/SDK, zero skips/todos; typecheck, lint,
+  production build and the ingress/cleanup proof pass. OpenAPI, secret scan
+  and meta pass.
+- **27 JSON/HTML report pairs** verify both byte digests and source/tree/build/
+  invocation/configuration identities. All 134 API completions are HTTP 200.
+  Nine navigations, 24 visibility controls, two TLS refusals and the timeout
+  control pass. The proof takes 651.490 seconds and cleanup 12.839 seconds;
+  all owned processes, Compose, private files, environment and lock are removed.
+  Hard JS/CLS/accessibility budgets pass; eight URL groups retain nonblocking
+  timing warnings. Browser flags and thresholds are unchanged.
+
+The unchanged timing plan separately qualifies both complete assignments in
+[run 39424514759, A](https://github.com/HodeTech/LearnStack/actions/runs/39424514759/attempts/1)
+and [B](https://github.com/HodeTech/LearnStack/actions/runs/39424514759/attempts/2)
+at `b3abbce65ba60ae4165b1eb09bd44d8644e7843d`: each passes all 27 jobs with the
+same complete 5,847-case population and observed toolchain, but different actual
+Architecture/ordinary/SharedSchema co-membership. Their plan digest is
+`85ce77743fd83d924060ad7008899595908ec4fd466597078ae6509e022db01d`.
+The later guard changes no plan bytes, weights, assignment algorithm or fixture
+lifetime; ADR-0063 requires the separate complete normal-push assignment above.
+Historical A/B results are not reused as final-head results. The earlier failed
+run `39417319998` remains failed evidence, not a partial passing receipt.
+
+Read-only protection verification retains all seven required context names,
+their GitHub Actions app bindings and strict checking. No protection setting,
+test population, timeout, audit threshold or browser budget is relaxed by this
+closeout. The separate post-merge push
+[run 39490885612](https://github.com/HodeTech/LearnStack/actions/runs/39490885612)
+is queued at initial merge verification; it is not counted as completed
+post-merge execution. The final PR-source qualification and identical-tree
+comparison above are the merge evidence.
+
+### Remaining work and next packet
+
+**Next: P02b-6 realm/TTL decision pass.** Re-verify the remaining G12 realm/
+reconciler choices and G13 access-token lifetime authority before changing
+Keycloak or seed users. Deliver the shared client scope and protocol mappers,
+admin-only UUID user-profile attributes, exact seed identity agreement,
+idempotent fresh/warm realm reconciliation and real Keycloak token/TTL proofs.
+The already Accepted BFF-client choice remains the baseline; this closeout
+accepts no new gate or ADR.
+
+P02b-7 retains BFF code exchange, token/session custody, refresh serialization,
+CSRF/logout, guarded pages and SDK bearer transport. P02b-8 retains LS0002,
+the retained-store erasure inventory, remaining carrier reconciliation and the
+Phase 02b exit. No browser sign-in or live membership/permission service is
+claimed by the merged API boundary. Phase 03 owns membership/authorization,
+Phase 06 the full browser OIDC journey, and Phase 11 production identity,
+readiness, distributed capacity and operational qualification.
+P02b-6–8 remain unstarted; Phase 02b remains in progress.
+
+**Documentation-only closeout validation.** Five Release corpus consistency
+cases and seven ADR lifecycle/parser controls pass, with zero failures/skips.
+All 1,440 relative links/fragments in the ten changed Markdown files resolve.
+Prose wrapping, whitespace and private-reference checks pass. Accepted ADRs
+and the dated P02b-5 decision/delivery/review records are byte-preserved against
+the final PR head. The local run covers these status/navigation edits; the
+runtime, Docker/native and browser qualification remains source-bound to the
+completed hosted receipts above. This closeout starts no next packet.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
@@ -13300,12 +13403,11 @@ also cover the combined HTTP/event-delivery tracing criterion: actual committed
 rows match the enqueuing activity, announced tenant/org and exact nonempty
 partition. The
 [P02b-3 merge closeout](#p02b-3-merge-and-closeout-2026-10-15) owns final combined
-event verification. P02b-4's job infrastructure is locally complete, with exact
-qualification in its [local closeout](#p02b-4-local-closeout-2026-10-18). P02b-5 is
-locally complete after all five steps and both independent review rounds per
-step. Its [Step 5 closeout](#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
-owns exact validation limits and live PR-head qualification. P02b-6–8 and merge
-remain pending.
+event verification. P02b-4's job infrastructure is complete and merged; its
+[merge closeout](#p02b-4-merge-and-closeout-2026-10-19) owns exact qualification.
+P02b-5 is complete and merged after all five steps and their independent reviews;
+its [merge closeout](#p02b-5-merge-and-closeout-2026-10-20) owns exact final-source
+qualification and validation limits. P02b-6–8 remain pending.
 The whole phase is not complete.
 
 - An aggregate change and its outbox row commit together and roll back together,

@@ -17,10 +17,10 @@ and lifetimes before their first consumers. Phase 03 owns the identity domain.
 [decision package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
 authorize scalar identity claims, one closed authenticated read and additional
 subject accounting. All five implementation steps and their two independent
-review rounds are locally complete; the
-[Step 5 closeout](../roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
-owns delivery and PR qualification. Authentication and authorization registration
-activate together with the closed surface in Step 4.
+review rounds are complete and merged through PR #33 on 2026-10-20; the
+[merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+owns delivery, correction reviews and final-source qualification. Authentication
+and authorization registration activate together with the closed surface in Step 4.
 Realm reconciliation and BFF sessions remain P02b-6/P02b-7.
 
 **Assertion diagnostics Accepted — 2026-10-20.**

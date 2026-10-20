@@ -39,12 +39,13 @@ owns review, packet and exact PR-head CI/job-budget status),
 (Accepted 2026-10-18; general CI obligation implemented; the phase record owns
 final-source hosted qualification),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
-(Accepted 2026-10-19; P02b-5 obligations implemented; Step 5 and the remediation
-record own local/source evidence; PR #33 owns current-head hosted qualification),
+(Accepted 2026-10-19; P02b-5 obligations implemented and merged through PR #33;
+the [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+owns final-source hosted qualification),
 [ADR-0065 Bounded Tenant Assertion Diagnostics](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
 (Accepted 2026-10-20; extends existing obligations below; audit-budget and
 telemetry controls implemented; the
-[P02b-5 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+[P02b-5 merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
 owns current qualification status),
 [ADR-0066 Bounded Tenant Subject Admission](../decisions/0066-bounded-tenant-subject-admission.md)
 (Accepted 2026-10-20; extends the existing subject-admission obligation;
