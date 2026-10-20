@@ -13033,6 +13033,46 @@ These are source inspections, not additional executed test runs. Step 1's two
 independent rounds and verified correction cycle are complete; Step 2 proceeds
 under the plan above. Final-source hosted qualification remains outstanding.
 
+### Step 2 implementation and verification
+
+**Implementation verified locally; independent reviews pending.** The SDK's
+fixed, parameterless `PublicRequestRefusalError` is
+available only from its server entry. Exact typed transport refusals become the
+existing local `invalid-request`; cancellation still takes precedence, provider
+text/lookalikes remain transport failures, and response-body failures are not
+reclassified. The configured public path fence uses that port before any fetch.
+Negative calls send zero requests; the restored public call returns a real
+validated success. There is no automatic retry or HTTP response-policy change.
+All 72 SDK cases and the 105 public-client/middleware cases pass.
+
+Demo command failures retain a closed reason and command/daemon origin. Only
+observed spontaneous exits supply native status; deadline, spawn, output,
+cancellation and cleanup do not borrow a later stop signal. The actual worker
+marks missing/malformed input before CDP connection. Process/profile cleanup
+preserves the first failure and never attributes its intentional stop status.
+A confirmed failed daemon spawn owns no process and does not masquerade as an
+output-cleanup fault.
+
+The CI lifecycle captures clean owned-root Git commit/tree before restore/build,
+rechecks it entering proof and before success, and refuses ambient Git redirects
+or changed tracked/staged/nonignored source. Real temporary repositories exercise
+dirt, unchanged-tree commits, in-checkpoint mutation, root anchoring and finite
+command bounds. A copied actual launcher proves the CI check precedes restore;
+local-mode source remains usable while dirty. These observations do not attest
+ignored inputs or edits restored between checkpoints. Both JSON and HTML byte
+digests bind the admitted report pair; corrupt, missing and substituted members
+refuse. The child-environment test now describes only constructed values, without
+claiming that Next never loads private dotenv files.
+
+The six-file demo selection passes all 224 cases. The complete guarded frontend
+run passes 1,688 cases (1,616 web and 72 SDK), zero skips/todos; lint, typecheck and
+production build pass. Import-order and test-only environment typing failures
+were corrected without changing the runtime contract. The document sweep resolves
+2,275 relative links/fragments with zero broken; seven ADR-parser controls and
+whitespace checks pass. Neither independent Step 2 review round has started.
+Actual full-stack browser/audit and final-source backend qualification remain
+with the existing hosted checks.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

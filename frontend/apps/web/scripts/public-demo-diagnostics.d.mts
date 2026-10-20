@@ -1,11 +1,12 @@
 export class PublicDemoFailure extends Error {
-  constructor(reason: unknown);
+  constructor(reason: unknown, cause?: unknown);
   reason: string;
 }
 
 export interface PublicDemoFailureRecord {
   stage: string;
   reason: string;
+  process: 'worker' | 'browser' | 'daemon' | null;
   mode: string | null;
   lane: number | null;
   kind: string | null;

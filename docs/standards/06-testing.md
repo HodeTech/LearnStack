@@ -244,6 +244,22 @@ browser profiles and raw process logs are excluded from artifacts. Human foregro
 [local test workflow](../../.claude/skills/run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
 owns the complete setup and artifact instructions.
 
+The CI lifecycle observes a clean Git commit and tree before dependency restoration
+or builds, verifies the owned repository root, and rechecks that identity on entry
+to the browser proof and before success. Inherited Git environment overrides do
+not select another repository. Tracked, staged or nonignored untracked changes
+refuse qualification; ignored runtime/build outputs remain permitted. These clean
+checkpoints are source observations, not hermetic build attestation: ignored
+configuration/dependencies and an edit restored between observations are not
+certified. Foreground local development retains its existing dirty-tree workflow.
+
+Each report receipt binds the JSON and HTML byte digests to the same invocation,
+commit/tree, build, URL/run, configuration and browser identity. A missing,
+corrupt or substituted member refuses the pair. Closed operation diagnostics
+distinguish actual child exit, spawn, deadline, cancellation and daemon failure;
+cleanup never borrows a signal sent intentionally during teardown. Raw provider
+messages and private configuration do not enter these receipt diagnostics.
+
 The frontend workspace pins Playwright and Lighthouse as development tools.
 Lighthouse's transitive development `axe-core@4.14.0` does not supply a standalone
 application axe dependency or the full Phase 06 axe suite. There is no

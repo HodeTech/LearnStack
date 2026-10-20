@@ -1,12 +1,26 @@
 import { spawn } from 'node:child_process';
 import { stopTestChild } from '../frontend/apps/web/scripts/stop-test-child.mjs';
 
+const commandReasons = new Set([
+  'exit',
+  'deadline',
+  'cancelled',
+  'spawn',
+  'output',
+  'cleanup',
+  'unknown',
+]);
+
 /** Only fixed caller-owned stage labels reach the foreground CLI. */
 export class DemoCommandError extends Error {
-  constructor(label, cause, status) {
+  constructor(label, cause, status, { reason = 'unknown', origin = 'command' } = {}) {
     super(`demo: ${label} failed`, { cause });
-    this.exitCode = status?.code ?? null;
-    this.signalCode = status?.signal ?? null;
+    this.reason = commandReasons.has(reason) ? reason : 'unknown';
+    this.origin = origin === 'daemon' ? 'daemon' : 'command';
+    // Only an observed spontaneous exit owns native status. A subsequent stop
+    // cannot supply the status of a deadline, spawn, output or cleanup failure.
+    this.exitCode = this.reason === 'exit' ? (status?.code ?? null) : null;
+    this.signalCode = this.reason === 'exit' ? (status?.signal ?? null) : null;
   }
 }
 
@@ -46,26 +60,40 @@ export class DemoProcesses {
   }
   assertActive() {
     if (this.#closed) throw new Error('Demo process owner is closed');
-    this.#signal.throwIfAborted();
+    if (this.#signal.aborted)
+      throw new DemoCommandError('Owned command cancellation', this.#signal.reason, undefined, {
+        reason: 'cancelled',
+      });
     if (this.#failed) throw this.#failed;
   }
   start(command, args, { cwd, env, label, observe = () => {}, capture = false } = {}) {
     this.assertActive();
-    const child = spawn(command, args, {
-      cwd,
-      env,
-      detached: process.platform !== 'win32',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    let child;
+    try {
+      child = spawn(command, args, {
+        cwd,
+        env,
+        detached: process.platform !== 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (cause) {
+      throw new DemoCommandError(label ?? command, cause, undefined, { reason: 'spawn' });
+    }
     const closed = new Promise((resolve) => child.once('close', resolve));
     const output = [];
     let outputBytes = 0;
     let failed;
+    let failureReason;
+    const refuseOutput = (cause) => {
+      if (!failed) {
+        failed = new Error(`${label} output refused`, { cause });
+        failureReason = 'output';
+      }
+      // dispose still owns a failed stop; do not create an unhandled rejection.
+      void stopTestChild(child).catch(() => {});
+    };
     for (const stream of [child.stdout, child.stderr]) {
-      stream.once('error', (cause) => {
-        failed ??= new Error(`${label} output refused`, { cause });
-        void stopTestChild(child);
-      });
+      stream.once('error', refuseOutput);
       stream.on('data', (chunk) => {
         try {
           observe(chunk, stream === child.stdout ? 'stdout' : 'stderr');
@@ -75,14 +103,16 @@ export class DemoProcesses {
             output.push(chunk);
           }
         } catch (cause) {
-          failed ??= new Error(`${label} output refused`, { cause });
-          void stopTestChild(child);
+          refuseOutput(cause);
         }
       });
     }
     const exit = new Promise((resolve) => {
       child.once('error', (cause) => {
-        failed ??= cause;
+        if (!failed) {
+          failed = cause;
+          failureReason = 'spawn';
+        }
         resolve({ code: null, signal: null });
       });
       child.once('close', (code, signal) => resolve({ code, signal }));
@@ -93,6 +123,7 @@ export class DemoProcesses {
       result: () => ({
         output: Buffer.concat(output).toString('utf8'),
         failed,
+        failureReason,
       }),
     };
     this.#children.set(child, {
@@ -110,6 +141,7 @@ export class DemoProcesses {
         `${options.label} exited`,
         running.result().failed,
         status,
+        { reason: running.result().failureReason ?? 'exit', origin: 'daemon' },
       );
       this.#failure(this.#failed);
     });
@@ -121,23 +153,30 @@ export class DemoProcesses {
     const signal = AbortSignal.any([this.#signal, timeout]);
     let cancelled;
     const aborted = new Promise((resolve) => {
-      cancelled = () => resolve({ code: null, signal: null });
+      cancelled = () => resolve({ kind: 'aborted' });
       signal.addEventListener('abort', cancelled, { once: true });
       if (signal.aborted) cancelled();
     });
     let failure;
     try {
       const result = await Promise.race([
-        running.exit,
+        running.exit.then((status) => ({ kind: 'exit', status })),
         aborted,
-        this.failure.then(() => ({ code: null, signal: null })),
+        this.failure.then((error) => ({ kind: 'daemon', error })),
       ]);
-      if (result.code !== 0 || running.result().failed)
+      if (result.kind === 'daemon') throw result.error;
+      if (result.kind === 'aborted')
         throw new DemoCommandError(
           options.label ?? command,
-          running.result().failed ?? this.#failed,
-          result,
+          this.#signal.aborted ? this.#signal.reason : timeout.reason,
+          undefined,
+          { reason: this.#signal.aborted ? 'cancelled' : 'deadline' },
         );
+      const outcome = running.result();
+      if (result.status.code !== 0 || outcome.failed)
+        throw new DemoCommandError(options.label ?? command, outcome.failed, result.status, {
+          reason: outcome.failureReason ?? 'exit',
+        });
       this.assertActive();
       return running.result().output;
     } catch (error) {
@@ -150,7 +189,10 @@ export class DemoProcesses {
       } catch (error) {
         // Retain this handle for dispose's cleanup failure; do not replace the
         // triggering command failure or attribute teardown's signal to it.
-        if (!failure) throw error;
+        if (!failure)
+          throw new DemoCommandError(options.label ?? command, error, undefined, {
+            reason: 'cleanup',
+          });
       }
     }
   }
@@ -177,7 +219,7 @@ export class DemoProcesses {
         } finally {
           clearTimeout(timer);
         }
-        if (daemon && result().failed)
+        if (daemon && result().failureReason === 'output')
           throw new Error('Owned output was refused', {
             cause: result().failed,
           });

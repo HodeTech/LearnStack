@@ -18,6 +18,7 @@ import {
   publicDemoWorkerOutput,
   publicDemoWorkerStage,
 } from '../../scripts/public-demo-diagnostics.mjs';
+import { stopTestChild } from '../../scripts/stop-test-child.mjs';
 
 const canary = 'private-provider-token-host-url-canary';
 const context = { mode: 'audit', laneIndex: 0, kind: 'catalog', run: 2, workerStage: 'audit' };
@@ -107,6 +108,7 @@ describe('closed public demo operation diagnostics', () => {
         expect(recorded).toMatchObject({
           stage: 'worker',
           reason: 'worker-failure',
+          process: 'worker',
           exitCode: worker.child.exitCode,
           signal: worker.child.signalCode,
           workerStage: kind === 'normal' ? 'connect' : null,
@@ -122,6 +124,143 @@ describe('closed public demo operation diagnostics', () => {
     20000,
   );
 
+  it.each([
+    'deadline',
+    'spawn',
+    'cancelled',
+    'daemon-before',
+    'daemon-during',
+    'daemon-spawn',
+  ] as const)(
+    'keeps actual %s ownership distinct from the stopped worker and browser',
+    async (kind) => {
+      const controller = new AbortController();
+      const processes = new DemoProcesses(controller.signal);
+      let worker: ReturnType<DemoProcesses['start']> | undefined;
+      let daemon: ReturnType<DemoProcesses['daemon']> | undefined;
+      let ready: () => void = () => {};
+      const workerReady = new Promise<void>((resolve) => {
+        ready = resolve;
+      });
+      let recorded: ReturnType<typeof publicDemoFailure> | undefined;
+      const start = processes.start.bind(processes);
+      processes.start = (...args) => {
+        worker = start(...args);
+        return worker;
+      };
+      try {
+        if (kind.startsWith('daemon')) {
+          daemon = processes.daemon(
+            kind === 'daemon-spawn'
+              ? join(tmpdir(), `missing-demo-daemon-${process.pid}-${Date.now()}`)
+              : process.execPath,
+            [
+              '-e',
+              kind === 'daemon-before'
+                ? 'process.exit(17)'
+                : 'process.on("SIGTERM",()=>process.exit(17));console.log("ready");setInterval(()=>{},1000)',
+            ],
+            { label: 'Owned daemon control' },
+          );
+          if (kind === 'daemon-before' || kind === 'daemon-spawn') await processes.failure;
+          else if (daemon.child.stdout) await once(daemon.child.stdout, 'data');
+          worker = undefined;
+        }
+        const result = publicDemoOperation({
+          input: context,
+          child: () => ({ exitCode: 73, signalCode: 'SIGABRT' }),
+          record: (row) => {
+            recorded ??= row;
+          },
+          run: async (stage) => {
+            stage('worker');
+            return processes.run(
+              kind === 'spawn'
+                ? join(tmpdir(), `missing-demo-command-${process.pid}-${Date.now()}`)
+                : process.execPath,
+              ['-e', 'console.log("ready");setInterval(()=>{},1000)'],
+              {
+                label: 'Owned worker control',
+                timeout: kind === 'deadline' ? 50 : 15000,
+                observe: () => ready(),
+              },
+            );
+          },
+          cleanup: async () => {},
+        }).catch((error: unknown) => error);
+        if (kind === 'cancelled' || kind === 'daemon-during') {
+          await Promise.race([
+            workerReady,
+            result.then(() => {
+              throw new Error('Worker ended before the ownership control');
+            }),
+          ]);
+          if (kind === 'cancelled') controller.abort(new Error(canary));
+          else daemon!.child.kill('SIGTERM');
+        }
+        const error = await result;
+        expect(error).toBeInstanceOf(DemoCommandError);
+        expect(recorded).toMatchObject({
+          stage: 'worker',
+          reason: kind.startsWith('daemon') ? 'daemon' : kind,
+          process: kind.startsWith('daemon') ? 'daemon' : 'worker',
+          exitCode:
+            kind.startsWith('daemon') && kind !== 'daemon-spawn' ? daemon!.child.exitCode : null,
+          signal:
+            kind.startsWith('daemon') && kind !== 'daemon-spawn' ? daemon!.child.signalCode : null,
+        });
+        expect(JSON.stringify(recorded)).not.toContain(canary);
+        if (kind === 'daemon-before' || kind === 'daemon-spawn') expect(worker).toBeUndefined();
+        else if (worker) expect(publicDemoChildExited(worker.child)).toBe(true);
+      } finally {
+        await processes.dispose();
+      }
+    },
+    20000,
+  );
+
+  it('a real child stopped before profile-removal refusal supplies no browser failure status', async () => {
+    const processes = new DemoProcesses(new AbortController().signal);
+    const browser = processes.start(
+      process.execPath,
+      ['-e', 'console.log("ready");setInterval(()=>{},1000)'],
+      { label: 'Owned browser control' },
+    );
+    let recorded: ReturnType<typeof publicDemoFailure> | undefined;
+    const error = new PublicDemoFailure('profile-cleanup', new Error(canary));
+    try {
+      if (browser.child.stdout) await once(browser.child.stdout, 'data');
+      await expect(
+        publicDemoOperation({
+          input: context,
+          child: () => browser.child,
+          record: (row) => {
+            recorded ??= row;
+          },
+          run: async (stage) => {
+            stage('result');
+            return 'complete';
+          },
+          cleanup: async () => {
+            await stopTestChild(browser.child);
+            throw error;
+          },
+        }),
+      ).rejects.toBe(error);
+      expect(publicDemoChildExited(browser.child)).toBe(true);
+      expect(recorded).toMatchObject({
+        stage: 'cleanup',
+        reason: 'profile-cleanup',
+        process: null,
+        exitCode: null,
+        signal: null,
+      });
+      expect(JSON.stringify(recorded)).not.toContain(canary);
+    } finally {
+      await processes.dispose();
+    }
+  });
+
   it('emits only complete closed worker lines when dependency output shares a chunk', () => {
     expect(
       publicDemoWorkerOutput(Buffer.from(`Public demo worker refused: audit\n${canary}\n`)),
@@ -133,6 +272,30 @@ describe('closed public demo operation diagnostics', () => {
       [],
     );
   });
+
+  it.each(['missing', 'malformed'])(
+    'the actual worker attributes %s input to input rather than a CDP connection',
+    (kind) => {
+      const root = mkdtempSync(join(tmpdir(), 'learnstack-demo-input-status-'));
+      try {
+        const input = join(root, 'input.json');
+        writeFileSync(input, '{"private":"' + canary);
+        const execution = spawnSync(
+          process.execPath,
+          [
+            fileURLToPath(new URL('../../scripts/public-demo-worker.mjs', import.meta.url)),
+            ...(kind === 'malformed' ? [input] : []),
+          ],
+          { encoding: 'utf8', timeout: 15000 },
+        );
+        expect(execution.status).toBe(1);
+        expect(execution.stderr).toContain('Public demo worker refused: input');
+        expect(execution.stdout + execution.stderr).not.toContain(canary);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
   it.each(['normal', 'signal'])(
     'recognizes an actual native child %s exit before the startup deadline',
     async (kind) => {
@@ -227,12 +390,13 @@ describe('closed public demo operation diagnostics', () => {
     expect(failure).toEqual({
       stage,
       reason,
+      process: reason === 'chromium-exited' ? 'browser' : null,
       mode: 'audit',
       lane: 1,
       kind: 'catalog',
       run: 2,
       workerStage: stage === 'worker' ? 'audit' : null,
-      exitCode: ['browser-spawn', 'startup-port'].includes(stage) ? 1 : null,
+      exitCode: reason === 'chromium-exited' ? 1 : null,
       signal: null,
     });
     expect(JSON.stringify(failure)).not.toContain(canary);
@@ -260,13 +424,14 @@ describe('closed public demo operation diagnostics', () => {
     ).rejects.toBe(error);
     expect(failure).toEqual({
       stage: 'cleanup',
-      reason: 'unknown',
+      reason: 'cleanup-failure',
+      process: null,
       mode: 'audit',
       lane: 1,
       kind: 'catalog',
       run: 2,
       workerStage: null,
-      exitCode: 0,
+      exitCode: null,
       signal: null,
     });
     expect(JSON.stringify(failure)).not.toContain(canary);
@@ -317,6 +482,7 @@ describe('closed public demo operation diagnostics', () => {
     expect(failure).toEqual({
       stage: 'proof',
       reason: 'unknown',
+      process: null,
       mode: null,
       lane: null,
       kind: null,

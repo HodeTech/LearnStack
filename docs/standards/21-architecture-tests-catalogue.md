@@ -5377,6 +5377,9 @@ and the always-running `public demo + lighthouse` job through `make demo`.
 `src/test/public-demo.test.ts` and `src/test/demo-lifecycle.test.ts` execute
 planted failing and clean controls in the required frontend job. Actual browser
 mutants, TLS refusals and a real Lighthouse timeout also run in the full proof.
+`src/test/demo-source.test.ts` uses disposable Git repositories for clean/mutated
+source checkpoints; `src/test/public-demo-diagnostics.test.ts` covers closed
+failure attribution with real children and provider canaries.
 `src/test/public-demo-ci.test.ts` executes the actual workflow deadline shell;
 `scripts/ci-public-chromium.test.mjs` tests owned Linux sandbox preparation and
 cleanup before the job runs the real managed-browser launch smoke.
@@ -5401,7 +5404,9 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 
 - **Asserts:** all 27 current report pairs pass actual-page admission and exact
   invocation/configuration census; hard budgets and advisory timing medians are
-  distinguished without permitting missing or invalid measurements.
+  distinguished without permitting missing or invalid measurements. Both JSON
+  and HTML byte digests bind each pair to its invocation and source commit/tree;
+  missing, corrupt or substituted members fail the same pair validation.
 - **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#lab-profile-and-budgets).
 - **Scope:** pinned Lighthouse/Chromium; every seed lane/URL/run.
 - **Type:** Node report validation and real audits, with stale/missing/error and
@@ -5424,6 +5429,11 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 
 - **Asserts:** real quotas, positive API observation, stopped CI-owned Keycloak,
   scoped TLS trust, serial deadlines and confirmed owned cleanup remain intact.
+  CI observes the owned repository's clean commit/tree before restore/build,
+  entering proof and before success, without inherited Git environment overrides.
+  These checkpoints do not attest ignored inputs or edits restored between them.
+  Closed diagnostics retain failure origin and status ownership; intentional
+  teardown signals do not become a cleanup failure's process status.
 - **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#pacing-runtime-and-artifacts).
 - **Scope:** the shared demo lifecycle and full-stack CI job.
 - **Type:** Node lifecycle/proof controls and real production navigation.

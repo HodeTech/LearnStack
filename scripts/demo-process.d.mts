@@ -5,7 +5,13 @@ export class DemoCommandError extends Error {
     label: string,
     cause?: unknown,
     status?: { code: number | null; signal: string | null },
+    outcome?: {
+      reason?: 'exit' | 'deadline' | 'cancelled' | 'spawn' | 'output' | 'cleanup' | 'unknown';
+      origin?: 'command' | 'daemon';
+    },
   );
+  readonly reason: 'exit' | 'deadline' | 'cancelled' | 'spawn' | 'output' | 'cleanup' | 'unknown';
+  readonly origin: 'command' | 'daemon';
   readonly exitCode: number | null;
   readonly signalCode: string | null;
 }
@@ -20,7 +26,7 @@ interface Options {
 interface Running {
   child: ChildProcess;
   exit: Promise<{ code: number | null; signal: string | null }>;
-  result(): { output: string; failed?: Error };
+  result(): { output: string; failed?: Error; failureReason?: 'spawn' | 'output' };
 }
 export class DemoProcesses {
   constructor(signal: AbortSignal);

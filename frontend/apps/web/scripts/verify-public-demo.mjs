@@ -8,7 +8,12 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 
-import { digest, reportAdvisories, reportInventory } from './public-demo-contract.mjs';
+import {
+  digest,
+  reportAdvisories,
+  reportInventory,
+  validateReportPair,
+} from './public-demo-contract.mjs';
 import {
   PublicDemoFailure,
   publicDemoChildExited,
@@ -20,6 +25,8 @@ import {
 import { stopTestChild } from './stop-test-child.mjs';
 import { demoRequest } from '../../../../scripts/demo-http.mjs';
 import { completionDelta, finalCompletionCensus } from '../../../../scripts/demo-observation.mjs';
+import { DemoCommandError } from '../../../../scripts/demo-process.mjs';
+import { demoSource } from '../../../../scripts/demo-source.mjs';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const worker = fileURLToPath(new URL('./public-demo-worker.mjs', import.meta.url));
@@ -41,7 +48,12 @@ export async function verifyPublicDemo(runtime) {
   let outputOwned = false;
   let failure;
   let phase = 'setup';
-  const identity = { invocation: randomBytes(16).toString('hex'), commit: null, build: null };
+  const identity = {
+    invocation: randomBytes(16).toString('hex'),
+    commit: null,
+    tree: null,
+    build: null,
+  };
   let hosts;
   let spki;
   let expected;
@@ -132,6 +144,15 @@ export async function verifyPublicDemo(runtime) {
         const startupDeadline = Date.now() + remaining(10000);
         while (!existsSync(portFile)) {
           remaining(10000);
+          if (browser.result().failed)
+            throw new DemoCommandError(
+              'Owned managed Chromium',
+              browser.result().failed,
+              undefined,
+              {
+                reason: browser.result().failureReason,
+              },
+            );
           if (publicDemoChildExited(browser.child)) throw new PublicDemoFailure('chromium-exited');
           if (Date.now() >= startupDeadline) throw new PublicDemoFailure('deadline');
           await pause(50, undefined, { signal: runtime.signal });
@@ -177,10 +198,20 @@ export async function verifyPublicDemo(runtime) {
       },
       cleanup: async () => {
         if (browser) {
-          await stopTestChild(browser.child);
+          try {
+            await stopTestChild(browser.child);
+          } catch (error) {
+            throw new PublicDemoFailure('process-cleanup', error);
+          }
           // The outer process owner performs the separately bounded stream drain.
         }
-        if (profileOwned) rmSync(profile, { recursive: true, force: true });
+        if (profileOwned) {
+          try {
+            rmSync(profile, { recursive: true, force: true });
+          } catch (error) {
+            throw new PublicDemoFailure('profile-cleanup', error);
+          }
+        }
       },
     });
   }
@@ -208,14 +239,11 @@ export async function verifyPublicDemo(runtime) {
     mkdirSync(output, { recursive: true });
     outputOwned = true;
     if (!save()) throw failure;
-    identity.commit = (
-      await runtime.processes.run('git', ['rev-parse', 'HEAD'], {
-        cwd: root,
-        env: { PATH: process.env.PATH },
-        label: 'Read-only source provenance',
-        capture: true,
-      })
-    ).trim();
+    assert.equal(runtime.mode, 'ci');
+    assert.ok(runtime.source, 'Source captured before CI setup/build');
+    const source = await demoSource(runtime.processes, root, remaining, runtime.source);
+    identity.commit = source.commit;
+    identity.tree = source.tree;
     identity.build = readFileSync(join(root, 'frontend/apps/web/.next/BUILD_ID'), 'utf8').trim();
     assert.match(identity.commit, /^[a-f0-9]{40}$/);
     hosts = [...new Set(runtime.manifest.map((lane) => lane.host))];
@@ -235,7 +263,6 @@ export async function verifyPublicDemo(runtime) {
     );
     receipt.expectedReports = expected;
     phase = 'proof';
-    assert.equal(runtime.mode, 'ci');
     // Positive observer control uses already completed readiness, then a fresh
     // product document through independent CA/hostname verification.
     assert.equal(runtime.completions.total, 6, 'Three two-call readiness documents completed');
@@ -288,17 +315,14 @@ export async function verifyPublicDemo(runtime) {
     reportInventory(receipt.reports, expected);
     for (const row of receipt.reports) {
       const base = `audit-${runtime.manifest.findIndex((lane) => row.url.startsWith(lane.catalogUrl))}-${row.url.includes('/lessons/') ? 'lesson' : runtime.manifest.some((lane) => row.url === lane.catalogUrl) ? 'catalog' : 'course'}-${row.run}`;
-      assert.equal(
-        digest(readFileSync(join(output, base + '.json'))),
-        row.reportDigest,
-        'Fresh complete report bytes',
-      );
-      assert.ok(
-        readFileSync(join(output, base + '.html'), 'utf8').length > 1000,
-        'Complete HTML report',
+      validateReportPair(
+        row,
+        readFileSync(join(output, base + '.json')),
+        readFileSync(join(output, base + '.html')),
       );
     }
     receipt.advisories = reportAdvisories(receipt.reports);
+    await demoSource(runtime.processes, root, remaining, runtime.source);
     remaining(1);
     receipt.proofMilliseconds = Date.now() - started;
     receipt.passed = true;

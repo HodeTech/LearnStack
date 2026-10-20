@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import 'server-only';
 
-import { createServerSdk } from '@learnstack/sdk/server';
+import { createServerSdk, PublicRequestRefusalError } from '@learnstack/sdk/server';
 import type { ServerSdk } from '@learnstack/sdk/server';
 
 import { publicServerConfiguration, verifyProvenance } from './ingress';
@@ -161,7 +161,7 @@ export function createConfiguredPublicClient(
       /%(?:25)*(?:2f|5c)/i.test(url.pathname) ||
       url.pathname + url.search !== path
     )
-      throw new Error('Invalid public API operation');
+      throw new PublicRequestRefusalError();
     return boundedResponse(url, headers, signal);
   });
   const requestOptions = { signal };

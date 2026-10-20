@@ -22,6 +22,11 @@ export function validateReport(
   census: unknown,
 ): Record<string, number>;
 export function reportInventory(rows: unknown, expected: unknown): void;
+export function validateReportPair(
+  row: { reportDigest: string; htmlDigest: string },
+  json: string | Buffer,
+  html: string | Buffer,
+): void;
 
 export function reconcileScriptInventory(
   log: Array<{

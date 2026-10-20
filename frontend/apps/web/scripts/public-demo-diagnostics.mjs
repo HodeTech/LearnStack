@@ -13,12 +13,19 @@ const reasons = new Set([
   'chromium-exited',
   'port-invalid',
   'deadline',
+  'cancelled',
+  'spawn',
+  'output',
+  'daemon',
   'worker-failure',
+  'process-cleanup',
+  'profile-cleanup',
+  'cleanup-failure',
   'unknown',
 ]);
 const modes = new Set(['audit', 'browser', 'tls-refusal', 'timeout-control']);
 const kinds = new Set(['catalog', 'course', 'lesson']);
-const workerStages = new Set(['connect', 'preflight', 'audit', 'report']);
+const workerStages = new Set(['input', 'connect', 'preflight', 'audit', 'report']);
 const signals = new Set([
   'SIGABRT',
   'SIGBUS',
@@ -41,8 +48,8 @@ const signals = new Set([
 
 /** Explicit local outcomes, never classifications inferred from provider error text. */
 export class PublicDemoFailure extends Error {
-  constructor(reason) {
-    super('Public demo proof failed');
+  constructor(reason, cause) {
+    super('Public demo proof failed', { cause });
     this.reason = reasons.has(reason) ? reason : 'unknown';
   }
 }
@@ -56,22 +63,38 @@ export const publicDemoChildExited = (child) =>
 /** Only closed phase/context and native process status may enter public artifacts. */
 export function publicDemoFailure(stage, error, input = {}, child) {
   const phase = stages.has(stage) ? stage : 'proof';
-  const status =
-    phase === 'worker'
-      ? error instanceof DemoCommandError
-        ? error
-        : undefined
-      : ['browser-spawn', 'startup-port', 'cleanup'].includes(phase)
-        ? child
-        : undefined;
+  let reason =
+    phase === 'cleanup' ? 'cleanup-failure' : phase === 'worker' ? 'worker-failure' : 'unknown';
+  let process = null;
+  let status;
+  if (error instanceof PublicDemoFailure && reasons.has(error.reason)) reason = error.reason;
+  if (error instanceof DemoCommandError) {
+    if (error.origin === 'daemon') {
+      reason = 'daemon';
+      process = 'daemon';
+      if (error.reason === 'exit') status = error;
+    } else if (error.origin === 'command') {
+      if (['deadline', 'cancelled', 'spawn', 'output'].includes(error.reason))
+        reason = error.reason;
+      if (error.reason === 'cleanup') reason = 'process-cleanup';
+      if (phase === 'worker') {
+        process = 'worker';
+        if (error.reason === 'exit') status = error;
+      } else if (['browser-spawn', 'startup-port'].includes(phase)) process = 'browser';
+    }
+  } else if (phase === 'startup-port' && reason === 'chromium-exited') {
+    process = 'browser';
+    status = child;
+  }
+  // Teardown's intentional SIGTERM never describes a browser/worker failure.
+  if (phase === 'cleanup') {
+    process = null;
+    status = undefined;
+  }
   return {
     stage: phase,
-    reason:
-      error instanceof PublicDemoFailure && reasons.has(error.reason)
-        ? error.reason
-        : phase === 'worker'
-          ? 'worker-failure'
-          : 'unknown',
+    reason,
+    process,
     mode: modes.has(input.mode) ? input.mode : null,
     lane:
       Number.isInteger(input.laneIndex) && input.laneIndex >= 0 && input.laneIndex < 3
@@ -92,7 +115,7 @@ export function publicDemoFailure(stage, error, input = {}, child) {
 export function publicDemoWorkerOutput(chunk) {
   const lines = chunk.toString().split(/\r?\n/);
   return lines.filter((line) =>
-    /^Public demo worker refused: (connect|preflight|audit|report|unknown)$/.test(line),
+    /^Public demo worker refused: (input|connect|preflight|audit|report|unknown)$/.test(line),
   );
 }
 

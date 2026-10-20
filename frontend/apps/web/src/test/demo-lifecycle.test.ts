@@ -484,7 +484,7 @@ describe('demo runtime boundaries', () => {
       ),
     });
   });
-  it('confines the selected tenant issuer to the API child', () => {
+  it('passes the selected tenant issuer only in the constructed API environment', () => {
     const root = temporary();
     const key = 'Authentication__Tenant__Issuer';
     const issuer = 'https://identity.example/realms/learnstack';

@@ -18,6 +18,7 @@ import { createConfiguredPublicClient } from './configured-public-client';
 import { mintProvenance } from './ingress';
 
 afterEach(() => {
+  probe.path = undefined;
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
@@ -28,9 +29,19 @@ it('checks the normalized destination before the private public hop sends any re
   vi.stubEnv('LEARNSTACK_PUBLIC_HOP_SECRET', secret);
   vi.stubEnv('LEARNSTACK_PUBLIC_TLS_CERT', '.data/test/cert.pem');
   vi.stubEnv('LEARNSTACK_PUBLIC_TLS_KEY', '.data/test/key.pem');
+  const site = {
+    displayName: 'School',
+    enabledLocales: ['en'],
+    defaultLocale: 'en',
+    theme: null,
+    showPlatformAttribution: true,
+  };
   const fetch = vi
     .fn<typeof globalThis.fetch>()
-    .mockResolvedValue(new Response('{}', { headers: { 'content-type': 'application/json' } }));
+    .mockImplementation(
+      async () =>
+        new Response(JSON.stringify(site), { headers: { 'content-type': 'application/json' } }),
+    );
   vi.stubGlobal('fetch', fetch);
   const client = createConfiguredPublicClient(
     mintProvenance(
@@ -51,18 +62,18 @@ it('checks the normalized destination before the private public hop sends any re
     '//attacker.example/api/v1/public/site',
   ]) {
     probe.path = path;
-    await expect(client!.getSite()).resolves.toEqual({ kind: 'transport-error' });
+    await expect(client!.getSite()).resolves.toEqual({ kind: 'invalid-request' });
   }
   expect(fetch).not.toHaveBeenCalled();
   probe.path = undefined;
   await expect(client!.getCourse({ slug: '..' })).resolves.toEqual({ kind: 'invalid-request' });
   for (const slug of ['a/b', 'a\\b', '..%2faccount', 'a%5cb', 'a%252fb'])
-    await expect(client!.getCourse({ slug })).resolves.toEqual({ kind: 'transport-error' });
+    await expect(client!.getCourse({ slug })).resolves.toEqual({ kind: 'invalid-request' });
   await expect(client!.getLesson({ slug: 'safe', lessonSlug: 'a/b' })).resolves.toEqual({
-    kind: 'transport-error',
+    kind: 'invalid-request',
   });
   expect(fetch).not.toHaveBeenCalled();
-  await client!.getSite();
+  await expect(client!.getSite()).resolves.toEqual({ kind: 'success', status: 200, data: site });
   expect(fetch).toHaveBeenCalledOnce();
   expect(fetch.mock.calls[0]![0].toString()).toBe('http://127.0.0.1:5080/api/v1/public/site');
 });

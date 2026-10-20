@@ -214,6 +214,12 @@ server caller in `apps/web/src/server/configured-public-client.ts`.
   strings, matching Standards 09's carrier. Transport failure, malformed JSON,
   invalid local path input and caller cancellation remain distinct from a valid
   API error; cancellation precedes URL construction.
+- The server-only `PublicRequestRefusalError` port marks a transport's local
+  operation-construction or validation refusal before network I/O. The SDK maps
+  this exact type to `invalid-request`; it does not infer refusal from provider
+  error text or names. Cancellation takes precedence. Other transport failures
+  remain `transport-error`, and body-consumption failures are not reclassified.
+  This local result is neither an HTTP 400 nor an automatic retry instruction.
 - P02d-5/G35 delivers the configured trusted server caller. P02d-6 supplies all
   public page consumers. HEAD is the HTTP companion, not a browser JSON wrapper.
 

@@ -202,7 +202,7 @@ describe('configured public authority and operation boundary', () => {
     });
     expect(transport).not.toHaveBeenCalled();
     expect(await configured.getCourse({ slug: '//attacker.example/%2e%2e' })).toEqual({
-      kind: 'transport-error',
+      kind: 'invalid-request',
     });
     expect(transport).not.toHaveBeenCalled();
   });

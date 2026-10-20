@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 
 import { expect, it } from 'vitest';
 
-it.each(['provenance', 'build', 'leaf', 'save', 'directory', 'existing'])(
+it.each(['provenance', 'source-changed', 'build', 'leaf', 'save', 'directory', 'existing'])(
   'retains closed setup failure and attempts owned cleanup after %s refusal',
   (stage) => {
     const execution = spawnSync(
@@ -20,6 +20,7 @@ it.each(['provenance', 'build', 'leaf', 'save', 'directory', 'existing'])(
       let owned = false;
       let saved;
       let writes = 0;
+      let buildReads = 0;
       let disposed = false;
       const diagnostics = [];
       const at = (path, suffix) => String(path).split(String.fromCharCode(92)).join('/').endsWith(suffix);
@@ -40,6 +41,7 @@ it.each(['provenance', 'build', 'leaf', 'save', 'directory', 'existing'])(
       };
       fs.readFileSync = (path, ...args) => {
         if (!at(path, '/.next/BUILD_ID')) return original.readFileSync(path, ...args);
+        buildReads++;
         if (stage === 'build') throw failure;
         return 'control-build';
       };
@@ -49,13 +51,22 @@ it.each(['provenance', 'build', 'leaf', 'save', 'directory', 'existing'])(
       try {
         await verifyPublicDemo({
           mode: 'ci', privateRoot: '/private-control', setupMilliseconds: 0,
+          source: { commit: 'a'.repeat(40), tree: 'b'.repeat(40) },
           manifest: [], completions: { total: 0, statuses: {}, paths: {}, malformed: false, pendingBytes: 0 },
-          processes: { run: async () => { if (['provenance', 'save'].includes(stage)) throw failure; return 'a'.repeat(40); } },
+          processes: {
+            assertActive: () => {},
+            run: async (_command, args) => {
+              if (['provenance', 'save'].includes(stage)) throw failure;
+              if (args.includes('--show-toplevel')) return ${JSON.stringify(new URL('../../../../../', import.meta.url).pathname)};
+              if (args[0] === 'status') return '';
+              return (stage === 'source-changed' ? 'c' : 'a').repeat(40) + '\\n' + 'b'.repeat(40);
+            },
+          },
           leaf: { publicKey: { export: () => { throw failure; } } },
           dispose: async () => { disposed = true; return { passed: true }; },
         });
       } catch (error) { caught = error; }
-      process.stdout.write(JSON.stringify({ sameError: caught === failure, failed: !!caught, disposed, saved, writes, diagnostics }));
+      process.stdout.write(JSON.stringify({ sameError: caught === failure, failed: !!caught, disposed, saved, writes, buildReads, diagnostics }));
     `,
       ],
       { encoding: 'utf8', timeout: 15000 },
@@ -72,6 +83,7 @@ it.each(['provenance', 'build', 'leaf', 'save', 'directory', 'existing'])(
         failure: { stage: 'setup', reason: 'unknown' },
         cleanup: { passed: true },
       });
+    if (stage === 'source-changed') expect(result.buildReads).toBe(0);
     expect(JSON.stringify(result.diagnostics)).toContain('setup');
     expect(JSON.stringify(result.saved) + JSON.stringify(result.diagnostics)).not.toContain(
       'private-setup-canary',

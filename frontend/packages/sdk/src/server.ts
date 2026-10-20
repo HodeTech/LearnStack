@@ -8,6 +8,15 @@ export type { ApiProblem, AppError } from './response-policy';
 /** The supplied Fetch-compatible transport resolves relative URLs. P02d-5 owns the trusted server hop. */
 export type PublicFetch = (url: string, init: RequestInit) => Promise<Response>;
 export type RequestOptions = { readonly signal?: AbortSignal };
+
+/** An injected transport refused local operation construction before network I/O. */
+export class PublicRequestRefusalError extends Error {
+  constructor() {
+    super('Public request refused');
+    this.name = 'PublicRequestRefusalError';
+  }
+}
+
 export type ApiResult<T> =
   | { readonly kind: 'success'; readonly status: 200; readonly data: T }
   | {
@@ -25,6 +34,7 @@ export type ApiResult<T> =
         | 'unexpected-status';
     }
   | { readonly kind: 'transport-error' }
+  /** Local SDK/transport construction or validation refusal; not an HTTP 400. */
   | { readonly kind: 'invalid-request' }
   | { readonly kind: 'cancelled' };
 
@@ -115,8 +125,11 @@ export function createServerSdk(transport: PublicFetch): ServerSdk {
         headers: { Accept: 'application/json' },
         signal: options?.signal,
       });
-    } catch {
-      return options?.signal?.aborted ? { kind: 'cancelled' } : { kind: 'transport-error' };
+    } catch (error) {
+      if (options?.signal?.aborted) return { kind: 'cancelled' };
+      return error instanceof PublicRequestRefusalError
+        ? { kind: 'invalid-request' }
+        : { kind: 'transport-error' };
     }
     if (options?.signal?.aborted) return { kind: 'cancelled' };
     if (response.status < 400 && response.status !== 200)

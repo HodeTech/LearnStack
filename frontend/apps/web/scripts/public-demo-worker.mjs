@@ -259,8 +259,9 @@ async function main(input, stage) {
   reconcileScriptInventory(result.artifacts.DevtoolsLog, source.inventory);
   const base = join(input.output, `audit-${input.laneIndex}-${input.kind}-${input.run}`);
   const report = JSON.stringify(result.lhr);
+  const html = generateReport(result.lhr, 'html');
   writeFileSync(base + '.json', report, { flag: 'wx' });
-  writeFileSync(base + '.html', generateReport(result.lhr, 'html'), { flag: 'wx' });
+  writeFileSync(base + '.html', html, { flag: 'wx' });
   writeFileSync(
     input.result,
     JSON.stringify({
@@ -271,6 +272,7 @@ async function main(input, stage) {
       metrics,
       configDigest: digest(JSON.stringify(expectedCensus)),
       reportDigest: digest(report),
+      htmlDigest: digest(html),
       gzip: source.gzip,
       cutoff: source.cutoff,
     }),
@@ -278,7 +280,7 @@ async function main(input, stage) {
 }
 
 let input;
-let stage = 'connect';
+let stage = 'input';
 try {
   input = JSON.parse(readFileSync(process.argv[2], 'utf8'));
   await main(input, (next) => {
