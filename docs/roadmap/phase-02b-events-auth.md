@@ -15366,6 +15366,24 @@ corpus/Docker-sweep cases, all 43 launcher controls and sixty combined
 shard/aggregate controls. Scoped lint/typecheck pass. These receipts precede
 the new independent correction review rounds and complete hosted qualification.
 
+The fourth A's five auxiliary checks independently pass on its frozen source:
+frontend 1,738 cases, Node 240, launcher 43, combined shard/aggregate 60 and
+Node-gate six; OpenAPI transport/fixture controls pass and SARIF has no findings.
+The demo retains 27 hash-validated report pairs for nine pages, nine screenshots,
+all visibility/TLS/timeout controls and complete owned cleanup. Its source-bound
+Keycloak-stop/absence prerequisite is also verified. These successes qualify
+their individual evidence, not the seven failed jobs or a later head.
+
+Two first-round reviewers approve `4467492b..1bf18b80` without an actionable
+finding: security/ownership (`gpt-6-astra`, xhigh) and browser/proof correctness
+(`gpt-6.1-sol`, xhigh). The first independently builds Release with warnings as
+errors, passes the offline publication control and both Docker-trait guards,
+and verifies the pinned inspection client's existing 100s timeout. The second
+independently passes all 44 browser cases with the repository JSON validator.
+Both inspect the full correction and preserve the limits on live author proofs,
+constructed readiness evidence and unknown hosted daemon/browser causes. A
+fresh second review round follows before the next frozen-source full execution.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
