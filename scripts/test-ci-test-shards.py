@@ -73,6 +73,65 @@ class ShardControls(unittest.TestCase):
                       self.plan['sharedFixtureClasses'])
         self.assertIn('LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests',
                       self.plan['sharedFixtureClasses'])
+        for name in ('LearnStack.Tests.Integration.ApiHandlerCompositionTests',
+                     'LearnStack.Tests.Integration.Database.PublicSiteHttpTests',
+                     'LearnStack.Tests.Integration.Database.HangfireStorageTests'):
+            self.assertIn(name, self.plan['sharedFixtureClasses'])
+
+    def test_fixture_census_binds_qualified_collections_and_other_explicit_class_fixtures(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'backend/tests/LearnStack.Tests.Integration'
+            source.mkdir(parents=True)
+            (source / 'Definitions.cs').write_text('''namespace Example.Database;
+[CollectionDefinition(Name)]
+public sealed class SharedSchema : ICollectionFixture<SchemaFixture> { }
+[CollectionDefinition(Name)]
+public sealed class PublicReadTestGroup : ICollectionFixture<PublicReadFixture> { }
+[CollectionDefinition(Name)]
+public sealed class WithoutFixture { }
+''')
+            (source / 'Tests.cs').write_text('''using Example.Database;
+namespace Example;
+[Collection(Database.SharedSchema.Name)]
+public sealed class Qualified { }
+[global::Xunit.CollectionAttribute(global::Example.Database.PublicReadTestGroup.Name)]
+public sealed class OtherCollection { }
+public sealed class OtherFixture(SchemaFixture fixture) : Xunit.IClassFixture<SchemaFixture> { }
+[Collection(WithoutFixture.Name)]
+public sealed class NoFixtureCollection { }
+public sealed class UnrelatedAfterCollection { }
+// [Collection(Database.SharedSchema.Name)] public class Comment : IClassFixture<Ghost> { }
+public sealed class LiteralHolder
+{
+    const string Fake = """
+[Collection(Database.SharedSchema.Name)] public class Literal : IClassFixture<Ghost> { }
+""";
+}
+''')
+            self.assertEqual(['Example.OtherCollection', 'Example.OtherFixture', 'Example.Qualified'],
+                             OWNER.fixture_class_census(root))
+
+    def test_fixture_census_refuses_unknown_unsupported_and_ambiguous_forms(self):
+        for declaration, reason in (
+                ('[Collection(Unknown.Name)] public sealed class Tests { }', 'fixture_collection_unresolved'),
+                ('[Collection(typeof(Known))] public sealed class Tests { }', 'fixture_attribute_unsupported'),
+                ('[Other.Collection(Known.Name)] public sealed class Tests { }', 'fixture_attribute_unsupported'),
+                ('public sealed class Tests : IClassFixture<Generic<Fixture>> { }', 'fixture_declaration_unsupported'),
+                ('public sealed class Tests(IClassFixture<Fixture> parameter) { }', 'fixture_declaration_unsupported')):
+            with self.subTest(declaration=declaration), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / 'backend/tests/LearnStack.Tests.Integration'
+                source.mkdir(parents=True)
+                (source / 'Tests.cs').write_text('namespace Example;\n' + declaration)
+                self.refuses(reason, OWNER.fixture_class_census, root)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'backend/tests/LearnStack.Tests.Integration'
+            source.mkdir(parents=True)
+            for filename in ('First.cs', 'Second.cs'):
+                (source / filename).write_text('namespace Example;\npublic partial class Tests : IClassFixture<Fixture> { }')
+            self.refuses('fixture_declaration_ambiguous', OWNER.fixture_class_census, root)
 
     def test_plan_revision_diff_uses_one_manifest_and_reports_actual_case_moves(self):
         manifest = self.manifest()

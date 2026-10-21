@@ -16,7 +16,7 @@ EXPECTED = {
     'development-realm-http.test.mjs': 41,
     'development-realm-owner.test.mjs': 56,
     'development-realm-plan.test.mjs': 95,
-    'reconcile-development-realm.test.mjs': 12,
+    'reconcile-development-realm.test.mjs': 18,
 }
 
 

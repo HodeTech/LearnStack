@@ -14961,7 +14961,7 @@ tests head `eb707ee84f7c3cbc29c4f7ded2b86cb1b7cb5834` through merge source
 |---|---|
 | Aggregate evidence | Preserve current-attempt artifact identity and fail closed; distinguish `artifact_api_missing`, `artifact_api_not_unique` and invalid metadata. An executing partial-rerun control refuses reused sibling evidence. |
 | Node execution | A single owner derives the complete test-file census and requires exact reviewed per-file executed counts plus same-invocation JUnit. Added/missing files, deleted cases, redistributed cases and empty suites are rejected. |
-| Fixture census | The plan includes all 82 source-verified fixture-bearing classes, including seven omissions. No measured fixture startup cost is invented. |
+| Fixture census | The first correction lists 82 classes. Independent round one finds that qualified collection references and other explicit fixture types remain omitted; the follow-up below corrects this census. No measured fixture startup cost is invented. |
 | Realm ownership | Only an exact successful single-user `ADDED` receipt establishes creation with the declared credential. An ambiguous 409 or a publicly registered reserved username without the admitted legacy identity refuses. Existing credentials/MFA and unrelated state remain preserved. |
 | Effective login | Disabled realm/clients, consent changes and incompatible stock account callbacks refuse before writes. The two legacy declarations remain tied to the typed seed authority; tooling adds no institution-name branch. |
 | Token availability | Bounded proactive administrator-token renewal reserves the complete exchange budget and never replays a failed Admin request. The whole pass still ends at 120s. |
@@ -14975,9 +14975,9 @@ revision from source `ea0363e8b936c209a9a1bae6e9a027d6877ae596` moves 2,318
 ordinary cases in A (1,043 methods) and 2,256 in B (1,034 methods); Architecture
 moves zero cases. This is the old-plan-to-new-plan difference, distinct from
 A-to-B independence. No weight is reverted to conceal the failed layout.
-Correcting the fixture-class census changes its eligibility witness to 2,191
-cases, of which 2,046 change owner across A/B. The earlier 1,985 witness covered
-an incomplete subset. Architecture/ordinary A-to-B changes remain 371/2,339 on
+The first, still incomplete fixture-class census changes its eligibility witness
+to 2,191 cases, of which 2,046 change owner across A/B. The earlier 1,985 witness
+covered a smaller subset. Architecture/ordinary A-to-B changes remain 371/2,339 on
 that fixed manifest. New tests require a newly discovered manifest and new full
 qualification; none of these historical counts are promoted to that source.
 
@@ -15008,7 +15008,7 @@ and must fit the same whole-job budget. Sequential aggregate downloads already
 complete in 16/30s against their 240s allowance; no unmeasured parallel rewrite
 or timeout expansion is bundled.
 
-**Local verification.** The complete source-censused Node owner passes 234 cases
+**Local verification at `d8139de3`.** The source-censused Node owner passes 234 cases
 (30 core, 41 HTTP, 56 ownership, 95 planner and twelve real CLI cases), with no
 skips/todos. The guarded frontend passes 1,735 cases in two packages; typecheck
 and lint pass. CI controls pass nineteen aggregate, 57 shard and six Node-gate
@@ -15033,9 +15033,43 @@ The existing export proof now rejects 66 variants; the earlier 46/58 totals
 remain as-of receipts.
 
 Both fresh independent correction review rounds and full frozen-source hosted
-A/B qualification remain pending at this implementation checkpoint. No passing
+A/B qualification remain pending at the `d8139de3` checkpoint. No passing
 partial retry, old-source receipt or missing cleanup witness closes that gate.
 This correction record claims no merge or P02b-7 delivery.
+
+**Independent correction round one.** Three fresh reviewers inspect
+`eb707ee8..d8139de3`: security/runtime (`gpt-6-astra`, xhigh), CI/provenance
+(`gpt-6.1-sol`, xhigh), and provider/corpus (`gpt-6.1-sol`, xhigh). They verify
+two Major findings, now corrected:
+
+- Compose selection reads the selected source before the hardened realm reader.
+  A temporary FIFO blocks both actual CLI entries before cancellation can run.
+  The shared first read now uses one no-follow, nonblocking, owner-only regular
+  file handle and caps bytes read even if the file grows. Six actual-entry
+  controls cover FIFO, symlink and oversized sources for seed validation and
+  reconciliation; every refusal exits naturally with no signal or child command.
+- The first census misses qualified collection references and other explicit
+  fixture types. Its declaration-bound replacement recognizes the repository's
+  explicit `IClassFixture<T>` classes and members of `ICollectionFixture<T>`
+  collections, excluding comments, literals and unrelated declarations. Unknown
+  or ambiguous fixture forms refuse. All 116 such classes are included; manually
+  constructed fixtures are outside this source-declaration census. This is not
+  a measurement of fixture starts or cost.
+
+On the same historical 5,902-case manifest, the corrected fixture witness covers
+2,527 ordinary cases / 1,147 methods; 2,338 cases / 1,057 methods change owner
+across A/B. The census correction changes no case assignment, source timing or
+weight. Its plan digest is
+`cbe9f7086f0304aa1d8483aba04ba8feb9b462c9468b085f2fec1fcadaa978f5`.
+
+The updated Node owner passes 240 cases (30/41/56/95/18), including the six
+actual-entry controls. Full guarded frontend verification passes 1,735 cases;
+typecheck passes. CI controls pass 59 shard, nineteen aggregate and six Node-gate
+cases; source topology remains complete. The provider reviewer independently
+passes seven offline transport/export/backchannel controls and both Docker
+census architecture cases. The mutable root status now distinguishes earlier
+completed step reviews from this correction gate. Round two and full
+frozen-source hosted A/B qualification remain pending at this checkpoint.
 
 ## Completion Criteria
 

@@ -294,21 +294,81 @@ def different_layouts(manifest, plan):
 
 
 def fixture_class_census(root=ROOT):
-    """Source-backed surfaces included in the shared-fixture layout witness.
+    """Explicit class fixtures and members of fixture-bearing collections.
 
-    This names fixture-bearing classes, not observed startup counts or costs.
-    The class fixture repeats per process just as collection fixtures do.
+    Recognize this repository's top-level classes, file-scoped namespaces and
+    xUnit .Name collection references. Mask comments/literals; bind attributes
+    and interfaces to one declaration. New/ambiguous forms refuse, rather than
+    silently narrowing the witness. This does not observe fixture starts/costs.
     """
-    result = set()
+    ignored = re.compile(r'//[^\n]*|/\*[\s\S]*?\*/|\$*(?P<raw>"{3,})[\s\S]*?(?P=raw)'
+                         r'|@"(?:""|[^"])*"|\$?"(?:\\[\s\S]|[^"\\])*"|\'(?:\\.|[^\'\\])*\'')
+    declaration = re.compile(r'(?m)^[ \t]*(?P<attributes>(?:\[[^\[\]]*\][ \t\r\n]*)*)'
+        r'(?:(?:public|internal|private|protected|sealed|partial|abstract|static|new|file|unsafe)\s+)*'
+        r'\bclass\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?P<header>[^{};]*)(?:\{|;)')
+    marker = re.compile(r'\b(?:IClassFixture|ICollectionFixture)\s*<'
+                        r'|\[[^\[\]]*\bCollection(?:Definition)?(?:Attribute)?\s*\(')
+    attribute = r'(?:^|\[|,)\s*(?:global\s*::\s*)?(?:Xunit\s*\.\s*)?%s(?:Attribute)?\s*\(([^()]*)\)'
+    classes = {}
     for path in (root / 'backend/tests/LearnStack.Tests.Integration').rglob('*.cs'):
-        source = path.read_text()
-        namespace = re.search(r'^namespace\s+([A-Za-z0-9_.]+)\s*;', source, re.MULTILINE)
-        names = re.findall(r'\[Collection\((?:SharedSchema|SharedKeycloakRealm|TenantRealmApiTestGroup)\.Name\)\]'
-                           r'[\s\S]*?\bclass\s+(\w+)', source)
-        names.extend(re.findall(r'\bclass\s+(\w+)[^{};]*:\s*IClassFixture<KeycloakFixture>', source))
-        if names:
-            require(namespace is not None, 'fixture_namespace_missing')
-            result.update(namespace[1] + '.' + name for name in names)
+        if {'bin', 'obj'} & set(path.relative_to(root).parts):
+            continue
+        source = ignored.sub(lambda match: re.sub(r'[^\n]', ' ', match[0]), path.read_text())
+        markers = list(marker.finditer(source))
+        if not markers:
+            continue
+        declared = list(declaration.finditer(source))
+        require(all(any(item.start() <= found.start() < item.end() for item in declared)
+                    for found in markers), 'fixture_declaration_unsupported')
+        namespaces = re.findall(r'^\s*namespace\s+([A-Za-z_][A-Za-z0-9_.]*)\s*;', source, re.MULTILINE)
+        require(len(namespaces) == 1, 'fixture_namespace_invalid')
+        namespace = namespaces[0]
+        imports = re.findall(r'^\s*using\s+([A-Za-z_][A-Za-z0-9_.]*)\s*;', source, re.MULTILINE)
+        for item in declared:
+            if not marker.search(item[0]):
+                continue
+            # Fixture declarations are top-level. A nested or inherited form
+            # must gain an executing control before entering this source census.
+            prefix = source[:item.start()]
+            require(prefix.count('{') == prefix.count('}'), 'fixture_declaration_unsupported')
+            name = namespace + '.' + item['name']
+            require(name not in classes, 'fixture_declaration_ambiguous')
+            header = re.fullmatch(r'\s*(?:\([^{};]*\))?\s*(?::(?P<bases>[^{};]*))?\s*', item['header'])
+            require(header is not None, 'fixture_declaration_unsupported')
+            bases = header['bases'] or ''
+            # All current explicit fixture arguments are simple/qualified types.
+            interfaces = re.findall(r'(?:^|,)\s*(?:global\s*::\s*)?(?:Xunit\s*\.\s*)?'
+                                    r'(IClassFixture|ICollectionFixture)\s*<\s*[A-Za-z_][A-Za-z0-9_.]*\s*>\s*(?=,|$)', bases)
+            require(len(interfaces) == len(re.findall(r'\bI(?:Class|Collection)Fixture\s*<', item['header'])),
+                    'fixture_declaration_unsupported')
+            definitions = re.findall(attribute % 'CollectionDefinition', item['attributes'])
+            references = re.findall(attribute % 'Collection', item['attributes'])
+            require(len(definitions) + len(references) == len(re.findall(
+                r'\bCollection(?:Definition)?(?:Attribute)?\s*\(', item['attributes'])),
+                'fixture_attribute_unsupported')
+            require(len(definitions) <= 1 and len(references) <= 1, 'fixture_attribute_ambiguous')
+            classes[name] = {'namespace': namespace, 'imports': imports,
+                'definition': bool(definitions), 'classFixture': 'IClassFixture' in interfaces,
+                'collectionFixture': 'ICollectionFixture' in interfaces,
+                'reference': re.sub(r'\s', '', references[0]) if references else None}
+    definitions = {name: item for name, item in classes.items() if item['definition']}
+    result = set()
+    for name, item in classes.items():
+        fixture = item['classFixture']
+        reference = item['reference']
+        if reference is not None:
+            require(re.fullmatch(r'(?:global::)?[A-Za-z_][A-Za-z0-9_.]*\.Name', reference),
+                    'fixture_collection_reference_invalid')
+            relative = reference[:-len('.Name')].removeprefix('global::')
+            namespaces = item['namespace'].split('.')
+            candidates = [relative] if reference.startswith('global::') else [
+                '.'.join(namespaces[:length]) + '.' + relative for length in range(len(namespaces), 0, -1)]
+            candidates += [relative] + [namespace + '.' + relative for namespace in item['imports']]
+            matches = list(dict.fromkeys(candidate for candidate in candidates if candidate in definitions))
+            require(len(matches) == 1, 'fixture_collection_unresolved')
+            fixture = fixture or definitions[matches[0]]['collectionFixture']
+        if fixture and not item['definition']:
+            result.add(name)
     require(result, 'fixture_class_census_empty')
     return sorted(result)
 

@@ -4,24 +4,14 @@ import { lstat, mkdir, open, readFile, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseEnv } from 'node:util';
+import { readComposeEnvironmentFile } from './compose.mjs';
 import { refuse } from './development-realm-errors.mjs';
 
 const privateKeys = ['KEYCLOAK_ADMIN', 'KEYCLOAK_ADMIN_PASSWORD', 'KEYCLOAK_WEB_CLIENT_SECRET'];
 
 /** Read through one no-follow handle; private credentials never come from a shared file. */
 export async function readRealmEnvironmentFile(path) {
-  let handle;
-  try {
-    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    const state = await handle.stat();
-    if (!state.isFile() || state.uid !== process.getuid() || state.nlink !== 1
-        || (state.mode & 0o077) !== 0 || state.size > 256 * 1024)
-      refuse('preflight', 'configuration');
-    const source = await handle.readFile('utf8');
-    if (Buffer.byteLength(source) > 256 * 1024) refuse('preflight', 'configuration');
-    return source;
-  } catch { refuse('preflight', 'configuration'); }
-  finally { if (handle) await handle.close().catch(() => refuse('cleanup', 'cleanup')); }
+  return readComposeEnvironmentFile(path);
 }
 
 export function isLocalDockerEndpoint(value) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { access, copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -13,8 +13,8 @@ import { repositoryRoot } from './compose.mjs';
 const canary = 'synthetic-private-cli-canary-73f2';
 const entry = fileURLToPath(new URL('./reconcile-development-realm.mjs', import.meta.url));
 
-async function cli(args, environment = {}) {
-  const child = spawn(process.execPath, [entry, ...args], {
+async function cli(args, environment = {}, script = entry) {
+  const child = spawn(process.execPath, [script, ...args], {
     // No executable is available to perform Docker inspection or Seeder work.
     env: { PATH: '', KEYCLOAK_ADMIN_PASSWORD: canary, KEYCLOAK_WEB_CLIENT_SECRET: canary, ...environment },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -69,6 +69,33 @@ test('an older private file is refused with a closed missing-secret reason befor
   assert.ok(!result.stderr.includes(canary));
   assert.equal(await readFile(file, 'utf8'), source);
 });
+
+for (const [name, script, args] of [
+  ['reconcile', entry, []],
+  ['seed validation', fileURLToPath(new URL('./seed.mjs', import.meta.url)), ['--validate-config']],
+]) {
+  for (const kind of ['FIFO', 'symlink', 'oversized file']) {
+    test(`the actual ${name} CLI refuses a selected ${kind} before reading or starting commands`, async t => {
+      const root = await mkdtemp(join(tmpdir(), 'learnstack-realm-private-entry-'));
+      t.after(() => rm(root, { recursive: true, force: true }));
+      const file = join(root, 'selected.env');
+      if (kind === 'FIFO') execFileSync('mkfifo', [file], { stdio: 'ignore' });
+      else if (kind === 'symlink') {
+        const target = join(root, 'private.env');
+        await writeFile(target, `KEYCLOAK_ADMIN_PASSWORD=${canary}\n`, { mode: 0o600 });
+        await symlink(target, file);
+      } else await writeFile(file, '#'.repeat(256 * 1024 + 1), { mode: 0o600 });
+      const result = await cli(args, { LEARNSTACK_COMPOSE_ENV_FILE: file }, script);
+      // A blocked synchronous read needs the helper's watchdog and produces
+      // SIGKILL. Successful refusal exits naturally with the closed diagnostic.
+      assert.equal(result.signal, null);
+      assert.equal(result.code, 1);
+      assert.equal(result.stdout, '');
+      assert.equal(result.stderr, 'realm: preflight/configuration\n');
+      assert.ok(!result.stderr.includes(canary));
+    });
+  }
+}
 
 async function ownedEntryFixture(t, scenario) {
   const root = await mkdtemp(join(tmpdir(), 'learnstack-real-realm-entry-'));

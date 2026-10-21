@@ -294,8 +294,11 @@ owns actual seed/demo and cancellation evidence. Step 4's
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns completed local implementation/reviews and source-bound qualification receipts.
 The PR's required checks own current-head hosted qualification; merge is separate.
-All four implementation steps and fresh correction reviews are complete locally;
-hosted qualification and PR review remain separate from merge.
+All four implementation steps and their recorded correction reviews are complete
+locally. The subsequent systematic correction pass retains its own review and
+current-head hosted qualification gates in the
+[correction record](docs/roadmap/phase-02b-events-auth.md#p02b-6-systematic-corrections-and-hosted-qualification-2026-10-21).
+PR review and merge remain separate.
 P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full

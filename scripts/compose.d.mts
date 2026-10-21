@@ -1,4 +1,5 @@
 export const repositoryRoot: string;
+export function readComposeEnvironmentFile(path: string): string;
 export function composeSelection(
   mode: string,
   environment?: Partial<NodeJS.ProcessEnv>,

@@ -1,9 +1,42 @@
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { closeSync, constants, existsSync, fstatSync, openSync, readSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refuse } from './development-realm-errors.mjs';
 
 export const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
+
+/** Qualify the selected private source before its first content read. */
+export function readComposeEnvironmentFile(path) {
+  const maximumBytes = 256 * 1024;
+  let descriptor;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const state = fstatSync(descriptor);
+    if (!state.isFile() || state.uid !== process.getuid() || state.nlink !== 1
+      || (state.mode & 0o077) !== 0 || state.size > maximumBytes)
+      refuse('preflight', 'configuration');
+    // Read at most one byte beyond the cap, even if an owned file grows after
+    // fstat. O_NONBLOCK and the type check prevent a FIFO from stalling selection.
+    const bytes = Buffer.alloc(maximumBytes + 1);
+    let size = 0;
+    while (size < bytes.length) {
+      const count = readSync(descriptor, bytes, size, bytes.length - size, null);
+      if (count === 0) break;
+      size += count;
+    }
+    if (size > maximumBytes) refuse('preflight', 'configuration');
+    const source = bytes.subarray(0, size).toString('utf8');
+    if (Buffer.byteLength(source) > maximumBytes) refuse('preflight', 'configuration');
+    return source;
+  } catch { refuse('preflight', 'configuration'); }
+  finally {
+    if (descriptor !== undefined) {
+      try { closeSync(descriptor); }
+      catch { refuse('cleanup', 'cleanup'); }
+    }
+  }
+}
 
 /** Docker prerequisites only; the selected file owns service configuration. */
 export function composeProcessEnvironment(environment = process.env) {
@@ -23,7 +56,7 @@ export function composeSelection(mode, environment = process.env, root = reposit
   const file = resolve(root, environment.LEARNSTACK_COMPOSE_ENV_FILE ?? '.env');
   if (!existsSync(file))
     throw new Error('Compose environment file is missing; run make public-env');
-  const source = readFileSync(file, 'utf8');
+  const source = readComposeEnvironmentFile(file);
   // Docker also reads its own controls from --env-file, after this process's
   // environment has been sanitized. Reject every supported assignment spelling.
   if (/^\s*(?:export\s+)?COMPOSE_[A-Za-z0-9_]*\s*(?:[=:]|$)/im.test(source))
