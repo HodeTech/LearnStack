@@ -169,6 +169,7 @@ type Result = {
     args: string[];
     label: string;
     confined: boolean;
+    prerequisitesPreserved: boolean;
     timeout?: number;
   }>;
   migrationSelection: boolean;
@@ -218,6 +219,10 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
   const startup = command === 'make' && args.includes('dev');
   const migration = command === 'make' && args.includes('migrate');
   const allowed = new Set(['PATH', 'HOME', 'DOTNET_ROOT', 'TMPDIR', 'APPDATA',
+    'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy',
+    'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
+    'NUGET_PACKAGES', 'NUGET_HTTP_CACHE_PATH', 'COREPACK_HOME', 'PNPM_HOME', 'XDG_CACHE_HOME',
+    'NPM_CONFIG_CACHE', 'npm_config_cache', 'NPM_CONFIG_STORE_DIR', 'npm_config_store_dir',
     ...(startup || migration || (command === 'docker' && args[1] === 'version') ? ['USERPROFILE', 'XDG_CONFIG_HOME', 'XDG_RUNTIME_DIR', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_HOST', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH', 'DOCKER_DEFAULT_PLATFORM', 'DOCKER_API_VERSION'] : []),
     ...(startup || migration ? ['LEARNSTACK_COMPOSE_PROJECT', 'LEARNSTACK_COMPOSE_ENV_FILE', 'LEARNSTACK_COMPOSE_MODE'] : []),
     ...(migration ? ['ConnectionStrings__Migration'] : []),
@@ -225,6 +230,9 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
   // The app seed is recognised by its real, argument-free Release DLL call too.
   if (command === 'dotnet' && args.length === 1 && args[0].endsWith('/LearnStack.Tools.Seeder.dll')) allowed.add('ConnectionStrings__Default');
   f.commands.push({ command, args, label: options.label, timeout: options.timeout,
+    prerequisitesPreserved: (command === 'docker' ? ['DOCKER_CONFIG', 'DOCKER_CONTEXT']
+      : ['HTTP_PROXY', 'http_proxy', 'NUGET_PACKAGES'])
+      .every(key => process.env[key] === undefined || env[key] === process.env[key]),
     confined: isCompose || Object.keys(env).every(key => allowed.has(key)) });
   if (migration) f.migrationSelection = env.LEARNSTACK_COMPOSE_PROJECT?.startsWith('learnstack-demo-')
     && env.LEARNSTACK_COMPOSE_ENV_FILE === join(${JSON.stringify(f.root)}, '.env')
@@ -817,7 +825,7 @@ describe('shared realm handoff lifecycle', () => {
       { command: 'make', args: ['migrate'] },
     ]);
     expect(result.commands.slice(0, 3).map(({ timeout }) => timeout)).toEqual([
-      5000, 180000, 180000,
+      5000, 600000, 300000,
     ]);
     expect(result.selectionIdentity).toBe(true);
     expect(result.signalIdentity).toBe(true);
@@ -883,6 +891,13 @@ describe('shared realm handoff lifecycle', () => {
 
   it('awaits reconciliation after app seed and before CI stops Keycloak or launches API/web', () => {
     const f = fixture();
+    Object.assign(f.env, {
+      HTTP_PROXY: 'http://upper.fixture.invalid',
+      http_proxy: 'http://lower.fixture.invalid',
+      NUGET_PACKAGES: join(f.root, 'nuget-cache'),
+      DOCKER_CONFIG: join(f.root, 'docker-config'),
+      DOCKER_CONTEXT: 'owned-fixture-context',
+    });
     const result = execute(f, 'demo');
     expect(result.failure).toBe('renderer boundary');
     expect(result.events.filter((event) => event !== 'dispose')).toEqual([
@@ -900,6 +915,12 @@ describe('shared realm handoff lifecycle', () => {
     expect(result.selectedDescription).toMatchObject({ file: join(f.root, '.env'), mode: 'e2e' });
     expect(result.selectedDescription!.project).toMatch(/^learnstack-demo-[a-f0-9]+$/);
     expect(result.commands.every((command) => command.confined)).toBe(true);
+    expect(result.commands.every((command) => command.prerequisitesPreserved)).toBe(true);
+    expect(result.commands.find(({ label }) => label === 'Required docker')).toMatchObject({
+      command: 'docker',
+      args: ['compose', 'version'],
+      prerequisitesPreserved: true,
+    });
     expect(result.migrationSelection).toBe(true);
     expect(existsSync(join(f.root, '.env'))).toBe(false);
   });

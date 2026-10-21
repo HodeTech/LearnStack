@@ -24,7 +24,7 @@ title: LearnStack Test Pyramid
 flowchart TB
   e2e[End-to-end / Playwright<br/>handful of golden flows]
   contract[Contract & API tests<br/>OpenAPI + provider fakes]
-  integration[Integration tests<br/>Testcontainers Postgres]
+  integration[Integration tests<br/>Testcontainers Postgres + pinned Keycloak issuance]
   arch[Architecture tests<br/>module boundaries + tenant invariants]
   unit[Unit tests<br/>domain + application + UI logic]
 

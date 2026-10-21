@@ -14,7 +14,7 @@ import { resolve, join } from 'node:path';
 import { getCACertificates } from 'node:tls';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { composeSelection, repositoryRoot } from './compose.mjs';
+import { composeProcessEnvironment, composeSelection, repositoryRoot } from './compose.mjs';
 import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
 import { demoRequest, vacant } from './demo-http.mjs';
 import { defaultServices, waitCompose } from './wait-compose.mjs';
@@ -239,6 +239,7 @@ export async function startDemo(mode) {
     ])
       await run(command, args, `Required ${command}`, {
         cwd: command === 'dotnet' ? backendRoot : repositoryRoot,
+        ...(command === 'docker' ? { env: composeProcessEnvironment() } : {}),
         timeout: 15000,
       });
     privateRoot = mkdtempSync(join(tmpdir(), 'learnstack-demo-'));

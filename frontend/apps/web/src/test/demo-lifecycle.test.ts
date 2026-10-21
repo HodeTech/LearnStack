@@ -226,12 +226,37 @@ describe('launcher-owned local database validation', () => {
     },
   );
   it('keeps every Seeder mode free of inherited credentials and diagnostics', () => {
+    const tooling = Object.fromEntries(
+      [
+        'HTTP_PROXY',
+        'HTTPS_PROXY',
+        'ALL_PROXY',
+        'NO_PROXY',
+        'http_proxy',
+        'https_proxy',
+        'all_proxy',
+        'no_proxy',
+        'NODE_EXTRA_CA_CERTS',
+        'SSL_CERT_FILE',
+        'SSL_CERT_DIR',
+        'NUGET_PACKAGES',
+        'NUGET_HTTP_CACHE_PATH',
+        'COREPACK_HOME',
+        'PNPM_HOME',
+        'XDG_CACHE_HOME',
+        'NPM_CONFIG_CACHE',
+        'npm_config_cache',
+        'NPM_CONFIG_STORE_DIR',
+        'npm_config_store_dir',
+      ].map((key) => [key, `selected-${key}`]),
+    );
     const base = {
       PATH: '/bin',
       HOME: '/home',
       DOTNET_ROOT: '/dotnet',
       TMPDIR: '/tmp',
       APPDATA: '/profile',
+      ...tooling,
       ConnectionStrings__Default: 'ambient-application',
       ConnectionStrings__Migration: 'owner',
       ConnectionStrings__OutboxDispatcher: 'dispatcher',
@@ -239,6 +264,7 @@ describe('launcher-owned local database validation', () => {
       'ConnectionStrings:OutboxDispatcher': 'colon-dispatcher',
       LEARNSTACK_OUTBOX_PW: 'dispatcher-password',
       DEBUG: '*',
+      NODE_TLS_REJECT_UNAUTHORIZED: '0',
     };
     const prerequisites = {
       PATH: '/bin',
@@ -246,6 +272,7 @@ describe('launcher-owned local database validation', () => {
       DOTNET_ROOT: '/dotnet',
       TMPDIR: '/tmp',
       APPDATA: '/profile',
+      ...tooling,
     };
     expect(publicSeederEnvironment(undefined, base)).toEqual(prerequisites);
     expect(publicSeederEnvironment('selected-application', base)).toEqual({

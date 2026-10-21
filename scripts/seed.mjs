@@ -38,7 +38,7 @@ export async function seedDevelopment({ selected, signal }) {
     });
     await processes.run('make', ['dev'], {
       cwd: repositoryRoot,
-      env: selectedPrerequisites, label: 'Selected stack startup', timeout: 180000,
+      env: selectedPrerequisites, label: 'Selected stack startup', timeout: 600000,
     });
     // Keep readiness Docker handles in this owner. A nested wait-postgres CLI
     // would create detached grandchildren with a competing teardown deadline.
@@ -46,7 +46,7 @@ export async function seedDevelopment({ selected, signal }) {
     await processes.run('make', ['migrate'], {
       cwd: repositoryRoot,
       env: { ...selectedPrerequisites, ConnectionStrings__Migration: values.ConnectionStrings__Migration },
-      label: 'Selected migrations', timeout: 180000,
+      label: 'Selected migrations', timeout: 300000,
     });
     await waitCompose(selected, processes, signal);
     await processes.run('dotnet', ['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'], {

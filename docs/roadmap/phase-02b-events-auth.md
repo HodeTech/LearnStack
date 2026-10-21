@@ -14897,6 +14897,24 @@ CSRF/logout and SDK bearer transport. P02b-8 owns final enforcement and erasure
 inventory; Phase 03 owns live membership/authorization. G13's session part stays
 Open until that next packet's accepted decision pass.
 
+### P02b-6 PR review corrections (2026-10-21)
+
+Six review observations are verified against `204a1039` and corrected. Tooling
+retains explicit proxy, private-CA and package-cache prerequisites; the Docker
+version probe uses the existing Compose environment owner. Application
+credentials remain confined. Reconciliation preserves cancellation/deadline
+classification after transport rejection. Failed lock initialization closes its
+handle and removes its exclusive marker before refusal. Seed stack startup and
+migrations retain finite 600s and 300s command budgets respectively; the realm
+HTTP/pass budgets remain 5s/120s. The integration pyramid and current realm
+issuance wording now match delivered provider coverage.
+
+Local qualification passes 160 Node controls, the complete guarded frontend
+suite (1,730 cases, zero skips/todos), web typecheck and focused lint. New fault
+controls fail four times against the original implementation and pass against
+the correction. Independent correction review and new-head PR qualification
+remain separate; earlier source-bound CI receipts are not promoted to this head.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

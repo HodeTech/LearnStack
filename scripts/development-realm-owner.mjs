@@ -46,12 +46,18 @@ export async function acquireRealmLock(identity, directory = join(tmpdir(), `lea
   let handle;
   try { handle = await open(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600); }
   catch (error) { refuse('lock', error.code === 'EEXIST' ? 'lock_busy' : 'configuration'); }
-  const nonce = randomUUID();
+  let nonce;
   let owned;
   try {
-    await handle.writeFile(nonce, 'utf8');
-    owned = await handle.stat();
-  } finally { await handle.close(); }
+    try {
+      nonce = randomUUID();
+      await handle.writeFile(nonce, 'utf8');
+      owned = await handle.stat();
+    } finally { await handle.close(); }
+  } catch {
+    await unlink(path).catch(() => refuse('cleanup', 'cleanup'));
+    refuse('lock', 'configuration');
+  }
   let released = false;
   return Object.freeze({
     release: async () => {

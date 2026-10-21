@@ -58,6 +58,40 @@ function refusal(stage, reason) {
   };
 }
 
+for (const reason of ['cancelled', 'deadline']) {
+  for (const outcome of ['reject', 'resolve']) {
+    test(`${reason} remains correctly classified when the transport ${outcome}s after abort`, async t => {
+      const parent = new AbortController();
+      const deadline = new AbortController();
+      t.mock.method(AbortSignal, 'timeout', () => deadline.signal);
+      let calls = 0;
+      await assert.rejects(reconcileRealm({
+        baseUrl: 'http://localhost:8080/', expectedIssuer: 'http://localhost:8080/realms/learnstack',
+        adminUsername: 'synthetic-admin', adminPassword: privateCanary, webSecret: privateCanary,
+        desired: {}, manifest: {}, signal: parent.signal,
+        transport: async (_url, { signal, stage }) => {
+          calls++;
+          if (reason === 'cancelled') parent.abort();
+          deadline.abort();
+          assert.equal(signal.aborted, true);
+          if (outcome === 'reject') throw new RealmError(stage, 'cancelled');
+          return { status: 200, bytes: Buffer.from('{}') };
+        },
+      }), refusal('discovery', reason));
+      assert.equal(calls, 1);
+    });
+  }
+}
+
+test('a transport refusal without an active abort is propagated unchanged', async () => {
+  const failure = new RealmError('discovery', 'transport');
+  await assert.rejects(reconcileRealm({
+    baseUrl: 'http://localhost:8080/', expectedIssuer: 'http://localhost:8080/realms/learnstack',
+    adminUsername: 'synthetic-admin', adminPassword: privateCanary, webSecret: privateCanary,
+    desired: {}, manifest: {}, transport: async () => { throw failure; },
+  }), error => error === failure);
+});
+
 test('discovery disagreement refuses before exposing administrator credentials', async t => {
   const f = await fixture(t, { discovery: 'https://foreign.fixture.invalid/realms/learnstack' });
   await assert.rejects(f.invoke(), refusal('discovery', 'configuration'));

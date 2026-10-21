@@ -120,8 +120,8 @@ Two realm strategies were considered:
   is the required issuer for the ADR-0064 profile: opaque `sub`, stable UUID `user_id`, optional
   scalar UUID `tenant_id` and optional scalar UUID `organization_id`. It carries
   no authoritative membership array or application-role grant. P02b-6 supplies
-  admin-controlled attributes/mappers and real issuance proof; the current realm
-  export does not yet issue that profile. Phase 03 owns live memberships.
+  admin-controlled attributes/mappers and real issuance proof; the committed realm
+  export issues that profile. Phase 03 owns live memberships.
 - **Realm-per-tenant**. Cleaner isolation, but a user with memberships in multiple tenants needs separate accounts; user discovery and SSO get more complex.
 
 The single tenant realm matches the global-user, tenant-scoped membership model.

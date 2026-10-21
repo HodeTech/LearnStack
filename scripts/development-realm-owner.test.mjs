@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
-  chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, unlink, utimes, writeFile,
+  chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, rm, symlink, unlink, utimes, writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -215,6 +215,39 @@ test('different target identities have independent local owners', async (t) => {
   await first.release();
   await second.release();
 });
+
+for (const operation of ['writeFile', 'stat', 'close']) {
+  test(`failed lock ${operation} closes the handle and removes the exclusive marker`, async t => {
+    const path = await directory(t);
+    const probe = join(path, 'handle-prototype');
+    const handle = await open(probe, 'wx');
+    const prototype = Object.getPrototypeOf(handle);
+    const method = operation === 'close' ? 'writeFile' : operation;
+    const original = prototype[method];
+    await handle.close();
+    await unlink(probe);
+    let failedHandle;
+    const failure = t.mock.method(prototype, method, async function(...args) {
+      failedHandle = this;
+      if (operation === 'close') {
+        const close = this.close;
+        this.close = async () => {
+          await close.call(this);
+          throw new Error('synthetic lock close failure');
+        };
+        return original.apply(this, args);
+      }
+      if (operation === 'writeFile') await original.call(this, 'partial nonce');
+      throw new Error('synthetic lock initialization failure');
+    });
+    await assert.rejects(acquireRealmLock('selected', path), refusal('lock', 'configuration'));
+    assert.equal(failedHandle.fd, -1);
+    assert.deepEqual(await readdir(path), []);
+    failure.mock.restore();
+    const next = await acquireRealmLock('selected', path);
+    await next.release();
+  });
+}
 
 test('permissive, non-directory and symlink lock directories are refused', async (t) => {
   const parent = await directory(t);

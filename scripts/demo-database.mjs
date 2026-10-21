@@ -102,7 +102,12 @@ export function validateDemoDatabaseConfiguration(values) {
 /** Every Seeder mode receives only its own credential and process prerequisites. */
 export function publicSeederEnvironment(applicationConnectionString, base = process.env) {
   const environment = {};
-  for (const key of ['PATH', 'HOME', 'DOTNET_ROOT', 'TMPDIR', 'APPDATA'])
+  for (const key of ['PATH', 'HOME', 'DOTNET_ROOT', 'TMPDIR', 'APPDATA',
+    'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
+    'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy',
+    'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
+    'NUGET_PACKAGES', 'NUGET_HTTP_CACHE_PATH', 'COREPACK_HOME', 'PNPM_HOME', 'XDG_CACHE_HOME',
+    'NPM_CONFIG_CACHE', 'npm_config_cache', 'NPM_CONFIG_STORE_DIR', 'npm_config_store_dir'])
     if (base[key] !== undefined) environment[key] = base[key];
   if (applicationConnectionString !== undefined)
     environment.ConnectionStrings__Default = applicationConnectionString;

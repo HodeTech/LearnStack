@@ -19,7 +19,12 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
   let mutations = 0;
   const request = async (path, options = {}) => {
     if (active.aborted) refuse(options.stage, signal?.aborted ? 'cancelled' : 'deadline');
-    const result = await transport(new URL(path, base), { ...options, signal: active, ca });
+    let result;
+    try { result = await transport(new URL(path, base), { ...options, signal: active, ca }); }
+    catch (error) {
+      if (active.aborted) refuse(options.stage, signal?.aborted ? 'cancelled' : 'deadline');
+      throw error;
+    }
     if (active.aborted) refuse(options.stage, signal?.aborted ? 'cancelled' : 'deadline');
     return result;
   };
