@@ -67,7 +67,8 @@ reconciler. Both combined entries reject an incomplete selected private realm
 source before infrastructure work; older files must explicitly add the BFF
 secret key. The [realm guide](../../../infra/keycloak/README.md) owns the exact
 contract and delivery status. `scripts/compose.mjs` shares project/files/env
-selection with the demo lifecycle; inherited Compose profiles cannot widen its default set.
+selection with the demo lifecycle; inherited Compose profiles cannot widen its
+default set.
 The direct tool runs
 from `backend/`, where `global.json` pins the SDK:
 

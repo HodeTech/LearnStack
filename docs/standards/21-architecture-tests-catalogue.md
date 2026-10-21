@@ -4522,7 +4522,8 @@ structural test proves — and what it does not.
 - **Test owner:** `TenantRealmIssuanceTests` and
   `TenantRealmProfileProtectionTests` in
   `backend/tests/LearnStack.Tests.Integration`.
-- **Status:** **Registered** — Accepted 2026-10-21; complete obligation/final qualification pending.
+- **Status:** **Registered** — Accepted 2026-10-21; complete obligation/final
+  qualification pending.
 - **Phase:** P02b-6 Steps 1/4.
 
 #### `Development_Realm_Reconciliation_Preserves_Accounts`
@@ -4549,7 +4550,8 @@ structural test proves — and what it does not.
 - **Test owner:** `TenantRealmReconciliationTests` in
   `backend/tests/LearnStack.Tests.Integration`; shared reconciler Node controls
   under `scripts/` own bounded transport/process/CLI evidence.
-- **Status:** **Registered** — Accepted 2026-10-21; complete obligation/final qualification pending.
+- **Status:** **Registered** — Accepted 2026-10-21; complete obligation/final
+  qualification pending.
 - **Phase:** P02b-6 Steps 2–4.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`

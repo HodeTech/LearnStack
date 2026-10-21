@@ -14434,8 +14434,8 @@ Step 3 entry-point changes proceed. Scoped prose wrapping and link checks pass.
 
 ## P02b-6 Step 3 — shared seed/demo lifecycle (2026-10-21)
 
-**Status: local implementation delivered; actual lifecycle qualification and
-both independent review rounds pending.** Work stays on `development`. Step 2
+**Status: local implementation and review round one delivered; actual lifecycle
+qualification and review round two pending.** Work stays on `development`. Step 2
 is closed at `b94f6a24`; the account-console adjustment above is Accepted and
 retains Step 4 implementation ownership.
 
@@ -14464,6 +14464,18 @@ controls pass with zero skips; the Release build reports no compiler warning or
 error. Syntax, Bash parsing and scoped diff checks pass. These checks establish
 local wiring and source controls, not actual Compose convergence, product
 browser behavior, final-source hosted CI or a BFF session.
+
+#### Step 3 review round one
+
+Two fresh independent reviewers inspected `2ef1e148..ce05931e` through the
+standards, security/lifecycle and testing/corpus lenses: `gpt-6-astra` at `xhigh`
+and `gpt-6.1-sol` at `xhigh`. No verified runtime, security or proof-correctness
+finding remained. The testing/corpus reviewer identified five over-width prose
+locations in the realm guide, catalogue, seed skill and root README. They are
+wrapped without changing the contract. The security reviewer independently ran
+all 142 realm Node controls with zero failures, cancellations, skips or todos.
+The actual seed/demo owner remains separate from both reviewers; no offline
+receipt substitutes for its pending lifecycle qualification.
 
 ## Completion Criteria
 

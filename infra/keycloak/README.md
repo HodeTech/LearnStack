@@ -144,7 +144,8 @@ refuses before writes. The pinned cached model excludes Keycloak Organization
 groups from that stream, including retained memberships after the feature is
 disabled. Its actual-token control is separate from the defensive refusal for
 unknown membership IDs. This is separate from LearnStack's own organization
-IDs. The named single-user import does not inherit realm default groups; new-account membership is independently checked as empty.
+IDs. The named single-user import does not inherit realm default groups;
+new-account membership is independently checked as empty.
 
 The entire projected change must also fit the existing bounded readers and
 request bodies. A configuration that would exceed those limits refuses during

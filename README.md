@@ -215,8 +215,8 @@ ordinary authoring pipeline and verifies completed acts before skipping them on 
 [SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
 Both combined entries then await the same bounded development-realm reconciler.
 Older private files must explicitly add `KEYCLOAK_WEB_CLIENT_SECRET`; existing
-passwords/MFA and provider IDs are preserved. The [realm guide](infra/keycloak/README.md)
-owns setup, refusal and qualification details.
+passwords/MFA and provider IDs are preserved. The
+[realm guide](infra/keycloak/README.md) owns setup, refusal and qualification details.
 
 ### 3. Prepare local HTTPS and start the applications
 
