@@ -17,9 +17,10 @@ public sealed record SeedIdentityManifest(IReadOnlyList<IdentityManifestUser> Us
             || users.Any(user => !user.UserId.IsInitialized() || user.UserId.Value == Guid.Empty
                 || user.UserId == UserId.SystemActor || user.UserId.Value.Version != 7
                 || scopeIds.Contains(user.UserId.Value) || !SeedData.All.Contains(user.Tenant)
-                || user.LegacyTenantAttribute is not null && (user.LegacyTenantAttribute != "tenant-a"
-                    || user.Tenant != SeedData.English
-                    || user.Username is not ("demo-admin@tenant-a.test" or "demo-learner@tenant-a.test"))
+                || user.LegacyTenantAttribute is not null && !SeedData.IdentityUsers.Any(declared =>
+                    declared.LegacyTenantAttribute is not null && declared.UserId == user.UserId
+                    && declared.Tenant == user.Tenant && declared.Username == user.Username
+                    && declared.LegacyTenantAttribute == user.LegacyTenantAttribute)
                 || user.AccountCapability != new SeedAccountCapability("account", "manage-account")))
         {
             throw new InvalidOperationException("Development identity declaration is inconsistent.");

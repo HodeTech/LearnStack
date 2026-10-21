@@ -151,6 +151,14 @@ empty project populations remain covered by discovery. Final results reconcile
 those records with TRX, including all summary counters. A display-name-only
 progress record cannot distinguish colliding theory rows.
 
+For the five enumerated live Keycloak test classes, failed execution measurements
+retain only the fixture's existing closed startup stage, reason and cleanup
+result. Unknown, ambiguous or oversized messages supply no diagnostic fields;
+raw messages, exception types and provider output remain private. These fields
+neither establish quiescence nor replace Docker absence, complete results or a
+successful execution receipt. Completed-case streams and retained TRX contain
+no raw startup failure text.
+
 Native alone uses the exclusive disposable Ubuntu 24.04 VM and closed
 `scripts/ci-native-provisioning.py` owner. Setup verifies a supported collector or
 writes only literal `core`; it never restores a pipe. The unchanged child fixture

@@ -15124,6 +15124,50 @@ current status. This source checkpoint claims no merge readiness, passing retry
 or next-packet delivery. Source-bound hosted receipts are retained separately
 from this local checkpoint.
 
+**Frozen-source A failure and diagnosis follow-up.** Run
+[`39628288185`](https://github.com/HodeTech/LearnStack/actions/runs/39628288185),
+attempt 1, tests `0c9d28768758aff8f350abbb5b09daf6a7f6e75a` through merge source
+`8560880e96320ce82a7eb3b2f124dba8b71d1668`; both have tree
+`b71883fd423567db55b48c5b74cdad6b3bbd647a`. All 27 jobs finish: eighteen pass,
+seven execution owners fail and both dependent aggregates refuse. No B attempt
+or failed-only retry follows this failed A.
+
+- Base discovery contains 5,907 cases: 2,915 base, 433 Architecture, 2,528
+  ordinary and 31 native. The manifest digest is
+  `187da443e8fc5e3b179714fe7bf8f718ae4a246a7d1ad7ea9d13d8cce5073d34`;
+  the plan digest remains `cbe9f7086f0304aa1d8483aba04ba8feb9b462c9468b085f2fec1fcadaa978f5`.
+  These discovery counts are not passing execution counts.
+- The actual genericity assertion rejects a demo username in the manifest
+  projection. A local run reproduces it. The projection now binds a legacy
+  identity to its complete declared actor, tenant, username and legacy attribute
+  in `SeedData`, without a demo-name branch or guard exception. Eight affected
+  Architecture cases and all three offline export cases pass; unique-username
+  swaps, tenant rebinding and a fresh valid UUIDv7 actor are rejected.
+- Six ordinary owners retain eighteen failed Keycloak cases with 1 ms result
+  durations. Their existing closed fixture-startup message is absent from
+  retained diagnostics. Failed ownership receipts report forced cleanup without
+  a Docker-absence witness; neither a provider leak nor a startup cause is
+  inferred from those fields. An unchanged owned Linux fixture starts in
+  21.665s with its original two-minute cap, strict TLS and actual loopback
+  binding checks. That ARM64 container probe does not reproduce the hosted
+  x64 VM or its load, and does not establish the failed cause.
+- Frontend, meta, OpenAPI, secret scan and the production demo pass. Frontend
+  executes 1,738 cases; meta executes 240 Node cases. Its sixty combined CI
+  controls comprise **41 shard/plan and nineteen aggregate controls**; running
+  the aggregate module separately repeats those nineteen, not nineteen new
+  controls. The demo retains nine pages, 27 report pairs, nine screenshots,
+  actual TLS/timeout refusals and complete owned cleanup. These successes do
+  not qualify the failed backend execution or the whole source.
+
+The bounded diagnosis follow-up preserves only the fixture's existing finite
+startup stage/reason/cleanup sentence for five explicit integration classes.
+It rejects unknown, ambiguous and oversized messages and never exports raw
+provider text. Cleanup diagnostics do not supply a cleanup witness; test
+outcomes, complete case/result guards and failure status remain unchanged.
+This uses ADR-0063's existing sanitized finite-fault seam, with no new authority,
+timeout, selection or admission policy. Current-head full A/B qualification
+remains open until actual complete executions pass.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

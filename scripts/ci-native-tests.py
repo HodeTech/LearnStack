@@ -124,12 +124,39 @@ PUBLIC_FAILURE_DETAILS = {'browser-' + name for name in (
     'setup initial-request initial-status initial-source initial-site initial-release watch-connect change '
     'source-barrier refresh-request refresh-status refresh-type refresh-source refresh-site refresh-release after'
 ).split()}
+KEYCLOAK_FAILURE_CLASSES = {
+    'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
+    'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
+}
+KEYCLOAK_FAILURE_STAGES = {
+    'certificate', 'network', 'database', 'import_input', 'provider_start',
+    'mapped_endpoint', 'loopback_bindings', 'discovery',
+}
+KEYCLOAK_FAILURE_REASONS = {
+    'container_exit', 'deadline', 'readiness_timeout', 'http_transport', 'argument',
+    'invalid_state', 'unsupported_operation', 'missing_mapping', 'provider_error',
+}
+KEYCLOAK_FAILURE_CLEANUP = {'completed', 'failed'}
 
 
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
     message = raw.get('ErrorMessage')
     if not isinstance(message, str):
+        return None
+    if case['assembly'] == 'learnstack.tests.integration' and any(
+            case['name'].startswith('LearnStack.Tests.Integration.TenancyIdentity.' + name + '.')
+            for name in KEYCLOAK_FAILURE_CLASSES):
+        # xUnit preserves this test-owned sentence in each fixture failure's
+        # ErrorMessage. Do not infer startup from a 1 ms result or missing fixture.
+        marker = 'Keycloak fixture startup failed at '
+        if len(message) > 65536 or message.count(marker) != 1:
+            return None
+        match = re.search(re.escape(marker) + r'([a-z_]{1,32})/([a-z_]{1,32}); '
+                          r'owned cleanup ([a-z_]{1,32})\.', message)
+        if (match and match[1] in KEYCLOAK_FAILURE_STAGES and match[2] in KEYCLOAK_FAILURE_REASONS
+                and match[3] in KEYCLOAK_FAILURE_CLEANUP):
+            return {'stage': match[1], 'reason': match[2], 'cleanup': match[3]}
         return None
     message = message[:65536]
     prefix = 'LearnStack.Tests.Integration.Database.'

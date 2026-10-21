@@ -452,6 +452,113 @@ except launcher.Refusal as failure:
             self.assertEqual(bool(progress.failure_locations), outcome == 2)
             self.assertNotIn('production build', stream.getvalue())
 
+    def test_keycloak_startup_vocabulary_matches_the_existing_fixture_source(self):
+        directory = ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity'
+        source = (directory / 'KeycloakFixture.cs').read_text()
+        initialize = source.split('public async Task InitializeAsync()', 1)[1].split(
+            'internal async Task<KeycloakAdminClient>', 1)[0]
+        self.assertEqual(set(re.findall(r'\bstage = "([a-z_]+)";', initialize)),
+                         self.owner.KEYCLOAK_FAILURE_STAGES)
+        reasons = initialize.split('var reason = exception switch', 1)[1].split('};', 1)[0]
+        self.assertEqual(set(re.findall(r'=> "([a-z_]+)"', reasons)), self.owner.KEYCLOAK_FAILURE_REASONS)
+        self.assertEqual(set(re.findall(r'\bcleanup = "([a-z_]+)";', initialize)),
+                         self.owner.KEYCLOAK_FAILURE_CLEANUP)
+        self.assertIn('"Keycloak fixture startup failed at " + stage + "/" + reason', initialize)
+        self.assertIn('"; owned cleanup " + cleanup + "."', initialize)
+        self.assertEqual({'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
+                          'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests'},
+                         self.owner.KEYCLOAK_FAILURE_CLASSES)
+        for name in self.owner.KEYCLOAK_FAILURE_CLASSES:
+            test = (directory / (name + '.cs')).read_text()
+            self.assertIn('namespace LearnStack.Tests.Integration.TenancyIdentity;', test)
+            self.assertIn('class ' + name, test)
+            self.assertIn('KeycloakFixture', test)
+
+    def test_keycloak_startup_details_require_named_cases_and_one_complete_bounded_sentence(self):
+        parse = self.owner.closed_failure_details
+        prefix = 'LearnStack.Tests.Integration.TenancyIdentity.'
+        sentence = ('Keycloak fixture startup failed at provider_start/unsupported_operation; '
+                    'owned cleanup completed.')
+        case = self.case(1, prefix + 'TenantRealmIssuanceTests.Proof(row: True)')
+        for name in self.owner.KEYCLOAK_FAILURE_CLASSES:
+            named = {**case, 'name': prefix + name + '.Proof(row: True)'}
+            for stage in self.owner.KEYCLOAK_FAILURE_STAGES:
+                for reason in self.owner.KEYCLOAK_FAILURE_REASONS:
+                    for cleanup in self.owner.KEYCLOAK_FAILURE_CLEANUP:
+                        message = ('System.InvalidOperationException : Keycloak fixture startup failed at '
+                                   + stage + '/' + reason + '; owned cleanup ' + cleanup + '.\nPRIVATE-CANARY')
+                        self.assertEqual({'stage': stage, 'reason': reason, 'cleanup': cleanup},
+                                         parse(named, {'ErrorMessage': message}))
+        boundary = sentence + 'x' * (65536 - len(sentence))
+        self.assertEqual({'stage': 'provider_start', 'reason': 'unsupported_operation', 'cleanup': 'completed'},
+                         parse(case, {'ErrorMessage': boundary}))
+        for message in (None, {}, sentence.replace('provider_start/', 'PRIVATE-CANARY/'),
+                        sentence.replace('/unsupported_operation', '/PRIVATE-CANARY'),
+                        sentence.replace('cleanup completed', 'cleanup PRIVATE-CANARY'),
+                        sentence.replace('provider_start/', 'provider_start\n/'),
+                        sentence.replace('; owned cleanup ', '; owned cleanup\x00 '),
+                        sentence[:-1], sentence + '\n' + sentence,
+                        sentence + '\n' + sentence.replace('provider_start/', 'unknown/'),
+                        'The following constructor parameters did not have matching fixture data: PRIVATE-CANARY',
+                        boundary + 'x', 'x' * 65536 + sentence):
+            with self.subTest(message_type=type(message).__name__):
+                self.assertIsNone(parse(case, {'ErrorMessage': message}))
+        for changed in ({**case, 'assembly': 'learnstack.tests.unit'},
+                        {**case, 'name': prefix + 'OtherTests.Proof'},
+                        {**case, 'name': prefix + 'TenantRealmIssuanceTestsOther.Proof'},
+                        {**case, 'name': 'LearnStack.Tests.Integration.Database.TenantRealmIssuanceTests.Proof'}):
+            self.assertIsNone(parse(changed, {'ErrorMessage': sentence}))
+        self.assertIsNone(parse(case, {'ErrorMessage': 'unrelated failure', 'ErrorStackTrace': sentence}))
+
+    def test_keycloak_fixture_results_keep_only_closed_measurements_and_truthful_sanitized_failures(self):
+        sentence = ('Keycloak fixture startup failed at provider_start/unsupported_operation; '
+                    'owned cleanup completed.')
+        messages = [sentence, sentence, sentence.replace('/unsupported_operation', '/PRIVATE-CANARY'),
+                    sentence + '\n' + sentence, sentence + 'x' * 65536,
+                    'The following constructor parameters did not have matching fixture data: PRIVATE-CANARY']
+        cases = [self.case(index + 1, 'LearnStack.Tests.Integration.TenancyIdentity.'
+                           'TenantRealmIssuanceTests.Proof(row: ' + str(index) + ')')
+                 for index in range(len(messages))]
+        stream, console = io.StringIO(), io.StringIO()
+        progress = self.progress(self.root / 'keycloak.diag', 'LearnStack.Tests.Integration', cases, stream)
+        results = []
+        for index, (case, message) in enumerate(zip(cases, messages)):
+            result = self.execution_result(case, outcome=1 if index == 1 else 2)
+            result['ErrorMessage'] = 'System.InvalidOperationException : ' + message + '\nPRIVATE-CANARY'
+            result['ErrorStackTrace'] = '/private/PRIVATE-CANARY/KeycloakFixture.cs:line 141'
+            results.append(result)
+        with contextlib.redirect_stdout(console):
+            progress.results({'NewTestResults': results})
+        expected = {'assembly': cases[0]['assembly'], 'id': cases[0]['id'], 'locations': [],
+                    'details': {'stage': 'provider_start', 'reason': 'unsupported_operation', 'cleanup': 'completed'}}
+        self.assertEqual([expected] + [{'assembly': case['assembly'], 'id': case['id'], 'locations': []}
+                                     for case in cases[2:]], progress.failure_locations)
+        measurements = self.root / 'measurements.json'
+        self.owner.write_json(measurements, {'projects': [{'failureLocations': progress.failure_locations}]})
+        self.assertEqual(expected, json.loads(measurements.read_text())['projects'][0]['failureLocations'][0])
+        rows = [json.loads(line) for line in stream.getvalue().splitlines()]
+        self.assertEqual(console.getvalue(), stream.getvalue())
+        self.assertEqual([{**case, 'outcome': 'Passed' if index == 1 else 'Failed',
+                           'duration': '00:00:00.0010000'} for index, case in enumerate(cases)], rows)
+        self.assertFalse(progress.completed, 'Failure details never supply a completion witness')
+        for text in (stream.getvalue(), console.getvalue(), measurements.read_text()):
+            for private in ('PRIVATE-CANARY', '/private/', 'System.InvalidOperationException', sentence):
+                self.assertNotIn(private, text)
+        self.assertNotIn('provider_start', stream.getvalue())
+        output = self.root / 'output'
+        path = self.trx(output / 'results', cases[:1], outcome='Failed', raw_canary=True)
+        tree = ET.parse(path)
+        raw_output = tree.find('t:Results/t:UnitTestResult/t:Output', self.owner.NS)
+        tag = lambda name: '{' + self.owner.NS['t'] + '}' + name
+        ET.SubElement(ET.SubElement(raw_output, tag('ErrorInfo')), tag('Message')).text = sentence
+        tree.write(path, encoding='utf-8')
+        retained = self.owner.trx_cases(path, sanitize=True)
+        self.assertEqual('Failed', retained[0]['outcome'])
+        self.assertEqual([], ET.parse(path).findall('.//t:Output', self.owner.NS))
+        self.assertNotIn('PRIVATE-CANARY', path.read_text())
+        self.assertNotIn('provider_start', path.read_text())
+        self.refuses('results_incomplete', self.owner.validate_results, output, cases[:1])
+
     def test_outage_failure_details_keep_only_consistent_bounded_timing_and_closed_pool_facts(self):
         case = self.case(1)
         case['name'] = ('LearnStack.Tests.Integration.Database.BackgroundJobRuntimeFacadeTests.'

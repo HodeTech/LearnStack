@@ -21,6 +21,10 @@ public sealed partial class TenantRealmExportTests
             users.SetItem(2, users[2] with { LegacyTenantAttribute = "tenant-a" }),
             users.SetItem(0, users[0] with { LegacyTenantAttribute = "another-legacy-tenant" }),
             users.SetItem(0, users[0] with { Username = "unowned@tenant-a.test" }),
+            users.SetItem(0, users[0] with { Username = users[1].Username })
+                .SetItem(1, users[1] with { Username = users[0].Username }),
+            users.SetItem(0, users[0] with { Tenant = SeedData.Yoga }),
+            users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(Guid.CreateVersion7()) }),
             users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(Guid.NewGuid()) }),
             users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(SeedData.English.TenantId.Value) }),
         };
