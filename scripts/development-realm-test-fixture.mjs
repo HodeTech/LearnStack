@@ -273,4 +273,3 @@ export function providerTransport(fixture) {
   };
   return { requests, transport };
 }
-

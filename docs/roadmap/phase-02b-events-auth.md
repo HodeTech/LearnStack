@@ -14776,7 +14776,8 @@ required.
 
 The CI plan adds advisory weights for 37 realm method selectors (35 live-provider
 methods and two offline export controls) from the three complete 55-case TRXs
-above. Those receipts contain 53 live-provider cases and two offline controls. Exact completed row durations are summed and
+above. Those receipts contain 53 live-provider cases and two offline controls.
+Exact completed row durations are summed and
 scaled by the existing historical ordinary ratio, 2.271245. Artifact digests
 are retained; source commit is null because it is not embedded in the TRXs.
 Fixture startup and discovery costs are not inferred from case durations.
@@ -14866,7 +14867,8 @@ binds its twenty successful execution owners to source `4a3173d8`. Independent
 download/readback recomputes assignment from the actual adapter discovery and
 verifies **5,902 distinct passing case identities, zero skips**: 2,910 base,
 433 architecture, 2,528 ordinary Docker and 31 native. The 53 live-provider
-cases and two offline export controls all pass. Every selected case matches its completed record; all owners
+cases and two offline export controls all pass. Every selected case matches its
+completed record; all owners
 report actual completion and cleanup, without forced cleanup, and all Docker
 owners report no retained resources. The longest execution job takes 860
 seconds, below the unchanged twenty-minute ceiling. Both required backend
