@@ -14613,8 +14613,8 @@ complete hosted CI; this closeout claims neither a BFF session nor packet merge.
 
 ## P02b-6 Step 4 — real identity qualification and closeout (2026-10-21)
 
-**Status: local implementation and reviews complete; hosted qualification in
-progress.** Work stays on `development`. Steps 1–3 are complete locally;
+**Status: implementation and independent reviews complete; the PR checks own
+final-head qualification.** Work stays on `development`. Steps 1–3 are complete locally;
 their source-bound receipts
 above retain their limits. The maintainer approved the narrow account-console
 capability and mapper adjustment above. No further decision approval is pending.
