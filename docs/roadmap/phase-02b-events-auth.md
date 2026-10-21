@@ -15679,6 +15679,16 @@ error/path exclusion. Whitespace and clean tracked-worktree checks pass; all
 review/fixture subprocesses finish. No build, provider or hosted execution is
 repeated. A fresh second diagnostic review round remains required.
 
+**Diagnostic correction, second independent round.** Two different reviewers
+inspect `330a8e2e..e7a5bf04`: `gpt-6-astra` at `medium` and `gpt-6.1-sol` at
+`high`. Both approve without an actionable finding. Each independently passes
+the focused projection and removed-mapping negative; the second also passes all
+43 offline controls and literal/path/line/trace/output-boundary probes. The
+launcher is byte-identical to its baseline after removing the one added mapping.
+Whitespace and clean tracked-worktree checks pass; all review/fixture
+subprocesses finish. Both diagnostic review rounds are complete. No provider or
+hosted qualification is claimed; the failed lifecycle receipt remains unwaived.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
