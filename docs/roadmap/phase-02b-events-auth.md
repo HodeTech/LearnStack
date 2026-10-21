@@ -32,8 +32,11 @@ unchanged-plan A/B qualification and identical merge trees.
 [package](#p02b-6-decision-package-2026-10-20) at `6d75e532` and its four-step
 implementation plan. G12's realm/reconciliation/callback choices and G13's
 issuance-lifetime part are Accepted; G13's session part stays Open for P02b-7.
-P02b-6 implementation, P02b-7 BFF sessions and P02b-8 enforcement/erasure
-inventory remain pending; Phase 02b remains in progress. Earlier dated delivery
+P02b-6's four implementation steps and local reviews are complete; the
+[Step 4 record](#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+owns final-source qualification and correction status. P02b-7 BFF sessions and
+P02b-8 enforcement/erasure inventory remain pending; Phase 02b remains in
+progress. Earlier dated delivery
 and failed-run receipts keep their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -308,7 +311,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-3** | **Complete and merged — [PR #31 closeout](#p02b-3-merge-and-closeout-2026-10-15).** Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | **Complete and merged — [PR #32 closeout](#p02b-4-merge-and-closeout-2026-10-19).** Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; all nine implementation steps and their review gates delivered; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
 | **P02b-5** | **Complete and merged — [PR #33 closeout](#p02b-5-merge-and-closeout-2026-10-20).** Five steps and correction reviews complete under Accepted ADR-0064/0065/0066. API authentication: closed JWT profile, ordered reconciliation and attributed rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
-| **P02b-6** | Realm and seed: the shared client scope, the mappers, the user-profile declaration, UUID attributes agreeing with `SeedData`, the warm-realm reconciler, the Keycloak test fixture | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
+| **P02b-6** | **Implementation and local reviews complete — [Step 4 qualification](#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21).** Realm and seed: shared client scope/mappers, protected user-profile UUIDs agreeing with `SeedData`, safe warm reconciliation, narrow account self-service and real Keycloak/API proofs | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
 | **P02b-7** | BFF session: Auth.js, the cookie session, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
 | **P02b-8** | `LS0002`, the carrier reconciliations this phase owes, the re-verification that the behavioural check is still required under the name it reports, and the exit checks | G16, G18 (the erasure inventory) Accepted |
 
@@ -14610,8 +14613,9 @@ complete hosted CI; this closeout claims neither a BFF session nor packet merge.
 
 ## P02b-6 Step 4 — real identity qualification and closeout (2026-10-21)
 
-**Status: implementation and provider qualification in progress.** Work stays
-on `development`. Steps 1–3 are complete locally; their source-bound receipts
+**Status: local implementation and reviews complete; hosted qualification in
+progress.** Work stays on `development`. Steps 1–3 are complete locally;
+their source-bound receipts
 above retain their limits. The maintainer approved the narrow account-console
 capability and mapper adjustment above. No further decision approval is pending.
 
@@ -14831,6 +14835,68 @@ formats remain refused. The complete guarded frontend rerun passes **1,730 cases
 in two packages, zero skips/todos**. Fresh focused review verifies this correction
 before final-source qualification.
 
+Two new independent correction reviewers, `gpt-6.1-sol` and `gpt-6-astra` at
+`high`, approve `1f0a8d06` without an actionable finding. The former independently
+passes all nineteen focused genericity cases and validates their actual JSON
+report with the repository guard; both pass the three actual-workflow controls.
+The latter also checks exact helper ownership, refusal of five adjacent/unknown
+paths, continued reporter inclusion and refusal of a runtime import of the
+excluded Python source. Workspace typecheck, targeted lint, hook
+formatting, whitespace and link/fragment checks pass. The correction changes
+neither the product runtime nor CI membership or time ceilings.
+
+### Step 4 implementation closeout and PR qualification handoff
+
+All four approved implementation steps, their two independent review rounds and
+the required fresh correction reviews are complete on `development`.
+
+| Step | Delivered result | Review status |
+|---|---|---|
+| 1 | Executable import/profile/scopes, four typed stable identities and real fresh issuance | Both rounds and verified corrections complete |
+| 2 | Bounded non-destructive warm reconciliation, credential continuity and preflight/readback | Both rounds and fresh correction reviews complete |
+| 3 | One seed/demo operation and cancellation/cleanup owner with real lifecycle replay | Both rounds and fresh correction reviews complete |
+| 4 | Narrow account self-service, real profile/registration/API proofs, CI ownership and carrier closure | Both rounds and fresh correction reviews complete |
+
+The completed first hosted run
+[`39587211807`](https://github.com/HodeTech/LearnStack/actions/runs/39587211807)
+binds its twenty successful execution owners to source `4a3173d8`. Independent
+download/readback recomputes assignment from the actual adapter discovery and
+verifies **5,902 distinct passing case identities, zero skips**: 2,910 base,
+433 architecture, 2,528 ordinary Docker and 31 native. The 55 real-provider
+cases all pass. Every selected case matches its completed record; all owners
+report actual completion and cleanup, without forced cleanup, and all Docker
+owners report no retained resources. The longest execution job takes 860
+seconds, below the unchanged twenty-minute ceiling. Both required backend
+aggregates pass and verify their artifact/API provenance. Meta, OpenAPI, secret
+scan and the hosted production demo also pass. The known frontend source-owner
+failure above keeps this **whole run failed**; no corrected-head success is
+inferred from it.
+
+The plan digest is
+`c380356092978a923d4ba98108c3a1f7f13e5160bec1522f7848a368af68092d`;
+the hosted manifest digest is
+`736b7f268398e429ea8b5c04cc2d619d29418dfc9dd3f37a8637639d1fdf9422`.
+The actual hosted toolchain is SDK 10.0.402, VSTest
+18.7.0-release-26505-111 and adapter 2.8.2, recorded rather than inferred from
+local SDK 10.0.302. The declared SDK roll-forward permits this feature band.
+
+Both P02b-6 behavioural catalogue obligations are now **Implemented** with their
+actual Integration/meta owners. Published counts are 231 Implemented, 133 in the
+Architecture assembly and 98 outside; the five corpus-consistency cases verify
+those counts and owners with zero skips. No new structural rule or test-method
+count is invented. The seven live required contexts and strict protection are
+independently read back unchanged; no repository setting is modified.
+
+This is the implementation/review closeout. The PR's required checks own final
+head qualification, including complete unchanged-plan A/B assignments and the
+production demo. A full rerun selects B; rerunning only failed jobs cannot
+establish a complete alternate assignment. No partial run, old-head receipt or
+local success substitutes for those checks, and this record claims no merge.
+P02b-7 is next: its decision pass owns BFF/session custody, lifetimes, refresh,
+CSRF/logout and SDK bearer transport. P02b-8 owns final enforcement and erasure
+inventory; Phase 03 owns live membership/authorization. G13's session part stays
+Open until that next packet's accepted decision pass.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
@@ -14850,7 +14916,9 @@ event verification. P02b-4's job infrastructure is complete and merged; its
 [merge closeout](#p02b-4-merge-and-closeout-2026-10-19) owns exact qualification.
 P02b-5 is complete and merged after all five steps and their independent reviews;
 its [merge closeout](#p02b-5-merge-and-closeout-2026-10-20) owns exact final-source
-qualification and validation limits. P02b-6–8 remain pending.
+qualification and validation limits. P02b-6's four implementation steps and local
+reviews are complete; its Step 4 record owns final-source qualification.
+P02b-7–8 remain pending.
 The whole phase is not complete.
 
 - An aggregate change and its outbox row commit together and roll back together,
@@ -15006,10 +15074,11 @@ CI and merge verification; its dated local receipts retain their original scope.
   what **G20** records, over a non-empty route set, and the authenticated refusal
   carries `tenant_mismatch` while the anonymous one stays byte-identical to an unknown
   host's.
-- The realm export declares `tenant_id` and `user_id` in its user-profile configuration
-  with admin-only view and edit; a variant export marking either attribute user-editable
-  fails the case; and a seed user's own token cannot write either through Keycloak's
-  account REST surface.
+- The realm export declares `tenant_id`, `user_id` and `organization_id` in its
+  user-profile configuration with admin-only view and edit; a variant marking any
+  of them user-editable fails the same protection predicate. A seed user's own
+  account token cannot write/delete any of them, while ordinary edits succeed;
+  registration cannot inject them into the stored account.
 - Authenticated and id-addressed routes have tenant and organization isolation
   cases as `learnstack_app`: an identifier from another tenant or an invisible
   sibling organization reveals no resource, and each route has a visible-resource

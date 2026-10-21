@@ -162,8 +162,10 @@ the tenant development realm uses a configured 900-second access-token lifespan.
 value; the development reconciler enforces it with no conflicting override on
 either named client. P02b-6 Steps 1–3 supply the fresh-import definition and
 bounded reconciliation through both seed/demo entries; their delivery records
-own actual local qualification. Step 4 retains complete real-token/API proof
-and final-source hosted qualification. ADR-0064's one-hour
+own actual local qualification. Step 4 delivers complete real-token/API proof
+after both independent reviews; its
+[record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+owns final-source hosted qualification. ADR-0064's one-hour
 API acceptance ceiling and 30-second skew remain separate from issuance.
 P02b-7 owns BFF idle/absolute lifetimes and refresh custody; that part of G13
 remains Open.

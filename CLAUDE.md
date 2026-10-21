@@ -259,7 +259,7 @@ All five steps are complete. A subsequent
 verifies external findings. ADR-0065 is Accepted on 2026-10-20 after maintainer
 review. Its implementation and local proofs are delivered; the remediation
 record retains completed independent correction reviews and pre-merge receipts.
-Realm reconciliation, BFF sessions and phase exit remain P02b-6–8.
+BFF sessions and phase exit remain P02b-7–8; P02b-6's current record follows below.
 The [second external-review follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
 owns subsequent runtime/proof corrections and their source-bound reviews.
 [ADR-0066](docs/decisions/0066-bounded-tenant-subject-admission.md) is Accepted —
@@ -292,7 +292,9 @@ verification; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21)
 owns actual seed/demo and cancellation evidence. Step 4's
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-owns current implementation and qualification; Step 4 remains in progress;
+owns all completed local implementation/reviews and final-source qualification.
+All four implementation steps and fresh correction reviews are complete locally;
+hosted qualification and PR review remain separate from merge.
 P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full

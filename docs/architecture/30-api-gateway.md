@@ -446,8 +446,10 @@ current metadata; disabling last-known-good fallback does not promise either an
 outage grace period or immediate refusal of every warm-cache request. The
 [Phase 11 authentication activation gate](../roadmap/phase-11-production-hardening.md#tenant-authentication-production-activation)
 owns topology, cold/warm-cache and key-rotation drills, diagnostic/readiness decisions
-and operational runbooks before production use. P02b-6/7 still own actual realm
-issuance and browser-session integration.
+and operational runbooks before production use. P02b-6 delivers actual realm
+issuance and safe development convergence; its
+[Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+owns qualification. Browser-session integration remains P02b-7.
 
 ## 6. Rate limit policy
 

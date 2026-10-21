@@ -158,7 +158,9 @@ not deferred to the showcase phase.
   [record](phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21)
   owns actual seed/demo and cancellation evidence. Step 4's
   [record](phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-  owns the locally passing provider/API proofs and pending independent reviews;
+  owns completed local provider/API proofs, both independent review rounds and
+  verified corrections; final-source hosted/PR qualification remains separate
+  from merge. All four implementation steps are complete locally;
   G13's session part stays Open.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
   retains its source-bound corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
@@ -167,7 +169,7 @@ not deferred to the showcase phase.
   [implementation record](phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
   retains source-bound validation and independent reviews; the merge closeout
   above owns final-source qualification.
-  Realm reconciliation, BFF sessions and phase-exit enforcement remain P02b-6–8.
+  BFF sessions and phase-exit enforcement remain P02b-7–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)

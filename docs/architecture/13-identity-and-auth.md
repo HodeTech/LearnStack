@@ -30,8 +30,10 @@ non-destructive development reconciliation, exact callbacks and issuance TTL.
 Steps 1–3 supply the committed fresh-import scopes/profile/client definition,
 typed identity manifest, bounded warm reconciliation and shared seed/demo entry.
 Their local reviews and actual lifecycle qualification are complete. Step 4
-qualifies the approved account capability and complete provider/API security
-proofs. G13's BFF session part
+delivers the approved account capability and complete provider/API security
+proofs after both independent review rounds and verified corrections; its
+[record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+owns final-source qualification. G13's BFF session part
 stays Open for P02b-7. The
 [development realm guide](../../infra/keycloak/README.md) owns exact callbacks,
 private sources and current upgrade status.

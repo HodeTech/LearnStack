@@ -184,8 +184,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**229 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
-The other 96 are no less binding, and most could not live there. The table says where
+**231 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
+The other 98 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -4526,8 +4526,10 @@ structural test proves — and what it does not.
 - **Test owner:** `TenantRealmIssuanceTests`, `TenantRealmProfileProtectionTests`
   and `TenantRealmApiTests` in
   `backend/tests/LearnStack.Tests.Integration`.
-- **Status:** **Registered** — Accepted 2026-10-21; complete obligation/final
-  qualification pending.
+- **Status:** **Implemented** — `TenantRealmIssuanceTests`,
+  `TenantRealmProfileProtectionTests` and `TenantRealmApiTests`; P02b-6 Step 4.
+  Actual provider/API controls run in ordinary Docker CI; local and hosted
+  receipts and independent review closure live in the Step 4 record.
 - **Phase:** P02b-6 Steps 1/4.
 
 #### `Development_Realm_Reconciliation_Preserves_Accounts`
@@ -4560,8 +4562,10 @@ structural test proves — and what it does not.
   `TenantRealmSelfServiceTests` in `backend/tests/LearnStack.Tests.Integration`;
   shared reconciler Node controls
   under `scripts/` own bounded transport/process/CLI evidence.
-- **Status:** **Registered** — Accepted 2026-10-21; complete obligation/final
-  qualification pending.
+- **Status:** **Implemented** — `TenantRealmReconciliationTests` and
+  `TenantRealmSelfServiceTests`, with offline Node controls in meta; P02b-6
+  Steps 2–4. Actual warm-provider, lifecycle and cancellation receipts and
+  independent review closure live in the Step 4 record.
 - **Phase:** P02b-6 Steps 2–4.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`

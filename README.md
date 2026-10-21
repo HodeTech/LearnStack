@@ -93,10 +93,11 @@ under Accepted ADR-0064/0065/0066. All five steps and verified correction bundle
 completed their independent review rounds. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
 records final-source CI, unchanged-plan A/B qualification and identical merge trees.
-P02b-6's realm/TTL package is Accepted; Steps 1–3 completed their local review
-rounds and actual shared seed/demo qualification. Step 4 is qualifying account
-self-service, protected profiles and real provider credentials through the API;
-complete final-source and hosted proof remain pending.
+P02b-6's four implementation steps and local independent reviews are complete:
+real issuance, protected profiles, narrow account self-service and safe shared
+seed/demo reconciliation. Its
+[Step 4 record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+owns source-bound verification and final hosted/PR qualification.
 BFF sessions and phase exit remain P02b-7–8; browser sign-in is not implemented.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
@@ -168,7 +169,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs and the closed tenant bearer/AccountSite boundary | Realm reconciliation and BFF sessions in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs, the closed tenant bearer/AccountSite boundary and development realm reconciliation | BFF sessions and phase-exit enforcement in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
@@ -328,7 +329,7 @@ three product surfaces. See the
 | Database | PostgreSQL 18 | Migrations, tenant / organization RLS and integration proofs |
 | Frontend | Next.js 15 · React 19 · TypeScript | App/UI scaffolds; generated SDK and injected transport implemented |
 | Observability | OpenTelemetry · Serilog → OTLP | Cross-cutting backend instrumentation implemented |
-| Identity | Keycloak | P02b-5 tenant API bearer boundary active; real realm reconciliation and browser sessions remain P02b-6–7 |
+| Identity | Keycloak | Tenant API bearer boundary, real issuance and safe development realm reconciliation implemented; browser sessions remain P02b-7 |
 | Storage and search | SeaweedFS · PostgreSQL full-text search | Selected architecture; feature delivery belongs to Phases 04–05 |
 | Live classroom | LiveKit through a provider adapter | Planned in Phase 08c, starting with Cloud and retaining a self-hosted path |
 

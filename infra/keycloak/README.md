@@ -119,9 +119,10 @@ before either combined entry starts stack or database work. Do not wipe the
 provider database to upgrade. The tool reports fixed refusal reasons, keeps
 partial Admin changes durable and requires an explicit verified rerun. The
 [accepted account-console adjustment](../../docs/roadmap/phase-02b-events-auth.md#account-console-self-service-capability--proposal-2026-10-21)
-is implemented in Step 4 source; its actual stock-parity, warm-preservation and
-profile-protection qualification is recorded with that step. Packet completion
-and final-source hosted qualification remain separate.
+is implemented; its actual stock-parity, warm-preservation, profile/API
+qualification and both completed independent review rounds are recorded with
+Step 4. The PR's required checks own final-head qualification; merge remains a
+separate maintainer action.
 
 Fresh import declares both stock `account` and `account-console` definitions,
 including the stock role/composite and scope-mapping baseline. Warm reconciliation

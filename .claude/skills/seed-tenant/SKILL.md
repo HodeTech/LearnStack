@@ -232,5 +232,8 @@ P02b-6 Step 1 declares development authentication personas in `SeedData.Identity
 and exposes credential-free `--identity-manifest`; that mode opens no data source.
 Fresh Keycloak accounts come from the checked realm import. The accepted
 [P02b-6 package](../../../docs/roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
-owns the separate development reconciler and its later seed/demo wiring.
+owns the separate development reconciler, awaited by both combined seed/demo
+entries after application seed convergence. Its
+[Step 4 record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+owns real account/API qualification and the completed independent reviews.
 Direct .NET seeding creates no provider account or application membership.
