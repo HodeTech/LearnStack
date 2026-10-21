@@ -134,8 +134,9 @@ discovered case identities, complete results and zero skips: a filter matching
 nothing exits `0` without those guards.
 
 Host tests use real application module configuration. Data and request-level
-isolation tests use real PostgreSQL plus application module configuration;
-identity-provider tests use real Keycloak plus application module configuration.
+isolation tests use real PostgreSQL plus application module configuration.
+Identity-provider tests use real Keycloak with the committed realm configuration;
+combined provider/API cases also use real application module configuration.
 All four use no mocked repositories and cover happy paths and edge cases.
 
 Under [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md),

@@ -15442,6 +15442,20 @@ issuance choice. The original phase approval remains valid; this new ADR needs
 separate maintainer acceptance before its authority/cross-link changes. It does
 not change issuance, API acceptance or the Open G13 session portion.
 
+#### First independent correction review
+
+Two new reviewers inspect `abd45611..47069be2`: `gpt-6-astra` at `xhigh` for
+runtime/security/proof behavior, and `gpt-6.1-sol` at `high` for ADR/corpus and
+approval provenance. The first finds no actionable runtime issue and independently
+passes 74 owner/reconciliation Node controls, three export cases, 38 frontend
+lifecycle cases and a Release build with zero warnings/errors; no skips/todos.
+The second verifies seven ADR parser controls and all scoped links/fragments.
+It finds one documentation overstatement: provider-only cases do not configure
+application modules. The corrected population sentence requires committed realm
+configuration for provider tests and application module configuration for the
+combined provider/API cases. ADR-0067 remains Proposed with no verified finding.
+The second fresh review round remains pending at this correction receipt.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
