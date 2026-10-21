@@ -14434,8 +14434,8 @@ Step 3 entry-point changes proceed. Scoped prose wrapping and link checks pass.
 
 ## P02b-6 Step 3 — shared seed/demo lifecycle (2026-10-21)
 
-**Status: both review rounds delivered; verified round-two correction and actual
-lifecycle qualification in progress.** Work stays on `development`. Step 2
+**Status: complete locally after both independent review rounds, verified fixes
+and fresh correction reviews.** Work stays on `development`. Step 2
 is closed at `b94f6a24`; the account-console adjustment above is Accepted and
 retains Step 4 implementation ownership.
 
@@ -14576,6 +14576,36 @@ three closed logs have zero generated-secret matches. Exact-project teardown
 finds zero containers, networks or volumes, removes only the owned environment
 and retains the unrelated database. That replay predates the single-owner
 readiness correction and does not prove its cancellation behavior.
+
+#### Step 3 final correction verification and local closeout
+
+Two further fresh independent reviewers, `gpt-6-astra` and `gpt-6.1-sol` at
+`xhigh`, inspect the complete Step 3 source through `1f5cc04e`, including the
+single-owner correction. Each independently passes all 31 realm-lifecycle
+cases. No production lifecycle or credential-confinement finding remains.
+The proof reviewer identifies one Minor in the fixture observer: saved tracked
+group IDs are probed again after the native helper observed absence. The fixture
+now retains that native ESRCH witness and refuses a later probe/signal through a
+retired handle; both observation samples consult it. The same reviewer verifies
+the correction with no remaining actionable finding. Production source is
+unchanged. The corrected file independently passes all 31 cases with its actual
+JSON accepted by the repository report validator; targeted lint and formatting
+pass. The latest complete guarded run passes 1,730 cases with zero skips/todos.
+
+The final actual replay uses runtime commit `1f5cc04e` and tree
+`62a27504adfeeaae32ca1dad60abcb213b5b0dff`: fresh seed writes zero in 35.66
+seconds, the owned TTL/two-scope drift repairs three in 14.82 seconds, and the
+third run writes zero in 14.38 seconds. All exits are zero with no timeout or
+generated-secret match. Independent readbacks retain all four account
+projections and the user/client-ID/Hub digests. Exact-project cleanup completes
+in 10.49 seconds with zero containers/networks/volumes; the unrelated database
+remains running. Only the hash-matching owned private environment is removed;
+the isolated `development` clone remains clean. The receipt SHA-256 is
+`adf46a23598adc7e116210d5925cdcc283d03cdad2d76a2bde5fe2c1ade6732e`.
+The subsequent fixture-observer correction changes no runtime qualification
+input. Step 3 closes locally. Step 4 retains the approved account-console delta,
+actual API/profile/registration qualification, final-source production demo and
+complete hosted CI; this closeout claims neither a BFF session nor packet merge.
 
 ## Completion Criteria
 

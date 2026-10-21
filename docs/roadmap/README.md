@@ -153,8 +153,11 @@ not deferred to the showcase phase.
   owns fresh-provider qualification and implementation reviews. Step 2 is
   complete locally after both review rounds and fresh fix reviews; its [record](phase-02b-events-auth.md#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21)
   owns the Accepted server-information response allowance and actual correction
-  qualification. Step 3 is in progress; Step 4 remains pending and G13's session
-  part stays Open.
+  qualification. Step 3 is complete locally after both review rounds and fresh
+  corrections; its
+  [record](phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21)
+  owns actual seed/demo and cancellation evidence. Step 4 is in progress;
+  G13's session part stays Open.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
   retains its source-bound corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
   is Accepted — 2026-10-20; its subject-cap, cleanup and refusal refinements are

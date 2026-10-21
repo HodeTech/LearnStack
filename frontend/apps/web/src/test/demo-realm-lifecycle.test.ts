@@ -543,6 +543,18 @@ import { seedDevelopment } from './seed.mjs';
 import { stopTestChild } from '../frontend/apps/web/scripts/stop-test-child.mjs';
 const controller = new AbortController();
 const tracked = [];
+const retiredGroups = new Set();
+const nativeKill = process.kill.bind(process);
+// Observe the native helper's absence witness before any saved PID can recycle.
+// The fixture also fails if a later observer or cleanup reuses that retired handle.
+process.kill = (pid, signal) => {
+  if (pid < 0 && retiredGroups.has(-pid)) throw new Error('Fixture group is already retired');
+  try { return nativeKill(pid, signal); }
+  catch (error) {
+    if (error.code === 'ESRCH' && pid < 0 && tracked.some(child => child.pid === -pid)) retiredGroups.add(-pid);
+    throw error;
+  }
+};
 const start = DemoProcesses.prototype.start;
 DemoProcesses.prototype.start = function(...args) {
   const running = start.apply(this, args);
@@ -595,7 +607,8 @@ try {
   clearTimeout(watchdog);
   const pid = ownedPid();
   const childSurvived = pid !== undefined && ownedDockerAlive(pid);
-  const trackedGroupAlive = () => tracked.some(child => child.pid !== undefined && alive(-child.pid));
+  const trackedGroupAlive = () => tracked.some(child => child.pid !== undefined
+    && !retiredGroups.has(child.pid) && alive(-child.pid));
   const groupSurvived = trackedGroupAlive();
   const before = existsSync(${JSON.stringify(heartbeat)}) ? readFileSync(${JSON.stringify(heartbeat)}, 'utf8') : '';
   await new Promise(resolve => setTimeout(resolve, 300));
@@ -623,6 +636,7 @@ try {
     }
   }
   writeFileSync(${JSON.stringify(cleanupComplete)}, 'complete');
+  process.kill = nativeKill;
 }
 process.stdout.write(JSON.stringify(result));
 `,
