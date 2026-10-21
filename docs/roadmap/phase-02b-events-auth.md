@@ -14534,6 +14534,49 @@ This receipt qualifies the named source, not the subsequent credential fix or
 Step 4's final PR head. Final-source production demo/hosted qualification remains
 Step 4 work.
 
+#### Step 3 correction review and single readiness owner
+
+Two fresh independent correction inspections, `gpt-6-astra` and `gpt-6.1-sol` at
+`xhigh`, inspect the credential fix at `29bb18df`. Both independently reproduce
+an additional cancellation defect: the nested `make wait-postgres` CLI creates
+its own detached Docker command owner. Outer and inner two-second escalation
+can race, killing the inner owner before it kills Docker. Synthetic Docker
+commands continue heartbeating after the outer seed reports cancellation and
+completed cleanup. Each probe cleans only its recorded owned groups.
+
+The correction keeps PostgreSQL readiness directly in the seed's existing
+`DemoProcesses` owner: selected `make dev`, direct PostgreSQL readiness, selected
+`make migrate`, then full readiness. Stack startup receives no migration
+credential; only migration receives it. Increasing a teardown timeout or a
+successful happy-path run does not substitute for that ownership change.
+The proof reviewer also exposes the actual-Makefile regression's default
+five-second test allowance under contention: the combined run passes 147 of
+148 cases, while its isolated rerun passes in 3.84 seconds. Its two bounded
+subprocess runs require an explicit test allowance.
+
+The updated two-file focused run passes 136 cases. Actual copied seed/process/
+Makefile/readiness sources now prove cancellation and deadline cleanup with a
+TERM-ignoring synthetic Docker command and a 300ms post-return heartbeat check.
+The checked nested-readiness mutation fails the same survival predicate in both
+cases. Only the nested fixture's cleanup is delayed to expose that competing
+owner deterministically; the clean owner retains the native stop helper and
+canonical readiness budget. Deadline shortening is internal to the test driver.
+Fixture retirement guards never re-probe or signal a handle after observed
+absence. The actual-Makefile case has a finite 45-second allowance; each cleanup
+case has 30 seconds and bounded child drivers. No Docker or .NET behavior is
+inferred from executable stubs. Full guarded frontend validation passes 1,730
+cases in two packages with zero skips/todos; typecheck, targeted lint, 142 Node
+controls and link checks pass. Fresh correction review and actual replay on this
+single-owner source remain pending.
+
+A separate isolated actual replay at `29bb18df` again completes fresh, warm and
+third seed passes with **0 / 3 / 0 realm writes**. Independent readback restores
+TTL 900 and both scopes while retaining account, client-ID and Hub digests. All
+three closed logs have zero generated-secret matches. Exact-project teardown
+finds zero containers, networks or volumes, removes only the owned environment
+and retains the unrelated database. That replay predates the single-owner
+readiness correction and does not prove its cancellation behavior.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

@@ -324,9 +324,12 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, 'compose-version\\n');
       join(root, 'bin/make'),
       `#!${process.execPath}
 const { appendFileSync } = require('node:fs');
-const forbidden = Object.keys(process.env).filter(key => /keycloak|connectionstrings|_pw$|bff|debug/i.test(key) && key !== 'ConnectionStrings__Migration');
-if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['dev', 'wait-postgres', 'migrate']) || forbidden.length || process.env.ConnectionStrings__Migration !== 'Username=learnstack_migration' || process.env.LEARNSTACK_COMPOSE_PROJECT !== 'learnstack-dev' || process.env.LEARNSTACK_COMPOSE_ENV_FILE !== ${JSON.stringify(join(root, '.env'))} || process.env.LEARNSTACK_COMPOSE_MODE !== 'dev') process.exit(13);
-appendFileSync(${JSON.stringify(join(root, 'events'))}, 'prepare\\n');
+const args = process.argv.slice(2);
+const startup = JSON.stringify(args) === JSON.stringify(['dev']);
+const migration = JSON.stringify(args) === JSON.stringify(['migrate']);
+const forbidden = Object.keys(process.env).filter(key => /keycloak|connectionstrings|_pw$|bff|debug/i.test(key) && !(migration && key === 'ConnectionStrings__Migration'));
+if ((!startup && !migration) || forbidden.length || process.env.ConnectionStrings__Migration !== (migration ? 'Username=learnstack_migration' : undefined) || process.env.LEARNSTACK_COMPOSE_PROJECT !== 'learnstack-dev' || process.env.LEARNSTACK_COMPOSE_ENV_FILE !== ${JSON.stringify(join(root, '.env'))} || process.env.LEARNSTACK_COMPOSE_MODE !== 'dev') process.exit(13);
+appendFileSync(${JSON.stringify(join(root, 'events'))}, (startup ? 'stack-up' : 'migrate') + '\\n');
 `,
       { mode: 0o700 },
     );
@@ -361,7 +364,7 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
       });
     expect(launch().status).toBe(0);
     expect(readFileSync(join(root, 'events'), 'utf8')).toBe(
-      'compose-version\nprepare\nready\nbuild\nappseed\nrealm\n',
+      'compose-version\nstack-up\nready\nmigrate\nready\nbuild\nappseed\nrealm\n',
     );
     const script = join(root, 'scripts/seed.mjs');
     const source = readFileSync(script, 'utf8');
@@ -371,7 +374,7 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
     const refused = launch();
     expect(refused.status).not.toBe(0);
     expect(readFileSync(join(root, 'events'), 'utf8')).toBe(
-      'compose-version\nprepare\nready\nbuild\n',
+      'compose-version\nstack-up\nready\nmigrate\nready\nbuild\n',
     );
   });
   it('reads the selected migration env file and refuses its runtime role before any database act', () => {

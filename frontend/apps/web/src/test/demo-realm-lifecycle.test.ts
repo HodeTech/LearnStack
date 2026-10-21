@@ -65,9 +65,9 @@ function fixture() {
   writeFileSync(
     join(root, 'scripts/wait-compose.mjs'),
     `export function defaultServices() { return ['postgres', 'keycloak']; }
-export async function waitCompose(selected, processes, signal) {
+export async function waitCompose(selected, processes, signal, postgresOnly = false) {
   const f = globalThis.lifecycle;
-  f.events.push('ready');
+  f.events.push(postgresOnly && f.subject === 'seed' ? 'postgres-ready' : 'ready');
   if (f.selected === undefined) f.selected = selected;
   if (f.signal === undefined) f.signal = signal;
   f.selectionIdentity &&= f.selected === selected;
@@ -206,6 +206,7 @@ import { join } from 'node:path';
 import { DemoProcesses } from './demo-process.mjs';
 import { composeSelection } from './compose.mjs';
 const f = globalThis.lifecycle = { events: [], commands: [], scenario: ${JSON.stringify(scenario)},
+  subject: ${JSON.stringify(subject)},
   selectionIdentity: true, signalIdentity: true, migrationSelection: false,
   controller: new AbortController(), seedFailure: new Error('seed refusal'),
   realmFailure: new Error('realm refusal'), boundary: new Error('renderer boundary') };
@@ -214,10 +215,12 @@ DemoProcesses.prototype.daemon = function() { f.events.push('daemon'); throw new
 DemoProcesses.prototype.run = async function(command, args, options = {}) {
   const env = options.env ?? {};
   const isCompose = command === 'docker' && args[0] === 'compose' && args.includes('--project-name');
+  const startup = command === 'make' && args.includes('dev');
   const migration = command === 'make' && args.includes('migrate');
   const allowed = new Set(['PATH', 'HOME', 'DOTNET_ROOT', 'TMPDIR', 'APPDATA',
-    ...(migration || (command === 'docker' && args[1] === 'version') ? ['USERPROFILE', 'XDG_CONFIG_HOME', 'XDG_RUNTIME_DIR', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_HOST', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH', 'DOCKER_DEFAULT_PLATFORM', 'DOCKER_API_VERSION'] : []),
-    ...(migration ? ['ConnectionStrings__Migration', 'LEARNSTACK_COMPOSE_PROJECT', 'LEARNSTACK_COMPOSE_ENV_FILE', 'LEARNSTACK_COMPOSE_MODE'] : []),
+    ...(startup || migration || (command === 'docker' && args[1] === 'version') ? ['USERPROFILE', 'XDG_CONFIG_HOME', 'XDG_RUNTIME_DIR', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_HOST', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH', 'DOCKER_DEFAULT_PLATFORM', 'DOCKER_API_VERSION'] : []),
+    ...(startup || migration ? ['LEARNSTACK_COMPOSE_PROJECT', 'LEARNSTACK_COMPOSE_ENV_FILE', 'LEARNSTACK_COMPOSE_MODE'] : []),
+    ...(migration ? ['ConnectionStrings__Migration'] : []),
     ...(options.label === 'Contextual seed convergence' || options.label === 'Application seed convergence' ? ['ConnectionStrings__Default'] : [])]);
   // The app seed is recognised by its real, argument-free Release DLL call too.
   if (command === 'dotnet' && args.length === 1 && args[0].endsWith('/LearnStack.Tools.Seeder.dll')) allowed.add('ConnectionStrings__Default');
@@ -228,7 +231,8 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     && env.LEARNSTACK_COMPOSE_MODE === 'e2e' && env.ConnectionStrings__Migration?.includes('Username=learnstack_migration');
   if (${JSON.stringify(subject)} === 'seed') {
     if (command === 'docker' && JSON.stringify(args) === JSON.stringify(['compose', 'version'])) f.events.push('compose-version');
-    if (migration) f.events.push('prepare');
+    if (startup) f.events.push('stack-up');
+    if (migration) f.events.push('migrate');
   }
   if (command === 'dotnet' && args.includes('--demo-manifest')) return JSON.stringify([{ host: 'localhost' }]);
   if (command === 'openssl' && args[0] === 'req') {
@@ -442,6 +446,9 @@ export async function reconcileDevelopmentRealm({ selected, signal }) {
   ];
   return {
     root: f.root,
+    environment,
+    selectedFile,
+    sensitiveValues,
     run() {
       writeFileSync(events, '');
       const execution = spawnSync('make', ['seed'], {
@@ -467,7 +474,272 @@ export async function reconcileDevelopmentRealm({ selected, signal }) {
   };
 }
 
+type ReadinessCleanupResult = {
+  reason: string;
+  observedDocker: boolean;
+  readinessTimeouts: number[];
+  sameOwner: boolean;
+  childSurvivesOwnerCleanup: boolean;
+  otherOwnedGroupSurvivesOwnerCleanup: boolean;
+  heartbeatContinuesAfterCleanup: boolean;
+  nestedCleanupStarted: boolean;
+};
+
+function readinessCleanupFixture(kind: 'cancelled' | 'deadline') {
+  const f = makeSeedFixture();
+  const marker = join(f.root, 'owned-docker.json');
+  const heartbeat = join(f.root, 'heartbeat');
+  const nestedCleanup = join(f.root, 'nested-cleanup');
+  const cleanupComplete = join(f.root, 'fixture-cleanup-complete');
+  const dockerRetired = join(f.root, 'docker-retired');
+  const ownership = randomBytes(16).toString('hex');
+  writeFileSync(
+    join(f.root, 'bin/docker'),
+    `#!${process.execPath}
+import { appendFileSync, writeFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+if (args.includes('config')) {
+  process.on('SIGTERM', () => {});
+  writeFileSync(${JSON.stringify(marker)}, JSON.stringify({ pid: process.pid, ownership: ${JSON.stringify(ownership)} }));
+  writeFileSync(${JSON.stringify(heartbeat)}, '.');
+  setInterval(() => appendFileSync(${JSON.stringify(heartbeat)}, '.'), 20);
+} else if (args.includes('up') || JSON.stringify(args) === JSON.stringify(['compose', 'version'])) process.exit(0);
+else process.exit(19);
+`,
+    { mode: 0o700 },
+  );
+  const stopHelper = join(f.root, 'frontend/apps/web/scripts/stop-test-child.mjs');
+  writeFileSync(
+    join(f.root, 'frontend/apps/web/scripts/stop-test-child-actual.mjs'),
+    readFileSync(stopHelper),
+  );
+  // Hold only the nested CLI cleanup to expose competing owners deterministically.
+  // The seed owner still executes the unchanged native stop helper and deadlines.
+  writeFileSync(
+    stopHelper,
+    `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { stopTestChild as actualStop } from './stop-test-child-actual.mjs';
+export async function stopTestChild(child) {
+  if (process.argv[1]?.endsWith('/wait-compose.mjs')) {
+    writeFileSync(${JSON.stringify(nestedCleanup)}, 'started');
+    await new Promise(resolve => setTimeout(resolve, 4000));
+  }
+  await actualStop(child);
+  if (existsSync(${JSON.stringify(marker)})) {
+    const value = JSON.parse(readFileSync(${JSON.stringify(marker)}, 'utf8'));
+    if (value.ownership === ${JSON.stringify(ownership)} && value.pid === child.pid)
+      writeFileSync(${JSON.stringify(dockerRetired)}, 'retired');
+  }
+}
+`,
+  );
+  const driver = join(f.root, 'scripts/readiness-cleanup-driver.mjs');
+  writeFileSync(
+    driver,
+    `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { composeSelection } from './compose.mjs';
+import { DemoProcesses } from './demo-process.mjs';
+import { seedDevelopment } from './seed.mjs';
+import { stopTestChild } from '../frontend/apps/web/scripts/stop-test-child.mjs';
+const controller = new AbortController();
+const tracked = [];
+const start = DemoProcesses.prototype.start;
+DemoProcesses.prototype.start = function(...args) {
+  const running = start.apply(this, args);
+  tracked.push(running.child);
+  return running;
+};
+const run = DemoProcesses.prototype.run;
+const readinessTimeouts = [];
+let seedOwner;
+let sameOwner = true;
+DemoProcesses.prototype.run = function(command, args, options = {}) {
+  if (options.label === 'Docker Compose prerequisite') seedOwner = this;
+  if (options.label === 'Compose readiness') {
+    readinessTimeouts.push(options.timeout);
+    sameOwner &&= this === seedOwner;
+    if (${JSON.stringify(kind)} === 'deadline') options = { ...options, timeout: 2000 };
+  }
+  return run.call(this, command, args, options);
+};
+const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
+let retired = false;
+const ownedDockerAlive = pid => {
+  retired ||= existsSync(${JSON.stringify(dockerRetired)});
+  if (retired) return false;
+  if (alive(pid)) return true;
+  retired = true;
+  writeFileSync(${JSON.stringify(dockerRetired)}, 'retired');
+  return false;
+};
+const ownedPid = () => {
+  if (!existsSync(${JSON.stringify(marker)})) return undefined;
+  const value = JSON.parse(readFileSync(${JSON.stringify(marker)}, 'utf8'));
+  if (value.ownership !== ${JSON.stringify(ownership)} || !Number.isSafeInteger(value.pid) || value.pid <= 0) throw new Error('Invalid fixture ownership');
+  return value.pid;
+};
+let cancelled = false;
+const poll = setInterval(() => {
+  if (${JSON.stringify(kind)} === 'cancelled' && existsSync(${JSON.stringify(marker)}) && !cancelled) {
+    cancelled = true;
+    controller.abort();
+  }
+}, 10);
+const watchdog = setTimeout(() => controller.abort(), 9000);
+let result;
+try {
+  let reason = '';
+  try { await seedDevelopment({ selected: composeSelection('e2e'), signal: controller.signal }); }
+  catch (error) { reason = error.reason ?? 'unexpected'; }
+  clearInterval(poll);
+  clearTimeout(watchdog);
+  const pid = ownedPid();
+  const childSurvived = pid !== undefined && ownedDockerAlive(pid);
+  const trackedGroupAlive = () => tracked.some(child => child.pid !== undefined && alive(-child.pid));
+  const groupSurvived = trackedGroupAlive();
+  const before = existsSync(${JSON.stringify(heartbeat)}) ? readFileSync(${JSON.stringify(heartbeat)}, 'utf8') : '';
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const after = existsSync(${JSON.stringify(heartbeat)}) ? readFileSync(${JSON.stringify(heartbeat)}, 'utf8') : '';
+  result = { reason, observedDocker: pid !== undefined, readinessTimeouts, sameOwner,
+    childSurvivesOwnerCleanup: childSurvived || (pid !== undefined && ownedDockerAlive(pid)),
+    otherOwnedGroupSurvivesOwnerCleanup: groupSurvived || trackedGroupAlive(), heartbeatContinuesAfterCleanup: before !== after,
+    nestedCleanupStarted: existsSync(${JSON.stringify(nestedCleanup)}) };
+} finally {
+  clearInterval(poll);
+  clearTimeout(watchdog);
+  await Promise.all(tracked.map(child => stopTestChild(child)));
+  const pid = ownedPid();
+  if (pid !== undefined && ownedDockerAlive(pid)) {
+    try { process.kill(-pid, 'SIGKILL'); }
+    catch (error) {
+      if (error.code !== 'ESRCH') throw error;
+      retired = true;
+      writeFileSync(${JSON.stringify(dockerRetired)}, 'retired');
+    }
+    const deadline = Date.now() + 3000;
+    while (ownedDockerAlive(pid)) {
+      if (Date.now() >= deadline) throw new Error('Fixture Docker did not stop');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  }
+  writeFileSync(${JSON.stringify(cleanupComplete)}, 'complete');
+}
+process.stdout.write(JSON.stringify(result));
+`,
+  );
+  async function cleanupOrphanedDocker() {
+    if (existsSync(cleanupComplete) || existsSync(dockerRetired) || !existsSync(marker)) return;
+    const value = JSON.parse(readFileSync(marker, 'utf8')) as {
+      pid: number;
+      ownership: string;
+    };
+    if (value.ownership !== ownership || !Number.isSafeInteger(value.pid) || value.pid <= 0)
+      throw new Error('Invalid fixture ownership');
+    let retired = false;
+    const groupAlive = () => {
+      if (retired) return false;
+      try {
+        process.kill(-value.pid, 0);
+        return true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+        retired = true;
+        writeFileSync(dockerRetired, 'retired');
+        return false;
+      }
+    };
+    if (groupAlive()) {
+      try {
+        process.kill(-value.pid, 'SIGKILL');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+        retired = true;
+        writeFileSync(dockerRetired, 'retired');
+      }
+    }
+    const deadline = Date.now() + 3000;
+    while (groupAlive()) {
+      if (Date.now() >= deadline) throw new Error('Fixture Docker did not stop');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+  return {
+    async run() {
+      for (const path of [marker, heartbeat, nestedCleanup, cleanupComplete, dockerRetired])
+        rmSync(path, { force: true });
+      let execution;
+      try {
+        execution = spawnSync(process.execPath, [driver], {
+          cwd: f.root,
+          env: f.environment,
+          encoding: 'utf8',
+          timeout: 12000,
+        });
+      } finally {
+        // A failed driver cannot leave its one recorded fixture group behind.
+        await cleanupOrphanedDocker();
+      }
+      expect(
+        f.sensitiveValues.some(
+          (value) => execution.stdout.includes(value) || execution.stderr.includes(value),
+        ),
+      ).toBe(false);
+      expect(execution.error).toBeUndefined();
+      expect(execution.status).toBe(0);
+      expect(execution.stderr).toBe('');
+      expect(existsSync(cleanupComplete)).toBe(true);
+      return JSON.parse(execution.stdout) as ReadinessCleanupResult;
+    },
+    plantNestedReadiness() {
+      const path = join(f.root, 'scripts/seed.mjs');
+      const source = readFileSync(path, 'utf8');
+      const direct = '    await waitCompose(selected, processes, signal, true);';
+      expect(source.split(direct)).toHaveLength(2);
+      writeFileSync(
+        path,
+        source.replace(
+          direct,
+          `    await processes.run('make', ['wait-postgres'], {
+      cwd: repositoryRoot, env: selectedPrerequisites, label: 'Compose readiness', timeout: 15000,
+    });`,
+        ),
+      );
+    },
+  };
+}
+
 describe('shared realm handoff lifecycle', () => {
+  it.each(['cancelled', 'deadline'] as const)(
+    'joins readiness Docker after %s and rejects a nested readiness owner',
+    async (kind) => {
+      const f = readinessCleanupFixture(kind);
+      const stopped = (result: ReadinessCleanupResult) =>
+        !result.childSurvivesOwnerCleanup &&
+        !result.otherOwnedGroupSurvivesOwnerCleanup &&
+        !result.heartbeatContinuesAfterCleanup;
+      const clean = await f.run();
+      expect(clean.reason).toBe(kind);
+      expect(clean.observedDocker).toBe(true);
+      expect(clean.readinessTimeouts).toEqual([15000]);
+      expect(clean.sameOwner).toBe(true);
+      expect(clean.nestedCleanupStarted).toBe(false);
+      expect(clean.otherOwnedGroupSurvivesOwnerCleanup).toBe(false);
+      expect(stopped(clean)).toBe(true);
+
+      f.plantNestedReadiness();
+      const nested = await f.run();
+      expect(nested.reason).toBe(kind);
+      expect(nested.observedDocker).toBe(true);
+      expect(nested.readinessTimeouts).toEqual([15000]);
+      expect(nested.nestedCleanupStarted).toBe(true);
+      expect(nested.otherOwnedGroupSurvivesOwnerCleanup).toBe(false);
+      expect(stopped(nested)).toBe(false);
+      expect(nested.childSurvivesOwnerCleanup).toBe(true);
+      expect(nested.heartbeatContinuesAfterCleanup).toBe(true);
+    },
+    30000,
+  );
+
   it('confines actual make seed preparation and rejects the old prerequisite topology', () => {
     const f = makeSeedFixture();
     const confined = (events: BoundaryEvent[]) => events.every((event) => event.confined);
@@ -475,7 +747,6 @@ describe('shared realm handoff lifecycle', () => {
     expect(events.map((event) => event.stage)).toEqual([
       'compose-version',
       'stack-up',
-      'postgres-readiness',
       'readiness-config',
       'readiness-status',
       'migration-tools',
@@ -508,7 +779,7 @@ describe('shared realm handoff lifecycle', () => {
         )
         .some((event) => !event.confined),
     ).toBe(true);
-  });
+  }, 45000);
 
   it('uses the caller selection and signal through readiness, fresh seed and awaited reconciliation', () => {
     const f = fixture();
@@ -517,18 +788,23 @@ describe('shared realm handoff lifecycle', () => {
     expect(result.failure).toBe('');
     expect(result.events).toEqual([
       'compose-version',
-      'prepare',
+      'stack-up',
+      'postgres-ready',
+      'migrate',
       'ready',
       'appseed',
       'realm-start',
       'realm-complete',
       'dispose',
     ]);
-    expect(result.commands.slice(0, 2).map(({ command, args }) => ({ command, args }))).toEqual([
+    expect(result.commands.slice(0, 3).map(({ command, args }) => ({ command, args }))).toEqual([
       { command: 'docker', args: ['compose', 'version'] },
-      { command: 'make', args: ['dev', 'wait-postgres', 'migrate'] },
+      { command: 'make', args: ['dev'] },
+      { command: 'make', args: ['migrate'] },
     ]);
-    expect(result.commands.slice(0, 2).map(({ timeout }) => timeout)).toEqual([5000, 180000]);
+    expect(result.commands.slice(0, 3).map(({ timeout }) => timeout)).toEqual([
+      5000, 180000, 180000,
+    ]);
     expect(result.selectionIdentity).toBe(true);
     expect(result.signalIdentity).toBe(true);
     expect(result.selectedDescription).toEqual({
@@ -549,8 +825,25 @@ describe('shared realm handoff lifecycle', () => {
       expect(result.failure).toBe(scenario === 'seed-failure' ? 'seed refusal' : 'realm refusal');
       expect(result.events).toEqual(
         scenario === 'seed-failure'
-          ? ['compose-version', 'prepare', 'ready', 'appseed', 'dispose']
-          : ['compose-version', 'prepare', 'ready', 'appseed', 'realm-start', 'dispose'],
+          ? [
+              'compose-version',
+              'stack-up',
+              'postgres-ready',
+              'migrate',
+              'ready',
+              'appseed',
+              'dispose',
+            ]
+          : [
+              'compose-version',
+              'stack-up',
+              'postgres-ready',
+              'migrate',
+              'ready',
+              'appseed',
+              'realm-start',
+              'dispose',
+            ],
       );
     },
   );
@@ -562,7 +855,9 @@ describe('shared realm handoff lifecycle', () => {
     expect(result.failure).toBe('realm: preflight/cancelled');
     expect(result.events).toEqual([
       'compose-version',
-      'prepare',
+      'stack-up',
+      'postgres-ready',
+      'migrate',
       'ready',
       'appseed',
       'realm-start',

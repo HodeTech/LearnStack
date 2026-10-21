@@ -28,17 +28,25 @@ export async function seedDevelopment({ selected, signal }) {
       refuse('preflight', 'configuration');
   const connection = values.ConnectionStrings__Default;
   const prerequisites = { ...publicSeederEnvironment(), ...composeProcessEnvironment(selected.env) };
+  const selectedPrerequisites = { ...prerequisites,
+    LEARNSTACK_COMPOSE_PROJECT: selected.project, LEARNSTACK_COMPOSE_ENV_FILE: selected.file,
+    LEARNSTACK_COMPOSE_MODE: selected.mode };
   const processes = new DemoProcesses(signal);
   try {
     await processes.run('docker', ['compose', 'version'], {
       cwd: repositoryRoot, env: prerequisites, label: 'Docker Compose prerequisite', timeout: 5000,
     });
-    await processes.run('make', ['dev', 'wait-postgres', 'migrate'], {
+    await processes.run('make', ['dev'], {
       cwd: repositoryRoot,
-      env: { ...prerequisites,
-        LEARNSTACK_COMPOSE_PROJECT: selected.project, LEARNSTACK_COMPOSE_ENV_FILE: selected.file,
-        LEARNSTACK_COMPOSE_MODE: selected.mode, ConnectionStrings__Migration: values.ConnectionStrings__Migration },
-      label: 'Selected stack and migrations', timeout: 180000,
+      env: selectedPrerequisites, label: 'Selected stack startup', timeout: 180000,
+    });
+    // Keep readiness Docker handles in this owner. A nested wait-postgres CLI
+    // would create detached grandchildren with a competing teardown deadline.
+    await waitCompose(selected, processes, signal, true);
+    await processes.run('make', ['migrate'], {
+      cwd: repositoryRoot,
+      env: { ...selectedPrerequisites, ConnectionStrings__Migration: values.ConnectionStrings__Migration },
+      label: 'Selected migrations', timeout: 180000,
     });
     await waitCompose(selected, processes, signal);
     await processes.run('dotnet', ['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'], {
