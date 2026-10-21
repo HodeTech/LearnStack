@@ -45,6 +45,11 @@ export function waitForBrowserDevTools(options: {
   readonly isLive: () => boolean;
   readonly readPort: () => number | null;
 }): Promise<number>;
+export function waitForBrowserPage(options: {
+  readonly assertActive: () => void;
+  readonly isLive: () => boolean;
+  readonly port: number;
+}): Promise<URL>;
 export function withBrowserCleanup<T>(
   operation: () => T | Promise<T>,
   cleanup: () => void | Promise<void>,

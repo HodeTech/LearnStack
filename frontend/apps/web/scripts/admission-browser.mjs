@@ -122,6 +122,66 @@ export function waitForBrowserDevTools({ assertActive, isLive, readPort }) {
   );
 }
 
+/** Empty target lists may precede the page; all discovery shares the original 5 s. */
+export function waitForBrowserPage({ assertActive, isLive, port }) {
+  return atBrowserPhase('browser-discovery', async () => {
+    const controller = new AbortController();
+    let pollTimer;
+    let deadlineTimer;
+    const deadline = new Promise((_, reject) => {
+      deadlineTimer = setTimeout(() => {
+        const error = new Error('Owned browser discovery deadline');
+        controller.abort(error);
+        reject(error);
+      }, 5000);
+    });
+    const assertBrowserActive = () => {
+      assertActive();
+      return atBrowserPhase('browser-launch', () => {
+        assert.equal(isLive(), true, 'The owned browser remains live');
+      });
+    };
+    const withinDeadline = async (operation) => {
+      try {
+        return await Promise.race([operation(), deadline]);
+      } finally {
+        await assertBrowserActive();
+        controller.signal.throwIfAborted();
+      }
+    };
+    try {
+      while (true) {
+        await assertBrowserActive();
+        controller.signal.throwIfAborted();
+        const response = await withinDeadline(() =>
+          // eslint-disable-next-line no-restricted-globals -- Owned local browser CDP discovery, never a LearnStack API request.
+          fetch('http://127.0.0.1:' + port + '/json/list', { signal: controller.signal }),
+        );
+        assert.equal(response.ok, true, 'Owned browser discovery succeeds');
+        const pages = await withinDeadline(() => response.json());
+        assert.ok(Array.isArray(pages), 'Owned browser exposes a target list');
+        if (pages.length === 0) {
+          await withinDeadline(
+            () => new Promise((resolve) => (pollTimer = setTimeout(resolve, 50))),
+          );
+          continue;
+        }
+        const page = pages.find((candidate) => candidate.type === 'page');
+        assert.ok(page, 'Owned browser exposes its initial page');
+        const endpoint = new URL(page.webSocketDebuggerUrl);
+        assert.equal(endpoint.protocol, 'ws:');
+        assert.equal(endpoint.hostname, '127.0.0.1');
+        assert.equal(endpoint.port, String(port));
+        return endpoint;
+      }
+    } finally {
+      clearTimeout(deadlineTimer);
+      clearTimeout(pollTimer);
+      controller.abort();
+    }
+  });
+}
+
 /** Isolated profile and certificate-specific trust; never touches a user's browser. */
 export async function verifyBrowserFallback(options) {
   const phase = { value: 'browser-launch' };
@@ -209,16 +269,11 @@ async function runBrowserFallback(
     },
   });
   phase.value = 'browser-discovery';
-  // eslint-disable-next-line no-restricted-globals -- Owned local browser CDP discovery, never a LearnStack API request.
-  const response = await fetch('http://127.0.0.1:' + port + '/json/list', {
-    signal: AbortSignal.timeout(5000),
+  const endpoint = await waitForBrowserPage({
+    assertActive: () => owner.assertActive(),
+    isLive: () => !failed && child.exitCode === null && child.signalCode === null,
+    port,
   });
-  const pages = await response.json();
-  const page = pages.find((candidate) => candidate.type === 'page');
-  assert.ok(page, 'Owned browser exposes its initial page');
-  const endpoint = new URL(page.webSocketDebuggerUrl);
-  assert.equal(endpoint.hostname, '127.0.0.1');
-  assert.equal(endpoint.port, String(port));
   const WebSocket = createRequire(join(app, 'package.json'))('next/dist/compiled/ws');
   const socket = new WebSocket(endpoint.href, { maxPayload: 2 * 1024 * 1024 });
   const pending = new Map();

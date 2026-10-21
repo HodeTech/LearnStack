@@ -74,7 +74,7 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                 .WithPassword(_databasePassword)
                 .WithCreateParameterModifier(parameters =>
                 {
-                    BindLoopback(parameters, "5432/tcp");
+                    ContainerLoopbackPorts.Configure(parameters, "5432/tcp");
                     stage = "database_create_request";
                 })
                 .Build();
@@ -90,7 +90,7 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                 .WithLogger(NullLogger.Instance)
                 .WithNetwork(_network)
                 .WithPortBinding(8443, true)
-                .WithCreateParameterModifier(parameters => BindLoopback(parameters, "8443/tcp"))
+                .WithCreateParameterModifier(parameters => ContainerLoopbackPorts.Configure(parameters, "8443/tcp"))
                 .WithEnvironment("KC_DB", "postgres")
                 .WithEnvironment("KC_DB_URL", "jdbc:postgresql://identity-database:5432/keycloak")
                 .WithEnvironment("KC_DB_USERNAME", "keycloak")
@@ -169,14 +169,6 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         return new KeycloakAdminCredential(accessToken, TimeSpan.FromSeconds(expiresIn));
     }
 
-    private static void BindLoopback(CreateContainerParameters parameters, string port)
-    {
-        var bindings = parameters.HostConfig?.PortBindings;
-        if (bindings is null || bindings.Count != 1 || !bindings.TryGetValue(port, out var values) || values.Count != 1)
-            throw new InvalidOperationException("Keycloak fixture port inventory is invalid.");
-        values[0].HostIP = "127.0.0.1";
-    }
-
     internal async Task AssertLoopbackBindingsAsync(CancellationToken cancellationToken = default)
     {
         using var docker = TestcontainersSettings.OS.DockerEndpointAuthConfig.GetDockerClientBuilder(Guid.NewGuid()).Build();
@@ -184,18 +176,10 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         {
             if (container is null) throw new InvalidOperationException("Keycloak fixture container is not initialized.");
             var actual = await docker.Containers.InspectContainerAsync(container.Id, cancellationToken);
-            if (!LoopbackBindings(actual, port))
+            if (!ContainerLoopbackPorts.IsExclusive(actual, port))
                 throw new InvalidOperationException("Keycloak fixture published port is not exclusively loopback.");
         }
     }
-
-    internal static bool LoopbackBindings(ContainerInspectResponse container, string port) =>
-        container.HostConfig?.PortBindings is { Count: 1 } configured
-        && configured.TryGetValue(port, out var intended) && intended.Count == 1 && intended[0].HostIP == "127.0.0.1"
-        && container.NetworkSettings?.Ports is { } actual
-        && actual.All(entry => entry.Key == port || entry.Value is null or { Count: 0 })
-        && actual.TryGetValue(port, out var published) && published is { Count: 1 }
-        && published[0].HostIP == "127.0.0.1" && ushort.TryParse(published[0].HostPort, out var mapped) && mapped != 0;
 
     internal KeycloakBrowserFlow Browser(string realm = "learnstack") => new(BaseAddress, RootCertificate, CheckedRealm(realm));
 

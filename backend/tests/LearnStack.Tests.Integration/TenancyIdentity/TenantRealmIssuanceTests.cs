@@ -34,11 +34,11 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture, ITestOutpu
                 { ["8443/tcp"] = [new() { HostIP = "127.0.0.1", HostPort = "34443" }] },
             },
         };
-        KeycloakFixture.LoopbackBindings(inspection, "8443/tcp").Should().BeTrue();
+        ContainerLoopbackPorts.IsExclusive(inspection, "8443/tcp").Should().BeTrue();
         foreach (var address in new[] { "", "0.0.0.0", "::", "192.0.2.1" })
         {
             inspection.NetworkSettings.Ports["8443/tcp"][0].HostIP = address;
-            KeycloakFixture.LoopbackBindings(inspection, "8443/tcp").Should().BeFalse(
+            ContainerLoopbackPorts.IsExclusive(inspection, "8443/tcp").Should().BeFalse(
                 "client-loopback URI checks cannot substitute for the actual Docker publication");
         }
         using var trusted = KeycloakHttp.Create(fixture.BaseAddress, fixture.RootCertificate);

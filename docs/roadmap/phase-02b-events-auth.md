@@ -15296,6 +15296,76 @@ diagnostic, actual resource absence and complete hosted qualification. These
 two rounds complete the diagnostic correction review gate; a new frozen-source
 full A remains necessary before B.
 
+**Fourth frozen-source A and publication repair.** Run
+[`39642441764`](https://github.com/HodeTech/LearnStack/actions/runs/39642441764),
+attempt 1, tests `4467492b363bdb8dd794721c58897d08a1a348c2` through merge source
+`38117937fa67a4ecf680ee73e23689e3eda44bb9`, with identical head/merge tree
+`b3ccb2ad280c6f6f9150e94dd70be4cc2aff92ee`. All 27 jobs finish: twenty pass,
+six ordinary owners fail and integration refuses. All twelve ordinary owners
+finish: six pass and six fail. Five failed owners retain eighteen provider failures at
+`database_start/docker_port_listen/completed`: PostgreSQL creation succeeds,
+then Docker reports a TCP listen failure. The sixth owner retains one distinct
+54.013s public-admission failure at `browser 429/browser-discovery`. Each failed
+archive has verified immutable API identity/digest, exact current head/merge
+payload identities and the same 5,908-case discovery. These failures do not
+authorize B, an old-artifact fallback or a failed-only qualification retry.
+
+The publisher census finds one mixed-address boundary in ordinary execution:
+the application PostgreSQL fixture uses Docker's wildcard default, while both
+identity publishers use `127.0.0.1`. The native proof PostgreSQL publisher
+already uses loopback and runs in its separate VM. In the
+[pinned old Moby path](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/libnetwork/drivers/bridge/port_mapping_linux.go#L220),
+allocation and bind are retried for dynamic ranges, but TCP listen occurs later
+outside that retry loop. An isolated Linux socket experiment with unchanged old
+and corrected upstream allocators forces both binds before either listen: both
+mixed-address orders fail at the second listen with the old allocator; both
+pass with distinct ports using the
+[corrected allocator](https://github.com/moby/moby/commit/d6620915db0072817d1eccb41a765de69cb38e9c).
+Same-address controls
+pass on both. The non-root, network-isolated runner is removed and confirmed
+absent. This establishes a mechanism, not the hosted daemon version, socket
+errno or actual interleaving.
+
+The application publisher now uses the same loopback modifier and independent
+configured/runtime inspection predicate as the identity publishers. Its live
+inspection fails startup and disposes the owned container on a mismatch.
+Ryuk startup/readiness precedes fixture creation, so its wildcard listener is
+already listening before these fixture binds; ordinary bind-time retry remains
+available. Roles, credentials, SQL commands, connection identities, test
+assignments and deadlines are unchanged. A new application test requires the
+actual loopback publication, and an offline control rejects wildcard/foreign
+addresses, invalid mapped ports and extra publications.
+
+An identical isolated Linux application harness proves the change before/after:
+the old publication check returns false, the corrected check true. Both runs
+verify all four role postures and an actual `learnstack_app` login with neither
+superuser nor bypass authority. Disposal is awaited; direct inspection confirms
+the exact PostgreSQL container and runner absent after each run. These are two
+real fixture startups with copied source/helper/roles-SQL hashes checked, not
+a hosted repair or full regression claim.
+
+The distinct browser failure establishes only its closed discovery phase. The
+[CDP contract](https://chromedevtools.github.io/devtools-protocol/index.html)
+does not equate an advertised debugging port with an available page target.
+Twenty exact-flag isolated local launches succeed immediately; no natural race
+is reproduced. A constructed real-browser control suppresses the startup
+window, observes an empty target list, then creates an owned page within the
+original five seconds. The original single-read assertion refuses that valid
+transition; the production readiness helper accepts it in 324ms. Owned browser
+groups/profiles are cleaned. This proves a readiness gap, not the CI case's
+raw cause; discovery also includes later WebSocket setup.
+
+The fixture now polls only successful, valid empty target lists. One unchanged
+five-second deadline covers HTTP, body and polling; malformed, foreign,
+non-page and transport failures are not retried. Owner closure, browser death
+and closed diagnostic branding remain enforced. Focused validated JSON reports
+pass 44 browser controls with zero skips/todos. Root verification passes all
+1,756 guarded frontend cases in two packages, nine C# cases (eight offline and
+the actual application publication test) with warnings as errors, seven
+corpus/Docker-sweep cases, all 43 launcher controls and sixty combined
+shard/aggregate controls. Scoped lint/typecheck pass. These receipts precede
+the new independent correction review rounds and complete hosted qualification.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

@@ -7,6 +7,7 @@ import {
   browserFailureDetail,
   verifyBrowserFallback,
   waitForBrowserDevTools,
+  waitForBrowserPage,
   withBrowserCleanup,
 } from '../../scripts/admission-browser.mjs';
 import { createFixtureOwner } from '../../scripts/fixture-support.mjs';
@@ -20,6 +21,8 @@ const flight = {
   status: 503,
 };
 const document = { url: origin + target, type: 'Document', rsc: false, status: 200 };
+const browserEndpoint = 'ws://127.0.0.1:12345/devtools/page/owned';
+const browserPages = [{ type: 'page', webSocketDebuggerUrl: browserEndpoint }];
 
 afterEach(() => vi.useRealTimers());
 
@@ -73,6 +76,183 @@ describe('stock browser Flight fallback observation', () => {
       waitForBrowserDevTools({ assertActive, isLive: () => true, readPort: () => 12345 }),
     ).resolves.toBe(12345);
     expect(assertActive).toHaveBeenCalledOnce();
+  });
+
+  it('waits for an initially empty target list to expose the owned page', async () => {
+    vi.useFakeTimers();
+    const fetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('[]'))
+      .mockResolvedValueOnce(new Response(JSON.stringify(browserPages)));
+    const waiting = waitForBrowserPage({
+      assertActive: () => undefined,
+      isLive: () => true,
+      port: 12345,
+    }).catch((error: Error) => error);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(await waiting).toEqual(new URL(browserEndpoint));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[0]?.[1]?.signal).toBe(fetch.mock.calls[1]?.[1]?.signal);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('refuses a perpetually empty target list at the original five-second deadline', async () => {
+    vi.useFakeTimers();
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('[]'));
+    const complete = vi.fn();
+    const waiting = waitForBrowserPage({
+      assertActive: () => undefined,
+      isLive: () => true,
+      port: 12345,
+    })
+      .catch((error: Error) => error)
+      .then((result) => {
+        complete();
+        return result;
+      });
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(complete).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(browserFailureDetail(await waiting)).toBe(' browser-discovery');
+    expect(fetch.mock.calls.length).toBeGreaterThan(1);
+    expect(fetch.mock.calls.every((call) => call[1]?.signal?.aborted)).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['fetch', 'body'])('does not reset discovery time for a late %s', async (stage) => {
+    vi.useFakeTimers();
+    const response = new Response(JSON.stringify(browserPages));
+    if (stage === 'body') {
+      vi.spyOn(response, 'json').mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve(browserPages), 4975)),
+      );
+    }
+    const fetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('[]'))
+      .mockImplementationOnce(() =>
+        stage === 'fetch'
+          ? new Promise((resolve) => setTimeout(() => resolve(response), 4975))
+          : Promise.resolve(response),
+      );
+    const complete = vi.fn();
+    const waiting = waitForBrowserPage({
+      assertActive: () => undefined,
+      isLive: () => true,
+      port: 12345,
+    })
+      .catch((error: Error) => error)
+      .then((result) => {
+        complete();
+        return result;
+      });
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(complete).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(browserFailureDetail(await waiting)).toBe(' browser-discovery');
+    expect(fetch.mock.calls[0]?.[1]?.signal).toBe(fetch.mock.calls[1]?.[1]?.signal);
+    expect(fetch.mock.calls[1]?.[1]?.signal?.aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(25);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([
+    ['invalid shape', '{}', 200],
+    ['malformed JSON', '{', 200],
+    ['failed HTTP', '[]', 503],
+    ['non-page targets', JSON.stringify([{ type: 'worker' }]), 200],
+    ['invalid page endpoint', JSON.stringify([{ type: 'page' }]), 200],
+    [
+      'foreign host',
+      JSON.stringify([{ type: 'page', webSocketDebuggerUrl: 'ws://foreign.invalid:12345/page' }]),
+      200,
+    ],
+    [
+      'foreign port',
+      JSON.stringify([{ type: 'page', webSocketDebuggerUrl: 'ws://127.0.0.1:12346/page' }]),
+      200,
+    ],
+    [
+      'invalid protocol',
+      JSON.stringify([{ type: 'page', webSocketDebuggerUrl: 'https://127.0.0.1:12345/page' }]),
+      200,
+    ],
+  ] as const)('refuses %s without retrying discovery', async (_name, body, status) => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body, { status }));
+    const failure = await waitForBrowserPage({
+      assertActive: () => undefined,
+      isLive: () => true,
+      port: 12345,
+    }).catch((error: Error) => error);
+    expect(browserFailureDetail(failure)).toBe(' browser-discovery');
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(failure).not.toHaveProperty('cause');
+    expect(String(failure)).not.toContain(body);
+  });
+
+  it('sanitizes a raw network error immediately without trusting its phase token', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      Object.assign(new Error('Private browser connection value'), {
+        admissionStage: 'browser-launch',
+      }),
+    );
+    const failure = await waitForBrowserPage({
+      assertActive: () => undefined,
+      isLive: () => true,
+      port: 12345,
+    }).catch((error: Error) => error);
+    expect(browserFailureDetail(failure)).toBe(' browser-discovery');
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(String(failure)).not.toContain('Private browser connection value');
+    expect(failure).not.toHaveProperty('cause');
+  });
+
+  it.each(['before request', 'after fetch', 'after body'])(
+    'keeps browser death %s distinct from discovery readiness',
+    async (stage) => {
+      let live = stage !== 'before request';
+      const response = new Response(JSON.stringify(browserPages));
+      const body = vi.spyOn(response, 'json').mockImplementation(async () => {
+        if (stage === 'after body') live = false;
+        return browserPages;
+      });
+      const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+        if (stage === 'after fetch') live = false;
+        return response;
+      });
+      const failure = await waitForBrowserPage({
+        assertActive: () => undefined,
+        isLive: () => live,
+        port: 12345,
+      }).catch((error: Error) => error);
+      expect(browserFailureDetail(failure)).toBe(' browser-launch');
+      expect(fetch).toHaveBeenCalledTimes(stage === 'before request' ? 0 : 1);
+      expect(body).toHaveBeenCalledTimes(stage === 'after body' ? 1 : 0);
+    },
+  );
+
+  it.each(['before request', 'after body'])('refuses a closed owner %s', async (stage) => {
+    const owner = createFixtureOwner();
+    try {
+      if (stage === 'before request') await owner.dispose();
+      const response = new Response(JSON.stringify(browserPages));
+      vi.spyOn(response, 'json').mockImplementation(async () => {
+        await owner.dispose();
+        return browserPages;
+      });
+      const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+      const failure = await waitForBrowserPage({
+        assertActive: () => owner.assertActive(),
+        isLive: () => true,
+        port: 12345,
+      }).catch((error: Error) => error);
+      expect(browserFailureDetail(failure)).toBe(' browser-discovery');
+      expect(fetch).toHaveBeenCalledTimes(stage === 'before request' ? 0 : 1);
+      expect(String(failure)).not.toContain('Fixture owner is closed');
+    } finally {
+      await owner.dispose();
+    }
   });
 
   it('preserves a sanitized inner phase without trusting a raw error with the same token', async () => {
