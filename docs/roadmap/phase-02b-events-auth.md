@@ -14744,6 +14744,45 @@ review rounds, final-source production demo and complete hosted qualification
 remain pending. Both P02b-6 catalogue entries remain Registered; no BFF session,
 packet completion or merge is claimed.
 
+### Step 4 review round one and executed-case correction
+
+Implementation commit `ea0363e8` is inspected by two new independent reviewers:
+`gpt-6-astra` at `xhigh` for security/ownership and `gpt-6.1-sol` at `xhigh` for
+proof correctness, API/fixture isolation and CI/corpus. The security inspection
+finds no actionable defect and independently passes all 152 Node cases.
+The proof inspection reproduces one Major: Node 22.23.1's JUnit reporter emits
+passing `testcase` elements for empty named `describe` suites even though its
+actual executed-test count is zero. The initial gate therefore cannot establish
+the claimed nonempty execution from JUnit alone.
+
+The correction adds a second reporter to the same Node invocation. It requires
+exactly one completed root `test:summary`, positive safe-integer executed-test
+count, all executed tests passed, successful completion and zero failures,
+cancellations, skips and todos. The JUnit filename/shape checks remain separate.
+Three offline controls execute the actual workflow command/gate in twelve child
+runs. Both empty-suite counterexamples pass a checked variant removing only the
+counter reporter and fail the real command; ordinary/nested real tests pass,
+while empty files, failures, cancellations, skips and todos are refused. These
+controls run in meta. The original reviewer independently verifies the correction
+and the exact complete meta step: **152 executed tests and 152 JUnit cases pass**,
+with no remaining actionable correction finding. Formal round two remains
+required.
+
+The CI plan adds advisory weights for 37 provider method selectors from the
+three complete 55-case TRXs above. Exact completed row durations are summed and
+scaled by the existing historical ordinary ratio, 2.271245. Artifact digests
+are retained; source commit is null because it is not embedded in the TRXs.
+Fixture startup and discovery costs are not inferred from case durations.
+Topology, selectors, default unknown-method estimate, algorithms and time
+ceilings are unchanged. All 52 shard controls pass.
+
+Actual local adapter discovery independently finds **5,902 cases**: 2,910 base,
+433 architecture, 2,528 ordinary Docker and 31 native. Both complete assignments
+cover the exact population once, genuinely differ and stay within the existing
+selector/filter bounds. Forty-two non-base methods retain the explicit unknown
+weight default. Estimated summed case durations are not wall-time guarantees;
+no hosted fit or execution success follows from this local discovery.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

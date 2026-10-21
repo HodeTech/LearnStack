@@ -803,7 +803,7 @@ jobs:
                            scripts/reconcile-development-realm.test.mjs; do
             report="${RUNNER_TEMP}/development-realm-${index}.xml"
             rm -f "$report"
-            node --test --test-reporter=junit --test-reporter-destination="$report" "$test_file"
+            node --test --test-reporter=./scripts/require-node-test-cases.mjs --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination="$report" "$test_file"
             REPORT_FILE="$report" TEST_FILE="$test_file" python3 - <<'PY'
           import os
           from pathlib import Path
@@ -990,6 +990,9 @@ jobs:
 
       - name: CI supply-chain controls
         run: python3 scripts/test-ci-supply-chain.py
+
+      - name: Realm Node executed-case and JUnit gate controls
+        run: python3 scripts/test-realm-node-gate.py
 
       - name: Read-only native environment and duration logging controls
         run: python3 scripts/test-ci-native-environment.py

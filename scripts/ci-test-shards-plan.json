@@ -84,6 +84,27 @@
       "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
       "runId": "39417319998",
       "note": "Run attempt 2; owner architecture-5; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12262804978. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds."
+    },
+    "p02b6-local-api": {
+      "kind": "local_trx",
+      "artifactSha256": "7fafa97c24ea554cb0a629b5c3c952942d1ee54b767a7a988f4b9c5a5e8eb02e",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
+    },
+    "p02b6-local-account": {
+      "kind": "local_trx",
+      "artifactSha256": "a2b000ff5f9646ed7e4f03e20e74054a831e71410f863331892fbb3c0b30ca39",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
+    },
+    "p02b6-local-profile": {
+      "kind": "local_trx",
+      "artifactSha256": "f470c252cbbfc908e1d4996278cf116ba2b78eb514755d729c57a6ae6f8a2aa7",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
     }
   },
   "weights": [
@@ -8102,6 +8123,228 @@
       "method": "LearnStack.Tests.Integration.Database.WriteStoreConflictTests.A_uniqueness_violation_still_becomes_the_port_s_conflict_type",
       "milliseconds": 29,
       "source": "local-ordinary-scaled"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.A_genuine_Hub_issuer_token_is_rejected_without_changing_the_operator_or_Hub_client",
+      "milliseconds": 3665,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.A_genuine_ID_token_without_API_audience_is_401_on_account_and_public_routes",
+      "milliseconds": 7662,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.A_real_claimless_actor_retains_HostOnly_attribution_without_protected_read_authority",
+      "milliseconds": 2945,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.A_real_provider_organization_disagreement_refuses_and_records_the_trusted_host_organization",
+      "milliseconds": 3045,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.Anonymous_public_reads_and_masked_account_refusals_do_not_contact_an_unavailable_identity_endpoint",
+      "milliseconds": 3048,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.Every_seed_persona_reads_its_actual_account_site_under_the_matching_host_scope",
+      "milliseconds": 6681,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.Real_cross_tenant_tokens_refuse_before_configuration_and_audit_the_defended_host",
+      "milliseconds": 2684,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.The_real_backchannel_accepts_only_the_owned_CA_and_preserves_all_transport_bounds",
+      "milliseconds": 2615,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmExportTests.Export_controls_reject_unsafe_mapper_profile_client_and_identity_variants",
+      "milliseconds": 217,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmExportTests.The_committed_realm_matches_typed_identity_and_security_declarations",
+      "milliseconds": 12,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Actual_signed_tokens_detect_live_mapper_scope_audience_scalar_and_lifespan_mutants",
+      "milliseconds": 42829,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Authorization_refuses_a_missing_or_plain_challenge",
+      "milliseconds": 59,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Authorization_refuses_an_unregistered_callback",
+      "milliseconds": 592,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Code_exchange_refuses_a_missing_or_wrong_client_secret",
+      "milliseconds": 244,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Code_exchange_refuses_a_missing_or_wrong_verifier",
+      "milliseconds": 610,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Fixture_HTTPS_requires_its_owned_certificate_authority",
+      "milliseconds": 563,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Fresh_import_issues_the_API_profile_for_all_four_declared_identities",
+      "milliseconds": 1203,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Late_session_refresh_is_clamped_while_the_configured_access_lifespan_remains_exactly_900",
+      "milliseconds": 43202,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Live_import_has_exact_lifespan_callbacks_and_confidential_PKCE_configuration",
+      "milliseconds": 178,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Tenant_password_grant_stays_disabled",
+      "milliseconds": 17,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests.Ordinary_registration_works_and_injected_authority_never_becomes_new_account_data",
+      "milliseconds": 2161,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests.Same_seed_account_can_edit_ordinary_profile_but_cannot_see_write_or_delete_authority",
+      "milliseconds": 1789,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests.User_editable_profile_counterfactual_breaks_the_same_protection_predicate",
+      "milliseconds": 2261,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Committed_fresh_import_is_already_converged_and_repeated_runs_have_zero_writes",
+      "milliseconds": 12843,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Group_carried_identity_requires_a_no_write_refusal",
+      "milliseconds": 222936,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Hidden_stored_identity_refuses_before_writes_and_preserves_the_conflicting_actor",
+      "milliseconds": 168112,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Identity_mapper_secret_and_duplicate_lookup_conflicts_refuse_before_the_first_write",
+      "milliseconds": 95073,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Legacy_upgrade_resumes_durable_partial_writes_and_preserves_accounts_and_unrelated_state",
+      "milliseconds": 250858,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Projected_identity_profile_configuration_refuses_before_any_pending_write",
+      "milliseconds": 172385,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Readback_failure_is_nonzero_and_a_new_explicit_pass_verifies_the_committed_result",
+      "milliseconds": 64288,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Retained_cached_organization_groups_do_not_override_strict_user_identity",
+      "milliseconds": 54861,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Uninterrupted_legacy_upgrade_preserves_nonmanifest_actor_and_account_state",
+      "milliseconds": 58888,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Unrelated_nested_groups_converge_and_preserve_membership_and_strict_token_identity",
+      "milliseconds": 50216,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests.Effective_inherited_capability_and_a_compatible_existing_mapper_need_no_redundant_additions",
+      "milliseconds": 123811,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests.Explicit_fresh_builtins_preserve_stock_bootstrap_and_add_only_the_approved_mapper_and_four_grants",
+      "milliseconds": 45264,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests.Shared_mapper_restores_an_already_eligible_nonmanifest_account_without_changing_its_data_or_grants",
+      "milliseconds": 49972,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests.Unsafe_account_customization_refuses_before_any_pending_write_and_preserves_the_customization",
+      "milliseconds": 238752,
+      "source": "p02b6-local-account"
     }
   ],
   "sharedFixtureClasses": [
