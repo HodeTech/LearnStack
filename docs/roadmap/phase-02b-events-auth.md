@@ -15919,7 +15919,8 @@ another commit before the next step proceeds automatically.
    before one absent-definition preparation within the existing lock/deadline.
    Add exact trigger/stage/write accounting, durable-progress notices, exact
    profile readback and a discarded/rebuilt full plan. Preserve readable prior
-   definitions during preparation; retain any separately planned ordinary PUT. Prove real stock upgrade with changed credentials/MFA and hidden-actor
+   definitions during preparation; retain any separately planned ordinary PUT.
+   Prove real stock upgrade with changed credentials/MFA and hidden-actor
    refusal after metadata only; exercise malformed/oversized/uncertain progress,
    cancellation and explicit rerun without automatic replay or identity overwrite.
 3. **Complete integration and qualification.** Exercise both seed/demo entries,
@@ -16055,6 +16056,33 @@ lacks successful owned completion. No assertion/location is retained. This is a
 different method from the earlier cancellation/restart failure; duration alone
 establishes no cause. Investigation and any verified diagnostic correction remain
 separate from ADR-0068; no deadline or ownership witness is relaxed.
+
+
+
+#### First revised-decision and compatible-read correction review
+
+Two fresh independent reviewers inspect `8e914a8b..2c06b4a6`: `gpt-6-astra` and
+`gpt-6.1-sol`, both at `high`. Both approve the compatible-read correction and
+approve the revised ADR for conditional acceptance, without Blocker/Major. The
+governance review finds one long plan line; it is reflowed without changing scope.
+It independently passes all 256 Node cases, six workflow/census controls, seven
+parser controls, 306 relative links/fragments and whitespace. Both verify the
+corrected physical provider spans, pre-preparation refusal requirements, preserved
+readable definitions, two distinct profile calls, diagnostics/accounting, exact
+DELETE paths, baseline limits and pending catalogue extension. All subprocesses
+join; no provider, .NET or full frontend execution is repeated. A fresh second
+review follows before the acceptance/implementation handoff.
+
+**Failed-envelope interpretation.** The new ordinary-10 archive is not evidence
+that Docker remained live or that native runtime ownership leaked. The launcher
+sets `forcedCleanup=true` for failed workload status and sets `dockerAbsent=true`
+only on its success path; `owned_completion_missing` also rejects nonzero workload
+status despite joined cleanup. Its `cleanupOwnershipComplete=true` is retained.
+The successful-completion claim correctly fails, but its cause needs actual test
+evidence. NativeSettlement was absent from the finite source projection; the
+separate diagnostic correction adds only that literal source and a closed code,
+with planted privacy/near-match controls. No deadline, runtime or success witness
+is changed by that diagnostic correction.
 
 
 ## Completion Criteria
