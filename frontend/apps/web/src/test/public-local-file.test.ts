@@ -68,7 +68,7 @@ export function publicServerConfiguration(values) {
 function prepare(root: string) {
   return spawnSync(process.execPath, [join(root, 'scripts/public-local.mjs'), 'prepare'], {
     cwd: root,
-    env: { PATH: process.env.PATH },
+    env: { NODE_ENV: 'test', PATH: process.env.PATH },
     encoding: 'utf8',
     timeout: 3000,
     killSignal: 'SIGKILL',

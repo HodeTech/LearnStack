@@ -336,6 +336,7 @@ process.stdout.write(JSON.stringify({ argv, placeholder: true,
           {
             cwd: root,
             env: {
+              NODE_ENV: 'test',
               PATH: join(root, 'bin'),
               LEARNSTACK_COMPOSE_MODE: 'e2e',
               LEARNSTACK_COMPOSE_PROJECT: 'owned-lifecycle',
@@ -455,6 +456,7 @@ process.stdout.write(JSON.stringify({ argv, placeholder: true,
         {
           cwd: root,
           env: {
+            NODE_ENV: 'test',
             PATH: root,
             ...(kind === 'mode' ? { LEARNSTACK_COMPOSE_MODE: 'unknown' } : {}),
             ...(kind === 'project' ? { LEARNSTACK_COMPOSE_PROJECT: '../foreign' } : {}),

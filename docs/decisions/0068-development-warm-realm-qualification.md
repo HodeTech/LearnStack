@@ -274,10 +274,10 @@ assertions together; invent no new canonical rule or approval-time implementatio
   selector refusals; add partial definitions and admin-no-edit counterexamples.
 - `TenantRealmSelfServiceTests` owns immutable bootstrap qualification, exact
   three-edge detachment/eight-edge preservation and console usage for manifest
-  and eligible nonmanifest users. Verify full issued access/ID-token claim sets and successful
-  console login/profile self-service, with original grants retained. Plant stock
-  lookalike names with changed definitions, emitters, allowances, composites or ID
-  references; each must refuse before pending ordinary writes.
+  and eligible nonmanifest users. Verify full issued access/ID-token claim sets
+  and successful console login/profile self-service, with original grants retained.
+  Plant stock lookalike names with changed definitions, emitters, allowances,
+  composites or ID references; each must refuse before pending ordinary writes.
 - `TenantRealmIssuanceTests`, `TenantRealmProfileProtectionTests` and
   `TenantRealmApiTests` retain actual token/API and protected-account proof. Show
   ordinary console editing succeeds while protected identity writes do not persist;

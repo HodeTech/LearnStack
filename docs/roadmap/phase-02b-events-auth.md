@@ -15780,8 +15780,9 @@ follow the implementation receipts below. Author checks are not independent revi
 
 [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) is a
 Proposed warm-realm correction. It changes first-write ordering and permits
-three independently qualified stock-console assignment detachments and requires separate approval before dependent implementation. Existing
-visibility and account-console refusals remain active; approval would not itself
+three independently qualified stock-console assignment detachments. Separate
+approval is required before dependent implementation. Existing visibility and
+account-console refusals remain active; approval would not itself
 prove complete stock-main upgrade compatibility.
 
 
@@ -15899,6 +15900,48 @@ Keycloak's ACCOUNT email condition explains the read-only projection. This does
 not qualify the separate UPDATE_EMAIL required-action journey. Existing provider
 self-service capability remains accepted; automatic email rebinding or a narrower
 BFF token capability is not introduced. Its exact fixture pair/network are absent.
+
+
+#### ADR-0068 proposed correction plan and first review
+
+The maintainer decision covers ADR-0068 and these three correction steps together.
+They are Proposed; no dependent runtime starts before approval. Each implemented
+step receives a commit, two fresh independent review rounds, verified fixes and
+another commit before the next step proceeds automatically.
+
+1. **Qualified console graph.** Record acceptance and pending catalogue carriers;
+   add the immutable historical fixture/canonical bootstrap expectations. Resolve
+   assignment IDs through full representations, preserve compatible graphs and
+   plan only the three qualified detachments. Prove custom/alias/category/role/
+   mapper refusals, partial last-edge recovery and existing grant preservation.
+2. **Owned visibility preparation.** Add one absent-definition preparation within
+   the existing lock/deadline, exact profile readback and a discarded/rebuilt full
+   plan. Prove real stock upgrade with changed credentials/MFA and hidden-actor
+   refusal after metadata only; exercise malformed/oversized/uncertain progress,
+   cancellation and explicit rerun without automatic replay or identity overwrite.
+3. **Complete integration and qualification.** Exercise both seed/demo entries,
+   four-persona signed API issuance and manifest/nonmanifest console self-service,
+   all protected attributes and shared claim changes. Reconcile catalogue owners,
+   counts, guides and case/plan evidence. Run source-appropriate complete hosted
+   qualification under ADR-0063, including full A/B where its change triggers apply;
+   all seven checks and existing ceilings remain required. No merge or next packet
+   is authorized by this plan.
+
+Two fresh first-round reviewers inspect the revised three-edge proposal and its
+carriers at `2ef9cf97`: `gpt-6-astra` at `xhigh` for security/design, and
+`gpt-6.1-sol` at `high` for governance/proof honesty. Both approve as Proposed
+without a verified Blocker/Major. The governance review finds three long prose
+lines; they are reflowed without policy changes. It independently passes seven
+parser controls, 731 links/fragments and whitespace checks, and verifies the
+historical export hash and exact phase quotes. The design review confirms the
+subset/last-edge compatible handoff and no additional Minor. All subprocesses
+join; neither reviewer repeats provider execution or grants implementation approval.
+
+Full frontend typecheck independently finds three fixture-only child environments
+missing Next's required `NODE_ENV`. The correction explicitly supplies `test`
+without inheriting credentials or changing production filtering. Complete frontend
+typecheck and lint pass; the four affected suites pass all 197 cases. Fresh
+independent checks of this small correction follow before publication.
 
 ## Completion Criteria
 

@@ -183,8 +183,9 @@ this development export; the operator realm keeps its declared TOTP action.
 
 The ordinary Account REST profile update does not establish an email/login rename:
 Keycloak's [email condition](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/userprofile/DeclarativeUserProfileProviderFactory.java#L143-L171)
-makes email read-only in that context under the current realm settings. A 204 can therefore leave email unchanged. Separate required-action
-or administrator changes use different paths. If a reserved login is changed,
+makes email read-only in that context under the current realm settings. A 204 can
+therefore leave email unchanged. Separate required-action or administrator
+changes use different paths. If a reserved login is changed,
 reconciliation refuses ownership instead of adopting another account or resetting
 credentials. Verify the existing provider ID and protected actor privately before
 restoring an intended reserved login; never repair a conflict by changing actor IDs.
