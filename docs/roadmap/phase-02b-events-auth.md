@@ -15618,6 +15618,17 @@ at `c33e529e` fails ordinary-6 and the integration aggregate. Its cause is under
 separate investigation; this documentation acceptance does not qualify or waive
 that failure.
 
+#### First independent acceptance-carrier review
+
+Two new reviewers inspect `c33e529e..03ebd77c`: `gpt-6-astra` and
+`gpt-6.1-sol`, both at `high`. Both approve without an actionable finding.
+They independently verify the single Accepted lifecycle/Active index row,
+completed authority references, unchanged approved semantics and catalogue
+obligations, and preserved original phase history. Whitespace, added-prose and
+tracked-worktree checks pass. No build, provider execution or hosted
+qualification is repeated; all review subprocesses finish. A fresh second
+round remains required before acceptance-carrier publication.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
