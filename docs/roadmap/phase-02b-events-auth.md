@@ -15779,8 +15779,8 @@ Fresh independent correction rounds and source-appropriate hosted qualification
 follow the implementation receipts below. Author checks are not independent reviews.
 
 [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) is a
-Proposed warm-realm correction. It changes first-write ordering and permits
-three independently qualified stock-console assignment detachments. Separate
+Proposed warm-realm correction. Acceptance would change first-write ordering and
+permit three independently qualified stock-console assignment detachments. Separate
 approval is required before dependent implementation. Existing visibility and
 account-console refusals remain active; approval would not itself
 prove complete stock-main upgrade compatibility.
@@ -15909,14 +15909,17 @@ They are Proposed; no dependent runtime starts before approval. Each implemented
 step receives a commit, two fresh independent review rounds, verified fixes and
 another commit before the next step proceeds automatically.
 
-1. **Qualified console graph.** Record acceptance and pending catalogue carriers;
+1. **Qualified console graph.** Record acceptance and pending catalogue extensions
+   while retaining shipped Implemented coverage;
    add the immutable historical fixture/canonical bootstrap expectations. Resolve
    assignment IDs through full representations, preserve compatible graphs and
    plan only the three qualified detachments. Prove custom/alias/category/role/
    mapper refusals, partial last-edge recovery and existing grant preservation.
-2. **Owned visibility preparation.** Add one absent-definition preparation within
-   the existing lock/deadline, exact profile readback and a discarded/rebuilt full
-   plan. Prove real stock upgrade with changed credentials/MFA and hidden-actor
+2. **Owned visibility preparation.** Reuse all identity-independent qualifiers
+   before one absent-definition preparation within the existing lock/deadline.
+   Add exact trigger/stage/write accounting, durable-progress notices, exact
+   profile readback and a discarded/rebuilt full plan. Preserve readable prior
+   definitions during preparation; retain any separately planned ordinary PUT. Prove real stock upgrade with changed credentials/MFA and hidden-actor
    refusal after metadata only; exercise malformed/oversized/uncertain progress,
    cancellation and explicit rerun without automatic replay or identity overwrite.
 3. **Complete integration and qualification.** Exercise both seed/demo entries,
@@ -15969,6 +15972,90 @@ and three-step implementation plan require separate maintainer approval. The
 existing guards remain active; these reviews do not grant runtime authority or
 qualify the final source on hosted CI. Publication and its complete current-attempt
 assignment follow independently; historical green receipts remain source-bound.
+
+
+#### Maintainer follow-up findings and conditional acceptance authority
+
+The maintainer directs verification of the remaining findings, correction of
+still-valid issues, then acceptance and implementation without another approval
+request. This is conditional authority, not a claim that outstanding checks or
+new runtime have already shipped.
+
+The metadata-only first draft's missing second obstacle is superseded by the
+current three-edge decision and the two existing phase feasibility receipts.
+Those receipts remain private decision-support experiments: the automatic path,
+canonical discrimination and actual self-service POST still need committed proof.
+The read-only assignment-summary defect is independently corrected under the
+existing compatible-scope contract; it grants neither preparation nor DELETE.
+
+Verified design corrections require every identity-independent refusal/capacity
+check before preparation, an exact missing-definition/unmanaged-policy trigger,
+admin-view-only preservation, a closed preparation stage and durable-progress
+notice, and accounting for preparation plus a separately planned ordinary profile
+PUT. All other Admin REST writes are ordinary mutations. The exact three DELETE
+paths/status, baseline extraction/regeneration prohibition, opt-in/partial/manual/
+temporary-visibility alternatives and provider-change/retirement triggers are
+explicit. Existing Implemented catalogue status/counts remain; acceptance adds
+pending extension paragraphs and precise Asserts boundaries instead of erasing
+shipped coverage. No universal console role-loss or relative BFF security claim
+is inferred without token evidence.
+
+Raw 26.6.2 source confirms that browser-rendered line indices omit blank lines.
+The earlier review's substantive premises hold, but several GitHub line anchors
+were wrong. The current draft and mutable guide correct physical source spans;
+previous dated review receipts remain intact. The implicit-to-stored profile
+configuration consequence and shared-budget worst-case refusal are stated.
+A fresh source-bound token/action measurement follows; it cannot replace final
+automatic-path qualification.
+
+
+
+#### Additional console measurement and independent compatible-read correction
+
+The independent compatible-read correction is `25de7a61`: full scope GETs bind
+summary ID/name/protocol before existing allowance/mapper checks. The provider
+fixture now models actual two-field assignment summaries. Author validation
+passes 256 source-censused Node cases and six gate controls; no preparation or
+DELETE authority is added. Two fresh correction review rounds follow.
+
+A new private measurement imports the same exact historical export into pinned
+26.6.2 and captures 83 endpoint representations, including full console scope,
+mapper, allowance and referenced role/composite state. Graph SHA-256 is
+`183f1790db8e500a04f8fd16bde0f105455d63bc143b99d7dc8d04106b5d0881`;
+measurement-source hash is
+`cb50701c8bb182ca16b93e31f67dfb36f86b7f8d00b956b8dd91de24725a40fd`;
+the console receipt hash is
+`489189669f7e1e548d537b8126e610d5e8cac1a3cb8387c95cd063f38b8796df`.
+This captured input is not a qualified production baseline or automatic-path proof.
+
+For the two existing users, stock `openid` access has seventeen claim keys, no
+audience and no realm/client roles. The three test-owned detachments leave it
+unchanged. ID tokens retain nineteen keys and console audience. Explicit
+`microprofile-jwt` adds only `upn` before detachment; afterward authorization
+refuses that scope. Both stock clients directly report full scope false. After
+thirteen ordinary writes, all four console access tokens add only the observed
+account audience and `manage-account`/`manage-account-links` role projection;
+ID claims remain unchanged, and a fresh pass writes zero. The final private Fact
+then rejects its own overstrict role-hash equality assertion on the intended grant
+addition, before POST. This is a harness failure, not a product defect or passing
+regression. Actual profile POST/readback remains unverified by this run. Earlier
+compile/assumed-audience/missing-user/optional-scope expectations are measurement
+errors and excluded. Every measurement process joins; exact owned container IDs
+and networks are directly confirmed absent. No foreign resource is inspected.
+
+The hosted correction run
+[`39687329554`](https://github.com/HodeTech/LearnStack/actions/runs/39687329554)
+at `8e914a8b`, attempt 1, independently fails ordinary-10. Its immutable artifact
+`12387397602` has API-verified SHA-256
+`30be17f155a2c7bbd0bc0b6a31beba3294a62b46450a7a4f4aef985fa4de153e`.
+The completed records contain 241 cases and one failed knownFailure=false Outcome
+ACK/held-cleanup variant, ID `4172c42b-b84f-59bf-426f-60d6c521ec52`, in 61.95s.
+Its sibling passes in 17.19s. The failed execution requires forced cleanup and
+lacks successful owned completion. No assertion/location is retained. This is a
+different method from the earlier cancellation/restart failure; duration alone
+establishes no cause. Investigation and any verified diagnostic correction remain
+separate from ADR-0068; no deadline or ownership witness is relaxed.
+
 
 ## Completion Criteria
 

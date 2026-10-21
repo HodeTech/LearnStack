@@ -182,7 +182,7 @@ Phase 11 work; Phase 03 owns tenant identity policy. Tenant MFA stays optional i
 this development export; the operator realm keeps its declared TOTP action.
 
 The ordinary Account REST profile update does not establish an email/login rename:
-Keycloak's [email condition](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/userprofile/DeclarativeUserProfileProviderFactory.java#L143-L171)
+Keycloak's [email condition](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/userprofile/DeclarativeUserProfileProviderFactory.java#L156-L187)
 makes email read-only in that context under the current realm settings. A 204 can
 therefore leave email unchanged. Separate required-action or administrator
 changes use different paths. If a reserved login is changed,
