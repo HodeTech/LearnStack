@@ -18,6 +18,8 @@ internal sealed class TenantAuthenticationBackchannel : IDisposable
     internal TenantAuthenticationBackchannel(SocketsHttpHandler handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
+        if (handler.SslOptions.RemoteCertificateValidationCallback is not null)
+            throw new InvalidOperationException("Tenant authentication certificate validation cannot be replaced.");
         handler.AllowAutoRedirect = false;
         handler.ConnectTimeout = Timeout;
         handler.UseCookies = false;

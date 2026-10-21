@@ -17,8 +17,16 @@ if (args is ["--demo-manifest"])
 }
 if (args is ["--identity-manifest"])
 {
-    Console.WriteLine(JsonSerializer.Serialize(SeedIdentityManifest.Create(), JsonSerializerOptions.Web));
-    return 0;
+    try
+    {
+        Console.WriteLine(JsonSerializer.Serialize(SeedIdentityManifest.Create(), JsonSerializerOptions.Web));
+        return 0;
+    }
+    catch (InvalidOperationException)
+    {
+        Console.Error.WriteLine("seed: development identity declaration is inconsistent.");
+        return 2;
+    }
 }
 if (args.Length != 0)
 {

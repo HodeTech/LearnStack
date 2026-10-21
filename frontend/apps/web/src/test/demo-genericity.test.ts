@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { demoIdentityFindings } from './demo-genericity-analysis';
 import {
+  assertDemoNonRuntimeFiles,
   demoSourceClassification,
   omitDemoSourceDirectory,
   omitIgnoredDemoLocalFile,
@@ -17,6 +18,14 @@ import {
 import vocabulary from './fixtures/demo-identities.json';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
+
+it('refuses a runtime source planted in the non-runtime ownership list', () => {
+  expect(() => assertDemoNonRuntimeFiles()).not.toThrow();
+  for (const path of ['scripts/hidden.mjs', 'frontend/apps/web/src/hidden.ts'])
+    expect(() => assertDemoNonRuntimeFiles([path])).toThrow(
+      'Runtime source cannot have non-runtime ownership',
+    );
+});
 function productionSources(): Map<string, string> {
   const inventory = execFileSync(
     'git',

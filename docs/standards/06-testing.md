@@ -95,9 +95,12 @@ belongs to is decided by what it needs, not by what it is about:
   the same trait.
 - **Identity-provider tests** — P02b-6's `TenancyIdentity/KeycloakFixture` imports
   the committed realms into Keycloak 26.6.2 with its own PostgreSQL database.
-  `SharedKeycloakRealm` shares the read-only baseline. Mutating classes and
-  variants own separate providers; cases within one owner serialize and restore
-  their changes before returning. The provider uses owned HTTPS with a generated
+  `SharedKeycloakRealm` shares a baseline provider, not an immutable or read-only
+  store: real login changes provider sessions, and the actual reconciler runs
+  against it with independently checked zero-write expectations. Cases in that
+  collection serialize. Warm/mutated realm variants own private providers;
+  tests changing shared owner state restore it before returning. The provider
+  uses owned HTTPS with a generated
   fixture CA, explicit custom-root trust and normal hostname verification; no
   host trust-store mutation or certificate-validation bypass is allowed.
   Code/S256 login and signed tokens are real;
@@ -109,7 +112,7 @@ belongs to is decided by what it needs, not by what it is about:
   `PublicReadFixture` and preserves its physical read-only/application-role
   observations. It is nonparallel within its process; do not add that database
   fixture to the provider-only collection. `TenantRealmProfileProtectionTests`
-  owns a class fixture rather than changing the shared read-only baseline.
+  owns a class fixture rather than changing the shared baseline's profile.
   Offline realm tooling controls run in meta with
   fresh named-case reports and zero skips/todos.
 

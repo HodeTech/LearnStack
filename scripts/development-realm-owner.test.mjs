@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
-  chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, rm, symlink, unlink, utimes, writeFile,
+  chmod, link, lstat, mkdir, mkdtemp, open, readFile, readdir, rm, symlink, unlink, utimes, writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { RealmError, realmFailure } from './development-realm-errors.mjs';
 import {
-  acquireRealmLock, realmEnvironment, validateRealmTarget,
+  acquireRealmLock, readRealmEnvironmentFile, realmEnvironment, validateLocalDockerContext, validateRealmTarget,
 } from './development-realm-owner.mjs';
 
 const keys = ['KEYCLOAK_ADMIN', 'KEYCLOAK_ADMIN_PASSWORD', 'KEYCLOAK_WEB_CLIENT_SECRET'];
@@ -66,6 +66,63 @@ async function directory(t) {
   t.after(() => rm(path, { recursive: true, force: true }));
   return path;
 }
+
+test('private environment is read from a regular owner-only file without changing it', async t => {
+  const root = await directory(t);
+  const file = join(root, 'private.env');
+  await writeFile(file, source, { mode: 0o600 });
+  assert.equal(await readRealmEnvironmentFile(file), source);
+  assert.equal((await lstat(file)).mode & 0o777, 0o600);
+  assert.equal(await readFile(file, 'utf8'), source);
+});
+
+for (const mode of [0o644, 0o620, 0o604]) {
+  test(`private environment refuses shared mode ${mode.toString(8)} without repairing it`, async t => {
+    const root = await directory(t);
+    const file = join(root, 'private.env');
+    await writeFile(file, source, { mode });
+    await chmod(file, mode);
+    await assert.rejects(readRealmEnvironmentFile(file), refusal());
+    assert.equal((await lstat(file)).mode & 0o777, mode);
+    assert.equal(await readFile(file, 'utf8'), source);
+  });
+}
+
+test('private environment refuses symlinks, multiple links, directories and oversized files', async t => {
+  const root = await directory(t);
+  const file = join(root, 'private.env');
+  await writeFile(file, source, { mode: 0o600 });
+  const alias = join(root, 'alias');
+  await symlink(file, alias);
+  await assert.rejects(readRealmEnvironmentFile(alias), refusal());
+  await unlink(alias);
+  await link(file, alias);
+  await assert.rejects(readRealmEnvironmentFile(file), refusal());
+  await unlink(alias);
+  await assert.rejects(readRealmEnvironmentFile(root), refusal());
+  await writeFile(file, 'x'.repeat(256 * 1024 + 1));
+  await assert.rejects(readRealmEnvironmentFile(file), refusal());
+});
+
+test('private environment refuses a different owner before using its content', async t => {
+  const root = await directory(t);
+  const file = join(root, 'private.env');
+  await writeFile(file, source, { mode: 0o600 });
+  const uid = process.getuid();
+  t.mock.method(process, 'getuid', () => uid + 1);
+  await assert.rejects(readRealmEnvironmentFile(file), refusal());
+});
+
+test('effective Docker host must agree with the inspected local context before stack work', () => {
+  const context = target().context;
+  assert.doesNotThrow(() => validateLocalDockerContext({}, context));
+  assert.doesNotThrow(() => validateLocalDockerContext({ DOCKER_HOST: 'unix:///var/run/docker.sock' }, context));
+  for (const environment of [
+    { DOCKER_HOST: 'tcp://remote.invalid:2375' },
+    { DOCKER_HOST: 'unix:///different-engine.sock' },
+    { DOCKER_TLS_VERIFY: '1' }, { DOCKER_CERT_PATH: '/remote-certs' },
+  ]) assert.throws(() => validateLocalDockerContext(environment, context), refusal());
+});
 
 test('the selected environment supplies exact private values and permits matching inheritance', () => {
   assert.deepEqual(realmEnvironment(source, {}), values);

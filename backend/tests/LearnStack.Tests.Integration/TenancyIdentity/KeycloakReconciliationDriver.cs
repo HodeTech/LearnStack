@@ -65,7 +65,11 @@ internal static class KeycloakReconciliationDriver
             {
                 try
                 {
-                    if (!child.HasExited) child.Kill(entireProcessTree: true);
+                    if (!child.HasExited)
+                    {
+                        try { child.Kill(entireProcessTree: true); }
+                        catch (InvalidOperationException) when (child.HasExited) { }
+                    }
                     await child.WaitForExitAsync(CancellationToken.None);
                     // Readers are owned too, even when input serialization or the child failed first.
                     if (output is not null) try { await output; } catch (Exception) { }

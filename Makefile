@@ -131,18 +131,9 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 	@# SECURITY exists to defeat — every isolation test would then pass against
 	@# policies that constrain nothing. This target is where the credential lives.
 	@#
-	@# `--connection` is passed explicitly rather than letting the startup project
-	@# resolve one, because that would be ConnectionStrings:Default — the
-	@# learnstack_app role, which holds USAGE but not CREATE on schema public and
-	@# fails with `permission denied for schema public`. The tempting fix for that
-	@# error (granting it CREATE) is the ownership mistake above.
-	@#
-	@# `--connection` alone is NOT enough, which is why the value is also exported.
-	@# `dotnet ef` consumes `--connection` in its own parser and applies it to the
-	@# context AFTER the design-time factory has returned, so the factory never
-	@# sees it in `args` and throws first on a workstation whose value lives only
-	@# in `.env`. Measured. The export is what lets the factory construct; the
-	@# flag is what EF then applies.
+	@# Every design-time factory reads only ConnectionStrings__Migration, never
+	@# the startup application's Default connection. Export to that confined
+	@# factory; do not duplicate the credential on the process command line.
 	@# Four things this recipe does that a naive version does not, each because the
 	@# naive version was measured doing the wrong thing:
 	@#
@@ -221,8 +212,7 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 		(cd backend && dotnet ef database update \
 			--project "../$$proj" \
 			--startup-project src/LearnStack.Api \
-			--configuration Release --no-build \
-			--connection "$$migration_cs") || failed=1; \
+			--configuration Release --no-build) || failed=1; \
 	done; \
 	if [ "$$found" = "0" ]; then \
 		echo "No project carries Persistence/Migrations yet — the first lands with the Tenancy schema in Phase 02a Packet 6."; \
@@ -307,7 +297,7 @@ wait-postgres: ## Wait for the selected stack's PostgreSQL before migrations.
 seed-config: .env
 	./scripts/seed.sh --validate-config
 
-seed: seed-config ## Bring the stack up, apply migrations, seed demo data (idempotent).
+seed: seed-config ## Start the selected stack, migrate, and converge application data and the development realm.
 	@# The Node owner runs dev/wait/migrate with a credential allowlist. Making
 	@# them prerequisites here would leak inherited Keycloak secrets into EF.
 	./scripts/seed.sh
@@ -333,6 +323,6 @@ hooks: ## Activate the repo's pre-commit hook (.githooks/pre-commit).
 	@# `cp -n` returns NON-ZERO on BSD/macOS when the target exists, so a bare
 	@# `cp -n` aborts this rule for every developer whose `.env` predates the
 	@# last `.env.example` edit — i.e. everyone, the first time they pull one.
-	@[ -f .env ] || cp .env.example .env
+	@umask 077; [ -f .env ] || cp .env.example .env
 	@touch .env
 	@printf "$(CYAN).env ready (copied from .env.example if missing).$(RESET)\n"

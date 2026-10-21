@@ -8,6 +8,22 @@ import { refuse } from './development-realm-errors.mjs';
 
 const privateKeys = ['KEYCLOAK_ADMIN', 'KEYCLOAK_ADMIN_PASSWORD', 'KEYCLOAK_WEB_CLIENT_SECRET'];
 
+/** Read through one no-follow handle; private credentials never come from a shared file. */
+export async function readRealmEnvironmentFile(path) {
+  let handle;
+  try {
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const state = await handle.stat();
+    if (!state.isFile() || state.uid !== process.getuid() || state.nlink !== 1
+        || (state.mode & 0o077) !== 0 || state.size > 256 * 1024)
+      refuse('preflight', 'configuration');
+    const source = await handle.readFile('utf8');
+    if (Buffer.byteLength(source) > 256 * 1024) refuse('preflight', 'configuration');
+    return source;
+  } catch { refuse('preflight', 'configuration'); }
+  finally { if (handle) await handle.close().catch(() => refuse('cleanup', 'cleanup')); }
+}
+
 export function isLocalDockerEndpoint(value) {
   if (typeof value !== 'string' || !value.startsWith('unix:///')) return false;
   try {
@@ -15,6 +31,15 @@ export function isLocalDockerEndpoint(value) {
     return endpoint.protocol === 'unix:' && endpoint.host === '' && endpoint.pathname.length > 1
       && !endpoint.search && !endpoint.hash;
   } catch { return false; }
+}
+
+/** Check the effective engine before any stack start, migration or credential use. */
+export function validateLocalDockerContext(environment, context) {
+  const endpoint = context?.[0]?.Endpoints?.docker?.Host;
+  if (!Array.isArray(context) || context.length !== 1 || !isLocalDockerEndpoint(endpoint)
+      || (environment.DOCKER_HOST !== undefined && environment.DOCKER_HOST !== endpoint)
+      || environment.DOCKER_TLS_VERIFY || environment.DOCKER_CERT_PATH)
+    refuse('preflight', 'configuration');
 }
 
 /** Selected private file is data; inherited credentials never silently override it. */
@@ -75,6 +100,7 @@ export async function acquireRealmLock(identity, directory = join(tmpdir(), `lea
 
 /** Only the selected running Compose service may receive the private admin credential. */
 export function validateRealmTarget(selected, model, containers, inspected, context, values) {
+  validateLocalDockerContext(selected.env ?? {}, context);
   const service = model?.services?.keycloak;
   const image = 'quay.io/keycloak/keycloak:26.6.2';
   if (model?.name !== selected.project || service?.image !== image

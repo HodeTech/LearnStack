@@ -9,8 +9,13 @@ Services in order they appear in `dev.yml` (data plane → identity → media �
 eventing → secrets → Dapr sidecar → gateway).
 
 Bring it up with `make dev` from the repo root (the orchestrator copies
-`.env.example` → `.env` on first run, so every `${VAR:-default}` reference
-in `dev.yml` resolves against the developer's copy). The end-to-end overlay
+`.env.example` → a private `.env` on first run). Before starting Keycloak,
+prepare `KEYCLOAK_WEB_CLIENT_SECRET` in that selected private source; Compose
+refuses a missing value instead of importing a published fallback. Preserve an
+existing confidential secret and follow the
+[recovery procedure](../keycloak/README.md#secret-continuity-and-recovery) on
+mismatch. Existing file permissions require explicit operator correction.
+The end-to-end overlay
 adds tmpfs volumes for ephemeral test runs — see `e2e.yml` below.
 
 ### Data plane (Phase 01 packet 3)
@@ -37,7 +42,7 @@ Two realms imported on first boot from `infra/keycloak/realms/`:
 - `learnstack-hub` (operators) — client `learnstack-hub-web` (public PKCE); demo user `demo-operator@learnstack.test` (`demo-dev-secret`). `CONFIGURE_TOTP` required-action present so the MFA flow surfaces in dev.
 
 See [../keycloak/README.md](../keycloak/README.md) for the realm-isolation
-invariant, re-seed procedure, and the Phase 02b/03 wiring notes.
+invariant, non-destructive reconciliation and the Phase 02b/03 wiring notes.
 
 Two Postgres init scripts run, in name order, **only on the first start of a
 fresh `postgres-data` volume**:

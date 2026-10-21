@@ -3,6 +3,8 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Text.Json;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace LearnStack.Tests.Integration.TenancyIdentity;
@@ -29,6 +31,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
     {
         var state = RandomValue();
         var verifier = RandomValue();
+        var nonce = RandomValue();
         var query = new Dictionary<string, string?>
         {
             ["client_id"] = clientId,
@@ -36,7 +39,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
             ["response_type"] = "code",
             ["scope"] = scope,
             ["state"] = state,
-            ["nonce"] = RandomValue(),
+            ["nonce"] = nonce,
         };
         if (pkce != KeycloakPkce.Missing)
         {
@@ -46,7 +49,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
         }
         var path = QueryHelpers.AddQueryString("realms/" + _realm + "/protocol/openid-connect/auth", query);
         using var initial = await KeycloakHttp.SendAsync(_client, HttpMethod.Get, path);
-        var callback = Callback(initial, redirectUri, state, verifier, clientId);
+        var callback = Callback(initial, redirectUri, state, verifier, clientId, nonce);
         if (callback is not null) return callback;
         if (initial.StatusCode != HttpStatusCode.OK)
             return KeycloakAuthorization.Refused(initial.StatusCode);
@@ -58,7 +61,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
                 ["password"] = password,
                 ["credentialId"] = "",
             }));
-        var completed = Callback(login, redirectUri, state, verifier, clientId);
+        var completed = Callback(login, redirectUri, state, verifier, clientId, nonce);
         if (completed is not null) return completed;
         return KeycloakAuthorization.Refused(login.StatusCode, LoginRefusal(await KeycloakHttp.ReadBodyAsync(login)));
     }
@@ -66,10 +69,11 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
     // The pinned registration form is exercised as delivered, including any hidden inputs.
     // Only the fixed provider registration endpoint and its same-origin action are accepted.
     internal async Task<KeycloakRegistration> RegisterAsync(string username, string password, string redirectUri,
-        IReadOnlyDictionary<string, string>? injectedAttributes = null)
+        IReadOnlyCollection<KeyValuePair<string, string>>? injectedAttributes = null)
     {
         var state = RandomValue();
         var verifier = RandomValue();
+        var nonce = RandomValue();
         var path = QueryHelpers.AddQueryString("realms/" + _realm + "/protocol/openid-connect/registrations",
             new Dictionary<string, string?>
             {
@@ -78,7 +82,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
                 ["response_type"] = "code",
                 ["scope"] = "openid profile email",
                 ["state"] = state,
-                ["nonce"] = RandomValue(),
+                ["nonce"] = nonce,
                 ["code_challenge"] = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))),
                 ["code_challenge_method"] = "S256",
             });
@@ -115,11 +119,11 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
         fields["password"] = password;
         fields["password-confirm"] = password;
         if (names.Contains("username")) fields["username"] = username;
-        if (injectedAttributes is not null)
-            foreach (var attribute in injectedAttributes) fields[attribute.Key] = attribute.Value;
+        var submittedFields = fields.ToList();
+        if (injectedAttributes is not null) submittedFields.AddRange(injectedAttributes);
         using var submitted = await KeycloakHttp.SendAsync(_client, HttpMethod.Post, uri.AbsoluteUri,
-            new FormUrlEncodedContent(fields));
-        var callback = Callback(submitted, redirectUri, state, verifier, "learnstack-web");
+            new FormUrlEncodedContent(submittedFields));
+        var callback = Callback(submitted, redirectUri, state, verifier, "learnstack-web", nonce);
         // A refusal may redisplay the form; no raw form or error body is retained or diagnosed.
         return new KeycloakRegistration(submitted.StatusCode, callback?.Authorized == true, names);
     }
@@ -152,7 +156,18 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
         };
         if (secret is not null) form["client_secret"] = secret;
         if (!omitVerifier) form["code_verifier"] = verifier ?? authorization.Verifier;
-        return await KeycloakTokenExchange.RequestAsync(_client, form, _realm);
+        var exchange = await KeycloakTokenExchange.RequestAsync(_client, form, _realm);
+        if (exchange.StatusCode == HttpStatusCode.OK)
+        {
+            try
+            {
+                using var id = JsonDocument.Parse(Base64UrlEncoder.DecodeBytes(exchange.IdToken.Split('.')[1]));
+                if (!id.RootElement.TryGetProperty("nonce", out var nonce) || nonce.ValueKind != JsonValueKind.String
+                    || nonce.GetString() != authorization.Nonce) throw new InvalidOperationException();
+            }
+            catch (Exception) { throw new InvalidOperationException("Keycloak fixture ID token nonce did not round-trip."); }
+        }
+        return exchange;
     }
 
     internal Task<KeycloakTokenExchange> RequestTokenAsync(IReadOnlyDictionary<string, string> form) =>
@@ -176,8 +191,8 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
         throw new InvalidOperationException("Keycloak fixture expected the ordinary login form.");
     }
 
-    private static KeycloakAuthorization? Callback(HttpResponseMessage response, string redirectUri,
-        string state, string verifier, string clientId)
+    private KeycloakAuthorization? Callback(HttpResponseMessage response, string redirectUri,
+        string state, string verifier, string clientId, string nonce)
     {
         if (response.StatusCode is not (HttpStatusCode.Found or HttpStatusCode.SeeOther)) return null;
         var location = response.Headers.Location;
@@ -188,11 +203,13 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
         var query = QueryHelpers.ParseQuery(location.Query);
         if (query["state"].Count != 1 || query["state"][0] != state)
             throw new InvalidOperationException("Keycloak fixture authorization state did not round-trip.");
+        if (query["iss"].Count != 1 || query["iss"][0] != new Uri(_baseAddress, "realms/" + _realm).AbsoluteUri)
+            throw new InvalidOperationException("Keycloak fixture authorization issuer did not round-trip.");
         if (query.TryGetValue("error", out var error))
             return KeycloakAuthorization.Refused(response.StatusCode, KeycloakHttp.ClosedOAuthError(error.ToString()));
         if (query["code"].Count != 1 || string.IsNullOrEmpty(query["code"][0]))
             throw new InvalidOperationException("Keycloak fixture authorization code is missing.");
-        return new KeycloakAuthorization(response.StatusCode, query["code"][0], verifier, redirectUri, clientId, null);
+        return new KeycloakAuthorization(response.StatusCode, query["code"][0], verifier, redirectUri, clientId, null, nonce);
     }
 
     private static bool SameOrigin(Uri first, Uri second) => first.Scheme == second.Scheme
@@ -215,7 +232,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
 
 /// <summary>Sensitive values deliberately have no record-generated diagnostic representation.</summary>
 internal sealed class KeycloakAuthorization(HttpStatusCode statusCode, string? code, string verifier,
-    string redirectUri, string clientId, string? error)
+    string redirectUri, string clientId, string? error, string nonce = "")
 {
     internal HttpStatusCode StatusCode { get; } = statusCode;
     internal string? Code { get; } = code;
@@ -223,6 +240,7 @@ internal sealed class KeycloakAuthorization(HttpStatusCode statusCode, string? c
     internal string RedirectUri { get; } = redirectUri;
     internal string ClientId { get; } = clientId;
     internal string? Error { get; } = error;
+    internal string Nonce { get; } = nonce;
     internal bool Authorized => Code is not null;
     internal static KeycloakAuthorization Refused(HttpStatusCode status, string? error = null) =>
         new(status, null, "", "", "", error);

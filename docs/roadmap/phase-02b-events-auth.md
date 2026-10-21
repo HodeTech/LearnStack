@@ -34,7 +34,9 @@ implementation plan. G12's realm/reconciliation/callback choices and G13's
 issuance-lifetime part are Accepted; G13's session part stays Open for P02b-7.
 P02b-6's four implementation steps and local reviews are complete; the
 [Step 4 record](#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-owns final-source qualification and correction status. P02b-7 BFF sessions and
+owns local qualification and correction receipts. Current-head PR checks own
+complete hosted qualification; the correction follow-up below records failures.
+P02b-7 BFF sessions and
 P02b-8 enforcement/erasure inventory remain pending; Phase 02b remains in
 progress. Earlier dated delivery
 and failed-run receipts keep their as-of state.
@@ -14772,8 +14774,9 @@ and the exact complete meta step: **152 executed tests and 152 JUnit cases pass*
 with no remaining actionable correction finding. Formal round two remains
 required.
 
-The CI plan adds advisory weights for 37 provider method selectors from the
-three complete 55-case TRXs above. Exact completed row durations are summed and
+The CI plan adds advisory weights for 37 realm method selectors (35 live-provider
+methods and two offline export controls) from the three complete 55-case TRXs
+above. Those receipts contain 53 live-provider cases and two offline controls. Exact completed row durations are summed and
 scaled by the existing historical ordinary ratio, 2.271245. Artifact digests
 are retained; source commit is null because it is not embedded in the TRXs.
 Fixture startup and discovery costs are not inferred from case durations.
@@ -14862,8 +14865,8 @@ The completed first hosted run
 binds its twenty successful execution owners to source `4a3173d8`. Independent
 download/readback recomputes assignment from the actual adapter discovery and
 verifies **5,902 distinct passing case identities, zero skips**: 2,910 base,
-433 architecture, 2,528 ordinary Docker and 31 native. The 55 real-provider
-cases all pass. Every selected case matches its completed record; all owners
+433 architecture, 2,528 ordinary Docker and 31 native. The 53 live-provider
+cases and two offline export controls all pass. Every selected case matches its completed record; all owners
 report actual completion and cleanup, without forced cleanup, and all Docker
 owners report no retained resources. The longest execution job takes 860
 seconds, below the unchanged twenty-minute ceiling. Both required backend
@@ -14918,6 +14921,120 @@ actionable finding; each independently passes all 67 affected Node controls.
 The PR checks own new-head qualification; earlier source-bound CI receipts are
 not promoted to this head.
 
+
+### P02b-6 systematic corrections and hosted qualification (2026-10-21)
+
+The correction pass remains on `development`. The implementation/review receipts
+above describe their recorded source, not approval of a later PR head. The live
+PR checks own complete current-head qualification; this record retains the
+source-bound history and the correction obligations.
+
+**Failed hosted evidence.** Run
+[`39598693980`](https://github.com/HodeTech/LearnStack/actions/runs/39598693980)
+tests head `eb707ee84f7c3cbc29c4f7ded2b86cb1b7cb5834` through merge source
+`c390635d0efeb92b08b3c75485fc541b4ca83d3f` with the identical head/merge tree
+`fd08acbbdc0710f0fb5de579bc1c5975ef95a3a9`.
+
+- Attempt 1 completes all 27 jobs and seven required contexts, with 5,902 distinct
+  passing cases, zero skips, exact selected/completed/TRX equality, actual cleanup
+  and verified job/artifact provenance. Its 55 realm cases comprise **53 live
+  provider cases and two offline export controls**, not 55 provider executions.
+- Attempt 2 is failed evidence. Ordinary-10 exports 185 passing and two failing
+  cases: both `independentFailure: false` variants of
+  `Native_completed_cancellation_survives_restart_and_independent_failure_is_not_reclassified`.
+  Its owner reports `tests_failed`, `owned_completion_missing`, forced cleanup
+  and no Docker-absence witness. Sanitized records and retained job output omit
+  assertion/stack details. Neither port pressure, resource pressure nor Keycloak
+  co-membership is established as the cause; no speculative backend fix follows.
+- Attempt 3 reruns only failed jobs. Its ordinary-10 passes 195 cases, but the
+  integration aggregate fails before issuing a receipt. The exact current-attempt
+  `ci-proof-39598693980-3-base` artifact is absent. The jobs API can project reused
+  successful sibling rows into the current attempt; those rows do not prove a
+  fresh execution. The missing receipt upload is a consequence of refusal, not
+  a different output path. This partial run does not qualify either full layout.
+
+**Verified corrections.**
+
+| Boundary | Correction and proof ownership |
+|---|---|
+| Aggregate evidence | Preserve current-attempt artifact identity and fail closed; distinguish `artifact_api_missing`, `artifact_api_not_unique` and invalid metadata. An executing partial-rerun control refuses reused sibling evidence. |
+| Node execution | A single owner derives the complete test-file census and requires exact reviewed per-file executed counts plus same-invocation JUnit. Added/missing files, deleted cases, redistributed cases and empty suites are rejected. |
+| Fixture census | The plan includes all 82 source-verified fixture-bearing classes, including seven omissions. No measured fixture startup cost is invented. |
+| Realm ownership | Only an exact successful single-user `ADDED` receipt establishes creation with the declared credential. An ambiguous 409 or a publicly registered reserved username without the admitted legacy identity refuses. Existing credentials/MFA and unrelated state remain preserved. |
+| Effective login | Disabled realm/clients, consent changes and incompatible stock account callbacks refuse before writes. The two legacy declarations remain tied to the typed seed authority; tooling adds no institution-name branch. |
+| Token availability | Bounded proactive administrator-token renewal reserves the complete exchange budget and never replays a failed Admin request. The whole pass still ends at 120s. |
+| Real provider repair | A planted warm scope drift exposes Keycloak's required `name` on scope updates. The repair carries only retained `name`, retained `protocol` and merged attributes; a model that accepted attributes-only updates no longer masks this path. |
+| Local lifecycle | Read selected private files through no-follow owner-only regular-file handles. New Makefile files use mode 0600; old files require explicit operator repair. Check the effective local Docker context before stack work. Remove the implicit BFF-secret fallback. Print fixed seed stage/reason diagnostics without child output or credentials. Migration credentials remain in the confined factory environment, not process arguments. |
+| Independent security proof | Inspect actual loopback Docker bindings, exact stored identity for all four personas, ordinary profile preservation, exact ID-token subject/client/nonce/issuer, transport cancellation and trusted-CA behavior. |
+
+**Plan revision witness.** On the unchanged 5,902-case manifest
+`736b7f268398e429ea8b5c04cc2d619d29418dfc9dd3f37a8637639d1fdf9422`, the timing
+revision from source `ea0363e8b936c209a9a1bae6e9a027d6877ae596` moves 2,318
+ordinary cases in A (1,043 methods) and 2,256 in B (1,034 methods); Architecture
+moves zero cases. This is the old-plan-to-new-plan difference, distinct from
+A-to-B independence. No weight is reverted to conceal the failed layout.
+Correcting the fixture-class census changes its eligibility witness to 2,191
+cases, of which 2,046 change owner across A/B. The earlier 1,985 witness covered
+an incomplete subset. Architecture/ordinary A-to-B changes remain 371/2,339 on
+that fixed manifest. New tests require a newly discovered manifest and new full
+qualification; none of these historical counts are promoted to that source.
+
+**Receipt corrections and limits.** The Step 1 round-two total of 46 export
+variants is historical; it became 58 after the account-console extension, and
+this pass expands the existing export proof again. The early Step 2 receipt of
+65 transport/target/lock controls precedes the later 20 + 46 = 66 checkpoint;
+neither is a current suite count. Those two historical Step 2 review rounds did
+not retain model/effort metadata in this record; it is not reconstructed by
+inference. Catalogue status was Registered at the earlier Step 4 checkpoint and
+became Implemented only at its later recorded promotion.
+
+The previous-head `39590028974` A/B capture retained and API-digest-verified 46
+raw archives locally. That is a capture-time receipt, not a claim that all 46
+remain downloadable: later attempt uploads overwrite shared artifact names.
+Its 152 meta Node controls belong to that previous source; `eb707ee8` executes
+160. Auxiliary artifact names now include run and attempt identity.
+
+A 999-user ceiling bounds inventory, not completion throughput. An independent
+999-user/40ms-per-exchange model reaches the unchanged 120s deadline and refuses;
+no real scale benchmark or guaranteed convergence at that ceiling is claimed.
+All nonmanifest/group safety checks remain. The measured 913s hosted demo job
+leaves a thin margin in its existing allowance, but is not a reproduced deadline
+failure. The sixteen-minute proof allowance, four-minute cleanup/artifact
+reserve, twenty-minute execution ceilings and required context names remain
+unchanged. Pinned image preparation is separately bounded before fixture startup
+and must fit the same whole-job budget. Sequential aggregate downloads already
+complete in 16/30s against their 240s allowance; no unmeasured parallel rewrite
+or timeout expansion is bundled.
+
+**Local verification.** The complete source-censused Node owner passes 234 cases
+(30 core, 41 HTTP, 56 ownership, 95 planner and twelve real CLI cases), with no
+skips/todos. The guarded frontend passes 1,735 cases in two packages; typecheck
+and lint pass. CI controls pass nineteen aggregate, 57 shard and six Node-gate
+cases. The actual CLI success/failure/SIGTERM paths execute target validation,
+private-source handling, lock ownership, credential-free child commands, full
+planner/readback and cleanup; only the external provider boundary is substituted.
+Separate actual HTTP and live-provider proofs retain their own coverage.
+The readiness fault controls use an actual child-ready marker before injected
+deadline expiry and an explicit cleanup release barrier, replacing two fixed
+startup/hold sleeps without changing production timeouts.
+
+The first expanded provider invocation executes 59 cases (53 live and six
+offline): 58 pass and the newly exercised scope-update branch fails. The
+attributes-only request is independently reproduced and corrected as above.
+The current affected set then passes all 21 cases, including all thirteen
+reconciliation cases, actual startup/bindings, transport/export and backchannel
+controls. Twenty-two architecture/migration/Seeder/Docker controls also pass;
+Release builds have zero warnings/errors. This is an affected-source rerun,
+not a claim that the earlier 59-case invocation passed. Cached-image fixture
+startup measures 19.491s; no cold-pull or fixture-cost estimate is inferred.
+The existing export proof now rejects 66 variants; the earlier 46/58 totals
+remain as-of receipts.
+
+Both fresh independent correction review rounds and full frozen-source hosted
+A/B qualification remain pending at this implementation checkpoint. No passing
+partial retry, old-source receipt or missing cleanup witness closes that gate.
+This correction record claims no merge or P02b-7 delivery.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
@@ -14938,7 +15055,8 @@ event verification. P02b-4's job infrastructure is complete and merged; its
 P02b-5 is complete and merged after all five steps and their independent reviews;
 its [merge closeout](#p02b-5-merge-and-closeout-2026-10-20) owns exact final-source
 qualification and validation limits. P02b-6's four implementation steps and local
-reviews are complete; its Step 4 record owns final-source qualification.
+reviews are complete; its Step 4 record owns local qualification and correction
+receipts, while current-head PR checks own complete hosted qualification.
 P02b-7–8 remain pending.
 The whole phase is not complete.
 

@@ -66,6 +66,7 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
         using var admin = await provider.CreateAdminClientAsync();
         var user = await admin.UserAsync(identity.Username);
         var userPath = UserPath(user);
+        var originalDetails = await admin.GetAsync(userPath);
         var original = user.GetProperty("attributes").Clone();
         var attributes = original.EnumerateObject().ToDictionary(property => property.Name, property => property.Value.Clone());
         attributes["organization_id"] = JsonSerializer.SerializeToElement(
@@ -96,6 +97,8 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             var restored = await admin.GetAsync(userPath);
             JsonElement.DeepEquals(restored.GetProperty("attributes"), original).Should().BeTrue(
                 "only the owned provider mutation is restored, including all original attributes");
+            JsonElement.DeepEquals(restored, originalDetails).Should().BeTrue(
+                "restoring scope attributes cannot silently change the account's unrelated state");
         }
 
         var restoredTokens = await TokensAsync(identity);
@@ -172,6 +175,31 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             using var response = await Send(client, identity.Tenant, tokens.IdToken, path);
             await UnauthorizedAsync(response);
         }
+        // Keep purpose valid while independently removing only the API audience.
+        using var admin = await provider.CreateAdminClientAsync();
+        var scope = (await admin.GetAsync("client-scopes")).EnumerateArray()
+            .Single(value => value.GetProperty("name").GetString() == "learnstack-tenant-api");
+        var mapperBase = "client-scopes/" + scope.GetProperty("id").GetString() + "/protocol-mappers/models";
+        var mapper = (await admin.GetAsync(mapperBase)).EnumerateArray()
+            .Single(value => value.GetProperty("name").GetString() == "learnstack-api-audience");
+        var mapperPath = mapperBase + "/" + mapper.GetProperty("id").GetString();
+        var differentAudience = System.Text.Json.Nodes.JsonNode.Parse(mapper.GetRawText())!.AsObject();
+        differentAudience["config"]!["included.client.audience"] = "different-fixture-resource";
+        try
+        {
+            (await admin.PutAsync(mapperPath, differentAudience)).Should().Be(HttpStatusCode.NoContent);
+            var wrongAudience = await TokensAsync(identity);
+            var access = await KeycloakTokenVerifier.ValidateAsync(provider, wrongAudience.AccessToken, "account");
+            HasAudience(access, "learnstack-api").Should().BeFalse();
+            (access.GetProperty("typ").GetString() == "Bearer"
+                && access.GetProperty("azp").GetString() == "learnstack-web").Should().BeTrue();
+            foreach (var path in new[] { TenantAuthenticationHttpRequest.AccountPath, TenantAuthenticationHttpRequest.PublicPath })
+            {
+                using var response = await Send(client, identity.Tenant, wrongAudience.AccessToken, path);
+                await UnauthorizedAsync(response);
+            }
+        }
+        finally { (await admin.PutAsync(mapperPath, mapper)).Should().Be(HttpStatusCode.NoContent); }
         database.Observation.Reads.Should().Be(reads);
         observation.Reads.Should().HaveCount(1);
         (await AuditCountsAsync()).Should().Equal(audits);
@@ -200,8 +228,8 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             // This owned unrelated account qualifies a genuine issuer negative, not an operator/MFA journey.
             var tokens = await ExchangeAsync(username, "http://localhost:3100/api/auth/callback/keycloak",
                 realm: "learnstack-hub", clientId: "learnstack-hub-web", secret: null);
-            var payload = await KeycloakTokenVerifier.ValidateAsync(provider, tokens.IdToken,
-                "learnstack-hub-web", "learnstack-hub");
+            var payload = await KeycloakTokenVerifier.ValidateAsync(provider, tokens.AccessToken,
+                "account", "learnstack-hub");
             payload.GetProperty("iss").GetString().Should().Be(provider.IssuerFor("learnstack-hub"));
             foreach (var path in new[] { TenantAuthenticationHttpRequest.AccountPath, TenantAuthenticationHttpRequest.PublicPath })
             {
@@ -233,6 +261,13 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             await AccountAsync(positive, identity, observation);
         }
         using var wrongAuthority = new KeycloakTls();
+        using (var backchannel = Backchannel(wrongAuthority.RootCertificate))
+        {
+            var metadata = async () => { using var response = await backchannel.Client.GetAsync(provider.Issuer + "/.well-known/openid-configuration"); };
+            var tls = await metadata.Should().ThrowAsync<HttpRequestException>();
+            tls.Which.InnerException.Should().BeOfType<System.Security.Authentication.AuthenticationException>(
+                "the actual production backchannel must fail certificate authentication with this CA");
+        }
         using var wrongClient = Client(identity.Tenant, out var wrongObservation, wrongAuthority.RootCertificate);
         var reads = database.Observation.Reads;
         var audits = await AuditCountsAsync();

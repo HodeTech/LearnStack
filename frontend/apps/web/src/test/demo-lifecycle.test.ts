@@ -34,6 +34,10 @@ import {
 } from '../../../../../scripts/public-runtime.mjs';
 import { defaultServices, healthyServices } from '../../../../../scripts/wait-compose.mjs';
 
+function writePrivateFileSync(path: string, source: Parameters<typeof writeFileSync>[1]) {
+  writeFileSync(path, source, { mode: 0o600 });
+}
+
 const roots: string[] = [];
 const owners: DemoProcesses[] = [];
 afterEach(async () => {
@@ -296,9 +300,12 @@ describe('shared explicit demo stack selection', () => {
     'COMPOSE_ENV_FILES=foreign.env',
   ])('refuses a selected dotenv Compose control before Docker: %s', (assignment) => {
     const root = temporary();
-    writeFileSync(join(root, '.env'), `POSTGRES_PASSWORD=private\n${assignment}\n`);
+    writePrivateFileSync(join(root, '.env'), `POSTGRES_PASSWORD=private\n${assignment}\n`);
     expect(() => composeSelection('dev', {}, root)).toThrow('Reserved COMPOSE_*');
-    writeFileSync(join(root, '.env'), '# COMPOSE_PROFILES=gated\nPOSTGRES_PASSWORD=private\n');
+    writePrivateFileSync(
+      join(root, '.env'),
+      '# COMPOSE_PROFILES=gated\nPOSTGRES_PASSWORD=private\n',
+    );
     expect(() => composeSelection('dev', {}, root)).not.toThrow();
   });
   it('refuses stale ambient seed credentials before stack or database actions', () => {
@@ -307,7 +314,7 @@ describe('shared explicit demo stack selection', () => {
     const script = join(root, 'scripts/seed.sh');
     const migration = 'Host=localhost;Username=learnstack_migration';
     const app = 'Host=localhost;Username=learnstack_app';
-    writeFileSync(
+    writePrivateFileSync(
       join(root, 'selected.env'),
       privateSource
         .replace('Username=learnstack_migration', migration)
@@ -331,17 +338,21 @@ describe('shared explicit demo stack selection', () => {
       const result = run({ ...env, [key]: 'Host=foreign;Username=stale' });
       expect(result.error).toBeUndefined();
       expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain('disagrees');
+      expect(result.stderr).toContain('realm: preflight/configuration');
       expect(result.stderr).not.toContain('foreign');
     }
   });
   it('freshly builds the Release Seeder and launches its argument-free DLL with only its credential', () => {
     const root = temporary();
-    writeFileSync(join(root, '.env'), seedFixture(root));
+    writePrivateFileSync(join(root, '.env'), seedFixture(root));
     writeFileSync(
       join(root, 'bin/docker'),
       `#!${process.execPath}
 const { appendFileSync } = require('node:fs');
+if (JSON.stringify(process.argv.slice(2)) === JSON.stringify(['context', 'inspect'])) {
+  process.stdout.write(JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }]));
+  process.exit(0);
+}
 if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['compose', 'version']) || Object.keys(process.env).some(key => /keycloak|connectionstrings|_pw$|bff|debug/i.test(key))) process.exit(13);
 appendFileSync(${JSON.stringify(join(root, 'events'))}, 'compose-version\\n');
 `,
@@ -415,7 +426,7 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
       join(root, 'scripts/connection-string.awk'),
       readFileSync(new URL('../../../../../scripts/connection-string.awk', import.meta.url)),
     );
-    writeFileSync(
+    writePrivateFileSync(
       join(root, '.env'),
       'ConnectionStrings__Migration=Username=learnstack_platform\n',
     );
@@ -453,7 +464,7 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
   });
   it('keeps project/files/env stable and removes inherited Compose and dotenv shadows', () => {
     const root = temporary();
-    writeFileSync(join(root, '.env'), 'POSTGRES_PASSWORD=private-file-value\n');
+    writePrivateFileSync(join(root, '.env'), 'POSTGRES_PASSWORD=private-file-value\n');
     const selected = composeSelection(
       'e2e',
       {
@@ -500,7 +511,7 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
   it('refuses missing environment, unsupported mode and unsafe project names', () => {
     const root = temporary();
     expect(() => composeSelection('dev', {}, root)).toThrow();
-    writeFileSync(join(root, '.env'), 'A=B\n');
+    writePrivateFileSync(join(root, '.env'), 'A=B\n');
     expect(() => composeSelection('unknown', {}, root)).toThrow();
     expect(() =>
       composeSelection('dev', { LEARNSTACK_COMPOSE_PROJECT: '../foreign' }, root),

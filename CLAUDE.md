@@ -292,7 +292,8 @@ verification; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21)
 owns actual seed/demo and cancellation evidence. Step 4's
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-owns all completed local implementation/reviews and final-source qualification.
+owns completed local implementation/reviews and source-bound qualification receipts.
+The PR's required checks own current-head hosted qualification; merge is separate.
 All four implementation steps and fresh correction reviews are complete locally;
 hosted qualification and PR review remain separate from merge.
 P02b-7–8 remain pending;
@@ -517,7 +518,8 @@ Then read the phase that is live and the one it stands on:
   owns the completed local reconciler and Accepted response-budget decision;
   Step 3 is complete locally after both review rounds and fresh corrections;
   its record above owns actual lifecycle evidence. Step 4's record above owns
-  current implementation and qualification.
+  local implementation and source-bound qualification receipts; the PR's required
+  checks own current-head hosted qualification.
   P02b-7–8 retain their
   own decision passes; G13's session part stays Open.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)

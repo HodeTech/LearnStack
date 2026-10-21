@@ -4560,8 +4560,11 @@ structural test proves — and what it does not.
   **Kind:** behavioural.
 - **Test owner:** `TenantRealmReconciliationTests` and
   `TenantRealmSelfServiceTests` in `backend/tests/LearnStack.Tests.Integration`;
-  shared reconciler Node controls
-  under `scripts/` own bounded transport/process/CLI evidence.
+  shared reconciler Node controls under `scripts/`, including
+  `reconcile-development-realm.test.mjs`, own bounded transport/process/CLI
+  evidence. `frontend/apps/web/src/test/demo-realm-lifecycle.test.ts` owns the
+  seed/demo caller's awaited handoff, selection, confinement and cancellation
+  cleanup controls; its reconciler stub does not prove Admin REST convergence.
 - **Status:** **Implemented** — `TenantRealmReconciliationTests` and
   `TenantRealmSelfServiceTests`, with offline Node controls in meta; P02b-6
   Steps 2–4. Actual warm-provider, lifecycle and cancellation receipts and

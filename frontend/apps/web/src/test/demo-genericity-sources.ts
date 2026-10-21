@@ -80,6 +80,7 @@ const nonRuntimeFiles = new Set([
   'scripts/test-ci-supply-chain.py',
   'scripts/test-openapi-ci.py',
   'scripts/test-realm-node-gate.py',
+  'scripts/run-realm-node-tests.py',
   // Offline vendor distribution materials and isolated lifecycle experiments.
   'scripts/probe-hangfire-lifecycle.py',
   'scripts/probes/hangfire-lifecycle/BoundaryProbe.cs',
@@ -136,8 +137,16 @@ const rootFiles = new Set([
   'README.md',
 ]);
 
+/** Runtime JS/TS cannot be hidden by adding a file to the data/tooling list. */
+export function assertDemoNonRuntimeFiles(files: Iterable<string> = nonRuntimeFiles): void {
+  for (const path of files)
+    if (/\.[cm]?[jt]sx?$/.test(path))
+      throw new Error(`Runtime source cannot have non-runtime ownership: ${path}`);
+}
+
 /** Refuse new roots/formats until their production or non-runtime ownership is explicit. */
 export function demoSourceClassification(path: string): 'runtime' | 'other' {
+  assertDemoNonRuntimeFiles();
   if (!path || path.startsWith('/') || path.split('/').some((part) => part === '..'))
     throw new Error(`Unclassified repository source: ${path}`);
   const root = path.split('/')[0]!;

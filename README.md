@@ -97,7 +97,8 @@ P02b-6's four implementation steps and local independent reviews are complete:
 real issuance, protected profiles, narrow account self-service and safe shared
 seed/demo reconciliation. Its
 [Step 4 record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-owns source-bound verification and final hosted/PR qualification.
+owns local proof/review closure and source-bound qualification receipts. The
+PR's required checks own current-head hosted qualification; merge is separate.
 BFF sessions and phase exit remain P02b-7–8; browser sign-in is not implemented.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
@@ -217,8 +218,12 @@ ordinary authoring pipeline and verifies completed acts before skipping them on 
 [SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
 Both combined entries then await the same bounded development-realm reconciler.
 Older private files must explicitly add `KEYCLOAK_WEB_CLIENT_SECRET`; existing
-passwords/MFA and provider IDs are preserved. The
-[realm guide](infra/keycloak/README.md) owns setup, refusal and qualification details.
+passwords/MFA and provider IDs are preserved. Prepare this secret before the
+first `make dev` import, and retain it across reruns. Older files also need
+explicit private permissions after verifying their ownership/type; Makefile
+creation does not repair existing files. The
+[realm guide](infra/keycloak/README.md#secret-continuity-and-recovery) owns setup,
+refusal, safe secret recovery and qualification details.
 
 ### 3. Prepare local HTTPS and start the applications
 

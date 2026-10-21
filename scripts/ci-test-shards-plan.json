@@ -8373,6 +8373,7 @@
     "LearnStack.Tests.Integration.Database.BackgroundJobSubmissionTests",
     "LearnStack.Tests.Integration.Database.CourseContentAccessMigrationTests",
     "LearnStack.Tests.Integration.Database.CustomizationCatalogTests",
+    "LearnStack.Tests.Integration.Database.CustomizationContentTypeQuotaTests",
     "LearnStack.Tests.Integration.Database.CustomizationDefaultDeliveryTests",
     "LearnStack.Tests.Integration.Database.CustomizationDefaultInitializationTests",
     "LearnStack.Tests.Integration.Database.CustomizationProjectionTests",
@@ -8414,6 +8415,7 @@
     "LearnStack.Tests.Integration.Database.TenancySchemaTests",
     "LearnStack.Tests.Integration.Database.TenancyWriterTests",
     "LearnStack.Tests.Integration.Database.TenantAssertionAuditTests",
+    "LearnStack.Tests.Integration.Database.TenantAuthenticationRejectionAuditTests",
     "LearnStack.Tests.Integration.Database.TenantContextGuardTests",
     "LearnStack.Tests.Integration.Database.TenantCreatedProducerTests",
     "LearnStack.Tests.Integration.Database.TenantLocaleDefaultTests",
@@ -8422,7 +8424,12 @@
     "LearnStack.Tests.Integration.Database.TenantSettingsAccessorTests",
     "LearnStack.Tests.Integration.Database.UnitOfWorkCommitCleanupTests",
     "LearnStack.Tests.Integration.Database.UnitOfWorkTests",
-    "LearnStack.Tests.Integration.Database.WriteStoreConflictTests"
+    "LearnStack.Tests.Integration.Database.WriteStoreConflictTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests"
   ],
   "fixedCosts": {
     "basePreTestMs": [

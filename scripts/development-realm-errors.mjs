@@ -31,7 +31,12 @@ export function realmFailure(error) {
 /** The three development entry points share the same closed setup instruction. */
 export function realmFailureNotice(error) {
   const message = realmFailure(error);
-  return error instanceof RealmError && error.reason === 'missing_web_secret'
-    ? message + '\nrealm: add KEYCLOAK_WEB_CLIENT_SECRET explicitly to the selected private file; see infra/keycloak/README.md'
-    : message;
+  if (!(error instanceof RealmError)) return message;
+  if (error.reason === 'missing_web_secret')
+    return message + '\nrealm: add KEYCLOAK_WEB_CLIENT_SECRET explicitly to the selected private file; see infra/keycloak/README.md';
+  if (error.reason === 'secret_conflict')
+    return message + '\nrealm: retain the confidential client secret in the selected private file; see infra/keycloak/README.md#secret-continuity-and-recovery';
+  if (error.reason === 'lock_busy')
+    return message + '\nrealm: verify the previous owner has stopped before removing its private lock; see infra/keycloak/README.md#lock-recovery';
+  return message;
 }

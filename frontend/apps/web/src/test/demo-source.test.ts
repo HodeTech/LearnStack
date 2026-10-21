@@ -201,6 +201,7 @@ describe('observational CI demo source checkpoints', () => {
         writeFileSync(
           join(f.root, '.env'),
           'KEYCLOAK_ADMIN=source-control-admin\nKEYCLOAK_ADMIN_PASSWORD=source-control-private\nKEYCLOAK_WEB_CLIENT_SECRET=source-control-web-private\n',
+          { mode: 0o600 },
         );
       }
       const execution = spawnSync(
@@ -216,6 +217,7 @@ describe('observational CI demo source checkpoints', () => {
         DemoProcesses.prototype.run = async function(command, args, options) {
           commands.push({ command, args });
           if (command === 'git') return run.call(this, command, args, options);
+          if (command === 'docker' && args[0] === 'context') return JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }]);
           if (command === 'pnpm' && args[0] === 'install') throw stop;
           return '';
         };

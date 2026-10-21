@@ -20,6 +20,7 @@ async function endpoint(t, handler) {
   const requests = [];
   const server = http.createServer((request, response) => {
     requests.push(request);
+    response.setHeader('Content-Type', 'application/json');
     handler(request, response);
   });
   server.on('connection', (socket) => {
@@ -145,6 +146,19 @@ test('successful JSON and form requests use the actual bounded identity transpor
   assert.equal(f.requests[0].headers['content-type'], 'application/json');
   assert.equal(f.requests[1].headers['content-type'], 'application/x-www-form-urlencoded');
 });
+
+for (const contentType of ['text/html', 'text/plain', 'application/octet-stream', 'application/jsonx']) {
+  test(`a successful non-JSON ${contentType} response is refused after actual exchange cleanup`, async t => {
+    const exchanges = observeExchanges(t);
+    const f = await endpoint(t, (_request, response) => {
+      response.setHeader('Content-Type', contentType);
+      response.end('{}');
+    });
+    await assert.rejects(realmRequest(f.url), refusal('plan', 'response'));
+    assertClosed(exchanges);
+    assert.equal(f.requests.length, 1);
+  });
+}
 
 test('localhost connects only to pinned IPv4 loopback without system DNS and retains its Host', async (t) => {
   let host;

@@ -23,7 +23,7 @@ import { apiCompletionObserver } from './demo-observation.mjs';
 import { publicSeederEnvironment, validateDemoDatabaseConfiguration } from './demo-database.mjs';
 import { demoSource } from './demo-source.mjs';
 import { RealmError, realmFailureNotice } from './development-realm-errors.mjs';
-import { realmEnvironment } from './development-realm-owner.mjs';
+import { readRealmEnvironmentFile, realmEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
@@ -218,7 +218,7 @@ export async function startDemo(mode) {
       });
     }
     if (mode === 'local' && existsSync(rootEnv))
-      realmEnvironment(readFileSync(rootEnv, 'utf8'));
+      realmEnvironment(await readRealmEnvironmentFile(rootEnv));
     mkdirSync(join(repositoryRoot, '.data'), { recursive: true });
     try {
       mkdirSync(lock, { mode: 0o700 });
@@ -242,6 +242,9 @@ export async function startDemo(mode) {
         ...(command === 'docker' ? { env: composeProcessEnvironment() } : {}),
         timeout: 15000,
       });
+    const dockerEnvironment = composeProcessEnvironment();
+    validateLocalDockerContext(dockerEnvironment, JSON.parse(await run('docker', ['context', 'inspect'],
+      'Local Docker context', { env: dockerEnvironment, capture: true, timeout: 5000 })));
     privateRoot = mkdtempSync(join(tmpdir(), 'learnstack-demo-'));
     // Git/hook configuration is untouched. The frontend lock and pinned SDK/tool
     // manifests are the same dependency inputs used by required checks.
@@ -338,10 +341,10 @@ export async function startDemo(mode) {
           flag: 'wx',
           mode: 0o600,
         });
-      realmEnvironment(readFileSync(rootEnv, 'utf8'));
+      realmEnvironment(await readRealmEnvironmentFile(rootEnv));
       await run('node', ['scripts/public-local.mjs', 'prepare'], 'Private local preparation');
     }
-    const privateSource = readFileSync(rootEnv, 'utf8');
+    const privateSource = await readRealmEnvironmentFile(rootEnv);
     realmEnvironment(privateSource);
     const rawValues = parseLocalEnvironment(privateSource);
     for (const [key, value] of Object.entries(rawValues))

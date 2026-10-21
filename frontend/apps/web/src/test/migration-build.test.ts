@@ -137,13 +137,13 @@ it.each([false, true])(
         '--configuration',
         'Release',
         '--no-build',
-        '--connection',
-        'Host=localhost;Username=learnstack_migration',
       ]),
     ]);
     for (const call of calls) {
       expect(call.cwd).toBe(join(files.root, 'backend'));
       expect(call.connection).toBe('Host=localhost;Username=learnstack_migration');
+      expect(call.args).not.toContain(call.connection);
+      expect(call.args).not.toContain('--connection');
     }
   },
 );

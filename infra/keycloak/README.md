@@ -36,7 +36,7 @@ against it, including the host's default organization where applicable.
 
 ## Local access and private sources
 
-- Admin console: <http://localhost:8080>; local master defaults are
+- Admin console: <http://localhost:8080/admin/>; local master defaults are
   `admin` / `admin-dev-secret`.
 - Tenant discovery:
   <http://localhost:8080/realms/learnstack/.well-known/openid-configuration>.
@@ -50,11 +50,64 @@ against it, including the host's default organization where applicable.
   an existing confidential secret; a mismatch requires operator correction,
   rather than automatic rotation. Conversion of the old public client installs
   the selected private source once.
+- Before `make dev`, `make seed` or `make demo`, prepare the selected private
+  file and preserve its secret across restarts. Missing Compose configuration
+  refuses before import; there is no published BFF-secret fallback. See
+  [secret continuity and recovery](#secret-continuity-and-recovery).
+
+The reconciler reads the selected file through one no-follow handle and verifies
+that it is a regular file owned by the current user, has one hard link and has
+no group/other permission bits. A new Makefile-created `.env` is private;
+existing files are never repaired silently. After verifying an older path is
+your own regular, nonsymlink, single-link file, explicitly run `chmod 600 .env`
+(or the selected private path). Do not print its contents or copy it to a report.
 
 These credentials are development-only. Production provisioning and rotation
 belong to Phase 11 and [Infrastructure Standards](../../docs/standards/12-infrastructure.md#secrets-management).
 Do not reuse local secrets in production or put them in command arguments,
 URLs, logs or public configuration.
+
+## Secret continuity and recovery
+
+`KEYCLOAK_WEB_CLIENT_SECRET` is create-once local state, not a new value on every
+seed. Before the first Keycloak import, set it in the selected private file.
+Use the same value for Compose, reconciliation and the later BFF. The API,
+public renderer and application Seeder never receive it.
+
+- `missing_web_secret`: add the key explicitly before starting the stack. A
+  previously populated file is not supplemented with a fallback automatically.
+- `secret_conflict`: stop the affected local consumers and inspect the selected
+  confidential `learnstack-web` client privately in the Admin Console. Recover
+  its existing secret into the selected private source if that source was lost
+  or changed accidentally. Reconciliation will not overwrite the provider secret.
+- If an earlier import used a published development fallback, treat it as
+  exposed. The operator must explicitly rotate that local client secret in the
+  Admin Console and update the selected private source together; the reconciler
+  does not perform this rotation. Restart only the owned affected consumers,
+  then explicitly rerun convergence.
+
+Do not reset users, delete the client, drop provider data or enable a public
+client to bypass the refusal. Never put the recovered/rotated secret on argv,
+in logs, in a URL or in committed configuration.
+
+## Lock recovery
+
+One local owner protects each selected container/realm. The default lock is
+under `os.tmpdir()/learnstack-realm-<uid>/`, named
+`sha256(<selected-container-id> + "/realms/learnstack").lock`. This is separate
+from the demo lifecycle's project lock. The parent is current-user-owned `0700`;
+the exclusive regular lock file is `0600`. No age or guessed PID proves a lock
+is stale, and the tool never reclaims one automatically.
+
+On `lock_busy`, first identify the exact selected project, container and realm,
+and verify that every previous seed/demo/reconciler owner for that target has
+finished and joined its children. Do not stop foreign processes. If cleanup is
+uncertain, keep the lock and investigate; a timeout is not cleanup evidence.
+Only after establishing that no owner remains may the local operator remove
+that exact lock, after checking its directory, ownership, file type, permissions
+and single-link status. Never remove the whole directory, glob locks or delete
+a lock based only on elapsed time. Explicitly rerun convergence afterwards;
+partial Admin REST writes remain durable and are re-read.
 
 ## Tenant client contract
 

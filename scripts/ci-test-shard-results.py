@@ -44,6 +44,7 @@ EXECUTE_STEP = 'Execute assigned cases under the bounded owner'
 UPLOAD_STEP = 'Upload immutable attempt evidence'
 BUILD_STEP = 'Build Release with warnings as errors'
 UPLOAD_ACTION = 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'
+FIXTURE_IMAGES = ('quay.io/keycloak/keycloak:26.6.2', 'postgres:18.4-alpine')
 
 
 def module(name, filename):
@@ -56,6 +57,30 @@ def module(name, filename):
 PLAN = module('ci_result_plan', 'ci-test-shards.py')
 OWNER = module('ci_result_execution', 'ci-native-tests.py')
 Refusal, require = PLAN.Refusal, PLAN.require
+
+
+def prepare_fixture_images():
+    # Pull outside fixture startup, while charging every second to the same
+    # twenty-minute job. Never consume the execution owner's cleanup reserve.
+    require(sys.platform == 'linux' and os.environ.get('GITHUB_ACTIONS') == 'true'
+            and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted'
+            and os.environ.get('GITHUB_JOB') == 'backend-integration-tests', 'fixture_setup_context_invalid')
+    started = os.environ.get('LEARNSTACK_CI_STARTED_AT', '')
+    require(re.fullmatch(r'[1-9][0-9]*', started), 'fixture_setup_clock_missing')
+    elapsed = time.time() - int(started)
+    available = OWNER.JOB_SECONDS - OWNER.RESERVE_SECONDS - elapsed
+    require(elapsed >= 0 and available > 0, 'fixture_setup_deadline_exhausted')
+    beginning = time.monotonic()
+    deadline = beginning + min(110, available)
+    images = []
+    for image in FIXTURE_IMAGES:
+        image_started = time.monotonic()
+        OWNER.command([OWNER.DOCKER, 'pull', image], deadline, 'fixture_image_pull_failed', cap=55)
+        images.append({'image': image, 'pullSeconds': round(time.monotonic() - image_started, 3)})
+    require(time.monotonic() < deadline, 'fixture_setup_deadline_exhausted')
+    print(json.dumps({'protocol': 1, 'fixtureImagePreparationSeconds': round(time.monotonic() - beginning, 3),
+                      'images': images}, sort_keys=True))
+    return 0
 
 
 def json_value(raw):
@@ -157,6 +182,12 @@ def workflow_topology(documents, plan):
         names = [step.get('name') for step in steps]
         require(len(names) == len(set(names)) and all(names.count(name) == 1
                 for name in (BUILD_STEP, EXECUTE_STEP, UPLOAD_STEP)), 'execution_gates_missing')
+        if scope == 'ordinary':
+            prepare_name = 'Prepare pinned provider fixture images within the whole-job budget'
+            prepare = [step for step in steps if step.get('name') == prepare_name]
+            require(len(prepare) == 1 and prepare[0].get('run') == 'python3 scripts/ci-test-shards.py prepare-fixtures'
+                    and prepare[0].get('timeout-minutes') == 2 and 'if' not in prepare[0]
+                    and names.index(prepare_name) < names.index(EXECUTE_STEP), 'fixture_image_gate_invalid')
         build, execute, upload = (steps[names.index(name)] for name in (BUILD_STEP, EXECUTE_STEP, UPLOAD_STEP))
         mode = 'native-shard' if scope == 'native' else scope
         mode += '-${{ matrix.index }}' if scope in ('architecture', 'ordinary') else ''
@@ -316,11 +347,17 @@ def verify_jobs(jobs, context, plan, scope):
 
 def verify_artifact(metadata, context, owner, job):
     name = artifact_name(context, owner)
-    require(isinstance(metadata, dict) and metadata.get('total_count') == 1
-            and isinstance(metadata.get('artifacts'), list) and len(metadata['artifacts']) == 1,
-            'artifact_api_not_unique')
+    require(isinstance(metadata, dict) and type(metadata.get('total_count')) is int
+            and metadata['total_count'] >= 0 and isinstance(metadata.get('artifacts'), list)
+            and len(metadata['artifacts']) == metadata['total_count'], 'artifact_api_invalid')
+    # Re-running failed jobs can project old successful siblings into the new
+    # jobs API response. Only an immutable artifact with this exact attempt's
+    # name is evidence that the sibling actually executed this assignment.
+    require(metadata['total_count'] != 0, 'artifact_api_missing')
+    require(metadata['total_count'] == 1, 'artifact_api_not_unique')
     artifact = metadata['artifacts'][0]
-    require(positive(artifact.get('id')) and artifact.get('name') == name and artifact.get('expired') is False
+    require(isinstance(artifact, dict) and positive(artifact.get('id'))
+            and artifact.get('name') == name and artifact.get('expired') is False
             and positive(artifact.get('size_in_bytes')) and artifact['size_in_bytes'] <= MAX_ARCHIVE
             and isinstance(artifact.get('digest'), str) and re.fullmatch(r'sha256:[0-9a-f]{64}', artifact['digest']),
             'artifact_api_invalid')

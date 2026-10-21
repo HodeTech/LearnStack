@@ -42,7 +42,7 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
                 "independent admin readback proves this same user's ordinary write reached storage");
             SeedAttributesMatch(updated, identity).Should().BeTrue();
             foreach (var attribute in ProtectedAttributes)
-                foreach (var attempt in new[] { "replace", "empty", "delete", "omit" })
+                foreach (var attempt in new[] { "replace", "empty", "multiple", "delete", "omit" })
                 {
                     var payload = AccountUpdate(await AccountAsync(account));
                     var attributes = payload["attributes"]?.AsObject() ?? new JsonObject();
@@ -51,10 +51,11 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
                     {
                         case "replace": attributes[attribute] = new JsonArray(Guid.NewGuid().ToString("D")); break;
                         case "empty": attributes[attribute] = new JsonArray(""); break;
+                        case "multiple": attributes[attribute] = new JsonArray(Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D")); break;
                         case "delete": attributes[attribute] = new JsonArray(); break;
                         case "omit": attributes.Remove(attribute); break;
                     }
-                    (await UpdateAsync(account, payload)).Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.NoContent);
+                    (await UpdateAsync(account, payload)).Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.Forbidden, HttpStatusCode.NoContent);
                     SeedAttributesMatch(await admin.UserAsync(identity.Username), identity).Should().BeTrue(
                         "a 204 can mean a protected omission was ignored; the stored typed values decide protection");
                     HiddenFromAccount(await AccountAsync(account)).Should().BeTrue();
@@ -93,21 +94,24 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
             created.HasValue.Should().BeTrue();
             NoAuthorityAttributes(created!.Value).Should().BeTrue();
             foreach (var attribute in ProtectedAttributes)
-            {
-                var username = OwnedRegistrationName();
-                owned.Add(username);
-                using var browser = fixture.Browser();
-                var result = await browser.RegisterAsync(username, KeycloakFixture.DemoPassword, callback,
-                    new Dictionary<string, string> { [attribute] = Guid.NewGuid().ToString("D") });
-                RegistrationFieldsHidden(result).Should().BeTrue();
-                result.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Found,
-                    HttpStatusCode.SeeOther, HttpStatusCode.BadRequest);
-                var attempted = await FindOwnedRegistrationAsync(admin, username);
-                if (attempted.HasValue)
-                    NoAuthorityAttributes(attempted.Value).Should().BeTrue(
-                        "an accepted registration cannot persist an injected authority attribute");
-                else result.Authorized.Should().BeFalse("a refused injection must not claim completed registration");
-            }
+                foreach (var variant in new[] { "replace", "empty", "multiple" })
+                {
+                    var username = OwnedRegistrationName();
+                    owned.Add(username);
+                    using var browser = fixture.Browser();
+                    var injected = new List<KeyValuePair<string, string>>
+                    { new(attribute, variant == "empty" ? "" : Guid.NewGuid().ToString("D")) };
+                    if (variant == "multiple") injected.Add(new(attribute, Guid.NewGuid().ToString("D")));
+                    var result = await browser.RegisterAsync(username, KeycloakFixture.DemoPassword, callback, injected);
+                    RegistrationFieldsHidden(result).Should().BeTrue();
+                    result.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Found,
+                        HttpStatusCode.SeeOther, HttpStatusCode.BadRequest);
+                    var attempted = await FindOwnedRegistrationAsync(admin, username);
+                    if (attempted.HasValue)
+                        NoAuthorityAttributes(attempted.Value).Should().BeTrue(
+                            "an accepted registration cannot persist an injected authority attribute");
+                    else result.Authorized.Should().BeFalse("a refused injection must not claim completed registration");
+                }
         }
         finally
         {

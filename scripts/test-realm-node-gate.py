@@ -1,52 +1,53 @@
 #!/usr/bin/env python3
-"""Run the actual CI Node/JUnit command and gate against executable counterexamples."""
+"""Execute the actual source-census/count/JUnit owner against counterexamples."""
 import os
 from pathlib import Path
-import re
-import shlex
 import subprocess
 import tempfile
-import textwrap
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-REPORTER_ARGS = ('--test-reporter=./scripts/require-node-test-cases.mjs '
-                 '--test-reporter-destination=stdout ')
-
-
-def workflow_step():
-    workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-    marker = '      - name: Development realm transport, ownership and convergence controls\n'
-    assert workflow.count(marker) == 1
-    block = workflow.split(marker, 1)[1].split('\n      - name:', 1)[0]
-    return textwrap.dedent(block.split('        run: |\n', 1)[1])
 
 
 class RealmNodeGateControls(unittest.TestCase):
-    def execute(self, source, *, without_counter_guard=False):
+    def execute(self, sources, *, expected=None, without_counter_guard=False):
         with tempfile.TemporaryDirectory(prefix='learnstack-node-gate-') as temporary:
             directory = Path(temporary)
-            test_file = directory / 'fixture.test.mjs'
-            test_file.write_text(source)
-            step, count = re.subn(r'for test_file in scripts/development-realm-core\.test\.mjs \\\n'
-                                 r'.*?scripts/reconcile-development-realm\.test\.mjs; do',
-                                 'for test_file in ' + shlex.quote(str(test_file)) + '; do',
-                                 workflow_step(), count=1, flags=re.DOTALL)
-            self.assertEqual(1, count, 'replace only the actual fixed workflow test-file selection')
-            self.assertEqual(1, step.count(REPORTER_ARGS))
+            scripts = directory / 'scripts'
+            scripts.mkdir()
+            for name, source in sources.items():
+                (scripts / name).write_text(source)
+            reporter = (ROOT / 'scripts/require-node-test-cases.mjs').read_text()
+            (scripts / 'require-node-test-cases.mjs').write_text(reporter)
+            owner = (ROOT / 'scripts/run-realm-node-tests.py').read_text()
             if without_counter_guard:
-                step = step.replace(REPORTER_ARGS, '', 1)
+                needle = "'--test-reporter=./scripts/require-node-test-cases.mjs',\n                '--test-reporter-destination=stdout', "
+                self.assertEqual(1, owner.count(needle))
+                owner = owner.replace(needle, '', 1)
+            (scripts / 'run-realm-node-tests.py').write_text(owner)
+            plan = expected if expected is not None else {name: 1 for name in sources}
+            wrapper = ("import importlib.util\n"
+                "spec=importlib.util.spec_from_file_location('owner','scripts/run-realm-node-tests.py')\n"
+                "owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)\n"
+                "owner.EXPECTED=" + repr(plan) + "\nowner.run()\n")
             environment = {key: os.environ[key] for key in ('PATH', 'HOME') if key in os.environ}
             environment['RUNNER_TEMP'] = str(directory)
-            return subprocess.run(['bash', '-c', step], cwd=ROOT, env=environment,
+            return subprocess.run(['python3', '-c', wrapper], cwd=directory, env=environment,
                                   capture_output=True, text=True, timeout=10)
 
-    def test_real_cases_and_nested_real_cases_pass_the_actual_workflow_gate(self):
+    def test_workflow_executes_the_single_actual_census_owner(self):
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        marker = '      - name: Development realm transport, ownership and convergence controls\n'
+        self.assertEqual(1, workflow.count(marker))
+        block = workflow.split(marker, 1)[1].split('\n      - name:', 1)[0]
+        self.assertIn('        run: python3 scripts/run-realm-node-tests.py\n', block)
+
+    def test_real_cases_and_nested_real_cases_pass_the_actual_owner(self):
         for source in ("import {test} from 'node:test'; test('real',()=>{});",
                        "import {test,describe} from 'node:test'; describe('suite',()=>{"
                        "describe('nested',()=>{test('real',()=>{});});});"):
             with self.subTest(source=source):
-                result = self.execute(source)
+                result = self.execute({'development-realm-fixture.test.mjs': source})
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertIn('1 executed tests passed;', result.stdout)
 
@@ -54,9 +55,10 @@ class RealmNodeGateControls(unittest.TestCase):
         for source in ("import {describe} from 'node:test'; describe('empty named suite',()=>{});",
                        "import {describe} from 'node:test'; describe('outer',()=>{describe('inner',()=>{});});"):
             with self.subTest(source=source):
-                dirty = self.execute(source, without_counter_guard=True)
-                self.assertEqual(0, dirty.returncode, 'the original JUnit-only gate must expose this defect')
-                self.assertNotEqual(0, self.execute(source).returncode)
+                sources = {'development-realm-fixture.test.mjs': source}
+                dirty = self.execute(sources, without_counter_guard=True)
+                self.assertEqual(0, dirty.returncode, 'JUnit-only gate must expose this defect')
+                self.assertNotEqual(0, self.execute(sources).returncode)
 
     def test_empty_file_fail_skip_todo_cancel_and_nested_skip_are_refused(self):
         for source in ('',
@@ -66,7 +68,29 @@ class RealmNodeGateControls(unittest.TestCase):
                        "import {test} from 'node:test'; test('cancelled',()=>new Promise(()=>{}));",
                        "import {test,describe} from 'node:test'; describe('suite',()=>{test.skip('skip',()=>{});});"):
             with self.subTest(source=source):
-                self.assertNotEqual(0, self.execute(source).returncode)
+                self.assertNotEqual(0, self.execute({'development-realm-fixture.test.mjs': source}).returncode)
+
+    def test_deleted_cases_cannot_be_hidden_by_a_named_passing_case_or_another_file(self):
+        one = "import {test} from 'node:test';test('one',()=>{});"
+        sources = {'development-realm-first.test.mjs': one, 'development-realm-second.test.mjs': one}
+        expected = {'development-realm-first.test.mjs': 2, 'development-realm-second.test.mjs': 1}
+        self.assertNotEqual(0, self.execute(sources, expected=expected).returncode)
+        sources['development-realm-second.test.mjs'] += "test('extra',()=>{});"
+        self.assertNotEqual(0, self.execute(sources, expected=expected).returncode)
+        sources['development-realm-first.test.mjs'] += "test('two',()=>{});"
+        sources['development-realm-second.test.mjs'] = one
+        self.assertEqual(0, self.execute(sources, expected=expected).returncode)
+
+    def test_added_or_missing_test_files_refuse_before_node_launch(self):
+        one = "throw Error('node must not launch');"
+        first, second = 'development-realm-first.test.mjs', 'development-realm-second.test.mjs'
+        for sources, expected in (({first: one}, {first: 1, second: 1}),
+                                  ({first: one, second: one}, {first: 1})):
+            with self.subTest(sources=list(sources)):
+                result = self.execute(sources, expected=expected)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn('test-file census', result.stderr)
+                self.assertNotIn('node must not launch', result.stdout + result.stderr)
 
 
 if __name__ == '__main__':

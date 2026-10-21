@@ -54,7 +54,7 @@ the backend runs today calls them, so `make dev` starts 7 services and
 | OpenSSL CLI | Yes for frontend tests | Isolated TLS fixtures generate temporary certificates without installing trust. |
 | Node >=22.23.1 + pnpm | Yes | For the frontend; `frontend/package.json` sets the floor and CI pins `22.23.1`. |
 | Deployment mode | Yes | `Development` (default) / `SaaS` / `Dedicated` / `SelfHostedOnline` / `SelfHostedAirGapped` (per [Standards 12 § Deployment Modes](../../../docs/standards/12-infrastructure.md)). |
-| `.env` (gitignored) | Optional | Local overrides; `.env.example` is the source of truth. |
+| Selected private `.env` (gitignored) | Yes before stack startup | `.env.example` is the template; preserve existing secrets and private file permissions. |
 
 ## Workflow
 
@@ -81,12 +81,20 @@ If any of these is missing, install:
 git clone <repo> learnstack
 cd learnstack
 
-cp .env.example .env       # creates the local-only file (gitignored)
-# Edit .env to override any defaults; for first-run, leave as-is.
+make .env                 # creates a missing local-only file with private permissions
+# Before make dev, prepare KEYCLOAK_WEB_CLIENT_SECRET in that private file.
 
 (cd backend && dotnet restore LearnStack.slnx --locked-mode)
 (cd frontend && pnpm install --frozen-lockfile)
 ```
+
+Never overwrite an existing private source or regenerate its BFF secret on a
+routine rerun. For a legacy source, first verify it is your regular, nonsymlink,
+single-link file, then explicitly set `chmod 600 .env` and add a missing key.
+The tool refuses shared permissions; Makefile creation does not repair them.
+Follow [secret continuity and recovery](../../../infra/keycloak/README.md#secret-continuity-and-recovery)
+if the selected source disagrees with an existing confidential client. Keep its
+contents out of tool output, command arguments and committed files.
 
 ### Step 3: Bring up the stack
 
@@ -178,11 +186,14 @@ Three properties of that inventory matter while you are setting up:
   loopback HTTP through `make public-api` (5080), and the native web listener runs
   on loopback HTTPS through `make public-web` (3000).
 
-To read the resolved truth rather than any document, ask the stack:
+To inspect selected services without printing resolved credentials, ask the stack:
 
 ```bash
-docker compose --env-file .env -f infra/compose/dev.yml config --format json
+docker compose --env-file .env -f infra/compose/dev.yml config --services
 ```
+
+Do not publish complete resolved Compose configuration: it contains private
+environment values.
 
 ### Step 4: First-run bootstrap
 
@@ -283,7 +294,9 @@ make public-api
 | `Bind for 127.0.0.1:5432 failed: port is already allocated` | Stop your local Postgres, or stop the other compose project holding the port — host ports are fixed in `dev.yml`, so two projects cannot both bind them. |
 | `relation "tenants" does not exist` | The owning Tenancy migrations have not landed or were not applied; check the active phase plan before adding an ad-hoc target. |
 | `unable to read app.tenant_id` | The `DbCommandInterceptor` tenant-context guard is unwired, or `TransactionBehavior` did not issue the `SET LOCAL` pair. It is deliberately **not** a connection-checkout interceptor — checkout precedes `BEGIN`. |
-| Keycloak realm not found | Recreate local data with destructive `make clean`, then `make seed`. The realms are imported at compose boot from `infra/keycloak/realms/`, not by the seeder. |
+| Keycloak realm not found | Verify the selected project, private source and Keycloak health/import. Fresh realms import on provider startup; a populated realm needs the shared bounded reconciliation from `make seed`. Follow the [realm guide](../../../infra/keycloak/README.md#fresh-import-and-warm-upgrade); do not wipe data as upgrade recovery. |
+| `missing_web_secret` / `secret_conflict` | Follow [secret continuity and recovery](../../../infra/keycloak/README.md#secret-continuity-and-recovery); preserve the confidential client and existing accounts. |
+| `lock_busy` | Follow [lock recovery](../../../infra/keycloak/README.md#lock-recovery); never delete a lock solely because it is old. |
 | A non-Development mode fails startup | Check that mode's required Sentry/telemetry configuration and [current readiness](../../../docs/architecture/25-deployment-models.md#supported-today-versus-prepared-seam). Every mode currently uses `NullEntitlementProvider`; starting Hub does not supply the Phase 02c adapter. |
 | LiveKit join fails with TURN error | coturn not reachable from the browser; check firewall + container network. |
 

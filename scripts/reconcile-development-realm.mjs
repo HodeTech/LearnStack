@@ -1,11 +1,11 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { composeSelection, repositoryRoot } from './compose.mjs';
-import { DemoProcesses, installDemoCancellation } from './demo-process.mjs';
+import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
 import { publicSeederEnvironment } from './demo-database.mjs';
 import { reconcileRealm, realmPassMilliseconds } from './development-realm-core.mjs';
-import { acquireRealmLock, isLocalDockerEndpoint, realmEnvironment, validateRealmTarget } from './development-realm-owner.mjs';
+import { acquireRealmLock, isLocalDockerEndpoint, readRealmEnvironmentFile, realmEnvironment, validateRealmTarget } from './development-realm-owner.mjs';
 import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
 
 /** Shared seed/demo operation. Neither target nor secrets are command-line parameters. */
@@ -23,7 +23,7 @@ export async function reconcileDevelopmentRealm({ selected, signal }) {
     if (!selected || !['dev', 'e2e'].includes(selected.mode) || selected.cwd !== repositoryRoot
         || (selected.env.DOCKER_HOST && !isLocalDockerEndpoint(selected.env.DOCKER_HOST)))
       refuse('preflight', 'configuration');
-    const values = realmEnvironment(await readFile(selected.file, 'utf8'));
+    const values = realmEnvironment(await readRealmEnvironmentFile(selected.file));
     const context = JSON.parse(await run(['context', 'inspect']));
     const model = JSON.parse(await run([...selected.args, 'config', '--format', 'json']));
     const ids = (await run([...selected.args, 'ps', '--quiet', '--no-trunc', 'keycloak'])).trim().split(/\s+/).filter(Boolean);
@@ -42,8 +42,11 @@ export async function reconcileDevelopmentRealm({ selected, signal }) {
       adminPassword: values.KEYCLOAK_ADMIN_PASSWORD, webSecret: values.KEYCLOAK_WEB_CLIENT_SECRET,
       manifest, desired, signal: active });
   } catch (error) {
-    failure = active.aborted ? new RealmError('preflight', signal?.aborted ? 'cancelled' : 'deadline')
-      : error instanceof RealmError ? error : new RealmError('preflight', 'configuration');
+    failure = active.aborted ? new RealmError(error instanceof RealmError ? error.stage : 'preflight',
+      signal?.aborted ? 'cancelled' : 'deadline')
+      : error instanceof RealmError ? error : new RealmError('preflight',
+        error instanceof DemoCommandError && ['deadline', 'cancelled', 'cleanup'].includes(error.reason)
+          ? error.reason : 'configuration');
   }
   // If child cleanup is not established, keep the exclusive file as an explicit refusal.
   try { await processes.dispose(); }
@@ -56,7 +59,7 @@ export async function reconcileDevelopmentRealm({ selected, signal }) {
   return result;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && await realpath(resolve(process.argv[1])).catch(() => '') === fileURLToPath(import.meta.url)) {
   const stop = new AbortController();
   const remove = installDemoCancellation(() => stop.abort());
   try {

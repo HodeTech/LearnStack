@@ -9,6 +9,30 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 /// <summary>Offline drift controls; live provider behavior belongs to the Docker issuance proofs.</summary>
 public sealed partial class TenantRealmExportTests
 {
+    [Fact]
+    public void Identity_manifest_rejects_reassignment_legacy_expansion_and_nonstable_actor_ids()
+    {
+        var project = typeof(SeedIdentityManifest).GetMethod("Project",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+        var users = SeedData.IdentityUsers;
+        project.Invoke(null, [users]).Should().NotBeNull();
+        var variants = new[]
+        {
+            users.SetItem(2, users[2] with { LegacyTenantAttribute = "tenant-a" }),
+            users.SetItem(0, users[0] with { LegacyTenantAttribute = "another-legacy-tenant" }),
+            users.SetItem(0, users[0] with { Username = "unowned@tenant-a.test" }),
+            users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(Guid.NewGuid()) }),
+            users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(SeedData.English.TenantId.Value) }),
+        };
+        foreach (var variant in variants)
+        {
+            var act = () => project.Invoke(null, [variant]);
+            act.Should().Throw<System.Reflection.TargetInvocationException>()
+                .Which.InnerException.Should().BeOfType<InvalidOperationException>();
+        }
+        project.Invoke(null, [users]).Should().NotBeNull("rejected declarations cannot alter the committed declaration");
+    }
+
     private static readonly string[] ReservedClaims =
         ["iss", "sub", "aud", "azp", "typ", "scope", "iat", "exp", "nbf"];
     private static readonly string[] StockAccountRoles =
@@ -51,6 +75,9 @@ public sealed partial class TenantRealmExportTests
         var mutations = new List<(string Name, Action<JsonObject> Apply)>
         {
             ("wrong realm TTL", realm => realm["accessTokenLifespan"] = 1800),
+            ("unmanaged profile enabled", realm => SetProfilePolicy(realm, "ENABLED")),
+            ("default application role composite", realm => realm["roles"]!["realm"]!.AsArray()
+                .Single(role => Text(role?["name"]) == "default-roles-learnstack")!["composites"]!["realm"] = new JsonArray("tenant-admin")),
             ("missing account client", realm => realm["clients"]!.AsArray().Remove(Client(realm, "account"))),
             ("console full scope", realm => Client(realm, "account-console")["fullScopeAllowed"] = true),
             ("console default broad roles", realm => Client(realm, "account-console")["defaultClientScopes"]!.AsArray().Add("roles")),
@@ -67,6 +94,12 @@ public sealed partial class TenantRealmExportTests
             ("missing stock default role", realm => realm.Remove("defaultRole")),
             ("client TTL override", realm => Client(realm, "learnstack-web")["attributes"]!["access.token.lifespan"] = "900"),
             ("public client", realm => Client(realm, "learnstack-web")["publicClient"] = true),
+            ("changed API service secret", realm => Client(realm, "learnstack-api")["secret"] = "different-service-secret"),
+            ("disabled web client", realm => Client(realm, "learnstack-web")["enabled"] = false),
+            ("web client consent", realm => Client(realm, "learnstack-web")["consentRequired"] = true),
+            ("disabled persona", realm => realm["users"]![0]!["enabled"] = false),
+            ("unverified persona", realm => realm["users"]![0]!["emailVerified"] = false),
+            ("temporary persona credential", realm => realm["users"]![0]!["credentials"]![0]!["temporary"] = true),
             ("literal secret", realm => Client(realm, "learnstack-web")["secret"] = "unowned-source"),
             ("password grant", realm => Client(realm, "learnstack-web")["directAccessGrantsEnabled"] = true),
             ("API browser flow", realm => Client(realm, "learnstack-api")["standardFlowEnabled"] = true),
@@ -180,6 +213,8 @@ public sealed partial class TenantRealmExportTests
                     && Text(resolver?["config"]?["id.token.claim"]) != "true", "role audience resolution is access-only");
                 if (clientId == "learnstack-web")
                 {
+                    Require(client["enabled"]?.GetValue<bool>() == true
+                        && client["consentRequired"]?.GetValue<bool>() != true, "available nonconsent web login");
                     Require(client["standardFlowEnabled"]?.GetValue<bool>() == true, "web code flow");
                     Require(client["serviceAccountsEnabled"]?.GetValue<bool>() == false, "no web service account");
                     Require(Text(client["secret"]) == "${KEYCLOAK_WEB_CLIENT_SECRET}", "private secret placeholder");
@@ -192,6 +227,7 @@ public sealed partial class TenantRealmExportTests
                 }
                 else
                 {
+                    Require(Text(client["secret"]) == "learnstack-api-dev-secret", "retained development service credential");
                     Require(client["standardFlowEnabled"]?.GetValue<bool>() == false, "no API code flow");
                     Require(Strings(client["redirectUris"]).Length == 0, "no API callbacks");
                     Require(client["serviceAccountsEnabled"]?.GetValue<bool>() == true, "retain legacy service account");
@@ -219,6 +255,7 @@ public sealed partial class TenantRealmExportTests
                 && Text(audience["config"]?["access.token.claim"]) == "true"
                 && Text(audience["config"]?["id.token.claim"]) == "false", "access-only API audience");
             var profile = Profile(realm);
+            Require(profile["unmanagedAttributePolicy"] is null, "disabled unmanaged profile policy");
             foreach (var name in identityNames)
             {
                 var attribute = profile["attributes"]!.AsArray().Single(value => Text(value?["name"]) == name)!;
@@ -232,6 +269,12 @@ public sealed partial class TenantRealmExportTests
             {
                 var user = users.Single(value => Text(value?["username"]) == identity.Username)!;
                 Require(Text(user["email"]) == identity.Email, "declared email");
+                Require(user["enabled"]?.GetValue<bool>() == true && user["emailVerified"]?.GetValue<bool>() == true,
+                    "enabled verified development persona");
+                var credentials = user["credentials"]!.AsArray();
+                Require(credentials.Count == 1 && Text(credentials[0]?["type"]) == "password"
+                    && Text(credentials[0]?["value"]) == "demo-dev-secret"
+                    && credentials[0]?["temporary"]?.GetValue<bool>() == false, "one create-only development password");
                 Require(identity.AccountCapability == new SeedAccountCapability("account", "manage-account")
                     && Strings(user["clientRoles"]?[identity.AccountCapability.ClientId]).SequenceEqual([identity.AccountCapability.Role])
                     && user["clientRoles"]!.AsObject().Count == 1, "exact declared self-service capability");
@@ -308,6 +351,8 @@ public sealed partial class TenantRealmExportTests
         var defaults = realm["roles"]!["realm"]!.AsArray().Single(role => Text(role?["name"]) == "default-roles-learnstack")!;
         require(Strings(defaults["composites"]?["client"]?["account"]).Order().SequenceEqual(StockDefaultAccountRoles.Order()),
             "stock registration default account roles");
+        require(Strings(defaults["composites"]?["realm"]).Length == 0
+            && defaults["composites"]?["client"]?.AsObject().Count == 1, "no default application composites");
         var allowance = realm["clientScopeMappings"]!["account"]!.AsArray();
         require(allowance.Count == 1 && Text(allowance[0]?["client"]) == "account-console"
             && Strings(allowance[0]?["roles"]).Order().SequenceEqual(StockConsoleScopeRoles.Order()),
@@ -358,6 +403,13 @@ public sealed partial class TenantRealmExportTests
     private static JsonNode ProfileValue(JsonObject realm) => realm["components"]!
         ["org.keycloak.userprofile.UserProfileProvider"]![0]!["config"]!["kc.user.profile.config"]!;
     private static JsonObject Profile(JsonObject realm) => JsonNode.Parse(Text(ProfileValue(realm)[0]))!.AsObject();
+    private static void SetProfilePolicy(JsonObject realm, string policy)
+    {
+        var profile = Profile(realm);
+        profile["unmanagedAttributePolicy"] = policy;
+        ProfileValue(realm)[0] = profile.ToJsonString();
+    }
+
     private static void ChangeProfile(JsonObject realm, string name, string permission)
     {
         var profile = Profile(realm);

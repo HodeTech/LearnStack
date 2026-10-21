@@ -35,6 +35,8 @@ export function realmRequest(url, { method = 'GET', json, form, bearer, signal, 
       agent.destroy();
       if (failure) reject(failure);
       else if (!ended) reject(new RealmError(stage, 'transport'));
+      else if (size > 0 && !/^application\/(?:json|[a-z0-9.+-]+\+json)(?:\s*;|$)/i.test(response.headers['content-type'] ?? ''))
+        reject(new RealmError(stage, 'response'));
       else resolve({ status: response.statusCode, bytes: Buffer.concat(chunks) });
     };
     const fail = (reason) => {

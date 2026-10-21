@@ -293,8 +293,48 @@ def different_layouts(manifest, plan):
     return True
 
 
+def fixture_class_census(root=ROOT):
+    """Source-backed surfaces included in the shared-fixture layout witness.
+
+    This names fixture-bearing classes, not observed startup counts or costs.
+    The class fixture repeats per process just as collection fixtures do.
+    """
+    result = set()
+    for path in (root / 'backend/tests/LearnStack.Tests.Integration').rglob('*.cs'):
+        source = path.read_text()
+        namespace = re.search(r'^namespace\s+([A-Za-z0-9_.]+)\s*;', source, re.MULTILINE)
+        names = re.findall(r'\[Collection\((?:SharedSchema|SharedKeycloakRealm|TenantRealmApiTestGroup)\.Name\)\]'
+                           r'[\s\S]*?\bclass\s+(\w+)', source)
+        names.extend(re.findall(r'\bclass\s+(\w+)[^{};]*:\s*IClassFixture<KeycloakFixture>', source))
+        if names:
+            require(namespace is not None, 'fixture_namespace_missing')
+            result.update(namespace[1] + '.' + name for name in names)
+    require(result, 'fixture_class_census_empty')
+    return sorted(result)
+
+
+def assignment_diff(manifest, before, after):
+    """Compare two reviewed plans on exactly the same complete case manifest."""
+    result = {'manifestDigest': manifest_digest(manifest), 'beforePlanDigest': digest(before),
+              'afterPlanDigest': digest(after), 'layouts': {}}
+    for attempt in ('1', '2'):
+        first, second = (assign(manifest, plan, attempt)['owners'] for plan in (before, after))
+        def owners(value):
+            return {case_key(case): owner for owner, cases in value.items() for case in cases}
+        previous, current = owners(first), owners(second)
+        changes = [{'assembly': case['assembly'], 'id': case['id'], 'method': case['method'],
+                    'before': previous[case_key(case)], 'after': current[case_key(case)]}
+                   for case in sorted(manifest['allTests'], key=case_key)
+                   if previous[case_key(case)] != current[case_key(case)]]
+        result['layouts'][variant(attempt)] = {'beforeAssignmentDigest': digest(first),
+            'afterAssignmentDigest': digest(second), 'movedCases': len(changes),
+            'movedMethods': len({method_key(case) for case in changes}),
+            'changesDigest': digest(changes), 'changes': changes}
+    return result
+
+
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in ('topology', 'aggregate-backend', 'aggregate-integration'):
+    if len(sys.argv) != 2 or sys.argv[1] not in ('topology', 'prepare-fixtures', 'aggregate-backend', 'aggregate-integration'):
         print('{"protocol":1,"error":"mode_refused"}')
         return 1
     result = None
@@ -306,6 +346,8 @@ def main():
             result.source_topology(load_plan())
             print('{"protocol":1,"topology":"complete"}')
             return 0
+        if sys.argv[1] == 'prepare-fixtures':
+            return result.prepare_fixture_images()
         return result.aggregate(sys.argv[1].removeprefix('aggregate-'))
     except Exception as failure:
         # Known owners expose only closed refusals. An unexpected import/parser

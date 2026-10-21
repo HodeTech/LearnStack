@@ -102,6 +102,7 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
         var resumed = await KeycloakReconciliationDriver.RunAsync(fixture);
         resumed.Success.Should().BeTrue("closed outcome: {0}/{1} after {2} mutating calls", resumed.Stage, resumed.Reason, resumed.Mutations);
         resumed.Mutations.Should().BeGreaterThan(0);
+        await AssertOwnedScopeAndMapperRepairAsync(admin, fixture);
         var second = await KeycloakReconciliationDriver.RunAsync(fixture);
         var third = await KeycloakReconciliationDriver.RunAsync(fixture);
         second.Success.Should().BeTrue("closed outcome: {0}/{1}", second.Stage, second.Reason);
@@ -109,6 +110,8 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
         second.Mutations.Should().Be(0);
         third.Mutations.Should().Be(0, "a completed third pass performs no mutating Admin REST call");
 
+        // Independent typed declarations also cover the disabled learner, whose login cannot prove migration.
+        foreach (var identity in SeedData.IdentityUsers) await AssertStoredIdentityAsync(admin, identity);
         AssertSamePreservedUser(beforeAdmin, await UserDetailsAsync(admin, firstIdentity.Username));
         AssertSamePreservedUser(beforeLearner, await UserDetailsAsync(admin, secondIdentity.Username));
         AssertSame(beforeExtra, await UserDetailsAsync(admin, ExtraUsername), "nonmanifest accounts are never filled in or rewritten");
@@ -563,6 +566,47 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
         outcome.Reason.Should().Be(reason);
     }
 
+    private static async Task AssertStoredIdentityAsync(KeycloakAdminClient admin, SeedIdentity identity)
+    {
+        var user = await admin.UserAsync(identity.Username);
+        var attributes = user.GetProperty("attributes");
+        var expected = new Dictionary<string, string>
+        {
+            ["user_id"] = identity.UserId.Value.ToString("D"),
+            ["tenant_id"] = identity.Tenant.TenantId.Value.ToString("D"),
+        };
+        if (identity.Tenant.MapHostToDefaultOrganization)
+            expected["organization_id"] = identity.Tenant.DefaultOrganization.OrganizationId.Value.ToString("D");
+        foreach (var (name, value) in expected)
+        {
+            var stored = attributes.GetProperty(name);
+            (stored.ValueKind == JsonValueKind.Array && stored.GetArrayLength() == 1
+                && stored[0].ValueKind == JsonValueKind.String && stored[0].GetString() == value).Should().BeTrue(
+                "each migrated persona stores its independently declared typed authority");
+        }
+        if (!expected.ContainsKey("organization_id")) attributes.TryGetProperty("organization_id", out _).Should().BeFalse();
+    }
+
+    private static async Task AssertOwnedScopeAndMapperRepairAsync(KeycloakAdminClient admin, KeycloakFixture fixture)
+    {
+        var scope = await ScopeAsync(admin, "learnstack-tenant-api");
+        var path = "client-scopes/" + Id(scope);
+        var changedScope = Object(scope);
+        changedScope["attributes"]!["include.in.token.scope"] = "false";
+        (await admin.PutAsync(path, changedScope)).Should().Be(HttpStatusCode.NoContent);
+        var mapper = (await admin.GetAsync(path + "/protocol-mappers/models")).EnumerateArray()
+            .Single(value => value.GetProperty("name").GetString() == "user_id");
+        var changedMapper = Object(mapper);
+        changedMapper["config"]!["id.token.claim"] = "false";
+        var mapperPath = path + "/protocol-mappers/models/" + Id(mapper);
+        (await admin.PutAsync(mapperPath, changedMapper)).Should().Be(HttpStatusCode.NoContent);
+        var result = await KeycloakReconciliationDriver.RunAsync(fixture);
+        result.Success.Should().BeTrue("closed owned-repair outcome: {0}/{1}", result.Stage, result.Reason);
+        result.Mutations.Should().Be(2, "one real update_scope and one real update_mapper repair are necessary");
+        AssertSame(scope, await admin.GetAsync(path), "the owned scope repair restores the original complete scope representation");
+        AssertSame(mapper, await admin.GetAsync(mapperPath), "the owned mapper repair restores the original complete mapper representation");
+    }
+
     private static async Task AssertLoginAsync(KeycloakFixture fixture, SeedIdentity identity, string password, string? subject = null)
     {
         using var browser = fixture.Browser();
@@ -589,6 +633,15 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
         {
             var client = await admin.ClientAsync(clientId);
             client.GetProperty("publicClient").GetBoolean().Should().BeFalse();
+            (client.GetProperty("clientAuthenticatorType").GetString() == "client-secret").Should().BeTrue();
+            client.GetProperty("standardFlowEnabled").GetBoolean().Should().Be(clientId == "learnstack-web");
+            var expectedRedirects = clientId == "learnstack-web"
+                ? SeedData.All.Select(tenant => "https://" + tenant.Host + ":3000/api/auth/callback/keycloak") : [];
+            client.GetProperty("redirectUris").EnumerateArray().Select(value => value.GetString())
+                .Should().BeEquivalentTo(expectedRedirects);
+            if (clientId == "learnstack-web")
+                client.GetProperty("attributes").GetProperty("post.logout.redirect.uris").GetString()!.Split("##")
+                    .Should().BeEquivalentTo(SeedData.All.Select(tenant => "https://" + tenant.Host + ":3000/"));
             client.GetProperty("webOrigins").GetArrayLength().Should().Be(0,
                 "the declared empty origin list survives redirect changes without provider-derived origins");
             client.GetProperty("attributes").TryGetProperty("access.token.lifespan", out _).Should().BeFalse();
@@ -675,11 +728,14 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
     private static async Task<string> StateAsync(KeycloakAdminClient admin)
     {
         var state = new JsonObject { ["realm"] = JsonNode.Parse((await admin.GetAsync()).GetRawText()) };
-        foreach (var path in new[] { "users?max=100", "clients", "client-scopes", "users/profile", "roles" })
+        foreach (var path in new[] { "users?max=100&briefRepresentation=false", "clients", "client-scopes", "users/profile", "roles",
+            "groups?max=100&briefRepresentation=false", "default-groups" })
             state[path] = JsonNode.Parse((await admin.GetAsync(path)).GetRawText());
-        foreach (var user in state["users?max=100"]!.AsArray())
+        foreach (var user in state["users?max=100&briefRepresentation=false"]!.AsArray())
         {
             var id = user!["id"]!.GetValue<string>();
+            state["user/" + id] = JsonNode.Parse((await admin.GetAsync("users/" + id)).GetRawText());
+            state["groups/" + id] = JsonNode.Parse((await admin.GetAsync("users/" + id + "/groups?max=100&briefRepresentation=false")).GetRawText());
             state["credentials/" + id] = JsonNode.Parse((await admin.GetAsync("users/" + id + "/credentials")).GetRawText());
             state["roles/" + id] = JsonNode.Parse((await admin.GetAsync("users/" + id + "/role-mappings")).GetRawText());
         }
@@ -699,12 +755,15 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
         return Canonical(state).ToJsonString();
     }
 
-    private static JsonNode Canonical(JsonNode? node) => node switch
+    private static JsonNode Canonical(JsonNode? node, bool preserveArrayOrder = false) => node switch
     {
         JsonObject value => new JsonObject(value.OrderBy(property => property.Key, StringComparer.Ordinal)
-            .Select(property => new KeyValuePair<string, JsonNode?>(property.Key, property.Value is null ? null : Canonical(property.Value)))),
-        JsonArray value => new JsonArray(value.Select(item => item is null ? null : Canonical(item))
-            .OrderBy(item => item?.ToJsonString(), StringComparer.Ordinal).ToArray()),
+            .Select(property => new KeyValuePair<string, JsonNode?>(property.Key, property.Value is null ? null :
+                Canonical(property.Value, preserveArrayOrder || property.Key is "attributes" or "requiredActions")))),
+        JsonArray value => new JsonArray((preserveArrayOrder
+            ? value.Select(item => item is null ? null : Canonical(item, true))
+            : value.Select(item => item is null ? null : Canonical(item))
+                .OrderBy(item => item?.ToJsonString(), StringComparer.Ordinal)).ToArray()),
         _ => node!.DeepClone(),
     };
 

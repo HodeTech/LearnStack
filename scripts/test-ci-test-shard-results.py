@@ -160,6 +160,48 @@ class AggregateControls(unittest.TestCase):
                     self.assertEqual('A' if attempt == '1' else 'B', result['variant'])
                     self.assertTrue(RESULTS.verify_jobs(self.jobs(scope, self.context(attempt)), self.context(attempt), self.plan, scope))
 
+    def test_fixture_image_preparation_uses_fixed_images_and_preserves_cleanup_reserve(self):
+        environment = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
+                       'GITHUB_JOB': 'backend-integration-tests', 'LEARNSTACK_CI_STARTED_AT': '1000'}
+        output = io.StringIO()
+        with mock.patch.dict(os.environ, environment, clear=True), \
+                mock.patch.object(RESULTS.time, 'time', return_value=1700), \
+                mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
+                mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
+                mock.patch.object(RESULTS.OWNER, 'command', return_value=b'') as command, \
+                mock.patch('sys.stdout', output):
+            self.assertEqual(0, RESULTS.prepare_fixture_images())
+        self.assertEqual([mock.call(['/usr/bin/docker', 'pull', image], 610,
+                                    'fixture_image_pull_failed', cap=55) for image in RESULTS.FIXTURE_IMAGES],
+                         command.call_args_list)
+        self.assertEqual(list(RESULTS.FIXTURE_IMAGES), [row['image'] for row in json.loads(output.getvalue())['images']])
+        with mock.patch.dict(os.environ, environment, clear=True), \
+                mock.patch.object(RESULTS.time, 'time', return_value=2000), \
+                mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
+                mock.patch.object(RESULTS.OWNER, 'command') as command:
+            self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images)
+            command.assert_not_called()
+
+    def test_auxiliary_artifacts_keep_attempt_identity_and_compose_failure_removes_env(self):
+        jobs = self.documents['.github/workflows/ci.yml']['jobs']
+        for job_id, prefix in (('openapi-diff', 'openapi-comparison'),
+                               ('public-demo', 'public-demo-lighthouse'), ('secret-scan', 'leakwatch-results')):
+            uploads = [step for step in jobs[job_id]['steps'] if step.get('uses') == RESULTS.UPLOAD_ACTION]
+            self.assertEqual(1, len(uploads))
+            self.assertEqual(prefix + '-${{ github.run_id }}-${{ github.run_attempt }}', uploads[0]['with']['name'])
+        step = next(step for step in jobs['meta']['steps']
+                    if step.get('name') == 'Compose stack validates, with and without the gated profile')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / '.env.example').write_text('DEVELOPMENT_PLACEHOLDER=value\n')
+            docker = root / 'docker'
+            docker.write_text('#!/bin/sh\nexit 17\n')
+            docker.chmod(0o700)
+            failed = subprocess.run(['/bin/bash', '-e', '-c', step['run']], cwd=root,
+                env={'PATH': str(root) + ':/usr/bin:/bin'}, capture_output=True, text=True, timeout=5)
+            self.assertEqual(17, failed.returncode)
+            self.assertFalse((root / '.env').exists())
+
     def test_yaml_parser_refuses_duplicates_aliases_tags_multiple_documents_and_complex_keys(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'workflow.yml'
@@ -183,6 +225,8 @@ class AggregateControls(unittest.TestCase):
                 if step.get('name') == RESULTS.UPLOAD_STEP).update(uses='actions/upload-artifact@v4')),
             ('artifact_upload_invalid', lambda jobs: next(step for step in jobs['backend-base']['steps']
                 if step.get('name') == RESULTS.UPLOAD_STEP).update(uses='actions/upload-artifact@' + 'f' * 40)),
+            ('fixture_image_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
+                if step.get('run') == 'python3 scripts/ci-test-shards.py prepare-fixtures').update({'if': 'success()'})),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend'].update({'if': 'success()'})),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend-integration'].update(needs=['backend-native'])),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend'].update({'timeout-minutes': 6})),
@@ -309,6 +353,24 @@ class AggregateControls(unittest.TestCase):
             self.refuses(reason, RESULTS.verify_artifact, dirty, context, 'base', job)
         dirty = copy.deepcopy(clean); dirty['artifacts'].append(dirty['artifacts'][0]); dirty['total_count'] = 2
         self.refuses('artifact_api_not_unique', RESULTS.verify_artifact, dirty, context, 'base', job)
+        self.refuses('artifact_api_missing', RESULTS.verify_artifact,
+                     {'total_count': 0, 'artifacts': []}, context, 'base', job)
+        for metadata in ({'total_count': 1, 'artifacts': []}, {'total_count': True, 'artifacts': []},
+                         {'total_count': -1, 'artifacts': []}):
+            self.refuses('artifact_api_invalid', RESULTS.verify_artifact, metadata, context, 'base', job)
+
+    def test_partial_rerun_job_projection_cannot_reuse_an_earlier_artifact(self):
+        # GitHub may project successful siblings as current-attempt jobs after
+        # a failed-jobs rerun, without producing new sibling artifacts.
+        context = self.context('3')
+        jobs = RESULTS.verify_jobs(self.jobs('integration', context), context, self.plan, 'integration')
+        self.assertIn('base', jobs)
+        self.refuses('artifact_api_missing', RESULTS.verify_artifact,
+                     {'total_count': 0, 'artifacts': []}, context, 'base', jobs['base'])
+        self.refuses('artifact_api_invalid', RESULTS.verify_artifact,
+                     self.metadata('base', self.context('2')), context, 'base', jobs['base'])
+        self.assertEqual(12345, RESULTS.verify_artifact(
+            self.metadata('base', context), context, 'base', jobs['base'])['id'])
 
     def test_archive_id_digest_and_allowlist_precede_parsing_without_extraction_fallback(self):
         import zipfile

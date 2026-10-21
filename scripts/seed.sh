@@ -15,23 +15,6 @@ if [[ ! -f "$seed_env" ]]; then
     echo "seed: selected environment file is missing." >&2
     exit 1
 fi
-# Refuse a stale exported database before make seed starts or migrates a stack.
-for _suffix in Migration Default; do
-    _name="ConnectionStrings__${_suffix}"
-    _selected=$(sed -n "s/^${_name}=//p" "$seed_env" \
-        | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$//")
-    _ambient="${!_name:-}"
-    if [[ -z "$_selected" || (-n "$_ambient" && "$_ambient" != "$_selected") ]]; then
-        echo "seed: connection configuration disagrees with the selected environment." >&2
-        exit 1
-    fi
-done
-seed_cs="${ConnectionStrings__Default:-$_selected}"
-seed_role=$(printf '%s' "$seed_cs" | awk -f scripts/connection-string.awk -v field=user)
-if [[ "$seed_role" != "learnstack_app" ]]; then
-    echo "seed: ConnectionStrings__Default must name learnstack_app; credentials were not used." >&2
-    exit 1
-fi
 if ! command -v node >/dev/null 2>&1; then
     echo "seed: node is required and was not found on PATH." >&2
     exit 1
@@ -48,7 +31,7 @@ for _dep in docker dotnet; do
 done
 # The Node owner confines stack/migration prerequisites, supplies only the app
 # credential to the fresh Release DLL, and joins its commands on failure.
-ConnectionStrings__Default="$seed_cs" node scripts/seed.mjs
+node scripts/seed.mjs
 
 cat <<'HOSTS'
 

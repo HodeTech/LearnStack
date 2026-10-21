@@ -56,6 +56,14 @@ to a BYPASSRLS/superuser role on every physical connection.
 
 ### 1. Check the environment and migrations
 
+Prepare the selected private source before `make dev` or `make seed`: it must
+include `KEYCLOAK_WEB_CLIENT_SECRET`, retain an existing confidential secret,
+and be a current-user-owned regular, nonsymlink, single-link file without
+group/other permissions. For a verified legacy file, explicitly run
+`chmod 600 .env` (or the selected path); Makefile creation does not repair it.
+Follow [secret continuity and recovery](../../../infra/keycloak/README.md#secret-continuity-and-recovery)
+on mismatch. Do not read secrets into an agent transcript or place them on argv.
+
 ```bash
 make seed
 ```
@@ -69,6 +77,11 @@ secret key. The [realm guide](../../../infra/keycloak/README.md) owns the exact
 contract and delivery status. `scripts/compose.mjs` shares project/files/env
 selection with the demo lifecycle; inherited Compose profiles cannot widen its
 default set.
+It verifies the effective Docker context before starting the selected stack.
+Seed preparation reports fixed stage progress and closed failure reasons rather
+than forwarding potentially sensitive child output. On cancellation/failure,
+wait for owned cleanup; follow [lock recovery](../../../infra/keycloak/README.md#lock-recovery)
+if the previous realm owner left its exclusive lock.
 The direct tool runs
 from `backend/`, where `global.json` pins the SDK:
 

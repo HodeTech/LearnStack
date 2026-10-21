@@ -95,7 +95,9 @@ not deferred to the showcase phase.
   The [individual exit evidence](phase-02d-exit-evidence.md) maps each exit
   criterion to its actual proof and completed disposition.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
-  — **P02b-0 through P02b-4 complete; P02b-1–4 merged through PRs #29–32**. Its
+  — **P02b-0 through P02b-5 complete; P02b-1–5 merged through PRs #29–33**.
+  P02b-6 implementation and local reviews are complete; current-head hosted
+  qualification and PR review remain open. P02b-7–8 are pending. Its
   [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
   verifies the inherited baseline; Accepted ADR-0057 and the
   [producer package](phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
@@ -159,8 +161,9 @@ not deferred to the showcase phase.
   owns actual seed/demo and cancellation evidence. Step 4's
   [record](phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
   owns completed local provider/API proofs, both independent review rounds and
-  verified corrections; final-source hosted/PR qualification remains separate
-  from merge. All four implementation steps are complete locally;
+  source-bound correction/CI receipts. The PR's required checks own current-head
+  hosted qualification; merge remains separate. All four implementation steps
+  are complete locally;
   G13's session part stays Open.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
   retains its source-bound corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)

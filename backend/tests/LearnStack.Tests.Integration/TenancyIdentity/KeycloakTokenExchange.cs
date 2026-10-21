@@ -72,7 +72,7 @@ internal sealed record KeycloakIssuanceWindow(DateTimeOffset StartedUtc, DateTim
 internal static class KeycloakTokenVerifier
 {
     internal static async Task<JsonElement> ValidateAsync(KeycloakFixture fixture, string token, string audience,
-        string realm = "learnstack")
+        string realm = "learnstack", bool allowMissingSubject = false)
     {
         try
         {
@@ -93,11 +93,23 @@ internal static class KeycloakTokenVerifier
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
+                    ValidTypes = ["JWT"],
                     ClockSkew = TimeSpan.FromSeconds(30),
                 });
             if (!result.IsValid) throw new InvalidOperationException("Provider signature/profile validation failed.");
+            var header = Header(token);
+            if (!header.TryGetProperty("kid", out var keyId) || keyId.ValueKind != JsonValueKind.String
+                || string.IsNullOrEmpty(keyId.GetString())) throw new InvalidOperationException();
             using var payload = JsonDocument.Parse(Base64UrlEncoder.DecodeBytes(token.Split('.')[1]));
-            return payload.RootElement.Clone();
+            var root = payload.RootElement;
+            var clientId = realm == "learnstack-hub" ? "learnstack-hub-web" : "learnstack-web";
+            if ((!allowMissingSubject && (!root.TryGetProperty("sub", out var subject)
+                    || subject.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(subject.GetString())))
+                || !root.TryGetProperty("azp", out var party) || party.ValueKind != JsonValueKind.String
+                || party.GetString() != clientId
+                || !root.TryGetProperty("typ", out var purpose) || purpose.ValueKind != JsonValueKind.String
+                || purpose.GetString() != (audience == clientId ? "ID" : "Bearer")) throw new InvalidOperationException();
+            return root.Clone();
         }
         catch (Exception)
         {

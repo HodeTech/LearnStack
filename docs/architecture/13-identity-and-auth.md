@@ -4,13 +4,14 @@ LearnStack delegates user authentication to a self-hosted identity provider rath
 
 This document covers what lives where: in Keycloak vs in LearnStack, how multi-tenant identity works, how tokens flow, and how SSO/OIDC integrations land later.
 
-**Implementation boundary — 2026-10-12.** The flows and application identity
-model below are target architecture. The dev realms exist, but API JWT validation,
-tenant claim mappers, a BFF session and mirrored users/memberships are not shipped.
-Current public sites use host-based anonymous admission without forwarding cookies
-or credentials. [Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
-records the baseline; G10–G13/G20 settle token shape, resolution, session custody
-and lifetimes before their first consumers. Phase 03 owns the identity domain.
+**Historical implementation boundary — as of 2026-10-12.** The dev realms
+existed, but API JWT validation, tenant claim mappers, a BFF session and mirrored
+users/memberships had not shipped. Public sites used host-based anonymous
+admission without forwarding cookies or credentials.
+[Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
+records that baseline. The P02b-5/P02b-6 delivery records below supersede its API
+validation and realm-issuance status. BFF sessions remain P02b-7; Phase 03 owns
+the application identity domain. Undelivered flows below remain target architecture.
 
 **P02b-5 decision Accepted — 2026-10-19.**
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) and its
@@ -21,7 +22,7 @@ review rounds are complete and merged through PR #33 on 2026-10-20; the
 [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
 owns delivery, correction reviews and final-source qualification. Authentication
 and authorization registration activate together with the closed surface in Step 4.
-Realm reconciliation and BFF sessions remain P02b-6/P02b-7.
+P02b-6 supplies realm reconciliation as recorded below; BFF sessions remain P02b-7.
 
 **P02b-6 decision Accepted — 2026-10-21.** The
 [accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
@@ -33,7 +34,9 @@ Their local reviews and actual lifecycle qualification are complete. Step 4
 delivers the approved account capability and complete provider/API security
 proofs after both independent review rounds and verified corrections; its
 [record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-owns final-source qualification. G13's BFF session part
+owns local implementation, review closure and source-bound qualification receipts.
+The PR's required checks own current-head hosted qualification; merge is separate.
+G13's BFF session part
 stays Open for P02b-7. The
 [development realm guide](../../infra/keycloak/README.md) owns exact callbacks,
 private sources and current upgrade status.

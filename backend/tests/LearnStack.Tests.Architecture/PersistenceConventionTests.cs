@@ -893,6 +893,10 @@ public sealed partial class PersistenceConventionTests
 
         files.Should().Contain(file => file.Item1.StartsWith("Database/", StringComparison.Ordinal),
             "the Docker-bound suite lives there, and a rule that scans nothing passes");
+        var declarations = files.SelectMany(file => CSharpSyntaxTree.ParseText(file.Item2).GetRoot()
+            .DescendantNodes().OfType<TypeDeclarationSyntax>().Select(type => type.Identifier.ValueText)).ToHashSet(StringComparer.Ordinal);
+        DockerFixtures.Should().OnlyContain(name => declarations.Contains(name),
+            "renaming a fixture must update the Docker source census rather than silently remove its coverage");
 
         UntraitedDockerTests(files).Should().BeEmpty(
             "every test class under Database/, and every one that takes a database fixture, "

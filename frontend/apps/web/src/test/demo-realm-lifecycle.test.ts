@@ -2,6 +2,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -16,6 +17,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { demoFailureMessage } from '../../../../../scripts/demo.mjs';
+
+function writePrivateFileSync(path: string, source: Parameters<typeof writeFileSync>[1]) {
+  writeFileSync(path, source, { mode: 0o600 });
+}
 
 const roots: string[] = [];
 afterEach(() => {
@@ -223,7 +228,7 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
     'NUGET_PACKAGES', 'NUGET_HTTP_CACHE_PATH', 'COREPACK_HOME', 'PNPM_HOME', 'XDG_CACHE_HOME',
     'NPM_CONFIG_CACHE', 'npm_config_cache', 'NPM_CONFIG_STORE_DIR', 'npm_config_store_dir',
-    ...(startup || migration || (command === 'docker' && args[1] === 'version') ? ['USERPROFILE', 'XDG_CONFIG_HOME', 'XDG_RUNTIME_DIR', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_HOST', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH', 'DOCKER_DEFAULT_PLATFORM', 'DOCKER_API_VERSION'] : []),
+    ...(startup || migration || command === 'docker' ? ['USERPROFILE', 'XDG_CONFIG_HOME', 'XDG_RUNTIME_DIR', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_HOST', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH', 'DOCKER_DEFAULT_PLATFORM', 'DOCKER_API_VERSION'] : []),
     ...(startup || migration ? ['LEARNSTACK_COMPOSE_PROJECT', 'LEARNSTACK_COMPOSE_ENV_FILE', 'LEARNSTACK_COMPOSE_MODE'] : []),
     ...(migration ? ['ConnectionStrings__Migration'] : []),
     ...(options.label === 'Contextual seed convergence' || options.label === 'Application seed convergence' ? ['ConnectionStrings__Default'] : [])]);
@@ -243,6 +248,9 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     if (migration) f.events.push('migrate');
   }
   if (command === 'dotnet' && args.includes('--demo-manifest')) return JSON.stringify([{ host: 'localhost' }]);
+  if (command === 'docker' && args[0] === 'context')
+    return JSON.stringify([{ Endpoints: { docker: { Host: f.scenario === 'remote-context'
+      ? 'tcp://remote.fixture.invalid:2375' : 'unix:///var/run/docker.sock' } } }]);
   if (command === 'openssl' && args[0] === 'req') {
     copyFileSync(join(${JSON.stringify(f.root)}, 'key.pem'), args[args.indexOf('-keyout') + 1]);
     copyFileSync(join(${JSON.stringify(f.root)}, 'cert.pem'), args[args.indexOf('-out') + 1]);
@@ -326,8 +334,8 @@ function makeSeedFixture() {
     .replace(f.values.KEYCLOAK_ADMIN_PASSWORD!, decoys[0]!)
     .replace(f.values.KEYCLOAK_WEB_CLIENT_SECRET!, decoys[1]!)
     .replaceAll('Host=localhost', 'Host=127.0.0.1');
-  writeFileSync(join(f.root, '.env'), defaultSource);
-  writeFileSync(selectedFile, f.source);
+  writePrivateFileSync(join(f.root, '.env'), defaultSource);
+  writePrivateFileSync(selectedFile, f.source);
   // These are command-wiring controls. The real provider proofs own Docker and .NET behavior.
   writeFileSync(
     join(f.root, 'scripts/boundary-observer.mjs'),
@@ -382,6 +390,8 @@ import { record } from '../scripts/boundary-observer.mjs';
 const args = process.argv.slice(2);
 if (JSON.stringify(args) === JSON.stringify(['compose', 'version'])) {
   record('compose-version');
+} else if (JSON.stringify(args) === JSON.stringify(['context', 'inspect'])) {
+  process.stdout.write(JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///fixture/docker.sock' } } }]));
 } else {
   const selected = args[0] === 'compose' && args[args.indexOf('--project-name') + 1] === ${JSON.stringify(project)}
     && args[args.indexOf('--env-file') + 1] === ${JSON.stringify(selectedFile)}
@@ -407,7 +417,7 @@ const args = process.argv.slice(2);
 if (process.cwd() !== ${JSON.stringify(join(f.root, 'backend'))}) process.exit(19);
 if (JSON.stringify(args) === JSON.stringify(['tool', 'restore'])) record('migration-tools', 'Migration');
 else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo'])) record('migration-build', 'Migration');
-else if (args[0] === 'ef' && args[1] === 'database' && args[2] === 'update') record('migration-ef', 'Migration', args[args.indexOf('--connection') + 1] === values.ConnectionStrings__Migration);
+else if (args[0] === 'ef' && args[1] === 'database' && args[2] === 'update') record('migration-ef', 'Migration', !args.includes('--connection') && !args.some(arg => arg.includes('Password=')));
 else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'])) record('seeder-build');
 else if (args.length === 1 && args[0] === ${JSON.stringify(join(f.root, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'))}) record('appseed', 'Default');
 else process.exit(19);
@@ -498,6 +508,7 @@ function readinessCleanupFixture(kind: 'cancelled' | 'deadline') {
   const marker = join(f.root, 'owned-docker.json');
   const heartbeat = join(f.root, 'heartbeat');
   const nestedCleanup = join(f.root, 'nested-cleanup');
+  const nestedRelease = join(f.root, 'release-nested-cleanup');
   const cleanupComplete = join(f.root, 'fixture-cleanup-complete');
   const dockerRetired = join(f.root, 'docker-retired');
   const ownership = randomBytes(16).toString('hex');
@@ -511,6 +522,8 @@ if (args.includes('config')) {
   writeFileSync(${JSON.stringify(marker)}, JSON.stringify({ pid: process.pid, ownership: ${JSON.stringify(ownership)} }));
   writeFileSync(${JSON.stringify(heartbeat)}, '.');
   setInterval(() => appendFileSync(${JSON.stringify(heartbeat)}, '.'), 20);
+} else if (args[0] === 'context') {
+  process.stdout.write(JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///fixture/docker.sock' } } }]));
 } else if (args.includes('up') || JSON.stringify(args) === JSON.stringify(['compose', 'version'])) process.exit(0);
 else process.exit(19);
 `,
@@ -530,7 +543,8 @@ import { stopTestChild as actualStop } from './stop-test-child-actual.mjs';
 export async function stopTestChild(child) {
   if (process.argv[1]?.endsWith('/wait-compose.mjs')) {
     writeFileSync(${JSON.stringify(nestedCleanup)}, 'started');
-    await new Promise(resolve => setTimeout(resolve, 4000));
+    while (!existsSync(${JSON.stringify(nestedRelease)}))
+      await new Promise(resolve => setTimeout(resolve, 10));
   }
   await actualStop(child);
   if (existsSync(${JSON.stringify(marker)})) {
@@ -549,6 +563,7 @@ import { composeSelection } from './compose.mjs';
 import { DemoProcesses } from './demo-process.mjs';
 import { seedDevelopment } from './seed.mjs';
 import { stopTestChild } from '../frontend/apps/web/scripts/stop-test-child.mjs';
+console.log = () => {};
 const controller = new AbortController();
 const tracked = [];
 const retiredGroups = new Set();
@@ -571,6 +586,7 @@ DemoProcesses.prototype.start = function(...args) {
 };
 const run = DemoProcesses.prototype.run;
 const readinessTimeouts = [];
+const readinessDeadlines = [];
 let seedOwner;
 let sameOwner = true;
 DemoProcesses.prototype.run = function(command, args, options = {}) {
@@ -578,7 +594,15 @@ DemoProcesses.prototype.run = function(command, args, options = {}) {
   if (options.label === 'Compose readiness') {
     readinessTimeouts.push(options.timeout);
     sameOwner &&= this === seedOwner;
-    if (${JSON.stringify(kind)} === 'deadline') options = { ...options, timeout: 2000 };
+    if (${JSON.stringify(kind)} === 'deadline') {
+      const deadline = new AbortController();
+      readinessDeadlines.push(deadline);
+      const timeout = AbortSignal.timeout;
+      AbortSignal.timeout = milliseconds => milliseconds === options.timeout
+        ? deadline.signal : timeout(milliseconds);
+      try { return run.call(this, command, args, options); }
+      finally { AbortSignal.timeout = timeout; }
+    }
   }
   return run.call(this, command, args, options);
 };
@@ -600,9 +624,10 @@ const ownedPid = () => {
 };
 let cancelled = false;
 const poll = setInterval(() => {
-  if (${JSON.stringify(kind)} === 'cancelled' && existsSync(${JSON.stringify(marker)}) && !cancelled) {
+  if (existsSync(${JSON.stringify(marker)}) && !cancelled) {
     cancelled = true;
-    controller.abort();
+    if (${JSON.stringify(kind)} === 'cancelled') controller.abort();
+    else for (const deadline of readinessDeadlines) deadline.abort();
   }
 }, 10);
 const watchdog = setTimeout(() => controller.abort(), 9000);
@@ -628,6 +653,7 @@ try {
 } finally {
   clearInterval(poll);
   clearTimeout(watchdog);
+  writeFileSync(${JSON.stringify(nestedRelease)}, 'release');
   await Promise.all(tracked.map(child => stopTestChild(child)));
   const pid = ownedPid();
   if (pid !== undefined && ownedDockerAlive(pid)) {
@@ -650,6 +676,7 @@ process.stdout.write(JSON.stringify(result));
 `,
   );
   async function cleanupOrphanedDocker() {
+    writeFileSync(nestedRelease, 'release');
     if (existsSync(cleanupComplete) || existsSync(dockerRetired) || !existsSync(marker)) return;
     const value = JSON.parse(readFileSync(marker, 'utf8')) as {
       pid: number;
@@ -687,7 +714,14 @@ process.stdout.write(JSON.stringify(result));
   }
   return {
     async run() {
-      for (const path of [marker, heartbeat, nestedCleanup, cleanupComplete, dockerRetired])
+      for (const path of [
+        marker,
+        heartbeat,
+        nestedCleanup,
+        nestedRelease,
+        cleanupComplete,
+        dockerRetired,
+      ])
         rmSync(path, { force: true });
       let execution;
       try {
@@ -805,7 +839,7 @@ describe('shared realm handoff lifecycle', () => {
 
   it('uses the caller selection and signal through readiness, fresh seed and awaited reconciliation', () => {
     const f = fixture();
-    writeFileSync(join(f.root, 'selected.env'), f.source);
+    writePrivateFileSync(join(f.root, 'selected.env'), f.source);
     const result = execute(f, 'seed');
     expect(result.failure).toBe('');
     expect(result.events).toEqual([
@@ -819,13 +853,14 @@ describe('shared realm handoff lifecycle', () => {
       'realm-complete',
       'dispose',
     ]);
-    expect(result.commands.slice(0, 3).map(({ command, args }) => ({ command, args }))).toEqual([
+    expect(result.commands.slice(0, 4).map(({ command, args }) => ({ command, args }))).toEqual([
       { command: 'docker', args: ['compose', 'version'] },
+      { command: 'docker', args: ['context', 'inspect'] },
       { command: 'make', args: ['dev'] },
       { command: 'make', args: ['migrate'] },
     ]);
-    expect(result.commands.slice(0, 3).map(({ timeout }) => timeout)).toEqual([
-      5000, 600000, 300000,
+    expect(result.commands.slice(0, 4).map(({ timeout }) => timeout)).toEqual([
+      5000, 5000, 600000, 300000,
     ]);
     expect(result.selectionIdentity).toBe(true);
     expect(result.signalIdentity).toBe(true);
@@ -842,7 +877,7 @@ describe('shared realm handoff lifecycle', () => {
     'halts the seed owner on %s and disposes its children',
     (scenario) => {
       const f = fixture();
-      writeFileSync(join(f.root, 'selected.env'), f.source);
+      writePrivateFileSync(join(f.root, 'selected.env'), f.source);
       const result = execute(f, 'seed', scenario);
       expect(result.failure).toBe(scenario === 'seed-failure' ? 'seed refusal' : 'realm refusal');
       expect(result.events).toEqual(
@@ -872,7 +907,7 @@ describe('shared realm handoff lifecycle', () => {
 
   it('joins a cancelled reconciliation before disposing the seed process owner', () => {
     const f = fixture();
-    writeFileSync(join(f.root, 'selected.env'), f.source);
+    writePrivateFileSync(join(f.root, 'selected.env'), f.source);
     const result = execute(f, 'seed', 'cancel');
     expect(result.failure).toBe('realm: preflight/cancelled');
     expect(result.events).toEqual([
@@ -942,6 +977,41 @@ describe('shared realm handoff lifecycle', () => {
 });
 
 describe('private configuration refuses launch before commands', () => {
+  it.each(['seed', 'demo'] as const)(
+    'refuses a shared private file before %s commands without repairing it',
+    (subject) => {
+      const f = fixture();
+      const file = join(f.root, subject === 'seed' ? 'selected.env' : '.env');
+      writePrivateFileSync(file, f.source);
+      chmodSync(file, 0o644);
+      const result = execute(f, subject, 'preflight');
+      expect(result.failure).toBe('realm: preflight/configuration');
+      expect(result.commands).toEqual([]);
+      expect(readFileSync(file, 'utf8')).toBe(f.source);
+    },
+  );
+
+  it.each(['seed', 'demo'] as const)(
+    'refuses a remote Docker context before %s starts or migrates a stack',
+    (subject) => {
+      const f = fixture();
+      if (subject === 'seed') writePrivateFileSync(join(f.root, 'selected.env'), f.source);
+      const result = execute(f, subject, 'remote-context');
+      expect(result.failure).toBe('realm: preflight/configuration');
+      expect(
+        result.commands
+          .filter(({ command }) => ['make', 'dotnet', 'pnpm'].includes(command))
+          .every(({ args }) => args.includes('--version')),
+      ).toBe(true);
+      expect(
+        result.commands.some(({ label }) => /startup|migrations|seed convergence/i.test(label)),
+      ).toBe(false);
+      expect(result.events).not.toContain('stack-up');
+      expect(result.events).not.toContain('migrate');
+      expect(result.events).not.toContain('appseed');
+    },
+  );
+
   const keys = ['KEYCLOAK_ADMIN', 'KEYCLOAK_ADMIN_PASSWORD', 'KEYCLOAK_WEB_CLIENT_SECRET'];
   it.each(
     ['Migration', 'Default'].flatMap((suffix) =>
@@ -953,7 +1023,7 @@ describe('private configuration refuses launch before commands', () => {
     let source = f.source;
     if (kind === 'missing') source = source.replace(`${key}=${f.values[key]}\n`, '');
     else Object.assign(f.env, { [key]: randomBytes(20).toString('hex') });
-    writeFileSync(join(f.root, 'selected.env'), source);
+    writePrivateFileSync(join(f.root, 'selected.env'), source);
     const result = execute(f, 'seed');
     expect(result.failure).toBe('realm: preflight/configuration');
     expect(result.commands).toEqual([]);
@@ -962,7 +1032,7 @@ describe('private configuration refuses launch before commands', () => {
 
   it('keeps private owner preflight ahead of database disagreement and every command', () => {
     const f = fixture();
-    writeFileSync(
+    writePrivateFileSync(
       join(f.root, 'selected.env'),
       f.source.replace(`KEYCLOAK_WEB_CLIENT_SECRET=${f.values.KEYCLOAK_WEB_CLIENT_SECRET}\n`, ''),
     );
@@ -978,7 +1048,7 @@ describe('private configuration refuses launch before commands', () => {
     const source = f.source
       .replace('Username=learnstack_app', 'Username=learnstack_platform')
       .replace(`KEYCLOAK_WEB_CLIENT_SECRET=${f.values.KEYCLOAK_WEB_CLIENT_SECRET}\n`, '');
-    writeFileSync(join(f.root, '.env'), source);
+    writePrivateFileSync(join(f.root, '.env'), source);
     for (const args of [['--validate-config'], []]) {
       const execution = spawnSync('bash', [join(f.root, 'scripts/seed.sh'), ...args], {
         cwd: f.root,
@@ -1023,7 +1093,7 @@ describe('private configuration refuses launch before commands', () => {
       if (kind === 'alias') source = source.replace(assignment, `export ${assignment}`);
       if (kind === 'ambient mismatch')
         Object.assign(f.env, { [key]: randomBytes(20).toString('hex') });
-      writeFileSync(join(f.root, '.env'), source);
+      writePrivateFileSync(join(f.root, '.env'), source);
       for (const args of [['--validate-config'], []]) {
         const execution = spawnSync('bash', [join(f.root, 'scripts/seed.sh'), ...args], {
           cwd: f.root,
@@ -1050,7 +1120,7 @@ describe('private configuration refuses launch before commands', () => {
 
   it('keeps the seed CLI closed and validates configuration without starting work', () => {
     const f = fixture();
-    writeFileSync(join(f.root, '.env'), f.source);
+    writePrivateFileSync(join(f.root, '.env'), f.source);
     for (const args of [
       ['--validate-config'],
       ['--identity-manifest'],

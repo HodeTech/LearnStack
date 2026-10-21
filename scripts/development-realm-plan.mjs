@@ -17,6 +17,7 @@ const newUserResponseReserve = 1024;
 const profileAttributeFields = new Set(['name', 'displayName', 'validations', 'annotations',
   'required', 'permissions', 'selector', 'group', 'multivalued', 'defaultValue']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const actorUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ownClientFields = ['publicClient', 'clientAuthenticatorType', 'standardFlowEnabled',
   'implicitFlowEnabled', 'directAccessGrantsEnabled', 'serviceAccountsEnabled', 'redirectUris', 'webOrigins'];
 const secretRotationAttributes = ['client.secret.expiration.time', 'client.secret.remaining.expiration.time',
@@ -158,6 +159,21 @@ function uuidValue(value) {
     && value !== '00000000-0000-0000-0000-000000000000';
 }
 
+function legacyDeclaration(declaration) {
+  return declaration.legacyTenantAttribute === 'tenant-a' && declaration.organizationId === null;
+}
+
+function qualifiedExistingActor(user, declaration, stage) {
+  const actor = user.attributes?.user_id;
+  if (Array.isArray(actor) && actor.length === 1 && typeof actor[0] === 'string'
+    && actor[0].toLowerCase() === declaration.userId.toLowerCase()) return;
+  // A public registration matching a reserved username is not a seed identity.
+  // Only the two historical accounts have this explicit migration discriminator.
+  if ((actor === undefined || (Array.isArray(actor) && actor.length === 0))
+    && legacyDeclaration(declaration) && equal(user.attributes?.tenant_id, ['tenant-a'])) return;
+  refuse(stage, 'identity_conflict');
+}
+
 function identityAttributes(user, declaration, stage) {
   const attributes = user.attributes === undefined ? {} : requireObject(user.attributes, stage);
   const merged = copy(attributes);
@@ -172,8 +188,7 @@ function identityAttributes(user, declaration, stage) {
     }
     if (!Array.isArray(current) || current.length !== 1 || typeof current[0] !== 'string')
       refuse(stage, 'identity_conflict');
-    if (name === 'tenant_id' && typeof declaration.legacyTenantAttribute === 'string'
-      && declaration.legacyTenantAttribute && current[0] === declaration.legacyTenantAttribute) {
+    if (name === 'tenant_id' && legacyDeclaration(declaration) && current[0] === 'tenant-a') {
       merged[name] = [wanted];
       continue;
     }
@@ -185,18 +200,41 @@ function identityAttributes(user, declaration, stage) {
 
 function validateInputs(desired, manifest, webSecret) {
   if (!object(desired) || desired.realm !== 'learnstack' || desired.accessTokenLifespan !== 900
+    || !Array.isArray(desired.users) || desired.users.length !== 4
     || !object(manifest) || !Array.isArray(manifest.users) || manifest.users.length !== 4
     || typeof webSecret !== 'string' || !webSecret) refuse('plan', 'unsupported');
   unique(manifest.users, 'username', 'plan', 'identity_conflict');
+  unique(desired.users, 'username', 'plan', 'identity_conflict');
+  // SeedIdentityManifest qualifies the two historical personas by declaration.
+  // Tooling validates its bounded, tenant-wide projection without branching on
+  // institution names, hosts or persona usernames.
+  const legacy = manifest.users.filter(user => user.legacyTenantAttribute != null);
+  if (legacy.length !== 0 && (legacy.length !== 2
+    || new Set(legacy.map(user => user.tenantId)).size !== 1
+    || !equal(new Set(legacy.map(user => user.realmRole)), new Set(['tenant-admin', 'tenant-learner']))))
+    refuse('plan', 'identity_conflict');
   const actors = new Set();
+  const scopes = new Set(manifest.users.flatMap(user => [user.tenantId, user.organizationId])
+    .filter(value => typeof value === 'string').map(value => value.toLowerCase()));
   for (const declaration of manifest.users) {
-    if (!uuidValue(declaration.userId) || !uuidValue(declaration.tenantId)
+    if (!uuidValue(declaration.userId) || !actorUuid.test(declaration.userId) || !uuidValue(declaration.tenantId)
       || (declaration.organizationId !== null && !uuidValue(declaration.organizationId))
+      || (declaration.organizationId !== null && declaration.organizationId.toLowerCase() === declaration.tenantId.toLowerCase())
+      || (declaration.legacyTenantAttribute != null && !legacyDeclaration(declaration))
+      || scopes.has(declaration.userId.toLowerCase())
       || actors.has(declaration.userId.toLowerCase())) refuse('plan', 'identity_conflict');
     actors.add(declaration.userId.toLowerCase());
     const exports = desired.users.filter(user => user.username === declaration.username);
     if (!equal(declaration.accountCapability, { clientId: 'account', role: 'manage-account' })
       || exports.length !== 1 || exports[0].email !== declaration.email
+      || exports[0].firstName !== declaration.firstName || exports[0].lastName !== declaration.lastName
+      || !['tenant-admin', 'tenant-learner'].includes(declaration.realmRole)
+      || !equal(exports[0].realmRoles, [declaration.realmRole])
+      || exports[0].enabled !== true || exports[0].emailVerified !== true
+      || !Array.isArray(exports[0].credentials) || exports[0].credentials.length !== 1
+      || !object(exports[0].credentials[0])
+      || exports[0].credentials[0].type !== 'password' || exports[0].credentials[0].temporary !== false
+      || typeof exports[0].credentials[0].value !== 'string' || !exports[0].credentials[0].value
       || !equal(exports[0].clientRoles, { account: ['manage-account'] })
       || !equal(identityAttributes(exports[0], declaration, 'plan'), exports[0].attributes))
       refuse('plan', 'identity_conflict');
@@ -232,6 +270,7 @@ async function readClient(admin, name, stage) {
   if (matches.length !== 1 || matches[0].clientId !== name || !matches[0].id) refuse(stage, 'unsupported');
   const client = requireObject(await admin.get(`clients/${encode(matches[0].id)}`), stage);
   if (client.id !== matches[0].id || client.clientId !== name || client.protocol !== 'openid-connect'
+    || client.enabled !== true || client.consentRequired === true
     || client.bearerOnly === true || (client.clientAuthenticatorType && client.clientAuthenticatorType !== 'client-secret'))
     refuse(stage, 'unsupported');
   const defaults = unique(array(await admin.get(`clients/${encode(client.id)}/default-client-scopes`), stage), 'id', stage);
@@ -248,7 +287,7 @@ async function readClient(admin, name, stage) {
 
 async function snapshot(admin, desired, manifest, stage) {
   const realm = requireObject(await admin.get(''), stage);
-  if (realm.realm !== 'learnstack') refuse(stage, 'unsupported');
+  if (realm.realm !== 'learnstack' || realm.enabled !== true) refuse(stage, 'unsupported');
   const profile = requireObject(await admin.get('users/profile'), stage);
   validateIdentityVisibility(profile, stage);
   const scopes = unique(array(await admin.get('client-scopes'), stage), 'name', stage, 'mapper_conflict');
@@ -289,6 +328,7 @@ async function snapshot(admin, desired, manifest, stage) {
     const user = requireObject(await admin.get(`users/${encode(matched[0].id)}`), stage);
     if (user.id !== matched[0].id || user.username !== declaration.username
       || user.federationLink || user.serviceAccountClientId) refuse(stage, 'identity_conflict');
+    qualifiedExistingActor(user, declaration, stage);
     const credentials = array(await admin.get(`users/${encode(user.id)}/credentials`), stage);
     const roles = requireObject(await admin.get(`users/${encode(user.id)}/role-mappings`), stage);
     ownedUsers.set(declaration.username, { user, credentials, roles });
@@ -320,6 +360,10 @@ function mergedClient(current, wanted, webSecret) {
   for (const name of ownClientFields) {
     if (name in wanted) body[name] = copy(wanted[name]);
   }
+  if (Array.isArray(current.redirectUris) && Array.isArray(body.redirectUris)
+    && new Set(current.redirectUris).size === current.redirectUris.length
+    && equal([...current.redirectUris].sort(), [...body.redirectUris].sort()))
+    body.redirectUris = copy(current.redirectUris);
   body.attributes = { ...(current.attributes ?? {}), ...wanted.attributes };
   delete body.attributes['access.token.lifespan'];
   if (wanted.clientId === 'learnstack-web' && current.publicClient === true) body.secret = webSecret;
@@ -425,7 +469,10 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
       }
       if (name === managedScope) {
         const attributes = { ...current.attributes, ...wanted.attributes };
-        const body = { attributes };
+        // Pinned ClientScopeResource validates name even for an attribute-only
+        // update. Carry the unchanged identity/protocol without replaying the
+        // full representation, mappers or unrelated descriptive fields.
+        const body = { name: current.name, protocol: current.protocol, attributes };
         expectedScopes.set(name, { ...current, ...body });
         if (!equal(current.attributes, attributes)) add('update_scope', () => admin.put(`client-scopes/${encode(current.id)}`, copy(body)), body);
       }
@@ -525,8 +572,20 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
         // own transaction. Unlike POST users, this creates credentials and the
         // declared inert role and account capability atomically. FAIL never overwrites.
         const result = await admin.post('partialImport', copy(body));
-        if (result.status !== 200 && result.status !== 409) refuse('apply', 'status');
+        // Only ADDED proves that this transaction installed the declared
+        // credential. An exact-looking concurrent account cannot prove it.
+        if (result.status === 409) refuse('apply', 'identity_conflict');
+        if (result.status !== 200) refuse('apply', 'status');
+        const receipt = result.body;
+        const added = receipt?.results;
+        if (!object(receipt) || receipt.added !== 1 || receipt.overwritten !== 0 || receipt.skipped !== 0
+          || receipt.errorMessage != null || !Array.isArray(added) || added.length !== 1
+          || !object(added[0])
+          || added[0].action !== 'ADDED' || added[0].resourceType !== 'USER'
+          || added[0].resourceName !== declaration.username || typeof added[0].id !== 'string' || !added[0].id)
+          refuse('apply', 'identity_conflict');
         const created = await exactNewUser(admin, declaration, wanted, 'apply');
+        if (created.id !== added[0].id) refuse('apply', 'identity_conflict');
         const roles = requireObject(await admin.get(`users/${encode(created.id)}/role-mappings`), 'apply');
         const credentials = array(await admin.get(`users/${encode(created.id)}/credentials`), 'apply');
         const assigned = await readUserGroupIds(admin, created.id, 'apply');

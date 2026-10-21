@@ -26,6 +26,8 @@ internal static class KeycloakHttp
         return new SocketsHttpHandler
         {
             AllowAutoRedirect = false,
+            UseProxy = false,
+            AutomaticDecompression = DecompressionMethods.None,
             ConnectTimeout = RequestBudget,
             UseCookies = cookies is not null,
             CookieContainer = cookies ?? new CookieContainer(),
@@ -35,11 +37,18 @@ internal static class KeycloakHttp
     }
 
     internal static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method,
-        string path, HttpContent? content = null)
+        string path, HttpContent? content = null, CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(method, path) { Content = content };
-        try { return await client.SendAsync(request, HttpCompletionOption.ResponseContentRead); }
-        catch (Exception)
+        try
+        {
+            var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken);
+            if (response.Content.Headers.ContentEncoding.Count == 0) return response;
+            response.Dispose();
+            throw new InvalidOperationException("Keycloak fixture compressed response was refused.");
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (HttpRequestException)
         {
             // HttpRequestException can contain an authorization URL, including a code or a login-action token.
             throw new InvalidOperationException("Keycloak fixture HTTP request failed.");
@@ -47,30 +56,31 @@ internal static class KeycloakHttp
     }
 
     internal static async Task<JsonDocument> JsonAsync(HttpClient client, HttpMethod method,
-        string path, HttpContent? content = null)
+        string path, HttpContent? content = null, CancellationToken cancellationToken = default)
     {
-        using var response = await SendAsync(client, method, path, content);
+        using var response = await SendAsync(client, method, path, content, cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException("Keycloak fixture JSON request was refused.");
-        return await ReadJsonAsync(response);
+        return await ReadJsonAsync(response, cancellationToken);
     }
 
-    internal static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response)
+    internal static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response, CancellationToken cancellationToken = default)
     {
-        try { return JsonDocument.Parse(await ReadBodyAsync(response)); }
+        try { return JsonDocument.Parse(await ReadBodyAsync(response, cancellationToken)); }
         catch (JsonException) { throw new InvalidOperationException("Keycloak fixture JSON response is malformed."); }
     }
 
-    internal static async Task<string> ReadBodyAsync(HttpResponseMessage response)
+    internal static async Task<string> ReadBodyAsync(HttpResponseMessage response, CancellationToken cancellationToken = default)
     {
         try
         {
-            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
             if (bytes.Length > MaximumBodyBytes)
                 throw new InvalidOperationException("Keycloak fixture response exceeded its body bound.");
             return System.Text.Encoding.UTF8.GetString(bytes);
         }
-        catch (Exception)
+        catch (OperationCanceledException) { throw; }
+        catch (HttpRequestException)
         {
             throw new InvalidOperationException("Keycloak fixture response could not be read within its body bound.");
         }

@@ -28,6 +28,10 @@ async function client(admin, name, stage) {
   const value = await admin.get(`clients/${encode(found[0].id)}`);
   if (value.id !== found[0].id || value.clientId !== name || value.protocol !== 'openid-connect'
     || value.enabled !== true || value.publicClient !== true || value.fullScopeAllowed !== false
+    || value.consentRequired === true || value.rootUrl !== '${authBaseUrl}'
+    || value.baseUrl !== '/realms/learnstack/account/'
+    || !equal(value.redirectUris, ['/realms/learnstack/account/*']) || !equal(value.webOrigins, [])
+    || value.attributes?.['post.logout.redirect.uris'] !== '+'
     || value.bearerOnly === true || value.standardFlowEnabled !== true || value.implicitFlowEnabled !== false
     || value.directAccessGrantsEnabled !== false || value.serviceAccountsEnabled !== false
     || (value.clientAuthenticatorType && value.clientAuthenticatorType !== 'client-secret')) refuse(stage, 'unsupported');

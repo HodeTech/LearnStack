@@ -74,7 +74,21 @@ public sealed class TenantRealmSelfServiceTests(KeycloakFixture fresh)
         user["username"] = username;
         user["email"] = username;
         user["firstName"] = "Existing";
-        user["attributes"] = new JsonObject();
+        user["lastName"] = "Preserved family";
+        user["attributes"] = new JsonObject { ["fixture_note"] = new JsonArray("preserved ordinary data") };
+        var profileComponent = realm["components"]!["org.keycloak.userprofile.UserProfileProvider"]![0]!;
+        var profile = JsonNode.Parse(Text(profileComponent["config"]!["kc.user.profile.config"]![0]))!.AsObject();
+        profile["attributes"]!.AsArray().Add(new JsonObject
+        {
+            ["name"] = "fixture_note",
+            ["multivalued"] = false,
+            ["permissions"] = new JsonObject
+            {
+                ["view"] = new JsonArray("admin", "user"),
+                ["edit"] = new JsonArray("admin", "user"),
+            },
+        });
+        profileComponent["config"]!["kc.user.profile.config"]![0] = profile.ToJsonString();
         realm["users"]!.AsArray().Add(user);
         await using var fixture = await KeycloakFixture.StartAsync(realm.ToJsonString());
         using var admin = await fixture.CreateAdminClientAsync();
@@ -92,16 +106,30 @@ public sealed class TenantRealmSelfServiceTests(KeycloakFixture fresh)
         await AssertNormalizedAccountMapperAsync(admin);
         (await AccountStateAsync(admin, userId) == before).Should().BeTrue();
         ((await hub.GetAsync()).GetRawText() == hubBefore).Should().BeTrue();
+        var beforeEdit = await admin.GetAsync("users/" + userId);
         using (var admitted = await AccountClientAsync(fixture, username))
         {
             using var response = await KeycloakHttp.SendAsync(admitted, HttpMethod.Get, "");
             await AssertAccountJsonAsync(response, username);
+            using var accountResponse = await KeycloakHttp.SendAsync(admitted, HttpMethod.Get, "");
+            using var accountJson = await KeycloakHttp.ReadJsonAsync(accountResponse);
+            var update = Node(accountJson.RootElement).AsObject();
+            update.Remove("id");
+            update["firstName"] = "Ordinary edit";
             using var edit = await KeycloakHttp.SendAsync(admitted, HttpMethod.Post, "",
-                JsonContent.Create(new { firstName = "Ordinary edit", lastName = "Account", email = username, attributes = new { } }));
+                JsonContent.Create(update));
             edit.StatusCode.Should().Be(HttpStatusCode.NoContent);
         }
         var updated = await admin.GetAsync("users/" + userId);
+        var expectedEdit = Node(beforeEdit).AsObject();
+        expectedEdit["firstName"] = "Ordinary edit";
+        JsonNode.DeepEquals(expectedEdit, Node(updated)).Should().BeTrue(
+            "the successful real profile update changes only its requested ordinary field");
         (updated.GetProperty("firstName").GetString() == "Ordinary edit").Should().BeTrue();
+        (updated.GetProperty("lastName").GetString() == "Preserved family"
+            && updated.GetProperty("email").GetString() == username
+            && updated.GetProperty("attributes").GetProperty("fixture_note")[0].GetString() == "preserved ordinary data")
+            .Should().BeTrue("the real ordinary account update preserves unrelated profile fields and attributes");
         foreach (var name in new[] { "user_id", "tenant_id", "organization_id" })
             (updated.TryGetProperty("attributes", out var attributes) && attributes.TryGetProperty(name, out _)).Should().BeFalse(
                 "the shared mapper does not provision actor or scope attributes for this nonmanifest account");

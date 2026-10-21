@@ -1,242 +1,230 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { buildRealmPlan } from './development-realm-plan.mjs';
+import { desired, manifest, secret, provider } from './development-realm-test-fixture.mjs';
 import { accountMapperRepresentation, claimRoot, validateAccountMappers, validateEffectiveMappers } from './development-realm-mappers.mjs';
 
-const desired = JSON.parse(await readFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), 'utf8'));
-const secret = 'private-test-source';
 const clone = value => structuredClone(value);
 const omit = (value, keys) => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
-// Pinned RepresentationToModel.toModel/removeEmptyString, independently modeled
-// for provider storage instead of echoing the declaration back to the planner.
-const storedMapper = mapper => ({ ...clone(mapper), config: Object.fromEntries(
-  Object.entries(mapper.config ?? {}).filter(([, value]) => value !== null && value !== '')) });
-const manifest = { users: desired.users.map((user, index) => ({
-  username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName,
-  userId: user.attributes.user_id[0], tenantId: user.attributes.tenant_id[0],
-  organizationId: user.attributes.organization_id?.[0] ?? null, realmRole: user.realmRoles[0],
-  accountCapability: { clientId: 'account', role: 'manage-account' },
-  legacyTenantAttribute: index < 2 ? 'legacy-scope' : null,
-})) };
-
-function provider() {
-  let serial = 0;
-  const id = () => `provider-${serial += 1}`;
-  const state = {
-    realm: { realm: desired.realm, id: id(), accessTokenLifespan: 900, displayName: 'retained realm' },
-    profile: JSON.parse(desired.components['org.keycloak.userprofile.UserProfileProvider'][0].config['kc.user.profile.config'][0]),
-    scopes: desired.clientScopes.map(scope => ({ ...clone(scope), id: id(),
-      protocolMappers: (scope.protocolMappers ?? []).map(mapper => ({ ...storedMapper(mapper), id: id() })) })),
-    clients: desired.clients.map(client => ({ ...clone(client), id: id(),
-      protocolMappers: (client.protocolMappers ?? []).map(mapper => ({ ...storedMapper(mapper), id: id() })),
-      secret: client.clientId === 'learnstack-web' ? secret : client.secret })),
-    users: desired.users.map(user => ({ ...omit(clone(user), ['realmRoles', 'clientRoles', 'credentials']), id: id(),
-      requiredActions: [], credentials: [{ id: id(), type: 'password', credentialData: 'retained password metadata' }],
-      roles: { realmMappings: user.realmRoles.map(name => ({ id: id(), name, composite: false, clientRole: false })) } })),
-    roles: desired.roles.realm.map(role => ({ ...clone(role), id: id(), composite: false, clientRole: false })),
-    groups: [], memberships: {},
-  };
-  state.realm.defaultRole = { id: id(), name: `default-roles-${desired.realm}`, composite: true, clientRole: false };
-  const account = state.clients.find(client => client.clientId === 'account');
-  const console = state.clients.find(client => client.clientId === 'account-console');
-  state.accountRoles = desired.roles.client.account.map(role => ({ ...omit(clone(role), ['composites']),
-    id: id(), containerId: account.id }));
-  state.roleChildren = Object.fromEntries(state.accountRoles.map(role => [role.id,
-    (desired.roles.client.account.find(value => value.name === role.name).composites?.client.account ?? [])
-      .map(name => state.accountRoles.find(value => value.name === name))]));
-  const clientMapping = names => ({ id: account.id, client: 'account',
-    mappings: names.map(name => clone(state.accountRoles.find(role => role.name === name))) });
-  for (const [index, user] of state.users.entries()) user.roles.clientMappings = {
-    account: clientMapping(desired.users[index].clientRoles.account),
-  };
-  state.scopeMappings = { [`clients/${console.id}`]: { clientMappings: {
-    account: clientMapping(['manage-account', 'view-groups']),
-  } } };
-  const effectiveAccountRoles = user => {
-    const values = new Map();
-    const visit = role => {
-      if (values.has(role.id)) return;
-      values.set(role.id, role);
-      for (const child of state.roleChildren[role.id] ?? []) visit(child);
-    };
-    for (const role of [...(user.roles?.clientMappings?.account?.mappings ?? []), ...(user.roles?.realmMappings ?? [])]) visit(role);
-    for (const groupId of state.memberships[user.id] ?? []) {
-      let group = state.groups.find(value => value.id === groupId);
-      while (group) {
-        for (const name of group.clientRoles?.account ?? []) visit(state.accountRoles.find(role => role.name === name));
-        group = state.groups.find(value => value.id === group.parentId);
-      }
-    }
-    return [...values.values()].filter(role => role.containerId === account.id);
-  };
-
-  const writes = [];
-  const reads = [];
-  const canEdit = attribute => attribute.permissions?.edit?.includes('admin') === true;
-  const canRead = attribute => canEdit(attribute) || attribute.permissions?.view?.includes('admin') === true;
-  const unmanagedReadable = () => ['ENABLED', 'ADMIN_EDIT', 'ADMIN_VIEW'].includes(state.profile.unmanagedAttributePolicy);
-  const projectUser = (user, includeMetadata = false) => {
-    const projected = omit(user, ['roles', 'credentials']);
-    projected.attributes = Object.fromEntries(Object.entries(user.attributes ?? {}).filter(([name]) => {
-      const attribute = state.profile.attributes.find(entry => entry.name === name);
-      return attribute ? canRead(attribute) : unmanagedReadable();
-    }));
-    for (const attribute of state.profile.attributes) {
-      if (canRead(attribute) && !projected.attributes[attribute.name]?.length && attribute.defaultValue != null)
-        projected.attributes[attribute.name] = [attribute.defaultValue];
-    }
-    if (includeMetadata) projected.userProfileMetadata = {
-      attributes: state.profile.attributes.filter(canRead).map(attribute => ({ name: attribute.name,
-        displayName: attribute.displayName, required: false, readOnly: !canEdit(attribute),
-        annotations: attribute.annotations ?? {}, validators: Object.fromEntries(Object.entries(attribute.validations ?? {})
-          .map(([name, config]) => [name, { ...config, 'ignore.empty.value': true }])), multivalued: attribute.multivalued === true })),
-      groups: clone(state.profile.groups ?? []),
-    };
-    return projected;
-  };
-  const get = async path => {
-    reads.push(path);
-    const url = new URL(path, 'http://provider/');
-    const parts = url.pathname.slice(1).split('/').map(decodeURIComponent);
-    let value;
-    if (path === '') value = state.realm;
-    else if (path === 'users/profile') value = state.profile;
-    else if (path === 'groups/count') value = { count: state.groups.filter(group => group.type !== 'organization').length };
-    else if (parts[0] === 'groups') {
-      const search = url.searchParams.get('search');
-      assert.ok(search === '' || search === ' ');
-      assert.equal(url.searchParams.get('populateHierarchy'), 'false');
-      assert.equal(url.searchParams.get('briefRepresentation'), 'false');
-      assert.equal(url.searchParams.get('max'), '201');
-      let groups = state.groups.filter(group => group.type !== 'organization');
-      // An empty REST query is injected as null and lists only top-level
-      // groups; a nonempty space reaches the trimmed contains-search instead.
-      if (search === '') groups = groups.filter(group => group.parentId == null);
-      value = groups.slice(0, 201).map(group => omit(group, ['type']));
-    }
-    else if (parts[0] === 'users' && parts.length === 1) {
-      let users = state.users;
-      if (url.searchParams.has('username')) users = users.filter(user => user.username === url.searchParams.get('username'));
-      const first = Number(url.searchParams.get('first') ?? 0);
-      value = users.slice(first, first + Number(url.searchParams.get('max') ?? 100)).map(user => projectUser(user, true));
-    } else if (parts[0] === 'users') {
-      const user = state.users.find(entry => entry.id === parts[1]);
-      if (!user) throw new Error('unknown fixture user');
-      if (parts[2] === 'groups') {
-        let groups = (state.memberships[user.id] ?? []).map(groupId => state.groups.find(group => group.id === groupId));
-        // Pinned null/null membership lookup sees all group types; supplying
-        // pagination switches to the realm-only branch and conceals org rows.
-        if (url.searchParams.has('first') || url.searchParams.has('max')) groups = groups.filter(group => group.type !== 'organization');
-        value = groups.map(group => omit(group, ['type', 'attributes', 'realmRoles', 'clientRoles']));
-      } else if (parts[2] === 'role-mappings' && parts[3] === 'clients')
-        value = parts[5] === 'composite' ? effectiveAccountRoles(user) : user.roles?.clientMappings?.account?.mappings ?? [];
-      else value = parts[2] === 'credentials' ? user.credentials : parts[2] === 'role-mappings' ? user.roles : projectUser(user);
-    } else if (parts[0] === 'roles-by-id') value = state.roleChildren[parts[1]] ?? [];
-    else if (parts.at(-1) === 'scope-mappings') value = state.scopeMappings[parts.slice(0, -1).join('/')] ?? {};
-    else if (parts[0] === 'roles') value = state.roles.find(role => role.name === parts[1]);
-    else if (path === 'client-scopes') value = state.scopes;
-    else if (parts[0] === 'client-scopes') value = state.scopes.find(scope => scope.id === parts[1]).protocolMappers;
-    else if (parts[0] === 'clients' && parts.length === 1)
-      value = state.clients.filter(client => client.clientId === url.searchParams.get('clientId')).map(client => ({ id: client.id, clientId: client.clientId }));
-    else if (parts[0] === 'clients') {
-      const client = state.clients.find(entry => entry.id === parts[1]);
-      if (!parts[2]) value = { ...omit(client, ['defaultClientScopes', 'optionalClientScopes', 'protocolMappers', 'secret', 'authorizationServicesEnabled']),
-        ...(client.authorizationServicesEnabled === true ? { authorizationServicesEnabled: true } : {}) };
-      else if (parts[2] === 'roles') value = state.accountRoles.find(role => role.name === parts[3]);
-      else if (parts[2] === 'client-secret') value = { type: 'secret', value: client.secret };
-      else if (parts[2] === 'protocol-mappers') value = client.protocolMappers;
-      else {
-        const names = parts[2] === 'default-client-scopes' ? client.defaultClientScopes : client.optionalClientScopes;
-        value = names.map(name => state.scopes.find(scope => scope.name === name));
-      }
-    }
-    if (value === undefined) throw new Error(`unhandled fixture GET ${path}`);
-    return clone(value);
-  };
-  const put = async (path, body) => {
-    writes.push({ method: 'PUT', path, body: clone(body) });
-    const parts = path.split('/').map(decodeURIComponent);
-    if (path === '') Object.assign(state.realm, clone(body));
-    else if (path === 'users/profile') state.profile = clone(body);
-    else if (parts[0] === 'users') {
-      const user = state.users.find(entry => entry.id === parts[1]);
-      const readonly = Object.fromEntries(Object.entries(user.attributes ?? {}).filter(([name]) => {
-        const attribute = state.profile.attributes.find(entry => entry.name === name);
-        return attribute ? !canEdit(attribute) : !['ENABLED', 'ADMIN_EDIT'].includes(state.profile.unmanagedAttributePolicy);
-      }));
-      Object.assign(user, clone(body), { attributes: { ...clone(body.attributes), ...readonly } });
-    }
-    else if (parts[0] === 'clients') {
-      const client = state.clients.find(entry => entry.id === parts[1]);
-      if (!parts[2]) {
-        Object.assign(client, omit(clone(body), ['attributes']));
-        // Pinned RepresentationToModel derives origins from redirects when an
-        // omitted list falls back to an existing empty list.
-        if (!Object.hasOwn(body, 'webOrigins') && client.webOrigins.length === 0)
-          client.webOrigins = [...new Set(client.redirectUris.filter(uri => uri.startsWith('http'))
-            .map(uri => new URL(uri).origin))];
-        for (const [name, value] of Object.entries(body.attributes ?? {})) {
-          if (value === null || value.trim() === '') delete client.attributes[name];
-          else client.attributes[name] = value;
-        }
-        // Pinned ClientResource reattaches this scope when an unchanged true
-        // flag is resent. Omitting the flag avoids that unrelated mutation.
-        if (body.serviceAccountsEnabled === true && !client.defaultClientScopes.includes('service_account'))
-          client.defaultClientScopes.push('service_account');
-        // Omission disables the resource server, rather than preserving it.
-        client.authorizationServicesEnabled = body.authorizationServicesEnabled === true;
-        for (const name of ['client.secret.expiration.time', 'client.secret.remaining.expiration.time',
-          'client.secret.rotated', 'client.secret.rotated.creation.time', 'client.secret.rotated.expiration.time'])
-          delete client.attributes[name];
-      }
-      else {
-        const scope = state.scopes.find(entry => entry.id === parts[3]);
-        client[parts[2] === 'default-client-scopes' ? 'defaultClientScopes' : 'optionalClientScopes'].push(scope.name);
-      }
-    } else if (parts[0] === 'client-scopes') {
-      const scope = state.scopes.find(entry => entry.id === parts[1]);
-      if (parts[2]) Object.assign(scope.protocolMappers.find(mapper => mapper.id === parts[4]), clone(body));
-      else Object.assign(scope, clone(body));
-    } else throw new Error('unhandled fixture PUT');
-    return 204;
-  };
-  const post = async (path, body) => {
-    writes.push({ method: 'POST', path, body: clone(body) });
-    const parts = path.split('/').map(decodeURIComponent);
-    if (path === 'client-scopes') state.scopes.push({ ...clone(body), id: id(),
-      protocolMappers: (body.protocolMappers ?? []).map(mapper => ({ ...storedMapper(mapper), id: id() })) });
-    else if (parts[0] === 'client-scopes')
-      state.scopes.find(scope => scope.id === parts[1]).protocolMappers.push({ ...storedMapper(body), id: id() });
-    else if (parts[0] === 'clients' && parts[2] === 'protocol-mappers')
-      state.clients.find(client => client.id === parts[1]).protocolMappers.push({ ...storedMapper(body), id: id() });
-    else if (path === 'partialImport') {
-      assert.equal(body.ifResourceExists, 'FAIL');
-      assert.deepEqual(Object.keys(body).sort(), ['ifResourceExists', 'users']);
-      assert.equal(body.users.length, 1);
-      const user = body.users[0];
-      state.users.push({ ...omit(clone(user), ['credentials', 'realmRoles', 'clientRoles']), id: id(), requiredActions: [],
-        credentials: [{ id: id(), type: 'password' }],
-        roles: { realmMappings: user.realmRoles.map(name => clone(state.roles.find(role => role.name === name))),
-          clientMappings: { account: clientMapping(user.clientRoles.account) } } });
-      return { status: 200 };
-    }
-    else if (parts[0] === 'users' && parts[2] === 'role-mappings') {
-      const user = state.users.find(user => user.id === parts[1]);
-      if (parts[3] === 'clients') {
-        user.roles.clientMappings ??= {};
-        user.roles.clientMappings.account ??= clientMapping([]);
-        user.roles.clientMappings.account.mappings.push(...clone(body));
-      } else user.roles.realmMappings.push(...clone(body));
-      return { status: 204 };
-    } else throw new Error('unhandled fixture POST');
-    return { status: 201 };
-  };
-  return { state, writes, reads, admin: { get, put, post } };
-}
 
 const plan = fixture => buildRealmPlan({ admin: fixture.admin, desired: clone(desired), manifest: clone(manifest), webSecret: secret });
 const apply = async change => { for (const action of change.actions) await action.apply(); await change.verify(); };
+
+for (const [name, mutate, reason = 'identity_conflict'] of [
+  ['wrong realm', input => { input.desired.realm = 'foreign'; }, 'unsupported'],
+  ['wrong lifespan', input => { input.desired.accessTokenLifespan = 1800; }, 'unsupported'],
+  ['missing exported users', input => { input.desired.users = null; }, 'unsupported'],
+  ['wrong exported count', input => { input.desired.users.pop(); }, 'unsupported'],
+  ['missing manifest users', input => { input.manifest.users = null; }, 'unsupported'],
+  ['wrong manifest count', input => { input.manifest.users.pop(); }, 'unsupported'],
+  ['empty secret', input => { input.webSecret = ''; }, 'unsupported'],
+  ['nonstring secret', input => { input.webSecret = 123; }, 'unsupported'],
+  ['duplicate username', input => { input.manifest.users[1].username = input.manifest.users[0].username; }],
+  ['invalid actor UUID', input => { input.manifest.users[0].userId = 'invalid'; }],
+  ['reserved actor UUID', input => { input.manifest.users[0].userId = '00000000-0000-0000-0000-000000000000'; }],
+  ['non-v7 actor UUID', input => { input.manifest.users[0].userId = input.manifest.users[0].userId.replace('-7000-', '-4000-'); }],
+  ['duplicate actor', input => { input.manifest.users[1].userId = input.manifest.users[0].userId; }],
+  ['invalid tenant UUID', input => { input.manifest.users[0].tenantId = 'invalid'; }],
+  ['invalid organization UUID', input => { input.manifest.users[2].organizationId = 'invalid'; }],
+  ['tenant organization collision', input => { input.manifest.users[2].organizationId = input.manifest.users[2].tenantId; }],
+  ['actor scope collision', input => { input.manifest.users[0].userId = input.manifest.users[2].organizationId; }],
+  ['wrong legacy literal', input => { input.manifest.users[0].legacyTenantAttribute = 'another-legacy'; }],
+  ['Yoga legacy migration', input => { input.manifest.users[2].legacyTenantAttribute = 'tenant-a'; }],
+  ['legacy organization', input => { input.manifest.users[0].organizationId = input.manifest.users[2].organizationId; }],
+  ['wrong account capability', input => { input.manifest.users[0].accountCapability.role = 'view-profile'; }],
+  ['missing exported persona', input => { input.desired.users[0].username = 'other'; }],
+  ['duplicate exported persona', input => { input.desired.users[1].username = input.desired.users[0].username; }],
+  ['wrong email', input => { input.desired.users[0].email = 'other@fixture.invalid'; }],
+  ['wrong first name', input => { input.desired.users[0].firstName = 'other'; }],
+  ['wrong last name', input => { input.desired.users[0].lastName = 'other'; }],
+  ['disabled declaration', input => { input.desired.users[0].enabled = false; }],
+  ['unverified email', input => { input.desired.users[0].emailVerified = false; }],
+  ['missing credentials', input => { input.desired.users[0].credentials = []; }],
+  ['null credential', input => { input.desired.users[0].credentials = [null]; }],
+  ['multiple credentials', input => { input.desired.users[0].credentials.push(clone(input.desired.users[0].credentials[0])); }],
+  ['wrong credential type', input => { input.desired.users[0].credentials[0].type = 'otp'; }],
+  ['temporary credential', input => { input.desired.users[0].credentials[0].temporary = true; }],
+  ['empty credential', input => { input.desired.users[0].credentials[0].value = ''; }],
+  ['wrong declared role', input => { input.manifest.users[0].realmRole = 'unknown'; }],
+  ['wrong exported role', input => { input.desired.users[0].realmRoles = ['tenant-learner']; }],
+  ['wrong account grant', input => { input.desired.users[0].clientRoles.account = ['view-profile']; }],
+  ['wrong exported actor', input => { input.desired.users[0].attributes.user_id = [input.manifest.users[1].userId]; }],
+]) {
+  test(`input preflight rejects ${name} before the first provider read`, async () => {
+    const fixture = provider();
+    const input = { desired: clone(desired), manifest: clone(manifest), webSecret: secret, admin: fixture.admin };
+    mutate(input);
+    await assert.rejects(buildRealmPlan(input), error => error.stage === 'plan' && error.reason === reason);
+    assert.deepEqual(fixture.reads, []);
+    assert.deepEqual(fixture.writes, []);
+  });
+}
+
+test('disabled realm or named client and consent drift refuse without repairing unrelated settings', async () => {
+  for (const resource of ['realm', 'learnstack-web', 'learnstack-api']) {
+    for (const field of resource === 'realm' ? ['enabled'] : ['enabled', 'consentRequired']) {
+      const fixture = provider();
+      const value = resource === 'realm' ? fixture.state.realm : fixture.state.clients.find(client => client.clientId === resource);
+      value[field] = field !== 'enabled';
+      const original = clone(fixture.state);
+      await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported');
+      assert.deepEqual(fixture.state, original);
+      assert.deepEqual(fixture.writes, []);
+    }
+  }
+});
+
+test('stock account callbacks, origins and consent must match the supported warm boundary', async () => {
+  for (const name of ['account', 'account-console']) for (const [field, value] of [
+    ['redirectUris', ['https://foreign.fixture.invalid/*']], ['webOrigins', ['*']],
+    ['rootUrl', 'https://foreign.fixture.invalid/'], ['baseUrl', '/foreign/'],
+    ['consentRequired', true], ['attributes', { 'post.logout.redirect.uris': '*' }],
+  ]) {
+    const fixture = provider();
+    const client = fixture.state.clients.find(client => client.clientId === name);
+    client[field] = field === 'attributes' ? { ...client.attributes, ...value } : clone(value);
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported', `${name}/${field}`);
+    assert.deepEqual(fixture.writes, []);
+    assert.deepEqual(fixture.state, original);
+  }
+});
+
+test('matching reserved usernames without protected actor identity are not adopted from public registration', async () => {
+  for (const index of [0, 1, 2, 3]) for (const actor of [undefined, []]) {
+    const fixture = provider();
+    if (actor === undefined) delete fixture.state.users[index].attributes.user_id;
+    else fixture.state.users[index].attributes.user_id = actor;
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'identity_conflict');
+    assert.deepEqual(fixture.writes, []);
+    assert.deepEqual(fixture.state, original);
+  }
+  const legacyFixture = provider(); legacy(legacyFixture);
+  await apply(await plan(legacyFixture));
+  for (const declaration of manifest.users) assert.deepEqual(legacyFixture.state.users
+    .find(user => user.username === declaration.username).attributes.user_id, [declaration.userId]);
+});
+
+test('equivalent redirect registration order requires no write and preserves its existing representation', async () => {
+  const fixture = provider();
+  fixture.state.clients.find(client => client.clientId === 'learnstack-web').redirectUris.reverse();
+  const original = clone(fixture.state);
+  const change = await plan(fixture);
+  assert.deepEqual(change.actions, []);
+  await change.verify();
+  assert.deepEqual(fixture.state, original);
+});
+
+test('warm owned scope attributes and mapper destinations converge and independently verify', async () => {
+  const fixture = provider();
+  const scope = fixture.state.scopes.find(value => value.name === 'learnstack-tenant-api');
+  scope.attributes['include.in.token.scope'] = 'false';
+  scope.attributes.retained = 'preserved';
+  scope.protocolMappers[0].config['userinfo.token.claim'] = 'true';
+  const change = await plan(fixture);
+  assert.deepEqual(change.actions.map(action => action.label), ['update_mapper', 'update_scope']);
+  await apply(change);
+  assert.equal(scope.attributes.retained, 'preserved');
+  assert.equal(scope.attributes['include.in.token.scope'], 'true');
+  assert.equal(scope.protocolMappers[0].config['userinfo.token.claim'], 'false');
+  assert.equal((await plan(fixture)).actions.length, 0);
+});
+
+test('scope repair carries the bounded provider envelope and an omitted-name control cannot mutate state', async () => {
+  for (const omitName of [false, true]) {
+    const fixture = provider();
+    const scope = fixture.state.scopes.find(value => value.name === 'learnstack-tenant-api');
+    scope.attributes['include.in.token.scope'] = 'false';
+    scope.attributes.retained = 'preserved';
+    scope.description = 'retained administrator description';
+    const original = clone(scope);
+    const change = await plan(fixture);
+    assert.deepEqual(change.actions.map(action => action.label), ['update_scope']);
+    const put = fixture.admin.put;
+    let sent;
+    fixture.admin.put = (path, body) => {
+      sent = clone(body);
+      if (omitName) delete body.name;
+      return put(path, body);
+    };
+    if (omitName) {
+      await assert.rejects(apply(change), /pinned scope update requires unchanged name/);
+      assert.deepEqual(scope, original);
+    } else {
+      await apply(change);
+      assert.equal(scope.description, original.description);
+      assert.equal(scope.attributes.retained, 'preserved');
+      assert.equal((await plan(fixture)).actions.length, 0);
+    }
+    assert.deepEqual(Object.keys(sent).sort(), ['attributes', 'name', 'protocol']);
+    assert.equal(sent.name, original.name);
+    assert.equal(sent.protocol, original.protocol);
+  }
+});
+
+test('user creation requires the exact successful ADDED receipt bound to its new provider ID', async () => {
+  for (const mutate of [
+    response => { delete response.body; }, response => { response.body.added = 0; },
+    response => { response.body.overwritten = 1; }, response => { response.body.skipped = 1; },
+    response => { response.body.results[0].action = 'SKIPPED'; },
+    response => { response.body.results[0].resourceType = 'CLIENT'; },
+    response => { response.body.results[0].resourceName = 'other'; },
+    response => { response.body.results[0].id = 'different-provider-id'; },
+    response => { response.body.results.push(clone(response.body.results[0])); },
+    response => { response.body.results = [null]; },
+  ]) {
+    const fixture = provider(); fixture.state.users.pop();
+    const post = fixture.admin.post;
+    fixture.admin.post = async (path, body) => { const response = await post(path, body); mutate(response); return response; };
+    const change = await plan(fixture);
+    await assert.rejects(change.actions[0].apply(), error => error.stage === 'apply' && error.reason === 'identity_conflict');
+    assert.equal(fixture.writes.length, 1);
+    assert.equal(fixture.writes[0].body.ifResourceExists, 'FAIL');
+  }
+});
+
+test('identity and audience mapper destinations reject independent unsafe configurations', () => {
+  const effective = desired.clientScopes.filter(scope => ['basic', 'roles', 'learnstack-tenant-api'].includes(scope.name))
+    .flatMap(scope => scope.protocolMappers ?? []);
+  validateEffectiveMappers(effective);
+  for (const [type, field, value] of [
+    ['oidc-usermodel-attribute-mapper', 'access.token.claim', 'false'],
+    ['oidc-usermodel-attribute-mapper', 'id.token.claim', 'false'],
+    ['oidc-usermodel-attribute-mapper', 'userinfo.token.claim', 'true'],
+    ['oidc-usermodel-attribute-mapper', 'jsonType.label', 'long'],
+    ['oidc-usermodel-attribute-mapper', 'multivalued', 'true'],
+    ['oidc-audience-mapper', 'id.token.claim', 'true'],
+    ['oidc-audience-mapper', 'access.token.claim', 'false'],
+    ['oidc-audience-resolve-mapper', 'id.token.claim', 'true'],
+    ['oidc-sub-mapper', 'access.token.claim', 'false'],
+  ]) {
+    const values = clone(effective);
+    values.find(mapper => mapper.protocolMapper === type).config[field] = value;
+    assert.throws(() => validateEffectiveMappers(values), error => error.reason === 'mapper_conflict', `${type}/${field}`);
+  }
+});
+
+test('concurrent scope and mapper creation never admits extra provider configuration', async () => {
+  for (const resource of ['scope', 'mapper']) {
+    const fixture = provider();
+    const scope = fixture.state.scopes.find(scope => scope.name === 'basic');
+    if (resource === 'scope') {
+      fixture.state.scopes = fixture.state.scopes.filter(scope => scope.name !== 'learnstack-tenant-api');
+      for (const client of fixture.state.clients) client.defaultClientScopes = client.defaultClientScopes.filter(name => name !== 'learnstack-tenant-api');
+    } else scope.protocolMappers = scope.protocolMappers.filter(mapper => mapper.protocolMapper !== 'oidc-sub-mapper');
+    const post = fixture.admin.post;
+    fixture.admin.post = async (path, body) => {
+      await post(path, body);
+      if (resource === 'scope') fixture.state.scopes.at(-1).attributes.unexpected = 'not-admitted';
+      else scope.protocolMappers.at(-1).config.unexpected = 'not-admitted';
+      return { status: 409 };
+    };
+    const change = await plan(fixture);
+    await assert.rejects(change.actions[0].apply(), error => error.stage === 'apply' && error.reason === 'mapper_conflict');
+    assert.equal(fixture.writes.length, 1);
+  }
+});
 
 function legacy(fixture) {
   const { state } = fixture;
@@ -760,7 +748,7 @@ test('existing attribute updates reject unrelated writable projection defaults a
   for (const projection of [{ defaultValue: 'synthesized' }, { selector: { scopes: ['profile'] } }, { normalizer: 'unqualified' }]) {
     const fixture = provider();
     fixture.state.realm.accessTokenLifespan = 1800;
-    delete fixture.state.users[0].attributes.user_id;
+    delete fixture.state.users[0].attributes.tenant_id;
     fixture.state.profile.attributes.push({ name: 'unrelated', permissions: { view: ['admin'], edit: ['admin'] }, ...projection });
     const original = clone(fixture.state);
     await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported');
@@ -768,7 +756,7 @@ test('existing attribute updates reject unrelated writable projection defaults a
     assert.deepEqual(fixture.state, original);
   }
   const readonly = provider();
-  delete readonly.state.users[0].attributes.user_id;
+  delete readonly.state.users[0].attributes.tenant_id;
   readonly.state.users[0].attributes.unmanaged_hidden = ['retained'];
   readonly.state.users[0].attributes.managed_hidden = ['retained'];
   readonly.state.profile.attributes.push({ name: 'managed_hidden', permissions: { view: ['user'], edit: ['user'] } });
@@ -928,11 +916,11 @@ function capResponses(fixture) {
 test('known projected user pages and scope inventories must fit the response cap before small valid mutations', async () => {
   for (const resource of ['users', 'scopes']) for (const supported of [true, false]) {
     const fixture = provider();
-    const headroom = supported ? 16 * 1024 : 64;
+    const headroom = supported ? 16 * 1024 : 16;
     const path = resource === 'users' ? 'users?first=0&max=100&briefRepresentation=false&exact=false' : 'client-scopes';
     if (resource === 'users') {
       fixture.state.profile.unmanagedAttributePolicy = 'ADMIN_EDIT';
-      fixture.state.users[0].attributes = {};
+      fixture.state.users[0].attributes = { user_id: [manifest.users[0].userId] };
       let remaining = 256 * 1024 - headroom - Buffer.byteLength(JSON.stringify(await fixture.admin.get(path)), 'utf8');
       for (let index = 0; remaining > 0; index += 1) {
         const name = `retained_${index}`;
@@ -1039,23 +1027,23 @@ test('one named-user import atomically carries credential and inert role; lost r
   assert.equal(fixture.writes.length, 1);
 });
 
-test('creation409 permits exactly one fresh state check and never overwrites or assigns an existing account role', async () => {
+test('creation409 refuses an unproven raced credential without fresh-account adoption or retry', async () => {
   for (const compatible of [true, false]) {
     const fixture = provider(); fixture.state.users.pop();
     const originalPost = fixture.admin.post;
     fixture.admin.post = async (path, body) => {
       await originalPost(path, body);
+      fixture.state.users.at(-1).credentials[0].credentialData = 'different-raced-password';
       if (!compatible) fixture.state.users.at(-1).roles.realmMappings = [];
       return { status: 409 };
     };
     const change = await plan(fixture);
     const initialLookups = fixture.reads.filter(path => path.includes('username=')).length;
-    if (compatible) await change.actions[0].apply();
-    else await assert.rejects(change.actions[0].apply(), error => error.stage === 'apply' && error.reason === 'identity_conflict');
+    await assert.rejects(change.actions[0].apply(), error => error.stage === 'apply' && error.reason === 'identity_conflict');
     assert.equal(fixture.writes.length, 1);
-    assert.equal(fixture.reads.filter(path => path.includes('username=')).length - initialLookups, 1);
+    assert.equal(fixture.reads.filter(path => path.includes('username=')).length - initialLookups, 0);
     assert.equal(fixture.writes[0].body.ifResourceExists, 'FAIL');
-    if (compatible) await change.verify();
+    assert.equal(fixture.state.users.at(-1).credentials[0].credentialData, 'different-raced-password');
   }
 });
 

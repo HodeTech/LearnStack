@@ -2,21 +2,45 @@ using System.Net;
 using System.Security.Authentication;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Docker.DotNet.Models;
 using FluentAssertions;
 using LearnStack.Tests.Integration.Database;
 using LearnStack.Tools.Seeder;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace LearnStack.Tests.Integration.TenancyIdentity;
 
 /// <summary>Committed realm import and real confidential code/S256 issuance, before any BFF implementation.</summary>
 [Collection(SharedKeycloakRealm.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture)
+public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture, ITestOutputHelper output)
 {
     [Fact]
     public async Task Fixture_HTTPS_requires_its_owned_certificate_authority()
     {
+        output.WriteLine("Owned provider startup wall time: {0:F3} seconds", fixture.StartupElapsed.TotalSeconds);
+        await fixture.AssertLoopbackBindingsAsync();
+        var inspection = new ContainerInspectResponse
+        {
+            HostConfig = new HostConfig
+            {
+                PortBindings = new Dictionary<string, IList<PortBinding>>
+                { ["8443/tcp"] = [new() { HostIP = "127.0.0.1", HostPort = "" }] },
+            },
+            NetworkSettings = new NetworkSettings
+            {
+                Ports = new Dictionary<string, IList<PortBinding>>
+                { ["8443/tcp"] = [new() { HostIP = "127.0.0.1", HostPort = "34443" }] },
+            },
+        };
+        KeycloakFixture.LoopbackBindings(inspection, "8443/tcp").Should().BeTrue();
+        foreach (var address in new[] { "", "0.0.0.0", "::", "192.0.2.1" })
+        {
+            inspection.NetworkSettings.Ports["8443/tcp"][0].HostIP = address;
+            KeycloakFixture.LoopbackBindings(inspection, "8443/tcp").Should().BeFalse(
+                "client-loopback URI checks cannot substitute for the actual Docker publication");
+        }
         using var trusted = KeycloakHttp.Create(fixture.BaseAddress, fixture.RootCertificate);
         using (var positive = await KeycloakHttp.SendAsync(trusted, HttpMethod.Get,
             "realms/learnstack/.well-known/openid-configuration"))
@@ -77,6 +101,16 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture)
             var idToken = await KeycloakTokenVerifier.ValidateAsync(fixture, exchange.IdToken, "learnstack-web");
             AssertIdentity(idToken, identity);
             FreshProfileMatches(access, idToken, identity, subject, exchange.Window).Should().BeTrue();
+            foreach (var defect in new[] { "missing_subject", "wrong_subject", "wrong_party" })
+            {
+                var mutant = JsonNode.Parse(idToken.GetRawText())!.AsObject();
+                if (defect == "missing_subject") mutant.Remove("sub");
+                else if (defect == "wrong_subject") mutant["sub"] = "another-provider-subject";
+                else mutant["azp"] = "another-client";
+                using var invalid = JsonDocument.Parse(mutant.ToJsonString());
+                FreshProfileMatches(access, invalid.RootElement, identity, subject, exchange.Window).Should().BeFalse(
+                    "the same profile predicate must detect an ID-token subject or authorized-party defect");
+            }
             AssertScalar(idToken, "typ", "ID");
             HasAudience(idToken, "learnstack-api").Should().BeFalse("the explicit API audience belongs only in access tokens");
         }
@@ -393,8 +427,10 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture)
         exchange.StatusCode.Should().Be(HttpStatusCode.OK);
         // The production role declaration and stock roles audience resolver retain this independent audience.
         // This checks signature/issuer/lifetime even when the deliberately dirty API audience is absent.
-        var access = await KeycloakTokenVerifier.ValidateAsync(provider, exchange.AccessToken, "account");
-        var id = await KeycloakTokenVerifier.ValidateAsync(provider, exchange.IdToken, "learnstack-web");
+        var access = await KeycloakTokenVerifier.ValidateAsync(provider, exchange.AccessToken, "account",
+            allowMissingSubject: defect == "missing_sub");
+        var id = await KeycloakTokenVerifier.ValidateAsync(provider, exchange.IdToken, "learnstack-web",
+            allowMissingSubject: defect == "missing_sub");
         var reachedDefect = defect switch
         {
             null => true,
@@ -422,6 +458,7 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture)
         string? subject, KeycloakIssuanceWindow window) => MatchesIdentity(access, identity) && MatchesIdentity(id, identity)
         && ScalarEquals(access, "sub", subject) && ScalarEquals(access, "typ", "Bearer")
         && ScalarEquals(access, "azp", "learnstack-web") && HasAudience(access, "learnstack-api")
+        && ScalarEquals(id, "sub", subject) && ScalarEquals(id, "azp", "learnstack-web")
         && ScalarEquals(id, "typ", "ID") && !HasAudience(id, "learnstack-api")
         && window.AcceptsFresh(access, 900);
 
