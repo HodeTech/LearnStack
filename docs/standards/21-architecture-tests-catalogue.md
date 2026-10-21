@@ -4535,6 +4535,15 @@ structural test proves — and what it does not.
   `TenantRealmProfileProtectionTests` and `TenantRealmApiTests`; P02b-6 Step 4.
   Actual provider/API controls run in ordinary Docker CI; local and hosted
   receipts and independent review closure live in the Step 4 record.
+- **ADR-0068 Accepted extension — 2026-10-22, pending implementation and
+  qualification:** The added Asserts obligation is actual historical-stock before/after
+  token/claim and manifest/nonmanifest console POST with independent stored-field
+  readback under the three-edge delta. `TenantRealmSelfServiceTests` owns this
+  extension alongside the existing issuance/profile/API owners.
+  [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its
+  [three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
+  own pending proof/reviews. Existing Implemented status and counts cover shipped
+  scope only; acceptance supplies no extension implementation claim.
 - **Phase:** P02b-6 Steps 1/4.
 
 #### `Development_Realm_Reconciliation_Preserves_Accounts`
@@ -4574,6 +4583,18 @@ structural test proves — and what it does not.
   `TenantRealmSelfServiceTests`, with offline Node controls in meta; P02b-6
   Steps 2–4. Actual warm-provider, lifecycle and cancellation receipts and
   independent review closure live in the Step 4 record.
+- **ADR-0068 Accepted extension — 2026-10-22, pending implementation and
+  qualification:** The added Asserts obligation is independently reproduced stock-graph
+  qualification, all identity-independent refusals before preparation, exact
+  metadata-only progress, separately counted ordinary writes, three qualified
+  DELETEs and explicit partial-progress reruns. `TenantRealmReconciliationTests`,
+  `TenantRealmSelfServiceTests` and the shared Node controls own this extension.
+  A hidden fresh-plan conflict may leave preparation metadata, but no ordinary
+  mutation; the earlier zero-write scope remains historical implemented coverage.
+  [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its
+  [three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
+  own pending proof/reviews. Existing Implemented status and counts cover shipped
+  scope only; acceptance supplies no extension implementation claim.
 - **Phase:** P02b-6 Steps 2–4.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`

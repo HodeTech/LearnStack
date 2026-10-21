@@ -306,7 +306,9 @@ PR review and merge remain separate.
 The [additional correction record](docs/roadmap/phase-02b-events-auth.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
 owns the current verified findings.
 [ADR-0068](docs/decisions/0068-development-warm-realm-qualification.md)
-remains Proposed; dependent warm-realm changes need separate approval.
+is Accepted — 2026-10-22 under the maintainer's conditional approval after verified
+review corrections. Its three-step correction plan is authorized; implementation
+and automatic-path qualification remain pending.
 P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full

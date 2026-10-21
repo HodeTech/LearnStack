@@ -8,6 +8,8 @@ model, and session-variable placement**),
 (Amendment 1: `learnstack-hub` realm),
 [ADR-0067 Development Tenant Access-Token Issuance](../decisions/0067-development-tenant-access-token-issuance.md)
 (the configured development issuance lifespan and provider timestamp semantics),
+[ADR-0068 Development Warm-Realm Qualification](../decisions/0068-development-warm-realm-qualification.md)
+(the bounded preparation and stock-console assignment authority),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [ADR-0036 Tenant Resolution and Trusted Inputs](../decisions/0036-tenant-resolution-trusted-inputs.md)
@@ -155,6 +157,17 @@ General rules:
   password reuse for the last 5.
 - Account lockout after 5 failed attempts in 10 minutes; lifted after 15 minutes or
   admin unlock.
+
+**Development warm-realm qualification — Accepted 2026-10-22.**
+[ADR-0068](../decisions/0068-development-warm-realm-qualification.md) owns the
+exception allowing qualified missing-definition preparation before a fresh full
+plan and the three stock-console assignment detachments. All identity-independent
+refusals precede preparation; all other writes require complete planning. Existing
+readable definitions, credentials and unrelated state remain preserved. This is
+account-preserving reconciliation with named assignment deletion, not general
+delete authority. Implementation and automatic-path proof remain pending in its
+[three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22);
+acceptance alone activates no new path.
 
 **Development access-token issuance — Accepted 2026-10-21.** This standard owns
 the issuance-lifetime rule decided by

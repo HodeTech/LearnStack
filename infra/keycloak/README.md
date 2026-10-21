@@ -206,8 +206,11 @@ The exact pre-P02b-6 export still has unsupported warm prerequisites: its stock
 profile hides identity values and its account-console bootstrap carries broader
 scope assignments. Current tooling refuses these states before writes.
 [ADR-0068](../../docs/decisions/0068-development-warm-realm-qualification.md)
-proposes a bounded correction and remains awaiting approval; do not remove the
-visibility guard, wipe the database or silently normalize scopes manually.
+is Accepted — 2026-10-22 after verified review corrections under conditional
+maintainer authority. Its three-step implementation and automatic-path proof
+remain pending in the [acceptance record](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22).
+Current guards remain active. Do not remove them, wipe the database or silently
+normalize customized scopes by name.
 
 Direct .NET Seeder remains an application-data tool; its identity manifest is a
 read-only declaration. Both combined entries build its fresh Release DLL and
@@ -251,11 +254,17 @@ Admin user responses are profile projections, not raw attribute storage. Before
 interpreting a missing identity as absent, the reconciler requires an
 admin-readable definition without a default or selector, or an explicitly
 admin-readable unmanaged policy. Hidden identities and external user-storage
-profiles refuse before any write. The tool never changes visibility to discover
-whether a conflicting identity exists. For an older realm that hides these
+profiles refuse before any write. The current implementation does not change
+visibility to discover
+whether a conflicting identity exists. ADR-0068's accepted preparation exception
+remains pending implementation and proof; it permits metadata only after all
+identity-independent preconditions pass. For an older realm that hides these
 values, an operator must first inspect the profile configuration, make the three
 identity definitions admin-only readable, and inspect their stored values before
-retrying. Do not enable end-user editing or replace a conflicting UUID to force
+retrying. This is an explicit administrator action outside automatic tooling;
+inspect the full profile and preserve every unrelated field. It is not permission
+to infer ownership from a name or silently remove a custom scope. Do not enable
+end-user editing or replace a conflicting UUID to force
 convergence. The existing unmanaged policy remains unchanged by reconciliation.
 
 Protected claims must come from user attributes. Aggregation and inherited

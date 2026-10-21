@@ -2,14 +2,14 @@
 
 ## Status
 
-Proposed — requires explicit maintainer approval before dependent runtime changes.
-Existing visibility and account-scope guards remain authoritative until acceptance.
+Accepted — 2026-10-22.
+Existing guards remain active until the bounded implementation is qualified.
 
 **Date:** 2026-10-22
 **Deciders:** @cemil
 
-Acceptance, implementation and final-source automatic-path proof remain pending.
-This proposal replaces bounded parts of two Accepted P02b-6 clauses; it does not
+Implementation and final-source automatic-path proof remain pending.
+This decision replaces bounded parts of two Accepted P02b-6 clauses; it does not
 supersede ADR-0004, ADR-0064 or ADR-0067,
 correct their history or backdate new mutation authority.
 
@@ -28,8 +28,8 @@ correct their history or backdate new mutation authority.
 
 ## Considered Options
 
-1. **Bounded preparation and qualified stock-console normalization** (proposed
-   choice). Reveal only missing protected definitions, then validate a complete
+1. **Bounded preparation and qualified stock-console normalization** (chosen).
+   Reveal only missing protected definitions, then validate a complete
    fresh plan before detaching only the three incompatible stock console edges.
 2. **Manual preparation and operator normalization** (viable alternative). Retain
    existing refusals; an administrator appends the definitions and reconciles the
@@ -115,15 +115,16 @@ Removing compatible stock edges too would lose the reason to continue once the
 last incompatible edge disappeared. The three-edge decision needs no durable
 marker: its final deletion naturally hands later passes to compatible preservation.
 
-Acceptance must name both replacements beside their phase clauses in a dated
-record. It retains the original package and review chronology. The
+The [dated acceptance record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
+names both replacements beside their phase clauses and retains the original
+package and review chronology. The
 [Step 2 review](../roadmap/phase-02b-events-auth.md#step-2-review-round-1--identity-visibility-and-plan-feasibility)
 demonstrated an actual hidden-actor overwrite before the visibility guard. That
 guard is protective, and the old warm fixture enabled unmanaged attributes.
 The current bootstrap-parity fixture derives from today's desired export; it
 cannot establish the historical export's provider-generated scope assignments.
-The dated review's no-profile-write result remains historical; acceptance records
-the changed remedy beside it rather than rewriting that evidence.
+The dated review's no-profile-write result remains historical; the adjacent
+acceptance note records the changed remedy without rewriting that evidence.
 
 ### Pinned provider behavior and manual feasibility evidence
 
@@ -344,10 +345,10 @@ receipt and graph hashes, exclusions and exact owned cleanup.
   identity definitions, repeated budget refusals, or after the legacy upgrade
   population is retired. Requalification or removal is an explicit reviewed change;
   no provider upgrade silently refreshes the baseline or broadens DELETE authority.
-- Acceptance updates both named phase clauses and a dated Step 2 remedy note,
-  Security 11, Architecture 13's account-preservation/assignment wording,
-  Keycloak README, ADR index and repository/phase front doors with these bounded
-  exceptions and pending delivery. Final source, receipts and reviews precede
+- The named phase clauses and dated Step 2 remedy note, Security 11,
+  Architecture 13's account-preservation/assignment wording, Keycloak guide, ADR
+  index and repository/phase front doors record these exceptions and pending
+  delivery. Final source, receipts and reviews precede
   Implemented claims; existing Accepted ADR bodies remain unchanged.
 
 ## Architecture Tests
@@ -356,9 +357,8 @@ Reuse the existing canonical obligations
 [`Development_Realm_Reconciliation_Preserves_Accounts`](../standards/21-architecture-tests-catalogue.md#development_realm_reconciliation_preserves_accounts)
 and [`Tenant_Realm_Issuance_Matches_The_Api_Profile`](../standards/21-architecture-tests-catalogue.md#tenant_realm_issuance_matches_the_api_profile).
 Retain their existing **Implemented** status and counts for shipped coverage.
-At acceptance, add explicit dated **Accepted extension — pending implementation
-and qualification** paragraphs and reconcile the precise Asserts boundaries and
-owners.
+The catalogue records dated **Accepted extension — pending implementation
+and qualification** paragraphs with precise Asserts boundaries and owners.
 Do not claim that extension implemented before final-source proofs/reviews; preserve
 prior phase receipts and invent no new canonical rule.
 

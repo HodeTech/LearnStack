@@ -13626,6 +13626,11 @@ only. The read-only identity projection never opens a data source.
   up front. Apply only named owned fields/resources, merge unrelated data and
   perform independent post-write readback. Never replay a full realm import,
   drop a database, recreate a realm or delete existing accounts/scopes/roles.
+
+  **Bounded replacement — 2026-10-22:** [ADR-0068](../decisions/0068-development-warm-realm-qualification.md)
+  permits one qualified metadata preparation before a fresh full plan, after all
+  identity-independent prechecks. Every other Admin REST write remains ordinary
+  and requires that complete plan. Its implementation/proof remains pending.
 - Bound each HTTP wait to 5s, ordinary decoded responses and every outbound body
   to 256 KiB, and the complete reconciliation to 120s. Only the fixed authenticated
   successful `GET /admin/serverinfo` read has the
@@ -14229,6 +14234,12 @@ The duplicate-actor census also refuses external user-storage projections that
 can override realm metadata. Safe explicit admin-readable policies remain
 supported, and reconciliation retains the existing unmanaged policy.
 
+**Remedy follow-up — 2026-10-22:** The preceding no-profile-write result describes
+that shipped correction. Accepted [ADR-0068](../decisions/0068-development-warm-realm-qualification.md)
+now authorizes the separately bounded preparation remedy after independent
+preconditions, without widening unmanaged policy or rewriting this evidence.
+Its automatic path remains pending implementation and proof.
+
 Every static mutation body is checked in the complete read-only plan against
 the existing 256 KiB UTF-8 limit. Projected collection and account counts must
 fit the same readers used during independent verification and a later run.
@@ -14401,6 +14412,12 @@ an effective conflicting emitter/role-transforming mapper, without changing it.
 A compatible existing fixed-account emitter needs no duplicate. Preserve all
 compatible prior client settings, callbacks, scopes and mapper IDs; independent
 readback verifies the exact intended addition and unchanged baseline.
+
+**Bounded replacement — 2026-10-22:** [ADR-0068](../decisions/0068-development-warm-realm-qualification.md)
+permits only the three independently qualified stock-console assignment
+detachments; customized graphs still refuse and compatible graphs retain priority.
+This adds assignment-only DELETE authority, not deletion of global resources.
+Implementation and automatic-path proof remain pending.
 
 No realm-wide default-role assignment, group inheritance, unrelated account-data
 or grant change, Hub/master mutation, new application role or membership is
@@ -16083,6 +16100,48 @@ evidence. NativeSettlement was absent from the finite source projection; the
 separate diagnostic correction adds only that literal source and a closed code,
 with planted privacy/near-match controls. No deadline, runtime or success witness
 is changed by that diagnostic correction.
+
+
+
+### ADR-0068 acceptance and implementation (2026-10-22)
+
+**Status: Accepted; three implementation steps authorized.** The maintainer directs
+correction of still-valid review findings, then acceptance and implementation
+without another approval request. Both fresh revised-decision review rounds are
+complete. The second pair inspects `02b886f7`: `gpt-6.1-sol` and `gpt-6-astra`, both
+at `high`, approve the compatible-read correction and revised decision without an
+actionable finding. Both independently pass 256 Node cases, six gate controls,
+43 launcher controls and whitespace; every subprocess joins. Their separate first
+review approves `d3e69b7e`'s finite source diagnostic; its fresh second review remains
+required and is included in Step 1's correction review scope.
+
+ADR-0068 is now Accepted — 2026-10-22. The two original phase clauses receive dated
+bounded replacements; the Step 2 review receives an adjacent remedy follow-up.
+Security 11, Architecture 13, Keycloak guidance, index and front doors distinguish
+accepted authority from pending implementation. The two existing catalogue rules
+retain Implemented status/counts with dated pending extension Asserts and owners.
+No Accepted ADR body other than this newly accepted decision is changed.
+
+The three correction steps above proceed automatically with commit and two fresh
+independent review rounds per step. Step 1 qualifies the fixed historical graph
+and scoped detachments; Step 2 adds owned preparation and fresh planning; Step 3
+completes actual-provider/lifecycle/POST/CI proof and catalogue extension delivery.
+No automatic-path activation, complete upgrade claim, green final-source CI or
+merge follows merely from acceptance.
+
+Acceptance-carrier checks pass five CorpusConsistency cases, seven ADR parser
+controls, 1,454 actual Markdown relative links/fragments and whitespace. The parser
+reports Accepted; the index has exactly one Active ADR-0068 row. Existing inline
+code examples are not treated as live Markdown references.
+
+The bounded native-settlement investigation executes three serial paired runs:
+all six cases pass on an isolated `2c06b4a6` source, whose backend is identical to
+failed source `8e914a8b`. Release build passes without warnings/errors. All exact
+six observed fixture containers are directly confirmed absent without forced
+removal; no created network is observed. macOS/SDK 10.0.302 differs from hosted
+Linux/10.0.402. This is targeted evidence, not the lost assertion's root cause or
+a waiver of the failed hosted assignment. No runtime, deadline or ownership
+witness is changed; final source still requires complete qualification.
 
 
 ## Completion Criteria

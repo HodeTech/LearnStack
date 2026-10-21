@@ -27,7 +27,7 @@ P02b-6 supplies realm reconciliation as recorded below; BFF sessions remain P02b
 **P02b-6 decision Accepted — 2026-10-21.** The
 [accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
 authorizes four implementation steps for real issuance, protected seed attributes,
-non-destructive development reconciliation, exact callbacks and issuance TTL.
+account-preserving development reconciliation, exact callbacks and issuance TTL.
 Steps 1–3 supply the committed fresh-import scopes/profile/client definition,
 typed identity manifest, bounded warm reconciliation and shared seed/demo entry.
 Their local reviews and actual lifecycle qualification are complete. Step 4
@@ -285,7 +285,12 @@ provisions `demo-english` and `demo-yoga` through the request path
 and a re-run is idempotent.
 
 G12's [accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
-owns the non-destructive warm upgrade and its named account-console adjustment.
+owns the account-preserving warm upgrade and its named account-console adjustment.
+[ADR-0068](../decisions/0068-development-warm-realm-qualification.md), Accepted —
+2026-10-22, adds bounded profile preparation and three qualified stock-console
+assignment detachments. This deletes named assignment edges, while preserving
+accounts and global definitions. Its [implementation record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
+tracks pending automatic-path proof; current guards remain until qualified activation.
 The realm guide owns the exact local procedure and refusal boundaries. G10 is
 Accepted: one token carries at most one active tenant. A user in both tenants
 also needs `Membership`, which [Phase 03](../roadmap/phase-03-identity-admin.md)
