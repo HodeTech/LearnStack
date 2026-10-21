@@ -60,8 +60,15 @@ async function snapshot(admin, stage) {
   const defaults = list(await admin.get(`${base}/default-client-scopes`), stage);
   const optional = list(await admin.get(`${base}/optional-client-scopes`), stage);
   const scopes = [...defaults, ...optional];
-  if (new Set(scopes.map(scope => scope.id)).size !== scopes.length
-    || scopes.some(scope => scope.protocol !== 'openid-connect')) refuse(stage, 'unsupported');
+  if (new Set(scopes.map(scope => scope.id)).size !== scopes.length) refuse(stage, 'unsupported');
+  // Assignment reads contain only id/name summaries. Qualify the independently
+  // fetched representation before trusting its protocol or following its graph.
+  for (const summary of scopes) {
+    if (typeof summary.name !== 'string' || !summary.name) refuse(stage, 'unsupported');
+    const scope = await admin.get(`client-scopes/${encode(summary.id)}`);
+    if (!scope || scope.id !== summary.id || scope.name !== summary.name
+      || scope.protocol !== 'openid-connect') refuse(stage, 'unsupported');
+  }
   const directMappers = list(await admin.get(`${base}/protocol-mappers/models`), stage);
   const scopeMappers = new Map();
   const allowances = new Map();

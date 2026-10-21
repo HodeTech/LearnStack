@@ -288,6 +288,7 @@ test('server information refuses 512 KiB plus one byte and closes the actual exc
 
 for (const [name, path, options, status] of [
   ['ordinary path', 'admin/realms/learnstack', { bearer: canary }, 200],
+  ['full client scope', 'admin/realms/learnstack/client-scopes/retained-scope', { bearer: canary }, 200],
   ['path suffix', 'admin/serverinfo/', { bearer: canary }, 200],
   ['encoded path', 'admin/%73erverinfo', { bearer: canary }, 200],
   ['query', 'admin/serverinfo?fields=systemInfo.version', { bearer: canary }, 200],

@@ -527,6 +527,114 @@ test('an existing fixed emitter must be effective without selecting an optional 
   }
 });
 
+test('account scope id/name summaries resolve full representations and preserve compatible custom graphs', async () => {
+  const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
+  const console = fixture.state.clients.find(client => client.clientId === 'account-console');
+  const account = fixture.state.clients.find(client => client.clientId === 'account');
+  const emitter = console.protocolMappers.find(mapper => mapper.protocolMapper === 'oidc-usermodel-client-role-mapper');
+  emitter.name = 'retained-compatible-emitter';
+  console.protocolMappers = console.protocolMappers.filter(mapper => mapper !== emitter);
+  const custom = ['default', 'optional'].map(kind => ({ id: `retained-${kind}`, name: `retained-${kind}`,
+    protocol: 'openid-connect', attributes: { retained: `custom ${kind} setting` },
+    protocolMappers: kind === 'default' ? [emitter] : [{ id: 'retained-name-mapper', name: 'retained-name-mapper',
+      protocol: 'openid-connect', protocolMapper: 'oidc-full-name-mapper', config: {} }] }));
+  fixture.state.scopes.push(...custom);
+  console.defaultClientScopes = [custom[0].name];
+  console.optionalClientScopes = [custom[1].name];
+  fixture.state.scopeMappings[`client-scopes/${custom[0].id}`] = fixture.state.scopeMappings[`clients/${console.id}`];
+  fixture.state.scopeMappings[`clients/${console.id}`] = {};
+  fixture.state.scopeMappings[`client-scopes/${custom[1].id}`] = { clientMappings: {
+    account: { id: account.id, client: 'account', mappings: [fixture.state.accountRoles.find(role => role.name === 'view-groups')] },
+  } };
+  for (const kind of ['default', 'optional']) {
+    const summaries = await fixture.admin.get(`clients/${console.id}/${kind}-client-scopes`);
+    assert.deepEqual(summaries, [{ id: `retained-${kind}`, name: `retained-${kind}` }]);
+  }
+  const original = clone(fixture.state);
+  const change = await plan(fixture);
+  assert.deepEqual(change.actions.map(action => action.label), ['update_lifespan']);
+  assert.equal(fixture.writes.length, 0);
+  await apply(change);
+  original.realm.accessTokenLifespan = 900;
+  assert.deepEqual(fixture.state, original);
+  for (const scope of custom) assert.equal(fixture.reads.filter(path => path === `client-scopes/${scope.id}`).length, 2,
+    'preflight and independent readback each resolve the full scope');
+  assert.equal((await plan(fixture)).actions.length, 0);
+});
+
+test('account scope qualification independently binds full representation id, name and protocol before pending writes', async () => {
+  for (const kind of ['default', 'optional']) for (const replacement of [
+    null, { id: undefined }, { name: undefined }, { id: 'foreign-scope' }, { name: 'foreign-scope' },
+    { protocol: 'saml' }, { protocol: undefined },
+  ]) {
+    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
+    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
+    const scope = fixture.state.scopes.find(scope => scope.name === 'phone');
+    console.defaultClientScopes = kind === 'default' ? [scope.name] : [];
+    console.optionalClientScopes = kind === 'optional' ? [scope.name] : [];
+    const originalGet = fixture.admin.get;
+    fixture.admin.get = async path => {
+      const value = await originalGet(path);
+      return path === `client-scopes/${scope.id}` ? replacement === null ? null : { ...value, ...replacement } : value;
+    };
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported');
+    assert.equal(fixture.writes.length, 0);
+    assert.deepEqual(fixture.state, original);
+  }
+});
+
+test('account scope summary names, duplicate ids and per-assignment count bounds refuse before full scope reads', async () => {
+  for (const kind of ['default', 'optional']) for (const variant of ['missing_name', 'empty_name', 'numeric_name', 'duplicate_id', 'over_count', 'shared_id']) {
+    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
+    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
+    const scope = fixture.state.scopes.find(scope => scope.name === 'phone');
+    console.defaultClientScopes = [];
+    console.optionalClientScopes = [];
+    const summary = { id: scope.id, name: scope.name };
+    const originalGet = fixture.admin.get;
+    fixture.admin.get = async path => {
+      const value = await originalGet(path);
+      if (path === `clients/${console.id}/${kind}-client-scopes`) {
+        if (variant === 'missing_name') return [omit(summary, ['name'])];
+        if (variant === 'empty_name') return [{ ...summary, name: '' }];
+        if (variant === 'numeric_name') return [{ ...summary, name: 3 }];
+        if (variant === 'duplicate_id') return [summary, { ...summary, name: 'other' }];
+        if (variant === 'over_count') return Array.from({ length: 201 }, (_, index) => ({ id: `scope-${index}`, name: `scope-${index}` }));
+      }
+      return variant === 'shared_id' && path.startsWith(`clients/${console.id}/`)
+        && path.endsWith('-client-scopes') ? [summary] : value;
+    };
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported');
+    assert.equal(fixture.reads.some(path => path === `client-scopes/${scope.id}`), false);
+    assert.equal(fixture.writes.length, 0);
+    assert.deepEqual(fixture.state, original);
+  }
+});
+
+test('independent account scope readback resolves and requalifies each full representation', async () => {
+  for (const kind of ['default', 'optional']) for (const replacement of [
+    { id: 'foreign-scope' }, { name: 'foreign-scope' }, { protocol: 'saml' },
+  ]) {
+    const fixture = provider();
+    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
+    const scope = fixture.state.scopes.find(scope => scope.name === 'phone');
+    console.defaultClientScopes = kind === 'default' ? [scope.name] : [];
+    console.optionalClientScopes = kind === 'optional' ? [scope.name] : [];
+    const change = await plan(fixture);
+    assert.equal(change.actions.length, 0);
+    const originalGet = fixture.admin.get;
+    fixture.admin.get = async path => {
+      const value = await originalGet(path);
+      return path === `client-scopes/${scope.id}` ? { ...value, ...replacement } : value;
+    };
+    await assert.rejects(change.verify(), error => error.stage === 'readback' && error.reason === 'unsupported');
+    assert.equal(fixture.reads.filter(path => path === `client-scopes/${scope.id}`).length, 2);
+    assert.equal(fixture.writes.length, 0);
+  }
+});
+
 test('unsafe account composites, direct/default/optional scope allowances and implicit mappers refuse before pending writes', async () => {
   const variants = [
     fixture => { fixture.state.accountRoles.find(role => role.name === 'manage-account').containerId = 'foreign'; },

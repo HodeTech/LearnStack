@@ -148,7 +148,10 @@ export function provider() {
     else if (parts.at(-1) === 'scope-mappings') value = state.scopeMappings[parts.slice(0, -1).join('/')] ?? {};
     else if (parts[0] === 'roles') value = state.roles.find(role => role.name === parts[1]);
     else if (path === 'client-scopes') value = state.scopes;
-    else if (parts[0] === 'client-scopes') value = state.scopes.find(scope => scope.id === parts[1]).protocolMappers;
+    else if (parts[0] === 'client-scopes') {
+      const scope = state.scopes.find(scope => scope.id === parts[1]);
+      value = parts[2] ? scope.protocolMappers : scope;
+    }
     else if (parts[0] === 'clients' && parts.length === 1)
       value = state.clients.filter(client => client.clientId === url.searchParams.get('clientId')).map(client => ({ id: client.id, clientId: client.clientId }));
     else if (parts[0] === 'clients') {
@@ -160,7 +163,10 @@ export function provider() {
       else if (parts[2] === 'protocol-mappers') value = client.protocolMappers;
       else {
         const names = parts[2] === 'default-client-scopes' ? client.defaultClientScopes : client.optionalClientScopes;
-        value = names.map(name => state.scopes.find(scope => scope.name === name));
+        value = names.map(name => {
+          const scope = state.scopes.find(scope => scope.name === name);
+          return { id: scope.id, name: scope.name };
+        });
       }
     }
     if (value === undefined) throw new Error(`unhandled fixture GET ${path}`);
