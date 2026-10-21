@@ -15206,10 +15206,23 @@ provider code cannot establish a readiness deadline failure. The next narrow
 diagnostic distinguishes Docker API status, resource-reaper initialization,
 socket and filesystem failure families without using any provider message or
 response body. The pinned resource-reaper exception discards its inner cause,
-so its code does not invent a timeout/cancellation distinction. Existing startup,
+so its code does not invent a timeout/cancellation distinction. The
+[Docker exception](https://github.com/testcontainers/Docker.DotNet/blob/1e4015a84fa48cbcfe9002ecc4e2cf14177edc2d/src/Docker.DotNet/DockerApiException.cs)
+and [resource-reaper exception](https://github.com/testcontainers/testcontainers-dotnet/blob/37352559c0af87d5c7eeaced1accc2d21e3a4e69/src/Testcontainers/Containers/ResourceReaperException.cs)
+are checked at the installed package repository commits. Existing startup,
 HTTP and job deadlines, cleanup and failure outcomes remain unchanged. One new
 offline canary control checks the classifier and its unknown-message fallback;
 it is diagnostic proof, not a provider repair or hosted qualification.
+
+The first classifier source checkpoint passes seven offline cases and 43 owner
+controls; two first-round reviewers approve its privacy and diagnostic logic.
+A subsequent root Architecture run exposes the static fixture reference in the
+offline control: six cases pass and the Docker-trait sweep fails. The pure
+classifier now lives in `KeycloakStartupFailure`; neither the offline test nor
+its helper starts or owns a fixture. The guard is unchanged, with no exemption
+or misleading Docker trait. The corrected source passes all seven offline
+cases with warnings as errors, all seven corpus/Docker-sweep cases and all 43
+owner controls. Final independent verification follows before a new hosted run.
 
 ## Completion Criteria
 

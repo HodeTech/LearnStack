@@ -28,18 +28,18 @@ public sealed class KeycloakTransportTests
         {
             var exception = new Docker.DotNet.DockerApiException(status, canary);
             exception.Message.Should().Contain(canary, "the control must contain raw provider text");
-            KeycloakFixture.StartupFailureReason(exception).Should().Be(reason).And.NotContain(canary);
+            KeycloakStartupFailure.Classify(exception).Should().Be(reason).And.NotContain(canary);
         }
 
-        KeycloakFixture.StartupFailureReason(new DotNet.Testcontainers.Containers.ResourceReaperException(canary))
+        KeycloakStartupFailure.Classify(new DotNet.Testcontainers.Containers.ResourceReaperException(canary))
             .Should().Be("resource_reaper");
-        KeycloakFixture.StartupFailureReason(new UnauthorizedAccessException(canary))
+        KeycloakStartupFailure.Classify(new UnauthorizedAccessException(canary))
             .Should().Be("filesystem_access_denied");
-        KeycloakFixture.StartupFailureReason(new IOException(canary)).Should().Be("filesystem_io");
-        KeycloakFixture.StartupFailureReason(new System.Net.Sockets.SocketException())
+        KeycloakStartupFailure.Classify(new IOException(canary)).Should().Be("filesystem_io");
+        KeycloakStartupFailure.Classify(new System.Net.Sockets.SocketException())
             .Should().Be("socket_error");
         foreach (var message in new[] { canary, "docker_conflict", "resource_reaper", "deadline" })
-            KeycloakFixture.StartupFailureReason(new FormatException(message)).Should().Be("provider_error",
+            KeycloakStartupFailure.Classify(new FormatException(message)).Should().Be("provider_error",
                 "unclassified provider text cannot select a diagnostic reason");
     }
 

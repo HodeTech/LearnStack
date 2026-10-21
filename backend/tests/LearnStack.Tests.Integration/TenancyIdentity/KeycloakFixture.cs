@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
-using Docker.DotNet;
 using Docker.DotNet.Models;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
@@ -125,37 +124,13 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         {
             // Startup exceptions can include container configuration, credentials or raw provider logs.
             // Cleanup still attempts every owned resource before this closed diagnostic is emitted.
-            var reason = StartupFailureReason(exception);
+            var reason = KeycloakStartupFailure.Classify(exception);
             var cleanup = "completed";
             try { await DisposeAsync(); } catch (Exception) { cleanup = "failed"; }
             throw new InvalidOperationException("Keycloak fixture startup failed at " + stage + "/" + reason
                 + "; owned cleanup " + cleanup + ".");
         }
     }
-
-    internal static string StartupFailureReason(Exception exception) => exception switch
-    {
-        ContainerNotRunningException => "container_exit",
-        OperationCanceledException => "deadline",
-        TimeoutException => "readiness_timeout",
-        HttpRequestException => "http_transport",
-        DockerApiException { StatusCode: HttpStatusCode.BadRequest } => "docker_bad_request",
-        DockerApiException { StatusCode: HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden } => "docker_access_denied",
-        DockerApiException { StatusCode: HttpStatusCode.NotFound } => "docker_not_found",
-        DockerApiException { StatusCode: HttpStatusCode.Conflict } => "docker_conflict",
-        DockerApiException { StatusCode: HttpStatusCode.TooManyRequests } => "docker_rate_limited",
-        DockerApiException { StatusCode: HttpStatusCode.InternalServerError } => "docker_server_error",
-        DockerApiException => "docker_api_error",
-        ResourceReaperException => "resource_reaper",
-        System.Net.Sockets.SocketException => "socket_error",
-        UnauthorizedAccessException => "filesystem_access_denied",
-        IOException => "filesystem_io",
-        ArgumentException => "argument",
-        InvalidOperationException => "invalid_state",
-        NotSupportedException => "unsupported_operation",
-        KeyNotFoundException => "missing_mapping",
-        _ => "provider_error",
-    };
 
     internal async Task<KeycloakAdminClient> CreateAdminClientAsync(string realm = "learnstack")
     {
