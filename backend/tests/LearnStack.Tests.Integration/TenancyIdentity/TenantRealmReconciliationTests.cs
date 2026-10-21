@@ -217,6 +217,97 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
         (await inconsistentAdmin.GetAsync()).GetProperty("registrationEmailAsUsername").GetBoolean().Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("unmanaged_disabled")]
+    [InlineData("managed_admin_hidden")]
+    public Task Hidden_stored_identity_refuses_before_writes_and_preserves_the_conflicting_actor(string visibility) =>
+        AssertUnsafeIdentityProfileRefusesAsync(visibility, hiddenConflict: true);
+
+    [Theory]
+    [InlineData("managed_selector")]
+    [InlineData("managed_default")]
+    public Task Projected_identity_profile_configuration_refuses_before_any_pending_write(string visibility) =>
+        AssertUnsafeIdentityProfileRefusesAsync(visibility, hiddenConflict: false);
+
+    private static async Task AssertUnsafeIdentityProfileRefusesAsync(string visibility, bool hiddenConflict)
+    {
+        var identity = SeedData.IdentityUsers[0];
+        var storedActor = hiddenConflict ? Guid.NewGuid().ToString("D") : identity.UserId.Value.ToString("D");
+        var realm = JsonNode.Parse(await File.ReadAllTextAsync(KeycloakFixture.RealmPath("learnstack")))!.AsObject();
+        realm["accessTokenLifespan"] = 1800;
+        var profileValue = realm["components"]!["org.keycloak.userprofile.UserProfileProvider"]![0]!["config"]!["kc.user.profile.config"]!;
+        var profile = JsonNode.Parse(profileValue[0]!.GetValue<string>())!.AsObject();
+        var definitions = profile["attributes"]!.AsArray();
+        var identityDefinitions = definitions.Where(value => new[] { "user_id", "tenant_id", "organization_id" }
+            .Contains(value!["name"]!.GetValue<string>(), StringComparer.Ordinal)).Select(value => value!.DeepClone()).ToArray();
+        if (visibility == "unmanaged_disabled")
+        {
+            foreach (var definition in identityDefinitions)
+                definitions.Remove(definitions.Single(value => value!["name"]!.GetValue<string>() == definition["name"]!.GetValue<string>()));
+            profile["unmanagedAttributePolicy"] = null;
+        }
+        else if (visibility == "managed_admin_hidden")
+        {
+            foreach (var definition in definitions.Where(value => identityDefinitions.Any(identityDefinition =>
+                identityDefinition["name"]!.GetValue<string>() == value!["name"]!.GetValue<string>())))
+                definition!["permissions"] = new JsonObject
+                {
+                    ["view"] = new JsonArray("user"),
+                    ["edit"] = new JsonArray("user"),
+                };
+            profile["unmanagedAttributePolicy"] = "ENABLED";
+        }
+        else
+        {
+            var actorDefinition = definitions.Single(value => value!["name"]!.GetValue<string>() == "user_id")!;
+            if (visibility == "managed_selector")
+                actorDefinition["selector"] = new JsonObject { ["scopes"] = new JsonArray("profile") };
+            else actorDefinition["defaultValue"] = storedActor;
+        }
+        profileValue[0] = profile.ToJsonString();
+        var importedUser = realm["users"]!.AsArray().Single(value => value!["username"]!.GetValue<string>() == identity.Username)!;
+        importedUser["attributes"]!["user_id"] = new JsonArray(storedActor);
+
+        await using var fixture = await KeycloakFixture.StartAsync(realm.ToJsonString());
+        using var admin = await fixture.CreateAdminClientAsync();
+        (await admin.GetAsync()).GetProperty("accessTokenLifespan").GetInt32().Should().Be(1800,
+            "a legitimate owned change remains pending behind the identity visibility guard");
+        var hidden = await UserDetailsAsync(admin, identity.Username);
+        var stableId = Id(hidden);
+        var actorVisible = hidden.TryGetProperty("attributes", out var hiddenAttributes) && hiddenAttributes.TryGetProperty("user_id", out _);
+        if (hiddenConflict) actorVisible.Should().BeFalse("the pinned provider actually hides the stored conflicting identity");
+        else
+        {
+            actorVisible.Should().BeTrue("a correct visible actor isolates the unsupported identity profile configuration");
+            (hiddenAttributes.GetProperty("user_id")[0].GetString() == storedActor).Should().BeTrue();
+        }
+        var before = await StateAsync(admin);
+        var outcome = await KeycloakReconciliationDriver.RunAsync(fixture);
+        var after = await StateAsync(admin);
+
+        // Test-owned inspection starts only after the reconciler outcome and its unchanged-state snapshot.
+        var visibleProfile = Object(await admin.GetAsync("users/profile"));
+        var visibleDefinitions = visibleProfile["attributes"]!.AsArray();
+        foreach (var definition in identityDefinitions)
+        {
+            var existing = visibleDefinitions.SingleOrDefault(value => value!["name"]!.GetValue<string>() == definition["name"]!.GetValue<string>());
+            if (existing is not null) visibleDefinitions.Remove(existing);
+            visibleDefinitions.Add(definition.DeepClone());
+        }
+        (await admin.PutAsync("users/profile", visibleProfile)).Should().Be(HttpStatusCode.OK);
+        var revealed = await admin.GetAsync("users/" + stableId);
+        var storedActorPreserved = revealed.GetProperty("attributes").GetProperty("user_id")[0].GetString() == storedActor;
+        outcome.Success.Should().BeFalse("closed outcome: {0}/{1} after {2} mutating calls; stored actor preserved: {3}",
+            outcome.Stage ?? "success", outcome.Reason ?? "none", outcome.Mutations, storedActorPreserved);
+        outcome.Mutations.Should().Be(0, "closed outcome: {0}/{1}; stored actor preserved: {2}",
+            outcome.Stage ?? "success", outcome.Reason ?? "none", storedActorPreserved);
+        outcome.Stage.Should().Be("plan");
+        outcome.Reason.Should().Be("identity_conflict");
+        (after == before).Should().BeTrue("the independent snapshot precedes the test-owned visibility change");
+        storedActorPreserved.Should().BeTrue("the stored actor is never overwritten");
+        (Id(revealed) == stableId).Should().BeTrue();
+    }
+
     [Fact]
     public async Task Readback_failure_is_nonzero_and_a_new_explicit_pass_verifies_the_committed_result()
     {

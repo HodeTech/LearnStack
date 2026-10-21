@@ -6,6 +6,14 @@ const managedScope = 'learnstack-tenant-api';
 const namedClients = ['learnstack-web', 'learnstack-api'];
 const pageSize = 100;
 const pageLimit = 10;
+const bodyLimit = 256 * 1024;
+const generatedIdBytes = '0'.repeat(36);
+// New-user Admin DTO fields (timestamp, flags, credential type names and access
+// booleans) are provider-generated. Reserve more than their pinned fixed shape;
+// profile metadata and the UUID are budgeted separately below.
+const newUserResponseReserve = 1024;
+const profileAttributeFields = new Set(['name', 'displayName', 'validations', 'annotations',
+  'required', 'permissions', 'selector', 'group', 'multivalued', 'defaultValue']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ownClientFields = ['publicClient', 'clientAuthenticatorType', 'standardFlowEnabled',
   'implicitFlowEnabled', 'directAccessGrantsEnabled', 'serviceAccountsEnabled', 'redirectUris', 'webOrigins'];
@@ -34,6 +42,112 @@ function unique(values, key, stage, reason = 'unsupported') {
     seen.add(value[key]);
   }
   return values;
+}
+
+function preflightBody(body) {
+  if (body === undefined) return;
+  if (Buffer.byteLength(JSON.stringify(body), 'utf8') > bodyLimit) refuse('plan', 'body_limit');
+}
+
+const jsonBytes = value => Buffer.byteLength(JSON.stringify(value), 'utf8');
+
+function preflightResponse(value, reserve = 0) {
+  if (jsonBytes(value) + reserve > bodyLimit) refuse('plan', 'body_limit');
+}
+
+function validateProjectedResponses({ before, profile, scopes, mappers, clients, assignments, users, desired, manifest, webSecret }) {
+  preflightResponse({ ...before.realm, accessTokenLifespan: 900 });
+  preflightResponse(profile);
+  // These UUID placeholders are used only for byte accounting. Provider IDs
+  // in the plan/apply/readback state remain exclusively authoritative reads.
+  const projectedScopes = new Map([...scopes].map(([name, scope]) => [name, {
+    ...scope, id: scope.id ?? generatedIdBytes,
+    ...(mappers.has(name) ? { protocolMappers: mappers.get(name).map(mapper => ({ ...mapper, id: mapper.id ?? generatedIdBytes })) } : {}),
+  }]));
+  preflightResponse([...projectedScopes.values()]);
+  for (const values of mappers.values())
+    preflightResponse(values.map(mapper => ({ ...mapper, id: mapper.id ?? generatedIdBytes })));
+  for (const name of namedClients) {
+    const assigned = assignments.get(name);
+    preflightResponse({ ...clients.get(name), defaultClientScopes: [...assigned.defaults], optionalClientScopes: [...assigned.optional] });
+    preflightResponse({ type: 'secret', value: name === 'learnstack-web' ? webSecret : before.clients.get(name).secret });
+    for (const kind of ['defaults', 'optional'])
+      preflightResponse([...assigned[kind]].map(scopeName => projectedScopes.get(scopeName)));
+  }
+  // Full user listings repeat profile metadata in every row. Count the whole
+  // projected profile plus REST field/implicit-validator overhead, including
+  // when the current realm has no ordinary-user metadata template. Counts are
+  // independent ceilings: this conservative byte budget can bind earlier.
+  const validators = profile.attributes.reduce((count, attribute) => count + Object.keys(attribute.validations ?? {}).length, 0);
+  const metadataGrowth = Math.max(0, jsonBytes(profile) - jsonBytes(before.profile))
+    + (equal(profile, before.profile) ? 0 : identityClaims.length * 128);
+  const observedMetadata = before.users.filter(user => !user.serviceAccountClientId && object(user.userProfileMetadata))
+    .map(user => jsonBytes(user.userProfileMetadata));
+  const metadataBytes = observedMetadata.length ? Math.max(...observedMetadata) + metadataGrowth
+    : jsonBytes(profile) + profile.attributes.length * 128 + validators * 32 + 256;
+  const projectedUsers = before.users.map(user => ({
+    value: omit({ ...user, ...users.get(user.username) }, ['userProfileMetadata']),
+    reserve: user.userProfileMetadata ? jsonBytes(user.userProfileMetadata) + metadataGrowth : metadataBytes,
+  }));
+  for (const declaration of manifest.users) {
+    const existing = before.ownedUsers.get(declaration.username);
+    if (existing) preflightResponse(users.get(declaration.username));
+    else {
+      const wanted = desired.users.find(user => user.username === declaration.username);
+      const projected = { ...omit(wanted, ['credentials', 'realmRoles']), id: generatedIdBytes };
+      const reserve = newUserResponseReserve + metadataBytes;
+      preflightResponse(projected, reserve);
+      projectedUsers.push({ value: projected, reserve });
+    }
+  }
+  // Insertions can move page boundaries. Budget the largest possible 100
+  // records, including JSON array punctuation, without relying on ordering.
+  const largestPage = projectedUsers.map(({ value, reserve }) => jsonBytes(value) + reserve)
+    .sort((left, right) => right - left).slice(0, pageSize);
+  if (2 + Math.max(0, largestPage.length - 1) + largestPage.reduce((sum, size) => sum + size, 0) > bodyLimit)
+    refuse('plan', 'body_limit');
+}
+
+function adminCanEdit(attribute) {
+  if (['username', 'email'].includes(attribute.name)
+    && (attribute.permissions == null
+      || ((attribute.permissions.view?.length ?? 0) === 0 && (attribute.permissions.edit?.length ?? 0) === 0))) return true;
+  return Array.isArray(attribute.permissions?.edit) && attribute.permissions.edit.includes('admin');
+}
+
+function adminCanRead(attribute) {
+  // Pinned USER_API view permission is the union of view and edit roles.
+  return adminCanEdit(attribute)
+    || (Array.isArray(attribute.permissions?.view) && attribute.permissions.view.includes('admin'));
+}
+
+function plainAttributeProjection(attribute) {
+  return attribute.defaultValue == null && attribute.selector == null
+    && Object.keys(attribute).every(key => profileAttributeFields.has(key));
+}
+
+function validateIdentityVisibility(profile, stage) {
+  const attributes = unique(array(profile.attributes, stage), 'name', stage);
+  if (profile.groups !== undefined) unique(array(profile.groups, stage), 'name', stage);
+  for (const name of identityClaims) {
+    const attribute = attributes.find(value => value.name === name);
+    // Admin representations are profile projections, not raw storage reads.
+    // Missing values prove absence only when this policy exposes unmanaged
+    // attributes, or a managed definition exposes the actual stored values.
+    if (attribute ? !adminCanRead(attribute) || !plainAttributeProjection(attribute)
+      : !['ENABLED', 'ADMIN_EDIT', 'ADMIN_VIEW'].includes(profile.unmanagedAttributePolicy))
+      refuse(stage, 'identity_conflict');
+  }
+}
+
+function validateAttributePreservation(profile, creating = false) {
+  // A full attribute PUT can persist a synthesized default or remove a
+  // writable value hidden by an unqualified projection. Readonly hidden
+  // attributes are preserved by the provider and need no policy expansion.
+  for (const attribute of profile.attributes)
+    if ((adminCanEdit(attribute) || (creating && adminCanRead(attribute)))
+      && (!adminCanRead(attribute) || !plainAttributeProjection(attribute)))
+      refuse('plan', 'unsupported');
 }
 
 function uuidValue(value) {
@@ -95,6 +209,10 @@ async function allUsers(admin, stage) {
     if (values.length < pageSize) {
       const names = new Set();
       for (const user of users) {
+        // External storage may decorate profile metadata and hide protected
+        // values independently of the realm configuration. Its actor census
+        // cannot be qualified through these bounded Admin REST projections.
+        if (user.federationLink || user.id.startsWith('f:')) refuse(stage, 'identity_conflict');
         if (typeof user.username !== 'string' || names.has(user.username.toLowerCase())) refuse(stage, 'identity_conflict');
         names.add(user.username.toLowerCase());
       }
@@ -127,6 +245,7 @@ async function snapshot(admin, desired, manifest, stage) {
   const realm = requireObject(await admin.get(''), stage);
   if (realm.realm !== 'learnstack') refuse(stage, 'unsupported');
   const profile = requireObject(await admin.get('users/profile'), stage);
+  validateIdentityVisibility(profile, stage);
   const scopes = unique(array(await admin.get('client-scopes'), stage), 'name', stage, 'mapper_conflict');
   unique(scopes, 'id', stage, 'mapper_conflict');
   const scopeByName = new Map(scopes.map(scope => [scope.name, scope]));
@@ -250,7 +369,10 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
   validateInputs(desired, manifest, webSecret);
   const before = await snapshot(admin, desired, manifest, 'plan');
   const actions = [];
-  const add = (label, apply) => actions.push({ label, apply });
+  const add = (label, apply, body) => {
+    preflightBody(body);
+    actions.push({ label, apply });
+  };
   const desiredScopes = new Map(desired.clientScopes.map(scope => [scope.name, scope]));
   const expectedScopes = new Map(before.scopes.map(scope => [scope.name, copy(scope)]));
   const expectedMappers = new Map(before.scopeMappers);
@@ -279,7 +401,7 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
         if (!equal(actualMappers.map(mapper => omit(mapper, ['id'])).sort(byName),
           (wanted.protocolMappers ?? []).map(mapper => omit(mapper, ['id'])).sort(byName))) refuse('apply', 'mapper_conflict');
         scopeIds.set(name, found[0].id);
-      });
+      }, wanted);
     } else if (name === managedScope || name === 'basic') {
       const currentMappers = before.scopeMappers.get(name) ?? [];
       const merged = mergeOwnedMappers(currentMappers, wanted.protocolMappers, 'plan');
@@ -287,26 +409,26 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
       for (const mapper of merged) {
         const previous = currentMappers.find(value => value.name === mapper.name);
         if (equal(previous, mapper)) continue;
-        if (previous) add('update_mapper', () => admin.put(`client-scopes/${encode(current.id)}/protocol-mappers/models/${encode(previous.id)}`, copy(mapper)));
+        if (previous) add('update_mapper', () => admin.put(`client-scopes/${encode(current.id)}/protocol-mappers/models/${encode(previous.id)}`, copy(mapper)), mapper);
         else add('create_mapper', async () => {
           const result = await admin.post(`client-scopes/${encode(current.id)}/protocol-mappers/models`, copy(mapper));
           if (result.status !== 201 && result.status !== 409) refuse('apply', 'status');
           const values = array(await admin.get(`client-scopes/${encode(current.id)}/protocol-mappers/models`), 'apply');
           const found = values.filter(value => value.name === mapper.name);
           if (found.length !== 1 || !matchesFields(found[0], mapper)) refuse('apply', 'mapper_conflict');
-        });
+        }, mapper);
       }
       if (name === managedScope) {
         const attributes = { ...current.attributes, ...wanted.attributes };
         const body = { attributes };
         expectedScopes.set(name, { ...current, ...body });
-        if (!equal(current.attributes, attributes)) add('update_scope', () => admin.put(`client-scopes/${encode(current.id)}`, copy(body)));
+        if (!equal(current.attributes, attributes)) add('update_scope', () => admin.put(`client-scopes/${encode(current.id)}`, copy(body)), body);
       }
     }
   }
   const profile = mergedProfile(before.profile, desired);
-  if (!equal(profile, before.profile)) add('update_profile', () => admin.put('users/profile', copy(profile)));
-  if (before.realm.accessTokenLifespan !== 900) add('update_lifespan', () => admin.put('', { accessTokenLifespan: 900 }));
+  if (!equal(profile, before.profile)) add('update_profile', () => admin.put('users/profile', copy(profile)), profile);
+  if (before.realm.accessTokenLifespan !== 900) add('update_lifespan', () => admin.put('', { accessTokenLifespan: 900 }), { accessTokenLifespan: 900 });
   const expectedClients = new Map();
   const expectedAssignments = new Map();
   for (const name of namedClients) {
@@ -329,7 +451,7 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
         && (before.users.some(user => user.serviceAccountClientId === name)
           || baseline.defaults.some(scope => scope.name === 'service_account')))
         refuse('plan', 'unsupported');
-      add('update_client', () => admin.put(`clients/${encode(baseline.client.id)}`, copy(patch)));
+      add('update_client', () => admin.put(`clients/${encode(baseline.client.id)}`, copy(patch)), patch);
     }
     const defaults = new Set(baseline.defaults.map(scope => scope.name));
     const optional = new Set(baseline.optional.map(scope => scope.name));
@@ -369,13 +491,15 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
       const attributes = identityAttributes(existing.user, declaration, 'plan');
       expectedUsers.set(declaration.username, { ...existing.user, attributes });
       if (!equal(attributes, existing.user.attributes ?? {})) {
+        validateAttributePreservation(before.profile);
         // A supplied attribute map replaces profile values in 26.6.2. Include
         // unchanged ordinary profile fields, but no credentials/actions/enabled.
         const body = { attributes, ...Object.fromEntries(['username', 'email', 'firstName', 'lastName']
           .filter(key => key in existing.user).map(key => [key, existing.user[key]])) };
-        add('update_user_attributes', () => admin.put(`users/${encode(existing.user.id)}`, copy(body)));
+        add('update_user_attributes', () => admin.put(`users/${encode(existing.user.id)}`, copy(body)), body);
       }
     } else {
+      validateAttributePreservation(before.profile, true);
       if (before.users.some(user => typeof user.email === 'string' && user.email.toLowerCase() === declaration.email.toLowerCase())) refuse('plan', 'identity_conflict');
       const wanted = copy(desired.users.find(user => user.username === declaration.username));
       if (!equal(wanted.realmRoles, [declaration.realmRole])) refuse('plan', 'unsupported');
@@ -383,22 +507,38 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
       if (!['tenant-admin', 'tenant-learner'].includes(declaration.realmRole)
         || !role.id || role.name !== declaration.realmRole || role.composite !== false || role.clientRole !== false)
         refuse('plan', 'unsupported');
+      const representation = Object.fromEntries(['username', 'email', 'emailVerified', 'enabled',
+        'firstName', 'lastName', 'credentials', 'realmRoles', 'attributes'].map(key => [key, copy(wanted[key])]));
+      const body = { ifResourceExists: 'FAIL', users: [representation] };
       add('create_user', async () => {
         // Pinned RealmAdminResource.partialImport wraps one named user in its
         // own transaction. Unlike POST users, this creates credentials and the
         // declared inert role atomically. FAIL never enters the overwrite path.
-        const representation = Object.fromEntries(['username', 'email', 'emailVerified', 'enabled',
-          'firstName', 'lastName', 'credentials', 'realmRoles', 'attributes'].map(key => [key, copy(wanted[key])]));
-        const result = await admin.post('partialImport', { ifResourceExists: 'FAIL', users: [representation] });
+        const result = await admin.post('partialImport', copy(body));
         if (result.status !== 200 && result.status !== 409) refuse('apply', 'status');
         const created = await exactNewUser(admin, declaration, wanted, 'apply');
         const roles = requireObject(await admin.get(`users/${encode(created.id)}/role-mappings`), 'apply');
         const credentials = array(await admin.get(`users/${encode(created.id)}/credentials`), 'apply');
         if (!exactCreatedAccess(roles, credentials, role.id)) refuse('apply', 'identity_conflict');
         expectedUsers.set(declaration.username, created);
-      });
+      }, body);
     }
   }
+
+  // Every resulting collection must fit the same bounded readers used by
+  // apply/readback and a subsequent explicit run, before any action escapes.
+  array([...expectedScopes.values()], 'plan');
+  array(profile.attributes, 'plan');
+  if (profile.groups !== undefined) array(profile.groups, 'plan');
+  for (const mappers of expectedMappers.values()) array(mappers, 'plan');
+  for (const { defaults, optional } of expectedAssignments.values()) {
+    array([...defaults], 'plan');
+    array([...optional], 'plan');
+  }
+  if (before.users.length + manifest.users.filter(entry => !before.ownedUsers.has(entry.username)).length
+    >= pageSize * pageLimit) refuse('plan', 'unsupported');
+  validateProjectedResponses({ before, profile, scopes: expectedScopes, mappers: expectedMappers,
+    clients: expectedClients, assignments: expectedAssignments, users: expectedUsers, desired, manifest, webSecret });
 
   return { actions, verify: async () => {
     const after = await snapshot(admin, desired, manifest, 'readback');

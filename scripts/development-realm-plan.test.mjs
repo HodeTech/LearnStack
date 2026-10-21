@@ -33,6 +33,21 @@ function provider() {
   state.realm.defaultRole = { id: id(), name: `default-roles-${desired.realm}`, composite: true, clientRole: false };
   const writes = [];
   const reads = [];
+  const canEdit = attribute => attribute.permissions?.edit?.includes('admin') === true;
+  const canRead = attribute => canEdit(attribute) || attribute.permissions?.view?.includes('admin') === true;
+  const unmanagedReadable = () => ['ENABLED', 'ADMIN_EDIT', 'ADMIN_VIEW'].includes(state.profile.unmanagedAttributePolicy);
+  const projectUser = user => {
+    const projected = omit(user, ['roles', 'credentials']);
+    projected.attributes = Object.fromEntries(Object.entries(user.attributes ?? {}).filter(([name]) => {
+      const attribute = state.profile.attributes.find(entry => entry.name === name);
+      return attribute ? canRead(attribute) : unmanagedReadable();
+    }));
+    for (const attribute of state.profile.attributes) {
+      if (canRead(attribute) && !projected.attributes[attribute.name]?.length && attribute.defaultValue != null)
+        projected.attributes[attribute.name] = [attribute.defaultValue];
+    }
+    return projected;
+  };
   const get = async path => {
     reads.push(path);
     const url = new URL(path, 'http://provider/');
@@ -44,13 +59,13 @@ function provider() {
       let users = state.users;
       if (url.searchParams.has('username')) users = users.filter(user => user.username === url.searchParams.get('username'));
       const first = Number(url.searchParams.get('first') ?? 0);
-      value = users.slice(first, first + Number(url.searchParams.get('max') ?? 100)).map(user => omit(user, ['roles', 'credentials']));
+      value = users.slice(first, first + Number(url.searchParams.get('max') ?? 100)).map(projectUser);
     } else if (parts[0] === 'users') {
       const user = state.users.find(entry => entry.id === parts[1]);
       if (!user) throw new Error('unknown fixture user');
-      value = parts[2] === 'credentials' ? user.credentials : parts[2] === 'role-mappings' ? user.roles : omit(user, ['roles', 'credentials']);
+      value = parts[2] === 'credentials' ? user.credentials : parts[2] === 'role-mappings' ? user.roles : projectUser(user);
     } else if (parts[0] === 'roles') value = state.roles.find(role => role.name === parts[1]);
-    else if (path === 'client-scopes') value = state.scopes.map(scope => omit(scope, ['protocolMappers']));
+    else if (path === 'client-scopes') value = state.scopes;
     else if (parts[0] === 'client-scopes') value = state.scopes.find(scope => scope.id === parts[1]).protocolMappers;
     else if (parts[0] === 'clients' && parts.length === 1)
       value = url.searchParams.get('clientId') === 'account' ? [{ id: 'account-provider', clientId: 'account' }]
@@ -63,7 +78,7 @@ function provider() {
       else if (parts[2] === 'protocol-mappers') value = client.protocolMappers;
       else {
         const names = parts[2] === 'default-client-scopes' ? client.defaultClientScopes : client.optionalClientScopes;
-        value = names.map(name => omit(state.scopes.find(scope => scope.name === name), ['protocolMappers']));
+        value = names.map(name => state.scopes.find(scope => scope.name === name));
       }
     }
     if (value === undefined) throw new Error(`unhandled fixture GET ${path}`);
@@ -74,7 +89,14 @@ function provider() {
     const parts = path.split('/').map(decodeURIComponent);
     if (path === '') Object.assign(state.realm, clone(body));
     else if (path === 'users/profile') state.profile = clone(body);
-    else if (parts[0] === 'users') Object.assign(state.users.find(user => user.id === parts[1]), clone(body));
+    else if (parts[0] === 'users') {
+      const user = state.users.find(entry => entry.id === parts[1]);
+      const readonly = Object.fromEntries(Object.entries(user.attributes ?? {}).filter(([name]) => {
+        const attribute = state.profile.attributes.find(entry => entry.name === name);
+        return attribute ? !canEdit(attribute) : !['ENABLED', 'ADMIN_EDIT'].includes(state.profile.unmanagedAttributePolicy);
+      }));
+      Object.assign(user, clone(body), { attributes: { ...clone(body.attributes), ...readonly } });
+    }
     else if (parts[0] === 'clients') {
       const client = state.clients.find(entry => entry.id === parts[1]);
       if (!parts[2]) {
@@ -375,6 +397,311 @@ test('census and exact username disagreement refuse before a pending owned write
     await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'identity_conflict');
     assert.equal(fixture.writes.length, 0);
     assert.equal(fixture.state.realm.accessTokenLifespan, 1800);
+  }
+});
+
+test('hidden or synthesized protected values refuse before writes, including the all-user actor census', async () => {
+  for (const variant of ['unmanaged_disabled', 'managed_hidden', 'default_value', 'selector', 'normalizer', 'hidden_duplicate_actor']) {
+    const fixture = provider(); legacy(fixture);
+    fixture.state.profile.unmanagedAttributePolicy = null;
+    fixture.state.users[0].attributes.user_id = [manifest.users[1].userId];
+    if (variant !== 'unmanaged_disabled' && variant !== 'hidden_duplicate_actor') {
+      const definition = clone(provider().state.profile.attributes.find(attribute => attribute.name === 'user_id'));
+      fixture.state.profile.attributes.push(...clone(provider().state.profile.attributes.filter(attribute =>
+        ['tenant_id', 'organization_id'].includes(attribute.name))));
+      if (variant === 'managed_hidden') definition.permissions = { view: ['user'], edit: ['user'] };
+      if (variant === 'default_value') definition.defaultValue = manifest.users[0].userId;
+      if (variant === 'selector') definition.selector = { scopes: ['profile'] };
+      if (variant === 'normalizer') definition.normalizer = 'unqualified';
+      fixture.state.profile.attributes.push(definition);
+    }
+    if (variant === 'hidden_duplicate_actor') {
+      delete fixture.state.users[0].attributes.user_id;
+      fixture.state.users.at(-1).attributes.user_id = [manifest.users[0].userId];
+    }
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'identity_conflict', variant);
+    assert.equal(fixture.writes.length, 0);
+    assert.deepEqual(fixture.state, original);
+    assert.deepEqual(fixture.reads, ['', 'users/profile'], 'profile qualification precedes projected account reads');
+  }
+});
+
+test('managed admin-readable values and explicit unmanaged admin policies remain supported', async () => {
+  for (const policy of ['ENABLED', 'ADMIN_EDIT', 'ADMIN_VIEW']) {
+    const fixture = provider(); legacy(fixture);
+    fixture.state.profile.unmanagedAttributePolicy = policy;
+    await apply(await plan(fixture));
+    assert.equal(fixture.state.profile.unmanagedAttributePolicy, policy);
+    assert.equal((await plan(fixture)).actions.length, 0);
+  }
+  const editOnly = provider();
+  for (const definition of editOnly.state.profile.attributes.filter(attribute =>
+    ['user_id', 'tenant_id', 'organization_id'].includes(attribute.name))) definition.permissions.view = [];
+  await apply(await plan(editOnly));
+  assert.equal((await plan(editOnly)).actions.length, 0, 'pinned admin edit permission also grants view');
+});
+
+test('the all-user actor census refuses unqualified external-storage profile metadata before writes', async () => {
+  for (const external of [{ id: 'retained-external', federationLink: 'retained-provider' }, { id: 'f:retained-provider:retained-external' }]) {
+    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
+    fixture.state.users.push({ ...external, username: 'retained-external', attributes: {} });
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'identity_conflict');
+    assert.equal(fixture.writes.length, 0);
+    assert.deepEqual(fixture.state, original);
+  }
+});
+
+test('existing attribute updates reject unrelated writable projection defaults and retain hidden readonly values', async () => {
+  for (const projection of [{ defaultValue: 'synthesized' }, { selector: { scopes: ['profile'] } }, { normalizer: 'unqualified' }]) {
+    const fixture = provider();
+    fixture.state.realm.accessTokenLifespan = 1800;
+    delete fixture.state.users[0].attributes.user_id;
+    fixture.state.profile.attributes.push({ name: 'unrelated', permissions: { view: ['admin'], edit: ['admin'] }, ...projection });
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported');
+    assert.equal(fixture.writes.length, 0);
+    assert.deepEqual(fixture.state, original);
+  }
+  const readonly = provider();
+  delete readonly.state.users[0].attributes.user_id;
+  readonly.state.users[0].attributes.unmanaged_hidden = ['retained'];
+  readonly.state.users[0].attributes.managed_hidden = ['retained'];
+  readonly.state.profile.attributes.push({ name: 'managed_hidden', permissions: { view: ['user'], edit: ['user'] } });
+  await apply(await plan(readonly));
+  assert.deepEqual(readonly.state.users[0].attributes.unmanaged_hidden, ['retained']);
+  assert.deepEqual(readonly.state.users[0].attributes.managed_hidden, ['retained']);
+  assert.equal(readonly.state.profile.unmanagedAttributePolicy, undefined);
+  const creating = provider();
+  creating.state.realm.accessTokenLifespan = 1800;
+  creating.state.users.pop();
+  creating.state.profile.attributes.push({ name: 'unrelated_default', defaultValue: 'synthesized',
+    permissions: { view: ['admin'], edit: [] } });
+  const original = clone(creating.state);
+  await assert.rejects(plan(creating), error => error.stage === 'plan' && error.reason === 'unsupported');
+  assert.equal(creating.writes.length, 0, 'a new account must not acquire an unqualified readback projection after creation');
+  assert.deepEqual(creating.state, original);
+});
+
+function fillScopes(fixture, count) {
+  while (fixture.state.scopes.length < count) {
+    const index = fixture.state.scopes.length;
+    fixture.state.scopes.push({ id: `retained-scope-${index}`, name: `retained-scope-${index}`,
+      protocol: 'openid-connect', attributes: {}, protocolMappers: [] });
+  }
+}
+
+test('projected scopes, profile definitions and mapper counts stay within the readback bound', async () => {
+  for (const resource of ['scope', 'profile', 'mapper']) for (const total of [200, 201]) {
+    const fixture = provider();
+    fixture.state.realm.accessTokenLifespan = 1800;
+    if (resource === 'scope') {
+      fixture.state.scopes = fixture.state.scopes.filter(scope => scope.name !== 'learnstack-tenant-api');
+      for (const client of fixture.state.clients)
+        client.defaultClientScopes = client.defaultClientScopes.filter(name => name !== 'learnstack-tenant-api');
+      fillScopes(fixture, total - 1);
+    } else if (resource === 'profile') {
+      fixture.state.profile.unmanagedAttributePolicy = 'ADMIN_EDIT';
+      fixture.state.profile.attributes = fixture.state.profile.attributes.filter(attribute =>
+        !['user_id', 'tenant_id', 'organization_id'].includes(attribute.name));
+      while (fixture.state.profile.attributes.length < total - 3)
+        fixture.state.profile.attributes.push({ name: `retained-${fixture.state.profile.attributes.length}`,
+          permissions: { view: ['admin'], edit: ['admin'] } });
+    } else {
+      const scope = fixture.state.scopes.find(value => value.name === 'basic');
+      scope.protocolMappers = scope.protocolMappers.filter(mapper => mapper.protocolMapper !== 'oidc-sub-mapper');
+      while (scope.protocolMappers.length < total - 1) {
+        const index = scope.protocolMappers.length;
+        scope.protocolMappers.push({ id: `retained-mapper-${index}`, name: `retained-mapper-${index}`,
+          protocol: 'openid-connect', protocolMapper: 'oidc-usermodel-attribute-mapper',
+          config: { 'claim.name': `retained_${index}`, 'user.attribute': `retained_${index}` } });
+      }
+    }
+    const original = clone(fixture.state);
+    if (total === 201) {
+      await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported', resource);
+      assert.equal(fixture.writes.length, 0);
+      assert.deepEqual(fixture.state, original);
+    } else {
+      await apply(await plan(fixture));
+      assert.equal((await plan(fixture)).actions.length, 0, resource);
+    }
+  }
+});
+
+test('assignment and profile-group exact boundaries remain supported and excess groups refuse before writes', async () => {
+  const assigned = provider();
+  const web = assigned.state.clients.find(client => client.clientId === 'learnstack-web');
+  assigned.state.scopes = assigned.state.scopes.filter(scope => scope.protocol === 'openid-connect');
+  fillScopes(assigned, 200);
+  web.defaultClientScopes = assigned.state.scopes.filter(scope => scope.name !== 'learnstack-tenant-api').map(scope => scope.name);
+  web.optionalClientScopes = [];
+  await apply(await plan(assigned));
+  assert.equal(web.defaultClientScopes.length, 200);
+  assert.equal((await plan(assigned)).actions.length, 0);
+  for (const count of [200, 201]) {
+    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
+    fixture.state.profile.groups = Array.from({ length: count }, (_, index) => ({ name: `retained-group-${index}` }));
+    if (count === 200) await apply(await plan(fixture));
+    else {
+      await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported');
+      assert.equal(fixture.writes.length, 0);
+    }
+  }
+});
+
+test('projected accounts allow 999 with readable full metadata pages and refuse 1000 before earlier writes', async () => {
+  for (const total of [999, 1000]) {
+    const fixture = provider();
+    fixture.state.realm.accessTokenLifespan = 1800;
+    fixture.state.users = fixture.state.users.slice(0, 2);
+    while (fixture.state.users.length < total - 2) {
+      const index = fixture.state.users.length;
+      fixture.state.users.push({ id: `retained-user-${index}`, username: `retained-user-${index}`, attributes: {} });
+    }
+    const originalGet = fixture.admin.get;
+    fixture.admin.get = async path => {
+      const value = await originalGet(path);
+      if (path.startsWith('users?')) for (const user of value) user.userProfileMetadata = {
+        attributes: fixture.state.profile.attributes.map(attribute => ({ name: attribute.name,
+          displayName: attribute.displayName, required: false, readOnly: false, multivalued: false,
+          annotations: attribute.annotations ?? {}, validators: Object.fromEntries(Object.entries(attribute.validations ?? {})
+            .map(([name, config]) => [name, { ...config, 'ignore.empty.value': true }])) })),
+        groups: clone(fixture.state.profile.groups),
+      };
+      return value;
+    };
+    capResponses(fixture);
+    const original = clone(fixture.state);
+    if (total === 1000) {
+      await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported');
+      assert.equal(fixture.writes.length, 0);
+      assert.deepEqual(fixture.state, original);
+    } else {
+      await apply(await plan(fixture));
+      assert.equal(fixture.state.users.length, 999);
+      assert.equal((await plan(fixture)).actions.length, 0);
+    }
+  }
+});
+
+test('UTF-8 mutation bytes and repeated response metadata are both qualified before returning actions', async () => {
+  for (const desiredBodyBytes of [16 * 1024, 256 * 1024, 256 * 1024 + 1]) {
+    const fixture = provider();
+    fixture.state.scopes = fixture.state.scopes.filter(scope => scope.name !== 'learnstack-tenant-api');
+    for (const client of fixture.state.clients)
+      client.defaultClientScopes = client.defaultClientScopes.filter(name => name !== 'learnstack-tenant-api');
+    const changed = fixture.state.profile.attributes.find(attribute => attribute.name === 'user_id');
+    changed.permissions.edit = ['user'];
+    changed.annotations = { retained: '' };
+    const merged = clone(fixture.state.profile);
+    merged.attributes.find(attribute => attribute.name === 'user_id').permissions.edit = ['admin'];
+    const paddingBytes = desiredBodyBytes - Buffer.byteLength(JSON.stringify(merged), 'utf8');
+    changed.annotations.retained = 'é'.repeat(Math.floor(paddingBytes / 2)) + 'x'.repeat(paddingBytes % 2);
+    const original = clone(fixture.state);
+    if (desiredBodyBytes > 16 * 1024) {
+      await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'body_limit');
+      assert.equal(fixture.writes.length, 0);
+      assert.deepEqual(fixture.state, original);
+    } else {
+      await apply(await plan(fixture));
+      const write = fixture.writes.find(value => value.path === 'users/profile');
+      assert.equal(Buffer.byteLength(JSON.stringify(write.body), 'utf8'), desiredBodyBytes);
+      assert.equal((await plan(fixture)).actions.length, 0);
+    }
+  }
+});
+
+function capResponses(fixture) {
+  const originalGet = fixture.admin.get;
+  fixture.admin.get = async path => {
+    const value = await originalGet(path);
+    assert.ok(Buffer.byteLength(JSON.stringify(value), 'utf8') <= 256 * 1024, 'fixture response exceeds the real transport limit');
+    return value;
+  };
+}
+
+test('known projected user pages and scope inventories must fit the response cap before small valid mutations', async () => {
+  for (const resource of ['users', 'scopes']) for (const supported of [true, false]) {
+    const fixture = provider();
+    const headroom = supported ? 16 * 1024 : 64;
+    const path = resource === 'users' ? 'users?first=0&max=100&briefRepresentation=false&exact=false' : 'client-scopes';
+    if (resource === 'users') {
+      fixture.state.profile.unmanagedAttributePolicy = 'ADMIN_EDIT';
+      fixture.state.users[0].attributes = {};
+      let remaining = 256 * 1024 - headroom - Buffer.byteLength(JSON.stringify(await fixture.admin.get(path)), 'utf8');
+      for (let index = 0; remaining > 0; index += 1) {
+        const name = `retained_${index}`;
+        // Keep individual values within the pinned default attribute length.
+        const punctuation = Buffer.byteLength(JSON.stringify({ [name]: [''] }), 'utf8') - 1;
+        const length = Math.min(2000, Math.max(0, remaining - punctuation));
+        fixture.state.users[0].attributes[name] = ['x'.repeat(length)];
+        remaining -= punctuation + length;
+      }
+    } else {
+      fixture.state.scopes = fixture.state.scopes.filter(scope => scope.name !== 'learnstack-tenant-api');
+      for (const client of fixture.state.clients)
+        client.defaultClientScopes = client.defaultClientScopes.filter(name => name !== 'learnstack-tenant-api');
+      fixture.state.scopes.push({ id: 'retained-large-scope', name: 'retained-large-scope', protocol: 'openid-connect',
+        attributes: { retained: '' }, protocolMappers: [] });
+      fixture.state.scopes.at(-1).attributes.retained = 'x'.repeat(256 * 1024 - headroom
+        - Buffer.byteLength(JSON.stringify(await fixture.admin.get(path)), 'utf8'));
+    }
+    const original = clone(fixture.state);
+    capResponses(fixture);
+    if (supported) {
+      await apply(await plan(fixture));
+      assert.equal((await plan(fixture)).actions.length, 0);
+    } else {
+      await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'body_limit', resource);
+      assert.equal(fixture.writes.length, 0);
+      assert.deepEqual(fixture.state, original);
+    }
+  }
+});
+
+test('projected profile metadata growth is budgeted in every full user-list record', async () => {
+  const fixture = provider();
+  fixture.state.profile.unmanagedAttributePolicy = 'ADMIN_EDIT';
+  fixture.state.profile.attributes = fixture.state.profile.attributes.filter(attribute =>
+    !['user_id', 'tenant_id', 'organization_id'].includes(attribute.name));
+  const originalGet = fixture.admin.get;
+  let padding = '';
+  fixture.admin.get = async path => {
+    const value = await originalGet(path);
+    if (path.startsWith('users?')) for (const user of value) user.userProfileMetadata = {
+      attributes: fixture.state.profile.attributes.map(attribute => ({ name: attribute.name,
+        displayName: attribute.displayName, required: false, readOnly: false, multivalued: false })),
+      groups: [], retained: padding,
+    };
+    return value;
+  };
+  const initialBytes = Buffer.byteLength(JSON.stringify(await fixture.admin.get('users?first=0&max=100&briefRepresentation=false&exact=false')), 'utf8');
+  padding = 'x'.repeat(Math.floor((256 * 1024 - 128 - initialBytes) / fixture.state.users.length));
+  const original = clone(fixture.state);
+  capResponses(fixture);
+  await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'body_limit');
+  assert.equal(fixture.writes.length, 0);
+  assert.deepEqual(fixture.state, original);
+});
+
+test('new-user response estimates include profile metadata even without an existing ordinary-user template', async () => {
+  for (const largeMetadata of [false, true]) {
+    const fixture = provider();
+    fixture.state.users = [];
+    fixture.state.profile.attributes[0].annotations = { retained: 'x'.repeat(largeMetadata ? 70 * 1024 : 0) };
+    const original = clone(fixture.state);
+    capResponses(fixture);
+    if (largeMetadata) {
+      await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'body_limit');
+      assert.equal(fixture.writes.length, 0);
+      assert.deepEqual(fixture.state, original);
+    } else {
+      await apply(await plan(fixture));
+      assert.equal(fixture.state.users.length, manifest.users.length);
+      assert.ok(fixture.state.users.every(user => user.id.startsWith('provider-')), 'budget UUIDs never become stored provider IDs');
+    }
   }
 });
 

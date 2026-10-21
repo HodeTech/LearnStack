@@ -14162,6 +14162,57 @@ Fourteen Release corpus, domain-genericity and Docker-trait controls pass with
 zero failures/skips in 13s; the changed-file link/fragment audit has zero broken
 targets. The scoped C# whitespace verification passes.
 
+#### Step 2 review round 1 — identity visibility and plan feasibility
+
+Two fresh independent reviewers inspected the complete committed Step 2 change
+through `3776947e`, its callers, accepted contract and pinned provider source.
+Both identified a blocking identity-preservation defect: Admin user reads are
+profile projections. A missing definition with a disabled unmanaged policy can
+hide a stored conflicting actor; the planner had treated it as absent. One
+reviewer also reproduced projected inventory/body limits being exceeded only
+after an earlier mutation had committed. These findings supersede the initial
+local proof's coverage claim for those states; its warm fixture explicitly
+enabled unmanaged attributes and did not exercise hidden stored values.
+
+The actual PostgreSQL-backed Keycloak reproduction performed six writes and
+changed the hidden actor before refusing at readback. The corrected planner
+qualifies protected attribute visibility before account reads or writes. Hidden,
+defaulted, selected or otherwise unqualified identity projections refuse with
+`plan/identity_conflict`; it does not write profile settings to reveal conflicts.
+The duplicate-actor census also refuses external user-storage projections that
+can override realm metadata. Safe explicit admin-readable policies remain
+supported, and reconciliation retains the existing unmanaged policy.
+
+Every static mutation body is checked in the complete read-only plan against
+the existing 256 KiB UTF-8 limit. Projected collection and account counts must
+fit the same readers used during independent verification and a later run.
+The additional byte-feasibility check covers growing response inventories too:
+a small valid write must not knowingly make the next scope/user read too large.
+Full user listings repeat profile metadata, and inserted accounts can move page
+boundaries. Conservative byte accounting can refuse before a count ceiling;
+the ceilings do not promise every combined configuration will fit. Transport
+and independent readback checks remain backstops. Boundary controls prove
+supported states still converge, while excess states refuse with zero writes
+even when another legitimate change is pending.
+
+The identity correction's source-frozen actual-provider class passes **eight
+cases, zero failures/skips**, in 2.8699min. Four new cases cover hidden unmanaged identities,
+managed identities hidden from administrators, and explicit identity defaults
+or selectors. Each refuses before the pending TTL write; an independently
+captured snapshot is unchanged, and test-owned post-outcome visibility inspection
+proves the stored actor was retained. Existing fresh/warm, credential, partial
+progress and zero-write rerun proofs still pass. The TRX SHA-256 is
+`1e7206d44e2dc4db21f0e78ef1d02dd2f8c6bd76dd7dbd6693a9b212f200b620`.
+The five Node files passed **130 cases, zero failures/skips** at that checkpoint.
+After the response-feasibility refinement they pass **133 cases, zero
+failures/skips**, in 10.18s, including capped user/scope responses, repeated
+profile metadata and a missing metadata-template control. A final-source provider
+rerun remains required for Step 2 closeout. Scoped whitespace and diff checks
+pass. Independent post-run inventories show no owned provider
+containers or networks; the bounded Docker event history lacks one older
+destruction event, so it is not claimed as a complete event receipt. Foreign
+resources remain untouched. The second fresh independent review is still due.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

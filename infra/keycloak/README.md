@@ -113,6 +113,21 @@ rollback. A later explicit run re-reads and resumes; a completed rerun makes no
 mutating Admin calls. Use the packet's delivery records for implementation and
 qualification status.
 
+Admin user responses are profile projections, not raw attribute storage. Before
+interpreting a missing identity as absent, the reconciler requires an
+admin-readable definition without a default or selector, or an explicitly
+admin-readable unmanaged policy. Hidden identities and external user-storage
+profiles refuse before any write. The tool never changes visibility to discover
+whether a conflicting identity exists. For an older realm that hides these
+values, an operator must first inspect the profile configuration, make the three
+identity definitions admin-only readable, and inspect their stored values before
+retrying. Do not enable end-user editing or replace a conflicting UUID to force
+convergence. The existing unmanaged policy remains unchanged by reconciliation.
+
+The entire projected change must also fit the existing bounded readers and
+request bodies. A configuration that would exceed those limits refuses during
+planning, before an earlier unrelated change can be committed.
+
 ## What does not live here
 
 - Production realm configuration: Phase 11 provisioning owns it; these JSONs are
