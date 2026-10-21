@@ -311,9 +311,25 @@ describe('shared explicit demo stack selection', () => {
   it('freshly builds the Release Seeder and launches its argument-free DLL with only its credential', () => {
     const root = temporary();
     writeFileSync(join(root, '.env'), seedFixture(root));
-    writeFileSync(join(root, 'bin/docker'), '#!/bin/sh\n[ "$*" = "compose version" ]\n', {
-      mode: 0o700,
-    });
+    writeFileSync(
+      join(root, 'bin/docker'),
+      `#!${process.execPath}
+const { appendFileSync } = require('node:fs');
+if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['compose', 'version']) || Object.keys(process.env).some(key => /keycloak|connectionstrings|_pw$|bff|debug/i.test(key))) process.exit(13);
+appendFileSync(${JSON.stringify(join(root, 'events'))}, 'compose-version\\n');
+`,
+      { mode: 0o700 },
+    );
+    writeFileSync(
+      join(root, 'bin/make'),
+      `#!${process.execPath}
+const { appendFileSync } = require('node:fs');
+const forbidden = Object.keys(process.env).filter(key => /keycloak|connectionstrings|_pw$|bff|debug/i.test(key) && key !== 'ConnectionStrings__Migration');
+if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['dev', 'wait-postgres', 'migrate']) || forbidden.length || process.env.ConnectionStrings__Migration !== 'Username=learnstack_migration' || process.env.LEARNSTACK_COMPOSE_PROJECT !== 'learnstack-dev' || process.env.LEARNSTACK_COMPOSE_ENV_FILE !== ${JSON.stringify(join(root, '.env'))} || process.env.LEARNSTACK_COMPOSE_MODE !== 'dev') process.exit(13);
+appendFileSync(${JSON.stringify(join(root, 'events'))}, 'prepare\\n');
+`,
+      { mode: 0o700 },
+    );
     writeFileSync(
       join(root, 'bin/dotnet'),
       `#!${process.execPath}
@@ -344,7 +360,9 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
         timeout: 5000,
       });
     expect(launch().status).toBe(0);
-    expect(readFileSync(join(root, 'events'), 'utf8')).toBe('ready\nbuild\nappseed\nrealm\n');
+    expect(readFileSync(join(root, 'events'), 'utf8')).toBe(
+      'compose-version\nprepare\nready\nbuild\nappseed\nrealm\n',
+    );
     const script = join(root, 'scripts/seed.mjs');
     const source = readFileSync(script, 'utf8');
     expect(source).toContain('[seederDll]');
@@ -352,7 +370,9 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
     writeFileSync(join(root, 'events'), '');
     const refused = launch();
     expect(refused.status).not.toBe(0);
-    expect(readFileSync(join(root, 'events'), 'utf8')).toBe('ready\nbuild\n');
+    expect(readFileSync(join(root, 'events'), 'utf8')).toBe(
+      'compose-version\nprepare\nready\nbuild\n',
+    );
   });
   it('reads the selected migration env file and refuses its runtime role before any database act', () => {
     const root = temporary();
@@ -413,6 +433,13 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
         COMPOSE_PROJECT_NAME: 'foreign',
         POSTGRES_PASSWORD: 'ambient-shadow',
         LEARNSTACK_COMPOSE_PROJECT: 'owned-demo',
+        Authentication__Bff__ClientSecret: randomBytes(20).toString('hex'),
+        UNRELATED_PRIVATE_VALUE: randomBytes(20).toString('hex'),
+        DEBUG: '*',
+        NODE_OPTIONS: '--trace-warnings',
+        DOCKER_CONTEXT: 'desktop-linux',
+        DOCKER_HOST: 'unix:///var/run/docker.sock',
+        DOCKER_CONFIG: '/docker-config',
       },
       root,
     );
@@ -432,7 +459,12 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
     expect(selected.env).not.toHaveProperty('COMPOSE_FILE');
     expect(selected.env).not.toHaveProperty('COMPOSE_PROJECT_NAME');
     expect(selected.env).not.toHaveProperty('POSTGRES_PASSWORD');
-    expect(selected.env.PATH).toBe('/bin');
+    expect(selected.env).toEqual({
+      PATH: '/bin',
+      DOCKER_CONTEXT: 'desktop-linux',
+      DOCKER_HOST: 'unix:///var/run/docker.sock',
+      DOCKER_CONFIG: '/docker-config',
+    });
     expect(Object.isFrozen(selected.args)).toBe(true);
   });
   it('refuses missing environment, unsupported mode and unsafe project names', () => {

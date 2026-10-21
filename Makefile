@@ -307,7 +307,9 @@ wait-postgres: ## Wait for the selected stack's PostgreSQL before migrations.
 seed-config: .env
 	./scripts/seed.sh --validate-config
 
-seed: seed-config dev wait-postgres migrate ## Bring the stack up, apply migrations, seed demo data (idempotent).
+seed: seed-config ## Bring the stack up, apply migrations, seed demo data (idempotent).
+	@# The Node owner runs dev/wait/migrate with a credential allowlist. Making
+	@# them prerequisites here would leak inherited Keycloak secrets into EF.
 	./scripts/seed.sh
 
 # ─── Bootstrap ────────────────────────────────────────────────────────────

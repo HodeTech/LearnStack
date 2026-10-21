@@ -14434,15 +14434,17 @@ Step 3 entry-point changes proceed. Scoped prose wrapping and link checks pass.
 
 ## P02b-6 Step 3 — shared seed/demo lifecycle (2026-10-21)
 
-**Status: local implementation and review round one delivered; actual lifecycle
-qualification and review round two pending.** Work stays on `development`. Step 2
+**Status: both review rounds delivered; verified round-two correction and actual
+lifecycle qualification in progress.** Work stays on `development`. Step 2
 is closed at `b94f6a24`; the account-console adjustment above is Accepted and
 retains Step 4 implementation ownership.
 
 - `seed.sh` checks selected/ambient database agreement and the application role,
   then performs read-only private realm preflight before stack/migration work.
-  `seed.mjs` owns readiness, a fresh Release Seeder build, its argument-free DLL
-  with only the app credential, and the awaited shared realm reconciliation.
+  `seed.mjs` owns the confined Compose prerequisite, selected stack startup,
+  PostgreSQL readiness and migration, then full readiness, a fresh Release Seeder
+  build, its argument-free DLL with only the app credential, and the awaited
+  shared realm reconciliation.
 - The demo performs old-private-file preflight before preparation or commands.
   It awaits the same reconciler with the exact selected project/file/mode and
   signal after application seed, before CI stops Keycloak or starts API/web.
@@ -14476,6 +14478,61 @@ wrapped without changing the contract. The security reviewer independently ran
 all 142 realm Node controls with zero failures, cancellations, skips or todos.
 The actual seed/demo owner remains separate from both reviewers; no offline
 receipt substitutes for its pending lifecycle qualification.
+
+#### Step 3 review round two and credential correction
+
+Two new independent reviewers, `gpt-6-astra` and `gpt-6.1-sol` at `xhigh`, inspect
+`2ef1e148..9b51a0bc`. The proofs/corpus reviewer independently passes all 142
+focused frontend cases with zero skips/todos and validates the actual report.
+The security reviewer independently passes all 142 realm Node controls, then
+reproduces a credential-confinement defect through an actual copied `make seed`:
+the unchanged Makefile prerequisites run before the new Node owner, so matching
+inherited Keycloak admin/BFF secrets reach migration restore, build and EF
+children. Synthetic credentials and command stubs expose only presence flags;
+no Docker or .NET process is required to falsify the confinement claim.
+
+The correction moves `dev`, PostgreSQL wait and `migrate` into the seed process
+owner with selected project/file/mode and only the migration credential. The
+Docker-version prerequisite is also owned and receives no private credential.
+Compose child environments retain only fixed Docker process prerequisites, so
+unrelated inherited application/BFF secrets cannot reach readiness or target
+inspection. The existing general migration target and its explicit database
+connection argument remain unchanged; the no-argument claim concerns the
+application Seeder DLL, not every descendant of `make migrate`.
+The actual Makefile regression passes and its planted old-prerequisite variant
+fails the same confinement predicate. Selected Docker context/socket/config,
+database credentials, private-source continuity and unchanged files are checked
+independently across stack, migration and readiness. No real Docker or .NET
+execution is claimed from these executable stubs. The two focused changed test
+files pass 134 cases; the full guarded frontend run passes 1,728 cases in two
+packages with zero skips/todos. Typecheck, targeted lint, 142 realm Node controls,
+ADR parser and link checks pass. Fresh correction review and a corrected-source
+actual seed run remain pending. Earlier actual seed evidence is bound to
+`ce05931e` and requires that new run for this corrected entry path.
+
+#### Step 3 actual lifecycle evidence before the credential correction
+
+An isolated clone on `development` at `ce05931e` runs the actual entries without
+reading the root checkout's private files or foreign working directories.
+`make seed` completes a fresh import with zero realm writes. An owned warm-only
+change sets TTL to 1800 and detaches the managed API scope from both named
+clients; the next seed performs three writes and independently restores TTL 900
+and both scopes. The third pass performs zero writes. Four-user account-state,
+client-ID and Hub digests remain identical. These are bounded drift controls,
+not a substitute for Step 2's pre-mapper/profile upgrade proof.
+
+The clean-clone CI demo completes in 650.4 seconds with Keycloak stopped before
+the public API/web proof: nine browser navigations, 24 visibility controls and
+27 of 27 audits, with all 27 JSON/HTML report pairs and nine screenshots. All
+reports share invocation, commit `ce05931e` and tree
+`f446d80096bf3a8119553182df3c1629996b85b4`. All 134 API completions are HTTP 200,
+with no malformed or pending output. TLS refusal and timeout controls pass.
+Cleanup completes in 10.73 seconds; independent exact-project checks find zero
+containers, networks or volumes. Private files, environment and lock are removed;
+the unrelated database remains running and tracked clone source remains clean.
+This receipt qualifies the named source, not the subsequent credential fix or
+Step 4's final PR head. Final-source production demo/hosted qualification remains
+Step 4 work.
 
 ## Completion Criteria
 

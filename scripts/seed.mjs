@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
-import { composeSelection, repositoryRoot } from './compose.mjs';
+import { composeProcessEnvironment, composeSelection, repositoryRoot } from './compose.mjs';
 import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
 import { publicSeederEnvironment } from './demo-database.mjs';
 import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
@@ -23,11 +23,23 @@ async function selectedConfiguration(selected) {
 /** One selected stack and cancellation owner for readiness, application seed and identity. */
 export async function seedDevelopment({ selected, signal }) {
   const values = await selectedConfiguration(selected);
+  for (const key of ['ConnectionStrings__Default', 'ConnectionStrings__Migration'])
+    if (!values[key] || (process.env[key] !== undefined && process.env[key] !== values[key]))
+      refuse('preflight', 'configuration');
   const connection = values.ConnectionStrings__Default;
-  if (!connection || (process.env.ConnectionStrings__Default !== undefined
-      && process.env.ConnectionStrings__Default !== connection)) refuse('preflight', 'configuration');
+  const prerequisites = { ...publicSeederEnvironment(), ...composeProcessEnvironment(selected.env) };
   const processes = new DemoProcesses(signal);
   try {
+    await processes.run('docker', ['compose', 'version'], {
+      cwd: repositoryRoot, env: prerequisites, label: 'Docker Compose prerequisite', timeout: 5000,
+    });
+    await processes.run('make', ['dev', 'wait-postgres', 'migrate'], {
+      cwd: repositoryRoot,
+      env: { ...prerequisites,
+        LEARNSTACK_COMPOSE_PROJECT: selected.project, LEARNSTACK_COMPOSE_ENV_FILE: selected.file,
+        LEARNSTACK_COMPOSE_MODE: selected.mode, ConnectionStrings__Migration: values.ConnectionStrings__Migration },
+      label: 'Selected stack and migrations', timeout: 180000,
+    });
     await waitCompose(selected, processes, signal);
     await processes.run('dotnet', ['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'], {
       cwd: backendRoot, env: publicSeederEnvironment(), label: 'Release Seeder build', timeout: 180000,

@@ -5,6 +5,16 @@ import { fileURLToPath } from 'node:url';
 
 export const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 
+/** Docker prerequisites only; the selected file owns service configuration. */
+export function composeProcessEnvironment(environment = process.env) {
+  const prerequisites = ['PATH', 'HOME', 'TMPDIR', 'APPDATA', 'USERPROFILE',
+    'XDG_CONFIG_HOME', 'XDG_RUNTIME_DIR', 'DOCKER_CONFIG', 'DOCKER_CONTEXT',
+    'DOCKER_HOST', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH',
+    'DOCKER_DEFAULT_PLATFORM', 'DOCKER_API_VERSION'];
+  return Object.fromEntries(prerequisites.filter(key => environment[key] !== undefined)
+    .map(key => [key, environment[key]]));
+}
+
 /** One explicit selection, shared by start, readiness, seeding and teardown. */
 export function composeSelection(mode, environment = process.env, root = repositoryRoot) {
   if (!['dev', 'e2e'].includes(mode)) throw new Error('Unsupported Compose mode');
@@ -18,9 +28,9 @@ export function composeSelection(mode, environment = process.env, root = reposit
   // environment has been sanitized. Reject every supported assignment spelling.
   if (/^\s*(?:export\s+)?COMPOSE_[A-Za-z0-9_]*\s*(?:[=:]|$)/im.test(source))
     throw new Error('Reserved COMPOSE_* controls cannot appear in the selected environment');
-  const env = { ...environment };
-  // Explicit selection cannot be widened by an inherited profile/file/project.
-  for (const key of Object.keys(env)) if (/^COMPOSE_/i.test(key)) delete env[key];
+  // Compose reads selected configuration from the private file. It needs Docker
+  // process prerequisites, not the caller's Keycloak, application or BFF secrets.
+  const env = composeProcessEnvironment(environment);
   // Compose's process environment otherwise silently overrides --env-file.
   for (const match of source.matchAll(/^([A-Za-z_][A-Za-z0-9_]*)=/gm)) delete env[match[1]];
   const files = [resolve(root, 'infra/compose/dev.yml')];

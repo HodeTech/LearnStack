@@ -46,12 +46,8 @@ for _dep in docker dotnet; do
         exit 1
     fi
 done
-if ! docker compose version >/dev/null 2>&1; then
-    echo "seed: the Docker Compose V2 plugin is required." >&2
-    exit 1
-fi
-# The Node owner supplies only the application credential to the fresh Release
-# DLL, waits for shared reconciliation, and joins its owned commands on failure.
+# The Node owner confines stack/migration prerequisites, supplies only the app
+# credential to the fresh Release DLL, and joins its commands on failure.
 ConnectionStrings__Default="$seed_cs" node scripts/seed.mjs
 
 cat <<'HOSTS'
