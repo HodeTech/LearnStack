@@ -14912,8 +14912,11 @@ issuance wording now match delivered provider coverage.
 Local qualification passes 160 Node controls, the complete guarded frontend
 suite (1,730 cases, zero skips/todos), web typecheck and focused lint. New fault
 controls fail four times against the original implementation and pass against
-the correction. Independent correction review and new-head PR qualification
-remain separate; earlier source-bound CI receipts are not promoted to this head.
+the correction. Two fresh independent correction reviewers (`gpt-6-astra` and
+`gpt-6.1-sol`, both at high effort) approve `204a1039..e0f9798f` without an
+actionable finding; each independently passes all 67 affected Node controls.
+The PR checks own new-head qualification; earlier source-bound CI receipts are
+not promoted to this head.
 
 ## Completion Criteria
 
