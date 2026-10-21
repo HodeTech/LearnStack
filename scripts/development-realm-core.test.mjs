@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import http from 'node:http';
 import test from 'node:test';
 import { reconcileRealm } from './development-realm-core.mjs';
-import { RealmError, realmFailure } from './development-realm-errors.mjs';
+import { RealmError, realmFailure, realmFailureNotice } from './development-realm-errors.mjs';
 import { desired, manifest, secret, provider, stockProvider, providerTransport } from './development-realm-test-fixture.mjs';
 
 const privateCanary = 'synthetic-private-token-and-password-41ae';
@@ -442,7 +442,7 @@ test('an exact 512 KiB version document reaches planning only after the complete
   await assert.rejects(f.invoke(), refusal('plan', 'status'));
   assert.equal(f.paths.length, 4);
   assert.deepEqual(f.paths[2], ['GET', '/admin/serverinfo']);
-  assert.deepEqual(f.paths[3], ['GET', '/admin/realms/learnstack/']);
+  assert.deepEqual(f.paths[3], ['GET', '/admin/realms/learnstack/users/profile']);
 });
 
 
@@ -581,3 +581,272 @@ test('stock normalization refuses a pending ordinary repair of its unchanged glo
     'the independently qualified stock path is reached before rejecting the conflicting projected delta');
   assert.deepEqual(fixture.writes, []);
 });
+
+function preparationProvider() {
+  const fixture = provider();
+  fixture.state.profile.attributes = fixture.state.profile.attributes
+    .filter(attribute => !['user_id', 'tenant_id', 'organization_id'].includes(attribute.name));
+  delete fixture.state.profile.unmanagedAttributePolicy;
+  return fixture;
+}
+
+const preparationNotice = 'realm: profile metadata may already be durable; inspect current realm state before an explicit rerun; see infra/keycloak/README.md';
+
+function preparationFailure(stage, reason) {
+  return error => {
+    refusal(stage, reason)(error);
+    assert.equal(error.preparationDispatched, true);
+    assert.equal(realmFailureNotice(error), `realm: ${stage}/${reason}\n${preparationNotice}`);
+    return true;
+  };
+}
+
+test('hidden identity preparation is one fixed write, independently verified before full fresh planning and convergent on rerun', async () => {
+  const fixture = preparationProvider();
+  const before = structuredClone(fixture.state);
+  const recording = providerTransport(fixture);
+  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 1, preparationDispatched: true });
+  const preparation = recording.requests.findIndex(request => request.stage === 'prepare' && request.method === 'PUT');
+  assert.ok(preparation > 0);
+  assert.deepEqual(recording.requests.filter(request => request.method && !request.form)
+    .map(request => [request.stage, request.method, request.path]),
+  [['prepare', 'PUT', '/admin/realms/learnstack/users/profile']]);
+  assert.deepEqual(recording.requests.slice(preparation + 1, preparation + 3)
+    .map(request => [request.stage, request.path]), [
+    ['prepare', '/admin/realms/learnstack/users/profile'],
+    ['plan', '/admin/realms/learnstack/'],
+  ]);
+  assert.deepEqual(fixture.state.profile.attributes.slice(0, before.profile.attributes.length), before.profile.attributes);
+  assert.equal(Object.hasOwn(fixture.state.profile, 'unmanagedAttributePolicy'), false);
+  before.profile = structuredClone(fixture.state.profile);
+  assert.deepEqual(fixture.state, before, 'metadata alone never changes existing user IDs, credentials or attributes');
+  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+  assert.equal(fixture.writes.length, 1);
+});
+
+test('already readable unmanaged identities use the ordinary profile path without preparation progress', async () => {
+  for (const unmanagedAttributePolicy of ['ENABLED', 'ADMIN_EDIT', 'ADMIN_VIEW']) {
+    const fixture = preparationProvider();
+    fixture.state.profile.unmanagedAttributePolicy = unmanagedAttributePolicy;
+    const recording = providerTransport(fixture);
+    assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 1 });
+    assert.equal(recording.requests.some(request => request.stage === 'prepare'), false);
+    assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+  }
+});
+
+test('preparation and the independently authorized ordinary profile normalization remain two counted writes', async () => {
+  const fixture = preparationProvider();
+  const attribute = structuredClone(provider().state.profile.attributes.find(attribute => attribute.name === 'user_id'));
+  attribute.permissions = { view: ['admin'], edit: [] };
+  attribute.multivalued = true;
+  fixture.state.profile.attributes.push(attribute);
+  const recording = providerTransport(fixture);
+  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 2, preparationDispatched: true });
+  const writes = recording.requests.filter(request => request.method === 'PUT');
+  assert.deepEqual(writes.map(request => [request.stage, request.path]), [
+    ['prepare', '/admin/realms/learnstack/users/profile'], ['apply', '/admin/realms/learnstack/users/profile'],
+  ]);
+  assert.deepEqual(writes[0].json.attributes.find(value => value.name === 'user_id'), attribute);
+  assert.deepEqual(writes[1].json.attributes.find(value => value.name === 'user_id').permissions,
+    { view: ['admin'], edit: ['admin'] });
+  const prepare = recording.requests.indexOf(writes[0]);
+  const apply = recording.requests.indexOf(writes[1]);
+  assert.ok(recording.requests.slice(prepare + 1, apply).some(request => request.stage === 'plan'
+    && request.path.startsWith('/admin/realms/learnstack/users?')),
+  'the ordinary profile action comes only from a complete fresh snapshot');
+  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+});
+
+for (const [status, bytes, reason, description] of [
+  [204, '', 'status', 'HTTP 204'], [201, '{}', 'status', 'HTTP 201'],
+  [403, '{}', 'status', 'HTTP 403'], [500, privateCanary, 'status', 'HTTP 500'],
+  [200, '{', 'response', 'malformed JSON'], [200, '', 'response', 'empty JSON'],
+  [200, 'null', 'response', 'null JSON'], [200, '[]', 'response', 'array JSON'],
+]) {
+  test(`preparation ${description} refusal stops after its dispatched metadata call`, async () => {
+    const fixture = preparationProvider();
+    const recording = providerTransport(fixture);
+    const transport = async (url, options) => {
+      const response = await recording.transport(url, options);
+      return options.stage === 'prepare' && options.method === 'PUT'
+        ? { status, bytes: Buffer.from(bytes) } : response;
+    };
+    await assert.rejects(reconcileRealm(memoryInput(transport)), preparationFailure('prepare', reason));
+    assert.equal(fixture.writes.length, 1);
+    assert.equal(recording.requests.filter(request => request.stage === 'prepare').length, 1);
+    assert.equal(recording.requests.some(request => request.stage === 'apply'), false);
+    assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+  });
+}
+
+test('separate preparation readback rejects any full-profile field or ordered-array drift before ordinary work', async () => {
+  for (const change of [
+    profile => { profile.attributes.reverse(); },
+    profile => { profile.groups = [{ name: 'unexpected-group' }]; },
+    profile => { profile.unmanagedAttributePolicy = 'ADMIN_VIEW'; },
+    profile => { profile.attributes.at(-1).annotations = { unexpected: privateCanary }; },
+  ]) {
+    const fixture = preparationProvider();
+    const recording = providerTransport(fixture);
+    const transport = async (url, options) => {
+      const response = await recording.transport(url, options);
+      if (options.stage === 'prepare' && !options.method) {
+        const profile = JSON.parse(response.bytes);
+        change(profile);
+        return { status: 200, bytes: Buffer.from(JSON.stringify(profile)) };
+      }
+      return response;
+    };
+    await assert.rejects(reconcileRealm(memoryInput(transport)), preparationFailure('prepare', 'readback_conflict'));
+    assert.equal(fixture.writes.length, 1);
+    assert.equal(recording.requests.some(request => request.stage === 'apply'), false);
+  }
+});
+
+test('a preparation acknowledgement loss or cancellation retains durable progress without replay or ordinary writes', async () => {
+  for (const outcome of ['lost_ack', 'cancelled']) {
+    const fixture = preparationProvider();
+    const recording = providerTransport(fixture);
+    const parent = new AbortController();
+    const transport = async (url, options) => {
+      const response = await recording.transport(url, options);
+      if (options.stage === 'prepare' && options.method === 'PUT') {
+        if (outcome === 'lost_ack') throw new Error(privateCanary);
+        parent.abort(new Error(privateCanary));
+      }
+      return response;
+    };
+    const input = { ...memoryInput(transport), signal: parent.signal };
+    await assert.rejects(reconcileRealm(input), preparationFailure('prepare', outcome === 'lost_ack' ? 'response' : 'cancelled'));
+    assert.equal(fixture.writes.length, 1);
+    assert.equal(recording.requests.filter(request => request.stage === 'prepare').length, 1);
+    assert.equal(recording.requests.some(request => request.stage === 'apply'), false);
+    assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+  }
+});
+
+test('whole-pass timeout after preparation dispatch preserves closed deadline progress', async t => {
+  const fixture = preparationProvider();
+  const recording = providerTransport(fixture);
+  const deadline = new AbortController();
+  t.mock.method(AbortSignal, 'timeout', () => deadline.signal);
+  const transport = async (url, options) => {
+    const response = await recording.transport(url, options);
+    if (options.stage === 'prepare' && options.method === 'PUT') deadline.abort(new Error(privateCanary));
+    return response;
+  };
+  await assert.rejects(reconcileRealm(memoryInput(transport)), preparationFailure('prepare', 'deadline'));
+  assert.equal(fixture.writes.length, 1);
+  assert.equal(recording.requests.some(request => request.stage === 'apply'), false);
+});
+
+test('newly exposed actor conflict and identity-independent drift leave only preparation durable before a fresh-plan refusal', async () => {
+  for (const kind of ['hidden_actor', 'realm_drift']) {
+    const fixture = preparationProvider();
+    if (kind === 'hidden_actor') fixture.state.users[0].attributes.user_id = ['01910000-0000-7000-8000-00000000ffff'];
+    fixture.state.realm.accessTokenLifespan = 1800;
+    const before = structuredClone(fixture.state);
+    const recording = providerTransport(fixture);
+    const transport = async (url, options) => {
+      const response = await recording.transport(url, options);
+      if (kind === 'realm_drift' && options.stage === 'prepare' && options.method === 'PUT')
+        fixture.state.realm.enabled = false;
+      return response;
+    };
+    await assert.rejects(reconcileRealm(memoryInput(transport)), preparationFailure('plan', kind === 'hidden_actor' ? 'identity_conflict' : 'unsupported'));
+    assert.deepEqual(fixture.state.users, before.users);
+    assert.equal(fixture.state.realm.accessTokenLifespan, 1800, 'the earlier qualified ordinary repair was discarded');
+    assert.equal(fixture.writes.length, 1);
+    assert.equal(recording.requests.some(request => request.stage === 'apply'), false);
+  }
+});
+
+test('preparation progress begins only after proactive credential refresh and pre-dispatch cancellation admission', async t => {
+  const probe = providerTransport(preparationProvider());
+  await reconcileRealm(memoryInput(probe.transport));
+  const handoff = probe.requests.findIndex(request => request.stage === 'prepare' && request.method === 'PUT');
+  assert.ok(handoff > 0);
+  let now = 0;
+  t.mock.method(performance, 'now', () => now);
+  for (const outcome of ['refresh_failure', 'cancelled']) {
+    now = 0;
+    const fixture = preparationProvider();
+    const recording = providerTransport(fixture);
+    const stop = new AbortController();
+    let calls = 0;
+    let refreshes = 0;
+    const transport = async (url, options) => {
+      calls++;
+      if (options.form?.grant_type === 'refresh_token') {
+        refreshes++;
+        return { status: 401, bytes: Buffer.from('{}') };
+      }
+      const response = await recording.transport(url, options);
+      if (calls === handoff) {
+        if (outcome === 'refresh_failure') now = 56000;
+        else stop.abort(new Error(privateCanary));
+      }
+      return response;
+    };
+    await assert.rejects(reconcileRealm({ ...memoryInput(transport), signal: stop.signal }), error => {
+      refusal(outcome === 'refresh_failure' ? 'authentication' : 'plan', outcome === 'refresh_failure' ? 'status' : 'cancelled')(error);
+      assert.equal(error.preparationDispatched, undefined);
+      assert.equal(realmFailureNotice(error).includes(preparationNotice), false);
+      return true;
+    });
+    assert.equal(refreshes, outcome === 'refresh_failure' ? 1 : 0);
+    assert.equal(fixture.writes.length, 0);
+    assert.equal(recording.requests.some(request => request.stage === 'prepare'), false);
+  }
+});
+
+test('preparation readback HTTP or JSON faults retain metadata progress and prevent fresh planning', async () => {
+  for (const [status, bytes, reason] of [[403, '{}', 'status'], [500, privateCanary, 'status'], [200, '{', 'response']]) {
+    const fixture = preparationProvider();
+    const recording = providerTransport(fixture);
+    const transport = async (url, options) => {
+      const response = await recording.transport(url, options);
+      return options.stage === 'prepare' && !options.method ? { status, bytes: Buffer.from(bytes) } : response;
+    };
+    await assert.rejects(reconcileRealm(memoryInput(transport)), preparationFailure('prepare', reason));
+    const preparation = recording.requests.findIndex(request => request.stage === 'prepare');
+    assert.equal(recording.requests.slice(preparation + 1).some(request => request.stage === 'plan'), false);
+    assert.equal(fixture.writes.length, 1);
+  }
+});
+
+test('uncertain preparation transport handoff never reports an undispatched pass even without a receipt or stored mutation', async () => {
+  const fixture = preparationProvider();
+  const recording = providerTransport(fixture);
+  let dispatches = 0;
+  const transport = async (url, options) => {
+    if (options.stage === 'prepare' && options.method === 'PUT') {
+      dispatches++;
+      throw new RealmError('prepare', 'transport');
+    }
+    return recording.transport(url, options);
+  };
+  await assert.rejects(reconcileRealm(memoryInput(transport)), preparationFailure('prepare', 'transport'));
+  assert.equal(dispatches, 1);
+  assert.equal(fixture.writes.length, 0);
+  assert.equal(recording.requests.some(request => request.stage === 'apply'), false);
+});
+
+for (const stage of ['apply', 'readback']) {
+  test(`a later ${stage} failure preserves earlier dispatched preparation and explicit reruns use current state`, async () => {
+    const fixture = preparationProvider();
+    fixture.state.realm.accessTokenLifespan = 1800;
+    const recording = providerTransport(fixture);
+    const transport = async (url, options) => {
+      const response = await recording.transport(url, options);
+      if (options.stage === stage) throw new Error(privateCanary);
+      return response;
+    };
+    await assert.rejects(reconcileRealm(memoryInput(transport)), preparationFailure(stage, 'response'));
+    assert.equal(fixture.writes.length, 2);
+    assert.equal(fixture.state.realm.accessTokenLifespan, 900);
+    assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+    assert.equal(fixture.writes.length, 2);
+  });
+}

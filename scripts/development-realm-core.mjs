@@ -1,4 +1,4 @@
-import { buildRealmPlan } from './development-realm-plan.mjs';
+import { buildRealmPlan, buildRealmPreparation } from './development-realm-plan.mjs';
 import { stockConsoleDetachmentPath } from './development-realm-stock-console.mjs';
 import { realmJson, realmRequest } from './development-realm-http.mjs';
 import { RealmError, refuse } from './development-realm-errors.mjs';
@@ -20,12 +20,17 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
   const deadline = AbortSignal.timeout(realmPassMilliseconds);
   const active = signal ? AbortSignal.any([signal, deadline]) : deadline;
   let mutations = 0;
+  let preparationDispatched = false;
   let stage = 'discovery';
-  const request = async (path, options = {}) => {
+  const request = async (path, options = {}, dispatched) => {
     if (active.aborted) refuse(options.stage, signal?.aborted ? 'cancelled' : 'deadline');
     let result;
-    try { result = await transport(new URL(path, base), { ...options, signal: active, ca }); }
-    catch (error) {
+    try {
+      const url = new URL(path, base);
+      const requestOptions = { ...options, signal: active, ca };
+      dispatched?.();
+      result = await transport(url, requestOptions);
+    } catch (error) {
       if (active.aborted) refuse(options.stage, signal?.aborted ? 'cancelled' : 'deadline');
       throw error;
     }
@@ -59,13 +64,13 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
       expiresAt = started + value.expires_in * 1000 - 5000;
     };
     await authenticate({ grant_type: 'password', username: adminUsername, password: adminPassword });
-    const authenticatedRequest = async (path, options) => {
+    const authenticatedRequest = async (path, options, dispatched) => {
       if (performance.now() >= expiresAt) {
         if (refreshes >= 2) refuse('authentication', 'deadline');
         refreshes++;
         await authenticate({ grant_type: 'refresh_token', refresh_token: refreshToken });
       }
-      return request(path, { ...options, bearer: token });
+      return request(path, { ...options, bearer: token }, dispatched);
     };
     stage = 'version';
     const version = await authenticatedRequest('admin/serverinfo', { stage: 'version' });
@@ -79,8 +84,7 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
         return realmJson(result, stage);
       },
       put: async (path, body) => {
-        const result = await authenticatedRequest(adminPath(path), { method: 'PUT', json: body, stage });
-        mutations++;
+        const result = await authenticatedRequest(adminPath(path), { method: 'PUT', json: body, stage }, () => { mutations++; });
         if (result.status < 200 || result.status >= 300) refuse(stage, 'status');
         return result.status;
       },
@@ -88,17 +92,27 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
       // minted by the complete stock-graph qualifier can name one assignment.
       detachStockConsoleAssignment: async binding => {
         const path = stockConsoleDetachmentPath(binding, stage);
-        mutations++;
-        const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', stage });
+        const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', stage }, () => { mutations++; });
         if (result.status !== 204) refuse(stage, 'status');
       },
       post: async (path, body) => {
-        const result = await authenticatedRequest(adminPath(path), { method: 'POST', json: body, stage });
-        mutations++;
+        const result = await authenticatedRequest(adminPath(path), { method: 'POST', json: body, stage }, () => { mutations++; });
         if ((result.status < 200 || result.status >= 300) && result.status !== 409) refuse(stage, 'status');
         return { status: result.status, ...(path === 'partialImport' && result.status === 200 ? { body: document(result, stage) } : {}) };
       },
     };
+    const preparation = await buildRealmPreparation({ admin, desired, manifest, webSecret });
+    if (preparation) {
+      stage = 'prepare';
+      const response = await authenticatedRequest(adminPath('users/profile'), {
+        method: 'PUT', json: preparation.profile, stage,
+      }, () => { preparationDispatched = true; mutations++; });
+      if (response.status !== 200) refuse(stage, 'status');
+      document(response, stage);
+      await preparation.verify(await admin.get('users/profile'));
+      stage = 'plan';
+    }
+    // Preparation's projections and actions never cross this full fresh read.
     const plan = await buildRealmPlan({ admin, desired, manifest, webSecret });
     stage = 'apply';
     for (const action of plan.actions) {
@@ -109,10 +123,14 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
     await plan.verify();
     const remaining = await buildRealmPlan({ admin, desired, manifest, webSecret });
     if (remaining.actions.length !== 0) refuse(stage, 'readback_conflict');
-    return Object.freeze({ mutations });
+    return Object.freeze({ mutations, ...(preparationDispatched ? { preparationDispatched: true } : {}) });
   } catch (error) {
-    if (error instanceof RealmError) throw error;
-    refuse(stage, 'response');
+    if (error instanceof RealmError) {
+      if (preparationDispatched && error.preparationDispatched !== true)
+        throw new RealmError(error.stage, error.reason, true);
+      throw error;
+    }
+    throw new RealmError(stage, 'response', preparationDispatched);
   }
 }
 

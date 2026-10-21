@@ -58,7 +58,7 @@ function preflightResponse(value, reserve = 0) {
   if (jsonBytes(value) + reserve > bodyLimit) refuse('plan', 'body_limit');
 }
 
-function validateProjectedResponses({ before, profile, scopes, mappers, clients, assignments, users, desired, manifest, webSecret }) {
+function validateProjectedResponses({ before, profile, scopes, mappers, clients, assignments, users, desired, manifest, webSecret, identityReserve = new Map() }) {
   preflightResponse({ ...before.realm, accessTokenLifespan: 900 });
   preflightResponse(profile);
   // These UUID placeholders are used only for byte accounting. Provider IDs
@@ -91,11 +91,12 @@ function validateProjectedResponses({ before, profile, scopes, mappers, clients,
     : jsonBytes(profile) + profile.attributes.length * 128 + validators * 32 + 256);
   const projectedUsers = before.users.map(user => ({
     value: omit({ ...user, ...users.get(user.username) }, ['userProfileMetadata']),
-    reserve: user.userProfileMetadata ? metadataFieldBytes + jsonBytes(user.userProfileMetadata) + metadataGrowth : metadataBytes,
+    reserve: (user.userProfileMetadata ? metadataFieldBytes + jsonBytes(user.userProfileMetadata) + metadataGrowth : metadataBytes)
+      + (identityReserve.get(user.id) ?? 0),
   }));
   for (const declaration of manifest.users) {
-    const existing = before.ownedUsers.get(declaration.username);
-    if (existing) preflightResponse(users.get(declaration.username));
+    const existing = before.candidates.get(declaration.username);
+    if (existing) preflightResponse(users.get(declaration.username), identityReserve.get(existing.user.id) ?? 0);
     else {
       const wanted = desired.users.find(user => user.username === declaration.username);
       const projected = { ...omit(wanted, ['credentials', 'realmRoles', 'clientRoles']), id: generatedIdBytes };
@@ -285,11 +286,13 @@ async function readClient(admin, name, stage) {
   return { client, defaults, optional, mappers, secret };
 }
 
-async function snapshot(admin, desired, manifest, stage) {
+async function snapshot(admin, desired, manifest, stage, { preparationProfile, preparing = false } = {}) {
   const realm = requireObject(await admin.get(''), stage);
   if (realm.realm !== 'learnstack' || realm.enabled !== true) refuse(stage, 'unsupported');
-  const profile = requireObject(await admin.get('users/profile'), stage);
-  validateIdentityVisibility(profile, stage);
+  // A preparation probe can reuse only its actual profile read. It never
+  // substitutes the proposed configuration or a fabricated account projection.
+  const profile = preparationProfile ?? requireObject(await admin.get('users/profile'), stage);
+  if (!preparing) validateIdentityVisibility(profile, stage);
   const scopes = unique(array(await admin.get('client-scopes'), stage), 'name', stage, 'mapper_conflict');
   unique(scopes, 'id', stage, 'mapper_conflict');
   const scopeByName = new Map(scopes.map(scope => [scope.name, scope]));
@@ -313,7 +316,7 @@ async function snapshot(admin, desired, manifest, stage) {
     if (scope) scopeMappers.set(name, unique(array(await admin.get(`client-scopes/${encode(scope.id)}/protocol-mappers/models`), stage), 'id', stage, 'mapper_conflict'));
   }
   const users = await allUsers(admin, stage);
-  const ownedUsers = new Map();
+  const candidates = new Map();
   for (const declaration of manifest.users) {
     const matched = users.filter(user => user.username.toLowerCase() === declaration.username.toLowerCase());
     // A profile projection can hide the stored username: pinned email-as-
@@ -328,12 +331,12 @@ async function snapshot(admin, desired, manifest, stage) {
     const user = requireObject(await admin.get(`users/${encode(matched[0].id)}`), stage);
     if (user.id !== matched[0].id || user.username !== declaration.username
       || user.federationLink || user.serviceAccountClientId) refuse(stage, 'identity_conflict');
-    qualifiedExistingActor(user, declaration, stage);
+    if (!preparing) qualifiedExistingActor(user, declaration, stage);
     const credentials = array(await admin.get(`users/${encode(user.id)}/credentials`), stage);
     const roles = requireObject(await admin.get(`users/${encode(user.id)}/role-mappings`), stage);
-    ownedUsers.set(declaration.username, { user, credentials, roles });
+    candidates.set(declaration.username, { user, credentials, roles });
   }
-  return { realm, profile, scopes, scopeByName, scopeMappers, clients, users, ownedUsers };
+  return { realm, profile, scopes, scopeByName, scopeMappers, clients, users, candidates };
 }
 
 function mergedProfile(current, desired) {
@@ -413,10 +416,46 @@ function exactCreatedAccess(roles, credentials, roleId, account) {
     && credentials.length === 1 && credentials[0].type === 'password';
 }
 
-/** A complete read-only preflight. No mutation is admitted until this resolves. */
+/** A complete read-only preflight. No ordinary mutation escapes before identity qualification. */
 export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
   validateInputs(desired, manifest, webSecret);
   const before = await snapshot(admin, desired, manifest, 'plan');
+  return assemblePlan({ admin, desired, manifest, webSecret, before });
+}
+
+// Only this internal path defers the two identity-dependent guards. Every other
+// qualifier is the same one used by the ordinary planner. Provisional actions
+// never escape: the caller receives only a profile and its exact verification.
+export async function buildRealmPreparation({ admin, desired, manifest, webSecret }) {
+  validateInputs(desired, manifest, webSecret);
+  const current = requireObject(await admin.get('users/profile'), 'prepare');
+  const attributes = unique(array(current.attributes, 'prepare'), 'name', 'prepare');
+  if (current.groups !== undefined) unique(array(current.groups, 'prepare'), 'name', 'prepare');
+  const missing = identityClaims.filter(name => !attributes.some(attribute => attribute.name === name));
+  if (!missing.length || ['ENABLED', 'ADMIN_EDIT', 'ADMIN_VIEW'].includes(current.unmanagedAttributePolicy)) return;
+  for (const attribute of attributes.filter(value => identityClaims.includes(value.name)))
+    if (!adminCanRead(attribute) || !plainAttributeProjection(attribute)) refuse('prepare', 'identity_conflict');
+  const declared = JSON.parse(desired.components['org.keycloak.userprofile.UserProfileProvider'][0]
+    .config['kc.user.profile.config'][0]);
+  const expected = copy(current);
+  for (const name of missing) {
+    const definitions = array(declared.attributes, 'prepare').filter(attribute => attribute?.name === name);
+    const definition = definitions[0];
+    if (definitions.length !== 1 || !plainAttributeProjection(definition) || definition.multivalued !== false
+      || !equal(definition.permissions, { view: ['admin'], edit: ['admin'] })) refuse('prepare', 'identity_conflict');
+    expected.attributes.push(copy(definition));
+  }
+  array(expected.attributes, 'prepare');
+  preflightBody(expected);
+  preflightResponse(expected);
+  const before = await snapshot(admin, desired, manifest, 'plan', { preparationProfile: current, preparing: true });
+  await assemblePlan({ admin, desired, manifest, webSecret, before, preparationOnly: true });
+  return Object.freeze({ profile: copy(expected), verify: actual => {
+    if (!equal(actual, expected)) refuse('prepare', 'readback_conflict');
+  } });
+}
+
+async function assemblePlan({ admin, desired, manifest, webSecret, before, preparationOnly = false }) {
   const actions = [];
   const add = (label, apply, body) => {
     preflightBody(body);
@@ -532,10 +571,10 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
   // Mapper qualification precedes inherited-source reads, so an unsafe
   // aggregation customization always refuses without being silently repaired.
   const beforeGroups = await readRealmGroups(admin, before.users, 'plan');
-  const account = await planAccountSelfService({ admin, desired, manifest, ownedUsers: before.ownedUsers,
+  const account = await planAccountSelfService({ admin, desired, manifest, candidateUsers: before.candidates,
     add, preflightResponse, changedScopeIds });
   // A manifest actor may not already belong to a differently named account.
-  for (const user of before.users) {
+  for (const user of preparationOnly ? [] : before.users) {
     const values = user.attributes?.user_id;
     if (!Array.isArray(values)) continue;
     for (const value of values) {
@@ -544,9 +583,25 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
     }
   }
   const expectedUsers = new Map();
+  const identityReserve = new Map();
   for (const declaration of manifest.users) {
-    const existing = before.ownedUsers.get(declaration.username);
+    const existing = before.candidates.get(declaration.username);
     if (existing) {
+      if (preparationOnly) {
+        // Budget observed account data plus every prospective canonical identity
+        // byte. These numbers grant no identity/ownership or mutation authority;
+        // newly visible stored values still require a fresh complete plan.
+        const observed = existing.user.attributes === undefined ? {} : requireObject(existing.user.attributes, 'plan');
+        const canonical = { user_id: [declaration.userId], tenant_id: [declaration.tenantId],
+          ...(declaration.organizationId === null ? {} : { organization_id: [declaration.organizationId] }) };
+        const reserve = jsonBytes({ attributes: canonical });
+        identityReserve.set(existing.user.id, reserve);
+        expectedUsers.set(declaration.username, existing.user);
+        const fields = Object.fromEntries(['username', 'email', 'firstName', 'lastName']
+          .filter(key => key in existing.user).map(key => [key, existing.user[key]]));
+        if (jsonBytes({ ...fields, attributes: observed }) + reserve > bodyLimit) refuse('plan', 'body_limit');
+        continue;
+      }
       const attributes = identityAttributes(existing.user, declaration, 'plan');
       expectedUsers.set(declaration.username, { ...existing.user, attributes });
       if (!equal(attributes, existing.user.attributes ?? {})) {
@@ -607,14 +662,16 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
     array([...defaults], 'plan');
     array([...optional], 'plan');
   }
-  if (before.users.length + manifest.users.filter(entry => !before.ownedUsers.has(entry.username)).length
+  if (before.users.length + manifest.users.filter(entry => !before.candidates.has(entry.username)).length
     >= pageSize * pageLimit) refuse('plan', 'unsupported');
   validateProjectedResponses({ before, profile, scopes: expectedScopes, mappers: expectedMappers,
-    clients: expectedClients, assignments: expectedAssignments, users: expectedUsers, desired, manifest, webSecret });
+    clients: expectedClients, assignments: expectedAssignments, users: expectedUsers, desired, manifest, webSecret, identityReserve });
+
+  if (preparationOnly) return;
 
   return { actions, verify: async () => {
     const after = await snapshot(admin, desired, manifest, 'readback');
-    await account.verify(after.ownedUsers);
+    await account.verify(after.candidates);
     const afterGroups = await readRealmGroups(admin, after.users, 'readback');
     const check = condition => { if (!condition) refuse('readback', 'readback_conflict'); };
     check(after.realm.accessTokenLifespan === 900
@@ -657,13 +714,13 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
       // Full list rows include metadata derived from the realm profile. Its
       // owned definition changes are verified independently above; every
       // stored account field remains part of this preservation comparison.
-      if (!before.ownedUsers.has(previous.username))
+      if (!before.candidates.has(previous.username))
         check(equal(omit(current, ['userProfileMetadata']), omit(previous, ['userProfileMetadata'])));
     }
-    check(after.users.length === before.users.length + manifest.users.filter(entry => !before.ownedUsers.has(entry.username)).length);
+    check(after.users.length === before.users.length + manifest.users.filter(entry => !before.candidates.has(entry.username)).length);
     for (const declaration of manifest.users) {
-      const actual = after.ownedUsers.get(declaration.username);
-      const original = before.ownedUsers.get(declaration.username);
+      const actual = after.candidates.get(declaration.username);
+      const original = before.candidates.get(declaration.username);
       check(Boolean(actual) && expectedUsers.has(declaration.username));
       check(equal(actual.user, expectedUsers.get(declaration.username)));
       check(equal(identityAttributes(actual.user, declaration, 'readback'), actual.user.attributes));

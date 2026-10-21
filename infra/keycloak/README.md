@@ -202,18 +202,19 @@ shared Admin REST reconciler. Both completed their local review rounds. Step 3
 connects `make seed` and `make demo` to the same awaited operation after
 application seed convergence. Its actual lifecycle qualification and reviews
 are recorded in the [Step 3 delivery record](../../docs/roadmap/phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21).
-The exact pre-P02b-6 export still has unsupported warm prerequisites: its stock
-profile hides identity values and its account-console bootstrap carries broader
-scope assignments. Identity-visibility guards still refuse the unprepared
-historical state before writes; complete automatic upgrade remains pending.
+The exact pre-P02b-6 export has a stock profile that hides identity values and
+broader account-console assignments. The qualified correction handles these
+prerequisites without inferring account ownership from a hidden projection.
 [ADR-0068](../../docs/decisions/0068-development-warm-realm-qualification.md)
 is Accepted — 2026-10-22 after verified review corrections under conditional
 maintainer authority. Its three-step implementation and automatic-path proof
 are tracked in the [acceptance record](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22).
 The [first correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
 adds fixed historical graph qualification and assignment-only normalization,
-with both independent review rounds complete. Automatic preparation and full
-upgrade qualification remain pending.
+with both independent review rounds complete. The
+[second correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
+implements automatic preparation and fresh complete planning; its reviews and
+the complete lifecycle/token/self-service qualification remain pending.
 Current identity-visibility guards remain active. Do not remove them, wipe the
 database or silently normalize customized scopes by name.
 
@@ -258,19 +259,24 @@ qualification status.
 Admin user responses are profile projections, not raw attribute storage. Before
 interpreting a missing identity as absent, the reconciler requires an
 admin-readable definition without a default or selector, or an explicitly
-admin-readable unmanaged policy. Hidden identities and external user-storage
-profiles refuse before any write. The current implementation does not change
-visibility to discover
-whether a conflicting identity exists. ADR-0068's accepted preparation exception
-remains pending implementation and proof; it permits metadata only after all
-identity-independent preconditions pass. For an older realm that hides these
-values, an operator must first inspect the profile configuration, make the three
-identity definitions admin-only readable, and inspect their stored values before
-retrying. This is an explicit administrator action outside automatic tooling;
-inspect the full profile and preserve every unrelated field. It is not permission
-to infer ownership from a name or silently remove a custom scope. Do not enable
-end-user editing or replace a conflicting UUID to force
-convergence. The existing unmanaged policy remains unchanged by reconciliation.
+admin-readable unmanaged policy. External user-storage profiles and independently
+detectable configuration conflicts refuse before any write. When definitions
+are missing and the unmanaged policy does not expose them, the reconciler first
+qualifies all identity-independent preconditions. It may then append only the
+missing admin-only scalar definitions in one `prepare` PUT, preserving existing
+definitions, ordered arrays and the unmanaged policy. A separate GET verifies
+the complete profile before a fresh full plan reads the revealed identities.
+An existing hidden, defaulted or selector-based protected definition refuses
+without preparation. An exposed conflicting UUID is never overwritten.
+
+Preparation counts as a dispatched mutation even when its acknowledgement is
+lost. Any later failure retains the fixed notice that profile metadata may
+already be durable: inspect current realm state before an explicit rerun. No
+automatic replay or rollback occurs. A separately planned ordinary profile PUT
+is counted separately and requires the fresh full plan. Identity-dependent
+conflicts may leave only preparation metadata; no ordinary mutation follows a
+fresh-plan refusal. The shared five-second request and 120-second pass deadlines
+are unchanged. Step 3 retains complete lifecycle and credential/token proof.
 
 Protected claims must come from user attributes. Aggregation and inherited
 group identity values are incompatible with that contract and refuse before

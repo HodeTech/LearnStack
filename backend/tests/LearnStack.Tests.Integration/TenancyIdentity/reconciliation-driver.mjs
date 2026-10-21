@@ -19,16 +19,16 @@ try {
   const abort = new AbortController();
   let injected = false;
   const transport = async (url, options) => {
-    const response = await realmRequest(url, options);
     const mutation = url.pathname.startsWith('/admin/realms/learnstack/')
       && options.method !== undefined && options.method !== 'GET';
+    if (mutation) writes++;
+    const response = await realmRequest(url, options);
     if (mutation) {
-      writes++;
       if (!injected && response.status >= 200 && response.status < 300) {
         if (input.scenario === 'lost_acknowledgement') {
           injected = true;
           // Acknowledgement loss is injected only after the real provider committed and closed its response.
-          throw new RealmError('apply', 'transport');
+          throw new RealmError(options.stage, 'transport');
         }
         if (input.scenario === 'partial_cancel') {
           injected = true;
@@ -52,12 +52,14 @@ try {
   };
   const result = await reconcileRealm({ ...input, signal: abort.signal, transport });
   if (writes !== result.mutations || (input.scenario !== 'normal' && !injected))
-    throw new RealmError('readback', 'response');
-  process.stdout.write(JSON.stringify({ outcome: 'success', mutations: writes }) + '\n');
+    throw new RealmError('readback', 'response', result.preparationDispatched === true);
+  process.stdout.write(JSON.stringify({ outcome: 'success', mutations: writes,
+    ...(result.preparationDispatched === true ? { preparationDispatched: true } : {}) }) + '\n');
 } catch (error) {
   const closed = error instanceof RealmError ? error : new RealmError('preflight', 'configuration');
   process.stdout.write(JSON.stringify({ outcome: 'failure', mutations: writes,
-    stage: closed.stage, reason: closed.reason }) + '\n');
+    stage: closed.stage, reason: closed.reason,
+    ...(closed.preparationDispatched === true ? { preparationDispatched: true } : {}) }) + '\n');
   process.exitCode = 1;
 } finally {
   input = undefined;

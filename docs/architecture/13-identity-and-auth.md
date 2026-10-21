@@ -290,7 +290,11 @@ owns the account-preserving warm upgrade and its named account-console adjustmen
 2026-10-22, adds bounded profile preparation and three qualified stock-console
 assignment detachments. This deletes named assignment edges, while preserving
 accounts and global definitions. Its [implementation record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
-tracks pending automatic-path proof; current guards remain until qualified activation.
+tracks implementation and pending complete qualification. The preparation owner
+reuses identity-independent qualifiers, verifies the exact profile and discards
+its projections before complete planning. A later identity conflict retains a
+fixed metadata-progress notice and permits no ordinary write. Full lifecycle,
+credential/token and self-service proof remains with the third correction step.
 The realm guide owns the exact local procedure and refusal boundaries. G10 is
 Accepted: one token carries at most one active tenant. A user in both tenants
 also needs `Membership`, which [Phase 03](../roadmap/phase-03-identity-admin.md)

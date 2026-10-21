@@ -16,6 +16,7 @@ export async function reconcileDevelopmentRealm({ selected, signal }) {
   let lock;
   let result;
   let failure;
+  let preparationDispatched = false;
   const run = (args) => processes.run('docker', args, {
     cwd: selected.cwd, env: selected.env, label: 'Realm target inspection', capture: true, timeout: 5000,
   });
@@ -41,19 +42,21 @@ export async function reconcileDevelopmentRealm({ selected, signal }) {
     result = await reconcileRealm({ ...target, adminUsername: values.KEYCLOAK_ADMIN,
       adminPassword: values.KEYCLOAK_ADMIN_PASSWORD, webSecret: values.KEYCLOAK_WEB_CLIENT_SECRET,
       manifest, desired, signal: active });
+    preparationDispatched = result.preparationDispatched === true;
   } catch (error) {
+    preparationDispatched = error instanceof RealmError && error.preparationDispatched === true;
     failure = active.aborted ? new RealmError(error instanceof RealmError ? error.stage : 'preflight',
-      signal?.aborted ? 'cancelled' : 'deadline')
+      signal?.aborted ? 'cancelled' : 'deadline', preparationDispatched)
       : error instanceof RealmError ? error : new RealmError('preflight',
         error instanceof DemoCommandError && ['deadline', 'cancelled', 'cleanup'].includes(error.reason)
           ? error.reason : 'configuration');
   }
   // If child cleanup is not established, keep the exclusive file as an explicit refusal.
   try { await processes.dispose(); }
-  catch { refuse('cleanup', 'cleanup'); }
+  catch { throw new RealmError('cleanup', 'cleanup', preparationDispatched); }
   if (lock) {
     try { await lock.release(); }
-    catch { refuse('cleanup', 'cleanup'); }
+    catch { throw new RealmError('cleanup', 'cleanup', preparationDispatched); }
   }
   if (failure) throw failure;
   return result;

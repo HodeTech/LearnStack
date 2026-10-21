@@ -223,7 +223,7 @@ export function provider() {
         Object.assign(scope, clone(body));
       }
     } else throw new Error('unhandled fixture PUT');
-    return 204;
+    return path === 'users/profile' ? 200 : 204;
   };
   const post = async (path, body) => {
     writes.push({ method: 'POST', path, body: clone(body) });
@@ -347,7 +347,10 @@ export function providerTransport(fixture) {
     assert.ok(url.pathname.startsWith('/admin/realms/learnstack/'));
     const path = url.pathname.slice('/admin/realms/learnstack/'.length) + url.search;
     if (options.method === 'DELETE') return response(await fixture.admin.delete(path));
-    if (options.method === 'PUT') return response(await fixture.admin.put(path, options.json));
+    if (options.method === 'PUT') {
+      const status = await fixture.admin.put(path, options.json);
+      return response(status, path === 'users/profile' && status === 200 ? fixture.state.profile : undefined);
+    }
     if (options.method === 'POST') {
       const value = await fixture.admin.post(path, options.json);
       return response(value.status, value.body);

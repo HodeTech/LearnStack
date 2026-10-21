@@ -16262,6 +16262,75 @@ preconditions first, durable-progress diagnostics and fresh complete planning.
 Step 3 retains automatic-path, token/password/MFA/self-service and final-source CI
 qualification. Nothing here accepts a background-job failure or authorizes merge.
 
+
+### ADR-0068 Step 2 — owned visibility preparation (2026-10-22)
+
+The second correction step implements the exact missing-definition/closed-policy
+trigger. A preparation probe reads actual provider state and reuses the ordinary
+planner's identity-independent qualifiers and capacity checks. It defers only
+visibility-dependent identity admission; it invents no account projection or
+ownership. Provisional ordinary actions never escape the probe. A successful
+probe returns only the absent-definition append and its private exact verifier.
+
+The owner dispatches at most one preparation PUT, requires HTTP 200 and a JSON
+object, then separately GETs and compares the entire profile, including ordered
+arrays and unrelated fields. Existing admin-view-only definitions remain exact.
+All prior projections/actions are discarded before a fresh complete plan; any
+separately necessary ordinary profile PUT has its own admission and write count.
+Known independent secret/client/mapper/scope/account/group/storage and byte/count
+conflicts refuse before preparation. Newly revealed identity conflicts may leave
+metadata durable but admit no ordinary mutation.
+
+The closed `prepare` stage and dispatched-progress flag survive transport loss,
+cancellation, deadlines, later plan/apply/readback refusal and outer cleanup or
+lock-release errors. The fixed failure notice instructs inspection of current
+realm state before an explicit rerun. Progress is recorded at actual transport
+handoff after refresh and pre-dispatch cancellation checks, without claiming a
+provider commit merely because the request was dispatched. All ordinary mutation
+counts also use this conservative handoff boundary. The existing five-second
+request, 120-second pass and response/body/refresh budgets remain unchanged.
+
+The guarded Node census passes 335 executed cases across seven exact files,
+with zero cancellations/skips/todos. Twenty-two new pure preparation controls
+include the complete trigger table, preserved readable definitions, strict
+profile equality and independent refusal/capacity pairs. Sixty-two core and
+24 entry controls exercise actual transport ordering, fresh replanning, separate
+profile writes, malformed/non-200 responses, lost acknowledgement, cancellation,
+deadline and durable-progress preservation through owned cleanup. These offline
+controls do not prove real-provider convergence or final-source hosted fit.
+
+The actual-provider focused run passes all eleven cases without retries or
+skips in 289.261s after Release builds with zero warnings/errors. Seven new
+cases exercise the true historical automatic path (seventeen writes, then zero),
+a hidden actor (one preparation, fresh-plan refusal, no ordinary writes),
+independent secret/custom-stock conflicts (zero writes), lost acknowledgement and
+cancellation (one dispatched preparation, explicit sixteen-write resume, then
+zero), and partial admin-view-only preservation followed by a separately counted
+ordinary profile PUT. Four existing hidden/default/selector variants also pass;
+only the unmanaged-hidden variant now admits the exceptional metadata write.
+The renamed theory says “before ordinary writes” rather than claiming zero total
+writes for that variant.
+
+The retained TRX SHA-256 is
+`89f40f90c099897aca2bfff0454407242dc9195035a4a4200c340040188c0fc9`.
+Each new fixture joins disposal and independently checks its two exact container
+IDs and network ID absent: fourteen containers and seven networks. The four
+existing variants and shared collection fixture complete their existing cleanup;
+no separate resource-absence observation is claimed for those lifetimes.
+The historical positive control preserves actual provider IDs, password credential
+DTO hashes, grants except the approved account capability, all preexisting global
+scope definitions, API secret and Hub state. A credential DTO hash is not a
+changed-password or MFA login proof.
+
+Seven corpus/Docker-trait cases, six census/workflow controls, seven ADR parser
+controls, 1,283 scoped relative links/fragments, project-scoped C# whitespace and
+diff whitespace checks pass. Committed-source independent review rounds follow
+below before this correction step closes. Step 3 retains
+complete seed/demo lifecycle, changed-password/MFA login, four-persona token and
+manifest/nonmanifest self-service POST proof, request/phase cost and hosted
+qualification. A passing Step 2 subset does not complete those obligations.
+
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

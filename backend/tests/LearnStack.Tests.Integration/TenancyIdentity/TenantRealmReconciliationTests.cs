@@ -11,7 +11,7 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 /// <summary>Actual shared tooling against owned HTTPS Keycloak, including a controlled pre-mapper import.</summary>
 [Collection(SharedKeycloakRealm.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
+public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh)
 {
     private const string ChangedPassword = "preserved-fixture-password";
     private const string ExtraUsername = "unmanaged-account@fixture.test";
@@ -446,7 +446,7 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
     [Theory]
     [InlineData("unmanaged_disabled")]
     [InlineData("managed_admin_hidden")]
-    public Task Hidden_stored_identity_refuses_before_writes_and_preserves_the_conflicting_actor(string visibility) =>
+    public Task Hidden_stored_identity_refuses_before_ordinary_writes_and_preserves_the_conflicting_actor(string visibility) =>
         AssertUnsafeIdentityProfileRefusesAsync(visibility, hiddenConflict: true);
 
     [Theory]
@@ -507,11 +507,20 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
             actorVisible.Should().BeTrue("a correct visible actor isolates the unsupported identity profile configuration");
             (hiddenAttributes.GetProperty("user_id")[0].GetString() == storedActor).Should().BeTrue();
         }
+        var preparationExpected = visibility == "unmanaged_disabled";
+        var profileBefore = await admin.GetAsync("users/profile");
+        var ordinaryBefore = preparationExpected ? await PreparationOrdinaryStateAsync(admin) : null;
         var before = await StateAsync(admin);
         var outcome = await KeycloakReconciliationDriver.RunAsync(fixture);
         var after = await StateAsync(admin);
+        if (preparationExpected)
+        {
+            AssertPreparationProfile(await AppendedPreparationProfileAsync(profileBefore), await admin.GetAsync("users/profile"));
+            (await PreparationOrdinaryStateAsync(admin) == ordinaryBefore).Should().BeTrue(
+                "the fresh-plan actor conflict allows only the exceptional metadata preparation");
+        }
 
-        // Test-owned inspection starts only after the reconciler outcome and its unchanged-state snapshot.
+        // Test-owned inspection starts only after the reconciler outcome and its state snapshot.
         var visibleProfile = Object(await admin.GetAsync("users/profile"));
         var visibleDefinitions = visibleProfile["attributes"]!.AsArray();
         foreach (var definition in identityDefinitions)
@@ -525,11 +534,13 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
         var storedActorPreserved = revealed.GetProperty("attributes").GetProperty("user_id")[0].GetString() == storedActor;
         outcome.Success.Should().BeFalse("closed outcome: {0}/{1} after {2} mutating calls; stored actor preserved: {3}",
             outcome.Stage ?? "success", outcome.Reason ?? "none", outcome.Mutations, storedActorPreserved);
-        outcome.Mutations.Should().Be(0, "closed outcome: {0}/{1}; stored actor preserved: {2}",
+        outcome.Mutations.Should().Be(preparationExpected ? 1 : 0, "closed outcome: {0}/{1}; stored actor preserved: {2}",
             outcome.Stage ?? "success", outcome.Reason ?? "none", storedActorPreserved);
+        outcome.PreparationDispatched.Should().Be(preparationExpected);
         outcome.Stage.Should().Be("plan");
         outcome.Reason.Should().Be("identity_conflict");
-        (after == before).Should().BeTrue("the independent snapshot precedes the test-owned visibility change");
+        if (!preparationExpected)
+            (after == before).Should().BeTrue("the independent snapshot precedes the test-owned visibility change");
         storedActorPreserved.Should().BeTrue("the stored actor is never overwritten");
         (Id(revealed) == stableId).Should().BeTrue();
     }

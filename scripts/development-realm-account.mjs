@@ -158,7 +158,7 @@ function canonicalMappings(mappings) {
 }
 
 /** Qualifies three stock assignment removals, one mapper and four missing grants. */
-export async function planAccountSelfService({ admin, desired, manifest, ownedUsers, add, preflightResponse, changedScopeIds }) {
+export async function planAccountSelfService({ admin, desired, manifest, candidateUsers, add, preflightResponse, changedScopeIds }) {
   const declaredConsole = desired.clients.find(value => value.clientId === 'account-console');
   const canonical = declaredConsole?.protocolMappers?.find(mapper => mapper.name === mapperName);
   if (!canonical || canonical.protocolMapper !== 'oidc-usermodel-client-role-mapper') refuse('plan', 'unsupported');
@@ -200,7 +200,7 @@ export async function planAccountSelfService({ admin, desired, manifest, ownedUs
   }, canonical);
   const expected = new Map();
   for (const declaration of manifest.users) {
-    const original = ownedUsers.get(declaration.username);
+    const original = candidateUsers.get(declaration.username);
     if (!original) continue;
     const access = await userAccess(admin, original.user.id, before.account.id, 'plan');
     const mapped = original.roles.clientMappings?.account;

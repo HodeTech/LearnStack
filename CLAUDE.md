@@ -309,7 +309,9 @@ owns the current verified findings.
 is Accepted — 2026-10-22 under the maintainer's conditional approval after verified
 review corrections. Its first correction step is complete locally after both
 review rounds; the [stock qualification record](docs/roadmap/phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
-owns evidence. Preparation and complete automatic-path qualification remain pending.
+owns evidence. Its [second correction step](docs/roadmap/phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
+implements owned preparation and fresh complete planning; independent reviews and
+complete lifecycle/credential/token qualification remain pending.
 P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full

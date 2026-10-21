@@ -137,6 +137,10 @@ import { refuse } from './development-realm-errors.mjs';
 export { realmJson } from './development-realm-http-real.mjs';
 const fixture = provider();
 if (${JSON.stringify(scenario)} === 'failure') fixture.state.realm.accessTokenLifespan = 1800;
+if (${JSON.stringify(scenario)}.startsWith('prepare-')) {
+  fixture.state.profile.attributes = fixture.state.profile.attributes.filter(attribute => !['user_id', 'tenant_id', 'organization_id'].includes(attribute.name));
+  delete fixture.state.profile.unmanagedAttributePolicy;
+}
 export async function realmRequest(url, options) {
   if (!existsSync(${JSON.stringify(lock)})) throw new Error('No lock before provider use');
   appendFileSync(${JSON.stringify(events)}, JSON.stringify({ provider: true, method: options.method ?? 'GET', stage: options.stage }) + '\\n');
@@ -145,14 +149,26 @@ export async function realmRequest(url, options) {
     if (!options.signal.aborted) await new Promise(resolve => options.signal.addEventListener('abort', resolve, { once: true }));
     refuse(options.stage, 'cancelled');
   }
-  if (${JSON.stringify(scenario)} === 'failure' && options.method === 'PUT') refuse('apply', 'transport');
+  if (${JSON.stringify(scenario)} === 'failure' && options.method === 'PUT') refuse(options.stage, 'transport');
   let body;
   if (url.pathname.includes('/.well-known/')) body = { issuer: 'http://localhost:8080/realms/learnstack' };
   else if (url.pathname.endsWith('/token')) body = { access_token: 'synthetic-admin-token', expires_in: 300, refresh_token: 'synthetic-refresh' };
   else if (url.pathname === '/admin/serverinfo') body = { systemInfo: { version: '26.6.2' } };
   else {
     const path = url.pathname.slice('/admin/realms/learnstack/'.length) + url.search;
-    if (options.method === 'PUT') { await fixture.admin.put(path, options.json); return { status: 204, bytes: Buffer.alloc(0) }; }
+    if (options.method === 'PUT') {
+      const status = await fixture.admin.put(path, options.json);
+      if (options.stage === 'prepare') {
+        if (${JSON.stringify(scenario)}.endsWith('-release')) writeFileSync(${JSON.stringify(lock)}, 'changed owned fixture lock nonce');
+        if (${JSON.stringify(scenario)}.includes('-failure')) refuse(options.stage, 'transport');
+        if (${JSON.stringify(scenario)} === 'prepare-cancel') {
+          writeFileSync(${JSON.stringify(ready)}, 'ready');
+          if (!options.signal.aborted) await new Promise(resolve => options.signal.addEventListener('abort', resolve, { once: true }));
+          refuse(options.stage, 'cancelled');
+        }
+      }
+      return { status, bytes: path === 'users/profile' ? Buffer.from(JSON.stringify(fixture.state.profile)) : Buffer.alloc(0) };
+    }
     if (options.method === 'POST') { const result = await fixture.admin.post(path, options.json); return { status: result.status, bytes: Buffer.from(JSON.stringify(result.body ?? {})) }; }
     body = await fixture.admin.get(path);
   }
@@ -253,3 +269,61 @@ test('pre-aborted setup does not start target inspection or expose cancellation 
     return true;
   });
 });
+
+const preparationNotice = 'realm: profile metadata may already be durable; inspect current realm state before an explicit rerun; see infra/keycloak/README.md';
+
+for (const scenario of ['prepare-failure', 'prepare-cancel',
+  'prepare-success-dispose', 'prepare-failure-dispose', 'prepare-success-release', 'prepare-failure-release']) {
+  test(`the outer owner preserves dispatched preparation through ${scenario} and its cleanup`, async t => {
+    const f = await ownedEntryFixture(t, scenario);
+    let script = join(f.root, 'scripts/reconcile-development-realm.mjs');
+    if (scenario.endsWith('-dispose')) {
+      script = join(f.root, 'probe.mjs');
+      await writeFile(script, `
+import { composeSelection } from './scripts/compose.mjs';
+import { DemoProcesses } from './scripts/demo-process.mjs';
+import { reconcileDevelopmentRealm } from './scripts/reconcile-development-realm.mjs';
+import { realmFailureNotice } from './scripts/development-realm-errors.mjs';
+const dispose = DemoProcesses.prototype.dispose;
+DemoProcesses.prototype.dispose = async function () { await dispose.call(this); throw new Error(${JSON.stringify(canary)}); };
+try { await reconcileDevelopmentRealm({ selected: composeSelection('dev') }); process.exitCode = 19; }
+catch (error) { console.error(realmFailureNotice(error)); process.exitCode = 1; }
+`);
+    }
+    const child = spawn(process.execPath, [script], { cwd: f.root,
+      env: { PATH: join(f.root, 'bin'), HOME: f.root, TMPDIR: join(f.root, 'tmp') },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '', stderr = '';
+    child.stdout.on('data', value => { stdout += value; });
+    child.stderr.on('data', value => { stderr += value; });
+    const status = new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('close', (code, signal) => resolve({ code, signal }));
+    });
+    const timer = setTimeout(() => child.kill('SIGKILL'), 10000);
+    try {
+      if (scenario === 'prepare-cancel') {
+        const deadline = Date.now() + 5000;
+        while (!await access(f.ready).then(() => true, () => false)) {
+          if (Date.now() >= deadline) throw new Error('Owned preparation did not start');
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        child.kill('SIGTERM');
+      }
+      assert.deepEqual(await status, { code: 1, signal: null }, stderr);
+    } finally {
+      clearTimeout(timer);
+      if (child.exitCode === null && child.signalCode === null) { child.kill('SIGKILL'); await status; }
+    }
+    const cleanupFailure = scenario.endsWith('-dispose') || scenario.endsWith('-release');
+    assert.equal(stdout, '');
+    assert.equal(stderr, `realm: ${cleanupFailure ? 'cleanup/cleanup' : scenario === 'prepare-cancel' ? 'prepare/cancelled' : 'prepare/transport'}\n${preparationNotice}\n`);
+    assert.equal(stderr.includes(canary), false);
+    assert.equal(await access(f.lock).then(() => true, () => false), cleanupFailure,
+      'unestablished process cleanup or changed lock ownership keeps the exclusive lock');
+    const events = (await readFile(f.events, 'utf8')).trim().split('\n').map(value => JSON.parse(value));
+    assert.deepEqual(events.filter(event => event.provider && event.method !== 'GET'
+      && event.stage !== 'authentication').map(event => [event.stage, event.method]), [['prepare', 'PUT']]);
+  });
+}

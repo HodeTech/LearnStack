@@ -413,7 +413,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
     private static string[] Names(JsonElement values) => values.EnumerateArray().Select(value => Text(value, "name"))
         .Order(StringComparer.Ordinal).ToArray();
 
-    private static async Task<string> HistoricalImportAsync(string root)
+    internal static async Task<string> HistoricalImportAsync(string root)
     {
         var path = Path.Combine(root, "backend", "tests", "LearnStack.Tests.Integration", "TenancyIdentity",
             "Fixtures", "learnstack-24705a7a.json");

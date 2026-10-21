@@ -48,12 +48,14 @@ internal static class KeycloakReconciliationDriver
             if (child.ExitCode != (success ? 0 : 1)) throw new InvalidOperationException();
             var mutations = result.GetProperty("mutations").GetInt32();
             if (mutations < 0 || mutations > 256) throw new InvalidOperationException();
+            var preparationDispatched = result.TryGetProperty("preparationDispatched", out var preparation);
+            if (preparationDispatched && preparation.ValueKind != JsonValueKind.True) throw new InvalidOperationException();
             var stage = success ? null : result.GetProperty("stage").GetString();
             var reason = success ? null : result.GetProperty("reason").GetString();
             // Only the driver's closed vocabulary can leave this process owner.
             if (!success && (!Stages.Contains(stage, StringComparer.Ordinal) || !Reasons.Contains(reason, StringComparer.Ordinal)))
                 throw new InvalidOperationException();
-            outcome = new ReconciliationOutcome(success, mutations, stage, reason);
+            outcome = new ReconciliationOutcome(success, mutations, stage, reason, preparationDispatched);
         }
         catch (Exception)
         {
@@ -88,7 +90,7 @@ internal static class KeycloakReconciliationDriver
     }
 
     private static readonly string[] Stages =
-        ["preflight", "discovery", "authentication", "version", "manifest", "lock", "plan", "apply", "readback", "cleanup"];
+        ["preflight", "discovery", "authentication", "version", "manifest", "lock", "plan", "prepare", "apply", "readback", "cleanup"];
     private static readonly string[] Reasons =
         ["configuration", "identity_conflict", "mapper_conflict", "secret_conflict", "unsupported", "response", "status",
             "redirect", "deadline", "cancelled", "transport", "lock_busy", "body_limit", "readback_conflict", "cleanup", "missing_web_secret"];
@@ -107,4 +109,4 @@ internal static class KeycloakReconciliationDriver
     }
 }
 
-internal sealed record ReconciliationOutcome(bool Success, int Mutations, string? Stage, string? Reason);
+internal sealed record ReconciliationOutcome(bool Success, int Mutations, string? Stage, string? Reason, bool PreparationDispatched = false);
