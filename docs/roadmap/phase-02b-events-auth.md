@@ -15285,6 +15285,17 @@ fixture containers, its network and the isolated runner absent. The successful
 isolated startup validates the milestone subscriptions; it neither exercises
 the failure classifier nor reproduces hosted load or HTTP 500.
 
+Two fresh second-round reviewers (`gpt-6.1-sol` privacy and `gpt-6-astra`
+lifecycle, both xhigh) approve `fddfc266..fb4ab5eb` without an actionable
+finding. They independently pass all seven offline C# cases with warnings as
+errors and all 43 launcher controls respectively. The lifecycle review also
+checks pinned event ordering, the seven-case Architecture receipt, actual
+third-A source/job counts and all 37 retained closed failures, plus isolated
+startup source hashes. Both preserve the distinction between a finite
+diagnostic, actual resource absence and complete hosted qualification. These
+two rounds complete the diagnostic correction review gate; a new frozen-source
+full A remains necessary before B.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
