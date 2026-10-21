@@ -16214,6 +16214,34 @@ POST proof, full 120-second automatic-path claim, hosted qualification or comple
 ADR extension implementation claim. Those remaining proofs retain the following
 steps' owners.
 
+#### First independent Step 1 review and interruption correction
+
+Two fresh reviewers inspect `db3778c8..57497f01`: `gpt-6-astra` at `xhigh`
+for security/runtime/proof behavior and `gpt-6.1-sol` at `high` for provenance,
+corpus and test meaning. Both find one persisted proof gap: the original
+non-204/lost-acknowledgement loop interrupts only the first DELETE. The successful
+subset controls do not establish uncertain failure after the final edge followed
+by compatible-mode resumption. Both independently reproduce the later positions
+successfully; no runtime defect or new decision is claimed.
+
+The corrected existing control now covers all three deletion ordinals for each
+non-204 response, lost acknowledgement and cancellation. It checks the exact
+stopped durable prefix, no repeated DELETE, remaining write counts of three/two/
+one, five default/three optional retained edges, last-edge compatible handoff and
+subsequent zero-write convergence. The six-file guarded Node census again passes
+287 exact cases, with zero cancellations/skips/todos. Runtime behavior, deadlines,
+mutation authority and provider expectation remain unchanged.
+
+The first reviewer independently passes 67 guarded focused Node cases, 43 native
+controls and six supplemental lost-acknowledgement/cancellation scenarios. The
+second independently passes the full 287-case Node census, 43 native controls and
+supplemental resumption probes. Both independently verify historical/redacted
+fixture transformations and hashes, capture/extraction provenance and the bounded
+pending-proof claims. Both approve the separate acceptance carriers and provide
+the second review of the finite NativeSettlement diagnostic correction. Neither
+reruns a provider or build; all review subprocesses finish. A different fresh
+second review pair follows this committed test correction before Step 1 closes.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

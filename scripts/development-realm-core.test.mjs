@@ -473,26 +473,43 @@ test('the actual core removes only three qualified console assignments and conve
 });
 
 test('partial assignment deletion commits are never replayed and explicit reruns requalify the remaining edges', async () => {
-  for (const outcome of [200, 201, 202, 409, 500, 'lost_ack']) {
-    const fixture = await stockProvider();
-    const recording = providerTransport(fixture);
-    let failedPath;
-    const transport = async (url, options) => {
-      const response = await recording.transport(url, options);
-      if (options.method === 'DELETE' && failedPath === undefined) {
-        failedPath = url.pathname;
-        if (outcome === 'lost_ack') throw new Error(privateCanary);
-        return { status: outcome, bytes: Buffer.alloc(0) };
-      }
-      return response;
-    };
-    await assert.rejects(reconcileRealm(memoryInput(transport)), refusal('apply', outcome === 'lost_ack' ? 'response' : 'status'));
-    assert.equal(fixture.writes.length, 1);
-    assert.equal(recording.requests.some(request => request.stage === 'readback'), false);
-    assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 3 });
-    assert.equal(recording.requests.filter(request => request.method === 'DELETE'
-      && request.path === failedPath).length, 1, 'the durable first deletion is not automatically or explicitly repeated');
-    assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+  for (const outcome of [200, 201, 202, 409, 500, 'lost_ack', 'cancelled']) {
+    for (const ordinal of [1, 2, 3]) {
+      const fixture = await stockProvider();
+      const recording = providerTransport(fixture);
+      const stop = new AbortController();
+      let seen = 0;
+      let failedPath;
+      const transport = async (url, options) => {
+        const response = await recording.transport(url, options);
+        if (options.method === 'DELETE' && ++seen === ordinal) {
+          failedPath = url.pathname;
+          if (outcome === 'lost_ack') throw new Error(privateCanary);
+          if (outcome === 'cancelled') { stop.abort(); return response; }
+          return { status: outcome, bytes: Buffer.alloc(0) };
+        }
+        return response;
+      };
+      const input = { ...memoryInput(transport), signal: stop.signal };
+      const reason = outcome === 'lost_ack' ? 'response' : outcome === 'cancelled' ? 'cancelled' : 'status';
+      await assert.rejects(reconcileRealm(input), refusal('apply', reason));
+      assert.equal(fixture.writes.length, ordinal, 'the owner stops at the exact uncertain durable prefix');
+      assert.equal(recording.requests.some(request => request.stage === 'readback'), false);
+      const firstFreshRead = fixture.reads.length;
+      assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 4 - ordinal });
+      assert.equal(recording.requests.filter(request => request.method === 'DELETE'
+        && request.path === failedPath).length, 1, 'the durable deletion is never replayed');
+      assert.equal(recording.requests.filter(request => request.method === 'DELETE').length, 3);
+      assert.equal(new Set(recording.requests.filter(request => request.method === 'DELETE').map(request => request.path)).size, 3);
+      assert.equal(fixture.reads.slice(firstFreshRead).some(path => path.startsWith('roles-by-id/')
+        && !path.endsWith('/composites')), ordinal < 3,
+      'only a remaining incompatible edge enters stock qualification; the final edge hands off to compatible mode');
+      const console = fixture.state.clients.find(client => client.clientId === 'account-console');
+      assert.equal(console.defaultClientScopes.length, 5);
+      assert.equal(console.optionalClientScopes.length, 3);
+      assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+      assert.equal(fixture.writes.length, 4);
+    }
   }
 });
 
