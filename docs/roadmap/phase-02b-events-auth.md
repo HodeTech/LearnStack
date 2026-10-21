@@ -15384,6 +15384,19 @@ Both inspect the full correction and preserve the limits on live author proofs,
 constructed readiness evidence and unknown hosted daemon/browser causes. A
 fresh second review round follows before the next frozen-source full execution.
 
+Two fresh second-round reviewers approve `4467492b..faa8c2b8` without an
+actionable finding: security/publication (`gpt-6.1-sol`, xhigh) and browser/CI
+proof lifecycle (`gpt-6-astra`, xhigh). The first independently builds Release
+with warnings as errors, passes the offline publication case, both Docker-trait
+guards and six real PostgreSQL cases covering publication, four role postures
+and application-login privilege denial; exact PostgreSQL and Ryuk containers
+are confirmed absent. The second independently passes all 44 browser cases
+with validated JSON and checks the full correction's source/ownership boundary.
+Neither promotes constructed examples to an observed hosted cause. Both review
+rounds are complete; the PR's current-head checks and complete same-source A/B
+receipts own hosted qualification. Seven required contexts, strict protection,
+the existing shard plan and execution ceilings are unchanged.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
