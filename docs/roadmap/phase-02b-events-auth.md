@@ -15943,6 +15943,33 @@ without inheriting credentials or changing production filtering. Complete fronte
 typecheck and lint pass; the four affected suites pass all 197 cases. Fresh
 independent checks of this small correction follow before publication.
 
+#### Final proposal and fixture correction reviews
+
+Two first-round reviewers inspect the three isolated `NODE_ENV` additions and
+proposed plan at `55ff0fe5`: `gpt-6-astra` at `xhigh` and `gpt-6.1-sol` at
+`high`. Both approve the fixture correction and approve the plan as Proposed,
+without an actionable finding. The latter independently passes seven parser
+controls, 306 relative links/fragments and whitespace, and confirms all three
+prior wrapping corrections. No frontend execution is repeated by these reviewers.
+
+Two different fresh second-round reviewers inspect the complete final ADR-0068,
+carriers, plan and fixture correction at that same source: `gpt-6-astra` at
+`xhigh` and `gpt-6.1-sol` at `high`. Both approve as Proposed, and separately
+approve the fixture fix, without an actionable finding. They verify the exact
+phase replacements, stock-ID qualification, compatible-mode priority, partial
+last-edge recovery, preserved budgets and pending automatic proof. The governance
+review independently passes 729 links/fragments and whitespace; both verify the
+historical export hash and pinned provider premises. All review subprocesses
+join. No build, provider or full frontend execution is repeated.
+
+Both fresh independent rounds for the small fixture correction and final proposal
+are complete. Author verification passes seven parser controls and all 1,065
+scoped relative links/fragments; ADR-0068 still parses as Proposed. Its decision
+and three-step implementation plan require separate maintainer approval. The
+existing guards remain active; these reviews do not grant runtime authority or
+qualify the final source on hosted CI. Publication and its complete current-attempt
+assignment follow independently; historical green receipts remain source-bound.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
