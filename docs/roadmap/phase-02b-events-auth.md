@@ -15650,6 +15650,25 @@ an identity regression is established. The integration aggregate correctly
 refuses with `producer_not_successful`; the missing aggregate upload is
 consequential. The failed receipt is preserved, without a guessed runtime fix.
 
+#### Closed lifecycle failure-location follow-up
+
+Inspection confirms that `BackgroundJobPositiveSdkTests.CausalRestart.cs` is
+absent from the launcher's finite source-code projection. The correction adds
+only that literal filename as `positive_sdk_causal_restart`. When VSTest supplies
+that stack location, existing parsing retains its closed code and bounded line
+number; it still emits no raw stack, path, exception or provider message.
+This enables future diagnostics without claiming to reconstruct the lost
+assertion or fix the observed lifecycle failure. Execution, success witnesses,
+aggregate refusal and all time/selection budgets are unchanged.
+
+The existing projection control plants that filename beside allowed/unknown
+sources, duplicates, private canaries and an out-of-range line. It first fails
+because the causal-restart location is missing, then all 43 offline launcher
+controls pass after the exact mapping is added. Source-inventory and per-entry
+projection controls cover the same new literal. No new test case, host mutation,
+provider run or hosted qualification is claimed. Two fresh independent reviews
+of this diagnostic correction follow before publication.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

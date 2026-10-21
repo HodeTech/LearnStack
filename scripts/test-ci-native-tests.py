@@ -399,13 +399,15 @@ except launcher.Refusal as failure:
             '/private/path/BackgroundJobRuntimeFacadeTests.ControlFailures.cs:line 74\n'
             '/private/path/BackgroundJobRuntimeFacadeTests.ControlFailures.cs:line 74\n'
             r'C:\private\BackgroundJobRuntimeFacadeTests.CapacityNoStart.cs:line 109' + '\n'
+            '/private/path/BackgroundJobPositiveSdkTests.CausalRestart.cs:line 123\n'
             '/private/path/BackgroundJobRuntimeFacadeTests.ControlFailures.cs:line 10001\n')
         second = self.execution_result(cases[1]); second['Outcome'] = 2
         second['ErrorStackTrace'] = {'unexpected': 'PRIVATE-CANARY'}
         with contextlib.redirect_stdout(io.StringIO()):
             progress.results({'NewTestResults': [first, second]})
         self.assertEqual([{'assembly': cases[0]['assembly'], 'id': cases[0]['id'], 'locations': [
-            {'source': 'facade_capacity_no_start', 'line': 109}, {'source': 'facade_control_failure', 'line': 74}]},
+            {'source': 'facade_capacity_no_start', 'line': 109}, {'source': 'facade_control_failure', 'line': 74},
+            {'source': 'positive_sdk_causal_restart', 'line': 123}]},
             {'assembly': cases[1]['assembly'], 'id': cases[1]['id'], 'locations': []}], progress.failure_locations)
         self.assertNotIn('PRIVATE-CANARY', json.dumps(progress.failure_locations))
         self.assertNotIn('private', json.dumps(progress.failure_locations))
@@ -413,7 +415,8 @@ except launcher.Refusal as failure:
         self.assertTrue(all(set(row) == {'assembly', 'id', 'name', 'outcome', 'duration'}
                             and row['outcome'] == 'Failed' for row in rows))
         expected = {path.name for path in (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database').glob(
-            'BackgroundJobRuntimeFacadeTests*.cs')} | {'PublicAdmissionRenderingTests.cs'}
+            'BackgroundJobRuntimeFacadeTests*.cs')} | {
+                'BackgroundJobPositiveSdkTests.CausalRestart.cs', 'PublicAdmissionRenderingTests.cs'}
         self.assertEqual(expected, set(self.owner.FAILURE_SOURCES))
         self.assertEqual(len(expected), len(set(self.owner.FAILURE_SOURCES.values())))
         for filename, code in self.owner.FAILURE_SOURCES.items():

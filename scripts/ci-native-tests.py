@@ -81,6 +81,7 @@ SHARDS = None
 STARTUP_FAILURES = {'resource_controllers_unavailable', 'work_cgroup_not_empty',
                     'cgroup_kill_unavailable', 'startup_io_refused', 'startup_internal_refusal'}
 FAILURE_SOURCES = {
+    'BackgroundJobPositiveSdkTests.CausalRestart.cs': 'positive_sdk_causal_restart',
     'BackgroundJobRuntimeFacadeTests.AuxiliaryCleanup.cs': 'facade_auxiliary_cleanup',
     'BackgroundJobRuntimeFacadeTests.Business.cs': 'facade_business',
     'BackgroundJobRuntimeFacadeTests.CapacityAdmission.cs': 'facade_capacity_admission',
