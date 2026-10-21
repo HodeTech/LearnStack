@@ -303,6 +303,10 @@ locally. The subsequent systematic correction pass retains its own review and
 current-head hosted qualification gates in the
 [correction record](docs/roadmap/phase-02b-events-auth.md#p02b-6-systematic-corrections-and-hosted-qualification-2026-10-21).
 PR review and merge remain separate.
+The [additional correction record](docs/roadmap/phase-02b-events-auth.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
+owns the current verified findings.
+[ADR-0068](docs/decisions/0068-development-identity-visibility-preparation.md)
+remains Proposed; dependent visibility-preparation changes need separate approval.
 P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full
