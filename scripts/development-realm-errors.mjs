@@ -6,7 +6,7 @@ const reasons = new Set([
   'configuration', 'identity_conflict', 'mapper_conflict', 'secret_conflict',
   'unsupported', 'response', 'status', 'redirect', 'deadline', 'cancelled',
   'transport', 'lock_busy', 'body_limit', 'readback_conflict', 'cleanup',
-  'missing_web_secret',
+  'missing_web_secret', 'private_file',
 ]);
 
 /** Neither upstream objects nor arbitrary caller text can become a diagnostic. */
@@ -32,6 +32,8 @@ export function realmFailure(error) {
 export function realmFailureNotice(error) {
   const message = realmFailure(error);
   if (!(error instanceof RealmError)) return message;
+  if (error.reason === 'private_file')
+    return message + '\nrealm: selected private environment must be a regular, single-link file owned by the current user with owner-only permissions; use chmod 600 on that file; see infra/keycloak/README.md';
   if (error.reason === 'missing_web_secret')
     return message + '\nrealm: add KEYCLOAK_WEB_CLIENT_SECRET explicitly to the selected private file; see infra/keycloak/README.md';
   if (error.reason === 'secret_conflict')

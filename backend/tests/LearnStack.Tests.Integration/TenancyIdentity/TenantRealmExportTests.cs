@@ -21,8 +21,8 @@ public sealed partial class TenantRealmExportTests
             users.SetItem(2, users[2] with { LegacyTenantAttribute = "tenant-a" }),
             users.SetItem(0, users[0] with { LegacyTenantAttribute = "another-legacy-tenant" }),
             users.SetItem(0, users[0] with { Username = "unowned@tenant-a.test" }),
-            users.SetItem(0, users[0] with { Username = users[1].Username })
-                .SetItem(1, users[1] with { Username = users[0].Username }),
+            // Preserve both legacy identities so only username uniqueness rejects this variant.
+            users.SetItem(3, users[3] with { Username = users[2].Username }),
             users.SetItem(0, users[0] with { Tenant = SeedData.Yoga }),
             users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(Guid.CreateVersion7()) }),
             users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(Guid.NewGuid()) }),
@@ -80,6 +80,7 @@ public sealed partial class TenantRealmExportTests
         {
             ("wrong realm TTL", realm => realm["accessTokenLifespan"] = 1800),
             ("unmanaged profile enabled", realm => SetProfilePolicy(realm, "ENABLED")),
+            ("malformed profile configuration", realm => ProfileValue(realm)[0] = "{"),
             ("default application role composite", realm => realm["roles"]!["realm"]!.AsArray()
                 .Single(role => Text(role?["name"]) == "default-roles-learnstack")!["composites"]!["realm"] = new JsonArray("tenant-admin")),
             ("missing account client", realm => realm["clients"]!.AsArray().Remove(Client(realm, "account"))),
@@ -293,7 +294,7 @@ public sealed partial class TenantRealmExportTests
             }
         }
         catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException
-            or FormatException or ArgumentException or NullReferenceException)
+            or FormatException or ArgumentException or NullReferenceException or System.Text.Json.JsonException)
         {
             failures.Add("invalid or ambiguous export shape");
         }

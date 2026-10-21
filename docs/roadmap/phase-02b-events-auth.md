@@ -15397,6 +15397,51 @@ rounds are complete; the PR's current-head checks and complete same-source A/B
 receipts own hosted qualification. Seven required contexts, strict protection,
 the existing shard plan and execution ceilings are unchanged.
 
+### Further setup and proof corrections — 2026-10-21
+
+The complete A/B qualification at `abd45611` belongs to
+[run `39647583156`](https://github.com/HodeTech/LearnStack/actions/runs/39647583156):
+both full attempts pass all 27 jobs and all 5,910 .NET cases, with zero skips.
+Independent verification checks 25 API-hash-bound archives per attempt, both
+aggregate recomputations, identical source/toolchain/population/plan and changed
+actual co-membership for Architecture, ordinary and shared-fixture methods.
+Those receipts precede the following corrections and do not qualify a later head.
+
+- Compose, seed and reconciliation distinguish unsafe file properties with the
+  closed `preflight/private_file` reason and fixed owner/type/link/permission
+  guidance, including explicit `chmod 600` remediation. Files are not repaired;
+  paths and contents are not emitted. Oversized or malformed configuration
+  retains its existing configuration refusal. Existing real-CLI controls cover
+  the notice before commands, including FIFO/symlink refusal.
+- The export drift predicate records malformed profile JSON as a violation.
+  Its added malformed-profile mutation first throws `JsonReaderException`, then
+  passes after extending the existing exception filter with `JsonException`.
+- The old username swap does not create a duplicate. Duplicating legacy user 0
+  onto legacy user 1 would still be masked by the legacy-identity guard. The
+  corrected control changes only nonlegacy user 3 to user 2's username; an
+  isolated exact-source mutant removing only username uniqueness admits it,
+  while the original predicate refuses it.
+- The owned fixture CA/leaf expire after 25/24 hours, preserving both five-minute
+  backdated starts and all other certificate parameters. Isolated certificate
+  controls prove a trusted chain at +23 hours and leaf rejection after expiry;
+  the actual provider custom-CA/wrong-CA test also passes and its two owned
+  containers are independently confirmed absent.
+- Testing Standards now states each integration population's actual dependency
+  requirement while retaining no mocked repositories and happy/edge coverage.
+
+Local validation passes all 240 source-censused Node cases, 1,756 guarded frontend
+cases, three offline export cases and one real provider TLS case, with zero
+skips/todos. Seven corpus/Docker-trait controls also pass. The isolated duplicate
+and certificate harnesses each pass six
+controls. Scoped formatting, lint and typecheck pass. Both fresh independent
+correction review rounds remain pending at this implementation receipt.
+
+[ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) is a
+Proposed dedicated carrier for the already approved 900-second development
+issuance choice. The original phase approval remains valid; this new ADR needs
+separate maintainer acceptance before its authority/cross-link changes. It does
+not change issuance, API acceptance or the Open G13 session portion.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

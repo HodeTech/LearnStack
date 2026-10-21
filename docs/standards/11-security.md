@@ -171,6 +171,11 @@ API acceptance ceiling and 30-second skew remain separate from issuance.
 P02b-7 owns BFF idle/absolute lifetimes and refresh custody; that part of G13
 remains Open.
 
+The dedicated [ADR-0067 draft](../decisions/0067-development-tenant-access-token-issuance.md)
+formalizes this previously approved issuance choice. It remains Proposed until
+separate maintainer acceptance; the existing phase approval and runtime behavior
+remain unchanged.
+
 Keycloak 26.6.2 reads issuance and expiration clocks separately. The configured
 lifespan is not an exact `exp - iat` guarantee or a fixed 901-second ceiling.
 Qualify exact realm configuration and absence of client overrides independently;

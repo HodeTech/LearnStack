@@ -1027,7 +1027,7 @@ describe('private configuration refuses launch before commands', () => {
       writePrivateFileSync(file, f.source);
       chmodSync(file, 0o644);
       const result = execute(f, subject, 'preflight');
-      expect(result.failure).toBe('realm: preflight/configuration');
+      expect(result.failure).toBe('realm: preflight/private_file');
       expect(result.commands).toEqual([]);
       expect(readFileSync(file, 'utf8')).toBe(f.source);
     },

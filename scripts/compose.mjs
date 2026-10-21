@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { closeSync, constants, existsSync, fstatSync, openSync, readSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { refuse } from './development-realm-errors.mjs';
+import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
 
 export const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 
@@ -14,8 +14,9 @@ export function readComposeEnvironmentFile(path) {
     descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     const state = fstatSync(descriptor);
     if (!state.isFile() || state.uid !== process.getuid() || state.nlink !== 1
-      || (state.mode & 0o077) !== 0 || state.size > maximumBytes)
-      refuse('preflight', 'configuration');
+      || (state.mode & 0o077) !== 0)
+      refuse('preflight', 'private_file');
+    if (state.size > maximumBytes) refuse('preflight', 'configuration');
     // Read at most one byte beyond the cap, even if an owned file grows after
     // fstat. O_NONBLOCK and the type check prevent a FIFO from stalling selection.
     const bytes = Buffer.alloc(maximumBytes + 1);
@@ -29,7 +30,10 @@ export function readComposeEnvironmentFile(path) {
     const source = bytes.subarray(0, size).toString('utf8');
     if (Buffer.byteLength(source) > maximumBytes) refuse('preflight', 'configuration');
     return source;
-  } catch { refuse('preflight', 'configuration'); }
+  } catch (error) {
+    if (error instanceof RealmError) throw error;
+    refuse('preflight', error?.code === 'ELOOP' ? 'private_file' : 'configuration');
+  }
   finally {
     if (descriptor !== undefined) {
       try { closeSync(descriptor); }
@@ -105,8 +109,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       process.exitCode = code ?? 1;
     });
     for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child.kill(signal));
-  } catch {
-    console.error('Invalid Compose selection or missing private environment');
+  } catch (error) {
+    console.error(error instanceof RealmError ? realmFailureNotice(error)
+      : 'Invalid Compose selection or missing private environment');
     process.exitCode = 1;
   }
 }

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   chmod, link, lstat, mkdir, mkdtemp, open, readFile, readdir, rm, symlink, unlink, utimes, writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { RealmError, realmFailure } from './development-realm-errors.mjs';
 import {
@@ -82,9 +84,20 @@ for (const mode of [0o644, 0o620, 0o604]) {
     const file = join(root, 'private.env');
     await writeFile(file, source, { mode });
     await chmod(file, mode);
-    await assert.rejects(readRealmEnvironmentFile(file), refusal());
+    await assert.rejects(readRealmEnvironmentFile(file), refusal('preflight', 'private_file'));
     assert.equal((await lstat(file)).mode & 0o777, mode);
     assert.equal(await readFile(file, 'utf8'), source);
+    const result = spawnSync(process.execPath,
+      [fileURLToPath(new URL('./compose.mjs', import.meta.url)), 'dev', 'config'], {
+        env: { PATH: root, LEARNSTACK_COMPOSE_ENV_FILE: file },
+        encoding: 'utf8', timeout: 5000,
+      });
+    assert.equal(result.error, undefined);
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, '');
+    for (const text of ['realm: preflight/private_file', 'regular', 'single-link',
+      'current user', 'owner-only', 'chmod 600']) assert.ok(result.stderr.includes(text));
+    for (const value of [file, ...Object.values(values)]) assert.ok(!result.stderr.includes(value));
   });
 }
 
@@ -94,12 +107,12 @@ test('private environment refuses symlinks, multiple links, directories and over
   await writeFile(file, source, { mode: 0o600 });
   const alias = join(root, 'alias');
   await symlink(file, alias);
-  await assert.rejects(readRealmEnvironmentFile(alias), refusal());
+  await assert.rejects(readRealmEnvironmentFile(alias), refusal('preflight', 'private_file'));
   await unlink(alias);
   await link(file, alias);
-  await assert.rejects(readRealmEnvironmentFile(file), refusal());
+  await assert.rejects(readRealmEnvironmentFile(file), refusal('preflight', 'private_file'));
   await unlink(alias);
-  await assert.rejects(readRealmEnvironmentFile(root), refusal());
+  await assert.rejects(readRealmEnvironmentFile(root), refusal('preflight', 'private_file'));
   await writeFile(file, 'x'.repeat(256 * 1024 + 1));
   await assert.rejects(readRealmEnvironmentFile(file), refusal());
 });
@@ -110,7 +123,7 @@ test('private environment refuses a different owner before using its content', a
   await writeFile(file, source, { mode: 0o600 });
   const uid = process.getuid();
   t.mock.method(process, 'getuid', () => uid + 1);
-  await assert.rejects(readRealmEnvironmentFile(file), refusal());
+  await assert.rejects(readRealmEnvironmentFile(file), refusal('preflight', 'private_file'));
 });
 
 test('effective Docker host must agree with the inspected local context before stack work', () => {

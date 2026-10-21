@@ -114,6 +114,7 @@ owns outstanding hosted CI/PR qualification. Phase 11 owns production qualificat
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0067 | [Development Tenant Access-Token Issuance](0067-development-tenant-access-token-issuance.md) | Proposed 2026-10-21: dedicated carrier for P02b-6's already approved 900s development configuration; provider timestamp/session semantics and ADR-0064 API acceptance stay separate | P02b-6 documentation follow-up; explicit maintainer acceptance of this new ADR remains pending |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

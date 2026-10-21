@@ -91,8 +91,14 @@ for (const [name, script, args] of [
       assert.equal(result.signal, null);
       assert.equal(result.code, 1);
       assert.equal(result.stdout, '');
-      assert.equal(result.stderr, 'realm: preflight/configuration\n');
+      if (kind === 'oversized file') assert.equal(result.stderr, 'realm: preflight/configuration\n');
+      else {
+        assert.ok(result.stderr.startsWith('realm: preflight/private_file\n'));
+        for (const text of ['regular', 'single-link', 'current user', 'owner-only', 'chmod 600'])
+          assert.ok(result.stderr.includes(text));
+      }
       assert.ok(!result.stderr.includes(canary));
+      assert.ok(!result.stderr.includes(file));
     });
   }
 }

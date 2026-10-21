@@ -61,6 +61,8 @@ no group/other permission bits. A new Makefile-created `.env` is private;
 existing files are never repaired silently. After verifying an older path is
 your own regular, nonsymlink, single-link file, explicitly run `chmod 600 .env`
 (or the selected private path). Do not print its contents or copy it to a report.
+Compose, seed and reconciliation report these file-property refusals as
+`preflight/private_file`, with the same fixed ownership/permission instruction.
 
 These credentials are development-only. Production provisioning and rotation
 belong to Phase 11 and [Infrastructure Standards](../../docs/standards/12-infrastructure.md#secrets-management).

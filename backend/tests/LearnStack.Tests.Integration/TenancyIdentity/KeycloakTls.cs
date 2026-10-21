@@ -25,7 +25,7 @@ internal sealed class KeycloakTls : IDisposable
         authorityRequest.CertificateExtensions.Add(new X509KeyUsageExtension(
             X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign, true));
         authorityRequest.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(authorityRequest.PublicKey, false));
-        using var authority = authorityRequest.CreateSelfSigned(now.AddMinutes(-5), now.AddHours(2));
+        using var authority = authorityRequest.CreateSelfSigned(now.AddMinutes(-5), now.AddHours(25));
 
         using var serverKey = RSA.Create(2048);
         var serverRequest = new CertificateRequest("CN=localhost", serverKey,
@@ -43,7 +43,7 @@ internal sealed class KeycloakTls : IDisposable
         var serial = RandomNumberGenerator.GetBytes(16);
         serial[0] &= 0x7f;
         serial[^1] |= 1;
-        using var server = serverRequest.Create(authority, now.AddMinutes(-5), now.AddHours(1), serial);
+        using var server = serverRequest.Create(authority, now.AddMinutes(-5), now.AddHours(24), serial);
 
         ServerCertificatePem = Encoding.ASCII.GetBytes(server.ExportCertificatePem());
         ServerPrivateKeyPem = Encoding.ASCII.GetBytes(serverKey.ExportPkcs8PrivateKeyPem());
