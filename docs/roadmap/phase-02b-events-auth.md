@@ -15135,7 +15135,8 @@ or failed-only retry follows this failed A.
 - Base discovery contains 5,907 cases: 2,915 base, 433 Architecture, 2,528
   ordinary and 31 native. The manifest digest is
   `187da443e8fc5e3b179714fe7bf8f718ae4a246a7d1ad7ea9d13d8cce5073d34`;
-  the plan digest remains `cbe9f7086f0304aa1d8483aba04ba8feb9b462c9468b085f2fec1fcadaa978f5`.
+  the plan digest remains
+  `cbe9f7086f0304aa1d8483aba04ba8feb9b462c9468b085f2fec1fcadaa978f5`.
   These discovery counts are not passing execution counts.
 - The actual genericity assertion rejects a demo username in the manifest
   projection. A local run reproduces it. The projection now binds a legacy
@@ -15167,6 +15168,17 @@ outcomes, complete case/result guards and failure status remain unchanged.
 This uses ADR-0063's existing sanitized finite-fault seam, with no new authority,
 timeout, selection or admission policy. Current-head full A/B qualification
 remains open until actual complete executions pass.
+
+**Diagnosis follow-up reviews.** Two independent reviewers complete each of two
+rounds on `5fbbf093`: first genericity (`gpt-6.1-sol`, xhigh) and diagnostics
+(`gpt-6-astra`, xhigh), then fresh genericity (`gpt-6-astra`, xhigh) and diagnostics
+(`gpt-6.1-sol`, xhigh). All approve their scoped changes without an actionable
+finding. The final diagnostics reviewer independently executes all three new
+offline controls. Root verification passes all 43 launcher controls, sixty
+combined shard/aggregate controls, the eight affected Architecture cases, three
+offline export cases and five corpus cases, with zero skips. No local check or
+review establishes the hosted startup cause; a new complete frozen-source run
+remains necessary.
 
 ## Completion Criteria
 
