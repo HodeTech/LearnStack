@@ -16,7 +16,7 @@ using Xunit;
 namespace LearnStack.Tests.Integration.TenancyIdentity;
 
 /// <summary>A separate provider database; never a substitute for application-role isolation tests.</summary>
-public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
+public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
 {
     internal const string Image = "quay.io/keycloak/keycloak:26.6.2";
     internal const string WebClientSecret = "keycloak-fixture-web-secret";

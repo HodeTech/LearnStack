@@ -43,7 +43,7 @@ export function provider() {
   state.roleChildren = Object.fromEntries(state.accountRoles.map(role => [role.id,
     (desired.roles.client.account.find(value => value.name === role.name).composites?.client.account ?? [])
       .map(name => state.accountRoles.find(value => value.name === name))]));
-  const clientMapping = names => ({ id: account.id, client: 'account',
+  const clientMapping = names => ({ id: state.clients.find(client => client.clientId === 'account').id, client: 'account',
     mappings: names.map(name => clone(state.accountRoles.find(role => role.name === name))) });
   for (const [index, user] of state.users.entries()) user.roles.clientMappings = {
     account: clientMapping(desired.users[index].clientRoles.account),
@@ -66,7 +66,7 @@ export function provider() {
         group = state.groups.find(value => value.id === group.parentId);
       }
     }
-    return [...values.values()].filter(role => role.containerId === account.id);
+    return [...values.values()].filter(role => role.containerId === state.clients.find(client => client.clientId === 'account').id);
   };
 
   const writes = [];
@@ -150,7 +150,7 @@ export function provider() {
     else if (path === 'client-scopes') value = state.scopes;
     else if (parts[0] === 'client-scopes') {
       const scope = state.scopes.find(scope => scope.id === parts[1]);
-      value = parts[2] ? scope.protocolMappers : scope;
+      value = parts[2] ? scope.protocolMappers ?? [] : scope;
     }
     else if (parts[0] === 'clients' && parts.length === 1)
       value = state.clients.filter(client => client.clientId === url.searchParams.get('clientId')).map(client => ({ id: client.id, clientId: client.clientId }));
@@ -261,6 +261,68 @@ export function provider() {
 }
 
 /** Exercise the real core and planner against the same independent test state. */
+// Compose the complete planner model with independently captured stock DTOs.
+// This synthetic provider exercises dispatch/readback; the real-provider proof
+// independently checks the committed historical source and expectation.
+export async function stockProvider() {
+  const { stockConsoleProvider } = await import('./development-realm-stock-console-test-fixture.mjs');
+  const stock = stockConsoleProvider('stock');
+  const fixture = provider();
+  const { state, reads, writes } = fixture;
+  const originalGet = fixture.admin.get;
+  state.realm.id = stock.capture[''].id;
+  const stockNames = new Set(stock.capture['client-scopes'].map(scope => scope.name));
+  state.scopes = [...state.scopes.filter(scope => !stockNames.has(scope.name)), ...clone(stock.capture['client-scopes'])];
+  for (const name of ['account', 'account-console']) {
+    const index = state.clients.findIndex(client => client.clientId === name);
+    state.clients[index] = clone(stock.capture[`clients/${stock[name === 'account' ? 'account' : 'console'].id}`]);
+  }
+  state.accountRoles = ['manage-account', 'manage-account-links', 'view-groups']
+    .map(name => clone(stock.capture[`clients/${stock.account.id}/roles/${name}`]));
+  state.roleChildren = Object.fromEntries(state.accountRoles.map(role => [role.id,
+    clone(stock.capture[`roles-by-id/${role.id}/composites`])]));
+  state.roles.push(clone(stock.capture['roles/offline_access']));
+  state.scopeMappings = Object.fromEntries(Object.entries(stock.capture)
+    .filter(([path]) => path.endsWith('/scope-mappings')).map(([path, value]) => [path.slice(0, -'/scope-mappings'.length), clone(value)]));
+  for (const user of state.users) {
+    const mapping = user.roles.clientMappings.account;
+    mapping.id = stock.account.id;
+    mapping.mappings = mapping.mappings.map(role => omit(clone(state.accountRoles.find(value => value.name === role.name)), ['attributes']));
+  }
+  fixture.admin.get = async path => {
+    const parts = path.split('/');
+    if (parts[0] === 'clients' && parts.length === 2 && [stock.account.id, stock.console.id].includes(parts[1])) {
+      reads.push(path);
+      return clone(state.clients.find(client => client.id === parts[1]));
+    }
+    if (path.endsWith('/protocol-mappers/models')) {
+      const values = await originalGet(path);
+      const captured = stock.capture[path] ?? [];
+      return values.map(value => clone(captured.find(mapper => mapper.id === value.id) ?? value));
+    }
+    if (parts[0] === 'roles-by-id' && parts.length === 2) {
+      reads.push(path);
+      const role = [...state.roles, ...state.accountRoles].find(role => role.id === parts[1]);
+      if (!role) throw new Error('unknown stock fixture role');
+      return clone(role);
+    }
+    return originalGet(path);
+  };
+  fixture.admin.delete = async path => {
+    const match = /^clients\/([^/]+)\/(default|optional)-client-scopes\/([^/]+)$/.exec(path);
+    assert.ok(match && match[1] === stock.console.id);
+    const scope = state.scopes.find(scope => scope.id === match[3]);
+    assert.ok(scope);
+    const client = state.clients.find(client => client.id === stock.console.id);
+    const key = `${match[2]}ClientScopes`;
+    assert.ok(client[key].includes(scope.name));
+    client[key] = client[key].filter(name => name !== scope.name);
+    writes.push({ method: 'DELETE', path });
+    return 204;
+  };
+  return { ...fixture, stock };
+}
+
 export function providerTransport(fixture) {
   const requests = [];
   let serial = 0;
@@ -284,6 +346,7 @@ export function providerTransport(fixture) {
     if (url.pathname === '/admin/serverinfo') return response(200, { systemInfo: { version: '26.6.2' } });
     assert.ok(url.pathname.startsWith('/admin/realms/learnstack/'));
     const path = url.pathname.slice('/admin/realms/learnstack/'.length) + url.search;
+    if (options.method === 'DELETE') return response(await fixture.admin.delete(path));
     if (options.method === 'PUT') return response(await fixture.admin.put(path, options.json));
     if (options.method === 'POST') {
       const value = await fixture.admin.post(path, options.json);

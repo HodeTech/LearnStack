@@ -4588,7 +4588,10 @@ structural test proves — and what it does not.
   qualification, all identity-independent refusals before preparation, exact
   metadata-only progress, separately counted ordinary writes, three qualified
   DELETEs and explicit partial-progress reruns. `TenantRealmReconciliationTests`,
-  `TenantRealmSelfServiceTests` and the shared Node controls own this extension.
+  `TenantRealmSelfServiceTests`, `TenantRealmStockBaselineTests` and the shared
+  Node controls own this extension. The stock-baseline owner reproduces the
+  immutable historical expectation and the ordinary assignment path after explicit
+  test-owned metadata setup; it does not prove automatic preparation.
   A hidden fresh-plan conflict may leave preparation metadata, but no ordinary
   mutation; the earlier zero-write scope remains historical implemented coverage.
   [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its

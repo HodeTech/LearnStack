@@ -89,7 +89,7 @@ export function accountMapperRepresentation(mapper) {
 
 // The shared console may emit account roles, but no realm/all-client role
 // carrier or implicit role/audience transformer is qualified by a claim name.
-export function validateAccountMappers(mappers, canonical, stage = 'plan') {
+export function accountMapperCompatibility(mappers, canonical, stage = 'plan') {
   const fail = () => refuse(stage, 'mapper_conflict');
   const configBoundary = {
     'usermodel.clientRoleMapping.clientId': 'account', 'usermodel.clientRoleMapping.rolePrefix': '',
@@ -102,23 +102,31 @@ export function validateAccountMappers(mappers, canonical, stage = 'plan') {
   let carriers = 0;
   let resolvers = 0;
   for (const mapper of mappers) {
-    if (!mapper || mapper.protocol !== 'openid-connect' || !knownTypes.has(mapper.protocolMapper)) fail();
+    if (!mapper || mapper.protocol !== 'openid-connect' || !knownTypes.has(mapper.protocolMapper)) return undefined;
     const config = accountMapperRepresentation(mapper).config ?? {};
     if (mapper.protocolMapper === 'oidc-usermodel-client-role-mapper') {
       if (Object.keys(config).some(key => !Object.hasOwn(canonical.config, key))
         || Object.entries(canonical.config).some(([key, value]) =>
-          key === 'usermodel.clientRoleMapping.rolePrefix' ? config[key] !== undefined : config[key] !== value)) fail();
+          key === 'usermodel.clientRoleMapping.rolePrefix' ? config[key] !== undefined : config[key] !== value)) return undefined;
       carriers++;
     } else if (mapper.protocolMapper === 'oidc-audience-resolve-mapper') {
       if (Object.keys(config).some(key => !['access.token.claim', 'introspection.token.claim', 'id.token.claim', 'lightweight.claim'].includes(key))
         || ['access.token.claim', 'introspection.token.claim'].some(key => config[key] !== undefined && config[key] !== 'true')
-        || ['id.token.claim', 'lightweight.claim'].some(key => config[key] !== undefined && config[key] !== 'false')) fail();
+        || ['id.token.claim', 'lightweight.claim'].some(key => config[key] !== undefined && config[key] !== 'false')) return undefined;
       resolvers++;
     } else {
       if (['oidc-audience-mapper', 'oidc-usermodel-realm-role-mapper'].includes(mapper.protocolMapper)
-        || ['resource_access', 'realm_access', ...reservedClaims].includes(claimRoot(config['claim.name']))) fail();
+        || ['resource_access', 'realm_access', ...reservedClaims].includes(claimRoot(config['claim.name']))) return undefined;
     }
   }
-  if (resolvers !== 1 || carriers > 1) fail();
+  if (resolvers !== 1 || carriers > 1) return undefined;
   return carriers === 1;
+}
+
+// A malformed declaration always refuses; only a well-read incompatible graph
+// can select the independently qualified stock-normalization path.
+export function validateAccountMappers(mappers, canonical, stage = 'plan') {
+  const compatible = accountMapperCompatibility(mappers, canonical, stage);
+  if (compatible === undefined) refuse(stage, 'mapper_conflict');
+  return compatible;
 }

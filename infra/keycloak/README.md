@@ -204,13 +204,17 @@ application seed convergence. Its actual lifecycle qualification and reviews
 are recorded in the [Step 3 delivery record](../../docs/roadmap/phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21).
 The exact pre-P02b-6 export still has unsupported warm prerequisites: its stock
 profile hides identity values and its account-console bootstrap carries broader
-scope assignments. Current tooling refuses these states before writes.
+scope assignments. Identity-visibility guards still refuse the unprepared
+historical state before writes; complete automatic upgrade remains pending.
 [ADR-0068](../../docs/decisions/0068-development-warm-realm-qualification.md)
 is Accepted — 2026-10-22 after verified review corrections under conditional
 maintainer authority. Its three-step implementation and automatic-path proof
-remain pending in the [acceptance record](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22).
-Current guards remain active. Do not remove them, wipe the database or silently
-normalize customized scopes by name.
+are tracked in the [acceptance record](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22).
+The [first correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
+adds fixed historical graph qualification and assignment-only normalization;
+its reviews and complete automatic-path qualification remain separate gates.
+Current identity-visibility guards remain active. Do not remove them, wipe the
+database or silently normalize customized scopes by name.
 
 Direct .NET Seeder remains an application-data tool; its identity manifest is a
 read-only declaration. Both combined entries build its fresh Release DLL and

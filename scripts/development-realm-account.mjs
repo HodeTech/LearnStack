@@ -1,6 +1,7 @@
 import { isDeepStrictEqual as equal } from 'node:util';
 import { refuse } from './development-realm-errors.mjs';
-import { accountMapperRepresentation, validateAccountMappers } from './development-realm-mappers.mjs';
+import { accountMapperRepresentation, accountMapperCompatibility, validateAccountMappers } from './development-realm-mappers.mjs';
+import { readStockConsoleGraph, qualifyStockConsoleGraph } from './development-realm-stock-console.mjs';
 
 const encode = encodeURIComponent;
 const copy = value => structuredClone(value);
@@ -63,11 +64,13 @@ async function snapshot(admin, stage) {
   if (new Set(scopes.map(scope => scope.id)).size !== scopes.length) refuse(stage, 'unsupported');
   // Assignment reads contain only id/name summaries. Qualify the independently
   // fetched representation before trusting its protocol or following its graph.
+  const scopeDefinitions = new Map();
   for (const summary of scopes) {
     if (typeof summary.name !== 'string' || !summary.name) refuse(stage, 'unsupported');
     const scope = await admin.get(`client-scopes/${encode(summary.id)}`);
     if (!scope || scope.id !== summary.id || scope.name !== summary.name
       || scope.protocol !== 'openid-connect') refuse(stage, 'unsupported');
+    scopeDefinitions.set(scope.id, scope);
   }
   const directMappers = list(await admin.get(`${base}/protocol-mappers/models`), stage);
   const scopeMappers = new Map();
@@ -75,21 +78,55 @@ async function snapshot(admin, stage) {
   for (const path of [base, ...scopes.map(scope => `client-scopes/${encode(scope.id)}`)]) {
     const mappings = await admin.get(`${path}/scope-mappings`);
     if (!mappings || typeof mappings !== 'object' || Array.isArray(mappings)
-      || (mappings.realmMappings ?? []).length) refuse(stage, 'unsupported');
-    for (const [name, mapping] of Object.entries(mappings.clientMappings ?? {})) {
-      if (name !== 'account' || mapping.id !== account.id || mapping.client !== 'account') refuse(stage, 'unsupported');
-      for (const role of list(mapping.mappings, stage))
-        if (!allowedNames.some(name => sameRole(role, roles.get(name)))) refuse(stage, 'unsupported');
+      || (mappings.clientMappings !== undefined && (!mappings.clientMappings
+        || typeof mappings.clientMappings !== 'object' || Array.isArray(mappings.clientMappings)))
+      || Object.keys(mappings.clientMappings ?? {}).length > 200) refuse(stage, 'unsupported');
+    list(mappings.realmMappings ?? [], stage);
+    for (const mapping of Object.values(mappings.clientMappings ?? {})) {
+      if (!mapping || typeof mapping !== 'object' || Array.isArray(mapping)
+        || typeof mapping.id !== 'string' || !mapping.id || typeof mapping.client !== 'string'
+        || !mapping.client) refuse(stage, 'unsupported');
+      list(mapping.mappings, stage);
     }
     allowances.set(path, mappings);
     if (path !== base) scopeMappers.set(path, list(await admin.get(`${path}/protocol-mappers/models`), stage));
   }
-  // A missing allowance is not repaired here. The supported baseline must
-  // actually carry the approved capability to the fixed-account emitter.
-  const permitted = [base, ...defaults.map(scope => `client-scopes/${encode(scope.id)}`)]
-    .flatMap(path => allowances.get(path).clientMappings?.account?.mappings ?? []);
-  if (!permitted.some(role => sameRole(role, roles.get('manage-account')))) refuse(stage, 'unsupported');
-  return { account, console, roles, children, defaults, optional, directMappers, scopeMappers, allowances };
+  return { account, console, roles, children, defaults, optional, directMappers, scopeDefinitions, scopeMappers, allowances };
+}
+
+function compatibleAllowances(graph) {
+  for (const mappings of graph.allowances.values()) {
+    if ((mappings.realmMappings ?? []).length) return false;
+    for (const [name, mapping] of Object.entries(mappings.clientMappings ?? {})) {
+      if (name !== 'account' || mapping.id !== graph.account.id || mapping.client !== 'account'
+        || mapping.mappings.some(role => !allowedNames.some(name => sameRole(role, graph.roles.get(name))))) return false;
+    }
+  }
+  // The fixed emitter needs the approved capability in the default flow.
+  return [`clients/${encode(graph.console.id)}`, ...graph.defaults.map(scope => `client-scopes/${encode(scope.id)}`)]
+    .flatMap(path => graph.allowances.get(path).clientMappings?.account?.mappings ?? [])
+    .some(role => sameRole(role, graph.roles.get('manage-account')));
+}
+
+function mapperState(graph, canonical, stage) {
+  const inherited = [...graph.scopeMappers.values()].flat();
+  const all = accountMapperCompatibility([...graph.directMappers, ...inherited], canonical, stage);
+  const defaults = graph.defaults.flatMap(scope => graph.scopeMappers.get(`client-scopes/${encode(scope.id)}`));
+  const defaultCarrier = accountMapperCompatibility([...graph.directMappers, ...defaults], canonical, stage);
+  return { all, defaultCarrier };
+}
+
+function remainingGraph(before, assignments) {
+  const scopes = [...assignments.defaults, ...assignments.optional];
+  const paths = new Set(scopes.map(scope => `client-scopes/${encode(scope.id)}`));
+  paths.add(`clients/${encode(before.console.id)}`);
+  return { ...before, defaults: assignments.defaults, optional: assignments.optional,
+    console: { ...before.console,
+      ...(Object.hasOwn(before.console, 'defaultClientScopes') ? { defaultClientScopes: assignments.defaults.map(scope => scope.name) } : {}),
+      ...(Object.hasOwn(before.console, 'optionalClientScopes') ? { optionalClientScopes: assignments.optional.map(scope => scope.name) } : {}) },
+    scopeDefinitions: new Map([...before.scopeDefinitions].filter(([id]) => scopes.some(scope => scope.id === id))),
+    scopeMappers: new Map([...before.scopeMappers].filter(([path]) => paths.has(path))),
+    allowances: new Map([...before.allowances].filter(([path]) => paths.has(path))) };
 }
 
 async function userAccess(admin, userId, accountId, stage) {
@@ -120,12 +157,24 @@ function canonicalMappings(mappings) {
       .map(([name, mapping]) => [name, { ...mapping, mappings: ordered(mapping.mappings) }])) } : {}) };
 }
 
-/** Owns only one missing mapper and four explicitly declared missing grants. */
-export async function planAccountSelfService({ admin, desired, manifest, ownedUsers, add, preflightResponse }) {
+/** Qualifies three stock assignment removals, one mapper and four missing grants. */
+export async function planAccountSelfService({ admin, desired, manifest, ownedUsers, add, preflightResponse, changedScopeIds }) {
   const declaredConsole = desired.clients.find(value => value.clientId === 'account-console');
   const canonical = declaredConsole?.protocolMappers?.find(mapper => mapper.name === mapperName);
   if (!canonical || canonical.protocolMapper !== 'oidc-usermodel-client-role-mapper') refuse('plan', 'unsupported');
-  const before = await snapshot(admin, 'plan');
+  let before = await snapshot(admin, 'plan');
+  let stock;
+  const compatible = mapperState(before, canonical, 'plan');
+  if (!compatibleAllowances(before) || compatible.all === undefined || compatible.defaultCarrier === undefined) {
+    const graph = await readStockConsoleGraph({ admin, existingAccountGraph: before });
+    stock = qualifyStockConsoleGraph({ graph, canonicalAccountMapper: canonical });
+    // Normalization owns assignments only: an ordinary repair must not change
+    // a definition used to establish this fixed stock baseline.
+    if ([...graph.scopes.values()].some(scope => changedScopeIds.has(scope.definition.id))) refuse('plan', 'unsupported');
+    before = remainingGraph(before, stock.remainingAssignments);
+    for (const binding of stock.detachments) add('detach_stock_console_scope', () => admin.detachStockConsoleAssignment(binding));
+  }
+  if (!compatibleAllowances(before)) refuse('plan', 'unsupported');
   const role = omit(before.roles.get('manage-account'), ['attributes']);
   const inheritedRoles = before.children.get('manage-account').map(value => omit(value, ['attributes']));
   const inheritedMappers = [...before.scopeMappers.values()].flat();
@@ -179,6 +228,8 @@ export async function planAccountSelfService({ admin, desired, manifest, ownedUs
   return { account: before.account, role, verify: async afterUsers => {
     const check = condition => { if (!condition) refuse('readback', 'readback_conflict'); };
     const after = await snapshot(admin, 'readback');
+    if (stock) await stock.verify({ admin, existingAccountGraph: after });
+    check(compatibleAllowances(after));
     check(equal(omit(after.console, ['protocolMappers']), omit(before.console, ['protocolMappers'])));
     for (const key of ['account', 'roles', 'children', 'defaults', 'optional', 'scopeMappers', 'allowances']) check(equal(after[key], before[key]));
     check(equal(ordered(after.directMappers).map(mapper => accountMapperRepresentation(omit(mapper, ['id']))).sort(byName),

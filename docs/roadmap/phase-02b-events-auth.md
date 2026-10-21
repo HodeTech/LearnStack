@@ -16143,6 +16143,76 @@ Linux/10.0.402. This is targeted evidence, not the lost assertion's root cause o
 a waiver of the failed hosted assignment. No runtime, deadline or ownership
 witness is changed; final source still requires complete qualification.
 
+### ADR-0068 Step 1 — qualified stock assignment implementation (2026-10-22)
+
+The first correction step adds full stock-graph qualification and the closed
+assignment-only DELETE owner. Compatible existing graphs retain priority,
+including compatible custom definitions with historical scope names. Only a
+successfully read, definitively incompatible graph can reach the fixed historical
+qualifier. Unknown fields, wrong IDs/categories, extra edges, mapper/configuration
+changes and unqualified role/composite/container bindings refuse before apply.
+
+The committed stock expectation preserves stored and effective mapper DTOs
+separately; generated IDs are normalized only after independent current reads.
+The [extractor](../../scripts/extract-development-realm-stock-console.mjs) checks
+an observation against that fixed expectation and cannot overwrite it. Its
+[provenance](../../scripts/development-realm-stock-console-baseline.json) records
+the original historical source, credential-only fixture transformation, provider
+image observation and independent capture/extraction hashes. The committed
+historical fixture replaces exactly three published example credential values
+with placeholders; the provider test injects test-only values in memory. No other
+historical configuration is changed.
+
+Only opaque qualified bindings can invoke the Admin owner's three assignment
+paths, each requiring HTTP 204. Their projected remaining graph must pass the
+normal compatible policy. A concurrent or uncertain response ends the pass;
+explicit reruns qualify the durable remaining subset, and the last incompatible
+edge hands later passes to compatible preservation without a marker. All eleven
+global stock definitions, account role closure and other clients' prior edges
+remain protected. An ordinary repair of a qualifying stock definition refuses
+before writes rather than invalidating its own preservation witness.
+
+Local offline validation passes 287 exact executed Node cases across six
+source-censused files, six census/workflow controls and 43 native-launcher/parser
+controls, with no cancellations, skips or todos. The actual-core controls cover
+exact DELETE paths, all seven incompatible subsets, compatible custom priority,
+non-204/lost acknowledgement, explicit resumption, transport/JSON refusal and
+conflicting projected global-definition changes. The NativeSettlement diagnostic
+correction remains separately source-bound; these results establish no cause for
+the failed hosted case and waive no required check.
+
+The new `TenantRealmStockBaselineTests` passes both real-provider Facts in
+47.1781s after a Release build with zero warnings/errors. The first imports the
+credential-redacted historical fixture into pinned 26.6.2 and independently
+captures 89 endpoint representations, including account assignment reads and the
+four referenced role-name/ID/composite bindings. It matches the fixed canonical
+hash recorded in the provenance; a second fresh bootstrap changes generated IDs
+while preserving that same canonical shape. Actual image identity is recorded
+for the observed Linux/arm64 fixture, not asserted as a universal platform ID.
+
+The second Fact explicitly appends the three definitions as test-owned setup,
+then invokes the production ordinary reconciler: sixteen mutations, followed by
+zero on an explicit rerun. It independently verifies the five default/three
+optional console edges, unchanged eleven stock definitions/roles, existing IDs,
+credential DTO hashes, private API secret and other retained state. The two named
+clients' separately approved managed-scope additions are explicitly projected;
+other clients' assignments remain exact. An earlier harness rejected those
+intended additions after successful sixteen-write convergence. The corrected
+preservation predicate and complete two-Fact rerun pass; that earlier run supplies
+no passing whole-ordinary-path receipt. All four final-run containers and both
+networks are independently absent after joined disposal.
+
+Seven corpus/Docker-trait cases, seven ADR parser controls, 864 scoped relative
+links/fragments, project-scoped C# whitespace verification and diff whitespace
+checks pass. The broader solution format invocation reports a local workspace
+loading warning and exits nonzero; the explicit integration-project verification
+covers the three changed C# files. Current-source hosted checks remain required.
+
+Committed-source review rounds follow before this step closes. This step supplies
+no production preparation implementation, password/MFA login or token/profile
+POST proof, full 120-second automatic-path claim, hosted qualification or complete
+ADR extension implementation claim. Those remaining proofs retain the following
+steps' owners.
 
 ## Completion Criteria
 

@@ -433,7 +433,7 @@ test('account prefix normalization never drops unknown configuration or supplies
       .find(mapper => mapper.protocolMapper === canonical.protocolMapper);
     mutate(mapper.config);
     const before = clone(fixture.state);
-    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'mapper_conflict');
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && ['mapper_conflict', 'unsupported'].includes(error.reason));
     assert.equal(fixture.writes.length, 0);
     assert.deepEqual(fixture.state, before);
   }

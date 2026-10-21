@@ -1,4 +1,5 @@
 import { buildRealmPlan } from './development-realm-plan.mjs';
+import { stockConsoleDetachmentPath } from './development-realm-stock-console.mjs';
 import { realmJson, realmRequest } from './development-realm-http.mjs';
 import { RealmError, refuse } from './development-realm-errors.mjs';
 
@@ -82,6 +83,14 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
         mutations++;
         if (result.status < 200 || result.status >= 300) refuse(stage, 'status');
         return result.status;
+      },
+      // This is deliberately not a generic DELETE API. Only an opaque binding
+      // minted by the complete stock-graph qualifier can name one assignment.
+      detachStockConsoleAssignment: async binding => {
+        const path = stockConsoleDetachmentPath(binding, stage);
+        mutations++;
+        const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', stage });
+        if (result.status !== 204) refuse(stage, 'status');
       },
       post: async (path, body) => {
         const result = await authenticatedRequest(adminPath(path), { method: 'POST', json: body, stage });

@@ -425,6 +425,7 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
   const desiredScopes = new Map(desired.clientScopes.map(scope => [scope.name, scope]));
   const expectedScopes = new Map(before.scopes.map(scope => [scope.name, copy(scope)]));
   const expectedMappers = new Map(before.scopeMappers);
+  const changedScopeIds = new Set();
   const requiredScopeNames = new Set();
   for (const name of namedClients) {
     const wanted = desired.clients.find(client => client.clientId === name);
@@ -458,6 +459,7 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
       for (const mapper of merged) {
         const previous = currentMappers.find(value => value.name === mapper.name);
         if (equal(previous, mapper)) continue;
+        changedScopeIds.add(current.id);
         if (previous) add('update_mapper', () => admin.put(`client-scopes/${encode(current.id)}/protocol-mappers/models/${encode(previous.id)}`, copy(mapper)), mapper);
         else add('create_mapper', async () => {
           const result = await admin.post(`client-scopes/${encode(current.id)}/protocol-mappers/models`, copy(mapper));
@@ -531,7 +533,7 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
   // aggregation customization always refuses without being silently repaired.
   const beforeGroups = await readRealmGroups(admin, before.users, 'plan');
   const account = await planAccountSelfService({ admin, desired, manifest, ownedUsers: before.ownedUsers,
-    add, preflightResponse });
+    add, preflightResponse, changedScopeIds });
   // A manifest actor may not already belong to a differently named account.
   for (const user of before.users) {
     const values = user.attributes?.user_id;
