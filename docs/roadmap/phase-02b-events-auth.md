@@ -15101,6 +15101,29 @@ architecture cases, without claiming live-provider execution. Independent
 focused verification of these final corrections and full frozen-source hosted
 A/B qualification remain pending. No historical failed layout is relabelled.
 
+**Final focused correction verification.** Two further fresh independent
+reviewers approve `f09b16d1`: CI/provenance (`gpt-6.1-sol`, xhigh) independently
+reproduces the alias bypass on the prior source and its current refusal, then
+passes 60 shard, nineteen aggregate and six Node-gate cases plus topology.
+Docker-environment/lifecycle (`gpt-6-astra`, xhigh) independently passes all 38
+lifecycle cases; the real frontend report validator accepts their exact file
+inventory with zero skips/todos. Both inspect the fixes without editing source.
+
+No measured failure justifies extending the operation, HTTP, fixture or CI
+deadlines. Proposed aggregate parallelization adds no demonstrated benefit to
+the retained 16/30s result; optional password/certificate policy expansion and
+a second seed-wide lock do not fix an established defect in this boundary.
+Already-rejected incompatible 409 readback remains rejected. Those suggestions
+do not replace the verified ownership, target and creation corrections above.
+
+Local implementation, both full correction review rounds and focused fix
+verification are complete before hosted qualification. Full current-source A/B
+execution remains the next gate; the
+[live PR checks](https://github.com/HodeTech/LearnStack/pull/34/checks) own its
+current status. This source checkpoint claims no merge readiness, passing retry
+or next-packet delivery. Source-bound hosted receipts are retained separately
+from this local checkpoint.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
