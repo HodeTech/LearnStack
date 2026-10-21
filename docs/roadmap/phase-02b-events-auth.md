@@ -15456,6 +15456,22 @@ configuration for provider tests and application module configuration for the
 combined provider/API cases. ADR-0067 remains Proposed with no verified finding.
 The second fresh review round remains pending at this correction receipt.
 
+#### Second independent correction review
+
+Two different reviewers inspect `abd45611..d2467543`: `gpt-6.1-sol` at `xhigh`
+for runtime/security/proof behavior and `gpt-6-astra` at `high` for ADR/corpus and
+decision provenance. Both approve without an actionable finding. The first
+independently passes 74 Node controls, three rebuilt export cases and 38 frontend
+lifecycle cases, with zero skips/todos. Its isolated exact-source checks pass
+four refusal/cleanup, six username-mutant and ten certificate controls, including
+late validity, expiry, wrong-root/hostname refusals, SANs and retained algorithms.
+The second passes all seven ADR parser controls, all 619 scoped relative
+links/fragments and whitespace checks, and verifies the original phase approval
+and pinned provider semantics. Both independent review rounds are complete.
+ADR-0067 remains Proposed pending its separate maintainer approval; the earlier
+hosted A/B receipts do not qualify this changed head. Current-head PR checks own
+new hosted qualification; review/merge remain separate.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
