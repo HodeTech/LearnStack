@@ -90,6 +90,7 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/apps/web/scripts/development-hmr.mjs',
       'frontend/apps/web/scripts/stop-test-child.mjs',
       'scripts/demo.mjs',
+      'scripts/require-node-test-cases.mjs',
     ])
       expect(files.has(path), `Production census includes ${path}`).toBe(true);
     expect(
@@ -337,6 +338,7 @@ describe('P02d-7 exact demo identity boundary', () => {
       'scripts/test-ci-test-shards.py',
       'scripts/test-ci-test-shard-results.py',
       'scripts/test-ci-supply-chain.py',
+      'scripts/test-realm-node-gate.py',
       'scripts/probe-hangfire-lifecycle.py',
       'scripts/probes/hangfire-lifecycle/Program.cs',
       'third-party/hangfire/verify-distribution.py',

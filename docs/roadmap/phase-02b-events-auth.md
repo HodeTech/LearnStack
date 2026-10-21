@@ -14783,6 +14783,54 @@ selector/filter bounds. Forty-two non-base methods retain the explicit unknown
 weight default. Estimated summed case durations are not wall-time guarantees;
 no hosted fit or execution success follows from this local discovery.
 
+### Step 4 review round two and production demo
+
+Two further fresh independent reviewers, `gpt-6-astra` and `gpt-6.1-sol` at
+`xhigh`, inspect the complete Step 4 source through `4a3173d8`. Both approve
+without an actionable finding. Each independently passes all 152 executed Node
+cases, the three actual-workflow gate controls and all 52 shard controls. The
+proof reviewer additionally rejects thirteen missing, duplicate, malformed or
+unsuccessful summary streams against the real reporter. The security reviewer
+independently verifies that only the 37 measured weights and three provenance
+records change the plan. Neither reviewer substitutes a local receipt for
+complete hosted qualification. Separately, five environment, eighteen
+provisioning and forty native-owner offline controls pass.
+
+An isolated clean `development` clone at runtime commit `ea0363e8` and tree
+`34f391c6d837762a94bf6b704cdc1c01f220d041` passes the actual production
+`make demo DEMO_MODE=ci` in 649.497 seconds. Contextual application seed and
+four-user realm reconciliation complete before Keycloak is stopped for the
+public proof. Nine product pages, 24 visibility controls and all 27 audits pass;
+all 27 JSON/HTML report pairs and nine visually inspected screenshots exist.
+Accessibility scores are 1.00 throughout, with zero warnings, runtime errors,
+failures or skips. Both HTTPS refusal controls and the actual timeout refusal
+pass; all 134 API completions are HTTP 200. Cleanup completes in 10.750 seconds:
+zero owned containers/networks/volumes, vacant owned ports and removed private
+files/environment/lock. The unrelated database identity/state/start time remain
+unchanged and tracked clone source stays clean. The receipt SHA-256 is
+`e4e823a088e90cbcee37988d239741d86bc300bb66dcd4db7e92a405b075d45b`.
+The subsequent commit changes CI controls, timing data and this record, not the
+demo runtime; final PR-head hosted qualification remains separately required.
+
+### Step 4 initial hosted qualification and source ownership correction
+
+Workflow-dispatch run `39587211807` checks candidate `4a3173d8` against main
+`24705a7a`; OpenAPI, meta and secret scanning pass. Frontend typecheck/lint/build
+pass, but its test gate refuses the newly added Python counterexample helper as
+unclassified repository source. The prior complete frontend receipt predates
+that helper; its runtime source census depends on this additional repository
+input. The hosted test result is therefore 1,657 passed and one failed, not a
+complete passing frontend run. Other execution jobs retain their independent
+results; no full-workflow success is claimed.
+
+The correction declares only `scripts/test-realm-node-gate.py` as non-runtime,
+beside the other exact offline CI control owners. The existing source-classifier
+test asserts that exact path; the live census also explicitly requires the new
+Node reporter among runtime sources. Unknown Python files and unmodeled runtime
+formats remain refused. The complete guarded frontend rerun passes **1,730 cases
+in two packages, zero skips/todos**. Fresh focused review verifies this correction
+before final-source qualification.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

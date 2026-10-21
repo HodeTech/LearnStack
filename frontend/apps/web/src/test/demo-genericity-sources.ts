@@ -79,6 +79,7 @@ const nonRuntimeFiles = new Set([
   'scripts/test-ci-test-shard-results.py',
   'scripts/test-ci-supply-chain.py',
   'scripts/test-openapi-ci.py',
+  'scripts/test-realm-node-gate.py',
   // Offline vendor distribution materials and isolated lifecycle experiments.
   'scripts/probe-hangfire-lifecycle.py',
   'scripts/probes/hangfire-lifecycle/BoundaryProbe.cs',
