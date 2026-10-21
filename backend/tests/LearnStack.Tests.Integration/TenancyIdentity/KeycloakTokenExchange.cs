@@ -16,12 +16,14 @@ internal sealed class KeycloakTokenExchange
     internal string RefreshToken { get; private init; } = "";
     internal KeycloakIssuanceWindow Window { get; private init; } = null!; // Every exchange records a window.
 
-    internal static async Task<KeycloakTokenExchange> RequestAsync(HttpClient client, IReadOnlyDictionary<string, string> form)
+    internal static async Task<KeycloakTokenExchange> RequestAsync(HttpClient client, IReadOnlyDictionary<string, string> form,
+        string realm = "learnstack")
     {
+        realm = KeycloakFixture.CheckedRealm(realm);
         var started = DateTimeOffset.UtcNow;
         var timestamp = Stopwatch.GetTimestamp();
         using var response = await KeycloakHttp.SendAsync(client, HttpMethod.Post,
-            "realms/learnstack/protocol/openid-connect/token", new FormUrlEncodedContent(form));
+            "realms/" + realm + "/protocol/openid-connect/token", new FormUrlEncodedContent(form));
         var completed = DateTimeOffset.UtcNow;
         var elapsed = Stopwatch.GetElapsedTime(timestamp);
         using var json = await KeycloakHttp.ReadJsonAsync(response);
@@ -69,17 +71,19 @@ internal sealed record KeycloakIssuanceWindow(DateTimeOffset StartedUtc, DateTim
 
 internal static class KeycloakTokenVerifier
 {
-    internal static async Task<JsonElement> ValidateAsync(KeycloakFixture fixture, string token, string audience)
+    internal static async Task<JsonElement> ValidateAsync(KeycloakFixture fixture, string token, string audience,
+        string realm = "learnstack")
     {
         try
         {
+            realm = KeycloakFixture.CheckedRealm(realm);
             using var client = KeycloakHttp.Create(fixture.BaseAddress, fixture.RootCertificate);
             using var keys = await KeycloakHttp.JsonAsync(client, HttpMethod.Get,
-                "realms/learnstack/protocol/openid-connect/certs");
+                "realms/" + realm + "/protocol/openid-connect/certs");
             var result = await new JsonWebTokenHandler { MapInboundClaims = false }.ValidateTokenAsync(token,
                 new TokenValidationParameters
                 {
-                    ValidIssuer = fixture.Issuer,
+                    ValidIssuer = fixture.IssuerFor(realm),
                     ValidAudience = audience,
                     IssuerSigningKeys = new JsonWebKeySet(keys.RootElement.GetRawText()).GetSigningKeys(),
                     RequireSignedTokens = true,

@@ -785,6 +785,42 @@ jobs:
           fetch-depth: 0   # link audit walks the full tree
           persist-credentials: false
 
+      - name: Set up pinned Node.js for offline realm controls
+        timeout-minutes: 1
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Development realm transport, ownership and convergence controls
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          index=0
+          for test_file in scripts/development-realm-core.test.mjs \
+                           scripts/development-realm-http.test.mjs \
+                           scripts/development-realm-owner.test.mjs \
+                           scripts/development-realm-plan.test.mjs \
+                           scripts/reconcile-development-realm.test.mjs; do
+            report="${RUNNER_TEMP}/development-realm-${index}.xml"
+            rm -f "$report"
+            node --test --test-reporter=junit --test-reporter-destination="$report" "$test_file"
+            REPORT_FILE="$report" TEST_FILE="$test_file" python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          root = ET.parse(os.environ['REPORT_FILE']).getroot()
+          cases = list(root.iter('testcase'))
+          filename = os.environ['TEST_FILE']
+          empty_file_names = {filename, str(Path(filename).resolve())}
+          if (root.tag != 'testsuites' or not cases
+                  or any(case.get('name') in empty_file_names for case in cases)
+                  or any(list(root.iter(tag)) for tag in ('failure', 'error', 'skipped'))):
+              raise SystemExit('Development realm controls require named passing cases and zero skips/todos.')
+          print(f'{filename}: {len(cases)} passed; zero skips/todos.')
+          PY
+            index=$(( index + 1 ))
+          done
+
       - name: Compose stack validates, with and without the gated profile
         run: |
           # Nothing validated these files before, and the profile they now carry

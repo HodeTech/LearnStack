@@ -290,7 +290,9 @@ owns the Accepted server-information response allowance and current proofs.
 Step 3 is complete locally after both review rounds and fresh correction
 verification; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21)
-owns actual seed/demo and cancellation evidence. Step 4 is in progress;
+owns actual seed/demo and cancellation evidence. Step 4's
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+owns current implementation and qualification; Step 4 remains in progress;
 P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full
@@ -512,7 +514,8 @@ Then read the phase that is live and the one it stands on:
   owns the executable fresh import and provider proofs. Step 2's record above
   owns the completed local reconciler and Accepted response-budget decision;
   Step 3 is complete locally after both review rounds and fresh corrections;
-  its record above owns actual lifecycle evidence. Step 4 is in progress.
+  its record above owns actual lifecycle evidence. Step 4's record above owns
+  current implementation and qualification.
   P02b-7–8 retain their
   own decision passes; G13's session part stays Open.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)

@@ -27,9 +27,11 @@ Realm reconciliation and BFF sessions remain P02b-6/P02b-7.
 [accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
 authorizes four implementation steps for real issuance, protected seed attributes,
 non-destructive development reconciliation, exact callbacks and issuance TTL.
-Step 1 supplies the committed fresh-import scopes/profile/client definition and
-typed identity manifest. Warm reconciliation, entry-point wiring and complete
-provider/API security qualification remain Steps 2–4. G13's BFF session part
+Steps 1–3 supply the committed fresh-import scopes/profile/client definition,
+typed identity manifest, bounded warm reconciliation and shared seed/demo entry.
+Their local reviews and actual lifecycle qualification are complete. Step 4
+qualifies the approved account capability and complete provider/API security
+proofs. G13's BFF session part
 stays Open for P02b-7. The
 [development realm guide](../../infra/keycloak/README.md) owns exact callbacks,
 private sources and current upgrade status.
@@ -261,25 +263,27 @@ Mirrored events (e.g. `user.created`) are propagated via Keycloak webhooks into 
 Local Keycloak runs in Docker Compose, in the default profile of
 [`infra/compose/dev.yml`](../../infra/compose/dev.yml), and imports the `learnstack` and
 `learnstack-hub` realms from `infra/keycloak/realms/` at first start. The imports carry
-the demo users [`infra/keycloak/README.md`](../../infra/keycloak/README.md) lists: a
-tenant admin and a tenant learner in `learnstack`, whose `tenant_id` attribute is the
-slug `tenant-a` and names neither seed tenant, and an operator in `learnstack-hub`. No
+the four tenant personas that the
+[realm guide](../../infra/keycloak/README.md) lists, with stable actor/tenant UUIDs
+and host-appropriate optional organization UUIDs, and the separate operator in
+`learnstack-hub`. No
 platform-admin user belongs in `learnstack`, because operators are the `learnstack-hub`
 population
 ([ADR-0004 Amendment 1](../decisions/0004-authentication-strategy.md#amendment-1--learnstack-hub-realm-for-operators-2026-05-18)).
 
-`make seed` checks that both realms answer and writes nothing to Keycloak.
-`LearnStack.Tools.Seeder` provisions the two seed tenants, `demo-english` and
-`demo-yoga`, through the request path
+`make seed` checks both realm readiness gates, converges application seed data,
+then awaits the same bounded tenant-realm reconciliation used by `make demo`.
+The direct `LearnStack.Tools.Seeder` entry remains application-data-only. It
+provisions `demo-english` and `demo-yoga` through the request path
 ([Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-7)),
 and a re-run is idempotent.
 
-> **Open in Phase 02b.** How seed users, mappers and the client scope reach a Keycloak
-> database that has already consumed the import is G12 in
-> [Phase 02b's decision register](../roadmap/phase-02b-events-auth.md#the-decision-register);
-> G10 is Accepted: one token carries at most one active tenant. A user in both tenants
-> also needs `Membership`, which [Phase 03](../roadmap/phase-03-identity-admin.md)
-> delivers. The pass that closes each gate edits this section with its answer.
+G12's [accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+owns the non-destructive warm upgrade and its named account-console adjustment.
+The realm guide owns the exact local procedure and refusal boundaries. G10 is
+Accepted: one token carries at most one active tenant. A user in both tenants
+also needs `Membership`, which [Phase 03](../roadmap/phase-03-identity-admin.md)
+delivers. BFF custody and sessions remain P02b-7.
 
 ## Risks
 

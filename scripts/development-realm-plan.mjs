@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { refuse } from './development-realm-errors.mjs';
 import { identityClaims, mergeOwnedMappers, validateEffectiveMappers } from './development-realm-mappers.mjs';
 import { readRealmGroups, readUserGroupIds } from './development-realm-groups.mjs';
+import { exactCreatedAccountAccess, planAccountSelfService } from './development-realm-account.mjs';
 
 const managedScope = 'learnstack-tenant-api';
 const namedClients = ['learnstack-web', 'learnstack-api'];
@@ -96,7 +97,7 @@ function validateProjectedResponses({ before, profile, scopes, mappers, clients,
     if (existing) preflightResponse(users.get(declaration.username));
     else {
       const wanted = desired.users.find(user => user.username === declaration.username);
-      const projected = { ...omit(wanted, ['credentials', 'realmRoles']), id: generatedIdBytes };
+      const projected = { ...omit(wanted, ['credentials', 'realmRoles', 'clientRoles']), id: generatedIdBytes };
       const reserve = newUserResponseReserve + metadataBytes;
       preflightResponse(projected, reserve);
       projectedUsers.push({ value: projected, reserve });
@@ -194,7 +195,9 @@ function validateInputs(desired, manifest, webSecret) {
       || actors.has(declaration.userId.toLowerCase())) refuse('plan', 'identity_conflict');
     actors.add(declaration.userId.toLowerCase());
     const exports = desired.users.filter(user => user.username === declaration.username);
-    if (exports.length !== 1 || exports[0].email !== declaration.email
+    if (!equal(declaration.accountCapability, { clientId: 'account', role: 'manage-account' })
+      || exports.length !== 1 || exports[0].email !== declaration.email
+      || !equal(exports[0].clientRoles, { account: ['manage-account'] })
       || !equal(identityAttributes(exports[0], declaration, 'plan'), exports[0].attributes))
       refuse('plan', 'identity_conflict');
   }
@@ -353,16 +356,16 @@ async function exactNewUser(admin, declaration, wanted, stage) {
   const values = array(await admin.get(`users?username=${encode(declaration.username)}&exact=true&max=2&briefRepresentation=false`), stage, 2);
   if (values.length !== 1 || values[0].username !== declaration.username || !values[0].id) refuse(stage, 'identity_conflict');
   const user = requireObject(await admin.get(`users/${encode(values[0].id)}`), stage);
-  const expected = omit(wanted, ['credentials', 'realmRoles']);
+  const expected = omit(wanted, ['credentials', 'realmRoles', 'clientRoles']);
   if (!matchesFields(user, expected) || !equal(identityAttributes(user, declaration, stage), user.attributes))
     refuse(stage, 'identity_conflict');
   if (user.requiredActions !== undefined && !equal(user.requiredActions, [])) refuse(stage, 'identity_conflict');
   return user;
 }
 
-function exactCreatedAccess(roles, credentials, roleId) {
+function exactCreatedAccess(roles, credentials, roleId, account) {
   return Array.isArray(roles.realmMappings) && roles.realmMappings.length === 1 && roles.realmMappings[0].id === roleId
-    && (!roles.clientMappings || Object.keys(roles.clientMappings).length === 0)
+    && exactCreatedAccountAccess(roles, account.account, account.role)
     && credentials.length === 1 && credentials[0].type === 'password';
 }
 
@@ -480,6 +483,8 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
   // Mapper qualification precedes inherited-source reads, so an unsafe
   // aggregation customization always refuses without being silently repaired.
   const beforeGroups = await readRealmGroups(admin, before.users, 'plan');
+  const account = await planAccountSelfService({ admin, desired, manifest, ownedUsers: before.ownedUsers,
+    add, preflightResponse });
   // A manifest actor may not already belong to a differently named account.
   for (const user of before.users) {
     const values = user.attributes?.user_id;
@@ -513,19 +518,19 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
         || !role.id || role.name !== declaration.realmRole || role.composite !== false || role.clientRole !== false)
         refuse('plan', 'unsupported');
       const representation = Object.fromEntries(['username', 'email', 'emailVerified', 'enabled',
-        'firstName', 'lastName', 'credentials', 'realmRoles', 'attributes'].map(key => [key, copy(wanted[key])]));
+        'firstName', 'lastName', 'credentials', 'realmRoles', 'clientRoles', 'attributes'].map(key => [key, copy(wanted[key])]));
       const body = { ifResourceExists: 'FAIL', users: [representation] };
       add('create_user', async () => {
         // Pinned RealmAdminResource.partialImport wraps one named user in its
         // own transaction. Unlike POST users, this creates credentials and the
-        // declared inert role atomically. FAIL never enters the overwrite path.
+        // declared inert role and account capability atomically. FAIL never overwrites.
         const result = await admin.post('partialImport', copy(body));
         if (result.status !== 200 && result.status !== 409) refuse('apply', 'status');
         const created = await exactNewUser(admin, declaration, wanted, 'apply');
         const roles = requireObject(await admin.get(`users/${encode(created.id)}/role-mappings`), 'apply');
         const credentials = array(await admin.get(`users/${encode(created.id)}/credentials`), 'apply');
         const assigned = await readUserGroupIds(admin, created.id, 'apply');
-        if (!exactCreatedAccess(roles, credentials, role.id) || assigned.size !== 0) refuse('apply', 'identity_conflict');
+        if (!exactCreatedAccess(roles, credentials, role.id, account) || assigned.size !== 0) refuse('apply', 'identity_conflict');
         expectedUsers.set(declaration.username, created);
       }, body);
     }
@@ -548,6 +553,7 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
 
   return { actions, verify: async () => {
     const after = await snapshot(admin, desired, manifest, 'readback');
+    await account.verify(after.ownedUsers);
     const afterGroups = await readRealmGroups(admin, after.users, 'readback');
     const check = condition => { if (!condition) refuse('readback', 'readback_conflict'); };
     check(after.realm.accessTokenLifespan === 900
@@ -600,13 +606,13 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
       check(Boolean(actual) && expectedUsers.has(declaration.username));
       check(equal(actual.user, expectedUsers.get(declaration.username)));
       check(equal(identityAttributes(actual.user, declaration, 'readback'), actual.user.attributes));
-      if (original) check(equal(actual.credentials, original.credentials) && equal(actual.roles, original.roles));
+      if (original) check(equal(actual.credentials, original.credentials));
       else {
         // Atomic addUser(false,false) skips default roles AND default groups.
         check(afterGroups.memberships.get(actual.user.id)?.size === 0);
         const role = actual.roles.realmMappings?.find(value => value.name === declaration.realmRole);
         check(Boolean(role) && role.composite === false && role.clientRole === false
-          && exactCreatedAccess(actual.roles, actual.credentials, role.id));
+          && exactCreatedAccess(actual.roles, actual.credentials, role.id, account));
       }
     }
   } };

@@ -11,6 +11,10 @@ public sealed partial class TenantRealmExportTests
 {
     private static readonly string[] ReservedClaims =
         ["iss", "sub", "aud", "azp", "typ", "scope", "iat", "exp", "nbf"];
+    private static readonly string[] StockAccountRoles =
+        ["view-profile", "manage-account", "manage-account-links", "view-applications", "view-consent", "manage-consent", "delete-account", "view-groups"];
+    private static readonly string[] StockDefaultAccountRoles = ["view-profile", "manage-account"];
+    private static readonly string[] StockConsoleScopeRoles = ["manage-account", "view-groups"];
     private static readonly string[] UnsafeOptionalDestinations =
     [
         "sub", "aud", "azp", "iss", "iat", "exp", "nbf", "typ", "scope",
@@ -47,6 +51,20 @@ public sealed partial class TenantRealmExportTests
         var mutations = new List<(string Name, Action<JsonObject> Apply)>
         {
             ("wrong realm TTL", realm => realm["accessTokenLifespan"] = 1800),
+            ("missing account client", realm => realm["clients"]!.AsArray().Remove(Client(realm, "account"))),
+            ("console full scope", realm => Client(realm, "account-console")["fullScopeAllowed"] = true),
+            ("console default broad roles", realm => Client(realm, "account-console")["defaultClientScopes"]!.AsArray().Add("roles")),
+            ("console optional broad roles", realm => Client(realm, "account-console")["optionalClientScopes"]!.AsArray().Add("roles")),
+            ("console mapper missing", realm => Client(realm, "account-console")["protocolMappers"]!.AsArray().RemoveAt(1)),
+            ("console dynamic role mapper", realm => Client(realm, "account-console")["protocolMappers"]![1]!["config"]!
+                .AsObject().Remove("usermodel.clientRoleMapping.clientId")),
+            ("console ID token roles", realm => Client(realm, "account-console")["protocolMappers"]![1]!["config"]!["id.token.claim"] = "true"),
+            ("missing account grant", realm => realm["users"]![0]!.AsObject().Remove("clientRoles")),
+            ("wider account grant", realm => realm["users"]![0]!["clientRoles"]!["account"]!.AsArray().Add("view-profile")),
+            ("default realm grant", realm => realm["users"]![0]!["realmRoles"]!.AsArray().Add("default-roles-learnstack")),
+            ("wider account composite", realm => realm["roles"]!["client"]!["account"]!.AsArray()
+                .Single(role => Text(role?["name"]) == "manage-account")!["composites"]!["client"]!["account"]!.AsArray().Add("view-profile")),
+            ("missing stock default role", realm => realm.Remove("defaultRole")),
             ("client TTL override", realm => Client(realm, "learnstack-web")["attributes"]!["access.token.lifespan"] = "900"),
             ("public client", realm => Client(realm, "learnstack-web")["publicClient"] = true),
             ("literal secret", realm => Client(realm, "learnstack-web")["secret"] = "unowned-source"),
@@ -122,6 +140,7 @@ public sealed partial class TenantRealmExportTests
         {
             Require(Text(realm["realm"]) == "learnstack", "tenant realm");
             Require(realm["accessTokenLifespan"]?.GetValue<int>() == 900, "realm lifespan");
+            ValidateAccountDeclaration(realm, Require);
             var scopeNames = Scopes(realm).Select(scope => Text(scope?["name"])).ToArray();
             Require(scopeNames.Distinct(StringComparer.Ordinal).Count() == scopeNames.Length, "unique scope names");
             var identityNames = new[] { "user_id", "tenant_id", "organization_id" };
@@ -213,6 +232,10 @@ public sealed partial class TenantRealmExportTests
             {
                 var user = users.Single(value => Text(value?["username"]) == identity.Username)!;
                 Require(Text(user["email"]) == identity.Email, "declared email");
+                Require(identity.AccountCapability == new SeedAccountCapability("account", "manage-account")
+                    && Strings(user["clientRoles"]?[identity.AccountCapability.ClientId]).SequenceEqual([identity.AccountCapability.Role])
+                    && user["clientRoles"]!.AsObject().Count == 1, "exact declared self-service capability");
+                Require(Strings(user["realmRoles"]).SequenceEqual([identity.RealmRole]), "no implicit default or application role grant");
                 Require(user["id"] is null, "provider owns account ID");
                 var attributes = user["attributes"]!;
                 Require(Strings(attributes["user_id"]).SequenceEqual([identity.UserId.ToString("D")]), "fixed actor");
@@ -228,6 +251,67 @@ public sealed partial class TenantRealmExportTests
             failures.Add("invalid or ambiguous export shape");
         }
         return failures;
+    }
+
+    private static void ValidateAccountDeclaration(JsonObject realm, Action<bool, string> require)
+    {
+        foreach (var name in new[] { "account", "account-console" })
+        {
+            var client = Client(realm, name);
+            require(client["publicClient"]!.GetValue<bool>() && client["enabled"]!.GetValue<bool>()
+                && client["standardFlowEnabled"]!.GetValue<bool>() && !client["fullScopeAllowed"]!.GetValue<bool>()
+                && !client["directAccessGrantsEnabled"]!.GetValue<bool>() && !client["implicitFlowEnabled"]!.GetValue<bool>()
+                && !client["serviceAccountsEnabled"]!.GetValue<bool>(), "stock account client modes");
+            require(Text(client["rootUrl"]) == "${authBaseUrl}" && Text(client["baseUrl"]) == "/realms/learnstack/account/"
+                && Strings(client["redirectUris"]).SequenceEqual(["/realms/learnstack/account/*"])
+                && Strings(client["webOrigins"]).Length == 0
+                && Text(client["attributes"]?["post.logout.redirect.uris"]) == "+", "stock account callbacks");
+            require(Strings(client["defaultClientScopes"]).Length == 0 && Strings(client["optionalClientScopes"]).Length == 0,
+                "no broad account role scopes");
+        }
+        var console = Client(realm, "account-console");
+        require(Text(console["attributes"]?["pkce.code.challenge.method"]) == "S256", "account S256");
+        var mappers = console["protocolMappers"]!.AsArray();
+        require(mappers.Count == 2 && mappers.Count(value => Text(value?["protocolMapper"]) == "oidc-audience-resolve-mapper") == 1,
+            "stock account resolver and one fixed emitter");
+        var mapper = mappers.Single(value => Text(value?["name"]) == "learnstack-account-self-service-roles")!;
+        var expected = new Dictionary<string, string>
+        {
+            ["usermodel.clientRoleMapping.clientId"] = "account",
+            ["usermodel.clientRoleMapping.rolePrefix"] = "",
+            ["claim.name"] = "resource_access.account.roles",
+            ["jsonType.label"] = "String",
+            ["multivalued"] = "true",
+            ["access.token.claim"] = "true",
+            ["introspection.token.claim"] = "true",
+            ["id.token.claim"] = "false",
+            ["userinfo.token.claim"] = "false",
+            ["lightweight.claim"] = "false",
+        };
+        require(Text(mapper["protocolMapper"]) == "oidc-usermodel-client-role-mapper"
+            && mapper["config"]!.AsObject().Count == expected.Count
+            && expected.All(entry => Text(mapper["config"]?[entry.Key]) == entry.Value), "closed fixed-account emitter");
+        var roles = realm["roles"]!["client"]!["account"]!.AsArray();
+        require(roles.Select(role => Text(role?["name"])).Order().SequenceEqual(StockAccountRoles.Order()),
+            "eight stock account roles");
+        foreach (var role in roles)
+        {
+            var name = Text(role?["name"]);
+            var child = name switch { "manage-account" => "manage-account-links", "manage-consent" => "view-consent", _ => null };
+            require(role!["clientRole"]!.GetValue<bool>() && role["composite"]!.GetValue<bool>() == (child is not null)
+                && Text(role["description"]) == "${role_" + name + "}", "stock account role definitions");
+            require(child is null ? role["composites"] is null :
+                role["composites"]!.AsObject().Count == 1 && role["composites"]!["client"]!.AsObject().Count == 1
+                && Strings(role["composites"]!["client"]!["account"]).SequenceEqual([child]), "bounded stock account composites");
+        }
+        require(Text(realm["defaultRole"]?["name"]) == "default-roles-learnstack", "stock default role identity");
+        var defaults = realm["roles"]!["realm"]!.AsArray().Single(role => Text(role?["name"]) == "default-roles-learnstack")!;
+        require(Strings(defaults["composites"]?["client"]?["account"]).Order().SequenceEqual(StockDefaultAccountRoles.Order()),
+            "stock registration default account roles");
+        var allowance = realm["clientScopeMappings"]!["account"]!.AsArray();
+        require(allowance.Count == 1 && Text(allowance[0]?["client"]) == "account-console"
+            && Strings(allowance[0]?["roles"]).Order().SequenceEqual(StockConsoleScopeRoles.Order()),
+            "stock console scope allowance");
     }
 
     private static string Text(JsonNode? node) => node?.GetValue<string>() ?? "";

@@ -25,6 +25,12 @@ against it, including the host's default organization where applicable.
   default organization is included in its identity claims.
 - Fresh development accounts use `demo-dev-secret`. Existing passwords, provider
   account IDs, MFA, required actions and unrelated attributes are not reset.
+- The four personas declare only the built-in `account/manage-account`
+  self-service capability in addition to their existing inert realm roles.
+  This permits owner credential/linked-account management; it grants no
+  LearnStack permission or membership. The
+  [approved adjustment](../../docs/roadmap/phase-02b-events-auth.md#account-console-self-service-capability--proposal-2026-10-21)
+  owns this explicit exception to role-assignment preservation.
 - The operator account remains `demo-operator@learnstack.test`; its separate
   realm is untouched. Neither realm's token is accepted by the other surface.
 
@@ -113,8 +119,24 @@ before either combined entry starts stack or database work. Do not wipe the
 provider database to upgrade. The tool reports fixed refusal reasons, keeps
 partial Admin changes durable and requires an explicit verified rerun. The
 [accepted account-console adjustment](../../docs/roadmap/phase-02b-events-auth.md#account-console-self-service-capability--proposal-2026-10-21)
-retains Step 4 implementation ownership; current seed convergence does not yet
-claim that self-service capability.
+is implemented in Step 4 source; its actual stock-parity, warm-preservation and
+profile-protection qualification is recorded with that step. Packet completion
+and final-source hosted qualification remain separate.
+
+Fresh import declares both stock `account` and `account-console` definitions,
+including the stock role/composite and scope-mapping baseline. Warm reconciliation
+does not replace these clients, role definitions or composites. It qualifies
+their existing bounded capability and scope allowance before any mutation,
+adds only a missing named capability for a managed persona and preserves every
+prior mapping. An inherited effective capability needs no redundant grant.
+
+The console receives one fixed-account role emitter in access/introspection
+tokens, retaining its stock S256, audience resolver and restricted full scope.
+It emits no realm/all-client roles or ID/user-info/lightweight-token roles.
+Incompatible role, scope or mapper customization refuses before writes.
+Compatible existing emitters retain their identities. Because the console is
+shared, its mapper may also restore self-service for nonmanifest users already
+holding eligible account roles; their account data and grants stay unchanged.
 
 The accepted warm-upgrade contract preserves nonmanifest accounts, credentials,
 provider IDs and all Hub state. Only known legacy seed attributes are migrated;

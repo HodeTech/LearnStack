@@ -15,6 +15,7 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
 {
     private const string ChangedPassword = "preserved-fixture-password";
     private const string ExtraUsername = "unmanaged-account@fixture.test";
+    private static readonly string[] AccountSelfServiceRoles = ["manage-account", "manage-account-links"];
 
     [Fact]
     public async Task Committed_fresh_import_is_already_converged_and_repeated_runs_have_zero_writes()
@@ -114,8 +115,8 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
         AssertSame(adminCredentials, await admin.GetAsync("users/" + adminId + "/credentials"), "the existing password credential remains unchanged");
         AssertSame(learnerCredentials, await admin.GetAsync("users/" + learnerId + "/credentials"), "password and MFA credentials remain unchanged");
         AssertSame(extraCredentials, await admin.GetAsync("users/" + extraId + "/credentials"), "nonmanifest credentials remain unchanged");
-        AssertSame(adminRoles, await admin.GetAsync("users/" + adminId + "/role-mappings"), "legacy realm and client role assignments remain unchanged");
-        AssertSame(learnerRoles, await admin.GetAsync("users/" + learnerId + "/role-mappings"), "disabled account roles remain unchanged");
+        await AssertOnlyAccountGrantAddedAsync(admin, adminId, adminRoles);
+        await AssertOnlyAccountGrantAddedAsync(admin, learnerId, learnerRoles);
         AssertSame(extraRoles, await admin.GetAsync("users/" + extraId + "/role-mappings"), "nonmanifest roles remain unchanged");
         (await StateAsync(hub) == hubBefore).Should().BeTrue("the separate Hub realm and operator account are untouched");
         AssertSame(apiSecretBefore, await admin.GetAsync("clients/" + Id(apiBefore) + "/client-secret"), "the API service credential is retained");
@@ -628,6 +629,24 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
         }
     }
 
+    private static async Task AssertOnlyAccountGrantAddedAsync(KeycloakAdminClient admin, string userId, JsonElement before)
+    {
+        var account = await admin.ClientAsync("account");
+        var basePath = "users/" + userId + "/role-mappings/clients/" + Id(account);
+        var direct = await admin.GetAsync(basePath);
+        direct.EnumerateArray().Select(role => role.GetProperty("name").GetString()).Should().Equal("manage-account");
+        var role = await admin.GetAsync("clients/" + Id(account) + "/roles/manage-account");
+        (Id(direct[0]) == Id(role)).Should().BeTrue("only the qualified built-in capability is added");
+        var effective = await admin.GetAsync(basePath + "/composite");
+        effective.EnumerateArray().Select(value => value.GetProperty("name").GetString()).Should()
+            .BeEquivalentTo(AccountSelfServiceRoles);
+        var after = Object(await admin.GetAsync("users/" + userId + "/role-mappings"));
+        after["clientMappings"]!.AsObject().Remove("account");
+        if (after["clientMappings"]!.AsObject().Count == 0) after.Remove("clientMappings");
+        JsonNode.DeepEquals(JsonNode.Parse(before.GetRawText()), after).Should().BeTrue(
+            "every prior realm and client mapping survives the single approved addition");
+    }
+
     private static void AssertSamePreservedUser(JsonElement before, JsonElement after)
     {
         var old = Object(before);
@@ -732,13 +751,12 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
             })
         });
         realm["roles"]!["realm"]!.AsArray().Add(new JsonObject { ["name"] = "fixture-retained-role" });
-        realm["roles"]!["client"] = new JsonObject
-        {
-            ["learnstack-web"] = new JsonArray(new JsonObject { ["name"] = "fixture-client-role", ["clientRole"] = true }),
-        };
+        realm["roles"]!["client"]!["learnstack-web"] =
+            new JsonArray(new JsonObject { ["name"] = "fixture-client-role", ["clientRole"] = true });
         foreach (var client in realm["clients"]!.AsArray())
         {
             var name = client!["clientId"]!.GetValue<string>();
+            if (name is not ("learnstack-web" or "learnstack-api")) continue;
             client["name"] = "Preserved " + name;
             client["attributes"]!["access.token.lifespan"] = "1800";
             client["attributes"]!["unrelated.fixture.key"] = "preserved";
@@ -768,7 +786,11 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
                 client["redirectUris"] = new JsonArray("http://localhost:5000/*");
             }
         }
+        var console = realm["clients"]!.AsArray().Single(value => value!["clientId"]!.GetValue<string>() == "account-console")!;
+        var consoleMappers = console["protocolMappers"]!.AsArray();
+        consoleMappers.Remove(consoleMappers.Single(value => value!["name"]!.GetValue<string>() == "learnstack-account-self-service-roles"));
         var users = realm["users"]!.AsArray();
+        foreach (var user in users) user!.AsObject().Remove("clientRoles");
         while (users.Count > 2) users.RemoveAt(users.Count - 1);
         foreach (var user in users)
             user!["attributes"] = new JsonObject { ["tenant_id"] = new JsonArray("tenant-a"), ["legacy_note"] = new JsonArray("retain-me") };

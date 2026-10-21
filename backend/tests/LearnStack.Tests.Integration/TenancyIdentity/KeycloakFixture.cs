@@ -34,7 +34,11 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
     private KeycloakFixture(string? tenantRealmJson) => _tenantRealmJson = tenantRealmJson;
 
     internal Uri BaseAddress { get; private set; } = null!; // Set only after successful container startup.
-    internal string Issuer => new Uri(BaseAddress, "realms/learnstack").AbsoluteUri;
+    internal string Issuer => IssuerFor("learnstack");
+    internal string IssuerFor(string realm) => new Uri(BaseAddress, "realms/" + CheckedRealm(realm)).AbsoluteUri;
+
+    internal static string CheckedRealm(string realm) => realm is "learnstack" or "learnstack-hub"
+        ? realm : throw new InvalidOperationException("Keycloak fixture realm is outside the closed provider boundary.");
     internal X509Certificate2 RootCertificate => _tls?.RootCertificate
         ?? throw new InvalidOperationException("Keycloak fixture certificate authority is not initialized.");
 
@@ -129,6 +133,7 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
 
     internal async Task<KeycloakAdminClient> CreateAdminClientAsync(string realm = "learnstack")
     {
+        realm = CheckedRealm(realm);
         using var client = KeycloakHttp.Create(BaseAddress, RootCertificate);
         // Only the isolated master administrator uses admin-cli's password flow. Tenant proofs use code/S256.
         using var response = await KeycloakHttp.SendAsync(client, HttpMethod.Post,
@@ -147,7 +152,7 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                 ?? throw new InvalidOperationException("Keycloak fixture administrator credential is missing."));
     }
 
-    internal KeycloakBrowserFlow Browser() => new(BaseAddress, RootCertificate);
+    internal KeycloakBrowserFlow Browser(string realm = "learnstack") => new(BaseAddress, RootCertificate, CheckedRealm(realm));
 
     // The child owns this pipe. Bootstrap credentials have no public projection or diagnostic record.
     internal async Task WriteReconciliationInputAsync(Stream destination, string scenario,

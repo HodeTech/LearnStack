@@ -105,7 +105,8 @@ test('an exact 512 KiB version document reaches planning only after the complete
   const desired = JSON.parse(await readFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), 'utf8'));
   const manifest = { users: desired.users.map(user => ({ username: user.username, email: user.email,
     userId: user.attributes.user_id[0], tenantId: user.attributes.tenant_id[0],
-    organizationId: user.attributes.organization_id?.[0] ?? null })) };
+    organizationId: user.attributes.organization_id?.[0] ?? null,
+    accountCapability: { clientId: 'account', role: 'manage-account' } })) };
   const f = await fixture(t, { version: { body }, desired, manifest });
   // This deliberately has no realm state: reaching the first read witnesses
   // accepted version admission without inventing a successful reconciliation.

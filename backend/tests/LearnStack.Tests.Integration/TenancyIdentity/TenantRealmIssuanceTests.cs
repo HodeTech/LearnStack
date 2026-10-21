@@ -76,6 +76,7 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture)
 
             var idToken = await KeycloakTokenVerifier.ValidateAsync(fixture, exchange.IdToken, "learnstack-web");
             AssertIdentity(idToken, identity);
+            FreshProfileMatches(access, idToken, identity, subject, exchange.Window).Should().BeTrue();
             AssertScalar(idToken, "typ", "ID");
             HasAudience(idToken, "learnstack-api").Should().BeFalse("the explicit API audience belongs only in access tokens");
         }
@@ -193,6 +194,265 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture)
         (refusal.AccessToken.Length == 0).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Actual_signed_tokens_detect_live_mapper_scope_audience_scalar_and_lifespan_mutants()
+    {
+        // Mutation controls own their complete provider database. Shared import users/configuration stay pristine.
+        await using var owned = await KeycloakFixture.StartAsync();
+        using var admin = await owned.CreateAdminClientAsync();
+        var identity = SeedData.IdentityUsers.First(user => user.Tenant.MapHostToDefaultOrganization);
+        var subject = RequiredId(await admin.UserAsync(identity.Username));
+        var scopes = await admin.GetAsync("client-scopes");
+        var tenantScope = scopes.EnumerateArray().Single(scope => scope.GetProperty("name").GetString() == "learnstack-tenant-api");
+        var basicScope = scopes.EnumerateArray().Single(scope => scope.GetProperty("name").GetString() == "basic");
+        var tenantId = RequiredId(tenantScope);
+        var basicId = RequiredId(basicScope);
+        var web = await admin.ClientAsync("learnstack-web");
+        var webId = RequiredId(web);
+        var unusedName = "unattached-proof-" + Guid.NewGuid().ToString("N");
+        (await admin.PostAsync("client-scopes", new { name = unusedName, protocol = "openid-connect" }))
+            .Should().Be(HttpStatusCode.Created);
+        scopes = await admin.GetAsync("client-scopes");
+        var unusedId = RequiredId(scopes.EnumerateArray().Single(scope => scope.GetProperty("name").GetString() == unusedName));
+        (await ProbeFreshProfileAsync(owned, identity, subject)).Should().BeTrue();
+
+        // Deleted mappers and identical declarations attached to an unrequested scope both lose real claims.
+        foreach (var target in new[] { (tenantId, "user_id"), (tenantId, "learnstack-api-audience"), (basicId, "sub") })
+            foreach (var misattached in new[] { false, true })
+            {
+                var original = await MapperAsync(admin, target.Item1, target.Item2);
+                try
+                {
+                    (await admin.DeleteAsync(MapperPath(target.Item1, RequiredId(original)))).Should().Be(HttpStatusCode.NoContent);
+                    if (misattached)
+                        (await admin.PostAsync(MapperPath(unusedId), WithoutId(original))).Should().Be(HttpStatusCode.Created);
+                    (await ProbeFreshProfileAsync(owned, identity, subject, "missing_" + target.Item2)).Should().BeFalse(
+                        "real signed issuance must detect a deleted or misattached identity/audience/basic mapper");
+                }
+                finally
+                {
+                    if (misattached)
+                    {
+                        var moved = await MapperAsync(admin, unusedId, target.Item2);
+                        (await admin.DeleteAsync(MapperPath(unusedId, RequiredId(moved)))).Should().Be(HttpStatusCode.NoContent);
+                    }
+                    (await admin.PostAsync(MapperPath(target.Item1), WithoutId(original))).Should().Be(HttpStatusCode.Created);
+                }
+                (await ProbeFreshProfileAsync(owned, identity, subject)).Should().BeTrue("restored provider issuance is the recovery control");
+            }
+
+        foreach (var scopeId in new[] { tenantId, basicId })
+        {
+            try
+            {
+                (await admin.DeleteAsync("clients/" + webId + "/default-client-scopes/" + scopeId)).Should().Be(HttpStatusCode.NoContent);
+                (await admin.PutAsync("clients/" + webId + "/optional-client-scopes/" + scopeId, new { })).Should().Be(HttpStatusCode.NoContent);
+                (await ProbeFreshProfileAsync(owned, identity, subject, scopeId == tenantId ? "missing_identity_scope" : "missing_sub")).Should().BeFalse(
+                    "an optional scope omitted from the actual request is not an attached default scope");
+            }
+            finally
+            {
+                (await admin.DeleteAsync("clients/" + webId + "/optional-client-scopes/" + scopeId)).Should().Be(HttpStatusCode.NoContent);
+                (await admin.PutAsync("clients/" + webId + "/default-client-scopes/" + scopeId, new { })).Should().Be(HttpStatusCode.NoContent);
+            }
+            (await ProbeFreshProfileAsync(owned, identity, subject)).Should().BeTrue();
+        }
+
+        foreach (var mutation in new[] { "array", "not_uuid", "wrong_uuid", "duplicate_conflict", "id_audience" })
+        {
+            var name = mutation == "id_audience" ? "learnstack-api-audience" : "user_id";
+            var original = await MapperAsync(admin, tenantId, name);
+            var dirty = JsonNode.Parse(original.GetRawText())!.AsObject();
+            var config = dirty["config"]!.AsObject();
+            switch (mutation)
+            {
+                case "array": config["multivalued"] = "true"; break;
+                case "not_uuid":
+                    dirty["protocolMapper"] = "oidc-usermodel-property-mapper";
+                    config["user.attribute"] = "email";
+                    break;
+                case "wrong_uuid": config["user.attribute"] = "tenant_id"; break;
+                case "duplicate_conflict": config["multivalued"] = "true"; break;
+                case "id_audience": config["id.token.claim"] = "true"; break;
+            }
+            string? duplicateId = null;
+            try
+            {
+                (await admin.PutAsync(MapperPath(tenantId, RequiredId(original)), dirty)).Should().Be(HttpStatusCode.NoContent);
+                if (mutation == "duplicate_conflict")
+                {
+                    // Both emitters deliberately merge into an array, independent of mapper iteration order.
+                    var duplicate = dirty.DeepClone().AsObject();
+                    duplicate.Remove("id");
+                    duplicate["name"] = "conflicting-user-id-proof";
+                    duplicate["config"]!["user.attribute"] = "tenant_id";
+                    (await admin.PostAsync(MapperPath(tenantId), duplicate)).Should().Be(HttpStatusCode.Created);
+                    duplicateId = RequiredId(await MapperAsync(admin, tenantId, "conflicting-user-id-proof"));
+                }
+                (await ProbeFreshProfileAsync(owned, identity, subject, mutation)).Should().BeFalse(
+                    "actual JWT scalar/UUID/duplicate and ID-audience mutations must break the clean predicate");
+            }
+            finally
+            {
+                if (duplicateId is not null)
+                    (await admin.DeleteAsync(MapperPath(tenantId, duplicateId))).Should().Be(HttpStatusCode.NoContent);
+                (await admin.PutAsync(MapperPath(tenantId, RequiredId(original)), original)).Should().Be(HttpStatusCode.NoContent);
+            }
+            (await ProbeFreshProfileAsync(owned, identity, subject)).Should().BeTrue();
+        }
+
+        var realm = await admin.GetAsync();
+        realm.GetProperty("accessTokenLifespan").GetInt32().Should().Be(900);
+        foreach (var client in new[] { web, await admin.ClientAsync("learnstack-api") })
+            client.GetProperty("attributes").TryGetProperty("access.token.lifespan", out _).Should().BeFalse();
+        try
+        {
+            var dirty = JsonNode.Parse(web.GetRawText())!.AsObject();
+            dirty["attributes"]!["access.token.lifespan"] = "60";
+            (await admin.PutAsync("clients/" + webId, dirty)).Should().Be(HttpStatusCode.NoContent);
+            (await admin.ClientAsync("learnstack-web")).GetProperty("attributes").GetProperty("access.token.lifespan")
+                .GetString().Should().Be("60");
+            (await ProbeFreshProfileAsync(owned, identity, subject, "client_ttl")).Should().BeFalse("a live client override changes signed expiration");
+        }
+        finally
+        {
+            // Client updates merge supplied attribute keys; omission does not delete an existing override.
+            var restore = JsonNode.Parse(web.GetRawText())!.AsObject();
+            restore["attributes"]!["access.token.lifespan"] = null;
+            (await admin.PutAsync("clients/" + webId, restore)).Should().Be(HttpStatusCode.NoContent);
+            (await admin.ClientAsync("learnstack-web")).GetProperty("attributes")
+                .TryGetProperty("access.token.lifespan", out _).Should().BeFalse();
+        }
+        (await ProbeFreshProfileAsync(owned, identity, subject)).Should().BeTrue();
+        try
+        {
+            (await admin.PutAsync("", new { accessTokenLifespan = 1200 })).Should().Be(HttpStatusCode.NoContent);
+            (await admin.GetAsync()).GetProperty("accessTokenLifespan").GetInt32().Should().Be(1200);
+            (await ProbeFreshProfileAsync(owned, identity, subject, "realm_ttl")).Should().BeFalse("live realm drift changes signed expiration");
+        }
+        finally { (await admin.PutAsync("", new { accessTokenLifespan = 900 })).Should().Be(HttpStatusCode.NoContent); }
+        (await ProbeFreshProfileAsync(owned, identity, subject)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Late_session_refresh_is_clamped_while_the_configured_access_lifespan_remains_exactly_900()
+    {
+        await using var owned = await KeycloakFixture.StartAsync();
+        using var admin = await owned.CreateAdminClientAsync();
+        var identity = SeedData.IdentityUsers[0];
+        var realm = await admin.GetAsync();
+        realm.GetProperty("accessTokenLifespan").GetInt32().Should().Be(900);
+        try
+        {
+            (await admin.PutAsync("", new { ssoSessionMaxLifespan = 30 })).Should().Be(HttpStatusCode.NoContent);
+            using var browser = owned.Browser();
+            var authorization = await browser.AuthorizeAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity));
+            AssertAuthorized(authorization);
+            var initial = await browser.RedeemAsync(authorization);
+            initial.StatusCode.Should().Be(HttpStatusCode.OK);
+            var first = await KeycloakTokenVerifier.ValidateAsync(owned, initial.AccessToken, "learnstack-api");
+            AssertIdentity(first, identity);
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            var late = await browser.RequestTokenAsync(new Dictionary<string, string>
+            {
+                ["grant_type"] = "refresh_token",
+                ["client_id"] = "learnstack-web",
+                ["client_secret"] = KeycloakFixture.WebClientSecret,
+                ["refresh_token"] = initial.RefreshToken,
+            });
+            late.StatusCode.Should().Be(HttpStatusCode.OK);
+            var refreshed = await KeycloakTokenVerifier.ValidateAsync(owned, late.AccessToken, "learnstack-api");
+            AssertIdentity(refreshed, identity);
+            (refreshed.GetProperty("iat").GetInt64() > first.GetProperty("iat").GetInt64()).Should().BeTrue();
+            (refreshed.GetProperty("auth_time").GetInt64() == first.GetProperty("auth_time").GetInt64()).Should().BeTrue(
+                "the refresh belongs to the same earlier authenticated session");
+            var expiration = refreshed.GetProperty("exp").GetInt64();
+            (expiration <= first.GetProperty("exp").GetInt64() + 2
+                && expiration <= initial.Window.CompletedUtc.ToUnixTimeSeconds() + 30 + 2
+                && expiration > late.Window.CompletedUtc.ToUnixTimeSeconds()).Should().BeTrue(
+                    "the live late-session expiration stays within its short session ceiling");
+            late.Window.AcceptsFresh(refreshed, 900).Should().BeFalse("a shorter session clamp is separate from a fresh 900-second issuance proof");
+            (await admin.GetAsync()).GetProperty("accessTokenLifespan").GetInt32().Should().Be(900);
+            foreach (var name in new[] { "learnstack-web", "learnstack-api" })
+                (await admin.ClientAsync(name)).GetProperty("attributes").TryGetProperty("access.token.lifespan", out _).Should().BeFalse();
+        }
+        finally
+        {
+            (await admin.PutAsync("", new { ssoSessionMaxLifespan = realm.GetProperty("ssoSessionMaxLifespan").GetInt32() }))
+                .Should().Be(HttpStatusCode.NoContent);
+        }
+    }
+
+    private static async Task<bool> ProbeFreshProfileAsync(KeycloakFixture provider, SeedIdentity identity, string subject,
+        string? defect = null)
+    {
+        using var browser = provider.Browser();
+        var authorization = await browser.AuthorizeAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity));
+        AssertAuthorized(authorization);
+        var exchange = await browser.RedeemAsync(authorization);
+        exchange.StatusCode.Should().Be(HttpStatusCode.OK);
+        // The production role declaration and stock roles audience resolver retain this independent audience.
+        // This checks signature/issuer/lifetime even when the deliberately dirty API audience is absent.
+        var access = await KeycloakTokenVerifier.ValidateAsync(provider, exchange.AccessToken, "account");
+        var id = await KeycloakTokenVerifier.ValidateAsync(provider, exchange.IdToken, "learnstack-web");
+        var reachedDefect = defect switch
+        {
+            null => true,
+            "missing_user_id" => !access.TryGetProperty("user_id", out _),
+            "missing_learnstack-api-audience" => !HasAudience(access, "learnstack-api"),
+            "missing_sub" => !access.TryGetProperty("sub", out _),
+            "missing_identity_scope" => !access.TryGetProperty("user_id", out _) && !access.TryGetProperty("tenant_id", out _),
+            "array" => access.GetProperty("user_id").ValueKind == JsonValueKind.Array,
+            "not_uuid" => access.GetProperty("user_id").ValueKind == JsonValueKind.String
+                && !Guid.TryParse(access.GetProperty("user_id").GetString(), out _),
+            "wrong_uuid" => ScalarEquals(access, "user_id", identity.Tenant.TenantId.Value.ToString("D")),
+            "duplicate_conflict" => access.GetProperty("user_id").ValueKind == JsonValueKind.Array
+                && access.GetProperty("user_id").EnumerateArray().Any(value => value.GetString() == identity.UserId.Value.ToString("D"))
+                && access.GetProperty("user_id").EnumerateArray().Any(value => value.GetString() == identity.Tenant.TenantId.Value.ToString("D")),
+            "id_audience" => HasAudience(id, "learnstack-api"),
+            "client_ttl" => exchange.Window.AcceptsFresh(access, 60),
+            "realm_ttl" => exchange.Window.AcceptsFresh(access, 1200),
+            _ => false,
+        };
+        reachedDefect.Should().BeTrue("a dirty provider must reach the specific signed-token defect being exercised");
+        return FreshProfileMatches(access, id, identity, subject, exchange.Window);
+    }
+
+    private static bool FreshProfileMatches(JsonElement access, JsonElement id, SeedIdentity identity,
+        string? subject, KeycloakIssuanceWindow window) => MatchesIdentity(access, identity) && MatchesIdentity(id, identity)
+        && ScalarEquals(access, "sub", subject) && ScalarEquals(access, "typ", "Bearer")
+        && ScalarEquals(access, "azp", "learnstack-web") && HasAudience(access, "learnstack-api")
+        && ScalarEquals(id, "typ", "ID") && !HasAudience(id, "learnstack-api")
+        && window.AcceptsFresh(access, 900);
+
+    private static bool MatchesIdentity(JsonElement payload, SeedIdentity identity) =>
+        ScalarEquals(payload, "user_id", identity.UserId.Value.ToString("D"))
+        && ScalarEquals(payload, "tenant_id", identity.Tenant.TenantId.Value.ToString("D"))
+        && (identity.Tenant.MapHostToDefaultOrganization
+            ? ScalarEquals(payload, "organization_id", identity.Tenant.DefaultOrganization.OrganizationId.Value.ToString("D"))
+            : !payload.TryGetProperty("organization_id", out _));
+
+    private static bool ScalarEquals(JsonElement payload, string name, string? expected) =>
+        payload.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.GetString() == expected;
+
+    private static async Task<JsonElement> MapperAsync(KeycloakAdminClient admin, string scopeId, string name)
+    {
+        var mappers = await admin.GetAsync(MapperPath(scopeId));
+        var matches = mappers.EnumerateArray().Where(mapper => mapper.GetProperty("name").GetString() == name).ToArray();
+        if (matches.Length != 1) throw new InvalidOperationException("Keycloak fixture expected exactly one named mapper.");
+        return matches[0];
+    }
+
+    private static JsonObject WithoutId(JsonElement value)
+    {
+        var clone = JsonNode.Parse(value.GetRawText())!.AsObject();
+        clone.Remove("id");
+        return clone;
+    }
+
+    private static string MapperPath(string scopeId, string? mapperId = null) =>
+        "client-scopes/" + scopeId + "/protocol-mappers/models" + (mapperId is null ? "" : "/" + mapperId);
+
     private static string Callback(SeedIdentity identity) =>
         "https://" + identity.Tenant.Host + ":3000/api/auth/callback/keycloak";
 
@@ -220,7 +480,7 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture)
 
     private static bool HasAudience(JsonElement payload, string audience)
     {
-        var value = payload.GetProperty("aud");
+        if (!payload.TryGetProperty("aud", out var value)) return false;
         return value.ValueKind == JsonValueKind.String ? value.GetString() == audience
             : value.ValueKind == JsonValueKind.Array && value.EnumerateArray().Any(item =>
                 item.ValueKind == JsonValueKind.String && item.GetString() == audience);

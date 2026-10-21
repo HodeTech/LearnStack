@@ -32,13 +32,13 @@ public static class SeedData
     public static readonly ImmutableArray<SeedIdentity> IdentityUsers =
     [
         new(UserId.From(Id("01930000-0000-7000-8000-00000000a001")), English,
-            "demo-admin@tenant-a.test", "Demo", "Admin", "tenant-admin", "tenant-a"),
+            "demo-admin@tenant-a.test", "Demo", "Admin", "tenant-admin", new("account", "manage-account"), "tenant-a"),
         new(UserId.From(Id("01930000-0000-7000-8000-00000000a002")), English,
-            "demo-learner@tenant-a.test", "Demo", "Learner", "tenant-learner", "tenant-a"),
+            "demo-learner@tenant-a.test", "Demo", "Learner", "tenant-learner", new("account", "manage-account"), "tenant-a"),
         new(UserId.From(Id("01930000-0000-7000-8000-00000000b001")), Yoga,
-            "demo-admin@tenant-b.test", "Demo", "Admin", "tenant-admin"),
+            "demo-admin@tenant-b.test", "Demo", "Admin", "tenant-admin", new("account", "manage-account")),
         new(UserId.From(Id("01930000-0000-7000-8000-00000000b002")), Yoga,
-            "demo-learner@tenant-b.test", "Demo", "Learner", "tenant-learner"),
+            "demo-learner@tenant-b.test", "Demo", "Learner", "tenant-learner", new("account", "manage-account")),
     ];
 
     // Provisioning audits both sanctioned roots; follow-on organization and host each add one.
@@ -183,7 +183,9 @@ public sealed record SeedTenant(TenantId TenantId, string Slug, string DisplayNa
     SeedCurriculum? Curriculum = null);
 public sealed record SeedOrganization(OrganizationId OrganizationId, string Slug, string DisplayName);
 public sealed record SeedIdentity(UserId UserId, SeedTenant Tenant, string Username,
-    string FirstName, string LastName, string RealmRole, string? LegacyTenantAttribute = null);
+    string FirstName, string LastName, string RealmRole, SeedAccountCapability AccountCapability,
+    string? LegacyTenantAttribute = null);
+public sealed record SeedAccountCapability(string ClientId, string Role);
 public sealed record SeedCurriculum(ImmutableArray<SeedLocale> Locales, SeedContentType ContentType,
     SeedTaxonomy Taxonomy, SeedTheme Theme, ImmutableArray<SeedCourse> Courses);
 public sealed record SeedLocale(string Locale, bool IsEnabled, bool IsDefault, short Sort);

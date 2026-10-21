@@ -11,13 +11,24 @@ internal sealed class TenantAuthenticationBackchannel : IDisposable
     internal static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
     internal const int MaximumDocumentBytes = 256 * 1024;
 
-    internal HttpClient Client { get; } = new(new SocketsHttpHandler
+    public TenantAuthenticationBackchannel() : this(new SocketsHttpHandler()) { }
+
+    // Test-owned certificate authorities use the normal TLS chain/hostname checks.
+    // The transport bounds remain mandatory for every supplied handler.
+    internal TenantAuthenticationBackchannel(SocketsHttpHandler handler)
     {
-        AllowAutoRedirect = false,
-        ConnectTimeout = Timeout,
-        UseCookies = false,
-    })
-    { Timeout = Timeout, MaxResponseContentBufferSize = MaximumDocumentBytes };
+        ArgumentNullException.ThrowIfNull(handler);
+        handler.AllowAutoRedirect = false;
+        handler.ConnectTimeout = Timeout;
+        handler.UseCookies = false;
+        Client = new HttpClient(handler)
+        {
+            Timeout = Timeout,
+            MaxResponseContentBufferSize = MaximumDocumentBytes,
+        };
+    }
+
+    internal HttpClient Client { get; }
 
     public void Dispose() => Client.Dispose();
 }

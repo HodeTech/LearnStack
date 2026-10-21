@@ -93,9 +93,10 @@ under Accepted ADR-0064/0065/0066. All five steps and verified correction bundle
 completed their independent review rounds. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
 records final-source CI, unchanged-plan A/B qualification and identical merge trees.
-P02b-6's realm/TTL package is Accepted; Steps 1–2 completed their local review
-rounds. Step 3 connects shared realm convergence to seed/demo and is under
-qualification; Step 4 retains complete identity/security and hosted proof.
+P02b-6's realm/TTL package is Accepted; Steps 1–3 completed their local review
+rounds and actual shared seed/demo qualification. Step 4 is qualifying account
+self-service, protected profiles and real provider credentials through the API;
+complete final-source and hosted proof remain pending.
 BFF sessions and phase exit remain P02b-7–8; browser sign-in is not implemented.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is

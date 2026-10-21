@@ -12,12 +12,15 @@ internal enum KeycloakPkce { S256, Plain, Missing }
 /// <summary>Actual cookie/login-form code flow; consumes redirects without fetching the reserved BFF callback.</summary>
 internal sealed partial class KeycloakBrowserFlow : IDisposable
 {
+    private static readonly string[] RegistrationRequiredFields = ["email", "firstName", "lastName", "password", "password-confirm"];
     private readonly Uri _baseAddress;
     private readonly HttpClient _client;
+    private readonly string _realm;
 
-    internal KeycloakBrowserFlow(Uri baseAddress, X509Certificate2 rootCertificate)
+    internal KeycloakBrowserFlow(Uri baseAddress, X509Certificate2 rootCertificate, string realm = "learnstack")
     {
         _baseAddress = baseAddress;
+        _realm = KeycloakFixture.CheckedRealm(realm);
         _client = KeycloakHttp.Create(baseAddress, rootCertificate, new CookieContainer());
     }
 
@@ -41,7 +44,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
                 : Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
             query["code_challenge_method"] = pkce == KeycloakPkce.Plain ? "plain" : "S256";
         }
-        var path = QueryHelpers.AddQueryString("realms/learnstack/protocol/openid-connect/auth", query);
+        var path = QueryHelpers.AddQueryString("realms/" + _realm + "/protocol/openid-connect/auth", query);
         using var initial = await KeycloakHttp.SendAsync(_client, HttpMethod.Get, path);
         var callback = Callback(initial, redirectUri, state, verifier, clientId);
         if (callback is not null) return callback;
@@ -59,6 +62,71 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
         if (completed is not null) return completed;
         return KeycloakAuthorization.Refused(login.StatusCode, LoginRefusal(await KeycloakHttp.ReadBodyAsync(login)));
     }
+
+    // The pinned registration form is exercised as delivered, including any hidden inputs.
+    // Only the fixed provider registration endpoint and its same-origin action are accepted.
+    internal async Task<KeycloakRegistration> RegisterAsync(string username, string password, string redirectUri,
+        IReadOnlyDictionary<string, string>? injectedAttributes = null)
+    {
+        var state = RandomValue();
+        var verifier = RandomValue();
+        var path = QueryHelpers.AddQueryString("realms/" + _realm + "/protocol/openid-connect/registrations",
+            new Dictionary<string, string?>
+            {
+                ["client_id"] = "learnstack-web",
+                ["redirect_uri"] = redirectUri,
+                ["response_type"] = "code",
+                ["scope"] = "openid profile email",
+                ["state"] = state,
+                ["nonce"] = RandomValue(),
+                ["code_challenge"] = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))),
+                ["code_challenge_method"] = "S256",
+            });
+        using var page = await KeycloakHttp.SendAsync(_client, HttpMethod.Get, path);
+        if (page.StatusCode != HttpStatusCode.OK)
+            throw new InvalidOperationException("Keycloak fixture ordinary registration form was refused.");
+        var html = await KeycloakHttp.ReadBodyAsync(page);
+        var form = FormTag().Matches(html).Cast<Match>().SingleOrDefault(match =>
+            Attributes(match.Value).GetValueOrDefault("id") == "kc-register-form")
+            ?? throw new InvalidOperationException("Keycloak fixture ordinary registration form is missing.");
+        var formAttributes = Attributes(form.Value);
+        if (formAttributes.GetValueOrDefault("method")?.ToLowerInvariant() != "post"
+            || !formAttributes.TryGetValue("action", out var action)
+            || !Uri.TryCreate(_baseAddress, action, out var uri) || !SameOrigin(uri, _baseAddress)
+            || uri.AbsolutePath != "/realms/" + _realm + "/login-actions/registration")
+            throw new InvalidOperationException("Keycloak fixture registration action is outside the provider boundary.");
+        var end = html.IndexOf("</form>", form.Index + form.Length, StringComparison.OrdinalIgnoreCase);
+        if (end < 0) throw new InvalidOperationException("Keycloak fixture registration form is incomplete.");
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Match input in InputTag().Matches(html[form.Index..end]))
+        {
+            var attributes = Attributes(input.Value);
+            if (!attributes.TryGetValue("name", out var name)) continue;
+            names.Add(name);
+            if (attributes.GetValueOrDefault("type")?.Equals("hidden", StringComparison.OrdinalIgnoreCase) == true)
+                fields.Add(name, attributes.GetValueOrDefault("value") ?? "");
+        }
+        if (!RegistrationRequiredFields.All(names.Contains))
+            throw new InvalidOperationException("Keycloak fixture registration form lacks ordinary required fields.");
+        fields["email"] = username;
+        fields["firstName"] = "Provider";
+        fields["lastName"] = "Registration";
+        fields["password"] = password;
+        fields["password-confirm"] = password;
+        if (names.Contains("username")) fields["username"] = username;
+        if (injectedAttributes is not null)
+            foreach (var attribute in injectedAttributes) fields[attribute.Key] = attribute.Value;
+        using var submitted = await KeycloakHttp.SendAsync(_client, HttpMethod.Post, uri.AbsoluteUri,
+            new FormUrlEncodedContent(fields));
+        var callback = Callback(submitted, redirectUri, state, verifier, "learnstack-web");
+        // A refusal may redisplay the form; no raw form or error body is retained or diagnosed.
+        return new KeycloakRegistration(submitted.StatusCode, callback?.Authorized == true, names);
+    }
+
+    private static Dictionary<string, string> Attributes(string tag) => Attribute().Matches(tag).ToDictionary(
+        match => match.Groups["name"].Value, match => WebUtility.HtmlDecode(match.Groups["value"].Value),
+        StringComparer.OrdinalIgnoreCase);
 
     private static string LoginRefusal(string html)
     {
@@ -84,11 +152,11 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
         };
         if (secret is not null) form["client_secret"] = secret;
         if (!omitVerifier) form["code_verifier"] = verifier ?? authorization.Verifier;
-        return await KeycloakTokenExchange.RequestAsync(_client, form);
+        return await KeycloakTokenExchange.RequestAsync(_client, form, _realm);
     }
 
     internal Task<KeycloakTokenExchange> RequestTokenAsync(IReadOnlyDictionary<string, string> form) =>
-        KeycloakTokenExchange.RequestAsync(_client, form);
+        KeycloakTokenExchange.RequestAsync(_client, form, _realm);
 
     private string LoginAction(string html)
     {
@@ -101,7 +169,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
             if (!attributes.TryGetValue("action", out var action)
                 || !Uri.TryCreate(_baseAddress, action, out var uri)
                 || !SameOrigin(uri, _baseAddress)
-                || uri.AbsolutePath != "/realms/learnstack/login-actions/authenticate")
+                || uri.AbsolutePath != "/realms/" + _realm + "/login-actions/authenticate")
                 throw new InvalidOperationException("Keycloak fixture login action is outside the provider boundary.");
             return uri.AbsoluteUri;
         }
@@ -136,6 +204,9 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
     [GeneratedRegex("<form\\b[^>]*>", RegexOptions.IgnoreCase, 1000)]
     private static partial Regex FormTag();
 
+    [GeneratedRegex("<input\\b[^>]*>", RegexOptions.IgnoreCase, 1000)]
+    private static partial Regex InputTag();
+
     [GeneratedRegex("(?<name>[a-zA-Z-]+)\\s*=\\s*[\"'](?<value>[^\"']*)[\"']", RegexOptions.None, 1000)]
     private static partial Regex Attribute();
 
@@ -156,4 +227,13 @@ internal sealed class KeycloakAuthorization(HttpStatusCode statusCode, string? c
     internal static KeycloakAuthorization Refused(HttpStatusCode status, string? error = null) =>
         new(status, null, "", "", "", error);
     public override string ToString() => "Keycloak authorization result (sensitive values omitted)";
+}
+
+/// <summary>Only closed registration facts and non-sensitive form field names leave the browser helper.</summary>
+internal sealed class KeycloakRegistration(HttpStatusCode statusCode, bool authorized, IReadOnlySet<string> fields)
+{
+    internal HttpStatusCode StatusCode { get; } = statusCode;
+    internal bool Authorized { get; } = authorized;
+    internal IReadOnlySet<string> Fields { get; } = fields;
+    public override string ToString() => "Keycloak registration result (sensitive values omitted)";
 }

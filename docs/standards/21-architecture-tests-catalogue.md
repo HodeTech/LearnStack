@@ -1688,8 +1688,8 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 - **Asserts:** every test file in `LearnStack.Tests.Integration` that declares a test and
   needs a container — one under `Database/`, or one anywhere that names `SchemaFixture`,
-  `PostgresFixture`, `KeycloakFixture` or the `SharedSchema` / `SharedKeycloakRealm`
-  collections — carries
+  `PostgresFixture`, `PublicReadFixture`, `KeycloakFixture` or the `SharedSchema` /
+  `SharedKeycloakRealm` / `TenantRealmApiTestGroup` collections — carries
   `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`.
   ADR-0062's shared native trait belongs to exactly the two complete native proof
   classes, including all predicate/theory/mutant rows. A nonempty source closure
@@ -4509,18 +4509,22 @@ structural test proves — and what it does not.
   four declared seed identities. Exact callbacks, confidential-secret/PKCE
   refusals, protected admin-only attributes and the actual `basic`/identity/
   audience mappers hold. Real tokens reach AccountSite through the API handler
-  and app-role PostgreSQL; cross-scope/Hub/claimless requests refuse.
+  and app-role PostgreSQL; cross-scope/Hub requests refuse, while claimless
+  principals retain the public ceiling without protected-read authority.
   Exact realm lifespan and absent client overrides are checked independently
   from bounded observed fresh expiration and shorter late-session issuance.
   Ordinary account-edit success, independent admin readback and dirty/clean
   mapper/profile/TTL variants prove protection and drift controls can fail.
+  The same seed personas use only the declared self-service baseline; actual
+  registration and writable-profile counterfactuals reach stored values rather
+  than passing through a generic refusal or account-console HTML response.
 - **Source:** ADR-0004; ADR-0064;
   [Security 11](11-security.md#authentication);
   [accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
 - **Type:** xUnit Integration with Docker, real Keycloak code exchange, API
   HTTP and `learnstack_app` database controls. **Kind:** behavioural.
-- **Test owner:** `TenantRealmIssuanceTests` and
-  `TenantRealmProfileProtectionTests` in
+- **Test owner:** `TenantRealmIssuanceTests`, `TenantRealmProfileProtectionTests`
+  and `TenantRealmApiTests` in
   `backend/tests/LearnStack.Tests.Integration`.
 - **Status:** **Registered** — Accepted 2026-10-21; complete obligation/final
   qualification pending.
@@ -4536,7 +4540,12 @@ structural test proves — and what it does not.
   Projected request/response and collection limits are checked before apply.
   Safe groups/memberships and actual account fields remain unchanged; derived
   profile metadata is verified with its global configuration rather than
-  mistaken for stored-account data. Partial/uncertain writes require an
+  mistaken for stored-account data. The approved self-service adjustment adds
+  only missing four-persona account capability and a compatible fixed-account
+  console mapper. Stock bootstrap parity, existing/inherited grants and shared
+  mapper effects on an already eligible nonmanifest user are independently
+  observed; unsafe role/scope/mapper customization refuses before any pending
+  write. Partial/uncertain writes require an
   explicit verified rerun. Independent readback checks protected claims/TTL;
   a completed third run performs zero mutations. Both seed/demo entries retain
   exact target/environment identity, bounded HTTP/process cleanup, secret
@@ -4547,8 +4556,9 @@ structural test proves — and what it does not.
 - **Type:** xUnit Integration with Docker and actual warm Keycloak Admin REST;
   offline Node tooling transport/process/CLI controls in meta.
   **Kind:** behavioural.
-- **Test owner:** `TenantRealmReconciliationTests` in
-  `backend/tests/LearnStack.Tests.Integration`; shared reconciler Node controls
+- **Test owner:** `TenantRealmReconciliationTests` and
+  `TenantRealmSelfServiceTests` in `backend/tests/LearnStack.Tests.Integration`;
+  shared reconciler Node controls
   under `scripts/` own bounded transport/process/CLI evidence.
 - **Status:** **Registered** — Accepted 2026-10-21; complete obligation/final
   qualification pending.

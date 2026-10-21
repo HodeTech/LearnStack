@@ -14607,6 +14607,143 @@ input. Step 3 closes locally. Step 4 retains the approved account-console delta,
 actual API/profile/registration qualification, final-source production demo and
 complete hosted CI; this closeout claims neither a BFF session nor packet merge.
 
+
+## P02b-6 Step 4 — real identity qualification and closeout (2026-10-21)
+
+**Status: implementation and provider qualification in progress.** Work stays
+on `development`. Steps 1–3 are complete locally; their source-bound receipts
+above retain their limits. The maintainer approved the narrow account-console
+capability and mapper adjustment above. No further decision approval is pending.
+
+Three implementation areas proceed together: the declared four-persona
+self-service capability and non-destructive warm reconciliation; actual account
+and registration protection with independent stored-state observations; and
+real provider credentials through the production API boundary and PostgreSQL.
+The API proof retains the existing physical read-only/application-role witness;
+it supplies neither alternate claims nor a replacement token validator.
+
+Fresh import declares both stock account clients, their stock role/scope
+baseline and only the approved account mapper/persona-grant additions. Actual
+provider comparison against automatic stock bootstrap remains required before
+claiming that parity. Warm reconciliation qualifies the existing builtin
+configuration before any write and preserves unrelated mappings and identities.
+
+Offline transport/ownership/convergence controls enter the existing meta job
+with pinned Node setup. Each named test file must produce a fresh, nonempty
+JUnit report with actual named cases, zero failures and zero skips/todos. The
+exact report gate passes its positive control and refuses planted empty-file,
+failed, skipped and todo cases. Seven required check names, execution topology
+and existing job ceilings remain unchanged. Actual provider cases enter the
+ordinary Docker discovery; final timing, complete assignment and hosted fit
+remain qualification work.
+
+No Step 4 runtime success, catalogue promotion, final-source demo, hosted CI or
+packet completion is inferred from source implementation or offline controls.
+The implementation commit, both fresh independent review rounds and verified
+corrections remain required before this step closes.
+
+### Step 4 initial qualification
+
+The frozen implementation compiles in Release with `CI=true`, zero warnings
+and zero errors. The exact new meta step passes 148 named Node cases. The full
+guarded frontend run passes 1,730 cases in two packages with zero skips/todos;
+workspace typecheck and lint pass. Unit, Docker-free HTTP and contract runs pass
+2,616, 289 and five cases respectively, with zero skipped cases.
+
+Initial actual-provider qualification finds fixture defects and remains red:
+the API run passes 11 of 12 cases, while its organization-mutation cleanup gets
+400 from an attributes-only Admin user update. That final assertion masks any
+earlier failure, so no organization-mismatch success is inferred. The provider's
+user-profile update needs the unchanged ordinary fields with its attribute map.
+The profile/issuance run passes 13 of 19 cases. Five profile cases receive HTML
+from Account GET rather than JSON; explicit JSON content negotiation is required
+before any success can count as an account-data observation. A live TTL mutant
+also shows that omitting an attribute from a client update does not remove its
+existing value; restoration requires explicit removal and independent readback.
+Registration's ordinary positive and late-session expiration clamping pass.
+These are implementation qualification findings, not independent review rounds.
+
+The broader account/upgrade run executes 24 cases: eight pass and 16 fail, with
+zero skips. Failures include the missing JSON negotiation and a real planner/
+readback incompatibility: the pinned provider removes an empty mapper role-prefix
+entry, while the intended configuration comparison requires that empty entry.
+One warm attempt therefore fails readback after six durable writes. The stock
+builtin comparison itself passes before a later status assertion fails; this
+does not make its containing test green.
+
+The narrow correction accepts only the fixed-account mapper's documented
+empty/absent role-prefix equivalence. It preserves every required option,
+unknown-option refusal and raw preservation check for existing mappers. The
+independent fake provider now models the pinned conversion rather than echoing
+the requested configuration. Four additional controls cover normalization,
+required/unknown options, create/conflict readback and existing-mapper identity;
+all five Node suites pass 152 cases with zero skips. Actual-provider reruns and
+the JSON/restore fixture corrections remain pending.
+
+All three completed provider-run resource sets have zero retained containers,
+networks or volumes after normal owned teardown; the unrelated database remains
+running. The complete architecture run continues against unchanged production
+and architecture binaries. Body-only integration fixture corrections are built
+separately, without rebuilding those dependencies; case identities and trait
+declarations remain unchanged. Current-source Docker census checks remain
+required after the collection-boundary extension.
+Neither status-only Account HTML nor a failed restore is proof of the intended
+protection or recovery.
+
+### Step 4 corrected local qualification
+
+The corrected source passes **55 actual-provider cases, zero skips**: 24 account,
+export and reconciliation cases; 19 profile and issuance cases; and 12 production
+API cases. Account observations explicitly request JSON and verify its ordinary
+fields. User mutations preserve the unchanged ordinary identity fields, restore
+the exact attribute map and verify a fresh positive token/API result. Client TTL
+restoration explicitly removes the override and independently verifies its
+absence before accepting the recovered 900-second token.
+
+The account run proves fresh builtin parity, four narrow role additions plus
+one console mapper on warm upgrade, zero writes on rerun, existing effective
+group/composite capability without a new direct grant, and a nonmanifest user's
+403-to-JSON-200/edit-204 transition without changing that user's mappings or
+data. Five incompatible account configurations refuse before a write after a
+working clean twin. Its complete 24-case TRX SHA-256 is
+`a2b000ff5f9646ed7e4f03e20e74054a831e71410f863331892fbb3c0b30ca39`.
+
+Profile mutation uses its own class fixture, separate from the readonly shared
+issuance baseline. The final 19-case run executes those classes concurrently on
+independent providers. It verifies all three protected attributes, ordinary
+account edits and registration, user-editable counterfactuals, fifteen live
+token-profile variants with clean recovery, and the late-session expiry clamp.
+Its complete TRX SHA-256 is
+`f470c252cbbfc908e1d4996278cf116ba2b78eb514755d729c57a6ae6f8a2aa7`.
+
+The real API run admits all four declared personas through the stock production
+authentication path and application-role PostgreSQL owner. Tenant/organization
+disagreements stop before the read and persist one defended-tenant rejection
+with the expected actor/source/scope. Claimless public reads preserve their
+HostOnly ceiling; actual ID/Hub tokens and the wrong CA are refused. Anonymous
+reads remain independent of an unavailable identity provider. Its complete
+12-case TRX SHA-256 is
+`7fafa97c24ea554cb0a629b5c3c952942d1ee54b767a7a988f4b9c5a5e8eb02e`.
+Exact-session teardown leaves no owned provider resources; the unrelated
+database remains running.
+
+The complete architecture assembly passes **433 cases with zero skips**.
+Production and architecture input binaries remain unchanged across the separate
+integration-fixture correction build; 359 SHA-256 observations retain that
+boundary. Current-source Docker/corpus checks pass seven cases, followed by two
+Docker census cases after the profile class-fixture isolation change. The census
+now detects direct public-read fixtures, the named API collection and partial
+test classes; its planted missing-trait controls fail the same detector.
+Release builds report zero warnings/errors. The corrected exact meta step passes
+**152 named cases**, with all report-refusal controls retained. The previously
+recorded complete frontend, unit, HTTP and contract runs remain valid for their
+unchanged source inputs. Link/fragment and whitespace checks are clean.
+
+These are local receipts. Step 4's implementation commit, two fresh independent
+review rounds, final-source production demo and complete hosted qualification
+remain pending. Both P02b-6 catalogue entries remain Registered; no BFF session,
+packet completion or merge is claimed.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

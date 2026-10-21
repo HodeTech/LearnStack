@@ -74,3 +74,51 @@ export function mergeOwnedMappers(current, desired, stage = 'plan') {
     }),
   ];
 }
+
+// Pinned RepresentationToModel removes empty config strings on import/create
+// and effective-model reads. This one absent optional setting means no prefix
+// in AbstractUserRoleMappingMapper; every other setting remains significant.
+export function accountMapperRepresentation(mapper) {
+  const prefix = 'usermodel.clientRoleMapping.rolePrefix';
+  if (mapper.protocolMapper !== 'oidc-usermodel-client-role-mapper'
+    || mapper.config?.['usermodel.clientRoleMapping.clientId'] !== 'account'
+    || mapper.config?.['claim.name'] !== 'resource_access.account.roles'
+    || mapper.config?.[prefix] !== '') return mapper;
+  return { ...mapper, config: Object.fromEntries(Object.entries(mapper.config).filter(([key]) => key !== prefix)) };
+}
+
+// The shared console may emit account roles, but no realm/all-client role
+// carrier or implicit role/audience transformer is qualified by a claim name.
+export function validateAccountMappers(mappers, canonical, stage = 'plan') {
+  const fail = () => refuse(stage, 'mapper_conflict');
+  const configBoundary = {
+    'usermodel.clientRoleMapping.clientId': 'account', 'usermodel.clientRoleMapping.rolePrefix': '',
+    'claim.name': 'resource_access.account.roles', 'jsonType.label': 'String', multivalued: 'true',
+    'access.token.claim': 'true', 'introspection.token.claim': 'true', 'id.token.claim': 'false',
+    'userinfo.token.claim': 'false', 'lightweight.claim': 'false',
+  };
+  if (Object.keys(canonical.config ?? {}).length !== Object.keys(configBoundary).length
+    || Object.entries(configBoundary).some(([key, value]) => canonical.config[key] !== value)) fail();
+  let carriers = 0;
+  let resolvers = 0;
+  for (const mapper of mappers) {
+    if (!mapper || mapper.protocol !== 'openid-connect' || !knownTypes.has(mapper.protocolMapper)) fail();
+    const config = accountMapperRepresentation(mapper).config ?? {};
+    if (mapper.protocolMapper === 'oidc-usermodel-client-role-mapper') {
+      if (Object.keys(config).some(key => !Object.hasOwn(canonical.config, key))
+        || Object.entries(canonical.config).some(([key, value]) =>
+          key === 'usermodel.clientRoleMapping.rolePrefix' ? config[key] !== undefined : config[key] !== value)) fail();
+      carriers++;
+    } else if (mapper.protocolMapper === 'oidc-audience-resolve-mapper') {
+      if (Object.keys(config).some(key => !['access.token.claim', 'introspection.token.claim', 'id.token.claim', 'lightweight.claim'].includes(key))
+        || ['access.token.claim', 'introspection.token.claim'].some(key => config[key] !== undefined && config[key] !== 'true')
+        || ['id.token.claim', 'lightweight.claim'].some(key => config[key] !== undefined && config[key] !== 'false')) fail();
+      resolvers++;
+    } else {
+      if (['oidc-audience-mapper', 'oidc-usermodel-realm-role-mapper'].includes(mapper.protocolMapper)
+        || ['resource_access', 'realm_access', ...reservedClaims].includes(claimRoot(config['claim.name']))) fail();
+    }
+  }
+  if (resolvers !== 1 || carriers > 1) fail();
+  return carriers === 1;
+}

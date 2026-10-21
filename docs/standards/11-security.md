@@ -160,9 +160,10 @@ the issuance-lifetime rule accepted in the
 the tenant development realm uses a configured 900-second access-token lifespan.
 [`learnstack.json`](../../infra/keycloak/realms/learnstack.json) owns the executable
 value; the development reconciler enforces it with no conflicting override on
-either named client. Step 1 supplies the committed fresh-import definition;
-warm-realm reconciliation and complete real-token/API qualification remain
-P02b-6 Steps 2–4. ADR-0064's one-hour
+either named client. P02b-6 Steps 1–3 supply the fresh-import definition and
+bounded reconciliation through both seed/demo entries; their delivery records
+own actual local qualification. Step 4 retains complete real-token/API proof
+and final-source hosted qualification. ADR-0064's one-hour
 API acceptance ceiling and 30-second skew remain separate from issuance.
 P02b-7 owns BFF idle/absolute lifetimes and refresh custody; that part of G13
 remains Open.
