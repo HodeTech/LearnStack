@@ -174,6 +174,8 @@ describe('observational CI demo source checkpoints', () => {
         'public-runtime',
         'wait-compose',
         'compose',
+        'development-realm-owner',
+        'development-realm-errors',
       ])
         writeFileSync(
           join(f.root, `scripts/${name}.mjs`),
@@ -183,6 +185,10 @@ describe('observational CI demo source checkpoints', () => {
         join(f.root, 'scripts/demo-http.mjs'),
         'export async function vacant() {}\nexport async function demoRequest() {}\nexport async function boundedBody() {}\n',
       );
+      writeFileSync(
+        join(f.root, 'scripts/reconcile-development-realm.mjs'),
+        "export async function reconcileDevelopmentRealm() { throw new Error('Unexpected reconciliation before restore'); }\n",
+      );
       mkdirSync(join(f.root, 'frontend/apps/web/scripts'), { recursive: true });
       writeFileSync(
         join(f.root, 'frontend/apps/web/scripts/stop-test-child.mjs'),
@@ -190,7 +196,13 @@ describe('observational CI demo source checkpoints', () => {
       );
       f.git('add', '.');
       f.git('commit', '--quiet', '-m', 'actual launcher');
-      if (mode === 'local') writeFileSync(join(f.root, 'source.ts'), 'local development change');
+      if (mode === 'local') {
+        writeFileSync(join(f.root, 'source.ts'), 'local development change');
+        writeFileSync(
+          join(f.root, '.env'),
+          'KEYCLOAK_ADMIN=source-control-admin\nKEYCLOAK_ADMIN_PASSWORD=source-control-private\nKEYCLOAK_WEB_CLIENT_SECRET=source-control-web-private\n',
+        );
+      }
       const execution = spawnSync(
         process.execPath,
         [

@@ -6,7 +6,7 @@ description: >
   fixtures and data-only showcases. P02d-2 includes enabled locales, built-in and
   tenant-specific definitions, complete branding and scoped Course/Lesson content.
   DO NOT USE FOR: production provisioning, production reseeding, Hub licensing,
-  identity setup or domain-specific application branches.
+  production identity provisioning or domain-specific application branches.
 ---
 
 # Seeding a tenant
@@ -62,14 +62,18 @@ make seed
 
 This target starts the selected stack and waits for PostgreSQL before migration.
 `scripts/seed.sh` then checks full Compose health and both realm issuers before
-running the .NET tool. `scripts/compose.mjs` shares project/files/env selection
-with the demo lifecycle; inherited Compose profiles cannot widen its default set.
+running the fresh Release Seeder DLL and then the shared development-only realm
+reconciler. Both combined entries reject an incomplete selected private realm
+source before infrastructure work; older files must explicitly add the BFF
+secret key. The [realm guide](../../../infra/keycloak/README.md) owns the exact
+contract and delivery status. `scripts/compose.mjs` shares project/files/env
+selection with the demo lifecycle; inherited Compose profiles cannot widen its default set.
 The direct tool runs
 from `backend/`, where `global.json` pins the SDK:
 
 ```bash
 (cd backend && ConnectionStrings__Default="<learnstack_app connection string>" \
-    dotnet run --project src/LearnStack.Tools.Seeder --nologo)
+    dotnet run --project src/LearnStack.Tools.Seeder --configuration Release)
 ```
 
 Do not put a real connection string on `argv` or print it. The script reads the

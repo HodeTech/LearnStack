@@ -41,7 +41,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 function temporary() {
-  const root = mkdtempSync(join(tmpdir(), 'learnstack-demo-control-'));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'learnstack-demo-control-')));
   roots.push(root);
   return root;
 }
@@ -49,6 +49,48 @@ function owner(signal = new AbortController().signal) {
   const processes = new DemoProcesses(signal);
   owners.push(processes);
   return processes;
+}
+
+function seedFixture(root: string) {
+  for (const directory of ['scripts', 'backend', 'bin']) mkdirSync(join(root, directory));
+  for (const file of [
+    'seed.sh',
+    'seed.mjs',
+    'connection-string.awk',
+    'compose.mjs',
+    'demo-database.mjs',
+    'demo-process.mjs',
+    'development-realm-owner.mjs',
+    'development-realm-errors.mjs',
+  ])
+    writeFileSync(
+      join(root, 'scripts', file),
+      readFileSync(new URL(`../../../../../scripts/${file}`, import.meta.url)),
+    );
+  mkdirSync(join(root, 'frontend/apps/web/scripts'), { recursive: true });
+  writeFileSync(
+    join(root, 'frontend/apps/web/scripts/stop-test-child.mjs'),
+    readFileSync(new URL('../../scripts/stop-test-child.mjs', import.meta.url)),
+  );
+  for (const [file, method, event] of [
+    ['wait-compose', 'waitCompose', 'ready'],
+    ['reconcile-development-realm', 'reconcileDevelopmentRealm', 'realm'],
+  ])
+    writeFileSync(
+      join(root, `scripts/${file}.mjs`),
+      `import { appendFileSync } from 'node:fs';
+export async function ${method}() { appendFileSync(${JSON.stringify(join(root, 'events'))}, '${event}\\n'); return { mutations: 0 }; }
+`,
+    );
+  return [
+    'ConnectionStrings__Migration=Username=learnstack_migration',
+    'ConnectionStrings__Default=Username=learnstack_app',
+    'ConnectionStrings__OutboxDispatcher=Username=learnstack_outbox_admin',
+    'KEYCLOAK_ADMIN=fixture-admin',
+    `KEYCLOAK_ADMIN_PASSWORD=${randomBytes(16).toString('hex')}`,
+    `KEYCLOAK_WEB_CLIENT_SECRET=${randomBytes(16).toString('hex')}`,
+    '',
+  ].join('\n');
 }
 
 describe('launcher-owned local database validation', () => {
@@ -234,14 +276,15 @@ describe('shared explicit demo stack selection', () => {
   });
   it('refuses stale ambient seed credentials before stack or database actions', () => {
     const root = temporary();
-    mkdirSync(join(root, 'scripts'));
+    const privateSource = seedFixture(root);
     const script = join(root, 'scripts/seed.sh');
-    writeFileSync(script, readFileSync(new URL('../../../../../scripts/seed.sh', import.meta.url)));
     const migration = 'Host=localhost;Username=learnstack_migration';
     const app = 'Host=localhost;Username=learnstack_app';
     writeFileSync(
       join(root, 'selected.env'),
-      `ConnectionStrings__Migration=${migration}\nConnectionStrings__Default=${app}\n`,
+      privateSource
+        .replace('Username=learnstack_migration', migration)
+        .replace('Username=learnstack_app', app),
     );
     const env = {
       PATH: process.env.PATH,
@@ -265,32 +308,31 @@ describe('shared explicit demo stack selection', () => {
       expect(result.stderr).not.toContain('foreign');
     }
   });
-  it('launches the argument-free Seeder without selected or ambient dispatcher credentials', () => {
+  it('freshly builds the Release Seeder and launches its argument-free DLL with only its credential', () => {
     const root = temporary();
-    for (const directory of ['scripts', 'backend', 'bin']) mkdirSync(join(root, directory));
-    for (const file of ['seed.sh', 'connection-string.awk', 'demo-database.mjs'])
-      writeFileSync(
-        join(root, 'scripts', file),
-        readFileSync(new URL(`../../../../../scripts/${file}`, import.meta.url)),
-      );
+    writeFileSync(join(root, '.env'), seedFixture(root));
+    writeFileSync(join(root, 'bin/docker'), '#!/bin/sh\n[ "$*" = "compose version" ]\n', {
+      mode: 0o700,
+    });
     writeFileSync(
-      join(root, '.env'),
-      'ConnectionStrings__Migration=Username=learnstack_migration\nConnectionStrings__Default=Username=learnstack_app\nConnectionStrings__OutboxDispatcher=Username=learnstack_outbox_admin\n',
+      join(root, 'bin/dotnet'),
+      `#!${process.execPath}
+const { appendFileSync } = require('node:fs');
+const { join } = require('node:path');
+const args = process.argv.slice(2);
+const build = JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo']);
+const seed = args.length === 1 && args[0] === join(${JSON.stringify(root)}, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll');
+const forbidden = Object.keys(process.env).filter(key => /keycloak|outbox|migration|platform|debug/i.test(key));
+if ((!build && !seed) || process.cwd() !== ${JSON.stringify(join(root, 'backend'))} || forbidden.length || process.env.HOME !== '/seed-home' || !process.env.PATH || (build ? process.env.ConnectionStrings__Default !== undefined : process.env.ConnectionStrings__Default !== 'Username=learnstack_app')) process.exit(13);
+appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'appseed') + '\\n');
+`,
+      { mode: 0o700 },
     );
-    for (const [name, body] of Object.entries({
-      docker: '[ "$*" = "compose version" ]',
-      node: 'if [ "$*" = "scripts/wait-compose.mjs" ]; then exit 0; fi\nexec "$REAL_NODE" "$@"',
-      dotnet:
-        '[ "$#" = 3 ] && [ "$1" = run ] && [ "$2" = --project ] && [ "$3" = src/LearnStack.Tools.Seeder ] && [ "$(basename "$PWD")" = backend ] && [ "$ConnectionStrings__Default" = Username=learnstack_app ] && [ "$HOME" = /seed-home ] && [ -n "$PATH" ] && [ -z "${ConnectionStrings__OutboxDispatcher+x}" ] && [ -z "${CONNECTIONSTRINGS__OUTBOXDISPATCHER+x}" ] && [ -z "${LEARNSTACK_OUTBOX_PW+x}" ] && ! env | /usr/bin/grep -q "^ConnectionStrings:OutboxDispatcher=" && printf launched > ../launched',
-    }))
-      writeFileSync(join(root, 'bin', name), `#!/bin/sh\n${body}\n`, { mode: 0o700 });
     const launch = () =>
       spawnSync('bash', [join(root, 'scripts/seed.sh')], {
         cwd: root,
         env: {
           PATH: `${join(root, 'bin')}:${process.env.PATH}`,
-          TEST_ROOT: root,
-          REAL_NODE: process.execPath,
           HOME: '/seed-home',
           NODE_ENV: 'test',
           ConnectionStrings__OutboxDispatcher: 'ambient-dispatcher',
@@ -302,18 +344,15 @@ describe('shared explicit demo stack selection', () => {
         timeout: 5000,
       });
     expect(launch().status).toBe(0);
-    expect(readFileSync(join(root, 'launched'), 'utf8')).toBe('launched');
-    const script = join(root, 'scripts/seed.sh');
-    writeFileSync(
-      script,
-      readFileSync(script, 'utf8').replace(
-        "['run', '--project', 'src/LearnStack.Tools.Seeder']",
-        "['run', '--project', 'src/LearnStack.Tools.Seeder', '--nologo']",
-      ),
-    );
+    expect(readFileSync(join(root, 'events'), 'utf8')).toBe('ready\nbuild\nappseed\nrealm\n');
+    const script = join(root, 'scripts/seed.mjs');
+    const source = readFileSync(script, 'utf8');
+    expect(source).toContain('[seederDll]');
+    writeFileSync(script, source.replace('[seederDll]', "[seederDll, '--nologo']"));
+    writeFileSync(join(root, 'events'), '');
     const refused = launch();
     expect(refused.status).not.toBe(0);
-    expect(refused.stderr).toContain('tenant seeding failed');
+    expect(readFileSync(join(root, 'events'), 'utf8')).toBe('ready\nbuild\n');
   });
   it('reads the selected migration env file and refuses its runtime role before any database act', () => {
     const root = temporary();

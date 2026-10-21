@@ -6,7 +6,7 @@ import { DemoProcesses, installDemoCancellation } from './demo-process.mjs';
 import { publicSeederEnvironment } from './demo-database.mjs';
 import { reconcileRealm, realmPassMilliseconds } from './development-realm-core.mjs';
 import { acquireRealmLock, isLocalDockerEndpoint, realmEnvironment, validateRealmTarget } from './development-realm-owner.mjs';
-import { RealmError, realmFailure, refuse } from './development-realm-errors.mjs';
+import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
 
 /** Shared seed/demo operation. Neither target nor secrets are command-line parameters. */
 export async function reconcileDevelopmentRealm({ selected, signal }) {
@@ -65,9 +65,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const result = await reconcileDevelopmentRealm({ selected, signal: stop.signal });
     console.log(`realm: completed (${result.mutations} writes)`);
   } catch (error) {
-    console.error(realmFailure(error));
-    if (error instanceof RealmError && error.reason === 'missing_web_secret')
-      console.error('realm: add KEYCLOAK_WEB_CLIENT_SECRET explicitly to the selected private file; see infra/keycloak/README.md');
+    console.error(realmFailureNotice(error));
     process.exitCode = 1;
   } finally { remove(); }
 }

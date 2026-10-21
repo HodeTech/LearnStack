@@ -99,11 +99,22 @@ only when their realms do not already exist. Restarting a populated database
 does not apply export changes. Dropping the database or replaying a whole import
 is not an upgrade procedure.
 
-P02b-6 Step 1 supplies the executable fresh import. Steps 2–3 implement the
-bounded shared Admin REST reconciler and connect it to `make seed` / `make demo`
-after application seed convergence. Until those steps ship, a populated realm
-does not converge through those entry points. Direct .NET Seeder remains an
-application-data tool; its identity manifest is a read-only declaration.
+P02b-6 Step 1 supplies the executable fresh import; Step 2 supplies the bounded
+shared Admin REST reconciler. Both completed their local review rounds. Step 3
+connects `make seed` and `make demo` to the same awaited operation after
+application seed convergence. Its actual lifecycle qualification and reviews
+are recorded in the [Step 3 delivery record](../../docs/roadmap/phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21).
+Direct .NET Seeder remains an application-data tool; its identity manifest is a
+read-only declaration. Both combined entries build its fresh Release DLL and
+keep private realm credentials out of that child.
+
+An older private environment must add `KEYCLOAK_WEB_CLIENT_SECRET` explicitly
+before either combined entry starts stack or database work. Do not wipe the
+provider database to upgrade. The tool reports fixed refusal reasons, keeps
+partial Admin changes durable and requires an explicit verified rerun. The
+[accepted account-console adjustment](../../docs/roadmap/phase-02b-events-auth.md#account-console-self-service-capability--proposal-2026-10-21)
+retains Step 4 implementation ownership; current seed convergence does not yet
+claim that self-service capability.
 
 The accepted warm-upgrade contract preserves nonmanifest accounts, credentials,
 provider IDs and all Hub state. Only known legacy seed attributes are migrated;
@@ -132,8 +143,8 @@ mapper's group stream; any exposed membership outside that ordinary inventory
 refuses before writes. The pinned cached model excludes Keycloak Organization
 groups from that stream, including retained memberships after the feature is
 disabled. Its actual-token control is separate from the defensive refusal for
-unknown membership IDs. This is separate from LearnStack's own organization IDs. The named single-user import does not inherit
-realm default groups; new-account membership is independently checked as empty.
+unknown membership IDs. This is separate from LearnStack's own organization
+IDs. The named single-user import does not inherit realm default groups; new-account membership is independently checked as empty.
 
 The entire projected change must also fit the existing bounded readers and
 request bodies. A configuration that would exceed those limits refuses during

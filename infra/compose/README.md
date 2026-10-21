@@ -60,9 +60,12 @@ docker compose --env-file .env -f infra/compose/dev.yml exec -T postgres   sh -c
 It is idempotent, so re-running it against a cluster that already has the roles
 is a no-op rather than an error.
 
-Fresh imports do not upgrade an existing realm. P02b-6 Step 2 owns the bounded
-warm-realm reconciler; until it ships, preserve existing accounts and credentials
-and follow the [realm guide's current delivery status](../keycloak/README.md).
+Fresh imports do not upgrade an existing realm. P02b-6's bounded warm-realm
+reconciler is shared by `make seed` and `make demo` after application seed. Both
+entries validate the selected private source before infrastructure work; older
+files must add the BFF secret key explicitly. Existing credentials and provider
+IDs are preserved. The [realm guide](../keycloak/README.md) owns exact behavior,
+refusals and current qualification status; a database wipe is not an upgrade.
 
 ### Live media (Phase 01 packet 5)
 

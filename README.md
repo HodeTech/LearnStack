@@ -93,8 +93,10 @@ under Accepted ADR-0064/0065/0066. All five steps and verified correction bundle
 completed their independent review rounds. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
 records final-source CI, unchanged-plan A/B qualification and identical merge trees.
-Next is P02b-6's realm/TTL decision pass. Realm reconciliation, BFF sessions and
-phase exit remain P02b-6–8; browser sign-in is not implemented.
+P02b-6's realm/TTL package is Accepted; Steps 1–2 completed their local review
+rounds. Step 3 connects shared realm convergence to seed/demo and is under
+qualification; Step 4 retains complete identity/security and hosted proof.
+BFF sessions and phase exit remain P02b-7–8; browser sign-in is not implemented.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
@@ -203,13 +205,18 @@ make hooks     # optional: install the repository Git hooks
 
 Continue with the manual HTTPS prerequisites below, then run `make demo`. It
 creates missing private configuration and restores dependencies without changing
-Git hooks. `make seed` remains available for infrastructure/database-only use.
+Git hooks. `make seed` converges application data and the development identity
+realm without starting the API or web. Direct .NET Seeder remains data-only.
 
 The seed provisions `demo-english` and `demo-yoga`, their organizations and host
 mappings, enabled locales, distinct branding, built-in and tenant-authored definitions,
 and eight scoped courses, ten lessons and twenty-seven translations. It uses the
 ordinary authoring pipeline and verifies completed acts before skipping them on rerun.
 [SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
+Both combined entries then await the same bounded development-realm reconciler.
+Older private files must explicitly add `KEYCLOAK_WEB_CLIENT_SECRET`; existing
+passwords/MFA and provider IDs are preserved. The [realm guide](infra/keycloak/README.md)
+owns setup, refusal and qualification details.
 
 ### 3. Prepare local HTTPS and start the applications
 
@@ -276,8 +283,8 @@ Supply `Authentication:Tenant:Issuer` too: the canonical HTTPS tenant-realm URL,
 with loopback HTTP allowed only in `Development`. The development configuration
 defaults to `http://localhost:8080/realms/learnstack`; issuer configuration is
 validated without contacting Keycloak at startup. Credential-free public reads
-remain available when Keycloak is stopped. Real realm issuance/reconciliation and
-browser sessions remain P02b-6 and P02b-7 respectively.
+remain available when Keycloak is stopped. P02b-6 owns current realm issuance/
+reconciliation qualification; browser sessions remain P02b-7.
 
 **P02d-5 is complete: ingress, visitor budgets and public entry.** The web
 bootstraps the captured host through the API, redirects using enabled/default

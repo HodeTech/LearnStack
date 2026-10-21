@@ -22,6 +22,9 @@ import { publicDemoApiEnvironment, publicWebEnvironment } from './public-runtime
 import { apiCompletionObserver } from './demo-observation.mjs';
 import { publicSeederEnvironment, validateDemoDatabaseConfiguration } from './demo-database.mjs';
 import { demoSource } from './demo-source.mjs';
+import { RealmError, realmFailureNotice } from './development-realm-errors.mjs';
+import { realmEnvironment } from './development-realm-owner.mjs';
+import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
 const backendRoot = join(repositoryRoot, 'backend');
@@ -75,6 +78,7 @@ export async function disposeDemoResources({ processes, finish, teardown, remove
 
 /** Only fixed local diagnostics may leave the launcher boundary. */
 export function demoFailureMessage(error) {
+  if (error instanceof RealmError) return realmFailureNotice(error);
   return error instanceof DemoCommandError ||
     (error instanceof Error &&
       (error.message === 'Local demo database configuration is invalid' ||
@@ -110,7 +114,9 @@ export async function startDemo(mode) {
   const run = (command, args, label, options = {}) =>
     processes.run(command, args, {
       cwd: repositoryRoot,
-      env: process.env,
+      // Build and setup tools need process prerequisites, not private realm or
+      // dispatcher credentials. Compose and runtime children have exact owners.
+      env: publicSeederEnvironment(),
       label,
       ...options,
     });
@@ -211,6 +217,8 @@ export async function startDemo(mode) {
         return Math.min(bound, workflowDeadline - Date.now());
       });
     }
+    if (mode === 'local' && existsSync(rootEnv))
+      realmEnvironment(readFileSync(rootEnv, 'utf8'));
     mkdirSync(join(repositoryRoot, '.data'), { recursive: true });
     try {
       mkdirSync(lock, { mode: 0o700 });
@@ -300,6 +308,7 @@ export async function startDemo(mode) {
           .map(([key, value]) => `${key}=${value}`)
           .join('\n') + '\n';
       writeFileSync(rootEnv, ownedEnvironment, { flag: 'wx', mode: 0o600 });
+      realmEnvironment(ownedEnvironment);
       await run(
         'openssl',
         [
@@ -328,9 +337,12 @@ export async function startDemo(mode) {
           flag: 'wx',
           mode: 0o600,
         });
+      realmEnvironment(readFileSync(rootEnv, 'utf8'));
       await run('node', ['scripts/public-local.mjs', 'prepare'], 'Private local preparation');
     }
-    const rawValues = parseLocalEnvironment(readFileSync(rootEnv, 'utf8'));
+    const privateSource = readFileSync(rootEnv, 'utf8');
+    realmEnvironment(privateSource);
+    const rawValues = parseLocalEnvironment(privateSource);
     for (const [key, value] of Object.entries(rawValues))
       if (process.env[key] !== undefined && process.env[key] !== value)
         throw new Error('Environment disagrees with private root configuration');
@@ -402,7 +414,10 @@ export async function startDemo(mode) {
     await waitCompose(selected, processes, controller.signal, true);
     await run('make', ['migrate'], 'All migration chains', {
       env: {
-        ...process.env,
+        ...publicSeederEnvironment(),
+        LEARNSTACK_COMPOSE_PROJECT: selected.project,
+        LEARNSTACK_COMPOSE_ENV_FILE: selected.file,
+        LEARNSTACK_COMPOSE_MODE: selected.mode,
         ConnectionStrings__Migration: rawValues.ConnectionStrings__Migration,
       },
       timeout: 300000,
@@ -413,6 +428,7 @@ export async function startDemo(mode) {
       env: publicSeederEnvironment(rawValues.ConnectionStrings__Default),
       timeout: 180000,
     });
+    await reconcileDevelopmentRealm({ selected, signal: controller.signal });
     if (mode === 'ci') {
       await compose(['stop', 'keycloak'], { timeout: 20000 });
       const rows = await compose(['ps', '--status', 'running', '--format', '{{.Service}}'], {

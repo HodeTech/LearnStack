@@ -27,3 +27,11 @@ export function refuse(stage, reason) {
 export function realmFailure(error) {
   return error instanceof RealmError ? error.message : 'realm: preflight/configuration';
 }
+
+/** The three development entry points share the same closed setup instruction. */
+export function realmFailureNotice(error) {
+  const message = realmFailure(error);
+  return error instanceof RealmError && error.reason === 'missing_web_secret'
+    ? message + '\nrealm: add KEYCLOAK_WEB_CLIENT_SECRET explicitly to the selected private file; see infra/keycloak/README.md'
+    : message;
+}

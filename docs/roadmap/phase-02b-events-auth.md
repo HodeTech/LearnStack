@@ -14292,9 +14292,12 @@ Step 3's shared seed/demo wiring starts next; Step 4 retains final qualification
 
 ### Account-console self-service capability — proposal (2026-10-21)
 
-**Status: Proposed; maintainer decision pending.** No dependent role, import
-or console-mapper change is implemented. G12's existing phase-package vehicle owns this bounded
-adjustment; it introduces no new application authorization decision or ADR.
+**Status: Accepted — 2026-10-21.** The maintainer explicitly approved the narrow
+capability/mapper package after its two independent reviews and actual-provider
+counterfactuals. The reviewed proposal is recorded at `2ef1e148`; subsequent
+wrapping corrections do not change its policy. G12's existing phase-package
+vehicle owns this bounded adjustment; it introduces no new application
+authorization decision or ADR. Dependent implementation remains Step 4 work.
 Steps 2–3 can close independently; Step 4's same-seed account-edit proof depends
 on resolving this conflict.
 
@@ -14323,7 +14326,7 @@ would qualify a different setup and cannot substitute for delivered behavior.
 The proposal changes only the role-assignment part of that constraint for the
 named self-service capability below. All other preservation rules remain.
 
-**Recommended delta.** Declare the built-in `account` client's `manage-account`
+**Accepted delta.** Declare the built-in `account` client's `manage-account`
 role for exactly the four managed development personas. Fresh import and the
 single-user create-only import include it. Warm reconciliation adds that exact
 mapping only when the capability is missing; it never removes or replaces a
@@ -14427,6 +14430,40 @@ design finding. Their review verifies the recorded counterfactuals, bounded
 capability/mapper ownership and disclosure; it grants no implementation approval.
 They do not claim present-tree parity with the experiment while independent
 Step 3 entry-point changes proceed. Scoped prose wrapping and link checks pass.
+
+
+## P02b-6 Step 3 — shared seed/demo lifecycle (2026-10-21)
+
+**Status: local implementation delivered; actual lifecycle qualification and
+both independent review rounds pending.** Work stays on `development`. Step 2
+is closed at `b94f6a24`; the account-console adjustment above is Accepted and
+retains Step 4 implementation ownership.
+
+- `seed.sh` checks selected/ambient database agreement and the application role,
+  then performs read-only private realm preflight before stack/migration work.
+  `seed.mjs` owns readiness, a fresh Release Seeder build, its argument-free DLL
+  with only the app credential, and the awaited shared realm reconciliation.
+- The demo performs old-private-file preflight before preparation or commands.
+  It awaits the same reconciler with the exact selected project/file/mode and
+  signal after application seed, before CI stops Keycloak or starts API/web.
+- Build/setup children receive credential-free prerequisites. Migration keeps
+  only its own credential and explicit selected-stack metadata; API, public web
+  and Seeder environments do not receive private admin/BFF credentials. Fixed
+  diagnostics share the missing-secret setup instruction; no existing private
+  file is silently filled and no old-password promise is printed.
+- Parent cancellation joins the shared operation and owned command cleanup.
+  Local data stays retained; CI's own teardown and stopped-Keycloak public proof
+  remain part of the shared lifecycle.
+
+**Local validation.** The three focused lifecycle/source files pass 142 cases
+with zero failures/skips/todos; their actual JSON report passes the repository's
+validator. The complete guarded frontend run passes **1,722 cases in two
+packages, zero skips/todos**. Workspace typecheck/lint and 142 separate realm Node
+controls pass. Seventeen relevant Release architecture/corpus/Seeder/Docker-trait
+controls pass with zero skips; the Release build reports no compiler warning or
+error. Syntax, Bash parsing and scoped diff checks pass. These checks establish
+local wiring and source controls, not actual Compose convergence, product
+browser behavior, final-source hosted CI or a BFF session.
 
 ## Completion Criteria
 
