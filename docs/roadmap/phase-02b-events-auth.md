@@ -13893,12 +13893,12 @@ correction changes only offline proof/docs, not provider configuration or code.
 
 ## P02b-6 Step 2 — owned warm-realm reconciliation (2026-10-21)
 
-**Status: local implementation delivered; independent review rounds pending.**
+**Status: complete locally; both independent review rounds and fix review pass.**
 Step 1 is closed at `95d0a0c8`. The shared development-only client, owned target/
 transport/lock boundaries and field planner are implemented locally. The first
 actual complete-core provider run refused before writes at `version/body_limit`;
 the accepted allowance and complete-core receipt below resolve that conflict.
-Step 2 remains open until its independent reviews close. Entry-point activation
+The review/correction receipts below close Step 2. Entry-point activation
 and final-source hosted qualification remain Steps 3–4.
 
 ### Server-information response budget — proposal (2026-10-21)
@@ -14279,10 +14279,154 @@ attributes and membership unchanged.
 The root independently reruns **142 offline cases, zero failures/skips**, in
 10.149s, including the faithful empty-search/descendant control. Scoped syntax,
 whitespace/diff, seven ADR parser controls and 1,347 relative links/fragments
-across thirteen changed Markdown files pass. Fresh focused correction reviews
-remain pending at this checkpoint. Step 3 has not been activated.
+across thirteen changed Markdown files pass. The correction is committed at
+`b94f6a24`. Two new independent reviewers, GPT-6 Astra and GPT-6.1 Sol at xhigh
+effort, approve the bounded correction without a verified actionable finding.
+Both independently rerun all 142 offline controls and verify the 13-case TRX and
+23 source hashes against the commit. They inspect the real-source group/cache
+branches and preservation controls; neither reruns .NET or Docker. Both formal
+review rounds, their verified fixes and fresh correction verification are closed.
+Step 3's shared seed/demo wiring starts next; Step 4 retains final qualification.
 
 
+
+### Account-console self-service capability — proposal (2026-10-21)
+
+**Status: Proposed; maintainer decision pending.** No dependent role, import
+or console-mapper change is implemented. G12's existing phase-package vehicle owns this bounded
+adjustment; it introduces no new application authorization decision or ADR.
+Steps 2–3 can close independently; Step 4's same-seed account-edit proof depends
+on resolving this conflict.
+
+**Verified conflict.** The committed seed users have only their declared inert
+realm role. The pinned importer calls `addUser(false, false)`, so it does not
+assign Keycloak's default-role composite. An unchanged, PostgreSQL-backed fresh
+import completes the built-in `account-console` code/S256 flow and token exchange
+with HTTP 200, but authenticated Account REST GET and ordinary-profile POST both
+return **401**. Independent effective-role readback finds zero `account` client
+roles; `manage-account` and `view-profile` are absent. The built-in console has
+zero default client scopes, so the measurement requests only `openid`; it changes
+no client, mapper, profile or role. No successful account edit or profile
+protection is claimed from these refusals. The temporary measurement is removed
+from the committed regression source; its focused run passes three measured
+cases with zero skips. TRX SHA-256:
+`5ff77dff45f09941046d7e42b3cef57cc29bc5839d57aba5fb9ec457172601fb`.
+
+**Exact existing constraint.** The accepted Identity preservation clause says:
+
+> Never reset an existing password, credential, MFA factor, required action,
+> enabled state, email/name or role assignment to make a proof pass.
+
+It also requires an ordinary account-console edit for the same seed user. The
+current import cannot satisfy that positive control. A test-only role grant
+would qualify a different setup and cannot substitute for delivered behavior.
+The proposal changes only the role-assignment part of that constraint for the
+named self-service capability below. All other preservation rules remain.
+
+**Recommended delta.** Declare the built-in `account` client's `manage-account`
+role for exactly the four managed development personas. Fresh import and the
+single-user create-only import include it. Warm reconciliation adds that exact
+mapping only when the capability is missing; it never removes or replaces a
+prior mapping. Before any mutation, qualify the built-in client/role identity
+and its bounded composite closure: only the stock `manage-account-links` child,
+with no realm role or foreign client role. Incompatible administrator
+customization refuses rather than editing role definitions or composites.
+Already effective capability needs no new mapping. Independent readback checks
+both the capability and every original mapping; a completed rerun writes zero.
+
+The console also needs an account-role claim emitter. Its existing audience
+resolver alone does not populate `resource_access.account.roles`; Account REST
+checks that field even after its configured introspection fallback. Add one
+supported stock client-role mapper directly to the built-in `account-console`,
+with a fixed `account` client ID and fixed `resource_access.account.roles` claim.
+It emits a String array only in access/introspection tokens, with no role prefix,
+ID-token, user-info or lightweight-token emission. Do not attach the broader
+`roles` scope or add a realm/all-client role emitter. Retain the console's stock
+S256, audience resolver and `fullScopeAllowed=false` settings.
+
+Before writes, qualify the console's direct/default/optional scope role allowance
+and expanded composite closure within the stock account set: `manage-account`,
+`manage-account-links` and `view-groups`. The last role remains an allowed stock
+scope mapping, not a new user grant. Refuse a wider/customized role allowance or
+an effective conflicting emitter/role-transforming mapper, without changing it.
+A compatible existing fixed-account emitter needs no duplicate. Preserve all
+compatible prior client settings, callbacks, scopes and mapper IDs; independent
+readback verifies the exact intended addition and unchanged baseline.
+
+No realm-wide default-role assignment, group inheritance, unrelated account-data
+or grant change, Hub/master mutation, new application role or membership is
+introduced.
+The API continues to ignore all role claims for application authorization.
+Existing disabled state, MFA, required actions, passwords and account IDs remain
+unchanged; this capability does not make a disabled or action-blocked user able
+to log in. The protected profile definitions and BFF callback/client boundaries
+remain unchanged. The built-in account-console keeps its existing S256 and
+audience machinery; the new mapper carries only its resolved account roles.
+
+**Cost and alternatives.** `manage-account` is Keycloak's standard owner
+self-service capability, not a profile-field-only permission. It includes
+credential management and, through its stock composite, linked-account
+management for that user's own provider account. This explicitly increases the
+four warm personas' provider capability and may add the standard account
+audience/role claims to their tokens; it grants no LearnStack permission. The
+console mapper belongs to a shared client: it can also restore account-console
+access for nonmanifest users who already hold eligible account roles. Their
+records and grants stay unchanged. The four-persona restriction bounds new role
+grants, rather than every effect of the shared client configuration.
+Preserving the current mappings without this addition leaves those personas
+unable to use standard account self-service. Manual grants leave a nonconvergent
+setup prerequisite. Granting the realm default composite can include unrelated
+administrator additions; granting every account or changing role definitions
+exceeds this narrow need. Replacing the required positive with a generic 401/403
+would leave attribute protection unproved.
+
+**Implementation and proof owner.** After acceptance, Step 4 updates the typed
+identity declaration/export agreement, the planner's explicit role/client diff
+and readback, create-only import, Keycloak README and catalogue assertions. Tests
+cover unchanged-import refusal before the change, actual same-seed ordinary edit
+after it, protected writes/deletions/visibility with independent admin readback,
+fresh/warm exact capability and console mapper, original mappings retained,
+shared-client behavior for an already eligible nonmanifest user without a new
+grant, no unrelated account-data or Hub changes, zero-write reruns and unsafe
+role/scope/mapper customization refusing before writes. The existing actual
+warm-provider suite must pass against that final source. No fixture-only role
+grant may provide the passing baseline.
+
+**Sources.** Pinned Keycloak 26.6.2
+[importer](https://github.com/keycloak/keycloak/blob/26.6.2/model/storage-private/src/main/java/org/keycloak/storage/datastore/DefaultExportImportManager.java#L978-L1035),
+[default-role admission](https://github.com/keycloak/keycloak/blob/26.6.2/model/jpa/src/main/java/org/keycloak/models/jpa/JpaUserProvider.java#L103-L133),
+[built-in account/console setup](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/managers/RealmManager.java#L470-L535)
+and [Account REST requirements](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/account/AccountRestService.java#L126-L156).
+
+**Proposal qualification.** Two independent source/corpus reviews correctly found
+that the first role-only recipe omitted the console's role-claim carrier. The
+revised fixed-account mapper is qualified by an isolated actual-provider
+counterfactual: a fresh code/S256 exchange is HTTP 200 at each stage; the
+unchanged user's Account GET/POST are 401, the role-only variant returns 403,
+and the role-plus-mapper variant returns GET 200 and ordinary-edit POST 204.
+Independent admin readback confirms the changed ordinary field. A combined
+protected-attribute replacement returns 400; a deletion request returns 204
+while preserving both stored protected values and the absent organization
+field. These are feasibility observations, not complete three-field/profile/
+registration proofs. Default and optional console scopes remain empty. A
+whole-client JSON comparison includes the new mapper and is not evidence of
+unchanged client settings; exact preservation remains an implementation
+obligation. The temporary variant is removed and makes no production change.
+The single-case TRX SHA-256 is
+`b3d57aecb27543e3c97f6537c75e259fc6d554c858b6fb4844f4a99617424d09`.
+The lifecycle receipt confirms the one owned Keycloak/PostgreSQL/Ryuk/network
+set is removed and the foreign database retained. No fixture-only grant is a
+production or protection baseline. The selected mapper uses Keycloak's supported
+[fixed-client role mapper](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/mappers/UserClientRoleMappingMapper.java)
+and typed resource-access projection. The independent protection proofs remain
+Step 4 obligations after any accepted implementation.
+
+Two independent reviewers, GPT-6 Astra and GPT-6.1 Sol at xhigh effort, approve
+the revised package for maintainer decision without a remaining actionable
+design finding. Their review verifies the recorded counterfactuals, bounded
+capability/mapper ownership and disclosure; it grants no implementation approval.
+They do not claim present-tree parity with the experiment while independent
+Step 3 entry-point changes proceed. Scoped prose wrapping and link checks pass.
 
 ## Completion Criteria
 
