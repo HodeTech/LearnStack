@@ -167,6 +167,12 @@ The Hub realm retains its own settings.
 
 Existing realm roles and `fullScopeAllowed: true` remain a development posture;
 the API derives no membership, permission or platform authority from them.
+The web client's retained roles scope can put the `account` audience and eligible
+account roles into its access token. That token can authorize Keycloak owner
+self-service, including ordinary profile updates; it is not restricted to the
+LearnStack API. The configured issuance lifetime limits token duration, not its
+capability. P02b-7 owns server-side BFF token custody; narrowing this already
+approved development capability requires a separate decision.
 The tenant export enables open registration with email as username, password
 reset and remember-me, while email verification is disabled. It declares no
 password policy or event-persistence/listener configuration. These are local
@@ -174,6 +180,14 @@ development settings; production provisioning owns its own hardened configuratio
 Production client scope mapping, refresh rotation and MFA enforcement remain
 Phase 11 work; Phase 03 owns tenant identity policy. Tenant MFA stays optional in
 this development export; the operator realm keeps its declared TOTP action.
+
+The ordinary Account REST profile update does not establish an email/login rename:
+Keycloak's [email condition](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/userprofile/DeclarativeUserProfileProviderFactory.java#L143-L171)
+makes email read-only in that context under the current realm settings. A 204 can therefore leave email unchanged. Separate required-action
+or administrator changes use different paths. If a reserved login is changed,
+reconciliation refuses ownership instead of adopting another account or resetting
+credentials. Verify the existing provider ID and protected actor privately before
+restoring an intended reserved login; never repair a conflict by changing actor IDs.
 
 ## Fresh import and warm upgrade
 
@@ -187,6 +201,13 @@ shared Admin REST reconciler. Both completed their local review rounds. Step 3
 connects `make seed` and `make demo` to the same awaited operation after
 application seed convergence. Its actual lifecycle qualification and reviews
 are recorded in the [Step 3 delivery record](../../docs/roadmap/phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21).
+The exact pre-P02b-6 export still has unsupported warm prerequisites: its stock
+profile hides identity values and its account-console bootstrap carries broader
+scope assignments. Current tooling refuses these states before writes.
+[ADR-0068](../../docs/decisions/0068-development-warm-realm-qualification.md)
+proposes a bounded correction and remains awaiting approval; do not remove the
+visibility guard, wipe the database or silently normalize scopes manually.
+
 Direct .NET Seeder remains an application-data tool; its identity manifest is a
 read-only declaration. Both combined entries build its fresh Release DLL and
 keep private realm credentials out of that child.

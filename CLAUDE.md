@@ -305,8 +305,8 @@ current-head hosted qualification gates in the
 PR review and merge remain separate.
 The [additional correction record](docs/roadmap/phase-02b-events-auth.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
 owns the current verified findings.
-[ADR-0068](docs/decisions/0068-development-identity-visibility-preparation.md)
-remains Proposed; dependent visibility-preparation changes need separate approval.
+[ADR-0068](docs/decisions/0068-development-warm-realm-qualification.md)
+remains Proposed; dependent warm-realm changes need separate approval.
 P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full

@@ -155,7 +155,7 @@ not deferred to the showcase phase.
   Accepted — 2026-10-21 after separate maintainer approval, with no runtime or
   G13 session-policy change.
   The [additional correction record](phase-02b-events-auth.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
-  owns current findings; [ADR-0068](../decisions/0068-development-identity-visibility-preparation.md)
+  owns current findings; [ADR-0068](../decisions/0068-development-warm-realm-qualification.md)
   remains Proposed, with dependent implementation awaiting separate approval.
   Step 1 is complete locally after both review rounds; its
   [record](phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)

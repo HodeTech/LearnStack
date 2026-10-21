@@ -15778,9 +15778,9 @@ transcripts or infer a review's validity from elapsed time alone.
 Fresh independent correction rounds and source-appropriate hosted qualification
 follow the implementation receipts below. Author checks are not independent reviews.
 
-[ADR-0068](../decisions/0068-development-identity-visibility-preparation.md) is a
-Proposed metadata-preparation exception. It changes the accepted first-write
-ordering and requires separate approval before dependent implementation. Existing
+[ADR-0068](../decisions/0068-development-warm-realm-qualification.md) is a
+Proposed warm-realm correction. It changes first-write ordering and permits
+three independently qualified stock-console assignment detachments and requires separate approval before dependent implementation. Existing
 visibility and account-console refusals remain active; approval would not itself
 prove complete stock-main upgrade compatibility.
 
@@ -15816,6 +15816,89 @@ still finds one owned container; later reads of those same IDs confirm absence.
 That first observation is retained, not rewritten as immediate cleanup. No
 foreign-resource inventory or cleanup, runtime fix, retry-until-green, deadline
 increase or historical root-cause claim accompanies these results.
+
+
+#### Complete correction reviews
+
+Two fresh reviewers inspect the complete `57772a2a..dbc8e025` correction,
+including the guarded migration example: `gpt-6-astra` and `gpt-6.1-sol`, both at
+`high`. Both approve without an actionable finding. They independently pass all
+251 Node cases, 43 launcher controls and six Node-gate controls; the proof reviewer
+also passes the sixty combined shard/aggregate controls. The separately executed
+nineteen aggregate cases are included in sixty, not additional coverage. In
+isolated source copies, the new username/census controls pass clean and fail when
+their respective production `exact=true` or `exact=false` parameter is removed.
+All review subprocesses join; no provider or .NET execution is repeated.
+
+Two different fresh second-round reviewers inspect that same complete correction:
+`gpt-6.1-sol` and `gpt-6-astra`, both at `high`. Both approve without an actionable
+finding. The security reviewer independently passes 197 focused frontend controls
+across the four affected suites. The proof reviewer passes 251 Node, 43 launcher,
+six gate and sixty combined controls. Its initial hyphenated-file `unittest`
+discovery executes zero cases and is excluded from evidence; direct script runs
+supply the recorded results. All review subprocesses join. Proposed ADR-0068,
+its later documentation revision and new hosted qualification are outside these
+code approvals. Both full correction rounds are complete; none establishes the
+historical cancellation failure's cause.
+
+#### Historical-realm and account-capability feasibility
+
+A separate private archive at `57772a2a` uses the existing owned PostgreSQL-backed,
+TLS-qualified Keycloak 26.6.2 fixture. The historical tenant import is exactly
+`24705a7a`'s export, SHA-256
+`39659a4e505c8ad3c1b2963e69e58dadb725e4fb37b408dcf87214a2bb0d2d07`.
+Temporary measurement source and raw output remain private; these are decision
+support probes, not committed regressions or automatic-path qualification.
+Intermediate harness compile/assertion failures are not counted as product defects
+or passing qualification. No private workstation environment is read or changed.
+
+The original visibility guard refuses `plan/identity_conflict`, zero writes.
+Test-owned append of three canonical admin-only definitions has independent full
+profile deep-equal readback and reveals the existing legacy attribute. The tool
+then refuses `plan/unsupported`, again before ordinary mutations. Assignment
+summaries omit protocol; full by-ID reads identify six default and five optional
+OIDC scopes. A SAML explanation is not the observed result. The current
+bootstrap-parity control derives from today's export and cannot establish this
+historical bootstrap path. A separate exposed-conflicting-actor probe preserves
+the original account/credential and still refuses with zero reconciler writes.
+
+An initial feasibility variant manually detaches all eleven console assignments,
+then the unchanged reconciler completes thirteen mutations and a zero-write rerun.
+One legacy provider ID and its complete credential hash remain unchanged. Actual
+code/S256 exchanges validate signed identity/scope for all four personas; console
+code/S256 and Account REST GET succeed. Its one Fact passes in 29.52s; TRX SHA-256
+is `1d6f21549028cd903a1d276bb3df480163cbf45507b1c0dcab218ea5710b6a64`.
+Both exact fixture containers and the network are directly confirmed absent.
+
+The narrower follow-up removes only default `roles` and optional `microprofile-jwt`
+and `offline_access`. A private copied account module resolves full scope IDs and
+binds ID/name instead of assuming summary protocol. Five default and three optional
+assignments remain. Thirteen ordinary mutations, preserved legacy ID/credential
+hash, zero-write rerun, four strict signed personas and console Account GET 200 all
+pass. Its one Fact takes 28.95s; TRX SHA-256 is
+`d205a91fce22cfdfd730994b0ddd3dd215398d354bd5855c76ad11478f3cd255`.
+The measurement-source hash is
+`6224f96197cde534084e00c1073bb3cd32387ccb08e2d71916bdce80800eed70`;
+the private account-module variant hash is
+`b7db43895726f3964f8da64686167677f5b4fc56c8c611e78dfc6a7e00d22c59`.
+Both exact fixture containers and network are directly confirmed absent. This
+variant is not the unchanged reconciler. It does not prove automatic preparation,
+canonical-stock discrimination, planned DELETE ordering, uncertainty recovery or
+preservation for every customized realm. ADR-0068 requires those regressions after
+approval; its proposed three-edge path preserves compatible remaining scope state
+and needs no durable continuation marker.
+
+A fresh-import BFF-token probe independently demonstrates Account REST GET and
+ordinary profile POST, with stored-field readback. A protected actor replacement
+does not persist. Removing the owned account capability and obtaining a new token
+produces Account REST 401. The explicit JSON Accept header matters: a preceding
+HTML/405 observation is not an account-authorization proof. Under current profile
+settings, an ordinary email POST returns 204 but leaves email, username and actor
+unchanged; original login and zero-write reconciliation still work. Pinned
+Keycloak's ACCOUNT email condition explains the read-only projection. This does
+not qualify the separate UPDATE_EMAIL required-action journey. Existing provider
+self-service capability remains accepted; automatic email rebinding or a narrower
+BFF token capability is not introduced. Its exact fixture pair/network are absent.
 
 ## Completion Criteria
 
