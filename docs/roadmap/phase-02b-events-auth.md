@@ -15669,6 +15669,16 @@ projection controls cover the same new literal. No new test case, host mutation,
 provider run or hosted qualification is claimed. Two fresh independent reviews
 of this diagnostic correction follow before publication.
 
+**Diagnostic correction, first independent round.** Two new reviewers inspect
+`330a8e2e..4cb69463`: `gpt-6.1-sol` at `high` and `gpt-6-astra` at `medium`.
+Both approve without an actionable finding. The first independently passes all
+43 offline launcher controls; the second passes the focused projection control
+and independently makes it fail by removing only the new mapping in memory.
+They verify literal-source/line bounds, deduplication, finite output and raw
+error/path exclusion. Whitespace and clean tracked-worktree checks pass; all
+review/fixture subprocesses finish. No build, provider or hosted execution is
+repeated. A fresh second diagnostic review round remains required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
