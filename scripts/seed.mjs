@@ -54,7 +54,7 @@ export async function seedDevelopment({ selected, signal }) {
       cwd: repositoryRoot, env: prerequisites, label: 'Docker Compose prerequisite', timeout: 5000,
     });
     validateLocalDockerContext(selected.env, JSON.parse(await run('docker', ['context', 'inspect'], {
-      cwd: repositoryRoot, env: prerequisites, label: 'Local Docker context', capture: true, timeout: 5000,
+      cwd: repositoryRoot, env: selected.env, label: 'Local Docker context', capture: true, timeout: 5000,
     })));
     await run('make', ['dev'], {
       cwd: repositoryRoot,

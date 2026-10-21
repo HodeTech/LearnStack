@@ -175,6 +175,8 @@ type Result = {
     label: string;
     confined: boolean;
     prerequisitesPreserved: boolean;
+    dockerContext: string | null;
+    dockerHome: string | null;
     timeout?: number;
   }>;
   migrationSelection: boolean;
@@ -235,6 +237,8 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
   // The app seed is recognised by its real, argument-free Release DLL call too.
   if (command === 'dotnet' && args.length === 1 && args[0].endsWith('/LearnStack.Tools.Seeder.dll')) allowed.add('ConnectionStrings__Default');
   f.commands.push({ command, args, label: options.label, timeout: options.timeout,
+    dockerContext: env.DOCKER_CONTEXT ?? null,
+    dockerHome: env.HOME ?? null,
     prerequisitesPreserved: (command === 'docker' ? ['DOCKER_CONFIG', 'DOCKER_CONTEXT']
       : ['HTTP_PROXY', 'http_proxy', 'NUGET_PACKAGES'])
       .every(key => process.env[key] === undefined || env[key] === process.env[key]),
@@ -250,6 +254,8 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
   if (command === 'dotnet' && args.includes('--demo-manifest')) return JSON.stringify([{ host: 'localhost' }]);
   if (command === 'docker' && args[0] === 'context')
     return JSON.stringify([{ Endpoints: { docker: { Host: f.scenario === 'remote-context'
+      || (f.scenario === 'selected-remote-context' && env.DOCKER_CONTEXT === undefined)
+      || (f.scenario === 'selected-remote-home' && env.HOME === undefined)
       ? 'tcp://remote.fixture.invalid:2375' : 'unix:///var/run/docker.sock' } } }]);
   if (command === 'openssl' && args[0] === 'req') {
     copyFileSync(join(${JSON.stringify(f.root)}, 'key.pem'), args[args.indexOf('-keyout') + 1]);
@@ -974,6 +980,42 @@ describe('shared realm handoff lifecycle', () => {
       expect(existsSync(join(f.root, '.env'))).toBe(false);
     },
   );
+
+  it.each(['local', 'remote'])(
+    'checks the selected Docker environment when the private file removes an ambient context and the default is %s',
+    (endpoint) => {
+      const f = fixture();
+      Object.assign(f.env, { DOCKER_CONTEXT: 'owned-fixture-context' });
+      writeFileSync(
+        join(f.root, '.env.example'),
+        f.source + 'DOCKER_CONTEXT=owned-fixture-context\n',
+      );
+      const result = execute(f, 'demo', `selected-${endpoint}-context`);
+      const inspections = result.commands.filter(
+        ({ command, args }) => command === 'docker' && args[0] === 'context',
+      );
+      expect(inspections.map(({ dockerContext }) => dockerContext)).toEqual([
+        'owned-fixture-context',
+        null,
+      ]);
+      const selectedCommands = result.commands.filter(({ args }) =>
+        args.includes('--project-name'),
+      );
+      if (endpoint === 'remote') {
+        expect(result.failure).toBe('realm: preflight/configuration');
+        expect(selectedCommands).toEqual([]);
+        expect(result.events).toEqual(['dispose']);
+      } else {
+        expect(result.failure).toBe('renderer boundary');
+        expect(selectedCommands.some(({ args }) => args.includes('up'))).toBe(true);
+        expect(selectedCommands.every(({ dockerContext }) => dockerContext === null)).toBe(true);
+        expect(result.commands.indexOf(inspections[1]!)).toBeLessThan(
+          result.commands.indexOf(selectedCommands[0]!),
+        );
+      }
+      expect(existsSync(join(f.root, '.env'))).toBe(false);
+    },
+  );
 });
 
 describe('private configuration refuses launch before commands', () => {
@@ -1013,6 +1055,20 @@ describe('private configuration refuses launch before commands', () => {
   );
 
   const keys = ['KEYCLOAK_ADMIN', 'KEYCLOAK_ADMIN_PASSWORD', 'KEYCLOAK_WEB_CLIENT_SECRET'];
+  it('checks the selected Docker environment without reintroducing an inherited HOME', () => {
+    const f = fixture();
+    writePrivateFileSync(join(f.root, 'selected.env'), f.source + `HOME=${f.env.HOME}\n`);
+    const result = execute(f, 'seed', 'selected-remote-home');
+    expect(result.failure).toBe('realm: preflight/configuration');
+    const inspection = result.commands.find(
+      ({ command, args }) => command === 'docker' && args[0] === 'context',
+    );
+    expect(inspection?.dockerHome).toBeNull();
+    expect(result.events).not.toContain('stack-up');
+    expect(result.events).not.toContain('migrate');
+    expect(result.events).not.toContain('appseed');
+  });
+
   it.each(
     ['Migration', 'Default'].flatMap((suffix) =>
       ['missing', 'ambient mismatch'].map((kind) => ({ suffix, kind })),

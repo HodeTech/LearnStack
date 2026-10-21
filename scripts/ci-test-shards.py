@@ -298,8 +298,8 @@ def fixture_class_census(root=ROOT):
 
     Recognize this repository's top-level classes, file-scoped namespaces and
     xUnit .Name collection references. Mask comments/literals; bind attributes
-    and interfaces to one declaration. New/ambiguous forms refuse, rather than
-    silently narrowing the witness. This does not observe fixture starts/costs.
+    and interfaces to one declaration. Unsupported recognized fixture markers
+    and collection-attribute aliases refuse. This observes no starts/costs.
     """
     ignored = re.compile(r'//[^\n]*|/\*[\s\S]*?\*/|\$*(?P<raw>"{3,})[\s\S]*?(?P=raw)'
                          r'|@"(?:""|[^"])*"|\$?"(?:\\[\s\S]|[^"\\])*"|\'(?:\\.|[^\'\\])*\'')
@@ -314,6 +314,12 @@ def fixture_class_census(root=ROOT):
         if {'bin', 'obj'} & set(path.relative_to(root).parts):
             continue
         source = ignored.sub(lambda match: re.sub(r'[^\n]', ' ', match[0]), path.read_text())
+        # Attribute aliases hide the Collection marker, including when a
+        # separate global-using file supplies the alias. They need explicit
+        # support before entering the source census.
+        require(not re.search(r'\busing\s+[^;=]+\s*=\s*(?:[A-Za-z_]\w*\s*::\s*)?'
+                              r'(?:[A-Za-z_]\w*\s*\.\s*)*Collection(?:Definition)?(?:Attribute)?\s*;', source),
+                'fixture_attribute_alias_unsupported')
         markers = list(marker.finditer(source))
         if not markers:
             continue

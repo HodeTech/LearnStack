@@ -390,6 +390,9 @@ export async function startDemo(mode) {
       LEARNSTACK_COMPOSE_ENV_FILE: rootEnv,
     };
     selected = composeSelection(mode === 'ci' ? 'e2e' : 'dev', composeEnvironment);
+    // Selection can remove inherited Docker controls assigned in the private file.
+    validateLocalDockerContext(selected.env, JSON.parse(await run('docker', ['context', 'inspect'],
+      'Selected Docker context', { env: selected.env, capture: true, timeout: 5000 })));
     const composeModel = JSON.parse(
       await compose(['config', '--format', 'json'], {
         capture: true,

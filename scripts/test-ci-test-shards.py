@@ -133,6 +133,26 @@ public sealed class LiteralHolder
                 (source / filename).write_text('namespace Example;\npublic partial class Tests : IClassFixture<Fixture> { }')
             self.refuses('fixture_declaration_ambiguous', OWNER.fixture_class_census, root)
 
+    def test_fixture_census_refuses_local_and_separate_global_attribute_aliases(self):
+        for prefix in ('using ', 'global using '):
+            for attribute in ('CollectionAttribute', 'CollectionDefinitionAttribute',
+                              'Xunit.CollectionAttribute', 'global::Xunit.CollectionDefinitionAttribute'):
+                with self.subTest(prefix=prefix, attribute=attribute), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    source = root / 'backend/tests/LearnStack.Tests.Integration'
+                    source.mkdir(parents=True)
+                    alias = prefix + 'Group = ' + attribute + ';\n'
+                    if prefix.startswith('global'):
+                        (source / 'Aliases.cs').write_text(alias)
+                    (source / 'Tests.cs').write_text(('' if prefix.startswith('global') else alias) + '''namespace Example;
+[CollectionDefinition(Name)]
+public sealed class SharedSchema : ICollectionFixture<Fixture> { }
+public sealed class Existing : IClassFixture<Fixture> { }
+[Group(SharedSchema.Name)]
+public sealed class AliasedCollectionTests { }
+''')
+                    self.refuses('fixture_attribute_alias_unsupported', OWNER.fixture_class_census, root)
+
     def test_plan_revision_diff_uses_one_manifest_and_reports_actual_case_moves(self):
         manifest = self.manifest()
         clean = OWNER.assignment_diff(manifest, self.plan, self.plan)

@@ -15071,6 +15071,36 @@ census architecture cases. The mutable root status now distinguishes earlier
 completed step reviews from this correction gate. Round two and full
 frozen-source hosted A/B qualification remain pending at this checkpoint.
 
+**Independent correction round two.** Three different fresh reviewers inspect
+`eb707ee8..837d9d50`: security/runtime and CI/provenance (`gpt-6-astra`, xhigh)
+and provider/corpus (`gpt-6.1-sol`, xhigh). The provider/corpus review approves;
+the other two verify one Major each. Their corrections preserve the plan and
+all existing execution/cleanup budgets:
+
+- A collection-attribute alias can hide the marker used by the source census.
+  Local and separate global-using aliases now explicitly refuse before the
+  marker fast path; an executing control covers both attribute types. The
+  116-class census, plan digest and assignments remain unchanged. The shard
+  control suite now passes sixty cases.
+- Demo's early context check precedes Compose's removal of inherited keys
+  assigned by the private source. It can therefore inspect a different Docker
+  environment from the eventual stack. A second five-second check validates
+  the exact selected environment before every Compose command. Two actual-entry
+  lifecycle controls fail before the fix and pass after it. The same comparison
+  exposes seed's reintroduction of inherited `HOME` into its inspection; that
+  probe now also uses the exact selected environment. Its additional regression
+  fails before the one-line fix. Docker's
+  [CLI configuration and context precedence](https://docs.docker.com/reference/cli/docker/)
+  make these inputs relevant to engine selection; no real Docker or private
+  environment is used by the fault controls.
+
+Combined verification passes 240 Node and 1,738 guarded frontend cases, with
+zero skips/todos; typecheck, lint and source topology pass. The independent
+provider reviewer again passes seven offline cases and two Docker-census
+architecture cases, without claiming live-provider execution. Independent
+focused verification of these final corrections and full frozen-source hosted
+A/B qualification remain pending. No historical failed layout is relabelled.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
