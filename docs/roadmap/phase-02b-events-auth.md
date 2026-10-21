@@ -16242,6 +16242,26 @@ the second review of the finite NativeSettlement diagnostic correction. Neither
 reruns a provider or build; all review subprocesses finish. A different fresh
 second review pair follows this committed test correction before Step 1 closes.
 
+#### Second independent Step 1 review and closeout
+
+Two different fresh reviewers inspect `db3778c8..72ee83a5`: `gpt-6.1-sol` at
+`xhigh` for security/runtime/proofs and `gpt-6-astra` at `high` for governance,
+provenance and test meaning. Both approve without an actionable finding. Both
+independently pass the full six-file 287-case guarded Node census and verify
+source/redacted/patch/canonical/extraction hashes. The first additionally passes
+nine interruption-before-commit probes spanning all DELETE positions. The second
+passes six gate controls, 43 native controls and seven ADR parser controls, and
+independently reproduces canonical extraction from the private 89-endpoint capture.
+Whitespace checks pass. Neither repeats provider/build execution or claims hosted
+qualification; every review subprocess joins.
+
+Step 1 is complete locally after both independent review rounds and its verified
+proof correction. Step 2 now proceeds automatically under the same Accepted
+three-step authority: bounded metadata preparation, all identity-independent
+preconditions first, durable-progress diagnostics and fresh complete planning.
+Step 3 retains automatic-path, token/password/MFA/self-service and final-source CI
+qualification. Nothing here accepts a background-job failure or authorizes merge.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

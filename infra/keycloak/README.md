@@ -211,8 +211,9 @@ is Accepted — 2026-10-22 after verified review corrections under conditional
 maintainer authority. Its three-step implementation and automatic-path proof
 are tracked in the [acceptance record](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22).
 The [first correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
-adds fixed historical graph qualification and assignment-only normalization;
-its reviews and complete automatic-path qualification remain separate gates.
+adds fixed historical graph qualification and assignment-only normalization,
+with both independent review rounds complete. Automatic preparation and full
+upgrade qualification remain pending.
 Current identity-visibility guards remain active. Do not remove them, wipe the
 database or silently normalize customized scopes by name.
 

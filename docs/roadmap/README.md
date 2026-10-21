@@ -157,8 +157,9 @@ not deferred to the showcase phase.
   The [additional correction record](phase-02b-events-auth.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
   owns current findings; [ADR-0068](../decisions/0068-development-warm-realm-qualification.md)
   is Accepted — 2026-10-22 after verified review corrections under conditional
-  maintainer authority. Its three-step implementation is authorized; automatic-
-  path qualification remains pending.
+  maintainer authority. Its [first correction step](phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
+  completes both review rounds locally; preparation and complete automatic-path
+  qualification remain pending.
   Step 1 is complete locally after both review rounds; its
   [record](phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
   owns fresh-provider qualification and implementation reviews. Step 2 is

@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 # Update only with reviewed additions/removals, alongside their executing proof.
-# Per-file expectations also fix the total; an empty or deleted test cannot be
+# Per-file expectations also fix the total; an empty or deleted test file cannot be
 # replaced by a passing named suite or by extra tests in another file.
 EXPECTED = {
     'development-realm-core.test.mjs': 42,

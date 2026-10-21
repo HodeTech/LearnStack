@@ -307,8 +307,9 @@ The [additional correction record](docs/roadmap/phase-02b-events-auth.md#p02b-6-
 owns the current verified findings.
 [ADR-0068](docs/decisions/0068-development-warm-realm-qualification.md)
 is Accepted — 2026-10-22 under the maintainer's conditional approval after verified
-review corrections. Its three-step correction plan is authorized; implementation
-and automatic-path qualification remain pending.
+review corrections. Its first correction step is complete locally after both
+review rounds; the [stock qualification record](docs/roadmap/phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
+owns evidence. Preparation and complete automatic-path qualification remain pending.
 P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full
