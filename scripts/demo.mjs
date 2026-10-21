@@ -33,6 +33,10 @@ const seederDll = join(
   'src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll',
 );
 
+class DemoSetupCancellation extends Error {
+  constructor() { super('demo: setup cancelled'); }
+}
+
 /** Only the owned host's structured lifetime event establishes listener readiness. */
 export function isApiListenerEvent(line, origin) {
   try {
@@ -79,12 +83,12 @@ export async function disposeDemoResources({ processes, finish, teardown, remove
 /** Only fixed local diagnostics may leave the launcher boundary. */
 export function demoFailureMessage(error) {
   if (error instanceof RealmError) return realmFailureNotice(error);
-  return error instanceof DemoCommandError ||
-    (error instanceof Error &&
+  if (error instanceof DemoCommandError) return `${error.message} (${error.reason})`;
+  return error instanceof Error &&
       (error.message === 'Local demo database configuration is invalid' ||
         /^(?:Use make demo|Port \d+ is occupied|Another demo owns|TLS leaf|Seed hosts|Environment disagrees|CI requires)/.test(
           error.message,
-        )))
+        ))
     ? error.message
     : 'demo: startup/proof failed; inspect prerequisites, TLS, configuration and selected stack';
 }
@@ -497,7 +501,8 @@ export async function startDemo(mode) {
     const readinessDeadline = Date.now() + 60000;
     while (!observation.apiReady || !observation.webReady) {
       processes.assertActive();
-      if (Date.now() >= readinessDeadline) throw new Error('Owned API/web startup deadline');
+      if (Date.now() >= readinessDeadline)
+        throw new DemoCommandError('Owned API/web startup', undefined, undefined, { reason: 'deadline' });
       await pause(100, undefined, { signal: controller.signal });
     }
     for (const lane of manifest) {
@@ -543,8 +548,10 @@ export async function startDemo(mode) {
     try {
       await dispose();
     } catch {
-      throw new DemoCommandError('Cleanup could not be confirmed; owned private files retained');
+      throw new DemoCommandError('Cleanup could not be confirmed; owned private files retained',
+        undefined, undefined, { reason: 'cleanup' });
     }
+    if (mode === 'local' && signalRequested) throw new DemoSetupCancellation();
     throw error;
   }
 }
@@ -571,7 +578,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       ]);
     }
   } catch (error) {
-    if (runtime?.mode !== 'local' || !runtime.signalRequested()) {
+    if (error instanceof DemoSetupCancellation) {
+      console.error(error.message);
+      process.exitCode = 130;
+    } else if (runtime?.mode !== 'local' || !runtime.signalRequested()) {
       // Labels are fixed locally; never echo provider, configuration or build output.
       console.error(demoFailureMessage(error));
       process.exitCode = 1;

@@ -72,7 +72,7 @@ function fixture() {
     `export function defaultServices() { return ['postgres', 'keycloak']; }
 export async function waitCompose(selected, processes, signal, postgresOnly = false) {
   const f = globalThis.lifecycle;
-  f.events.push(postgresOnly && f.subject === 'seed' ? 'postgres-ready' : 'ready');
+  f.events.push(postgresOnly ? 'postgres-ready' : 'ready');
   if (f.selected === undefined) f.selected = selected;
   if (f.signal === undefined) f.signal = signal;
   f.selectionIdentity &&= f.selected === selected;
@@ -91,7 +91,7 @@ export async function reconcileDevelopmentRealm({ selected, signal }) {
   f.selectedDescription = { project: selected.project, file: selected.file, mode: selected.mode };
   if (f.scenario === 'reconcile-failure') throw f.realmFailure;
   if (f.scenario === 'cancel') {
-    setTimeout(() => f.controller.abort(), 10);
+    setTimeout(() => f.subject === 'demo' ? process.kill(process.pid, 'SIGINT') : f.controller.abort(), 10);
     await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
     f.events.push('realm-cancel');
     await new Promise(resolve => setTimeout(resolve, 30));
@@ -143,7 +143,7 @@ export function publicServerConfiguration(values) {
     Object.entries(values)
       .map(([key, value]) => `${key}=${value}`)
       .join('\n') + '\n';
-  writeFileSync(join(root, '.env.example'), source);
+  writePrivateFileSync(join(root, '.env.example'), source);
   const env = {
     PATH: `${join(root, 'bin')}:${process.env.PATH}`,
     HOME: root,
@@ -182,7 +182,12 @@ type Result = {
   migrationSelection: boolean;
 };
 
-function execute(f: Fixture, subject: 'seed' | 'demo', scenario = 'success') {
+function execute(
+  f: Fixture,
+  subject: 'seed' | 'demo',
+  scenario = 'success',
+  demoMode: 'local' | 'ci' = scenario === 'preflight' ? 'local' : 'ci',
+) {
   if (subject === 'demo' && scenario !== 'preflight') {
     execFileSync(
       'openssl',
@@ -205,6 +210,12 @@ function execute(f: Fixture, subject: 'seed' | 'demo', scenario = 'success') {
       ],
       { stdio: 'ignore' },
     );
+    if (demoMode === 'local')
+      writePrivateFileSync(
+        join(f.root, '.env'),
+        f.source +
+          `LEARNSTACK_PUBLIC_TLS_CERT=${join(f.root, 'cert.pem')}\nLEARNSTACK_PUBLIC_TLS_KEY=${join(f.root, 'key.pem')}\n`,
+      );
   }
   const harness = join(f.root, 'scripts/fixture-harness.mjs');
   writeFileSync(
@@ -280,7 +291,7 @@ try {
     await seedDevelopment({ selected: f.selected, signal: f.signal });
   } else {
     const { startDemo } = await import('./demo.mjs');
-    await startDemo(${JSON.stringify(scenario === 'preflight' ? 'local' : 'ci')});
+    await startDemo(${JSON.stringify(demoMode)});
   }
 } catch (error) { failure = error.message; }
 process.stdout.write(JSON.stringify({ events: f.events, commands: f.commands, failure,
@@ -421,8 +432,8 @@ if (JSON.stringify(args) === JSON.stringify(['compose', 'version'])) {
 import { record, values } from '../scripts/boundary-observer.mjs';
 const args = process.argv.slice(2);
 if (process.cwd() !== ${JSON.stringify(join(f.root, 'backend'))}) process.exit(19);
-if (JSON.stringify(args) === JSON.stringify(['tool', 'restore'])) record('migration-tools', 'Migration');
-else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo'])) record('migration-build', 'Migration');
+if (JSON.stringify(args) === JSON.stringify(['tool', 'restore'])) record('migration-tools');
+else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo'])) record('migration-build');
 else if (args[0] === 'ef' && args[1] === 'database' && args[2] === 'update') record('migration-ef', 'Migration', !args.includes('--connection') && !args.some(arg => arg.includes('Password=')));
 else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'])) record('seeder-build');
 else if (args.length === 1 && args[0] === ${JSON.stringify(join(f.root, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'))}) record('appseed', 'Default');
@@ -771,6 +782,97 @@ process.stdout.write(JSON.stringify(result));
 }
 
 describe('shared realm handoff lifecycle', () => {
+  it.each(['success', 'seed-failure', 'reconcile-failure', 'cancel'] as const)(
+    'awaits the local demo %s handoff and joins cancellation before cleanup',
+    (scenario) => {
+      const f = fixture();
+      const result = execute(f, 'demo', scenario, 'local');
+      expect(result.failure).toBe(
+        {
+          success: 'renderer boundary',
+          'seed-failure': 'seed refusal',
+          'reconcile-failure': 'realm refusal',
+          cancel: 'demo: setup cancelled',
+        }[scenario],
+      );
+      const expected = ['postgres-ready', 'ready', 'appseed'];
+      if (scenario !== 'seed-failure') expected.push('realm-start');
+      if (scenario === 'success') expected.push('realm-complete', 'renderer');
+      if (scenario === 'cancel') expected.push('realm-cancel', 'realm-joined');
+      expect(result.events).toEqual([...expected, 'dispose']);
+      expect(result.events).not.toContain('stop-keycloak');
+      expect(result.events).not.toContain('daemon');
+      expect(result.selectionIdentity).toBe(true);
+      expect(result.signalIdentity).toBe(true);
+      if (scenario !== 'seed-failure')
+        expect(result.selectedDescription).toEqual({
+          project: 'learnstack-dev',
+          file: join(f.root, '.env'),
+          mode: 'dev',
+        });
+      expect(result.commands.every((command) => command.confined)).toBe(true);
+      expect(existsSync(join(f.root, '.env'))).toBe(true);
+    },
+  );
+
+  it.each(['cancel', 'deadline', 'cancel-cleanup-failure'] as const)(
+    'reports actual demo CLI setup %s with closed reasons after joined cleanup',
+    (scenario) => {
+      const f = fixture();
+      const events = join(f.root, 'setup-events');
+      const preload = join(f.root, 'scripts/setup-control.mjs');
+      writePrivateFileSync(
+        preload,
+        `import { appendFileSync } from 'node:fs';
+import { DemoCommandError, DemoProcesses } from './demo-process.mjs';
+const record = value => appendFileSync(${JSON.stringify(events)}, value + '\\n');
+DemoProcesses.prototype.run = async function(command, args, options) {
+  record('setup');
+  if (${JSON.stringify(scenario)} === 'deadline')
+    throw new DemoCommandError(options.label, new Error(${JSON.stringify(f.canaries[0])}), undefined, { reason: 'deadline' });
+  process.kill(process.pid, 'SIGINT');
+  await new Promise(resolve => setTimeout(resolve, 10));
+  this.assertActive();
+};
+DemoProcesses.prototype.dispose = async function() {
+  await new Promise(resolve => setTimeout(resolve, 20));
+  record('joined');
+  if (${JSON.stringify(scenario)} === 'cancel-cleanup-failure') throw new Error(${JSON.stringify(f.canaries[1])});
+};
+`,
+      );
+      const result = spawnSync(
+        process.execPath,
+        ['--import', preload, join(f.root, 'scripts/demo.mjs'), 'local'],
+        {
+          cwd: f.root,
+          env: f.env,
+          encoding: 'utf8',
+          timeout: 5000,
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.signal).toBeNull();
+      expect(result.status).toBe(scenario === 'cancel' ? 130 : 1);
+      expect(result.stderr).toBe(
+        {
+          cancel: 'demo: setup cancelled\n',
+          deadline: 'demo: Required node failed (deadline)\n',
+          'cancel-cleanup-failure':
+            'demo: Cleanup could not be confirmed; owned private files retained failed (cleanup)\n',
+        }[scenario],
+      );
+      expect(readFileSync(events, 'utf8')).toBe('setup\njoined\n');
+      expect(existsSync(join(f.root, '.data/demo.lock'))).toBe(
+        scenario === 'cancel-cleanup-failure',
+      );
+      for (const canary of f.canaries) {
+        expect(result.stdout).not.toContain(canary);
+        expect(result.stderr).not.toContain(canary);
+      }
+    },
+  );
+
   it.each(['cancelled', 'deadline'] as const)(
     'joins readiness Docker after %s and rejects a nested readiness owner',
     async (kind) => {
@@ -942,7 +1044,7 @@ describe('shared realm handoff lifecycle', () => {
     const result = execute(f, 'demo');
     expect(result.failure).toBe('renderer boundary');
     expect(result.events.filter((event) => event !== 'dispose')).toEqual([
-      'ready',
+      'postgres-ready',
       'ready',
       'appseed',
       'realm-start',

@@ -47,27 +47,39 @@ against it, including the host's default organization where applicable.
   <http://localhost:8080/realms/learnstack/.well-known/openid-configuration>.
 - Operator discovery:
   <http://localhost:8080/realms/learnstack-hub/.well-known/openid-configuration>.
-- `.env.example` declares `KEYCLOAK_WEB_CLIENT_SECRET`. Compose passes it only
-  to Keycloak; the import resolves its environment placeholder. The development
+- `.env.example` declares a public development example for
+  `KEYCLOAK_WEB_CLIENT_SECRET`; newly scaffolded private files inherit that example.
+  File permissions do not make a published value confidential. Compose passes it
+  only to Keycloak; the import resolves its environment placeholder. The development
   reconciler and the later P02b-7 BFF are its other consumers. The API, public
   renderer and .NET Seeder never receive this secret.
-- Older private `.env` files must add that key explicitly. Convergence verifies
-  an existing confidential secret; a mismatch requires operator correction,
-  rather than automatic rotation. Conversion of the old public client installs
+- Older private `.env` files must add that key explicitly, matching an already
+  imported confidential client's secret. Convergence verifies that existing
+  secret; a mismatch requires operator correction rather than automatic rotation.
+  Conversion of the old public client installs
   the selected private source once.
 - Before `make dev`, `make seed` or `make demo`, prepare the selected private
-  file and preserve its secret across restarts. Missing Compose configuration
-  refuses before import; there is no published BFF-secret fallback. See
+  file and preserve its secret across restarts. A missing key refuses before
+  container creation or reconciliation; neither supplies an automatic secret
+  fallback. See
   [secret continuity and recovery](#secret-continuity-and-recovery).
 
-The reconciler reads the selected file through one no-follow handle and verifies
-that it is a regular file owned by the current user, has one hard link and has
-no group/other permission bits. A new Makefile-created `.env` is private;
-existing files are never repaired silently. After verifying an older path is
-your own regular, nonsymlink, single-link file, explicitly run `chmod 600 .env`
-(or the selected private path). Do not print its contents or copy it to a report.
+Compose and the reconciler read the selected file through one no-follow handle
+and verify that it is a regular file owned by the current user, has one hard link
+and has no group/other permission bits. A new Makefile-created `.env` is private;
+existing files are never repaired silently. This prerequisite also applies to
+lifecycle commands: an older `0644` file is refused before Docker. After verifying
+an older path is your own regular, nonsymlink, single-link file, explicitly run
+`chmod 600 .env` (or the selected private path). Do not print its contents or copy
+it to a report.
 Compose, seed and reconciliation report these file-property refusals as
 `preflight/private_file`, with the same fixed ownership/permission instruction.
+
+Recognized `down`, `logs`, `ps`, `stop` and `config --services` invocations can
+parse an older private file without the web key by using a process-only nonsecret
+placeholder. This does not write the private file or install a provider secret.
+Container-creating commands, full configuration output and unknown argument forms
+retain the required-secret check. The private-file prerequisite still applies.
 
 These credentials are development-only. Production provisioning and rotation
 belong to Phase 11 and [Infrastructure Standards](../../docs/standards/12-infrastructure.md#secrets-management).
@@ -81,13 +93,14 @@ seed. Before the first Keycloak import, set it in the selected private file.
 Use the same value for Compose, reconciliation and the later BFF. The API,
 public renderer and application Seeder never receive it.
 
-- `missing_web_secret`: add the key explicitly before starting the stack. A
-  previously populated file is not supplemented with a fallback automatically.
+- `missing_web_secret`: add the key explicitly before starting the stack, matching
+  the existing imported client when present. A previously populated file is not
+  supplemented with a fallback automatically.
 - `secret_conflict`: stop the affected local consumers and inspect the selected
   confidential `learnstack-web` client privately in the Admin Console. Recover
   its existing secret into the selected private source if that source was lost
   or changed accidentally. Reconciliation will not overwrite the provider secret.
-- If an earlier import used a published development fallback, treat it as
+- If an import used the committed public development example, treat it as
   exposed. The operator must explicitly rotate that local client secret in the
   Admin Console and update the selected private source together; the reconciler
   does not perform this rotation. Restart only the owned affected consumers,
@@ -154,6 +167,10 @@ The Hub realm retains its own settings.
 
 Existing realm roles and `fullScopeAllowed: true` remain a development posture;
 the API derives no membership, permission or platform authority from them.
+The tenant export enables open registration with email as username, password
+reset and remember-me, while email verification is disabled. It declares no
+password policy or event-persistence/listener configuration. These are local
+development settings; production provisioning owns its own hardened configuration.
 Production client scope mapping, refresh rotation and MFA enforcement remain
 Phase 11 work; Phase 03 owns tenant identity policy. Tenant MFA stays optional in
 this development export; the operator realm keeps its declared TOTP action.
@@ -181,8 +198,9 @@ partial Admin changes durable and requires an explicit verified rerun. The
 [accepted account-console adjustment](../../docs/roadmap/phase-02b-events-auth.md#account-console-self-service-capability--proposal-2026-10-21)
 is implemented; its actual stock-parity, warm-preservation, profile/API
 qualification and both completed independent review rounds are recorded with
-Step 4. The PR's required checks own final-head qualification; merge remains a
-separate maintainer action.
+Step 4. Qualification applies only to the recorded source and scope; subsequent
+corrections require their own validation and independent reviews. Merge remains
+a separate maintainer action.
 
 Fresh import declares both stock `account` and `account-console` definitions,
 including the stock role/composite and scope-mapping baseline. Warm reconciliation

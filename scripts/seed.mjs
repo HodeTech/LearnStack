@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
-import { composeProcessEnvironment, composeSelection, repositoryRoot } from './compose.mjs';
+import { composeProcessEnvironment, composeSelection, composeSelectionFailure, repositoryRoot } from './compose.mjs';
 import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
 import { publicSeederEnvironment } from './demo-database.mjs';
 import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
@@ -96,8 +96,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       console.log('seed: existing credentials are retained; account setup is documented in infra/keycloak/README.md.');
     }
   } catch (error) {
+    const selectionNotice = composeSelectionFailure(error);
     if (error instanceof RealmError) {
       console.error(realmFailureNotice(error));
+    } else if (selectionNotice !== undefined) {
+      console.error(`seed: ${selectionNotice}`);
     } else {
       console.error(error instanceof DemoCommandError
         ? `${error.message.replace(/^demo:/, 'seed:')} (${error.reason})`

@@ -93,12 +93,12 @@ under Accepted ADR-0064/0065/0066. All five steps and verified correction bundle
 completed their independent review rounds. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
 records final-source CI, unchanged-plan A/B qualification and identical merge trees.
-P02b-6's four implementation steps and local independent reviews are complete:
-real issuance, protected profiles, narrow account self-service and safe shared
-seed/demo reconciliation. Its
+P02b-6 implements real issuance, protected profiles and safe shared seed/demo
+reconciliation. Its
 [Step 4 record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-owns local proof/review closure and source-bound qualification receipts. The
-PR's required checks own current-head hosted qualification; merge is separate.
+retains completed implementation/review evidence and source-bound qualification
+receipts. Current corrections require their own validation and independent
+reviews. Qualification applies to the recorded source and scope; merge is separate.
 BFF sessions and phase exit remain P02b-7–8; browser sign-in is not implemented.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
@@ -150,8 +150,8 @@ proof pass real CI; the seventh required context is active. The
 owns CI enforcement, reviews and the positive phase-exit verdict.
 [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; the
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
-owns final verification. P02b-0 through P02b-4 are complete. P02b-0 has an entry
-verification; P02b-1–4 have the merge closeouts above for final source/merge
+owns final verification. P02b-0 through P02b-5 are complete. P02b-0 has an entry
+verification; P02b-1–5 have the merge closeouts above for final source/merge
 verification. P02b-3 Steps 1–5 implement durable
 acceptance, shared inbox/ledger, independent subscriber scheduling and both
 useful defaults with semantic Seeder handoff. Its

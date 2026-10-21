@@ -169,7 +169,10 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 	@# 7. Build the startup graph once in Release, with restore for standalone use.
 	@#    Every EF invocation uses that fresh output; the demo launches the same API.
 	@#    Explicit failures also stop old Make versions without shell errexit.
+	@# 8. Save and unexport the migration credential before restore/build; only
+	@#    the no-build EF child receives it, through its process environment.
 	@migration_cs="$${ConnectionStrings__Migration:-}"; \
+	unset ConnectionStrings__Migration; \
 	migration_env="$${LEARNSTACK_COMPOSE_ENV_FILE:-.env}"; \
 	if [ -z "$$migration_cs" ] && [ -f "$$migration_env" ]; then \
 		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" "$$migration_env" \
@@ -195,7 +198,6 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 		echo "expected shape is the key/value list in .env.example."; \
 		exit 1; \
 	fi; \
-	export ConnectionStrings__Migration="$$migration_cs"; \
 	(cd backend && dotnet tool restore >/dev/null) || exit $$?; \
 	(cd backend && dotnet build src/LearnStack.Api --configuration Release --nologo) || exit $$?; \
 	found=0; \
@@ -209,7 +211,7 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 		applied="$$applied$$proj "; \
 		found=1; \
 		echo "==> $$(basename $$proj)"; \
-		(cd backend && dotnet ef database update \
+		(cd backend && ConnectionStrings__Migration="$$migration_cs" dotnet ef database update \
 			--project "../$$proj" \
 			--startup-project src/LearnStack.Api \
 			--configuration Release --no-build) || failed=1; \

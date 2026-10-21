@@ -2,7 +2,16 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer as createHttpsServer } from 'node:https';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -292,6 +301,176 @@ describe('launcher-owned local database validation', () => {
 });
 
 describe('shared explicit demo stack selection', () => {
+  function composeCliFixture() {
+    const root = temporary();
+    mkdirSync(join(root, 'bin'));
+    mkdirSync(join(root, 'scripts'));
+    for (const name of ['compose', 'development-realm-errors'])
+      writeFileSync(
+        join(root, `scripts/${name}.mjs`),
+        readFileSync(new URL(`../../../../../scripts/${name}.mjs`, import.meta.url)),
+      );
+    const file = join(root, 'selected.env');
+    writePrivateFileSync(file, '# Older private configuration without a web secret\n');
+    const canary = randomBytes(20).toString('hex');
+    writeFileSync(
+      join(root, 'bin/docker'),
+      `#!${process.execPath}
+const argv = process.argv.slice(2);
+if (process.env.KEYCLOAK_WEB_CLIENT_SECRET !== 'learnstack-lifecycle-placeholder') {
+  console.error('fixture: required web secret is absent');
+  process.exit(43);
+}
+process.stdout.write(JSON.stringify({ argv, placeholder: true,
+  inheritedSecret: Object.keys(process.env).some(key => /bff|unrelated_private/i.test(key)) }));
+`,
+      { mode: 0o700 },
+    );
+    return {
+      root,
+      file,
+      run(args: string[]) {
+        const result = spawnSync(
+          process.execPath,
+          [join(root, 'scripts/compose.mjs'), 'selected', ...args],
+          {
+            cwd: root,
+            env: {
+              PATH: join(root, 'bin'),
+              LEARNSTACK_COMPOSE_MODE: 'e2e',
+              LEARNSTACK_COMPOSE_PROJECT: 'owned-lifecycle',
+              LEARNSTACK_COMPOSE_ENV_FILE: file,
+              KEYCLOAK_WEB_CLIENT_SECRET: canary,
+              Authentication__Bff__ClientSecret: canary,
+              UNRELATED_PRIVATE_VALUE: canary,
+            },
+            encoding: 'utf8',
+            timeout: 5000,
+          },
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.stdout).not.toContain(canary);
+        expect(result.stderr).not.toContain(canary);
+        return result;
+      },
+    };
+  }
+
+  it.each([
+    ['down'],
+    ['--profile', '*', 'down', '-v', '--remove-orphans'],
+    ['logs', '-f', '--tail=100'],
+    ['ps', '-a', '-q'],
+    ['stop', 'keycloak'],
+    ['config', '--services'],
+  ])('gives the actual lifecycle CLI %j only a nonsecret interpolation placeholder', (...args) => {
+    const f = composeCliFixture();
+    const result = f.run(args);
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      argv: [
+        'compose',
+        '--project-name',
+        'owned-lifecycle',
+        '--env-file',
+        f.file,
+        '-f',
+        join(f.root, 'infra/compose/dev.yml'),
+        '-f',
+        join(f.root, 'infra/compose/e2e.yml'),
+        ...args,
+      ],
+      placeholder: true,
+      inheritedSecret: false,
+    });
+    expect(readFileSync(f.file, 'utf8')).toBe(
+      '# Older private configuration without a web secret\n',
+    );
+  });
+
+  it.each([
+    ['up', '-d'],
+    ['create'],
+    ['run', '--rm', 'keycloak'],
+    ['start'],
+    ['restart'],
+    ['config'],
+    ['config', '--format', 'json'],
+    ['config', '--services', '--environment'],
+    ['--unknown', 'down'],
+    ['--profile'],
+    ['--profile', '*'],
+    ['--profile=*', 'down'],
+    ['--profile', '*', 'up', '-d'],
+    ['down', '--file', 'foreign.yml'],
+  ])('keeps creation, full config and ambiguous CLI %j strict', (...args) => {
+    const result = composeCliFixture().run(args);
+    expect(result.status).toBe(43);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('fixture: required web secret is absent\n');
+    expect(
+      readFileSync(new URL('../../../../../infra/compose/dev.yml', import.meta.url), 'utf8'),
+    ).toContain('KEYCLOAK_WEB_CLIENT_SECRET: ${KEYCLOAK_WEB_CLIENT_SECRET:?');
+  });
+
+  it.each(['shared', 'symlink', 'reserved'])(
+    'keeps lifecycle private-source qualification for %s files ahead of Docker',
+    (kind) => {
+      const f = composeCliFixture();
+      if (kind === 'shared') chmodSync(f.file, 0o644);
+      else if (kind === 'symlink') {
+        const target = join(f.root, 'target.env');
+        writePrivateFileSync(target, '# private\n');
+        rmSync(f.file);
+        symlinkSync(target, f.file);
+      } else writePrivateFileSync(f.file, 'COMPOSE_FILE=foreign.yml\n');
+      const result = f.run(['--profile', '*', 'down']);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain(
+        kind === 'reserved' ? 'Reserved COMPOSE_*' : 'preflight/private_file',
+      );
+      expect(result.stderr).not.toContain(f.file);
+    },
+  );
+
+  it.each([
+    ['missing', 'Compose environment file is missing; run make public-env'],
+    ['mode', 'Unsupported Compose mode'],
+    ['project', 'Invalid Compose project'],
+    ['reserved', 'Reserved COMPOSE_* controls cannot appear in the selected environment'],
+  ])(
+    'retains the fixed %s Compose selection notice through the actual seed CLI',
+    (kind, notice) => {
+      const root = temporary();
+      const source = seedFixture(root);
+      if (kind !== 'missing')
+        writePrivateFileSync(
+          join(root, '.env'),
+          source + (kind === 'reserved' ? 'COMPOSE_FILE=foreign.yml\n' : ''),
+        );
+      const result = spawnSync(
+        process.execPath,
+        [join(root, 'scripts/seed.mjs'), '--validate-config'],
+        {
+          cwd: root,
+          env: {
+            PATH: root,
+            ...(kind === 'mode' ? { LEARNSTACK_COMPOSE_MODE: 'unknown' } : {}),
+            ...(kind === 'project' ? { LEARNSTACK_COMPOSE_PROJECT: '../foreign' } : {}),
+          },
+          encoding: 'utf8',
+          timeout: 5000,
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe(`seed: ${notice}\n`);
+      expect(result.stderr).not.toContain(root);
+    },
+  );
+
   it.each([
     'COMPOSE_PROFILES=gated',
     ' export COMPOSE_PROFILES = gated',
