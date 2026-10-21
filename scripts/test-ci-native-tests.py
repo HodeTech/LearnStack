@@ -459,7 +459,8 @@ except launcher.Refusal as failure:
             'internal async Task<KeycloakAdminClient>', 1)[0]
         self.assertEqual(set(re.findall(r'\bstage = "([a-z_]+)";', initialize)),
                          self.owner.KEYCLOAK_FAILURE_STAGES)
-        reasons = initialize.split('var reason = exception switch', 1)[1].split('};', 1)[0]
+        self.assertIn('var reason = StartupFailureReason(exception);', initialize)
+        reasons = source.split('internal static string StartupFailureReason(Exception exception)', 1)[1].split('};', 1)[0]
         self.assertEqual(set(re.findall(r'=> "([a-z_]+)"', reasons)), self.owner.KEYCLOAK_FAILURE_REASONS)
         self.assertEqual(set(re.findall(r'\bcleanup = "([a-z_]+)";', initialize)),
                          self.owner.KEYCLOAK_FAILURE_CLEANUP)

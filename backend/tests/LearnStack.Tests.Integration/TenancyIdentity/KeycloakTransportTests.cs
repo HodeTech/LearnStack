@@ -9,6 +9,41 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 public sealed class KeycloakTransportTests
 {
     [Fact]
+    public void Startup_failure_diagnostics_distinguish_closed_Docker_faults_without_provider_text()
+    {
+        const string canary = "private-provider-response-canary";
+        var statuses = new[]
+        {
+            (HttpStatusCode.BadRequest, "docker_bad_request"),
+            (HttpStatusCode.Unauthorized, "docker_access_denied"),
+            (HttpStatusCode.Forbidden, "docker_access_denied"),
+            (HttpStatusCode.NotFound, "docker_not_found"),
+            (HttpStatusCode.Conflict, "docker_conflict"),
+            (HttpStatusCode.TooManyRequests, "docker_rate_limited"),
+            (HttpStatusCode.InternalServerError, "docker_server_error"),
+            (HttpStatusCode.BadGateway, "docker_api_error"),
+            ((HttpStatusCode)999, "docker_api_error"),
+        };
+        foreach (var (status, reason) in statuses)
+        {
+            var exception = new Docker.DotNet.DockerApiException(status, canary);
+            exception.Message.Should().Contain(canary, "the control must contain raw provider text");
+            KeycloakFixture.StartupFailureReason(exception).Should().Be(reason).And.NotContain(canary);
+        }
+
+        KeycloakFixture.StartupFailureReason(new DotNet.Testcontainers.Containers.ResourceReaperException(canary))
+            .Should().Be("resource_reaper");
+        KeycloakFixture.StartupFailureReason(new UnauthorizedAccessException(canary))
+            .Should().Be("filesystem_access_denied");
+        KeycloakFixture.StartupFailureReason(new IOException(canary)).Should().Be("filesystem_io");
+        KeycloakFixture.StartupFailureReason(new System.Net.Sockets.SocketException())
+            .Should().Be("socket_error");
+        foreach (var message in new[] { canary, "docker_conflict", "resource_reaper", "deadline" })
+            KeycloakFixture.StartupFailureReason(new FormatException(message)).Should().Be("provider_error",
+                "unclassified provider text cannot select a diagnostic reason");
+    }
+
+    [Fact]
     public async Task Caller_cancellation_reaches_inflight_transport_and_retains_cancellation_identity()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

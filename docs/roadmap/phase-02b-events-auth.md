@@ -15180,6 +15180,37 @@ offline export cases and five corpus cases, with zero skips. No local check or
 review establishes the hosted startup cause; a new complete frozen-source run
 remains necessary.
 
+**Second frozen-source A and provider classification.** Run
+[`39633149831`](https://github.com/HodeTech/LearnStack/actions/runs/39633149831),
+attempt 1, tests `6109268ff5b8ba19d71ed569682e763256e8f903` through merge source
+`31f701a48fa9ae407b69c3ad0f6e4e43e2c8fdbc`, with identical head/merge tree
+`468302f4ef3520fb80cc59467fb99d8434170b0d`. All 27 jobs finish: nineteen pass,
+seven ordinary owners fail and integration refuses. Backend aggregate and all
+six Architecture owners pass, confirming the corrected genericity boundary.
+Frontend/meta/contract/secret/demo successes retain their own current-source
+API-bound receipts; no B or partial retry is started on this failed A.
+
+All twenty failed Keycloak cases now retain the exact closed diagnostic
+`database/provider_error/completed`: nine issuance, ten reconciliation and one
+self-service case. Every failed owner archive is checked against its immutable
+API ID, digest and payload identity. This proves the diagnosis channel, not the
+underlying provider cause or Docker absence. A small owned Linux batch starts
+six PostgreSQL containers concurrently (three exact custom-network/loopback
+fixtures, three default-network controls) in 6.85–7.61s; all containers and
+networks are disposed and independently absent. It does not reproduce the
+hosted failure.
+
+The pinned Testcontainers path checks readiness inside the PostgreSQL container,
+without a host Npgsql/TLS login. Normal not-ready results retry; the generic
+provider code cannot establish a readiness deadline failure. The next narrow
+diagnostic distinguishes Docker API status, resource-reaper initialization,
+socket and filesystem failure families without using any provider message or
+response body. The pinned resource-reaper exception discards its inner cause,
+so its code does not invent a timeout/cancellation distinction. Existing startup,
+HTTP and job deadlines, cleanup and failure outcomes remain unchanged. One new
+offline canary control checks the classifier and its unknown-message fallback;
+it is diagnostic proof, not a provider repair or hosted qualification.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

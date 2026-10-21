@@ -135,6 +135,9 @@ KEYCLOAK_FAILURE_STAGES = {
 KEYCLOAK_FAILURE_REASONS = {
     'container_exit', 'deadline', 'readiness_timeout', 'http_transport', 'argument',
     'invalid_state', 'unsupported_operation', 'missing_mapping', 'provider_error',
+    'docker_bad_request', 'docker_access_denied', 'docker_not_found', 'docker_conflict',
+    'docker_rate_limited', 'docker_server_error', 'docker_api_error', 'resource_reaper',
+    'socket_error', 'filesystem_access_denied', 'filesystem_io',
 }
 KEYCLOAK_FAILURE_CLEANUP = {'completed', 'failed'}
 
