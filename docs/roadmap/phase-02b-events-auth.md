@@ -15224,6 +15224,16 @@ or misleading Docker trait. The corrected source passes all seven offline
 cases with warnings as errors, all seven corpus/Docker-sweep cases and all 43
 owner controls. Final independent verification follows before a new hosted run.
 
+Two final second-round reviewers (`gpt-6.1-sol` and `gpt-6-astra`, high effort)
+approve the complete `6109268f..dc25ebb0` correction, including the fixture-free
+boundary, without a remaining actionable finding. Both independently build and
+pass all four transport controls in Release with warnings as errors; the first
+also passes all 43 owner controls, and the second all three focused Keycloak
+Python controls. Both inspect the final seven-case offline and seven-case
+Architecture receipts. The sixty combined plan/aggregate controls pass again.
+This completes the narrow diagnostic review gate, not provider repair. New
+complete current-source A/B qualification remains required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
