@@ -29,6 +29,7 @@ function provider() {
       requiredActions: [], credentials: [{ id: id(), type: 'password', credentialData: 'retained password metadata' }],
       roles: { realmMappings: user.realmRoles.map(name => ({ id: id(), name, composite: false, clientRole: false })) } })),
     roles: desired.roles.realm.map(role => ({ ...clone(role), id: id(), composite: false, clientRole: false })),
+    groups: [], memberships: {},
   };
   state.realm.defaultRole = { id: id(), name: `default-roles-${desired.realm}`, composite: true, clientRole: false };
   const writes = [];
@@ -36,7 +37,7 @@ function provider() {
   const canEdit = attribute => attribute.permissions?.edit?.includes('admin') === true;
   const canRead = attribute => canEdit(attribute) || attribute.permissions?.view?.includes('admin') === true;
   const unmanagedReadable = () => ['ENABLED', 'ADMIN_EDIT', 'ADMIN_VIEW'].includes(state.profile.unmanagedAttributePolicy);
-  const projectUser = user => {
+  const projectUser = (user, includeMetadata = false) => {
     const projected = omit(user, ['roles', 'credentials']);
     projected.attributes = Object.fromEntries(Object.entries(user.attributes ?? {}).filter(([name]) => {
       const attribute = state.profile.attributes.find(entry => entry.name === name);
@@ -46,6 +47,13 @@ function provider() {
       if (canRead(attribute) && !projected.attributes[attribute.name]?.length && attribute.defaultValue != null)
         projected.attributes[attribute.name] = [attribute.defaultValue];
     }
+    if (includeMetadata) projected.userProfileMetadata = {
+      attributes: state.profile.attributes.filter(canRead).map(attribute => ({ name: attribute.name,
+        displayName: attribute.displayName, required: false, readOnly: !canEdit(attribute),
+        annotations: attribute.annotations ?? {}, validators: Object.fromEntries(Object.entries(attribute.validations ?? {})
+          .map(([name, config]) => [name, { ...config, 'ignore.empty.value': true }])), multivalued: attribute.multivalued === true })),
+      groups: clone(state.profile.groups ?? []),
+    };
     return projected;
   };
   const get = async path => {
@@ -55,15 +63,34 @@ function provider() {
     let value;
     if (path === '') value = state.realm;
     else if (path === 'users/profile') value = state.profile;
+    else if (path === 'groups/count') value = { count: state.groups.filter(group => group.type !== 'organization').length };
+    else if (parts[0] === 'groups') {
+      const search = url.searchParams.get('search');
+      assert.ok(search === '' || search === ' ');
+      assert.equal(url.searchParams.get('populateHierarchy'), 'false');
+      assert.equal(url.searchParams.get('briefRepresentation'), 'false');
+      assert.equal(url.searchParams.get('max'), '201');
+      let groups = state.groups.filter(group => group.type !== 'organization');
+      // An empty REST query is injected as null and lists only top-level
+      // groups; a nonempty space reaches the trimmed contains-search instead.
+      if (search === '') groups = groups.filter(group => group.parentId == null);
+      value = groups.slice(0, 201).map(group => omit(group, ['type']));
+    }
     else if (parts[0] === 'users' && parts.length === 1) {
       let users = state.users;
       if (url.searchParams.has('username')) users = users.filter(user => user.username === url.searchParams.get('username'));
       const first = Number(url.searchParams.get('first') ?? 0);
-      value = users.slice(first, first + Number(url.searchParams.get('max') ?? 100)).map(projectUser);
+      value = users.slice(first, first + Number(url.searchParams.get('max') ?? 100)).map(user => projectUser(user, true));
     } else if (parts[0] === 'users') {
       const user = state.users.find(entry => entry.id === parts[1]);
       if (!user) throw new Error('unknown fixture user');
-      value = parts[2] === 'credentials' ? user.credentials : parts[2] === 'role-mappings' ? user.roles : projectUser(user);
+      if (parts[2] === 'groups') {
+        let groups = (state.memberships[user.id] ?? []).map(groupId => state.groups.find(group => group.id === groupId));
+        // Pinned null/null membership lookup sees all group types; supplying
+        // pagination switches to the realm-only branch and conceals org rows.
+        if (url.searchParams.has('first') || url.searchParams.has('max')) groups = groups.filter(group => group.type !== 'organization');
+        value = groups.map(group => omit(group, ['type', 'attributes', 'realmRoles', 'clientRoles']));
+      } else value = parts[2] === 'credentials' ? user.credentials : parts[2] === 'role-mappings' ? user.roles : projectUser(user);
     } else if (parts[0] === 'roles') value = state.roles.find(role => role.name === parts[1]);
     else if (path === 'client-scopes') value = state.scopes;
     else if (parts[0] === 'client-scopes') value = state.scopes.find(scope => scope.id === parts[1]).protocolMappers;
@@ -810,4 +837,184 @@ test('pinned claim-path parsing refuses escaped/dynamic protected roots but keep
   assert.throws(() => validateEffectiveMappers([...mappers, clientRole]));
   clientRole.config['claim.name'] = 'resource_access.${client_id}.roles';
   validateEffectiveMappers([...mappers, clientRole]);
+});
+
+test('protected attribute aggregation refuses before group inspection, including a desired config overlay', async () => {
+  for (const aggregate of ['true', 'TRUE', true, null, 'unqualified']) {
+    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
+    const mapper = fixture.state.scopes.find(scope => scope.name === 'learnstack-tenant-api').protocolMappers[0];
+    mapper.config['aggregate.attrs'] = aggregate;
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'mapper_conflict');
+    assert.equal(fixture.writes.length, 0);
+    assert.equal(fixture.reads.some(path => path.startsWith('groups')), false);
+    assert.deepEqual(fixture.state, original);
+  }
+  const fixture = provider();
+  fixture.state.scopes.find(scope => scope.name === 'learnstack-tenant-api').protocolMappers[0].config['aggregate.attrs'] = 'true';
+  const declared = clone(desired);
+  declared.clientScopes.find(scope => scope.name === 'learnstack-tenant-api').protocolMappers[0].config['aggregate.attrs'] = 'false';
+  await assert.rejects(buildRealmPlan({ admin: fixture.admin, desired: declared, manifest: clone(manifest), webSecret: secret }),
+    error => error.stage === 'plan' && error.reason === 'mapper_conflict');
+  assert.equal(fixture.writes.length, 0);
+  const safe = provider();
+  for (const mapper of safe.state.scopes.find(scope => scope.name === 'learnstack-tenant-api').protocolMappers)
+    mapper.config['aggregate.attrs'] = 'false';
+  assert.equal((await plan(safe)).actions.length, 0);
+});
+
+function safeGroupHierarchy(fixture) {
+  fixture.state.groups = [
+    { id: 'retained-parent', name: 'Retained parent', path: '/retained-parent', attributes: { retained: ['parent value'] }, realmRoles: ['retained-role'] },
+    { id: 'retained-child', name: 'Retained child', parentId: 'retained-parent', path: '/retained-parent/retained-child',
+      attributes: { retained: ['child value'], organization_id: [] } },
+  ];
+  fixture.state.memberships[fixture.state.users[0].id] = ['retained-child'];
+}
+
+test('safe nested group attributes, roles and membership IDs survive warm reconciliation', async () => {
+  const fixture = provider(); legacy(fixture); safeGroupHierarchy(fixture);
+  const groups = clone(fixture.state.groups);
+  const memberships = clone(fixture.state.memberships);
+  await apply(await plan(fixture));
+  assert.deepEqual(fixture.state.groups, groups);
+  assert.deepEqual(fixture.state.memberships, memberships);
+  assert.equal((await plan(fixture)).actions.length, 0);
+  assert.ok(fixture.writes.every(write => !write.path.includes('/groups') && !write.path.startsWith('groups')));
+  const groupReads = fixture.reads.filter(path => path.includes('/groups?'));
+  assert.ok(groupReads.length > 0);
+  for (const path of groupReads) {
+    const query = new URL(path, 'http://provider/').searchParams;
+    assert.equal(query.get('briefRepresentation'), 'true');
+    assert.equal(query.has('first') || query.has('max') || query.has('search'), false);
+  }
+});
+
+test('protected group or ancestor values cannot supply claims when scalar user attributes are absent', async () => {
+  for (const claim of ['user_id', 'tenant_id', 'organization_id']) for (const value of [['inherited'], [''], 'malformed', null]) {
+    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800; safeGroupHierarchy(fixture);
+    fixture.state.groups[0].attributes[claim] = value;
+    fixture.state.users.push({ id: 'retained-no-actor', username: 'retained-no-actor', attributes: {} });
+    fixture.state.memberships['retained-no-actor'] = ['retained-child'];
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'identity_conflict');
+    assert.equal(fixture.writes.length, 0);
+    assert.deepEqual(fixture.state, original);
+  }
+});
+
+test('a provider-exposed nonordinary membership refuses while pagination would conceal it', async () => {
+  const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
+  fixture.state.realm.organizationsEnabled = false;
+  fixture.state.groups.push({ id: 'retained-organization-group', name: 'Retained organization', type: 'organization', attributes: {} });
+  fixture.state.memberships[fixture.state.users[0].id] = ['retained-organization-group'];
+  const base = `users/${fixture.state.users[0].id}/groups?briefRepresentation=true`;
+  assert.equal((await fixture.admin.get(`${base}&first=0&max=201`)).length, 0, 'the pinned paginated branch excludes organization groups');
+  assert.equal((await fixture.admin.get(base)).length, 1, 'the mapper and intentional null/null lookup see retained organization groups');
+  const original = clone(fixture.state);
+  await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported');
+  assert.equal(fixture.writes.length, 0);
+  assert.deepEqual(fixture.state, original);
+});
+
+test('encoded-space group search includes descendants that REST empty-search injection omits', async () => {
+  const fixture = provider(); safeGroupHierarchy(fixture);
+  const parameters = '&exact=false&first=0&max=201&briefRepresentation=false&populateHierarchy=false&subGroupsCount=false';
+  assert.equal((await fixture.admin.get('groups/count')).count, 2);
+  const incomplete = await fixture.admin.get(`groups?search=${parameters}`);
+  assert.equal(incomplete.length, 1);
+  assert.equal(incomplete[0].parentId, undefined);
+  const complete = await fixture.admin.get(`groups?search=%20${parameters}`);
+  assert.equal(complete.length, 2);
+  assert.ok(complete.some(group => group.parentId === complete[0].id));
+  const change = await plan(fixture);
+  assert.equal(change.actions.length, 0);
+  await change.verify();
+  assert.equal(fixture.reads.filter(path => path.startsWith('groups?')).at(-1), `groups?search=%20${parameters}`);
+});
+
+test('group inventory completeness, parent closure and membership bounds qualify before pending writes', async () => {
+  for (const variant of ['duplicate_id', 'missing_parent', 'cycle', 'truncated', 'too_many_groups', 'too_many_memberships']) {
+    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800; safeGroupHierarchy(fixture);
+    if (variant === 'duplicate_id') fixture.state.groups.push(clone(fixture.state.groups[0]));
+    if (variant === 'missing_parent') fixture.state.groups[0].parentId = 'unknown-parent';
+    if (variant === 'cycle') fixture.state.groups[0].parentId = 'retained-child';
+    if (variant === 'too_many_groups') fixture.state.groups = Array.from({ length: 201 }, (_, index) => ({ id: `retained-${index}`, name: `Retained ${index}`, attributes: {} }));
+    if (variant === 'truncated') {
+      const originalGet = fixture.admin.get;
+      fixture.admin.get = async path => {
+        const result = await originalGet(path);
+        return path.startsWith('groups?') ? result.slice(0, -1) : result;
+      };
+    }
+    if (variant === 'too_many_memberships') {
+      const originalGet = fixture.admin.get;
+      fixture.admin.get = async path => path.includes('/groups?')
+        ? Array.from({ length: 201 }, (_, index) => ({ id: `membership-${index}` })) : originalGet(path);
+    }
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported', variant);
+    assert.equal(fixture.writes.length, 0);
+    assert.deepEqual(fixture.state, original);
+  }
+  const boundary = provider();
+  boundary.state.groups = Array.from({ length: 200 }, (_, index) => ({ id: `retained-${index}`, name: `Retained ${index}`, attributes: {} }));
+  boundary.state.memberships[boundary.state.users[0].id] = boundary.state.groups.map(group => group.id);
+  const change = await plan(boundary);
+  assert.equal(change.actions.length, 0);
+  await change.verify();
+});
+
+test('independent readback catches group changes, membership changes and an unexpected new-account membership', async () => {
+  for (const variant of ['group_attribute', 'existing_membership', 'new_membership']) {
+    const fixture = provider(); safeGroupHierarchy(fixture);
+    if (variant === 'new_membership') fixture.state.users.pop();
+    const change = await plan(fixture);
+    for (const action of change.actions) await action.apply();
+    if (variant === 'group_attribute') fixture.state.groups[0].attributes.retained = ['changed'];
+    if (variant === 'existing_membership') fixture.state.memberships[fixture.state.users[0].id] = ['retained-parent'];
+    if (variant === 'new_membership') fixture.state.memberships[fixture.state.users.at(-1).id] = ['retained-parent'];
+    await assert.rejects(change.verify(), error => error.stage === 'readback' && error.reason === 'readback_conflict');
+  }
+});
+
+test('a created or raced account with group membership refuses its exact fresh check without changing that membership', async () => {
+  for (const status of [200, 409]) {
+    const fixture = provider(); safeGroupHierarchy(fixture); fixture.state.users.pop();
+    const originalPost = fixture.admin.post;
+    fixture.admin.post = async (path, body) => {
+      await originalPost(path, body);
+      fixture.state.memberships[fixture.state.users.at(-1).id] = ['retained-parent'];
+      return { status };
+    };
+    const change = await plan(fixture);
+    assert.deepEqual(change.actions.map(action => action.label), ['create_user']);
+    await assert.rejects(change.actions[0].apply(), error => error.stage === 'apply' && error.reason === 'identity_conflict');
+    assert.equal(fixture.writes.length, 1);
+    assert.deepEqual(fixture.state.memberships[fixture.state.users.at(-1).id], ['retained-parent']);
+  }
+});
+
+test('profile-derived metadata may change for unrelated accounts while every stored field remains checked', async () => {
+  for (const tamper of [null, 'firstName', 'enabled', 'attributes']) {
+    const fixture = provider();
+    fixture.state.profile.unmanagedAttributePolicy = 'ADMIN_EDIT';
+    fixture.state.profile.attributes.find(attribute => attribute.name === 'organization_id').permissions.edit = ['user'];
+    fixture.state.users.push({ id: 'retained-account', username: 'retained-account', enabled: false, firstName: 'Retained', attributes: { retained: ['value'] } });
+    const before = clone(fixture.state.users.at(-1));
+    const beforeList = await fixture.admin.get('users?max=100&briefRepresentation=false');
+    const change = await plan(fixture);
+    assert.deepEqual(change.actions.map(action => action.label), ['update_profile']);
+    for (const action of change.actions) await action.apply();
+    const afterList = await fixture.admin.get('users?max=100&briefRepresentation=false');
+    assert.notDeepEqual(afterList.at(-1).userProfileMetadata, beforeList.at(-1).userProfileMetadata);
+    if (tamper === 'firstName') fixture.state.users.at(-1).firstName = 'Changed';
+    if (tamper === 'enabled') fixture.state.users.at(-1).enabled = true;
+    if (tamper === 'attributes') fixture.state.users.at(-1).attributes.retained = ['changed'];
+    if (tamper) await assert.rejects(change.verify(), error => error.stage === 'readback' && error.reason === 'readback_conflict');
+    else {
+      await change.verify();
+      assert.deepEqual(fixture.state.users.at(-1), before);
+    }
+  }
 });

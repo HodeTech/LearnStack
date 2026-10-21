@@ -4530,7 +4530,12 @@ structural test proves — and what it does not.
 - **Asserts:** the actual shared development reconciler converges fresh and
   pre-mapper warm realms without resetting existing credentials or changing
   account IDs, unrelated user/profile/client state or the Hub realm. Conflicting
-  managed identity/configuration refuses; partial/uncertain writes require an
+  managed identity/configuration refuses before writes, including hidden
+  attributes, group aggregation/inheritance and unqualified membership sources.
+  Projected request/response and collection limits are checked before apply.
+  Safe groups/memberships and actual account fields remain unchanged; derived
+  profile metadata is verified with its global configuration rather than
+  mistaken for stored-account data. Partial/uncertain writes require an
   explicit verified rerun. Independent readback checks protected claims/TTL;
   a completed third run performs zero mutations. Both seed/demo entries retain
   exact target/environment identity, bounded HTTP/process cleanup, secret

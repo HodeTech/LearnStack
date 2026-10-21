@@ -124,6 +124,17 @@ identity definitions admin-only readable, and inspect their stored values before
 retrying. Do not enable end-user editing or replace a conflicting UUID to force
 convergence. The existing unmanaged policy remains unchanged by reconciliation.
 
+Protected claims must come from user attributes. Aggregation and inherited
+group identity values are incompatible with that contract and refuse before
+writes. Safe ordinary groups and memberships are preserved. The bounded group
+inventory includes nested groups. Unpaginated membership reads follow the
+mapper's group stream; any exposed membership outside that ordinary inventory
+refuses before writes. The pinned cached model excludes Keycloak Organization
+groups from that stream, including retained memberships after the feature is
+disabled. Its actual-token control is separate from the defensive refusal for
+unknown membership IDs. This is separate from LearnStack's own organization IDs. The named single-user import does not inherit
+realm default groups; new-account membership is independently checked as empty.
+
 The entire projected change must also fit the existing bounded readers and
 request bodies. A configuration that would exceed those limits refuses during
 planning, before an earlier unrelated change can be committed.

@@ -14196,9 +14196,9 @@ supported states still converge, while excess states refuse with zero writes
 even when another legitimate change is pending.
 
 The identity correction's source-frozen actual-provider class passes **eight
-cases, zero failures/skips**, in 2.8699min. Four new cases cover hidden unmanaged identities,
-managed identities hidden from administrators, and explicit identity defaults
-or selectors. Each refuses before the pending TTL write; an independently
+cases, zero failures/skips**, in 2.8699min. Four new cases cover hidden unmanaged
+identities, managed identities hidden from administrators, and explicit identity
+defaults or selectors. Each refuses before the pending TTL write; an independently
 captured snapshot is unchanged, and test-owned post-outcome visibility inspection
 proves the stored actor was retained. Existing fresh/warm, credential, partial
 progress and zero-write rerun proofs still pass. The TRX SHA-256 is
@@ -14211,7 +14211,78 @@ rerun remains required for Step 2 closeout. Scoped whitespace and diff checks
 pass. Independent post-run inventories show no owned provider
 containers or networks; the bounded Docker event history lacks one older
 destruction event, so it is not claimed as a complete event receipt. Foreign
-resources remain untouched. The second fresh independent review is still due.
+resources remain untouched. The second fresh independent review is still due
+at this checkpoint.
+
+#### Step 2 review round 2 — derived metadata and inherited identity sources
+
+Two new independent reviewers inspected `95d0a0c8..29735c78`. Both independently
+ran all 133 offline controls with zero failures/skips and identified a false
+preservation refusal: intended profile changes alter the derived
+`userProfileMetadata` in unrelated-account listings. The earlier warm test's
+first two interrupted passes had already applied the profile change before its
+successful resumed pass, masking uninterrupted convergence. Actual-provider
+confirmation performed eleven writes, retained every independently inspected
+account field/actor/credential/role, then falsely refused at readback; the next
+explicit pass had zero pending writes. Account-field comparisons remain strict;
+only this derived metadata is separated from them, with global profile
+configuration still checked independently.
+
+One reviewer additionally proved that an existing protected mapper's
+`aggregate.attrs=true` survived planning and independent verification. Actual
+code/S256 exchanges confirmed both defects: aggregation produced the group's
+actor instead of the stored actor, while the canonical nonaggregating mapper
+inherited an unexpected organization when the user's field was absent. Both
+unsafe reconciliations had incorrectly succeeded with zero writes. The token
+signatures were independently validated; no credential or token value entered
+diagnostics.
+
+The correction rejects protected aggregation instead of silently repairing the
+administrator's setting. A bounded full ordinary-group inventory includes
+nested groups and validates parent closure, count and protected attributes.
+Each censused account's membership IDs are read without `search`, `first` or
+`max`, following the mapper's no-argument group stream rather than selecting a
+different paginated branch. Unknown/nonordinary memberships refuse before
+writes. The first actual-provider run disproved an initial fixture assumption:
+the pinned cached model filters out Keycloak Organization groups even after
+the feature is disabled; an enabled organization-member API read confirms the
+retained association independently. The corrected fixture must qualify actual
+strict token identity, rather than claim an unobserved group fallback. A
+separate same-fixture query control found that `search=` is injected as absent
+and lists only the parent: two stored ordinary groups produced one result. A
+nonempty encoded-space search selects the pinned all-group branch before its
+trim, returning both parent and child with complete ancestry. Safe unrelated
+groups and memberships remain unchanged. All existing HTTP/count/pass budgets remain
+in force; no group, membership or feature-setting write is introduced.
+
+The fixed single-user import uses the pinned `addUser(false, false)` path and
+does not inherit realm default roles or groups. Independent readback requires
+each new account's membership set to be empty; unrelated default-group settings
+remain preserved. This qualification concerns provider claim sources, not
+LearnStack organization membership or application permission.
+
+**Correction qualification.** The final unchanged-source actual-provider class
+passes **13/13 cases, zero failures/skips**, in 4.4234 test minutes (292s including
+the owned build/lifecycle wrapper). This local run uses Debug; complete final
+Release/hosted qualification remains Step 4. All 23 runtime/test input hashes
+match before/after the run and independently match the current source. The TRX
+SHA-256 is `ead5c9ed7fb89428afc223664b5bb5a68aabd309b4d6ffe0656d3b7443f97e29`.
+Live lifecycle capture binds every one of 14 Keycloak/PostgreSQL pairs, Ryuk and
+14 networks to creation/destruction; no owned resource remains, and the foreign
+database is retained. The cached-organization control verifies a genuine
+member and protected canaries through the enabled organization API, issues a
+fresh signed token from a pre-existing code/S256 session while enabled, and
+checks a fresh code/S256 token after disabling. Original identity is retained;
+test-owned post-result visibility restoration verifies stored organization
+attributes and membership unchanged.
+
+The root independently reruns **142 offline cases, zero failures/skips**, in
+10.149s, including the faithful empty-search/descendant control. Scoped syntax,
+whitespace/diff, seven ADR parser controls and 1,347 relative links/fragments
+across thirteen changed Markdown files pass. Fresh focused correction reviews
+remain pending at this checkpoint. Step 3 has not been activated.
+
+
 
 ## Completion Criteria
 

@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import { refuse } from './development-realm-errors.mjs';
 import { identityClaims, mergeOwnedMappers, validateEffectiveMappers } from './development-realm-mappers.mjs';
+import { readRealmGroups, readUserGroupIds } from './development-realm-groups.mjs';
 
 const managedScope = 'learnstack-tenant-api';
 const namedClients = ['learnstack-web', 'learnstack-api'];
@@ -83,11 +84,12 @@ function validateProjectedResponses({ before, profile, scopes, mappers, clients,
     + (equal(profile, before.profile) ? 0 : identityClaims.length * 128);
   const observedMetadata = before.users.filter(user => !user.serviceAccountClientId && object(user.userProfileMetadata))
     .map(user => jsonBytes(user.userProfileMetadata));
-  const metadataBytes = observedMetadata.length ? Math.max(...observedMetadata) + metadataGrowth
-    : jsonBytes(profile) + profile.attributes.length * 128 + validators * 32 + 256;
+  const metadataFieldBytes = Buffer.byteLength(',"userProfileMetadata":');
+  const metadataBytes = metadataFieldBytes + (observedMetadata.length ? Math.max(...observedMetadata) + metadataGrowth
+    : jsonBytes(profile) + profile.attributes.length * 128 + validators * 32 + 256);
   const projectedUsers = before.users.map(user => ({
     value: omit({ ...user, ...users.get(user.username) }, ['userProfileMetadata']),
-    reserve: user.userProfileMetadata ? jsonBytes(user.userProfileMetadata) + metadataGrowth : metadataBytes,
+    reserve: user.userProfileMetadata ? metadataFieldBytes + jsonBytes(user.userProfileMetadata) + metadataGrowth : metadataBytes,
   }));
   for (const declaration of manifest.users) {
     const existing = before.ownedUsers.get(declaration.username);
@@ -475,6 +477,9 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
     });
     validateEffectiveMappers([...baseline.mappers, ...effective]);
   }
+  // Mapper qualification precedes inherited-source reads, so an unsafe
+  // aggregation customization always refuses without being silently repaired.
+  const beforeGroups = await readRealmGroups(admin, before.users, 'plan');
   // A manifest actor may not already belong to a differently named account.
   for (const user of before.users) {
     const values = user.attributes?.user_id;
@@ -519,7 +524,8 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
         const created = await exactNewUser(admin, declaration, wanted, 'apply');
         const roles = requireObject(await admin.get(`users/${encode(created.id)}/role-mappings`), 'apply');
         const credentials = array(await admin.get(`users/${encode(created.id)}/credentials`), 'apply');
-        if (!exactCreatedAccess(roles, credentials, role.id)) refuse('apply', 'identity_conflict');
+        const assigned = await readUserGroupIds(admin, created.id, 'apply');
+        if (!exactCreatedAccess(roles, credentials, role.id) || assigned.size !== 0) refuse('apply', 'identity_conflict');
         expectedUsers.set(declaration.username, created);
       }, body);
     }
@@ -542,10 +548,14 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
 
   return { actions, verify: async () => {
     const after = await snapshot(admin, desired, manifest, 'readback');
+    const afterGroups = await readRealmGroups(admin, after.users, 'readback');
     const check = condition => { if (!condition) refuse('readback', 'readback_conflict'); };
     check(after.realm.accessTokenLifespan === 900
       && equal(omit(after.realm, ['accessTokenLifespan']), omit(before.realm, ['accessTokenLifespan'])));
     check(equal(after.profile, profile));
+    check(equal(afterGroups.groups, beforeGroups.groups));
+    for (const [userId, assigned] of beforeGroups.memberships)
+      check(equal(afterGroups.memberships.get(userId), assigned));
     for (const [name, expected] of expectedScopes) {
       const actual = after.scopeByName.get(name);
       check(Boolean(actual) && matchesFields(actual, omit(expected, ['id', 'protocolMappers'])));
@@ -577,7 +587,11 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
     for (const previous of before.users) {
       const current = after.users.find(user => user.id === previous.id);
       check(Boolean(current));
-      if (!before.ownedUsers.has(previous.username)) check(equal(current, previous));
+      // Full list rows include metadata derived from the realm profile. Its
+      // owned definition changes are verified independently above; every
+      // stored account field remains part of this preservation comparison.
+      if (!before.ownedUsers.has(previous.username))
+        check(equal(omit(current, ['userProfileMetadata']), omit(previous, ['userProfileMetadata'])));
     }
     check(after.users.length === before.users.length + manifest.users.filter(entry => !before.ownedUsers.has(entry.username)).length);
     for (const declaration of manifest.users) {
@@ -588,6 +602,8 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
       check(equal(identityAttributes(actual.user, declaration, 'readback'), actual.user.attributes));
       if (original) check(equal(actual.credentials, original.credentials) && equal(actual.roles, original.roles));
       else {
+        // Atomic addUser(false,false) skips default roles AND default groups.
+        check(afterGroups.memberships.get(actual.user.id)?.size === 0);
         const role = actual.roles.realmMappings?.find(value => value.name === declaration.realmRole);
         check(Boolean(role) && role.composite === false && role.clientRole === false
           && exactCreatedAccess(actual.roles, actual.credentials, role.id));

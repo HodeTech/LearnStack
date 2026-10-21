@@ -28,6 +28,7 @@ export function validateEffectiveMappers(mappers, stage = 'plan') {
     if (mapper.protocolMapper === 'oidc-usermodel-client-role-mapper' && root.includes('${client_id}')) fail();
     if (identityClaims.includes(root)) {
       if (mapper.protocolMapper !== 'oidc-usermodel-attribute-mapper'
+        || (config['aggregate.attrs'] !== undefined && config['aggregate.attrs'] !== 'false')
         || config['claim.name'] !== root || config['user.attribute'] !== root
         || config['jsonType.label'] !== 'String' || config.multivalued !== 'false'
         || config['access.token.claim'] !== 'true' || config['id.token.claim'] !== 'true'
@@ -63,6 +64,11 @@ export function mergeOwnedMappers(current, desired, stage = 'plan') {
       const existing = current.find(mapper => mapper.name === value.name);
       if (!existing) return structuredClone(value);
       if (existing.protocolMapper !== value.protocolMapper || existing.protocol !== value.protocol)
+        refuse(stage, 'mapper_conflict');
+      // Never let a desired config overlay hide an administrator's unsafe
+      // aggregation setting before effective mapper validation runs.
+      if (identityClaims.includes(claimRoot(value.config?.['claim.name']))
+        && existing.config?.['aggregate.attrs'] !== undefined && existing.config['aggregate.attrs'] !== 'false')
         refuse(stage, 'mapper_conflict');
       return { ...existing, ...value, id: existing.id, config: { ...existing.config, ...value.config } };
     }),

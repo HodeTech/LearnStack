@@ -151,6 +151,228 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
     }
 
     [Fact]
+    public async Task Uninterrupted_legacy_upgrade_preserves_nonmanifest_actor_and_account_state()
+    {
+        var unrelatedActor = Guid.NewGuid().ToString("D");
+        SeedData.IdentityUsers.All(identity => identity.UserId.Value.ToString("D") != unrelatedActor).Should().BeTrue();
+        var realm = JsonNode.Parse(await LegacyRealmAsync())!.AsObject();
+        var importedExtra = realm["users"]!.AsArray().Single(value => value!["username"]!.GetValue<string>() == ExtraUsername)!;
+        importedExtra["attributes"]!["user_id"] = new JsonArray(unrelatedActor);
+        await using var fixture = await KeycloakFixture.StartAsync(realm.ToJsonString());
+        using var admin = await fixture.CreateAdminClientAsync();
+        var defaultGroupId = await CreateGroupAsync(admin, "fixture-create-only-default",
+            new Dictionary<string, string[]> { ["fixture_note"] = ["preserved-default-group"] });
+        (await admin.PutAsync("default-groups/" + defaultGroupId, new { })).Should().Be(HttpStatusCode.NoContent);
+        var defaultsBefore = await admin.GetAsync("default-groups");
+        var defaultGroupBefore = await admin.GetAsync("groups/" + defaultGroupId);
+        var before = await UserDetailsAsync(admin, ExtraUsername);
+        var stableId = Id(before);
+        (before.GetProperty("attributes").GetProperty("user_id")[0].GetString() == unrelatedActor).Should().BeTrue();
+        var credentialsBefore = await admin.GetAsync("users/" + stableId + "/credentials");
+        var rolesBefore = await admin.GetAsync("users/" + stableId + "/role-mappings");
+
+        var first = await KeycloakReconciliationDriver.RunAsync(fixture);
+        var after = await UserDetailsAsync(admin, ExtraUsername);
+        var credentialsAfter = await admin.GetAsync("users/" + stableId + "/credentials");
+        var rolesAfter = await admin.GetAsync("users/" + stableId + "/role-mappings");
+        static bool Same(JsonElement left, JsonElement right) =>
+            JsonNode.DeepEquals(JsonNode.Parse(left.GetRawText()), JsonNode.Parse(right.GetRawText()));
+        var accountPreserved = Same(before, after);
+        var attributesPreserved = Same(before.GetProperty("attributes"), after.GetProperty("attributes"));
+        var actorPreserved = after.GetProperty("attributes").GetProperty("user_id")[0].GetString() == unrelatedActor;
+        var credentialsPreserved = Same(credentialsBefore, credentialsAfter);
+        var rolesPreserved = Same(rolesBefore, rolesAfter);
+        var explicitRetry = await KeycloakReconciliationDriver.RunAsync(fixture);
+        explicitRetry.Success.Should().BeTrue("the explicit new pass reports {0}/{1}", explicitRetry.Stage, explicitRetry.Reason);
+        explicitRetry.Mutations.Should().Be(0, "the uninterrupted first pass already committed its managed changes");
+
+        first.Success.Should().BeTrue("closed first outcome: {0}/{1} after {2} mutating calls; account/attributes/actor/credentials/roles preserved: {3}/{4}/{5}/{6}/{7}; explicit retry made zero writes",
+            first.Stage, first.Reason, first.Mutations, accountPreserved, attributesPreserved, actorPreserved, credentialsPreserved, rolesPreserved);
+        first.Mutations.Should().BeGreaterThan(0);
+        accountPreserved.Should().BeTrue();
+        attributesPreserved.Should().BeTrue();
+        actorPreserved.Should().BeTrue();
+        credentialsPreserved.Should().BeTrue();
+        rolesPreserved.Should().BeTrue();
+        (Id(after) == stableId).Should().BeTrue();
+        AssertSame(defaultsBefore, await admin.GetAsync("default-groups"), "create-only import preserves configured realm defaults");
+        AssertSame(defaultGroupBefore, await admin.GetAsync("groups/" + defaultGroupId), "the configured default group is not changed");
+        foreach (var identity in SeedData.IdentityUsers.Where(identity => identity.Tenant != SeedData.IdentityUsers[0].Tenant))
+        {
+            var created = await UserDetailsAsync(admin, identity.Username);
+            (await admin.GetAsync("users/" + Id(created) + "/groups?briefRepresentation=true")).GetArrayLength().Should().Be(0,
+                "atomic create-only import suppresses automatic default-group membership");
+        }
+        var third = await KeycloakReconciliationDriver.RunAsync(fixture);
+        third.Success.Should().BeTrue("the completed third pass reports {0}/{1}", third.Stage, third.Reason);
+        third.Mutations.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Group_carried_identity_requires_a_no_write_refusal(bool aggregateActor)
+    {
+        await using var fixture = await KeycloakFixture.StartAsync();
+        using var admin = await fixture.CreateAdminClientAsync();
+        var identity = SeedData.IdentityUsers[0];
+        var user = await UserDetailsAsync(admin, identity.Username);
+        var userId = Id(user);
+        const string groupActor = "10000000-0000-7000-8000-000000000001";
+        var groupOrganization = Guid.NewGuid().ToString("D");
+        var groupName = aggregateActor ? "fixture-aggregate-identity" : "fixture-fallback-identity";
+        var groupAttributes = aggregateActor
+            ? new Dictionary<string, string[]> { ["user_id"] = [groupActor] }
+            : new Dictionary<string, string[]> { ["organization_id"] = [groupOrganization] };
+        var groupId = await CreateGroupAsync(admin, groupName, groupAttributes);
+        (await admin.PutAsync("users/" + userId + "/groups/" + groupId, new { })).Should().Be(HttpStatusCode.NoContent);
+        var scopes = await admin.GetAsync("client-scopes");
+        var scopeId = Id(scopes.EnumerateArray().Single(value => value.GetProperty("name").GetString() == "learnstack-tenant-api"));
+        var mapperPath = "client-scopes/" + scopeId + "/protocol-mappers/models";
+        var mappers = await admin.GetAsync(mapperPath);
+        var claim = aggregateActor ? "user_id" : "organization_id";
+        var mapper = Object(mappers.EnumerateArray().Single(value => value.GetProperty("config").TryGetProperty("claim.name", out var claimName)
+            && claimName.GetString() == claim));
+        mapper["config"]!["aggregate.attrs"] = aggregateActor ? "true" : "false";
+        (await admin.PutAsync(mapperPath + "/" + mapper["id"]!.GetValue<string>(), mapper)).Should().Be(HttpStatusCode.NoContent);
+        var groupBefore = await admin.GetAsync("groups/" + groupId);
+        var membershipsBefore = await admin.GetAsync("users/" + userId + "/groups?briefRepresentation=false&max=100");
+        var before = await StateAsync(admin);
+        var outcome = await KeycloakReconciliationDriver.RunAsync(fixture);
+        var unchanged = await StateAsync(admin) == before;
+        AssertSame(groupBefore, await admin.GetAsync("groups/" + groupId), "reconciliation never changes group attributes");
+        AssertSame(membershipsBefore, await admin.GetAsync("users/" + userId + "/groups?briefRepresentation=false&max=100"), "reconciliation never changes group membership");
+        using var browser = fixture.Browser();
+        var authorization = await browser.AuthorizeAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity));
+        authorization.Authorized.Should().BeTrue("the isolated group control completes actual code/S256 authorization");
+        var exchange = await browser.RedeemAsync(authorization);
+        exchange.StatusCode.Should().Be(HttpStatusCode.OK);
+        var token = await KeycloakTokenVerifier.ValidateAsync(fixture, exchange.AccessToken, "learnstack-api");
+        var actorWrong = token.GetProperty("user_id").GetString() != identity.UserId.Value.ToString("D");
+        var actorFromGroup = token.GetProperty("user_id").GetString() == groupActor;
+        var unexpectedOrganization = token.TryGetProperty("organization_id", out var organization);
+        var organizationFromGroup = unexpectedOrganization && organization.GetString() == groupOrganization;
+        actorWrong.Should().Be(aggregateActor, "the signed token demonstrates the pinned mapper's group resolution");
+        actorFromGroup.Should().Be(aggregateActor);
+        unexpectedOrganization.Should().Be(!aggregateActor);
+        organizationFromGroup.Should().Be(!aggregateActor);
+        outcome.Success.Should().BeFalse("closed outcome: {0}/{1} after {2} mutating calls; signed actor wrong/from group: {3}/{4}; organization unexpected/from group: {5}/{6}",
+            outcome.Stage ?? "success", outcome.Reason ?? "none", outcome.Mutations, actorWrong, actorFromGroup, unexpectedOrganization, organizationFromGroup);
+        outcome.Stage.Should().Be("plan");
+        outcome.Reason.Should().Be(aggregateActor ? "mapper_conflict" : "identity_conflict");
+        outcome.Mutations.Should().Be(0);
+        unchanged.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Unrelated_nested_groups_converge_and_preserve_membership_and_strict_token_identity()
+    {
+        await using var fixture = await KeycloakFixture.StartAsync();
+        using var admin = await fixture.CreateAdminClientAsync();
+        (await admin.PutAsync("", new { accessTokenLifespan = 1800 })).Should().Be(HttpStatusCode.NoContent);
+        var parentId = await CreateGroupAsync(admin, "fixture-unrelated-parent",
+            new Dictionary<string, string[]> { ["fixture_note"] = ["preserved-parent"] });
+        var childId = await CreateGroupAsync(admin, "fixture-unrelated-child",
+            new Dictionary<string, string[]> { ["fixture_note"] = ["preserved-child"] }, parentId);
+        var identity = SeedData.IdentityUsers[0];
+        var userBefore = await UserDetailsAsync(admin, identity.Username);
+        var userId = Id(userBefore);
+        (await admin.PutAsync("users/" + userId + "/groups/" + childId, new { })).Should().Be(HttpStatusCode.NoContent);
+        userBefore = await UserDetailsAsync(admin, identity.Username);
+        var parentBefore = await admin.GetAsync("groups/" + parentId);
+        var childBefore = await admin.GetAsync("groups/" + childId);
+        var membershipsBefore = await admin.GetAsync("users/" + userId + "/groups?briefRepresentation=true");
+        var credentialsBefore = await admin.GetAsync("users/" + userId + "/credentials");
+        var rolesBefore = await admin.GetAsync("users/" + userId + "/role-mappings");
+        var first = await KeycloakReconciliationDriver.RunAsync(fixture);
+        first.Success.Should().BeTrue("closed outcome: {0}/{1} after {2} mutating calls", first.Stage, first.Reason, first.Mutations);
+        first.Mutations.Should().Be(1);
+        var second = await KeycloakReconciliationDriver.RunAsync(fixture);
+        second.Success.Should().BeTrue("closed outcome: {0}/{1}", second.Stage, second.Reason);
+        second.Mutations.Should().Be(0);
+        AssertSame(parentBefore, await admin.GetAsync("groups/" + parentId), "the unrelated parent group is preserved");
+        AssertSame(childBefore, await admin.GetAsync("groups/" + childId), "the unrelated nested group is preserved");
+        AssertSame(membershipsBefore, await admin.GetAsync("users/" + userId + "/groups?briefRepresentation=true"), "nested membership is preserved");
+        AssertSame(userBefore, await UserDetailsAsync(admin, identity.Username), "the member's stored account is preserved");
+        AssertSame(credentialsBefore, await admin.GetAsync("users/" + userId + "/credentials"), "the member's credentials are preserved");
+        AssertSame(rolesBefore, await admin.GetAsync("users/" + userId + "/role-mappings"), "the member's role assignments are preserved");
+        await AssertLoginAsync(fixture, identity, KeycloakFixture.DemoPassword, userId);
+    }
+
+    [Fact]
+    public async Task Retained_cached_organization_groups_do_not_override_strict_user_identity()
+    {
+        await using var fixture = await KeycloakFixture.StartAsync();
+        using var admin = await fixture.CreateAdminClientAsync();
+        var identity = SeedData.IdentityUsers[0];
+        var user = await UserDetailsAsync(admin, identity.Username);
+        var userId = Id(user);
+        using var establishedBrowser = fixture.Browser();
+        var authorization = await establishedBrowser.AuthorizeAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity));
+        authorization.Authorized.Should().BeTrue("the ordinary code/S256 session is established before enabling Organizations");
+        var session = await establishedBrowser.RedeemAsync(authorization);
+        session.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await admin.PutAsync("", new { organizationsEnabled = true })).Should().Be(HttpStatusCode.NoContent);
+        const string organizationName = "Fixture retained organization";
+        var canaries = new Dictionary<string, string[]>
+        {
+            ["user_id"] = ["10000000-0000-7000-8000-000000000001"],
+            ["tenant_id"] = [Guid.NewGuid().ToString("D")],
+            ["organization_id"] = [Guid.NewGuid().ToString("D")],
+        };
+        (await admin.PostAsync("organizations", new { name = organizationName, alias = "fixture-retained-organization", attributes = canaries }))
+            .Should().Be(HttpStatusCode.Created);
+        var organizations = await admin.GetAsync("organizations?max=100");
+        var organizationId = Id(organizations.EnumerateArray().Single(value => value.GetProperty("name").GetString() == organizationName));
+        (await admin.PostAsync("organizations/" + organizationId + "/members", userId)).Should().Be(HttpStatusCode.Created);
+        var verifiedMember = await admin.GetAsync("organizations/" + organizationId + "/members/" + userId);
+        (Id(verifiedMember) == userId).Should().BeTrue("the enabled organization API verifies the exact member");
+        var organizationBefore = await admin.GetAsync("organizations/" + organizationId);
+        foreach (var canary in canaries)
+            (organizationBefore.GetProperty("attributes").GetProperty(canary.Key)[0].GetString() == canary.Value[0]).Should().BeTrue();
+        var membershipPath = "users/" + userId + "/groups?briefRepresentation=true";
+        (await admin.GetAsync(membershipPath)).GetArrayLength().Should().Be(0, "the pinned cached-user stream excludes organization groups");
+        var enabledExchange = await establishedBrowser.RequestTokenAsync(new Dictionary<string, string>
+        {
+            ["grant_type"] = "refresh_token",
+            ["client_id"] = "learnstack-web",
+            ["client_secret"] = KeycloakFixture.WebClientSecret,
+            ["refresh_token"] = session.RefreshToken,
+        });
+        enabledExchange.StatusCode.Should().Be(HttpStatusCode.OK);
+        var enabledToken = await KeycloakTokenVerifier.ValidateAsync(fixture, enabledExchange.AccessToken, "learnstack-api");
+        (enabledToken.GetProperty("user_id").GetString() == identity.UserId.Value.ToString("D")).Should().BeTrue();
+        (enabledToken.GetProperty("tenant_id").GetString() == identity.Tenant.TenantId.Value.ToString("D")).Should().BeTrue();
+        enabledToken.TryGetProperty("organization_id", out _).Should().BeFalse();
+        (enabledToken.GetProperty("sub").GetString() == userId).Should().BeTrue();
+        enabledExchange.Window.AcceptsFresh(enabledToken, 900).Should().BeTrue();
+        (await admin.PutAsync("", new { organizationsEnabled = false })).Should().Be(HttpStatusCode.NoContent);
+        (await admin.GetAsync()).GetProperty("organizationsEnabled").GetBoolean().Should().BeFalse();
+        (await admin.GetAsync(membershipPath)).GetArrayLength().Should().Be(0, "disabling the feature retains the same cached-user group resolution");
+        await AssertLoginAsync(fixture, identity, KeycloakFixture.DemoPassword, userId);
+        (await admin.PutAsync("", new { accessTokenLifespan = 1800 })).Should().Be(HttpStatusCode.NoContent);
+        var memberBefore = await UserDetailsAsync(admin, identity.Username);
+        var credentialsBefore = await admin.GetAsync("users/" + userId + "/credentials");
+        var rolesBefore = await admin.GetAsync("users/" + userId + "/role-mappings");
+        var outcome = await KeycloakReconciliationDriver.RunAsync(fixture);
+        outcome.Success.Should().BeTrue("closed outcome: {0}/{1} after {2} mutating calls", outcome.Stage, outcome.Reason, outcome.Mutations);
+        outcome.Mutations.Should().Be(1);
+        var repeat = await KeycloakReconciliationDriver.RunAsync(fixture);
+        repeat.Success.Should().BeTrue("closed outcome: {0}/{1}", repeat.Stage, repeat.Reason);
+        repeat.Mutations.Should().Be(0);
+        (await admin.GetAsync()).GetProperty("organizationsEnabled").GetBoolean().Should().BeFalse();
+        (await admin.GetAsync(membershipPath)).GetArrayLength().Should().Be(0);
+        AssertSame(memberBefore, await UserDetailsAsync(admin, identity.Username), "the member's stored account is preserved");
+        AssertSame(credentialsBefore, await admin.GetAsync("users/" + userId + "/credentials"), "the member's credentials are preserved");
+        AssertSame(rolesBefore, await admin.GetAsync("users/" + userId + "/role-mappings"), "the member's role mappings are preserved");
+        // Test-owned visibility restoration occurs after the reconciliation results and preservation checks.
+        (await admin.PutAsync("", new { organizationsEnabled = true })).Should().Be(HttpStatusCode.NoContent);
+        AssertSame(organizationBefore, await admin.GetAsync("organizations/" + organizationId), "stored organization canaries are retained");
+        AssertSame(verifiedMember, await admin.GetAsync("organizations/" + organizationId + "/members/" + userId), "the organization membership is retained");
+        (await admin.PutAsync("", new { organizationsEnabled = false })).Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
     public async Task Identity_mapper_secret_and_duplicate_lookup_conflicts_refuse_before_the_first_write()
     {
         var identity = SeedData.IdentityUsers[0];
@@ -413,6 +635,15 @@ public sealed class TenantRealmReconciliationTests(KeycloakFixture fresh)
         foreach (var user in new[] { old, current })
             foreach (var name in new[] { "user_id", "tenant_id", "organization_id" }) user["attributes"]?.AsObject().Remove(name);
         JsonNode.DeepEquals(old, current).Should().BeTrue("only the three declared identity attributes may change on an existing account");
+    }
+
+    private static async Task<string> CreateGroupAsync(KeycloakAdminClient admin, string name,
+        IReadOnlyDictionary<string, string[]> attributes, string? parentId = null)
+    {
+        var path = parentId is null ? "groups" : "groups/" + parentId + "/children";
+        (await admin.PostAsync(path, new { name, attributes })).Should().Be(HttpStatusCode.Created);
+        var groups = await admin.GetAsync(path + "?briefRepresentation=false&max=100");
+        return Id(groups.EnumerateArray().Single(value => value.GetProperty("name").GetString() == name));
     }
 
     // Lookup responses include realm-wide profile metadata; detail responses hold the account state being preserved.
