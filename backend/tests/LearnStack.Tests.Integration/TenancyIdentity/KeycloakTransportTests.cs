@@ -80,6 +80,8 @@ public sealed class KeycloakTransportTests
             "{\"message\":\"" + network + "\",\"messa\\u0067e\":\"" + network + "\"}",
             "{\"message\":\"" + network + "\",}", "/* comment */" + Body(network),
             "{\"message\":\"\\uD800\"}", "{\"messa\\uD800ge\":\"" + network + "\"}",
+            "{\"message\":\"\uD800\"}", "{\"message\":\"\uDC00\"}",
+            "{\"messa\uD800ge\":\"" + network + "\"}", "{\"messa\uDC00ge\":\"" + network + "\"}",
             Body(network) + "{}", "{\"message\":\"unterminated", bounded + " ",
             "{\"nested\":" + new string('[', 64) + "0" + new string(']', 64) + "}",
             Body("failed: port is already allocated " + privateDetail),

@@ -15265,8 +15265,25 @@ application fixture bindings. Startup deadlines, test selection, ownership and
 failure outcomes remain unchanged. Root validation passes seven offline C#
 cases with warnings as errors, seven corpus/Docker-sweep cases, all 43 launcher
 controls and sixty combined shard/aggregate controls. Independent reviews and
-actual hosted diagnosis remain
-required before this follow-up can claim qualification.
+actual hosted diagnosis remain required before this follow-up can claim
+qualification.
+
+The first independent lifecycle reviewer (`gpt-6.1-sol`, xhigh) approves
+`fddfc266..9bbf2a31` and independently passes all 43 launcher controls. The
+privacy reviewer (`gpt-6-astra`, xhigh) reproduces a malformed-string fallback
+gap: raw unpaired UTF-16 surrogates throw `ArgumentException`, unlike the
+already covered escaped-surrogate form. Four before-red controls reproduce
+this against the unchanged helper; the correction catches that specific
+exception and adds all four controls to the existing offline case. This is a
+bounded .NET string-contract correction, not a demonstrated HTTP decoder path
+or the hosted Docker cause.
+
+One owned Linux/ARM64 startup at `9bbf2a31` uses byte-identical fixture/helper
+sources and completes in 20.632s with the original 120s startup budget and
+strict loopback checks. Awaited disposal and direct API checks confirm both
+fixture containers, its network and the isolated runner absent. The successful
+isolated startup validates the milestone subscriptions; it neither exercises
+the failure classifier nor reproduces hosted load or HTTP 500.
 
 ## Completion Criteria
 

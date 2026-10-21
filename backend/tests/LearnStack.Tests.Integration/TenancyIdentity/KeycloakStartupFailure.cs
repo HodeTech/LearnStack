@@ -88,5 +88,9 @@ internal static class KeycloakStartupFailure
         {
             return "docker_server_error";
         }
+        catch (ArgumentException)
+        {
+            return "docker_server_error";
+        }
     }
 }
