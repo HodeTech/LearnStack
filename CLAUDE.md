@@ -282,7 +282,8 @@ and its four implementation steps. G12's realm/reconciliation/callback choices
 and G13's issuance-TTL part are Accepted; G13's session part stays Open.
 The dedicated issuance follow-up,
 [ADR-0067](docs/decisions/0067-development-tenant-access-token-issuance.md), is
-Proposed and awaits separate maintainer acceptance.
+Accepted — 2026-10-21 after separate maintainer approval. It formalizes the
+existing issuance choice without changing runtime or G13's Open session portion.
 P02b-6 Step 1 is complete locally after both review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
 owns implementation, fresh-provider qualification and review status.

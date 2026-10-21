@@ -50,7 +50,10 @@ owns current qualification status),
 [ADR-0066 Bounded Tenant Subject Admission](../decisions/0066-bounded-tenant-subject-admission.md)
 (Accepted 2026-10-20; extends the existing subject-admission obligation;
 the [delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
-owns source-bound validation, reviews and hosted qualification).
+owns source-bound validation, reviews and hosted qualification),
+[ADR-0067 Development Tenant Access-Token Issuance](../decisions/0067-development-tenant-access-token-issuance.md)
+(Accepted 2026-10-21; formalizes the existing issuance obligation's authority
+without adding a rule or changing its implementation status).
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -4519,6 +4522,8 @@ structural test proves — and what it does not.
   registration and writable-profile counterfactuals reach stored values rather
   than passing through a generic refusal or account-console HTML response.
 - **Source:** ADR-0004; ADR-0064;
+  [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md)
+  (development issuance);
   [Security 11](11-security.md#authentication);
   [accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
 - **Type:** xUnit Integration with Docker, real Keycloak code exchange, API

@@ -2,15 +2,16 @@
 
 ## Status
 
-Proposed — 2026-10-21. The dedicated ADR requires explicit maintainer acceptance.
+Accepted — 2026-10-21. The maintainer explicitly approved the revised dedicated
+record after its review corrections and two fresh independent review rounds.
 The earlier P02b-6 approval of 900s development issuance remains recorded in its
 [decision package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20);
-that approval does not make this newly authored ADR Accepted.
+this separate acceptance does not backdate ADR authority.
 
 **Date:** 2026-10-21
 **Deciders:** @cemil
 
-This draft formalizes the already approved issuance choice. It proposes no new
+This record formalizes the already approved issuance choice. It introduces no new
 runtime behavior, provider boundary or supersession. ADR-0004 retains provider
 ownership; ADR-0064 retains API token acceptance.
 
@@ -32,8 +33,8 @@ ownership; ADR-0064 retains API token acceptance.
 
 ## Considered Options
 
-1. **Dedicated ADR for the approved 900s development configuration** (chosen for
-   approval). Supply a durable decision carrier and rationale; Security 11 keeps
+1. **Dedicated ADR for the approved 900s development configuration** (chosen).
+   Supply a durable decision carrier and rationale; Security 11 keeps
    the ongoing rule and the committed realm keeps its executable value.
 2. **Retain only the phase package and Security 11** (rejected). They preserve the
    maintainer's actual approval but leave the Active issuance rule without its
@@ -53,7 +54,7 @@ rule, `infra/keycloak/realms/learnstack.json` owns the executable value, and the
 existing shared development reconciler enforces it. The configured lifespan is
 distinct from observed token timestamps, ADR-0064's API acceptance bound and BFF
 session lifetimes. The pinned provider copies the resulting access-token
-expiration into generated ID tokens. This proposal retains that existing
+expiration into generated ID tokens. This decision retains that existing
 coupling; it selects no independent ID-token or BFF session lifetime.
 
 ## Context
@@ -69,9 +70,9 @@ reconciliation and callback choices have their own approved phase vehicle.
 The package originally states that no new ADR is proposed. This follow-up
 supplies the missing dedicated issuance carrier under
 [Documentation Standards 13](../standards/13-documentation.md#adrs), without
-reopening the approved value or transferring G12 into this ADR. Acceptance of
-this record needs its own explicit maintainer decision. It does not backdate
-ADR acceptance or change the approval provenance of existing implementation.
+reopening the approved value or transferring G12 into this ADR. The maintainer
+separately accepted the revised record on 2026-10-21. This does not backdate ADR
+acceptance or change the approval provenance of existing implementation.
 
 [ADR-0004](0004-authentication-strategy.md) delegates authentication and issuance
 to Keycloak. [ADR-0064](0064-tenant-api-authentication-boundary.md#access-token-profile)
@@ -164,7 +165,7 @@ decision; its 900s value needs an explicit replacement decision to change.
 
 ## Implementation notes
 
-The existing implementation is the subject of this draft, not a new work plan:
+The existing implementation is the subject of this record, not a new work plan:
 
 - [Tenant realm export](../../infra/keycloak/realms/learnstack.json) supplies 900s.
 - [Development realm planner](../../scripts/development-realm-plan.mjs) validates
@@ -178,17 +179,17 @@ The existing implementation is the subject of this draft, not a new work plan:
 
 ### Acceptance carriers
 
-These lifecycle/cross-link actions require explicit acceptance of this dedicated
-record. Proposed references may identify this draft but must not present it as
-Accepted authority. No runtime change is required by the proposed decision.
+Explicit maintainer acceptance authorizes the following lifecycle/cross-link
+updates. The phase record retains the earlier Proposed-state reviews and this
+separate acceptance. No runtime change is required by this decision.
 
-| Carrier | Action upon explicit maintainer acceptance |
+| Carrier | Acceptance update |
 |---|---|
-| This ADR § Status and decisions README | Record this ADR's actual acceptance date and approval, then move its single Proposed index row to Active. Retain the earlier phase approval provenance. |
-| Security 11 § Authentication and authority header | Add this ADR to `Derives from`, replace the draft/pending notices with its Accepted authority and cite it beside the phase history in the issuance rule. Retain ADR-0064 for API acceptance; include the inherited ID-token expiration consequence without selecting a BFF session lifetime. |
-| P02b-6 decision package's vehicle, G13 answer, test-source and handoff passages | Disclose this later dedicated carrier and link it for issuance only. Preserve the original package acceptance, G12 vehicle, implementation receipts and Open G13 session portion. |
+| This ADR § Status and decisions README | Record the actual acceptance date and approval; move the single Proposed index row to Active. Retain the earlier phase approval provenance. |
+| Security 11 § Authentication and authority header | Derive issuance from this ADR; replace draft/pending notices with its Accepted authority and cite it beside the phase history. Retain ADR-0064 for API acceptance and the inherited ID-token expiration consequence without selecting a BFF session lifetime. |
+| P02b-6 decision package's vehicle, G13 answer, test-source and handoff passages | Add dated disclosures of this later dedicated carrier for issuance only. Preserve the original package acceptance, G12 vehicle, implementation receipts and Open G13 session portion. |
 | Standards 21 issuance obligation's source references | Add this ADR's issuance authority beside the existing API/profile sources; retain the canonical rule, test owners and implementation status. |
-| Architecture 13 and Keycloak README issuance pointers | Keep Security 11 as the ongoing-rule pointer; reconcile only a claim that ADR-0064 or the phase package alone supplies dedicated issuance authority, if present. |
+| Architecture 13 and Keycloak README issuance pointers | Keep Security 11 as the ongoing-rule pointer; distinguish this dedicated issuance authority from the phase package's reconciliation/approval provenance. |
 
 ## Architecture tests
 
@@ -205,7 +206,7 @@ No new canonical obligation is introduced. Existing controls remain required:
   and the existing Node tooling controls, including TTL restoration/readback and
   zero-write completed reruns.
 
-The phase delivery records own historical results; this draft claims no new
+The phase delivery records own historical results; this record claims no new
 runtime or current-head hosted test result.
 
 ## References

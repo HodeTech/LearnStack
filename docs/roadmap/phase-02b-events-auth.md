@@ -32,6 +32,9 @@ unchanged-plan A/B qualification and identical merge trees.
 [package](#p02b-6-decision-package-2026-10-20) at `6d75e532` and its four-step
 implementation plan. G12's realm/reconciliation/callback choices and G13's
 issuance-lifetime part are Accepted; G13's session part stays Open for P02b-7.
+The dedicated issuance record,
+[ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md), is
+separately Accepted — 2026-10-21; it changes no runtime or session policy.
 P02b-6's four implementation steps and local reviews are complete; the
 [Step 4 record](#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns local qualification and correction receipts. Current-head PR checks own
@@ -350,7 +353,7 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G10 | Does the active tenant travel as a scalar `tenant_id` claim, a `memberships` array, or both — and what value does `UserId` hold? | The scalar claim, whose 02b source is an admin-set user attribute; a second UUID-valued `user_id` attribute for the actor, with `sub` staying Keycloak's subject | Phase-doc: [ADR-0036 § What is out of scope](../decisions/0036-tenant-resolution-trusted-inputs.md#what-is-out-of-scope-and-what-is-not) hands the shape to this phase by name. Reconcile `architecture/13`'s array sketch in the same change | P02b-5 | Accepted — 2026-10-19; [P02b-5 package](#p02b-5-decision-package-2026-10-19) |
 | G11 | Which [ADR-0036 matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) rows resolve in this phase, given that row 10 consults a reader that denies everyone — and what row covers a signature-valid token carrying no `tenant_id` claim on a tenant host? | Issue a matching organization claim for row 9. Rows 7/10/14 remain membership-dependent refusals until Phase 03; a claimless principal retains public-only HostOnly authority. Row 14 records no tenant audit without a confirmed host tenant, as bounded by ADR-0064 | A dated **ADR-0036** amendment plus errata beside § Staging across packets and the 2026-09-02 erratum, both of which assign row 10 to this phase without noting that its `M covers (T, O)` term is denied until Phase 03 — which groups it with rows 7 and 14 rather than with 6 and 9 | P02b-5 | Accepted — 2026-10-19; [P02b-5 package](#p02b-5-decision-package-2026-10-19) |
 | G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? Native HTTPS on retained `*.learnstack.local` hosts, with manual hosts/trust setup, is delivered by Phase 02d and re-verified by P02b-0 | A confidential BFF client with one redirect URI per seed host, retaining native HTTPS and `Secure` cookies; and an idempotent reconciler shared by `make seed` and `make demo` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-0 re-verifies [Phase 02d G32](phase-02d-walking-skeleton.md#the-decision-register), ADR-0053/0054 and ADR-0055; P02b-5 (which client the BFF redeems the code with: the API pins `azp` against it), P02b-6 | Accepted — BFF-client choice, 2026-10-19; realm/reconciliation/callback choices, [2026-10-21 package](#p02b-6-decision-package-2026-10-20) |
-| G13 | What is the BFF session — its custody of the refresh token, its store, its idle and absolute lifetimes, its refresh serialisation under concurrent requests, its terminal `invalid_grant` behaviour, its CSRF control and its logout — and which document owns the access-token lifetime? | The `HttpOnly` cookie Security Standards already describes, encrypted by the session adapter, read only by server code, with single-flight refresh and one authority for the TTL | Phase-doc + one reconciled [Security Standards § Authentication](../standards/11-security.md#authentication); a **new ADR** only for a server-side session store | P02b-6 (which document owns the access-token lifetime: the realm export and its reconciler write it), P02b-7 | Accepted — issuance-TTL part, [2026-10-21 package](#p02b-6-decision-package-2026-10-20); session part Open for P02b-7 |
+| G13 | What is the BFF session — its custody of the refresh token, its store, its idle and absolute lifetimes, its refresh serialisation under concurrent requests, its terminal `invalid_grant` behaviour, its CSRF control and its logout — and which document owns the access-token lifetime? | The `HttpOnly` cookie Security Standards already describes, encrypted by the session adapter, read only by server code, with single-flight refresh and one authority for the TTL | Phase-doc + one reconciled [Security Standards § Authentication](../standards/11-security.md#authentication); [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) is the dedicated development-issuance authority; a new session ADR is required for a server-side store | P02b-6 (which document owns the access-token lifetime: the realm export and its reconciler write it), P02b-7 | Accepted — issuance-TTL part, [2026-10-21 package](#p02b-6-decision-package-2026-10-20) and separate ADR-0067 acceptance on 2026-10-21; session part Open for P02b-7 |
 | G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject. The early anonymous stage already runs before authentication: P02d-5 delivers 60/min per canonical direct or authenticated-hop visitor IP plus 600/min peer acquisitions/allocations under ADR-0053 and ADR-0054. Exhausted known visitors refuse before peer debit; unknown visitor allocation remains peer-gated. These remain IP/peer quotas, not token quotas; a request they reject never reaches the token stage. Re-verify the [P5 remediation decision](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09) before choosing authenticated accounting, preserving pre-classification protection against unknown-host abuse | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 (the token-keyed stage and the early stage's treatment of validated callers); G34's anonymous-hop policy and ADR-0054's bounded accounting replacement are Accepted and delivered in P02d-5 | Accepted — 2026-10-19; [P02b-5 package](#p02b-5-decision-package-2026-10-19) |
 | G15 | What initiates a replay in this phase? | Targeted internal subscriber replay in P02b-3; producer/operator reset and fencing require a separate Phase 03 contract | Phase-doc; the URL space is its own decision record, per ADR-0036 | — (answered in § The consumer side; recorded so the question travels with the deferral) | Accepted — internal subscriber replay implemented by P02b-3 Step 4; operator contract Phase 03 |
 | G16 | What is `LS0002`'s rule name, which project trees does it run over, what does it inspect, and what escalates it to Error? | The name and scope recorded the way Amendment 1 recorded `LS0001`, with the scope reaching the assemblies that actually handle tokens | A dated **ADR-0032** amendment + a catalogue entry + an `AnalyzerReleases` row | P02b-8 | Open |
@@ -13431,6 +13434,12 @@ pending separate maintainer acceptance. The earlier 900s phase approval remains
 valid; G12's development-tooling vehicle and G13's Open session portion remain
 unchanged.
 
+**Issuance-carrier acceptance — 2026-10-21.** The maintainer separately approved
+the revised ADR-0067 after its correction reviews. It now supplies the dedicated
+issuance decision authority; Security 11 retains the ongoing rule. The earlier
+phase approval and Proposed-state follow-up above retain their original
+chronology. G12's vehicle and G13's Open session portion are unchanged.
+
 The existing decisions remain authoritative:
 [ADR-0004](../decisions/0004-authentication-strategy.md),
 [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) and
@@ -13483,6 +13492,12 @@ lifetimes are a different decision.
 | G12: realm and reconciliation | One owned development Admin REST reconciler, reused by `make seed` and `make demo`, with the exact profile, identity/preservation and failure rules below | No production realm provisioning, runtime identity-provider port, membership service or browser session |
 | G12: callbacks | Exact HTTPS Auth.js Keycloak callback on each existing seed host at port 3000; exact same-host root post-logout URI | No callback implementation, login transaction/session cookie, return-URL/CSRF policy or production domain registration |
 | G13: access-token issuance lifetime | Security 11 owns the rule: the tenant development realm's configured access-token lifespan is 900s; `learnstack.json` owns its executable value and reconciliation enforces it without a conflicting client override. Actual timestamps follow the provider semantics below | BFF idle/absolute session life, refresh custody/serialization, CSRF and logout remain P02b-7; API's one-hour acceptance ceiling and 30s skew remain unchanged |
+
+**G13 authority follow-up — 2026-10-21.** Separately Accepted
+[ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) records
+the issuance decision above, including inherited ID-token expiration and session
+clamping. Security 11 remains the ongoing-rule owner. This adds no BFF session
+lifetime or change to API acceptance.
 
 **Client and claim configuration.** Preserve the Accepted `learnstack-web`
 confidential client with S256, `azp=learnstack-web` and `learnstack-api` resource
@@ -13644,6 +13659,12 @@ sources are ADR-0004/0064, Security 11 and this accepted package, not a new
 architecture decision. Counts/status assertions change with the same registry
 edit; no new Implemented rule is claimed by approval.
 
+**Test-source follow-up — 2026-10-21.** ADR-0067's separate acceptance adds its
+dedicated issuance authority to the existing issuance obligation's sources.
+It introduces no new canonical obligation or test owner. The later Step 4
+delivery retains the two existing obligations' Implemented status; the original
+registration paragraph above remains an acceptance-time receipt.
+
 | Canonical obligation | Owner/level | Required evidence |
 |---|---|---|
 | [`Tenant_Realm_Issuance_Matches_The_Api_Profile`](../standards/21-architecture-tests-catalogue.md#tenant_realm_issuance_matches_the_api_profile) | `TenantRealmIssuanceTests` and `TenantRealmProfileProtectionTests`, backend Integration with Docker | Import committed JSON into pinned Keycloak, exercise real code/S256 issuance, validate through real API handler/AccountSite and app-role PostgreSQL; protect profile attributes with a working account-edit positive control. |
@@ -13730,6 +13751,12 @@ The acceptance and Registered catalogue owners form the first commit before
 runtime changes. Security 11 owns the issuance rule and points to the executable
 value; target sketches link to that authority. Dated old observations retain
 their as-of state. The implementation carriers below remain owned by their steps.
+
+**Issuance handoff follow-up — 2026-10-21.** Separately Accepted ADR-0067 is the
+dedicated decision carrier for the issuance choice; Security 11's authority
+header and the existing issuance obligation now cite it. This documentation
+acceptance introduces no runtime work or change to the earlier approval,
+G12's reconciler/callback boundary, or P02b-7's session ownership.
 
 | Carrier | Action and implementing owner |
 |---|---|
@@ -15561,6 +15588,35 @@ subprocesses finish. Both independent correction review rounds are complete.
 ADR-0067 remains Proposed awaiting its own maintainer acceptance. The authority
 header/index actions remain gated; these local results do not claim current-head
 hosted A/B qualification or permission to merge.
+
+### ADR-0067 acceptance and carrier reconciliation (2026-10-21)
+
+The maintainer explicitly approves the revised ADR-0067 after the completed
+correction reviews. Its lifecycle is now **Accepted — 2026-10-21** and its single
+index row moves from Proposed to Active. Security 11 derives development
+issuance from this ADR while preserving the earlier package approval and
+ADR-0064's independent API acceptance boundary. Draft/pending authority notices
+are removed from current guidance; both front doors record separate acceptance.
+
+Dated adjacent notes reconcile the package's vehicle, G13 answer, test-source
+and implementation handoff passages without rewriting historical approvals or
+Proposed-state reviews. The existing catalogue source/header gains ADR-0067;
+canonical obligations, counts, owners and implementation statuses are unchanged.
+Architecture 13 and the Keycloak guide retain Security 11 as the ongoing-rule
+pointer and distinguish the dedicated issuance decision from phase provenance.
+
+No runtime, executable realm value, credential, API policy, BFF session decision
+or CI/shard setting changes. The earlier actual-token and hosted receipts remain
+bound to their recorded sources. Local validation passes seven corpus/Docker-
+trait cases, seven ADR parser controls, all 1,439 scoped relative links/fragments
+and whitespace/wrap checks. The parser reports Accepted and the index contains
+one Active ADR-0067 row. Two fresh independent acceptance-carrier review rounds
+follow before publication.
+
+The preceding [run `39664005457`](https://github.com/HodeTech/LearnStack/actions/runs/39664005457)
+at `c33e529e` fails ordinary-6 and the integration aggregate. Its cause is under
+separate investigation; this documentation acceptance does not qualify or waive
+that failure.
 
 ## Completion Criteria
 

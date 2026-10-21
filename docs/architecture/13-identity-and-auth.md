@@ -163,9 +163,10 @@ Key details:
 - **PKCE only.** No implicit flow, no client secrets in the browser.
 - **Cookies, not localStorage.** Tokens never enter JavaScript; the BFF holds them.
 - **Short access token TTL.** [Security Standards](../standards/11-security.md#authentication)
-  owns the accepted issuance rule; P02b-6's realm export/reconciler owns its
-  executable value and enforcement. ADR-0064 bounds API acceptance; P02b-7 owns
-  BFF refresh and session lifetimes.
+  owns the ongoing issuance rule under
+  [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md);
+  P02b-6's realm export/reconciler owns its executable value and enforcement.
+  ADR-0064 bounds API acceptance; P02b-7 owns BFF refresh and session lifetimes.
 - **JWKS rotation.** API validates tokens against Keycloak's JWKS endpoint, with key caching and rotation handling built into the .NET OIDC middleware.
 
 ## Tenant Resolution Across Identity

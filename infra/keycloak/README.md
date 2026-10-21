@@ -2,10 +2,15 @@
 
 The pinned development provider is Keycloak 26.6.2. Two realms remain isolated
 under [ADR-0004](../../docs/decisions/0004-authentication-strategy.md) and
-[ADR-0019](../../docs/decisions/0019-learnstack-hub.md). The
+[ADR-0019](../../docs/decisions/0019-learnstack-hub.md).
+[ADR-0067](../../docs/decisions/0067-development-tenant-access-token-issuance.md)
+decides development issuance;
+[Security 11](../../docs/standards/11-security.md#authentication) owns its ongoing
+rule. The
 [P02b-6 accepted package](../../docs/roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
-owns development issuance and safe warm-realm convergence. Authentication grants
-no application membership or permission; Phase 03 owns those records.
+retains the earlier approval and owns safe warm-realm convergence.
+Authentication grants no application membership or permission; Phase 03 owns
+those records.
 
 ## Realms and accounts
 

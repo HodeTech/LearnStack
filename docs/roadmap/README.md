@@ -152,7 +152,8 @@ not deferred to the showcase phase.
   realm/reconciliation/callback choices and G13's issuance-TTL part are Accepted;
   the dedicated issuance follow-up
   [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) is
-  Proposed and awaits separate maintainer acceptance.
+  Accepted — 2026-10-21 after separate maintainer approval, with no runtime or
+  G13 session-policy change.
   Step 1 is complete locally after both review rounds; its
   [record](phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
   owns fresh-provider qualification and implementation reviews. Step 2 is

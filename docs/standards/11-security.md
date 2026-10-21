@@ -6,6 +6,8 @@
 model, and session-variable placement**),
 [ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
 (Amendment 1: `learnstack-hub` realm),
+[ADR-0067 Development Tenant Access-Token Issuance](../decisions/0067-development-tenant-access-token-issuance.md)
+(the configured development issuance lifespan and provider timestamp semantics),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [ADR-0036 Tenant Resolution and Trusted Inputs](../decisions/0036-tenant-resolution-trusted-inputs.md)
@@ -45,10 +47,6 @@ subject request registry and adds no tenant-registry admission cap.
 
 Producer announcement and common execution ownership derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
-
-The dedicated development-issuance record
-[ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) remains
-Proposed; separate acceptance will complete the issuance rule's ADR authority.
 
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
@@ -159,7 +157,9 @@ General rules:
   admin unlock.
 
 **Development access-token issuance — Accepted 2026-10-21.** This standard owns
-the issuance-lifetime rule accepted in the
+the issuance-lifetime rule decided by
+[ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md), retaining
+the earlier approval in the
 [P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20):
 the tenant development realm uses a configured 900-second access-token lifespan.
 [`learnstack.json`](../../infra/keycloak/realms/learnstack.json) owns the executable
@@ -179,11 +179,6 @@ The pinned provider also copies the access-token expiration into generated ID
 tokens, including shorter session-clamped issuance. ID tokens remain identity
 credentials rejected by the tenant API; this shared expiration does not select
 a BFF session lifetime.
-
-The dedicated [ADR-0067 draft](../decisions/0067-development-tenant-access-token-issuance.md)
-formalizes this previously approved issuance choice. It remains Proposed until
-separate maintainer acceptance; the existing phase approval and runtime behavior
-remain unchanged.
 
 Keycloak 26.6.2 reads issuance and expiration clocks separately. The configured
 lifespan is not an exact `exp - iat` guarantee or a fixed 901-second ceiling.
