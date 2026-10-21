@@ -46,6 +46,10 @@ subject request registry and adds no tenant-registry admission cap.
 Producer announcement and common execution ownership derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 
+The dedicated development-issuance record
+[ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) remains
+Proposed; separate acceptance will complete the issuance rule's ADR authority.
+
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
 ## Threat Model Summary
@@ -170,6 +174,11 @@ PR's required checks own current-head hosted qualification. ADR-0064's one-hour
 API acceptance ceiling and 30-second skew remain separate from issuance.
 P02b-7 owns BFF idle/absolute lifetimes and refresh custody; that part of G13
 remains Open.
+
+The pinned provider also copies the access-token expiration into generated ID
+tokens, including shorter session-clamped issuance. ID tokens remain identity
+credentials rejected by the tenant API; this shared expiration does not select
+a BFF session lifetime.
 
 The dedicated [ADR-0067 draft](../decisions/0067-development-tenant-access-token-issuance.md)
 formalizes this previously approved issuance choice. It remains Proposed until

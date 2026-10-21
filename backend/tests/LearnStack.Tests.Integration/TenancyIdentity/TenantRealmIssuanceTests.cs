@@ -100,16 +100,32 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture, ITestOutpu
 
             var idToken = await KeycloakTokenVerifier.ValidateAsync(fixture, exchange.IdToken, "learnstack-web");
             AssertIdentity(idToken, identity);
+            exchange.Window.AcceptsFresh(idToken, 900).Should().BeTrue("signed ID-token expiration fits the same observed issuance window");
+            (idToken.GetProperty("exp").GetInt64() == access.GetProperty("exp").GetInt64()).Should().BeTrue(
+                "the pinned provider copies access-token expiration into the ID token from the same exchange");
+            AssertExpirationControls(idToken, exchange.Window);
             FreshProfileMatches(access, idToken, identity, subject, exchange.Window).Should().BeTrue();
-            foreach (var defect in new[] { "missing_subject", "wrong_subject", "wrong_party" })
+            foreach (var defect in new[] { "missing_subject", "wrong_subject", "wrong_party", "wrong_expiration" })
             {
                 var mutant = JsonNode.Parse(idToken.GetRawText())!.AsObject();
                 if (defect == "missing_subject") mutant.Remove("sub");
                 else if (defect == "wrong_subject") mutant["sub"] = "another-provider-subject";
-                else mutant["azp"] = "another-client";
+                else if (defect == "wrong_party") mutant["azp"] = "another-client";
+                else
+                {
+                    // Keep this mismatch inside the fresh window so equality is the only violated expiration condition.
+                    var expiration = exchange.Window.StartedUtc.ToUnixTimeSeconds() + 900;
+                    mutant["exp"] = expiration == access.GetProperty("exp").GetInt64() ? expiration + 1 : expiration;
+                }
                 using var invalid = JsonDocument.Parse(mutant.ToJsonString());
+                if (defect == "wrong_expiration")
+                {
+                    exchange.Window.AcceptsFresh(access, 900).Should().BeTrue("the unchanged access token remains fresh");
+                    exchange.Window.AcceptsFresh(invalid.RootElement, 900).Should().BeTrue(
+                        "the planted ID-token expiration differs while still fitting the fresh issuance window");
+                }
                 FreshProfileMatches(access, invalid.RootElement, identity, subject, exchange.Window).Should().BeFalse(
-                    "the same profile predicate must detect an ID-token subject or authorized-party defect");
+                    "the same profile predicate must detect an ID-token subject, authorized-party or expiration defect");
             }
             AssertScalar(idToken, "typ", "ID");
             HasAudience(idToken, "learnstack-api").Should().BeFalse("the explicit API audience belongs only in access tokens");
@@ -386,6 +402,9 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture, ITestOutpu
             initial.StatusCode.Should().Be(HttpStatusCode.OK);
             var first = await KeycloakTokenVerifier.ValidateAsync(owned, initial.AccessToken, "learnstack-api");
             AssertIdentity(first, identity);
+            var firstId = await KeycloakTokenVerifier.ValidateAsync(owned, initial.IdToken, "learnstack-web");
+            (firstId.GetProperty("exp").GetInt64() == first.GetProperty("exp").GetInt64()).Should().BeTrue(
+                "initial session-clamped access and ID tokens share expiration");
             await Task.Delay(TimeSpan.FromSeconds(2));
             var late = await browser.RequestTokenAsync(new Dictionary<string, string>
             {
@@ -397,6 +416,9 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture, ITestOutpu
             late.StatusCode.Should().Be(HttpStatusCode.OK);
             var refreshed = await KeycloakTokenVerifier.ValidateAsync(owned, late.AccessToken, "learnstack-api");
             AssertIdentity(refreshed, identity);
+            var refreshedId = await KeycloakTokenVerifier.ValidateAsync(owned, late.IdToken, "learnstack-web");
+            (refreshedId.GetProperty("exp").GetInt64() == refreshed.GetProperty("exp").GetInt64()).Should().BeTrue(
+                "the ID token from the same refresh shares the access token's session-clamped expiration");
             (refreshed.GetProperty("iat").GetInt64() > first.GetProperty("iat").GetInt64()).Should().BeTrue();
             (refreshed.GetProperty("auth_time").GetInt64() == first.GetProperty("auth_time").GetInt64()).Should().BeTrue(
                 "the refresh belongs to the same earlier authenticated session");
@@ -406,6 +428,7 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture, ITestOutpu
                 && expiration > late.Window.CompletedUtc.ToUnixTimeSeconds()).Should().BeTrue(
                     "the live late-session expiration stays within its short session ceiling");
             late.Window.AcceptsFresh(refreshed, 900).Should().BeFalse("a shorter session clamp is separate from a fresh 900-second issuance proof");
+            late.Window.AcceptsFresh(refreshedId, 900).Should().BeFalse("the shared shorter expiration also clamps the refreshed ID token");
             (await admin.GetAsync()).GetProperty("accessTokenLifespan").GetInt32().Should().Be(900);
             foreach (var name in new[] { "learnstack-web", "learnstack-api" })
                 (await admin.ClientAsync(name)).GetProperty("attributes").TryGetProperty("access.token.lifespan", out _).Should().BeFalse();
@@ -460,7 +483,8 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture, ITestOutpu
         && ScalarEquals(access, "azp", "learnstack-web") && HasAudience(access, "learnstack-api")
         && ScalarEquals(id, "sub", subject) && ScalarEquals(id, "azp", "learnstack-web")
         && ScalarEquals(id, "typ", "ID") && !HasAudience(id, "learnstack-api")
-        && window.AcceptsFresh(access, 900);
+        && window.AcceptsFresh(access, 900) && window.AcceptsFresh(id, 900)
+        && access.GetProperty("exp").GetInt64() == id.GetProperty("exp").GetInt64();
 
     private static bool MatchesIdentity(JsonElement payload, SeedIdentity identity) =>
         ScalarEquals(payload, "user_id", identity.UserId.Value.ToString("D"))

@@ -13424,6 +13424,13 @@ A new ADR is therefore not proposed. Any implementation requiring a different
 provider/runtime boundary reopens this pass before code; approval of this
 package does not authorize that change.
 
+**Issuance-carrier follow-up — 2026-10-21.** The no-ADR statement above records
+the original package's vehicle. A dedicated issuance carrier now exists as
+[ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md), Proposed
+pending separate maintainer acceptance. The earlier 900s phase approval remains
+valid; G12's development-tooling vehicle and G13's Open session portion remain
+unchanged.
+
 The existing decisions remain authoritative:
 [ADR-0004](../decisions/0004-authentication-strategy.md),
 [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) and
@@ -13798,6 +13805,13 @@ PostgreSQL, frontend and hosted qualification are not claimed by these checks.
   [user updates](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/UserResource.java),
   [account REST](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/account/AccountRestService.java),
   [built-in account client](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/managers/RealmManager.java).
+
+**Source-pointer correction — 2026-10-21.** The timestamp and clock links above
+targeted the wrong raw-source lines. The actual pinned assignments are
+[`JsonWebToken.java` lines 150–151](https://github.com/keycloak/keycloak/blob/26.6.2/core/src/main/java/org/keycloak/representations/JsonWebToken.java#L150-L151)
+and [`Time.java` lines 33–34](https://github.com/keycloak/keycloak/blob/26.6.2/common/src/main/java/org/keycloak/common/util/Time.java#L33-L34).
+The provider-semantics conclusion is unchanged; ADR-0067 carries the corrected
+issuance/expiration and ID-token-expiration references.
 
 ## P02b-6 Step 1 — executable realm and identity declaration (2026-10-21)
 
@@ -15471,6 +15485,54 @@ and pinned provider semantics. Both independent review rounds are complete.
 ADR-0067 remains Proposed pending its separate maintainer approval; the earlier
 hosted A/B receipts do not qualify this changed head. Current-head PR checks own
 new hosted qualification; review/merge remain separate.
+
+### Dedicated issuance-carrier review corrections — 2026-10-21
+
+The maintainer's review of Proposed ADR-0067 identifies the missing dedicated
+authority in Security 11's header. The revised draft makes that rationale and
+the acceptance action explicit: only after separate approval will the header
+derive issuance from ADR-0067 and replace its draft/pending notices. The earlier
+phase approval remains valid. Neither that approval nor this review makes the
+new ADR Accepted.
+
+The draft corrects the pinned source anchors against raw Keycloak 26.6.2 lines,
+clarifies the absence of an override on either named client and distinguishes
+shortening a configured lifespan from reducing token production. It names the
+planner's action/readback contract, the core's apply/verify loop and the shared
+entry's qualification/ownership responsibilities separately. Dated adjacent
+notes preserve the original package's no-new-ADR statement and correct the
+historical source pointers without rewriting their original text. Both front
+doors now link the Proposed dedicated carrier.
+
+The provider already copies access-token expiration into the paired ID token.
+The draft explicitly retains that consequence, including session clamping; it
+selects no independent ID-token or BFF session lifetime. Separate issuance
+clocks still preclude exact `exp - iat == 900` assertions. Renewal demand,
+refresh-custody/rotation ownership and explicit reasons to revisit the
+development setting are recorded without changing the executable 900s value,
+API acceptance or G13's Open session portion.
+
+Three existing real-provider Facts pass with zero failures/skips: fresh signed
+issuance for all four identities, shorter late-session issuance/refresh and the
+existing live mapper/scope/audience/TTL mutation case. Each positive ID token
+is cryptographically validated before paired expiration is compared. An
+in-memory ID-expiration control preserves the unchanged access token and both
+fresh-window predicates while breaking only expiration equality. Against the
+old profile predicate, the fresh-profile Fact produces the expected failed
+TRX; the final predicate refuses the planted mismatch. This is a payload
+predicate control, not a provider-signed altered token. The red run's exact
+process exit code was not retained. Both final executions exit zero, their
+owned process groups are absent, and all ten retained exact fixture container
+IDs have destruction events plus direct-inspect absence. Existing Fact/Theory
+declarations and the 13-case population are unchanged.
+
+[Run `39656889029`](https://github.com/HodeTech/LearnStack/actions/runs/39656889029)
+passes at the preceding `61924f0f` source. That earlier result neither qualifies
+these corrections nor supplies a second assignment for their source. Local
+validation passes seven corpus/Docker-trait cases, seven ADR parser controls,
+all 676 scoped relative links/fragments and whitespace checks. Two fresh
+independent correction review rounds follow this implementation receipt;
+current-head qualification and ADR acceptance remain separate.
 
 ## Completion Criteria
 

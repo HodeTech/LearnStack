@@ -18,7 +18,10 @@ ownership; ADR-0064 retains API token acceptance.
 
 - The configured issuance lifespan is a security-sensitive choice carried by
   Security 11 and an approved phase package. Documentation Standards 13 requires
-  an ADR for that choice; ADR-0064 deliberately delegates actual issuance.
+  an ADR for that choice and an
+  [authority header](../standards/13-documentation.md#anchored-standards) for the
+  Active standard; a phase package is not an authority type for that header.
+  ADR-0064 deliberately delegates actual issuance.
 - The selected 900s development value reduces the ordinary stale-scope window
   relative to the previous 1800s configuration, while increasing renewal demand.
   The phase package does not claim measured production capacity.
@@ -33,8 +36,8 @@ ownership; ADR-0064 retains API token acceptance.
    approval). Supply a durable decision carrier and rationale; Security 11 keeps
    the ongoing rule and the committed realm keeps its executable value.
 2. **Retain only the phase package and Security 11** (rejected). They preserve the
-   maintainer's actual approval but leave this security-sensitive choice without
-   a dedicated ADR and invite mistaken attribution to ADR-0064.
+   maintainer's actual approval but leave the Active issuance rule without its
+   dedicated header authority and invite mistaken attribution to ADR-0064.
 3. **Retain the earlier 1800s development configuration** (rejected in the approved
    phase package). Less frequent renewal comes with a longer stale-scope window;
    it does not match the explicitly approved development default.
@@ -49,7 +52,9 @@ as **900 seconds**, inherited by `learnstack-web` and `learnstack-api` without a
 rule, `infra/keycloak/realms/learnstack.json` owns the executable value, and the
 existing shared development reconciler enforces it. The configured lifespan is
 distinct from observed token timestamps, ADR-0064's API acceptance bound and BFF
-session lifetimes.
+session lifetimes. The pinned provider copies the resulting access-token
+expiration into generated ID tokens. This proposal retains that existing
+coupling; it selects no independent ID-token or BFF session lifetime.
 
 ## Context
 
@@ -81,19 +86,30 @@ rollover can yield `exp - iat == 901` with a 900s configuration; a scheduling
 pause can widen that difference. Provider session limits can also shorten
 late-session issuance. Neither exact `exp - iat == 900` nor a fixed 901s ceiling
 expresses this decision. The pinned upstream
-[issuance/expiration implementation](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java),
-[issuance timestamp](https://github.com/keycloak/keycloak/blob/26.6.2/core/src/main/java/org/keycloak/representations/JsonWebToken.java#L140)
-and [clock implementation](https://github.com/keycloak/keycloak/blob/26.6.2/common/src/main/java/org/keycloak/common/util/Time.java#L31)
+[issuance timestamp call](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L1081),
+[later expiration clock and session clamp](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L1099-L1153),
+[issuance timestamp](https://github.com/keycloak/keycloak/blob/26.6.2/core/src/main/java/org/keycloak/representations/JsonWebToken.java#L150-L151)
+and [clock implementation](https://github.com/keycloak/keycloak/blob/26.6.2/common/src/main/java/org/keycloak/common/util/Time.java#L33-L34)
 support the phase package's distinction.
 
-The existing proof contract checks the exact realm value and absence of both
-client overrides independently. Fresh signed expiration must fit the observed
-UTC/monotonic code-exchange window plus the configured lifespan, within its
-finite HTTP deadline. Any explicit fixture/provider clock tolerance is at most
-the API's existing 30-second skew; an indeterminate clock/window fails the proof.
-The current fixture uses two seconds. This is qualification evidence, not a new
-API acceptance rule. Separate late-session controls allow shorter issuance;
-wrong-configuration and wrong-expiration controls prevent tolerance hiding drift.
+The proof contract checks the exact realm value and absence of an
+`access.token.lifespan` override on either named client independently. Fresh
+signed expiration must fit the observed UTC/monotonic code-exchange window plus
+the configured lifespan, within its finite HTTP deadline. Any explicit
+fixture/provider clock tolerance is at most the API's existing 30-second skew;
+an indeterminate clock/window fails the proof. The current fixture uses two
+seconds. This is qualification evidence, not a new API acceptance rule. Separate
+late-session controls allow shorter issuance; wrong-configuration and
+wrong-expiration controls prevent tolerance hiding drift.
+
+Keycloak also
+[copies access-token expiration into the ID token](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L1375).
+Its ID-token issuance timestamp is read separately; this does not promise an
+exact ID-token `exp - iat` either. The proof checks expiration equality for the
+same signed exchange and retains shorter session-clamped issuance. ID tokens
+remain identity credentials rejected by the tenant API. P02b-7 owns their BFF
+validation/use and session policy; this provider consequence sets none of those
+lifetimes and does not enable refresh-token rotation.
 
 Changing the realm does not revoke earlier 1800s tokens. Their validity remains
 subject to ADR-0064's acceptance bound and skew. The shorter configured default
@@ -110,6 +126,14 @@ does not supply immediate revocation or live membership checks.
   or capacity claim.
 - The separate `learnstack-hub` realm and Hub contract are outside this decision.
 
+### What would change this choice
+
+Revisit the development setting if provider issuance/expiration semantics change,
+measured security or renewal costs justify a different lifespan, or changes to
+the API acceptance bound, P02b-7 session design or Phase 11 production policy
+make it unsuitable. Those other owners do not silently change this development
+decision; its 900s value needs an explicit replacement decision to change.
+
 ## Consequences
 
 ### Positive
@@ -123,14 +147,18 @@ does not supply immediate revocation or live membership checks.
 ### Negative
 
 - A shorter default requires more frequent renewal than 1800s; production
-  throughput and session design still require their own qualification.
-- Accepted-token staleness remains possible until expiry; reducing new issuance
-  does not immediately invalidate already issued tokens.
+  throughput and session design still require their own qualification. Consumers
+  that renew through refresh tokens use those credentials more frequently;
+  P02b-7 owns custody and Phase 11 owns rotation hardening.
+- The shorter configured lifespan also affects generated ID-token expiration;
+  it is not an independently configured browser session lifetime.
+- Accepted-token staleness remains possible until expiry; shortening the
+  configured lifespan does not immediately invalidate already issued tokens.
 
 ### Neutral
 
-- This documentation follow-up introduces no runtime change, new test rule,
-  supersession, BFF session decision or additional G12 scope.
+- This follow-up introduces no runtime change, new catalogue rule, supersession,
+  BFF session decision or additional G12 scope.
 - Delivery and hosted qualification remain source-bound in the P02b-6 records;
   an ADR approval does not qualify a later PR head or authorize merge.
 
@@ -140,8 +168,11 @@ The existing implementation is the subject of this draft, not a new work plan:
 
 - [Tenant realm export](../../infra/keycloak/realms/learnstack.json) supplies 900s.
 - [Development realm planner](../../scripts/development-realm-plan.mjs) validates
-  that declaration, converges the realm value, removes the named client overrides
-  and independently verifies the resulting state.
+  that declaration and defines the mutation actions and readback predicate.
+  [Reconciliation core](../../scripts/development-realm-core.mjs) applies the
+  actions, invokes that verification and requires an empty second plan.
+  [Shared development entry](../../scripts/reconcile-development-realm.mjs)
+  owns target qualification, cancellation, locking and process cleanup.
 - [Security 11](../standards/11-security.md#authentication) keeps the ongoing rule;
   [Keycloak setup](../../infra/keycloak/README.md) links to it for local operation.
 
@@ -154,7 +185,7 @@ Accepted authority. No runtime change is required by the proposed decision.
 | Carrier | Action upon explicit maintainer acceptance |
 |---|---|
 | This ADR § Status and decisions README | Record this ADR's actual acceptance date and approval, then move its single Proposed index row to Active. Retain the earlier phase approval provenance. |
-| Security 11 § Authentication and authority header | Cite this ADR as the dedicated authority for the existing development issuance rule; retain ADR-0064 for API acceptance and the phase package for implementation/approval history. |
+| Security 11 § Authentication and authority header | Add this ADR to `Derives from`, replace the draft/pending notices with its Accepted authority and cite it beside the phase history in the issuance rule. Retain ADR-0064 for API acceptance; include the inherited ID-token expiration consequence without selecting a BFF session lifetime. |
 | P02b-6 decision package's vehicle, G13 answer, test-source and handoff passages | Disclose this later dedicated carrier and link it for issuance only. Preserve the original package acceptance, G12 vehicle, implementation receipts and Open G13 session portion. |
 | Standards 21 issuance obligation's source references | Add this ADR's issuance authority beside the existing API/profile sources; retain the canonical rule, test owners and implementation status. |
 | Architecture 13 and Keycloak README issuance pointers | Keep Security 11 as the ongoing-rule pointer; reconcile only a claim that ADR-0064 or the phase package alone supplies dedicated issuance authority, if present. |
@@ -165,8 +196,9 @@ No new canonical obligation is introduced. Existing controls remain required:
 
 - [`Tenant_Realm_Issuance_Matches_The_Api_Profile`](../standards/21-architecture-tests-catalogue.md#tenant_realm_issuance_matches_the_api_profile)
   owns real signed issuance/API compatibility. `TenantRealmIssuanceTests` checks
-  live realm/no-override state, bounded fresh expiration, wrong TTL/override and
-  expiration controls, and shorter late-session issuance. `TenantRealmExportTests`
+  live realm/no-override state, bounded fresh access/ID expiration and their
+  equality, wrong TTL/override and independent ID-expiration controls, and shorter
+  late-session issuance. `TenantRealmExportTests`
   independently checks the committed declaration and drift controls.
 - [`Development_Realm_Reconciliation_Preserves_Accounts`](../standards/21-architecture-tests-catalogue.md#development_realm_reconciliation_preserves_accounts)
   owns warm convergence/preservation through `TenantRealmReconciliationTests`
