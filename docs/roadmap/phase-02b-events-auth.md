@@ -15547,6 +15547,21 @@ passes seven ADR parser controls; both pass whitespace checks. Neither reruns
 provider execution or claims hosted qualification. All review subprocesses
 finish. A second fresh independent round follows before correction closeout.
 
+#### Second independent issuance-carrier review
+
+Two different reviewers inspect `61924f0f..7bb9a3ee`: `gpt-6.1-sol` at `xhigh`
+for security/test-proof behavior and `gpt-6-astra` at `high` for ADR/corpus and
+approval provenance. Both approve without an actionable finding. They verify
+clock boundaries, signed-token validation, the independent in-memory expiration
+control, exact pinned upstream lines and the unchanged 13-case population.
+Both independently pass seven ADR parser controls and whitespace checks. The
+first checks retained TRX counts and directly confirms all ten exact fixture
+containers absent. No build/provider execution is repeated; all review
+subprocesses finish. Both independent correction review rounds are complete.
+ADR-0067 remains Proposed awaiting its own maintainer acceptance. The authority
+header/index actions remain gated; these local results do not claim current-head
+hosted A/B qualification or permission to merge.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
