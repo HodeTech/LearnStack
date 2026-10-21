@@ -15689,6 +15689,134 @@ Whitespace and clean tracked-worktree checks pass; all review/fixture
 subprocesses finish. Both diagnostic review rounds are complete. No provider or
 hosted qualification is claimed; the failed lifecycle receipt remains unwaived.
 
+
+### P02b-6 additional verification and correction pass (2026-10-22)
+
+**Status: implementation and validation in progress on `development`.** External
+review assertions are hypotheses until checked against current source or retained
+execution evidence. They do not authorize policy changes, host mutations or
+cleanup of another task's resources. No next packet or merge starts here.
+
+The preceding source `57772a2a` has a complete successful hosted execution in
+[run `39668841753`](https://github.com/HodeTech/LearnStack/actions/runs/39668841753),
+attempt 1: all 27 jobs and seven required contexts pass. Independent artifact
+verification binds ordinary-6's 224 distinct passing records to that source;
+all three cancellation/restart variants pass, in approximately 24.3–24.5 seconds.
+This does not explain or erase earlier failed variants. The failed receipts and
+missing error payload are linked by the preceding triage and diagnostic record;
+a green run is neither a root-cause analysis nor a reason to relax a deadline.
+
+ADR-0063 requires materially different full A/B assignments for rollout and
+plan/algorithm/fixture-lifetime changes. Normal later pushes require one complete
+assignment. Earlier references to current-head A/B are qualification requests for
+their recorded changes, rather than an additional permanent requirement on every
+push. The `abd45611` A/B receipts remain historical and source-bound. Advisory
+weights and source provenance have changed during this packet; unchanged VM counts,
+aggregate names and execution ceilings do not mean the plan file is unchanged.
+
+#### Verified corrections and retained boundaries
+
+- Actual Compose argv selects a nonsecret, process-only web-secret placeholder
+  only for recognized lifecycle commands and exact `config --services`.
+  Container-capable, ambiguous and full-config invocations remain strict.
+  Private-file ownership/type/link/permission checks remain mandatory: lifecycle
+  parsing is not permission to read an unsafe secret file. No source file or
+  provider credential is changed by the placeholder.
+- Seed recognizes only locally typed, fixed Compose-selection notices. Demo
+  setup cancellation exits 130 after owned cleanup; command/readiness deadlines
+  retain their closed reason. Arbitrary provider/configuration text remains
+  outside public diagnostics.
+- Migration credentials are removed from the inherited environment before tool
+  restore/build and supplied only to no-build EF children. The migration skill
+  uses that same environment-only pattern instead of a secret command argument.
+- `public-env` qualifies, reads and writes one no-follow descriptor. It refuses
+  unsafe mode, ownership, link count, file type and size before reading, and no
+  longer follows a symlink or silently changes permissions. Copied-CLI controls
+  cover successful preparation, retained secrets, truncation and refusals.
+- Node controls exercise forbidden credential destinations, exact issuer/custody,
+  independent callback/password-grant repair, username query behavior, actor
+  collisions, created-account checks and lost-write readback. The inherited-secret
+  exclusion control now contains matching and unrelated canaries. These are
+  behavioral checks; census counts alone cannot establish assertion adequacy.
+- The actual production workflow validator rejects disabled, nonblocking, missing
+  or duplicate realm-test gates. Offline mutants call that validator; testing
+  command-string presence alone is insufficient.
+- Actor-format and scope-collision export controls use nonlegacy personas so the
+  separate legacy identity binding cannot mask the rule under test. The latter
+  retains its own deterministic replacement-actor specimen.
+- Failure receipts add only recognized, finite top-level adapter exception kinds.
+  An unlabelled xUnit assertion or unknown exception remains unclassified; no
+  message-text guess, raw exception, provider payload or new success witness is
+  introduced. This improves future diagnostics without diagnosing a lost error.
+
+#### Findings requiring no new runtime policy
+
+Proxy casing variants, private CA/package-cache prerequisites, Docker context/config
+handling, transport-abort remapping, lock-initialization cleanup and certificate
+validity had already been corrected. Existing ID-token expiry, independent expiry
+predicate, session-clamp and live TTL controls are retained. The issuance proof uses
+its measured clock window and separate readback; it does not promise exact
+`exp - iat == 900` or replace that contract with a guessed five-second interval.
+The production backchannel's certificate/hostname checks remain intact.
+
+The committed BFF example is public development data, whereas a missing runtime key
+has no automatic fallback; the guide now states both facts. Automatic rotation,
+removing the retained API service account/credential, narrowing the accepted full
+scope or removing retained provider features are policy changes, not demonstrated
+regressions. The approved account-console capability has its own dated maintainer
+acceptance above. LearnStack application permissions remain separate.
+
+Redundant protection mutants need not all fail independently when another operative
+check enforces the same refusal. The declared test-file census does not claim to
+detect an empty assertion body. A named legacy migration literal is bounded tooling
+data, rather than evidence of a domain-specific application branch. Broad historical
+CLAUDE consolidation is outside this minimal correction; history is preserved.
+Raw historical review transcripts are not committed evidence. Dated summaries and
+source commits record the available scope/results; this pass does not invent missing
+transcripts or infer a review's validity from elapsed time alone.
+
+Fresh independent correction rounds and source-appropriate hosted qualification
+follow the implementation receipts below. Author checks are not independent reviews.
+
+[ADR-0068](../decisions/0068-development-identity-visibility-preparation.md) is a
+Proposed metadata-preparation exception. It changes the accepted first-write
+ordering and requires separate approval before dependent implementation. Existing
+visibility and account-console refusals remain active; approval would not itself
+prove complete stock-main upgrade compatibility.
+
+
+#### Initial correction validation and tooling review
+
+The lifecycle correction is committed as `7e8c54f7`. Author controls pass 187
+lifecycle/migration cases and ten held-file CLI cases. Two fresh first-round
+reviewers inspect `57772a2a..7e8c54f7`: `gpt-6-astra` and `gpt-6.1-sol`, both at
+`high`. They independently pass twenty file/migration cases and 177 demo cases,
+respectively; the latter validates JSON with the repository report guard. The
+security review demonstrates one additional defect with a fake `dotnet`: the
+skill's explicit build can fail and still reach `--no-build` EF in a shell
+without errexit. The corrected example uses a subshell and guards build success;
+three isolated shell controls prove no EF after failed build, EF-only credential
+custody and preserved build/EF failure statuses. No real database is used by
+those shell controls. The complete correction still needs its fresh full reviews.
+
+The expanded author validation passes **251 source-censused Node cases**, all
+**43 launcher controls**, six Node-gate controls and sixty combined
+shard/aggregate controls. Root validation passes **1,801 frontend cases** in two
+packages with the actual repository guard, zero skips/todos. Fresh Integration
+and Architecture Release builds produce zero warnings/errors. All three offline
+export cases and seven corpus/Docker-trait cases pass.
+
+Three separate serial testhost invocations execute all three existing native
+cancellation/restart variants: **nine passed, zero failures/skips**. Command
+wall times are 76.669s, 74.219s and 85.571s, including fixture/runner work; these
+are not per-case durations. The same three exact case IDs occur in every run.
+All testhost process groups join, and direct inspections confirm absence of
+each invocation's two exact created container IDs. The first immediate readback
+still finds one owned container; later reads of those same IDs confirm absence.
+That first observation is retained, not rewritten as immediate cleanup. No
+foreign-resource inventory or cleanup, runtime fix, retry-until-green, deadline
+increase or historical root-cause claim accompanies these results.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

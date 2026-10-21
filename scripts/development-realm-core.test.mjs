@@ -99,6 +99,140 @@ test('invalid endpoint syntax is a closed preflight failure before any transport
   assert.equal(calls, 0);
 });
 
+test('valid but forbidden administrator destinations refuse before even a discovery transport call', async () => {
+  for (const baseUrl of [
+    'http://provider.fixture.invalid/', 'http://127.0.0.2/', 'http://localhost.fixture.invalid/',
+    'http://[::ffff:127.0.0.1]/', 'ftp://127.0.0.1/', 'http://127.0.0.1/proxy/',
+    'http://127.0.0.1/?target=foreign', 'http://127.0.0.1/#fragment',
+    'http://synthetic-user@127.0.0.1/', 'http://:synthetic-password@127.0.0.1/',
+  ]) {
+    let calls = 0;
+    const input = memoryInput(async () => { calls++; throw new Error('forbidden destination reached'); });
+    input.baseUrl = baseUrl;
+    input.expectedIssuer = new URL('realms/learnstack', baseUrl).href;
+    await assert.rejects(reconcileRealm(input), refusal('preflight', 'configuration'));
+    assert.equal(calls, 0);
+  }
+});
+
+test('issuer identity is exact before credential use while every supported loopback host remains usable', async () => {
+  for (const expectedIssuer of [
+    'http://localhost:8080/realms/learnstack/', 'http://127.0.0.1:8080/realms/learnstack',
+    'http://localhost:8081/realms/learnstack', 'https://localhost:8080/realms/learnstack',
+    'http://localhost:8080/realms/learnstack-hub', 'http://localhost:8080/realms/learnstack?extra=true',
+  ]) {
+    let calls = 0;
+    const input = memoryInput(async () => { calls++; });
+    input.expectedIssuer = expectedIssuer;
+    await assert.rejects(reconcileRealm(input), refusal('preflight', 'configuration'));
+    assert.equal(calls, 0);
+  }
+  for (const host of ['localhost', '127.0.0.1', '[::1]']) {
+    const recording = providerTransport(provider());
+    const input = memoryInput(recording.transport);
+    input.baseUrl = `http://${host}:8080/`;
+    input.expectedIssuer = new URL('realms/learnstack', input.baseUrl).href;
+    assert.deepEqual(await reconcileRealm(input), { mutations: 0 });
+    assert.ok(recording.requests.some(request => request.path === '/realms/master/protocol/openid-connect/token'));
+  }
+});
+
+test('password and bearer custody use only the selected fixed master and tenant Admin destinations', async () => {
+  const state = provider(); state.state.realm.accessTokenLifespan = 1800;
+  const recording = providerTransport(state);
+  const observed = [];
+  const input = memoryInput(async (url, options) => {
+    observed.push({ url: new URL(url), options: structuredClone({ ...options, signal: undefined }) });
+    return recording.transport(url, options);
+  });
+  assert.deepEqual(await reconcileRealm(input), { mutations: 1 });
+  const passwords = observed.filter(({ options }) => options.form?.grant_type === 'password');
+  assert.equal(passwords.length, 1);
+  for (const { url, options } of observed) {
+    assert.equal(url.origin, new URL(input.baseUrl).origin);
+    assert.equal(url.username + url.password + url.hash, '');
+    assert.ok(!url.href.includes(privateCanary));
+    if (options.form) {
+      assert.equal(url.pathname, '/realms/master/protocol/openid-connect/token');
+      assert.equal(url.search, '');
+      assert.equal(options.method, 'POST');
+      assert.deepEqual(options.form, { client_id: 'admin-cli', grant_type: 'password',
+        username: input.adminUsername, password: input.adminPassword });
+      assert.equal(options.bearer, undefined);
+    } else if (options.bearer) {
+      assert.ok(url.pathname === '/admin/serverinfo' || url.pathname.startsWith('/admin/realms/learnstack/'));
+      assert.ok(!JSON.stringify(options.json ?? {}).includes(privateCanary));
+    } else {
+      assert.equal(url.pathname, '/realms/learnstack/.well-known/openid-configuration');
+      assert.equal(options.json, undefined);
+    }
+  }
+});
+
+test('Admin read status and malformed successful JSON refuse before a pending mutation', async () => {
+  for (const [status, bytes, reason] of [
+    [204, '{}', 'status'], [403, '{}', 'status'], [500, '{}', 'status'],
+    [200, '{', 'response'], [200, '', 'response'], [200, 'null', 'response'], [200, '[]', 'response'],
+  ]) {
+    const state = provider(); state.state.realm.accessTokenLifespan = 1800;
+    const recording = providerTransport(state);
+    let refusals = 0;
+    const transport = async (url, options) => {
+      if (url.pathname === '/admin/realms/learnstack/') {
+        refusals++;
+        return { status, bytes: Buffer.from(bytes) };
+      }
+      return recording.transport(url, options);
+    };
+    await assert.rejects(reconcileRealm(memoryInput(transport)), refusal('plan', reason));
+    assert.equal(refusals, 1);
+    assert.deepEqual(state.writes, []);
+    assert.equal(state.state.realm.accessTokenLifespan, 1800);
+  }
+});
+
+test('failed mutation statuses and malformed import receipts remain failures even after the provider committed', async () => {
+  for (const [kind, status, bytes, reason] of [
+    ['put', 403, '{}', 'status'], ['put', 409, '{}', 'status'], ['put', 500, '{}', 'status'],
+    ['post', 500, '{}', 'status'], ['post', 201, '{}', 'status'],
+    ['post', 200, '{', 'response'], ['post', 200, '[]', 'response'],
+  ]) {
+    const state = provider();
+    if (kind === 'put') state.state.realm.accessTokenLifespan = 1800;
+    else state.state.users.pop();
+    const recording = providerTransport(state);
+    let injected = 0;
+    const transport = async (url, options) => {
+      const result = await recording.transport(url, options);
+      if (options.stage === 'apply' && options.method === (kind === 'put' ? 'PUT' : 'POST')) {
+        injected++;
+        return { status, bytes: Buffer.from(bytes) };
+      }
+      return result;
+    };
+    await assert.rejects(reconcileRealm(memoryInput(transport)), refusal('apply', reason));
+    assert.equal(injected, 1);
+    assert.equal(state.writes.length, 1, 'a failed mutation response is never replayed');
+    assert.equal(recording.requests.some(request => request.stage === 'readback'), false);
+    assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+    assert.equal(state.writes.length, 1, 'a later explicit run qualifies durable state instead of repeating the write');
+  }
+});
+
+test('successful status cannot replace independent readback when the provider silently loses a mutation', async () => {
+  const state = provider(); state.state.realm.accessTokenLifespan = 1800;
+  const recording = providerTransport(state);
+  let writes = 0;
+  const transport = async (url, options) => {
+    if (options.method === 'PUT') { writes++; return { status: 204, bytes: Buffer.alloc(0) }; }
+    return recording.transport(url, options);
+  };
+  await assert.rejects(reconcileRealm(memoryInput(transport)), refusal('readback', 'readback_conflict'));
+  assert.equal(writes, 1);
+  assert.equal(state.state.realm.accessTokenLifespan, 1800);
+  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 1 });
+});
+
 for (const stage of ['discovery', 'authentication', 'version']) {
   test(`a valid JSON null ${stage} document is rejected at that same stage`, async t => {
     const f = await fixture(t, stage === 'discovery' ? { discoveryBody: 'null' }

@@ -144,6 +144,23 @@ KEYCLOAK_FAILURE_REASONS = {
     'docker_network_error', 'docker_runtime_task',
 }
 KEYCLOAK_FAILURE_CLEANUP = {'completed', 'failed'}
+FAILURE_EXCEPTION_LABELS = {
+    'System.TimeoutException': 'timeout',
+    'System.OperationCanceledException': 'cancellation',
+    'System.Threading.Tasks.TaskCanceledException': 'cancellation',
+    'System.InvalidOperationException': 'invalid_state',
+}
+
+
+def closed_exception_kind(raw):
+    """Project a recognized top-level adapter label, never a causal diagnosis."""
+    # xUnit omits Xunit.Sdk type names from combined messages. Unlabelled
+    # assertion text cannot establish an exception kind and stays unclassified.
+    message = raw.get('ErrorMessage')
+    if not isinstance(message, str) or len(message) > 65536:
+        return None
+    label, separator, _ = message.partition(' : ')
+    return FAILURE_EXCEPTION_LABELS.get(label) if separator else None
 
 
 def closed_failure_details(case, raw):
@@ -720,6 +737,9 @@ class ExecutionProgress:
                                 locations.add((code, line))
                 diagnostic = {'assembly': case['assembly'], 'id': case['id'],
                     'locations': [{'source': code, 'line': line} for code, line in sorted(locations)[:8]]}
+                exception_kind = closed_exception_kind(raw)
+                if exception_kind is not None:
+                    diagnostic['exceptionKind'] = exception_kind
                 details = closed_failure_details(case, raw)
                 if details is not None:
                     diagnostic['details'] = details

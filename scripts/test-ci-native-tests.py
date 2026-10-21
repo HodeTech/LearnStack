@@ -428,6 +428,49 @@ except launcher.Refusal as failure:
             with contextlib.redirect_stdout(io.StringIO()):
                 progress.results({'NewTestResults': [item]})
             self.assertEqual([{'source': code, 'line': 123}], progress.failure_locations[0]['locations'])
+        labels = {
+            'System.TimeoutException': 'timeout',
+            'System.OperationCanceledException': 'cancellation',
+            'System.Threading.Tasks.TaskCanceledException': 'cancellation',
+            'System.InvalidOperationException': 'invalid_state',
+        }
+        self.assertEqual(labels, self.owner.FAILURE_EXCEPTION_LABELS)
+        for index, (label, kind) in enumerate(labels.items()):
+            case = self.case(index + 10)
+            stream, console = io.StringIO(), io.StringIO()
+            progress = self.progress(self.root / ('exception-' + str(index) + '.diag'),
+                                    'LearnStack.Tests.Integration', [case], stream)
+            item = self.execution_result(case, outcome=2)
+            item['ErrorMessage'] = label + ' : PRIVATE-CANARY ---> System.TimeoutException : inner detail'
+            item['ErrorStackTrace'] = '/private/PRIVATE-CANARY/Unknown.cs:line 123'
+            with contextlib.redirect_stdout(console):
+                progress.results({'NewTestResults': [item]})
+            diagnostic = {'assembly': case['assembly'], 'id': case['id'], 'locations': [], 'exceptionKind': kind}
+            self.assertEqual([diagnostic], progress.failure_locations)
+            self.assertEqual(console.getvalue(), stream.getvalue())
+            measurements = self.root / ('exception-' + str(index) + '.json')
+            self.owner.write_json(measurements, {'failureLocations': progress.failure_locations})
+            self.assertEqual([diagnostic], json.loads(measurements.read_text())['failureLocations'])
+            for text in (console.getvalue(), measurements.read_text()):
+                for private in ('PRIVATE-CANARY', '/private/', label, 'inner detail'):
+                    self.assertNotIn(private, text)
+            self.assertNotIn('exceptionKind', stream.getvalue())
+            self.assertFalse(progress.completed, 'Exception labels never supply a completion witness')
+        parse = self.owner.closed_exception_kind
+        for message in (None, {}, 'System.TimeoutException', 'TimeoutException : PRIVATE-CANARY',
+                        'Expected value to be true, but found false. PRIVATE-CANARY',
+                        'Xunit.Sdk.XunitException : PRIVATE-CANARY',
+                        ' System.TimeoutException : PRIVATE-CANARY', '\nSystem.TimeoutException : PRIVATE-CANARY',
+                        'System.TimeoutExceptionOther : PRIVATE-CANARY', 'System.TimeoutException\x00 : PRIVATE-CANARY',
+                        'System.TimeoutException: PRIVATE-CANARY',
+                        'PRIVATE-CANARY System.TimeoutException : detail',
+                        'System.Exception : PRIVATE-CANARY ---> System.TimeoutException : detail',
+                        'Unknown.PrivateException : PRIVATE-CANARY',
+                        'System.TimeoutException : ' + 'x' * 65536):
+            self.assertIsNone(parse({'ErrorMessage': message, 'ErrorStackTrace': 'System.TimeoutException : detail'}))
+        prefix = 'System.TimeoutException : '
+        self.assertEqual('timeout', parse({'ErrorMessage': prefix + 'x' * (65536 - len(prefix))}))
+        self.assertIsNone(parse({'ErrorMessage': prefix + 'x' * (65537 - len(prefix))}))
 
     def test_public_failure_details_export_only_registered_test_owned_stages(self):
         case = self.case(1)
@@ -535,9 +578,14 @@ except launcher.Refusal as failure:
         with contextlib.redirect_stdout(console):
             progress.results({'NewTestResults': results})
         expected = {'assembly': cases[0]['assembly'], 'id': cases[0]['id'], 'locations': [],
+                    'exceptionKind': 'invalid_state',
                     'details': {'stage': 'provider_start', 'reason': 'unsupported_operation', 'cleanup': 'completed'}}
-        self.assertEqual([expected] + [{'assembly': case['assembly'], 'id': case['id'], 'locations': []}
-                                     for case in cases[2:]], progress.failure_locations)
+        self.assertEqual([expected,
+            {'assembly': cases[2]['assembly'], 'id': cases[2]['id'], 'locations': [], 'exceptionKind': 'invalid_state'},
+            {'assembly': cases[3]['assembly'], 'id': cases[3]['id'], 'locations': [], 'exceptionKind': 'invalid_state'},
+            {'assembly': cases[4]['assembly'], 'id': cases[4]['id'], 'locations': []},
+            {'assembly': cases[5]['assembly'], 'id': cases[5]['id'], 'locations': [], 'exceptionKind': 'invalid_state'}],
+            progress.failure_locations)
         measurements = self.root / 'measurements.json'
         self.owner.write_json(measurements, {'projects': [{'failureLocations': progress.failure_locations}]})
         self.assertEqual(expected, json.loads(measurements.read_text())['projects'][0]['failureLocations'][0])

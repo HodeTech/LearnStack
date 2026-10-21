@@ -178,14 +178,15 @@ else process.exit(19);
 process.stdout.write(JSON.stringify(result));
 `, { mode: 0o700 });
   }
-  return { root, lock, events, ready };
+  return { root, lock, events, ready, values };
 }
 
 for (const scenario of ['success', 'failure', 'cancel']) {
   test(`the actual CLI ${scenario} path owns target, manifest, provider and lock cleanup`, async t => {
     const f = await ownedEntryFixture(t, scenario);
     const child = spawn(process.execPath, [join(f.root, 'scripts/reconcile-development-realm.mjs')], {
-      cwd: f.root, env: { PATH: join(f.root, 'bin'), HOME: f.root, TMPDIR: join(f.root, 'tmp') }, stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: f.root, env: { PATH: join(f.root, 'bin'), HOME: f.root, TMPDIR: join(f.root, 'tmp'),
+        ...f.values, ConnectionStrings__Default: canary, POSTGRES_PASSWORD: canary }, stdio: ['ignore', 'pipe', 'pipe'],
     });
     const output = [], errors = [];
     child.stdout.on('data', value => output.push(value));

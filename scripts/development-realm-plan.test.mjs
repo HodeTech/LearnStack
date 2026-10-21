@@ -116,6 +116,140 @@ test('equivalent redirect registration order requires no write and preserves its
   assert.deepEqual(fixture.state, original);
 });
 
+test('unsafe owned callbacks and password grants are repaired independently without changing retained client state', async () => {
+  for (const name of ['learnstack-web', 'learnstack-api']) {
+    for (const [field, unsafe] of [['redirectUris', ['http://localhost:3000/*', 'https://foreign.fixture.invalid/*']],
+      ['directAccessGrantsEnabled', true]]) {
+      for (const loseField of [false, true]) {
+        const fixture = provider();
+        const client = fixture.state.clients.find(value => value.clientId === name);
+        client[field] = clone(unsafe);
+        client.description = 'retained client description';
+        client.attributes['retained.fixture.setting'] = 'retained';
+        const before = clone(client);
+        const change = await plan(fixture);
+        assert.deepEqual(change.actions.map(action => action.label), ['update_client']);
+        assert.deepEqual(fixture.writes, []);
+        const put = fixture.admin.put;
+        fixture.admin.put = async (path, body) => put(path, loseField ? omit(body, [field]) : body);
+        if (loseField) {
+          await assert.rejects(apply(change), error => error.stage === 'readback' && error.reason === 'readback_conflict');
+          assert.deepEqual(client[field], unsafe);
+        } else {
+          await apply(change);
+          assert.deepEqual(client[field], desired.clients.find(value => value.clientId === name)[field]);
+          assert.deepEqual(omit(client, [field, 'authorizationServicesEnabled']), omit(before, [field, 'authorizationServicesEnabled']));
+          assert.equal((await plan(fixture)).actions.length, 0);
+          assert.equal(fixture.writes.length, 1);
+        }
+        assert.equal(fixture.writes[0].path, `clients/${client.id}`);
+      }
+    }
+  }
+});
+
+test('exact username lookups distinguish retained near matches during both existing-user and new-user reconciliation', async () => {
+  for (const creating of [false, true]) {
+    const fixture = provider();
+    const declaration = manifest.users.at(-1);
+    if (creating) fixture.state.users.pop();
+    const near = { id: 'retained-near-match', username: `prefix-${declaration.username}-suffix`,
+      enabled: false, attributes: {}, credentials: [], roles: {} };
+    fixture.state.users.unshift(near);
+    const lookup = `users?username=${encodeURIComponent(declaration.username)}&max=2&briefRepresentation=false`;
+    const contains = await fixture.admin.get(lookup);
+    assert.equal(contains.length, creating ? 1 : 2, 'the independent provider model must expose the contains-match distinction');
+    const exact = await fixture.admin.get(lookup + '&exact=true');
+    assert.equal(exact.length, creating ? 0 : 1);
+    const before = clone(near);
+    const change = await plan(fixture);
+    assert.deepEqual(change.actions.map(action => action.label), creating ? ['create_user'] : []);
+    await apply(change);
+    assert.deepEqual(near, before);
+    assert.equal(fixture.state.users.filter(user => user.username === declaration.username).length, 1);
+    assert.equal((await plan(fixture)).actions.length, 0);
+  }
+});
+
+test('full filtered census exposes actor collisions on both ordinary and service accounts before pending writes', async () => {
+  for (const serviceAccount of [false, true]) {
+    const fixture = provider();
+    fixture.state.realm.accessTokenLifespan = 1800;
+    const other = { id: 'retained-collision', username: 'retained-collision', enabled: false,
+      attributes: { user_id: [manifest.users[0].userId] }, credentials: [], roles: {},
+      ...(serviceAccount ? { serviceAccountClientId: 'learnstack-api' } : {}) };
+    fixture.state.users.push(other);
+    const path = 'users?first=0&max=100';
+    const unfiltered = await fixture.admin.get(path);
+    assert.equal(unfiltered.some(user => user.id === other.id), !serviceAccount);
+    const brief = await fixture.admin.get(path + '&exact=false&briefRepresentation=true');
+    assert.equal(brief.find(user => user.id === other.id).attributes, undefined);
+    const full = await fixture.admin.get(path + '&exact=false&briefRepresentation=false');
+    assert.deepEqual(full.find(user => user.id === other.id).attributes.user_id, [manifest.users[0].userId]);
+    assert.deepEqual(await fixture.admin.get(path + '&exact=false'), full,
+      'omitting explicit brief=false is equivalent in the pinned provider and is not a defect');
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'identity_conflict');
+    assert.deepEqual(fixture.writes, []);
+    delete other.attributes.user_id;
+    const before = clone(other);
+    await apply(await plan(fixture));
+    assert.deepEqual(other, before);
+    assert.equal((await plan(fixture)).actions.length, 0);
+  }
+});
+
+test('successful user import receipts cannot conceal independently corrupted created account data or access', async () => {
+  const corruptions = [
+    user => { user.username = 'different-created-user'; },
+    user => { user.email = 'different@fixture.invalid'; },
+    user => { user.enabled = false; },
+    user => { user.emailVerified = false; },
+    user => { user.firstName = 'different'; },
+    user => { user.lastName = 'different'; },
+    user => { user.attributes.user_id = [manifest.users[0].userId]; },
+    user => { user.attributes.tenant_id = [manifest.users[0].tenantId]; },
+    user => { user.requiredActions = ['UPDATE_PASSWORD']; },
+    user => { user.roles.realmMappings[0].id = 'different-role-id'; },
+    user => { user.roles.clientMappings.account.mappings = []; },
+    user => { user.credentials = []; },
+    user => { user.credentials[0].type = 'otp'; },
+    user => { user.credentials.push({ id: 'extra-credential', type: 'password' }); },
+  ];
+  for (const corrupt of corruptions) {
+    const fixture = provider(); fixture.state.users.pop();
+    const post = fixture.admin.post;
+    fixture.admin.post = async (path, body) => {
+      const response = await post(path, body);
+      assert.equal(path, 'partialImport');
+      corrupt(fixture.state.users.at(-1));
+      return response;
+    };
+    const change = await plan(fixture);
+    assert.deepEqual(change.actions.map(action => action.label), ['create_user']);
+    await assert.rejects(change.actions[0].apply(), error => error.stage === 'apply' && error.reason === 'identity_conflict');
+    assert.equal(fixture.writes.length, 1);
+    assert.equal(fixture.state.users.length, 4, 'refusal preserves the uncertain durable account instead of deleting or retrying it');
+  }
+});
+
+test('readback rechecks newly created accounts after their successful immediate import verification', async () => {
+  for (const corrupt of [
+    user => { user.firstName = 'changed-after-creation'; },
+    user => { user.attributes.organization_id = [manifest.users[0].tenantId]; },
+    user => { user.requiredActions = ['UPDATE_PASSWORD']; },
+    user => { user.roles.realmMappings.push({ id: 'extra-role', name: 'extra', composite: false, clientRole: false }); },
+    user => { user.credentials[0].type = 'otp'; },
+  ]) {
+    const fixture = provider(); fixture.state.users.pop();
+    const change = await plan(fixture);
+    for (const action of change.actions) await action.apply();
+    await change.verify();
+    corrupt(fixture.state.users.at(-1));
+    await assert.rejects(change.verify(), error => error.stage === 'readback');
+    assert.equal(fixture.writes.length, 1, 'readback never repairs a mismatching account behind the operator');
+  }
+});
+
 test('warm owned scope attributes and mapper destinations converge and independently verify', async () => {
   const fixture = provider();
   const scope = fixture.state.scopes.find(value => value.name === 'learnstack-tenant-api');

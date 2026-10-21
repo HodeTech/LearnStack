@@ -164,6 +164,7 @@ def workflow_topology(documents, plan):
     jobs = workflow['jobs']
     require(workflow.get('permissions') == {'contents': 'read'}, 'workflow_permissions_invalid')
     require(set(jobs) == {*REQUIRED, *JOB_IDS.values()}, 'workflow_jobs_invalid')
+    realm_node_gates(jobs['meta'])
     for scope, job_id in JOB_IDS.items():
         job = jobs[job_id]
         require(job.get('runs-on') == 'ubuntu-24.04' and job.get('timeout-minutes') == 20
@@ -227,6 +228,24 @@ def workflow_topology(documents, plan):
                 seen.append(name)
     require(set(seen) == set(REQUIRED.values()) and len(seen) == 7, 'required_name_missing')
     return jobs
+
+
+def realm_node_gates(job):
+    """Keep the actual realm census and its counterexample owner mandatory."""
+    require(not any(key in job for key in ('if', 'continue-on-error', 'needs')),
+            'realm_node_gate_invalid')
+    steps = job.get('steps', [])
+    require(isinstance(steps, list) and all(isinstance(step, dict) for step in steps),
+            'realm_node_gate_invalid')
+    for name, command in (
+        ('Development realm transport, ownership and convergence controls',
+         'python3 scripts/run-realm-node-tests.py'),
+        ('Realm Node executed-case and JUnit gate controls',
+         'python3 scripts/test-realm-node-gate.py')):
+        matches = [step for step in steps if step.get('name') == name or step.get('run') == command]
+        require(len(matches) == 1 and matches[0].get('name') == name and matches[0].get('run') == command
+                and not any(key in matches[0] for key in ('if', 'continue-on-error', 'uses')),
+                'realm_node_gate_invalid')
 
 
 def source_topology(plan):

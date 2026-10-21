@@ -170,7 +170,7 @@ own actual local qualification. Step 4 delivers complete real-token/API proof
 after both independent reviews; its
 [record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns local proof/review closure and source-bound qualification receipts. The
-PR's required checks own current-head hosted qualification. ADR-0064's one-hour
+required CI checks qualify their exact source and assignment. ADR-0064's one-hour
 API acceptance ceiling and 30-second skew remain separate from issuance.
 P02b-7 owns BFF idle/absolute lifetimes and refresh custody; that part of G13
 remains Open.

@@ -326,14 +326,15 @@ dotnet ef migrations script \
 # FORCE ROW LEVEL SECURITY exists to defeat. ConnectionStrings:Migration must never
 # appear in API or worker runtime configuration
 # (docs/standards/05-database.md § Database roles).
-migration_cs="$ConnectionStrings__Migration"
-unset ConnectionStrings__Migration
-dotnet build backend/src/LearnStack.Api --configuration Release --nologo
-ConnectionStrings__Migration="$migration_cs" dotnet ef database update \
-  --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
-  --startup-project backend/src/LearnStack.Api \
-  --configuration Release --no-build
-unset migration_cs
+(
+  migration_cs="$ConnectionStrings__Migration"
+  unset ConnectionStrings__Migration
+  dotnet build backend/src/LearnStack.Api --configuration Release --nologo || exit "$?"
+  ConnectionStrings__Migration="$migration_cs" dotnet ef database update \
+    --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
+    --startup-project backend/src/LearnStack.Api \
+    --configuration Release --no-build
+)
 ```
 
 `ConnectionStrings__Migration` is the environment spelling of

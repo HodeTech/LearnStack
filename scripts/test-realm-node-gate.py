@@ -1,15 +1,26 @@
 #!/usr/bin/env python3
-"""Execute the actual source-census/count/JUnit owner against counterexamples."""
+"""Execute the actual workflow and source-census/count/JUnit owners against counterexamples."""
+import copy
+import importlib.util
 import os
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class RealmNodeGateControls(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location('realm_gate_topology', ROOT / 'scripts/ci-test-shard-results.py')
+        cls.topology = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.topology)
+        cls.plan = cls.topology.PLAN.load_plan()
+        cls.documents = {'.github/workflows/ci.yml': cls.topology.yaml_document(ROOT / '.github/workflows/ci.yml')}
+
     def execute(self, sources, *, expected=None, without_counter_guard=False):
         with tempfile.TemporaryDirectory(prefix='learnstack-node-gate-') as temporary:
             directory = Path(temporary)
@@ -36,11 +47,37 @@ class RealmNodeGateControls(unittest.TestCase):
                                   capture_output=True, text=True, timeout=10)
 
     def test_workflow_executes_the_single_actual_census_owner(self):
-        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        marker = '      - name: Development realm transport, ownership and convergence controls\n'
-        self.assertEqual(1, workflow.count(marker))
-        block = workflow.split(marker, 1)[1].split('\n      - name:', 1)[0]
-        self.assertIn('        run: python3 scripts/run-realm-node-tests.py\n', block)
+        self.assertTrue(self.topology.workflow_topology(self.documents, self.plan))
+        mutations = [lambda job: job.update({'if': False}),
+                     lambda job: job.update({'if': 'false'}),
+                     lambda job: job.update({'continue-on-error': True}),
+                     lambda job: job.update({'continue-on-error': '${{ true }}'}),
+                     lambda job: job.update({'needs': ['frontend']})]
+        for name in ('Development realm transport, ownership and convergence controls',
+                     'Realm Node executed-case and JUnit gate controls'):
+            def step(job, name=name):
+                return next(item for item in job['steps'] if item.get('name') == name)
+            mutations.extend([
+                lambda job, step=step: step(job).update({'if': False}),
+                lambda job, step=step: step(job).update({'if': 'false'}),
+                lambda job, step=step: step(job).update({'continue-on-error': True}),
+                lambda job, step=step: step(job).update({'continue-on-error': '${{ true }}'}),
+                lambda job, step=step: step(job).update(run='true'),
+                lambda job, step=step: job['steps'].remove(step(job)),
+                lambda job, step=step: job['steps'].append(copy.deepcopy(step(job))),
+                lambda job, step=step: job['steps'].append({**step(job), 'name': 'Unrecognized second realm gate'}),
+            ])
+        for index, mutate in enumerate(mutations):
+            with self.subTest(mutation=index):
+                documents = copy.deepcopy(self.documents)
+                mutate(documents['.github/workflows/ci.yml']['jobs']['meta'])
+                # Removing only the production check admits the dirty topology;
+                # restoring it must reject that same input for the owned reason.
+                with mock.patch.object(self.topology, 'realm_node_gates'):
+                    self.assertTrue(self.topology.workflow_topology(documents, self.plan))
+                with self.assertRaises(self.topology.Refusal) as caught:
+                    self.topology.workflow_topology(documents, self.plan)
+                self.assertEqual('realm_node_gate_invalid', caught.exception.reason)
 
     def test_real_cases_and_nested_real_cases_pass_the_actual_owner(self):
         for source in ("import {test} from 'node:test'; test('real',()=>{});",

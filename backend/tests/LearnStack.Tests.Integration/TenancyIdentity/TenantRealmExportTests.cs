@@ -16,6 +16,8 @@ public sealed partial class TenantRealmExportTests
             System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
         var users = SeedData.IdentityUsers;
         project.Invoke(null, [users]).Should().NotBeNull();
+        var nonlegacy = users[2];
+        nonlegacy.LegacyTenantAttribute.Should().BeNull("actor-format controls must not trip legacy identity binding");
         var variants = new[]
         {
             users.SetItem(2, users[2] with { LegacyTenantAttribute = "tenant-a" }),
@@ -24,9 +26,17 @@ public sealed partial class TenantRealmExportTests
             // Preserve both legacy identities so only username uniqueness rejects this variant.
             users.SetItem(3, users[3] with { Username = users[2].Username }),
             users.SetItem(0, users[0] with { Tenant = SeedData.Yoga }),
-            users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(Guid.CreateVersion7()) }),
-            users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(Guid.NewGuid()) }),
-            users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(SeedData.English.TenantId.Value) }),
+            // A valid replacement v7 actor violates only this legacy identity's binding.
+            users.SetItem(0, users[0] with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(
+                Guid.Parse("01930000-0000-7000-8000-00000000a003")) }),
+            // Nonlegacy actors isolate version, reserved-actor, uniqueness and scope collisions.
+            users.SetItem(2, nonlegacy with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(
+                Guid.Parse("01930000-0000-4000-8000-00000000b003")) }),
+            users.SetItem(2, nonlegacy with { UserId = LearnStack.SharedKernel.Identifiers.UserId.SystemActor }),
+            users.SetItem(2, nonlegacy with { UserId = users[3].UserId }),
+            users.SetItem(2, nonlegacy with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(SeedData.English.TenantId.Value) }),
+            users.SetItem(2, nonlegacy with { UserId = LearnStack.SharedKernel.Identifiers.UserId.From(
+                SeedData.Yoga.DefaultOrganization.OrganizationId.Value) }),
         };
         foreach (var variant in variants)
         {

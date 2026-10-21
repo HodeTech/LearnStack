@@ -115,9 +115,23 @@ export function provider() {
     }
     else if (parts[0] === 'users' && parts.length === 1) {
       let users = state.users;
-      if (url.searchParams.has('username')) users = users.filter(user => user.username === url.searchParams.get('username'));
+      // Pinned UsersResource selects its filtered branch even for exact=false;
+      // the unfiltered branch excludes service accounts. Username matching is
+      // case-insensitive contains unless exact=true. Brief rows omit attributes.
+      // Missing briefRepresentation is full, so deleting explicit false is equivalent.
+      if (!url.searchParams.has('exact') && !url.searchParams.has('username'))
+        users = users.filter(user => !user.serviceAccountClientId);
+      if (url.searchParams.has('username')) {
+        const username = url.searchParams.get('username').toLowerCase();
+        users = users.filter(user => url.searchParams.get('exact') === 'true'
+          ? user.username.toLowerCase() === username : user.username.toLowerCase().includes(username));
+      }
       const first = Number(url.searchParams.get('first') ?? 0);
-      value = users.slice(first, first + Number(url.searchParams.get('max') ?? 100)).map(user => projectUser(user, true));
+      value = users.slice(first, first + Number(url.searchParams.get('max') ?? 100)).map(user =>
+        url.searchParams.get('briefRepresentation') === 'true'
+          ? Object.fromEntries(['id', 'username', 'email', 'firstName', 'lastName', 'enabled', 'emailVerified', 'createdTimestamp']
+            .filter(key => Object.hasOwn(user, key)).map(key => [key, user[key]]))
+          : projectUser(user, true));
     } else if (parts[0] === 'users') {
       const user = state.users.find(entry => entry.id === parts[1]);
       if (!user) throw new Error('unknown fixture user');
