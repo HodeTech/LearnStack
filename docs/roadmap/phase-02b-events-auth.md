@@ -15234,6 +15234,40 @@ Architecture receipts. The sixty combined plan/aggregate controls pass again.
 This completes the narrow diagnostic review gate, not provider repair. New
 complete current-source A/B qualification remains required.
 
+**Third frozen-source A and daemon-family diagnosis.** Run
+[`39637263886`](https://github.com/HodeTech/LearnStack/actions/runs/39637263886),
+attempt 1, tests `fddfc2665ae401e7c8d15bdce988be65f59b327d` through merge source
+`567dce35b3b8eee5c79f808edb2338d8c7083728`, with identical head/merge tree
+`f451491961a7e9cb33ca21ed4c46c5e55a27df1b`. All 27 jobs finish: seventeen pass,
+nine ordinary owners fail and integration refuses. All 37 failed provider cases
+retain `database/docker_server_error/completed`, establishing a Docker API HTTP
+500 response, not its cause. Their nine archives have independently verified
+immutable API IDs, digests and current-source payload identities. All five
+auxiliary checks pass with their own source-bound receipts; these do not qualify
+the failed integration result. No B or failed-only retry is started.
+
+The next diagnostic records last-reached PostgreSQL SDK creation/start/readiness
+milestones. It privately classifies bounded, shallow HTTP 500 JSON with exactly
+one string `message` into six fixed networking/task families; unknown or malformed
+responses retain `docker_server_error`. It exports no daemon text, address,
+port, path or exception type. Actual owned cleanup precedes classification, and
+the diagnostic remains separate from cleanup witnesses and result acceptance.
+The categories follow the pinned Moby
+[network setup wrapper](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/start_linux.go#L37)
+and [port mapping implementation](https://github.com/moby/moby/blob/89c5e8fd66634b6128fc4c0e6f1236e2540e46e0/libnetwork/drivers/bridge/port_mapping_linux.go).
+The hosted daemon version and actual response body remain unobserved.
+
+A source-level port-allocation hypothesis is not a provider repair: an isolated
+unchanged-old/corrected-upstream allocator comparison detects mixed wildcard/
+specific-address allocation differences, but the surrounding TCP bind path can
+retry collisions. It neither reproduces hosted HTTP 500 nor justifies changing
+application fixture bindings. Startup deadlines, test selection, ownership and
+failure outcomes remain unchanged. Root validation passes seven offline C#
+cases with warnings as errors, seven corpus/Docker-sweep cases, all 43 launcher
+controls and sixty combined shard/aggregate controls. Independent reviews and
+actual hosted diagnosis remain
+required before this follow-up can claim qualification.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

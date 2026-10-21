@@ -72,8 +72,16 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                 .WithDatabase("keycloak")
                 .WithUsername("keycloak")
                 .WithPassword(_databasePassword)
-                .WithCreateParameterModifier(parameters => BindLoopback(parameters, "5432/tcp"))
+                .WithCreateParameterModifier(parameters =>
+                {
+                    BindLoopback(parameters, "5432/tcp");
+                    stage = "database_create_request";
+                })
                 .Build();
+            // These are last-reached SDK milestones, not exact failing HTTP operations.
+            _database.Created += (_, _) => stage = "database_start";
+            _database.Starting += (_, _) => stage = "database_readiness";
+            _database.Started += (_, _) => stage = "database_started";
             await _database.StartAsync(startup.Token);
             stage = "import_input";
             var tenantImport = _tenantRealmJson ?? await File.ReadAllTextAsync(RealmPath("learnstack"), startup.Token);
@@ -124,9 +132,9 @@ public sealed class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         {
             // Startup exceptions can include container configuration, credentials or raw provider logs.
             // Cleanup still attempts every owned resource before this closed diagnostic is emitted.
-            var reason = KeycloakStartupFailure.Classify(exception);
             var cleanup = "completed";
             try { await DisposeAsync(); } catch (Exception) { cleanup = "failed"; }
+            var reason = KeycloakStartupFailure.Classify(exception);
             throw new InvalidOperationException("Keycloak fixture startup failed at " + stage + "/" + reason
                 + "; owned cleanup " + cleanup + ".");
         }

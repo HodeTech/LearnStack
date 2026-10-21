@@ -131,6 +131,7 @@ KEYCLOAK_FAILURE_CLASSES = {
 KEYCLOAK_FAILURE_STAGES = {
     'certificate', 'network', 'database', 'import_input', 'provider_start',
     'mapped_endpoint', 'loopback_bindings', 'discovery',
+    'database_create_request', 'database_start', 'database_readiness', 'database_started',
 }
 KEYCLOAK_FAILURE_REASONS = {
     'container_exit', 'deadline', 'readiness_timeout', 'http_transport', 'argument',
@@ -138,6 +139,8 @@ KEYCLOAK_FAILURE_REASONS = {
     'docker_bad_request', 'docker_access_denied', 'docker_not_found', 'docker_conflict',
     'docker_rate_limited', 'docker_server_error', 'docker_api_error', 'resource_reaper',
     'socket_error', 'filesystem_access_denied', 'filesystem_io',
+    'docker_port_allocated', 'docker_port_bind', 'docker_port_listen', 'docker_port_proxy',
+    'docker_network_error', 'docker_runtime_task',
 }
 KEYCLOAK_FAILURE_CLEANUP = {'completed', 'failed'}
 

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using Xunit;
 
@@ -30,6 +31,83 @@ public sealed class KeycloakTransportTests
             exception.Message.Should().Contain(canary, "the control must contain raw provider text");
             KeycloakStartupFailure.Classify(exception).Should().Be(reason).And.NotContain(canary);
         }
+
+        const string network = "failed to set up container networking: ";
+        const string privateDetail = canary + " 127.0.0.1:5432 /private/provider/path Private.Provider.Type";
+        static string Body(string message) => JsonSerializer.Serialize(new { message });
+        var daemonMessages = new[]
+        {
+            (network + "driver failed programming external connectivity on endpoint " + privateDetail
+                + ": Bind for " + privateDetail + " failed: port is already allocated", "docker_port_allocated"),
+            (network + "failed to bind host port for " + privateDetail, "docker_port_bind"),
+            (network + "failed to bind host port 5432 for " + privateDetail, "docker_port_bind"),
+            (network + "failed to listen on TCP socket: " + privateDetail, "docker_port_listen"),
+            (network + "failed to start userland proxy for port mapping " + privateDetail, "docker_port_proxy"),
+            (network + "failed to bind host port for " + privateDetail
+                + ": failed to listen on TCP socket: " + privateDetail, "docker_port_listen"),
+            (network + privateDetail, "docker_network_error"),
+            ("failed to create task for container: " + privateDetail, "docker_runtime_task"),
+        };
+        foreach (var (message, reason) in daemonMessages)
+        {
+            var body = Body(message);
+            var exception = new Docker.DotNet.DockerApiException(HttpStatusCode.InternalServerError, body);
+            exception.ResponseBody.Should().Contain(canary, "the control must contain private daemon text");
+            KeycloakStartupFailure.Classify(exception).Should().Be(reason).And.NotContain(canary);
+            KeycloakStartupFailure.Classify(new Docker.DotNet.DockerApiException(HttpStatusCode.BadRequest, body))
+                .Should().Be("docker_bad_request", "body parsing is confined to HTTP 500");
+            KeycloakStartupFailure.Classify(new Docker.DotNet.DockerApiException(HttpStatusCode.BadGateway, body))
+                .Should().Be("docker_api_error", "body parsing is confined to HTTP 500");
+        }
+
+        var bounded = Body(network + privateDetail);
+        bounded = bounded.PadRight(16384);
+        KeycloakStartupFailure.Classify(new Docker.DotNet.DockerApiException(HttpStatusCode.InternalServerError, bounded))
+            .Should().Be("docker_network_error", "the exact body limit remains valid JSON");
+        KeycloakStartupFailure.Classify(new Docker.DotNet.DockerApiException(HttpStatusCode.InternalServerError, null!))
+            .Should().Be("docker_server_error");
+        var unclassifiedBodies = new[]
+        {
+            "", canary, network + "failed to bind host port " + privateDetail,
+            "{}", "null", "[]", "{\"message\":null}", "{\"message\":1}", "{\"message\":{}}",
+            "{\"message\":[]}", "{\"Message\":\"" + network + "\"}",
+            "{\"error\":{\"message\":\"" + network + "\"}}",
+            "{\"message\":\"" + network + "\",\"extra\":[]}",
+            "{\"message\":\"" + network + "\",\"extra\":1}",
+            "{\"extra\":null,\"message\":\"" + network + "\"}",
+            "{\"message\":\"" + network + "\",\"message\":\"" + network + "\"}",
+            "{\"message\":\"" + network + "\",\"message\":\"different\"}",
+            "{\"message\":\"" + network + "\",\"messa\\u0067e\":\"" + network + "\"}",
+            "{\"message\":\"" + network + "\",}", "/* comment */" + Body(network),
+            "{\"message\":\"\\uD800\"}", "{\"messa\\uD800ge\":\"" + network + "\"}",
+            Body(network) + "{}", "{\"message\":\"unterminated", bounded + " ",
+            "{\"nested\":" + new string('[', 64) + "0" + new string(']', 64) + "}",
+            Body("failed: port is already allocated " + privateDetail),
+            Body("failed to bind host port " + privateDetail),
+            Body("failed to listen on TCP socket: " + privateDetail),
+            Body("failed to start userland proxy for port mapping " + privateDetail),
+            Body(privateDetail + " " + network), Body(" " + network),
+            Body("Failed to set up container networking: " + privateDetail),
+            Body(privateDetail + " failed to create task for container:"),
+            Body(network + privateDetail + "; " + network + "failed to bind host port " + privateDetail),
+            Body("failed to create task for container: " + privateDetail + "; failed to create task for container: " + privateDetail),
+            Body("permission denied /sys/fs/cgroup " + privateDetail),
+            Body("no space left on device " + privateDetail),
+            Body("docker_port_bind " + privateDetail),
+        };
+        foreach (var body in unclassifiedBodies)
+            KeycloakStartupFailure.Classify(new Docker.DotNet.DockerApiException(HttpStatusCode.InternalServerError, body))
+                .Should().Be("docker_server_error").And.NotContain(canary);
+        foreach (var message in new[]
+        {
+            network + "port is already allocated " + privateDetail,
+            network + "failed to bind host ports " + privateDetail,
+            network + "failed to listen on TCP socket " + privateDetail,
+            network + "failed to start userland proxy " + privateDetail,
+            network + "permission denied /sys/fs/cgroup " + privateDetail,
+        })
+            KeycloakStartupFailure.Classify(new Docker.DotNet.DockerApiException(HttpStatusCode.InternalServerError, Body(message)))
+                .Should().Be("docker_network_error", "only the verified outer wrapper is recognized");
 
         KeycloakStartupFailure.Classify(new DotNet.Testcontainers.Containers.ResourceReaperException(canary))
             .Should().Be("resource_reaper");

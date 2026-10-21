@@ -461,8 +461,8 @@ except launcher.Refusal as failure:
                          self.owner.KEYCLOAK_FAILURE_STAGES)
         self.assertIn('var reason = KeycloakStartupFailure.Classify(exception);', initialize)
         classifier = (directory / 'KeycloakStartupFailure.cs').read_text()
-        reasons = classifier.split('internal static string Classify(Exception exception)', 1)[1].split('};', 1)[0]
-        self.assertEqual(set(re.findall(r'=> "([a-z_]+)"', reasons)), self.owner.KEYCLOAK_FAILURE_REASONS)
+        reasons = set(re.findall(r'(?:=>|\breturn) "([a-z_]+)"', classifier))
+        self.assertEqual(reasons, self.owner.KEYCLOAK_FAILURE_REASONS)
         self.assertEqual(set(re.findall(r'\bcleanup = "([a-z_]+)";', initialize)),
                          self.owner.KEYCLOAK_FAILURE_CLEANUP)
         self.assertIn('"Keycloak fixture startup failed at " + stage + "/" + reason', initialize)
