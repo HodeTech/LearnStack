@@ -15534,6 +15534,19 @@ all 676 scoped relative links/fragments and whitespace checks. Two fresh
 independent correction review rounds follow this implementation receipt;
 current-head qualification and ADR acceptance remain separate.
 
+#### First independent issuance-carrier review
+
+Two new reviewers inspect `61924f0f..d0528d16`: `gpt-6-astra` at `xhigh` for
+security/test-proof behavior and `gpt-6.1-sol` at `high` for ADR/corpus and
+approval provenance. Both approve without an actionable finding. They verify
+the actual predicate and signed-token call sites, unchanged 13-case population,
+raw pinned source lines, reconciliation responsibilities and Proposed-only
+authority. The first independently confirms all ten exact fixture containers
+absent and inspects the retained red/green summaries. The second independently
+passes seven ADR parser controls; both pass whitespace checks. Neither reruns
+provider execution or claims hosted qualification. All review subprocesses
+finish. A second fresh independent round follows before correction closeout.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
