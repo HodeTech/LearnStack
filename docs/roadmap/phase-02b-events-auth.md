@@ -15629,6 +15629,27 @@ tracked-worktree checks pass. No build, provider execution or hosted
 qualification is repeated; all review subprocesses finish. A fresh second
 round remains required before acceptance-carrier publication.
 
+#### Second independent acceptance-carrier review
+
+Two different reviewers inspect `c33e529e..94618013`: `gpt-6.1-sol` and
+`gpt-6-astra`, both at `high`. Both approve without an actionable finding.
+They independently verify lifecycle/index consistency, complete authority
+references, unchanged obligations and preserved original approval chronology.
+The second passes seven ADR parser controls; both pass whitespace and clean
+tracked-worktree checks. No build, provider execution or hosted qualification
+is repeated; all review subprocesses finish. Both fresh independent
+acceptance-carrier review rounds are complete.
+
+The preceding CI triage independently verifies the ordinary-6 archive against
+GitHub's digest and finds 224 completed cases: 223 pass and one existing
+background-job cancellation/restart case fails. The failed variant has
+`independentFailure = false` and `lieOnlyOnReconcile = true`; both sibling
+variants pass. Its sanitized TRX has no error payload and the closed failure
+location projection retains no location for this source. Neither a timeout nor
+an identity regression is established. The integration aggregate correctly
+refuses with `producer_not_successful`; the missing aggregate upload is
+consequential. The failed receipt is preserved, without a guessed runtime fix.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
