@@ -17353,6 +17353,139 @@ remains required before readiness; the earlier timeout boundary stays
 unrecoverable. Merge and P02b-7 remain separate.
 
 
+#### Reviewed-source startup failure and retained evidence
+
+Frozen-source assignment A at
+`dbfad06b1302c76c9d2b4a29dfca0d6db0795026` did not qualify. Run
+[39727855228](https://github.com/HodeTech/LearnStack/actions/runs/39727855228),
+attempt 1, completed 25 of 27 jobs successfully; `backend ordinary-7` failed
+and the required integration aggregate refused its incomplete evidence. No
+assignment B was started and no failed-job retry substitutes for this result.
+
+- Failed case `4172c42b-b84f-59bf-426f-60d6c521ec52`, the Outcome-ACK
+  settlement case (`knownFailure: False`), returned cancellation after
+  32.0671777 seconds.
+  Its source locations identify the startup wait for the Outcome cleanup
+  barrier. The retained finite snapshot reports `prepared`, one normal
+  attempt, one renewal refusal, zero elapsed losses and zero executions.
+  No original Outcome owner was captured. This establishes failure before
+  the intended post-ACK proof; it does not identify the renewal refusal branch.
+- Producer artifact `12404570952` has SHA-256
+  `29cc4750561aabf3efc51b2e59b841033ae5a9c95a7601ff4d66a97b50a42dbc`.
+  It reports `tests_failed` and `owned_completion_missing`, with forced
+  cleanup, incomplete ownership and separately completed cleanup ownership.
+  All 20 producer archives and the successful backend aggregate are retained
+  against the raw Actions API sizes and digests. The final 21-archive capture
+  has SHA-256
+  `44bb709c4683ad3d9a077ea5ec6686f83790746d6a1cfa30cc0a6ebdb32a1ae6`;
+  its qualification flag remains false.
+- The previous recurrence failure's exact case passed in this run after
+  5.5832527 seconds, with complete natural ownership. This supplies no missing
+  historical timeout cause. The public proof also passed independently;
+  neither result overrides the failed whole assignment.
+
+Source inspection identifies a possible legal interleaving: Prepare's real
+row lock can exclude the still-active identity from a successful
+`FOR NO KEY UPDATE SKIP LOCKED` renewal batch. A timely, acknowledged empty
+batch closes that identity's permission; Prepare may still receive its
+already-issued COMMIT acknowledgement. The observed startup facts are
+compatible with this branch, but do not prove that it occurred in CI.
+The correction owner is the settlement test fixture. Production renewal
+policy, SQL, lease deadlines and refusal semantics remain unchanged.
+
+Failed-job reruns do not replace this evidence. Attempt 2's integration job
+`119676062757` refused `artifact_api_missing`: only `ordinary-7` produced
+an attempt-2 archive. Its artifact `12405733408`, SHA-256
+`68252513daa900062f3f8ed7823922f3dd09da91a6942b3a588d0f2302dee91a`,
+contains 240 passing cases under assignment B; the previous failed case is
+absent. Reusing the same shard name does not rerun the same assignment.
+Attempt 3's integration job `119676234308` refused
+`jobs_api_population_changed`; no attempt-3 producer archive exists.
+The original API response at that refusal was not retained, so its exact
+population discrepancy is not recovered from a later consistent response.
+The rerun capture has SHA-256
+`b730e8293ae0a806865579c6e838d0418892f7ddf881fd06efcd34c691d13496`.
+The [existing recovery procedure](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
+requires **Re-run all jobs**, with all producer evidence from the same attempt.
+
+#### Settlement fixture scheduling and real counterexamples
+
+The three existing settlement cases now isolate the intended post-ACK proof
+from unrelated legal pre-ACK renewal refusals. Their fixture uses a distinctive
+validated 1125 ms renewal cadence instead of one second. No production code,
+SQL, lease duration, deadline or assertion is weakened.
+
+- The first typed native lease factory creates and retains its real system
+  timer, then waits outside locks for the actual renewal pacing timer. The
+  execution identity is still unpublished, so the immediate initial renewal
+  scan sees no eligible identity. Native lease and deadline clocks keep running.
+- The first actual pacing callback waits until the original Outcome ACK and
+  held cleanup. Its release exercises the real renewal loop. The existing
+  four-second observation budget also requires the second actual pacing timer
+  to arm before releasing Outcome cleanup. Holding that callback prevents an
+  unrelated pre-ACK Finalize race from contaminating this settlement proof.
+  The existing 30/80-second startup/completion waits remain unchanged.
+- Cleanup seals and opens both holds before stopping the runtime. Actual timer
+  disposal joins queued callbacks before synchronization objects are disposed;
+  incomplete runtime cleanup cannot close the factory census. Synchronous
+  timer disposal never joins itself from inside a forwarded callback. The
+  second callback's separate 120-second safety watchdog cannot extend any
+  caller deadline or prove disposal.
+- An independent explicit-owner counterexample holds the real Prepare COMMIT
+  request and verifies its PostgreSQL row lock. A separate actual renewal
+  operation returns a timely, clean, physically acknowledged empty result,
+  with its exact original job/attempt/token probe. The identity closes with
+  renewal refusal while the admitted Prepare later ACKs. Application-role
+  readback confirms prepared state, no execute intent/outcome and no provider
+  invocation. This proves an available legal interleaving; it does not recover
+  the historical CI branch or claim stock Hangfire handoff. The existing
+  later-Finalize attribution counterexample remains independently asserted.
+- Failure export adds two fixed source roles and optional finite pacing facts,
+  retaining the eight-location bound. Prepare-only facts bind the exact
+  `knownFailure: True` case. No raw path, exception/provider text or identity
+  enters this projection; diagnostics cannot qualify completion.
+
+One frozen private copy binds 1,927 source files and five exact changed-source
+overlays. Clean execution passes all three original case IDs, zero skips, in
+64.145 seconds; their durations are 16.1845573, 21.3963182 and 18.9924022
+seconds. The actual adapter is `2.8.2.0`.
+
+Two private controls exercise the proof rather than merely its setup:
+
+- Removing both active-selection and empty-result settlement exclusions makes
+  all three cases fail at `renewal_second`, on the unchanged open-Run assertion
+  after physical Outcome ACK. Actual Outcome cleanup is still pending and the
+  durable phase is `finalize_pending`. The original sticky cause and both loss
+  counters remain empty/zero, as required for an already settled identity.
+  Actual pacing callbacks/timers join without a pacing fault.
+- A planted Prepare assertion after the genuine empty-ACK observations makes
+  only the named known-failure case fail; the other two pass. The original
+  assertion survives. Issued admission, external/business work, cancellation
+  callback, identity, control, private invocation and generation all join;
+  execution/running/retained counts are zero. No unrelated operation is labelled
+  issued or joined.
+
+All six test-created containers across these runs are naturally absent; owned
+process groups join. The complete receipt has SHA-256
+`1ef5254dc6086a722e6d8b95c63b3b3451a755b1222a31d5d4634fd40b19576a`.
+It binds original/sanitized TRX, protocol, exact private substitutions, source
+and binary evidence, seven command receipts and 749 final workspace outputs.
+The final clean workspace Release build reports zero warnings/errors and
+scoped format verification passes. Independent pure replay of all three
+actual protocol streams agrees with their retained outcomes and finite facts.
+All fifty-five launcher controls and nineteen aggregate controls pass.
+
+Fresh metadata discovery completes twenty bounded commands in 17.379 seconds:
+5,920 cases, the same complete manifest and unchanged, materially different A/B
+assignments. Its receipt has SHA-256
+`19ab2cfd147b8477983f5addf40eee6bbf207e29c484f887f92189883ca563be`.
+This is metadata evidence, not execution of the whole suite. Seven current
+corpus/Docker-trait cases pass without skips in 8.042 seconds; their receipt has
+SHA-256
+`25d949b4a406b9ad1ecd322166023de788894ae185ab8592a74ead9840196445`.
+The phase's 288 relative links/fragments resolve. Independent implementation
+reviews and complete corrected-source hosted A/B qualification remain required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

@@ -26,7 +26,11 @@ public sealed partial class BackgroundJobPositiveSdkTests
     public async Task Actual_Outcome_ACK_settles_renewal_before_its_held_cleanup_can_release_the_native_identity(bool knownFailure)
     {
         await AssertHeldOutcomeSettlementAsync(knownFailure, retainedRecovery: false);
-        if (knownFailure) await AssertExplicitOwnerLaterFinalizeAttributionAsync();
+        if (knownFailure)
+        {
+            await AssertExplicitOwnerLaterFinalizeAttributionAsync();
+            await AssertExplicitOwnerPrepareRenewalRefusalAsync();
+        }
     }
 
     [Fact]
@@ -44,7 +48,9 @@ public sealed partial class BackgroundJobPositiveSdkTests
         await provider.SetModeAsync(resource, knownFailure ? "not_repeatable" : "succeeded");
         var bounds = new BackgroundJobRuntimeOptions
         {
-            RenewalInterval = TimeSpan.FromSeconds(1),
+            // A distinct validated cadence identifies only the actual renewal
+            // pacing timers. Every deadline and lease duration stays unchanged.
+            RenewalInterval = NativeSettlementTimeProvider.RenewalPacing,
             HandoffRepairGrace = TimeSpan.FromSeconds(15),
         };
         await using var host = Fixture.Host(database, provider.Settings, configure: services =>
@@ -75,7 +81,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         ActivityContext.TryParse(original.Traceparent, null, out var parent).Should().BeTrue();
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         using var globals = new NativeSdkGlobalFilterSnapshot();
-        var time = new NativeLeaseTimerObservation();
+        var time = new NativeSettlementTimeProvider();
         var runtime = NativeSdkRuntime(host.Services, source, bounds, time);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var release = new ManualResetEventSlim();
@@ -117,6 +123,14 @@ public sealed partial class BackgroundJobPositiveSdkTests
         long? observedAttempts = null;
         Task<JobExternalCheckpointResult>? outcomeTask = null;
         ExceptionDispatchInfo? failure = null;
+        var pacingReported = false;
+        void ReportPacing()
+        {
+            if (pacingReported) return;
+            pacingReported = true;
+            try { output.WriteLine(time.Diagnostic); }
+            catch (Exception) { /* The original failure owns the result. */ }
+        }
         try
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -139,9 +153,15 @@ public sealed partial class BackgroundJobPositiveSdkTests
             runtime.Snapshot.Control!.Executions.Should().Be(1);
             var changes = time.Timer(execution).Changes;
             var controller = (BackgroundJobControl)NativeSdkField(runtime, "_jobs");
-            var progress = NativeSdkRenewalProgress(controller);
             using var observer = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+            boundary = "renewal_first";
+            await time.WaitForFirstCallbackAsync(observer.Token);
+            var progress = NativeSdkRenewalProgress(controller);
+            time.ReleaseFirst();
+            boundary = "renewal_progress";
             while (NativeSdkRenewalProgress(controller) == progress) await Task.Delay(10, observer.Token);
+            boundary = "renewal_second";
+            await time.WaitForSecondTimerAsync(observer.Token);
             execution.RenewalRefused.Should().BeFalse("the real renewal loop must not interpret settled ownership as a failed renewal");
             execution.RunGate.IsClosed.Should().BeFalse();
             time.Timer(execution).Changes.Should().Be(changes);
@@ -182,6 +202,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             observedAttempts = await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job);
             boundary = "held_count_assert";
             observedAttempts.Value.Should().Be(1);
+            time.AssertSecondHeld();
             release.Set();
             boundary = "completion_wait";
             using var completed = new CancellationTokenSource(TimeSpan.FromSeconds(80));
@@ -189,6 +210,8 @@ public sealed partial class BackgroundJobPositiveSdkTests
                     != (knownFailure ? "terminal_pending" : "completed")
                 || runtime.Snapshot.Control!.Executions != 0)
                 await Task.Delay(20, completed.Token);
+            time.AssertSecondHeld();
+            time.ReleaseAll();
             boundary = "count_read";
             observedAttempts = null;
             observedAttempts = await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job);
@@ -209,17 +232,21 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             failure = ExceptionDispatchInfo.Capture(error);
             await WriteNativeSettlementFailureAsync(database, job, finalized, boundary, observedAttempts,
-                captured, finalizer, outcomeTask, runtime.Snapshot.Control);
+                captured ?? time.Original, finalizer, outcomeTask, runtime.Snapshot.Control);
         }
         finally
         {
+            // Seal and release both real callback holds before any stop/join.
+            time.ReleaseAll();
             release.Set();
+            var runtimeJoined = false;
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
             try
             {
                 runtime.RequestStop();
-                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
                 await runtime.StopAsync(cleanup.Token);
                 await runtime.Completion.WaitAsync(cleanup.Token);
+                runtimeJoined = true;
             }
             catch (Exception error)
             {
@@ -227,9 +254,24 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 {
                     failure = ExceptionDispatchInfo.Capture(error);
                     await WriteNativeSettlementFailureAsync(database, job, finalized, "cleanup", observedAttempts,
-                        captured, finalizer, outcomeTask, runtime.Snapshot.Control);
+                        captured ?? time.Original, finalizer, outcomeTask, runtime.Snapshot.Control);
                 }
             }
+            try
+            {
+                await time.JoinAsync(runtimeJoined).WaitAsync(cleanup.Token);
+                time.ThrowIfFaulted();
+            }
+            catch (Exception error)
+            {
+                if (failure is null)
+                {
+                    failure = ExceptionDispatchInfo.Capture(error);
+                    await WriteNativeSettlementFailureAsync(database, job, finalized, "timer_cleanup", observedAttempts,
+                        captured ?? time.Original, finalizer, outcomeTask, runtime.Snapshot.Control);
+                }
+            }
+            if (failure is not null) ReportPacing();
         }
         failure?.Throw();
         try
@@ -246,6 +288,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             await WriteNativeSettlementFailureAsync(database, job, finalized, "post_cleanup", observedAttempts,
                 captured, finalizer, outcomeTask, runtime.Snapshot.Control);
+            ReportPacing();
             throw;
         }
     }

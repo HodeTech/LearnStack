@@ -84,6 +84,8 @@ FAILURE_SOURCES = {
     'TenantRealmApiTests.WarmQualification.cs': 'realm_warm_qualification',
     'BackgroundJobPositiveSdkTests.CausalRestart.cs': 'positive_sdk_causal_restart',
     'BackgroundJobPositiveSdkTests.NativeSettlement.cs': 'positive_sdk_native_settlement',
+    'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs': 'positive_sdk_settlement_scheduling',
+    'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs': 'positive_sdk_settlement_prepare',
     'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs': 'recurrence_native_ownership',
     'BackgroundJobRecurrenceStoreTests.Runtime.cs': 'recurrence_runtime',
     'BackgroundJobRuntimeFacadeTests.AuxiliaryCleanup.cs': 'facade_auxiliary_cleanup',
@@ -289,9 +291,12 @@ def closed_settlement_failure_details(raw):
     values = dict(zip(fields, matched.groups()))
     enums = {
         'boundary': {'start', 'held_outcome', 'early_hint', 'held_count_read', 'held_count_assert',
+                     'renewal_first', 'renewal_progress', 'renewal_second', 'timer_cleanup',
                      'completion_wait', 'count_read', 'count_assert', 'normal_attempts', 'generation',
                      'outcome', 'provider_counts', 'cleanup', 'post_cleanup', 'later_original', 'later_admission',
-                     'later_commit_held', 'later_refusal', 'later_ack', 'later_facts', 'later_cleanup', 'later_post_cleanup'},
+                     'later_commit_held', 'later_refusal', 'later_ack', 'later_facts', 'later_cleanup', 'later_post_cleanup',
+                     'prepare_admission', 'prepare_commit_held', 'prepare_renewal_held', 'prepare_refusal',
+                     'prepare_ack', 'prepare_facts', 'prepare_cleanup', 'prepare_post_cleanup'},
         'snapshot': {'available', 'missing', 'unavailable'},
         'phase': {'unknown', 'other', 'pending', 'preparing', 'prepared', 'executing', 'reconciling',
                   'finalize_pending', 'finalizing', 'terminal_pending', 'completed', 'quarantined'},
@@ -328,7 +333,7 @@ def closed_settlement_failure_details(raw):
     if cleanup_count:
         cleanup_lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
                          for line in item['Text'].splitlines() if cleanup_marker in line]
-        if cleanup_count != 1 or len(cleanup_lines) != 1 or not values['boundary'].startswith('later_'):
+        if cleanup_count != 1 or len(cleanup_lines) != 1 or not values['boundary'].startswith(('later_', 'prepare_')):
             return None
         cleanup_fields = ('originalAdmission', 'finalizeAdmission', 'external', 'business', 'disposition',
                           'callback', 'original', 'finalize', 'control', 'generation', 'executions', 'running', 'retained', 'privateWork')
@@ -353,6 +358,26 @@ def closed_settlement_failure_details(raw):
         if cleanup['privateWork'] == 'joined' and cleanup['generation'] != 'joined':
             return None
         result['cleanup'] = cleanup
+    pacing_marker = 'Native settlement pacing;'
+    pacing_count = sum(item['Text'].count(pacing_marker) for item in messages)
+    if pacing_count:
+        pacing_lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                        for line in item['Text'].splitlines() if pacing_marker in line]
+        if pacing_count != 1 or len(pacing_lines) != 1 or values['boundary'].startswith(('later_', 'prepare_')):
+            return None
+        pacing_fields = ('lease', 'first', 'second', 'fault', 'cleanup')
+        pacing_pattern = re.escape(pacing_marker) + ';'.join(name + r'=([a-z_]{1,16})' for name in pacing_fields) + r'\.'
+        pacing_match = re.fullmatch(pacing_pattern, pacing_lines[0])
+        if pacing_match is None:
+            return None
+        pacing = dict(zip(pacing_fields, pacing_match.groups()))
+        timer_states = {'not_issued', 'armed', 'entered', 'returned', 'joined', 'cancelled', 'incomplete'}
+        if (pacing['lease'] not in {'unseen', 'waiting', 'released', 'aborted'}
+                or any(pacing[field] not in timer_states for field in ('first', 'second'))
+                or pacing['fault'] not in {'none', 'ambiguous', 'timeout', 'callback_failed', 'timer_failed'}
+                or pacing['cleanup'] not in {'not_started', 'joined', 'incomplete'}):
+            return None
+        result['pacing'] = pacing
     return result
 
 
@@ -364,7 +389,7 @@ def closed_failure_details(case, raw):
         if case['assembly'] != 'learnstack.tests.integration':
             return None
         details = closed_settlement_failure_details(raw)
-        if details and 'cleanup' in details and not case['name'].endswith('(knownFailure: True)'):
+        if details and ('cleanup' in details or details['boundary'].startswith('prepare_')) and not case['name'].endswith('(knownFailure: True)'):
             return None
         return details
     message = raw.get('ErrorMessage')

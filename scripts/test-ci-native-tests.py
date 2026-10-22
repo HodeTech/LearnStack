@@ -401,6 +401,8 @@ except launcher.Refusal as failure:
             r'C:\private\BackgroundJobRuntimeFacadeTests.CapacityNoStart.cs:line 109' + '\n'
             '/private/path/BackgroundJobPositiveSdkTests.CausalRestart.cs:line 123\n'
             '/private/path/BackgroundJobPositiveSdkTests.NativeSettlement.cs:line 186\n'
+            '/private/path/BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs:line 57\n'
+            '/private/path/BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs:line 89\n'
             '/private/path/BackgroundJobRecurrenceStoreTests.NativeOwnership.cs:line 71\n'
             '/private/path/BackgroundJobRecurrenceStoreTests.Runtime.cs:line 179\n'
             '/private/path/TenantRealmApiTests.WarmQualification.cs:line 321\n'
@@ -414,10 +416,13 @@ except launcher.Refusal as failure:
             {'source': 'facade_capacity_no_start', 'line': 109}, {'source': 'facade_control_failure', 'line': 74},
             {'source': 'positive_sdk_causal_restart', 'line': 123},
             {'source': 'positive_sdk_native_settlement', 'line': 186},
+            {'source': 'positive_sdk_settlement_prepare', 'line': 89},
+            {'source': 'positive_sdk_settlement_scheduling', 'line': 57},
             {'source': 'realm_warm_qualification', 'line': 321},
-            {'source': 'recurrence_native_ownership', 'line': 71},
-            {'source': 'recurrence_runtime', 'line': 179}]},
+            {'source': 'recurrence_native_ownership', 'line': 71}]},
             {'assembly': cases[1]['assembly'], 'id': cases[1]['id'], 'locations': []}], progress.failure_locations)
+        self.assertEqual(8, len(progress.failure_locations[0]['locations']),
+                         'The additional helper roles do not widen the eight-location bound')
         self.assertNotIn('PRIVATE-CANARY', json.dumps(progress.failure_locations))
         self.assertNotIn('private', json.dumps(progress.failure_locations))
         rows = [json.loads(line) for line in stream.getvalue().splitlines()]
@@ -427,6 +432,8 @@ except launcher.Refusal as failure:
             'BackgroundJobRuntimeFacadeTests*.cs')} | {
                 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
+                'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs',
+                'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
                 'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
                 'BackgroundJobRecurrenceStoreTests.Runtime.cs',
                 'TenantRealmApiTests.WarmQualification.cs'}
@@ -795,6 +802,7 @@ except launcher.Refusal as failure:
                 {'Category': 'StdErrMsgs', 'Text': 'PRIVATE-CANARY provider text'}]}
             self.assertEqual(expected, parse(case, raw))
             for boundary in ('start', 'held_outcome', 'early_hint', 'held_count_read', 'held_count_assert',
+                             'renewal_first', 'renewal_progress', 'renewal_second', 'timer_cleanup',
                              'completion_wait', 'count_read', 'normal_attempts', 'generation', 'outcome', 'provider_counts',
                              'cleanup', 'post_cleanup', 'later_original', 'later_admission', 'later_commit_held',
                              'later_refusal', 'later_ack', 'later_facts', 'later_cleanup', 'later_post_cleanup'):
@@ -892,6 +900,62 @@ except launcher.Refusal as failure:
             text = failure + '\n' + self.settlement_cleanup_sentence(**changes)
             self.assertIsNone(parse(case, {'Messages': [stdout(text)]}))
 
+    def test_settlement_prepare_boundaries_and_cleanup_are_exact_true_case_only(self):
+        parse = self.owner.closed_failure_details
+        true_name = next(name for name in self.owner.SETTLEMENT_FAILURE_CASES if name.endswith('(knownFailure: True)'))
+        for boundary in ('prepare_admission', 'prepare_commit_held', 'prepare_renewal_held', 'prepare_refusal',
+                         'prepare_ack', 'prepare_facts', 'prepare_cleanup', 'prepare_post_cleanup'):
+            for cleanup in ('', '\n' + self.settlement_cleanup_sentence(finalizeAdmission='not_issued',
+                                                                       finalize='not_issued')):
+                raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': self.settlement_sentence(boundary=boundary) + cleanup}]}
+                for name in self.owner.SETTLEMENT_FAILURE_CASES:
+                    details = parse(self.case(1, name), raw)
+                    if name == true_name:
+                        self.assertEqual(boundary, details['boundary'])
+                        self.assertEqual(bool(cleanup), 'cleanup' in details)
+                    else:
+                        self.assertIsNone(details)
+
+    @staticmethod
+    def settlement_pacing_sentence(**changes):
+        values = {'lease': 'released', 'first': 'joined', 'second': 'joined', 'fault': 'none', 'cleanup': 'joined'}
+        values.update(changes)
+        return 'Native settlement pacing;' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    def test_settlement_pacing_retains_only_finite_case_bound_timer_observations(self):
+        parse = self.owner.closed_failure_details
+        failure = self.settlement_sentence(boundary='renewal_second')
+        pacing = self.settlement_pacing_sentence()
+        stdout = lambda text: {'Category': 'StdOutMsgs', 'Text': text}
+        fields = {'lease': ('unseen', 'waiting', 'released', 'aborted'),
+                  'first': ('not_issued', 'armed', 'entered', 'returned', 'joined', 'cancelled', 'incomplete'),
+                  'second': ('not_issued', 'armed', 'entered', 'returned', 'joined', 'cancelled', 'incomplete'),
+                  'fault': ('none', 'ambiguous', 'timeout', 'callback_failed', 'timer_failed'),
+                  'cleanup': ('not_started', 'joined', 'incomplete')}
+        for name in self.owner.SETTLEMENT_FAILURE_CASES:
+            case = self.case(1, name)
+            raw = {'Messages': [stdout(failure + '\n' + pacing + '\nPRIVATE-CANARY')]}
+            details = parse(case, raw)
+            self.assertEqual('joined', details['pacing']['first'])
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(details))
+            self.assertIsNone(parse({**case, 'assembly': 'learnstack.tests.unit'}, raw))
+            self.assertIsNone(parse({**case, 'name': name + 'Extra'}, raw))
+            for field, states in fields.items():
+                for state in states:
+                    text = failure + '\n' + self.settlement_pacing_sentence(**{field: state})
+                    self.assertEqual(state, parse(case, {'Messages': [stdout(text)]})['pacing'][field])
+                for value in ('PRIVATE-CANARY', '', 'true', '0', 'joined\x00'):
+                    text = failure + '\n' + self.settlement_pacing_sentence(**{field: value})
+                    self.assertIsNone(parse(case, {'Messages': [stdout(text)]}))
+            for messages in ([stdout(pacing)], [stdout(failure + '\n' + pacing + '\n' + pacing)],
+                             [stdout(failure), {'Category': 'StdErrMsgs', 'Text': pacing}],
+                             [stdout(failure + '\n' + 'prefix ' + pacing)],
+                             [stdout(failure + '\n' + pacing + 'PRIVATE-CANARY')],
+                             [stdout(failure + '\n' + pacing[:-1])],
+                             [stdout(self.settlement_sentence(boundary='later_refusal') + '\n' + pacing)],
+                             [stdout(self.settlement_sentence(boundary='prepare_refusal') + '\n' + pacing)]):
+                self.assertIsNone(parse(case, {'Messages': messages}))
+
     def test_settlement_attribution_is_sticky_and_independent_of_aggregate_totals(self):
         case = self.case(1, sorted(self.owner.SETTLEMENT_FAILURE_CASES)[0])
         for field in ('originalCause', 'finalizeCause'):
@@ -946,7 +1010,8 @@ except launcher.Refusal as failure:
             result = self.execution_result(case, outcome=1 if index == 1 else 2)
             result['ErrorMessage'] = 'PRIVATE-CANARY original or cleanup failure'
             result['ErrorStackTrace'] = '/private/PRIVATE-CANARY/BackgroundJobPositiveSdkTests.NativeSettlement.cs:line 164'
-            result['Messages'] = [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + self.settlement_sentence() + '\n'}]
+            result['Messages'] = [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + self.settlement_sentence()
+                                   + '\n' + self.settlement_pacing_sentence() + '\n'}]
             if index == 2:
                 result['Messages'][0]['Text'] += self.settlement_sentence()
             results.append(result)
@@ -958,6 +1023,8 @@ except launcher.Refusal as failure:
         self.assertEqual('count_assert', details['boundary'])
         self.assertEqual(3, details['observedAttempts'])
         self.assertEqual(2, details['finalize'])
+        self.assertEqual('joined', details['pacing']['cleanup'])
+        self.assertEqual('none', details['pacing']['fault'])
         self.assertNotIn('details', progress.failure_locations[1])
         self.assertNotIn('exceptionKind', progress.failure_locations[0])
         self.assertFalse(progress.completed, 'A diagnostic never supplies a completion witness')
@@ -968,19 +1035,21 @@ except launcher.Refusal as failure:
         self.assertEqual([{**case, 'outcome': 'Passed' if index == 1 else 'Failed', 'duration': '00:00:00.0010000'}
                           for index, case in enumerate(cases)], rows)
         for text in (measurements.read_text(), stream.getvalue(), console.getvalue()):
-            for private in ('PRIVATE-CANARY', '/private/', 'Native settlement failure;', 'original or cleanup failure'):
+            for private in ('PRIVATE-CANARY', '/private/', 'Native settlement failure;',
+                            'Native settlement pacing;', 'original or cleanup failure'):
                 self.assertNotIn(private, text)
         output = self.root / 'settlement-output'
         trx = self.trx(output / 'results', cases[:1], outcome='Failed', raw_canary=True)
         tree = ET.parse(trx)
         raw_output = tree.find('t:Results/t:UnitTestResult/t:Output', self.owner.NS)
         tag = lambda name: '{' + self.owner.NS['t'] + '}' + name
-        ET.SubElement(raw_output, tag('StdOut')).text = self.settlement_sentence()
+        ET.SubElement(raw_output, tag('StdOut')).text = self.settlement_sentence() + '\n' + self.settlement_pacing_sentence()
         tree.write(trx, encoding='utf-8')
         retained = self.owner.trx_cases(trx, sanitize=True)
         self.assertEqual('Failed', retained[0]['outcome'])
         self.assertEqual([], ET.parse(trx).findall('.//t:Output', self.owner.NS))
         self.assertNotIn('Native settlement failure;', trx.read_text())
+        self.assertNotIn('Native settlement pacing;', trx.read_text())
         self.refuses('results_incomplete', self.owner.validate_results, output, cases[:1])
 
     def test_outage_failure_details_keep_only_consistent_bounded_timing_and_closed_pool_facts(self):
