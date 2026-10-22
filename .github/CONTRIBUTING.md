@@ -58,8 +58,10 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       aggregates independently verify current-attempt job/API/artifact evidence,
       exact assigned case unions and complete TRX. Base retains normal Release
       build, format and Hangfire distribution/source/replacement gates. A filter
-      alone exits 0 when nothing matches. Use **Re-run all jobs**; successful
-      siblings from earlier attempts cannot satisfy the current aggregate.
+      alone exits 0 when nothing matches. Use **Re-run all jobs** while the PR
+      remains open; successful siblings from earlier attempts cannot satisfy
+      the current aggregate. Finish qualification before merging: a closed PR
+      may lose the API projection required for its aggregate identity.
       The [testing standard](../docs/standards/06-testing.md#complete-bounded-ci-assignments)
       owns assignment, authority and qualification requirements. All seven
       context names, GitHub Actions app binding and strict up-to-date checking

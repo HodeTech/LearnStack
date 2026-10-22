@@ -303,7 +303,10 @@ All four implementation steps and their recorded correction reviews are complete
 locally. The subsequent systematic correction pass retains its own review and
 current-head hosted qualification gates in the
 [correction record](docs/roadmap/phase-02b-events-auth.md#p02b-6-systematic-corrections-and-hosted-qualification-2026-10-21).
-PR review and merge remain separate.
+P02b-6 implementation is merged through
+[PR #34](https://github.com/HodeTech/LearnStack/pull/34) on 2026-10-22.
+The [closed-PR CI correction](docs/roadmap/phase-02b-events-auth.md#p02b-6-closed-pr-ci-rerun-correction-2026-10-22)
+owns subsequent rerun validation and its evidence limits.
 The [additional correction record](docs/roadmap/phase-02b-events-auth.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
 owns the current verified findings.
 [ADR-0068](docs/decisions/0068-development-warm-realm-qualification.md)
@@ -315,7 +318,8 @@ completes owned preparation and fresh complete planning after both independent
 review rounds. Its [third correction step](docs/roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
 completes local historical entry, credential/MFA, signed API and self-service
 proof after both independent review rounds. That record owns exact source-bound
-hosted assignments and their evidence limits; merge remains separate.
+hosted assignments and their evidence limits. The merged implementation and
+post-merge CI correction are recorded above.
 P02b-7–8 remain pending;
 Phase 02b remains in progress.
 Phase 06 retains the full

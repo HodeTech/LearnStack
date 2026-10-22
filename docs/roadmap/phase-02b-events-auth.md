@@ -40,8 +40,11 @@ P02b-6's four implementation steps and local reviews are complete; the
 owns local qualification and correction receipts. ADR-0068's three correction
 steps and both independent review rounds are complete locally; their
 [qualification record](#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
-owns exact hosted assignments, retained failures and evidence limits. Current CI
-failure investigation and corrected-source qualification remain open.
+owns exact hosted assignments, retained failures and evidence limits.
+**P02b-6 implementation is merged** through
+[PR #34](https://github.com/HodeTech/LearnStack/pull/34) on 2026-10-22.
+The [closed-PR CI correction](#p02b-6-closed-pr-ci-rerun-correction-2026-10-22)
+owns the subsequent rerun failure, bounded workflow fix and qualification scope.
 P02b-7 BFF sessions and
 P02b-8 enforcement/erasure inventory remain pending; Phase 02b remains in
 progress. Earlier dated delivery
@@ -319,7 +322,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-3** | **Complete and merged — [PR #31 closeout](#p02b-3-merge-and-closeout-2026-10-15).** Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | **Complete and merged — [PR #32 closeout](#p02b-4-merge-and-closeout-2026-10-19).** Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; all nine implementation steps and their review gates delivered; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
 | **P02b-5** | **Complete and merged — [PR #33 closeout](#p02b-5-merge-and-closeout-2026-10-20).** Five steps and correction reviews complete under Accepted ADR-0064/0065/0066. API authentication: closed JWT profile, ordered reconciliation and attributed rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
-| **P02b-6** | **Implementation and local reviews complete — [Step 4 qualification](#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21).** Realm and seed: shared client scope/mappers, protected user-profile UUIDs agreeing with `SeedData`, safe warm reconciliation, narrow account self-service and real Keycloak/API proofs | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
+| **P02b-6** | **Implementation merged through PR #34 — [Step 4 qualification](#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21); [post-merge CI correction](#p02b-6-closed-pr-ci-rerun-correction-2026-10-22).** Realm and seed: shared client scope/mappers, protected user-profile UUIDs agreeing with `SeedData`, safe warm reconciliation, narrow account self-service and real Keycloak/API proofs | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
 | **P02b-7** | BFF session: Auth.js, the cookie session, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
 | **P02b-8** | `LS0002`, the carrier reconciliations this phase owes, the re-verification that the behavioural check is still required under the name it reports, and the exit checks | G16, G18 (the erasure inventory) Accepted |
 
@@ -17628,6 +17631,64 @@ quiescence. The earlier unchanged-deadline claim remains limited by the dated
 finding above. Post-commit hashes match all five tested overlays. The reviewed
 correction is ready for a new complete hosted A/B qualification; no prior green
 sibling or failed-job rerun supplies that missing final-source proof.
+
+### P02b-6 closed-PR CI rerun correction (2026-10-22)
+
+PR #34 is squash-merged as `28b9113a` at 08:02:48 UTC. Its tree,
+`b310fb7862b977adc5037e260f8d638e7f0f08a9`, exactly matches the reviewed
+`c1238ffc` head and its checked-out PR merge. The first complete assignment of
+[run 39742745102](https://github.com/HodeTech/LearnStack/actions/runs/39742745102/attempts/1)
+passes all 27 jobs and 5,920 .NET cases. Independent API/archive/result verification
+has summary SHA-256
+`2c21b98d1595dcff0ca0e07a060b806623799ef1bea8f6696b4289e5b8ae4681`;
+the separate public-demo receipt has SHA-256
+`b9c10a7ff7172e51f8da81361a26674155527be20826c900e45f2cd149b9246e`.
+The merged `main` push,
+[run 39744842943](https://github.com/HodeTech/LearnStack/actions/runs/39744842943),
+also completes successfully on that identical source tree.
+
+The squash merge precedes the second full assignment. All twenty B
+producer jobs pass, and independently validated producer evidence contains
+all 5,920 cases, including the three settlement cases. Its producer-only
+summary has SHA-256
+`00615bc56fc469beb02145b5bdc44d58953fe62d3b600f074fef1b186924b0a6`.
+Nevertheless the complete B attempt is refused: `meta` fails, and both
+aggregates reject `run_pull_identity_mismatch`. GitHub's same-repository PR
+projection is now empty. The aggregates retain their required identity witness;
+producer consistency cannot replace it. This is **not** a successful complete
+B qualification or a pre-merge A/B claim.
+
+The separate `meta` defect is reproduced from its actual shell owner. It
+fetches the current base branch with depth one after a squash merge, then
+requests `origin/main...HEAD` against the old checkout. Git refuses with
+`no merge base`. The correction selects the event's immutable base SHA and
+compares the two snapshots directly; no live branch fetch or merge-base walk
+is needed for link existence. The unresolved-base full-tree fallback remains.
+
+Five actual-workflow regression controls construct an isolated real Git
+squash/shallow graph. They cover a valid closed-PR range, broken changed links,
+push snapshots, missing/manual-base full-tree checks and an empty valid range.
+All five pass in 1.964 seconds; the unchanged old owner fails five assertions.
+The retained regression summary has SHA-256
+`7bd8aabce9ab8de37b41ad02dc48401161abe660c72d6b321f246425ae4cb9a7`.
+The controls run in `meta` under their own one-minute ceiling, within its
+unchanged five-minute job ceiling.
+
+Closed-PR API refusal is documented rather than weakened. Further PR
+qualification uses an open follow-up PR and completes both full assignments
+before merge. Required names, producer ownership, plan, permissions and
+execution ceilings remain unchanged. No application, realm, credential,
+production renewal or commit policy changes. The workflow correction and its
+independent reviews own the follow-up qualification; earlier failed and
+partial receipts retain their source and evidence limits.
+
+Local validation passes 98 controls: five actual-workflow Git regressions,
+seven ADR/parser controls, seven supply-chain controls, sixty plan controls and
+nineteen result/aggregate controls. Their two retained summaries have SHA-256
+`8bb09cedad6ab1b323aa88323ec36737ccd38766e3debd7b57a68741e1291db1`
+and `1c9483f979aeedca06e26076789e2a1e16708d7c184b6b5575bce11a3a07b15e`.
+The unchanged application sources require no new local provider experiment;
+the follow-up's complete hosted assignments remain separate proof.
 
 ## Completion Criteria
 

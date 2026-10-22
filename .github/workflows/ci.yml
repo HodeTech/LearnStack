@@ -880,12 +880,12 @@ jobs:
         # Template values from `github.event.*` are passed through `env:` so
         # they expand into shell variables AT THE SHELL'S quoting boundary,
         # never as raw substitution inside the `run:` block. This is the
-        # GHA-documented script-injection defense — even though `base.ref`
-        # and `before` are not user-controlled here, defense-in-depth keeps
+        # GHA-documented script-injection defense — even though the event commit
+        # IDs are not user-controlled here, defense-in-depth keeps
         # the pattern consistent across every step that consumes context.
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           # Walk every relative-path link in the changed Markdown files of
@@ -897,8 +897,9 @@ jobs:
           #   [x](docs/foo.md)   — bare repo-relative (CLAUDE.md convention)
           # Anchors (#frag) are stripped before the file-existence check.
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-              base="origin/${PR_BASE_REF}"
-              git fetch --no-tags --depth=1 origin "${PR_BASE_REF}"
+              # A rerun keeps its original event even after a squash merge.
+              # Compare that immutable base, not the base branch's later tip.
+              base="${PR_BASE_SHA}"
           else
               base="${PUSH_BEFORE_SHA}"
           fi
@@ -914,7 +915,8 @@ jobs:
               base=""
           fi
           if [[ -n "$base" ]]; then
-              changed=$(git diff --name-only "$base"...HEAD -- '*.md')
+              # Link existence compares snapshots; it needs no merge base.
+              changed=$(git diff --name-only "$base" HEAD -- '*.md')
           else
               changed=$(git ls-files -- '*.md')
           fi
@@ -963,6 +965,10 @@ jobs:
               echo "::error::$broken broken relative link(s) in changed Markdown."
               exit 1
           fi
+
+      - name: Markdown link audit regression controls
+        timeout-minutes: 1
+        run: python3 scripts/test-markdown-link-audit.py
 
       - name: ADR lifecycle parser controls
         run: python3 scripts/test-adr-status.py

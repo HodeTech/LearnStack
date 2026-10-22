@@ -96,10 +96,10 @@ not deferred to the showcase phase.
   criterion to its actual proof and completed disposition.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
   — **P02b-0 through P02b-5 complete; P02b-1–5 merged through PRs #29–33**.
-  P02b-6 implementation is complete locally; the correction records below own
-  validation and independent reviews.
-  [PR #34](https://github.com/HodeTech/LearnStack/pull/34) records current-head
-  hosted qualification and maintainer review. Merge remains separate;
+  P02b-6 implementation is merged through
+  [PR #34](https://github.com/HodeTech/LearnStack/pull/34) on 2026-10-22.
+  The [closed-PR CI correction](phase-02b-events-auth.md#p02b-6-closed-pr-ci-rerun-correction-2026-10-22)
+  owns subsequent rerun validation and its evidence limits;
   P02b-7–8 are pending. Its
   [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
   verifies the inherited baseline; Accepted ADR-0057 and the

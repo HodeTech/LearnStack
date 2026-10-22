@@ -208,8 +208,12 @@ siblings must belong to the current run attempt. Odd/even attempts select the
 two deterministic layouts; final qualification requires genuinely distinct
 co-membership, including SharedSchema methods, on the same source, plan,
 toolchain and complete case population. Plan, algorithm or fixture-lifetime
-changes require both layouts. Normal future pushes execute one complete
-assignment. The
+changes require both layouts. Complete this qualification before merging.
+GitHub can omit a merged same-repository PR from a run's REST projection; the
+aggregate refuses that missing identity even after a complete rerun. Further
+PR qualification uses an open follow-up PR, without weakening identity checks
+or combining receipts from different attempts. Normal future pushes execute
+one complete assignment. The
 [CI follow-up record](../roadmap/phase-02b-events-auth.md#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
 owns actual hosted fit and the two complete attempts; local controls do not
 establish either.
