@@ -33,7 +33,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// </remarks>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class OutboxProcessorTests(SchemaFixture schema)
+public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstractions.ITestOutputHelper output)
 {
     private const string Traceparent = "00-11111111111111111111111111111111-2222222222222222-01";
     private const string SensitiveCanary = "private-outbox-canary-84e315";
@@ -203,16 +203,39 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         };
         await using var factory = new WorkerApiFactory(test, credential);
 
-        var failure = await Record.ExceptionAsync(() => Task.Run(() => _ = factory.Services).WaitAsync(ProofDeadline));
-
-        failure.Should().NotBeNull();
-        failure.Should().BeAssignableTo<InvalidOperationException>();
-        failure!.ToString().Should().NotContain(SensitiveCanary).And.NotContain(credential == string.Empty ? "Password=" : credential);
-        if (invalid == "missing")
-            failure.Message.Should().Contain("ConnectionStrings:OutboxDispatcher")
-                .And.Contain("Npgsql key/value").And.Contain("learnstack_outbox_admin");
-        test.Logs.Text.Should().NotContain(SensitiveCanary);
+        var startup = Task.Run(() => _ = factory.Services);
+        try
+        {
+            var failure = await Record.ExceptionAsync(() => startup.WaitAsync(ProofDeadline));
+            output.WriteLine($"Outbox startup result;outcome={StartupOutcome(failure)};startup={StartupState(startup)}.");
+            failure.Should().NotBeNull();
+            failure.Should().BeAssignableTo<InvalidOperationException>();
+            failure!.ToString().Should().NotContain(SensitiveCanary).And.NotContain(credential == string.Empty ? "Password=" : credential);
+            if (invalid == "missing")
+                failure.Message.Should().Contain("ConnectionStrings:OutboxDispatcher")
+                    .And.Contain("Npgsql key/value").And.Contain("learnstack_outbox_admin");
+            test.Logs.Text.Should().NotContain(SensitiveCanary);
+        }
+        finally
+        {
+            // WaitAsync expiry does not stop or join WebApplicationFactory startup.
+            // Observe its actual result before either await-using owner disposes it.
+            var actual = await Record.ExceptionAsync(() => startup);
+            output.WriteLine($"Outbox startup completion;outcome={StartupOutcome(actual)};startup={StartupState(startup)}.");
+        }
     }
+
+    private static string StartupOutcome(Exception? failure) => failure switch
+    {
+        null => "succeeded",
+        TimeoutException => "timeout",
+        OperationCanceledException => "cancelled",
+        InvalidOperationException => "refused",
+        _ => "other",
+    };
+
+    private static string StartupState(Task startup) => startup.IsCompletedSuccessfully ? "succeeded"
+        : startup.IsCanceled ? "cancelled" : startup.IsFaulted ? "faulted" : "pending";
 
     [Fact]
     public async Task Real_provisioning_rows_remain_Pending_across_hosted_polls_without_construction_or_mutation()
@@ -814,6 +837,8 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Development);
+            // Outbox proofs own PostgreSQL and their captured logger, not a collector.
+            builder.UseSetting("Telemetry:OtlpEndpoint", string.Empty);
             builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
             builder.UseSetting("ConnectionStrings:PlatformAdmin", database.PlatformConnectionString);
             builder.UseSetting("ConnectionStrings:OutboxDispatcher", credential);

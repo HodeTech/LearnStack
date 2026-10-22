@@ -18278,6 +18278,94 @@ native receipt. Both preserve the unknown original API state and failed whole
 attempt status. Both review rounds are complete; new final-source full A/B is
 required before the draft becomes ready.
 
+### P02b-6 Outbox startup ownership and isolated diagnostics (2026-10-22)
+
+Run `39789942868` attempt 1 at `95edb219` fails the ordinary-10 producer
+`119863012904`: the Outbox invalid-credential startup cases `missing` and
+`unreachable` fail after 10.724s and 10.689s respectively; `malformed` and
+`wrong-user` pass. Its retained log SHA-256 is
+`29f35393c2623f414dd45a1aa99c2eaecec3e33ce8775e3efe1f28c90b885ca1`.
+The sanitized result lacks the original exception and failure-location detail.
+`owned_completion_missing` follows the test failure and cannot establish its
+cause. The failed whole attempt does not qualify.
+
+The fixture still enables the default outbound OTLP collector although this
+Outbox proof owns PostgreSQL and its captured logger, not a collector.
+Separately, its ten-second `WaitAsync` can expire while the actual
+`WebApplicationFactory` startup task is still running; await-using disposal then
+has no startup-completion witness. These are verified fixture defects. The
+hosted exception/stack is unavailable, so neither is claimed as the proven
+cause of that particular hosted failure.
+
+Only this test factory disables its unowned exporter endpoint. The startup
+task is retained and actually observed before either await-using owner
+disposes. The ten-second passing bound and credential/secret assertions remain;
+elapsed time is never a startup-completion witness. An uncooperative startup
+can keep the failed test waiting until the outer owner stops the process;
+that path cannot qualify cleanup. Production telemetry and Outbox behavior do
+not change.
+
+A private owned loopback collector reproduces the same two failed variants
+against the baseline: each exceeds ten seconds while the other two pass.
+With the corrected factory all four pass and the listener receives zero
+connections. A separate twelve-second startup injection makes exactly the
+`missing` case fail its original ten-second assertion. All four factory-disposal
+observations show actual startup completion with the join present; removing
+only that join produces one disposal while startup remains pending. Both
+counterparts finish naturally, join their process groups/listener and confirm
+both exact owned PostgreSQL containers absent. The expected failing counterparts
+are diagnostic controls, not successful production qualification.
+
+The finite result/completion observations use the test's output helper: a
+prototype using `Console` was absent from the real adapter result and is not
+claimed as evidence. The real VSTest failure decodes as
+`timeout/pending` followed by `refused/faulted`; the abandoned-task counterpart
+is rejected because its completion is still pending. No raw exception, provider
+message, credential or arbitrary test output is exported. Only the four exact
+startup cases in the integration assembly can receive this detail; unknown,
+duplicate, malformed or oversized observations produce no detail.
+
+The final factory's independently discovered nineteen-case Outbox class passes
+without skips in 31.251s after a zero-warning Release build. Its retained TRX
+SHA-256 is `649cafcb99e57a347502d05daf1203c8cd40b5d13527f3cc70f593e90cefb5fc`;
+all exact discovered names match the passed results. The held collector sees
+zero connections and all owned cleanup checks complete naturally. The actual
+joined-timeout adapter trace has SHA-256
+`403b33ecd0c82ec578e2877a3fdfc577ca505ab051835d7f3a532b5d1f540989`;
+the abandoned-task trace has
+`cf5c55782733fba8b56318ca13eb5bfe9cfaa89f532db48f9761b6411f3ba587`.
+These private trace identities support the finite projection and ownership
+counterparts, not an assertion that arbitrary trace contents are publishable.
+
+### P02b-6 aggregate producer-state refusal attribution (2026-10-22)
+
+The same `39789942868` attempt's backend aggregate `119869461632` refuses
+earlier than the three producer gates, at `producer_not_successful`. Its log
+SHA-256 is
+`a40a0f102d86f3b710da1a1dd28d19b17dc7d857e8ac2dd01e07245672cbab68`.
+Later API reads show base and all six Architecture jobs successful. The
+original aggregate response is unavailable: the original owner/state and any
+projection delay remain unknown. The integration producer's actual failed test
+and this independent backend refusal must not be conflated.
+
+The existing check now reports a source-owned producer key plus closed
+status/conclusion words on stderr before the unchanged refusal. Unknown or
+structured API values become `other`. Successful producer checks remain silent;
+identity checks, the nonzero refusal, complete-current-attempt requirements and
+all deadlines remain unchanged. No polling, retry or union of snapshots is
+introduced. The offline control plants 126 owner/state combinations across
+both aggregates and verifies finite output, canary exclusion and unchanged
+failure. Fresh independent review rounds and complete final-source hosted A/B
+remain required for these corrections.
+
+Local validation passes 63 native-launcher offline controls and the combined
+62 shard/aggregate controls without skips. The extra standalone aggregate run
+passes its 21 controls. Scoped .NET formatting verification and diff hygiene
+pass. An initial unittest-discovery command finds zero hyphenated scripts and
+is not counted; the actual explicit owner entry points above provide the
+reported populations. An initial formatter invocation names a nonexistent
+`.sln` and is likewise superseded by the successful actual-project invocation.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

@@ -81,6 +81,7 @@ SHARDS = None
 STARTUP_FAILURES = {'resource_controllers_unavailable', 'work_cgroup_not_empty',
                     'cgroup_kill_unavailable', 'startup_io_refused', 'startup_internal_refusal'}
 FAILURE_SOURCES = {
+    'OutboxProcessorTests.cs': 'outbox_processor',
     'TenantRealmApiTests.WarmQualification.cs': 'realm_warm_qualification',
     'BackgroundJobPositiveSdkTests.CausalRestart.cs': 'positive_sdk_causal_restart',
     'BackgroundJobPositiveSdkTests.NativeSettlement.cs': 'positive_sdk_native_settlement',
@@ -443,8 +444,47 @@ def closed_native_wait_details(raw):
     return result
 
 
+OUTBOX_STARTUP_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.Database.OutboxProcessorTests.'
+    'Actual_host_startup_rejects_invalid_credentials_without_provider_or_secret_text(invalid: "' + value + '")'
+    for value in ('missing', 'malformed', 'wrong-user', 'unreachable')
+}
+
+
+def closed_outbox_startup_details(raw):
+    messages = raw.get('Messages')
+    if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
+        return None
+    if any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+           or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+           or not isinstance(item['Text'], str) for item in messages):
+        return None
+    if sum(len(item['Text']) for item in messages) > 65536:
+        return None
+    result = {'stage': 'outbox_startup'}
+    for kind in ('result', 'completion'):
+        marker = 'Outbox startup ' + kind + ';'
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        if sum(item['Text'].count(marker) for item in messages) != 1 or len(lines) != 1:
+            return None
+        match = re.fullmatch(re.escape(marker) + r'outcome=(succeeded|timeout|cancelled|refused|other);'
+                             r'startup=(succeeded|cancelled|faulted|pending)[.]', lines[0])
+        if match is None or kind == 'completion' and match[2] == 'pending':
+            return None
+        if (kind == 'completion' and (match[1] == 'succeeded') != (match[2] == 'succeeded')
+                or kind == 'result' and match[1] == 'succeeded' and match[2] != 'succeeded'):
+            return None
+        result[kind] = {'outcome': match[1], 'startup': match[2]}
+    if result['result']['startup'] != 'pending' and result['result']['startup'] != result['completion']['startup']:
+        return None
+    return result
+
+
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
+    if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:
+        return closed_outbox_startup_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in NATIVE_WAIT_FAILURE_CASES:
         return closed_native_wait_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == RECURRENCE_NATIVE_FAILURE_CASE:

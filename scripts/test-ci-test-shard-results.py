@@ -257,6 +257,30 @@ class AggregateControls(unittest.TestCase):
         dirty = copy.deepcopy(clean); other = copy.deepcopy(dirty[0]); other['id'] = 100; dirty.append(other)
         self.refuses('job_api_duplicate_producer', RESULTS.verify_jobs, dirty, context, self.plan, 'backend')
 
+    def test_producer_refusal_retains_only_closed_owner_and_state_diagnostics(self):
+        context = self.context()
+        values = [('queued', None), ('in_progress', None), ('completed', None),
+                  ('completed', 'failure'), ('completed', 'skipped'),
+                  ('PRIVATE-STATE-CANARY', {'PRIVATE-CANARY': 'value'})]
+        for scope in ('backend', 'integration'):
+            clean = self.jobs(scope, context)
+            for position in range(len(clean)):
+                owner = clean[position]['name'].removeprefix('backend ')
+                owner = {'base tests and gates': 'base', 'native crash proof': 'native'}.get(owner, owner)
+                for status, conclusion in values:
+                    with self.subTest(scope=scope, owner=owner, status=status, conclusion=conclusion):
+                        jobs = copy.deepcopy(clean)
+                        jobs[position].update(status=status, conclusion=conclusion)
+                        output = io.StringIO()
+                        with mock.patch.object(RESULTS.sys, 'stderr', output):
+                            self.refuses('producer_not_successful', RESULTS.verify_jobs, jobs, context, self.plan, scope)
+                        self.assertEqual({'protocol': 1, 'diagnostic': 'producer_state_refusal', 'owner': owner,
+                            'status': status if status in ('queued', 'in_progress', 'completed') else 'other',
+                            'conclusion': conclusion if conclusion in ('failure', 'skipped') else 'other'},
+                            json.loads(output.getvalue()))
+                        self.assertNotIn('PRIVATE', output.getvalue())
+                        self.assertLess(len(output.getvalue()), 256)
+
     def test_gate_refusal_retains_only_closed_owner_gate_and_state_diagnostics(self):
         context = self.context()
         for index, gate in enumerate(('build', 'execute', 'upload')):

@@ -430,7 +430,7 @@ except launcher.Refusal as failure:
                             and row['outcome'] == 'Failed' for row in rows))
         expected = {path.name for path in (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database').glob(
             'BackgroundJobRuntimeFacadeTests*.cs')} | {
-                'BackgroundJobPositiveSdkTests.CausalRestart.cs',
+                'OutboxProcessorTests.cs', 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
                 'BackgroundJobPositiveSdkTests.NativeWait.cs', 'BackgroundJobPositiveSdkTests.NativeHistory.cs',
                 'BackgroundJobPositiveSdkTests.NativeHandoff.cs',
@@ -777,6 +777,64 @@ except launcher.Refusal as failure:
         self.assertEqual('Failed', self.owner.trx_cases(trx, sanitize=True)[0]['outcome'])
         self.assertEqual([], ET.parse(trx).findall('.//t:Output', self.owner.NS))
         self.refuses('results_incomplete', self.owner.validate_results, output, cases[:1])
+
+    def test_outbox_startup_details_keep_observed_timeout_separate_from_actual_completion(self):
+        for name in self.owner.OUTBOX_STARTUP_FAILURE_CASES:
+            case = self.case(1, name)
+            for outcome, state, actual, complete in (
+                    ('refused', 'faulted', 'refused', 'faulted'),
+                    ('timeout', 'pending', 'refused', 'faulted'),
+                    ('timeout', 'succeeded', 'succeeded', 'succeeded'),
+                    ('cancelled', 'cancelled', 'cancelled', 'cancelled')):
+                raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text':
+                    'Outbox startup result;outcome=' + outcome + ';startup=' + state + '.\n'
+                    'Outbox startup completion;outcome=' + actual + ';startup=' + complete + '.'}]}
+                self.assertEqual({'stage': 'outbox_startup', 'result': {'outcome': outcome, 'startup': state},
+                    'completion': {'outcome': actual, 'startup': complete}},
+                    self.owner.closed_failure_details(case, raw))
+
+    def test_outbox_startup_details_refuse_wrong_cases_private_ambiguous_or_unjoined_facts(self):
+        name = next(iter(self.owner.OUTBOX_STARTUP_FAILURE_CASES))
+        case = self.case(1, name)
+        sentence = ('Outbox startup result;outcome=timeout;startup=pending.\n'
+                    'Outbox startup completion;outcome=refused;startup=faulted.')
+        for text in (sentence + '\n' + sentence, sentence.replace('outcome=timeout', 'outcome=PRIVATE-CANARY'),
+                     sentence.replace('startup=pending', 'startup=PRIVATE-CANARY'),
+                     sentence.replace('startup=faulted', 'startup=pending'),
+                     sentence.replace('outcome=refused', 'outcome=succeeded'),
+                     sentence.replace('startup=pending', 'startup=cancelled'),
+                     sentence.replace('result;outcome=timeout;startup=pending', 'result;outcome=succeeded;startup=pending'),
+                     sentence.replace('result;', 'result;\x00'), sentence + ' PRIVATE-CANARY',
+                     'x' * 65536 + sentence, sentence.split('\n')[0]):
+            self.assertIsNone(self.owner.closed_failure_details(case,
+                {'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]}))
+        for messages in (None, [], ['PRIVATE-CANARY'], [{'Category': 'Error', 'Text': sentence}],
+                         [{'Category': 'StdOutMsgs', 'Text': sentence, 'Private': 'canary'}]):
+            self.assertIsNone(self.owner.closed_failure_details(case, {'Messages': messages}))
+        for changed in ({**case, 'assembly': 'learnstack.tests.unit'}, {**case, 'name': name + 'Other'}):
+            self.assertIsNone(self.owner.closed_failure_details(changed,
+                {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence}]}))
+
+    def test_outbox_startup_protocol_keeps_finite_failure_details_and_sanitized_results(self):
+        case = self.case(1, next(iter(self.owner.OUTBOX_STARTUP_FAILURE_CASES)))
+        for outcome in (1, 2):
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('outbox-' + str(outcome) + '.diag'), 'LearnStack.Tests.Integration', [case], stream)
+            item = self.execution_result(case, outcome)
+            item['ErrorStackTrace'] = '/private/PRIVATE-CANARY/OutboxProcessorTests.cs:line 207'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text':
+                'Outbox startup result;outcome=timeout;startup=pending.\n'
+                'Outbox startup completion;outcome=refused;startup=faulted.\nPRIVATE-CANARY'}]
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual(bool(progress.failure_locations), outcome == 2)
+            if outcome == 2:
+                self.assertEqual([{'source': 'outbox_processor', 'line': 207}], progress.failure_locations[0]['locations'])
+                self.assertEqual('outbox_startup', progress.failure_locations[0]['details']['stage'])
+            exported = stream.getvalue() + json.dumps(progress.failure_locations)
+            self.assertNotIn('PRIVATE-CANARY', exported)
+            self.assertNotIn('/private/', exported)
+            self.assertNotIn('Outbox startup result;', exported)
 
     @staticmethod
     def native_wait_sentence(kind='failure', **changes):

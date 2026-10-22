@@ -352,7 +352,15 @@ def verify_jobs(jobs, context, plan, scope):
     result = {}
     for owner in owners:
         job = by_name[producer_name(owner)]
-        require(job.get('status') == 'completed' and job.get('conclusion') == 'success', 'producer_not_successful')
+        completed = job.get('status') == 'completed' and job.get('conclusion') == 'success'
+        if not completed:
+            status, conclusion = job.get('status'), job.get('conclusion')
+            print(json.dumps({'protocol': 1, 'diagnostic': 'producer_state_refusal', 'owner': owner,
+                'status': status if status in ('queued', 'in_progress', 'completed') else 'other',
+                'conclusion': conclusion if conclusion in ('success', 'failure', 'neutral', 'cancelled',
+                    'skipped', 'timed_out', 'action_required', 'startup_failure', 'stale') else 'other'},
+                sort_keys=True), file=sys.stderr)
+        require(completed, 'producer_not_successful')
         start, end = timestamp(job.get('started_at')), timestamp(job.get('completed_at'))
         require(0 < end - start <= 20 * 60, 'producer_ceiling_exceeded')
         steps = job.get('steps', [])
