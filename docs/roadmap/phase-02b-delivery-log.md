@@ -21,6 +21,182 @@ each packet decided and delivered, as
   *the register* — still mean the single document it was written in; the plan
   sections they point at now live in the phase document. The
   [Status archive](#status-archive) keeps the retired Status block.
+- **Read the index, not the log.** The index below lists every packet section,
+  every entry and every dated sub-entry with its length in lines. Pick the entry
+  there, search for its heading to find its line, and read only that many lines.
+  After adding an entry, run `make docs-index`: the index is generated navigation,
+  not a record, and CI refuses a stale one.
+
+<!-- BEGIN GENERATED INDEX: scripts/delivery-log-index.py — run `make docs-index`; do not edit by hand -->
+
+**Index**
+
+- [P02b-0 — Phase entry](#p02b-0--phase-entry) — 127 lines
+  - [P02b-0 entry verification (2026-10-12)](#p02b-0-entry-verification-2026-10-12) — 125 lines
+- [P02b-1 — Producer](#p02b-1--producer) — 731 lines
+  - [P02b-1 decision package (2026-10-12)](#p02b-1-decision-package-2026-10-12) — 171 lines
+    - [Maintainer acceptance — 2026-10-12](#maintainer-acceptance--2026-10-12) — 9 lines
+  - [P02b-1 Step 1 — Shared execution lifecycle (2026-10-12)](#p02b-1-step-1--shared-execution-lifecycle-2026-10-12) — 90 lines
+  - [P02b-1 Step 2 — Immediate outbox production (2026-10-12)](#p02b-1-step-2--immediate-outbox-production-2026-10-12) — 70 lines
+  - [P02b-1 Step 3 — Domain completion and provisioning publisher (2026-10-12)](#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) — 60 lines
+  - [P02b-1 Step 4 — Producer enforcement and closeout (2026-10-12)](#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12) — 79 lines
+  - [P02b-1 packet closeout (2026-10-12)](#p02b-1-packet-closeout-2026-10-12) — 209 lines
+    - [PR #29 external-review proof follow-up (2026-10-12)](#pr-29-external-review-proof-follow-up-2026-10-12) — 35 lines
+    - [PR #29 systematic-review remediation (2026-10-12)](#pr-29-systematic-review-remediation-2026-10-12) — 61 lines
+    - [PR #29 outbox INSERT and ownership follow-up (2026-10-12)](#pr-29-outbox-insert-and-ownership-follow-up-2026-10-12) — 34 lines
+  - [P02b-1 merge and closeout (2026-10-12)](#p02b-1-merge-and-closeout-2026-10-12) — 50 lines
+- [P02b-2 — Dispatcher](#p02b-2--dispatcher) — 967 lines
+  - [P02b-2 decision package (2026-10-12)](#p02b-2-decision-package-2026-10-12) — 257 lines
+    - [Proposal review and validation (2026-10-12)](#proposal-review-and-validation-2026-10-12) — 22 lines
+    - [External proposal review reconciliation (2026-10-12)](#external-proposal-review-reconciliation-2026-10-12) — 37 lines
+  - [P02b-2 acceptance (2026-10-12)](#p02b-2-acceptance-2026-10-12) — 18 lines
+  - [P02b-2 Step 1 — Decision, schema and confined composition (2026-10-12)](#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12) — 74 lines
+  - [P02b-2 Step 2 — Durable transitions and terminal audit (2026-10-12)](#p02b-2-step-2--durable-transitions-and-terminal-audit-2026-10-12) — 98 lines
+  - [P02b-2 Step 3 — Hosted lifecycle and observability (2026-10-12)](#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) — 89 lines
+  - [P02b-2 Step 4 — Enforcement and closeout (2026-10-12)](#p02b-2-step-4--enforcement-and-closeout-2026-10-12) — 111 lines
+  - [P02b-2 PR handoff (2026-10-12)](#p02b-2-pr-handoff-2026-10-12) — 20 lines
+  - [P02b-2 PR review follow-up (2026-10-13)](#p02b-2-pr-review-follow-up-2026-10-13) — 31 lines
+  - [P02b-2 external review remediation (2026-10-13)](#p02b-2-external-review-remediation-2026-10-13) — 95 lines
+  - [P02b-2 review of 3531a2eb (2026-10-13)](#p02b-2-review-of-3531a2eb-2026-10-13) — 111 lines
+    - [Snapshot interval correction (2026-10-13)](#snapshot-interval-correction-2026-10-13) — 16 lines
+  - [P02b-2 merge and closeout (2026-10-13)](#p02b-2-merge-and-closeout-2026-10-13) — 61 lines
+- [P02b-3 — Consumer](#p02b-3--consumer) — 1,359 lines
+  - [P02b-3 decision package (2026-10-13)](#p02b-3-decision-package-2026-10-13) — 383 lines
+    - [Maintainer acceptance (2026-10-13)](#maintainer-acceptance-2026-10-13) — 11 lines
+  - [P02b-3 Step 1 — shared storage and privileges (2026-10-13)](#p02b-3-step-1--shared-storage-and-privileges-2026-10-13) — 75 lines
+  - [P02b-3 Step 2 — durable acceptance and inbox primitives (2026-10-13)](#p02b-3-step-2--durable-acceptance-and-inbox-primitives-2026-10-13) — 79 lines
+  - [P02b-3 Step 3 — business owner and completion gate (2026-10-13)](#p02b-3-step-3--business-owner-and-completion-gate-2026-10-13) — 99 lines
+  - [P02b-3 Step 4 — subscriber scheduling, terminalization and replay (2026-10-13)](#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13) — 111 lines
+  - [P02b-3 Step 5 — useful defaults and semantic seed handoff (2026-10-13)](#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13) — 75 lines
+  - [P02b-3 Step 6 — production enforcement and PR closeout (2026-10-13)](#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13) — 143 lines
+  - [P02b-3 PR handoff (2026-10-13)](#p02b-3-pr-handoff-2026-10-13) — 22 lines
+  - [P02b-3 external review follow-up (2026-10-15)](#p02b-3-external-review-follow-up-2026-10-15) — 140 lines
+  - [P02b-3 second external review follow-up (2026-10-15)](#p02b-3-second-external-review-follow-up-2026-10-15) — 170 lines
+  - [P02b-3 merge and closeout (2026-10-15)](#p02b-3-merge-and-closeout-2026-10-15) — 60 lines
+- [P02b-4 — Background jobs](#p02b-4--background-jobs) — 7,119 lines
+  - [P02b-4 decision package (2026-10-15)](#p02b-4-decision-package-2026-10-15) — 352 lines
+    - [Maintainer acceptance (2026-10-15)](#maintainer-acceptance-2026-10-15) — 15 lines
+    - [Hangfire comparison follow-up (2026-10-15)](#hangfire-comparison-follow-up-2026-10-15) — 24 lines
+    - [Workload and corpus correction pass (2026-10-15)](#workload-and-corpus-correction-pass-2026-10-15) — 50 lines
+  - [P02b-4 Step 1 — contracts and authority (2026-10-16)](#p02b-4-step-1--contracts-and-authority-2026-10-16) — 89 lines
+  - [P02b-4 Step 2 — storage and guarded vendor bootstrap (2026-10-16)](#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16) — 350 lines
+    - [Step 2 maintenance acceptance (2026-10-16)](#step-2-maintenance-acceptance-2026-10-16) — 29 lines
+  - [P02b-4 Step 3 — submission and app-role admission (2026-10-16)](#p02b-4-step-3--submission-and-app-role-admission-2026-10-16) — 129 lines
+  - [P02b-4 Step 4 — server-generation decision (2026-10-16)](#p02b-4-step-4--server-generation-decision-2026-10-16) — 1,038 lines
+    - [External proposal review and verified revision (2026-10-16)](#external-proposal-review-and-verified-revision-2026-10-16) — 54 lines
+    - [Maintainer acceptance and Step 4 adaptation (2026-10-16)](#maintainer-acceptance-and-step-4-adaptation-2026-10-16) — 73 lines
+    - [Step 4 required-startup qualification (2026-10-16)](#step-4-required-startup-qualification-2026-10-16) — 711 lines
+      - [Independent Step 4 foundation slice (2026-10-16)](#independent-step-4-foundation-slice-2026-10-16) — 58 lines
+      - [Independent foundation review corrections (2026-10-16)](#independent-foundation-review-corrections-2026-10-16) — 29 lines
+      - [ADR-0060 external-review revision (2026-10-16)](#adr-0060-external-review-revision-2026-10-16) — 72 lines
+      - [ADR-0060 acceptance and Step 4 continuation (2026-10-16)](#adr-0060-acceptance-and-step-4-continuation-2026-10-16) — 31 lines
+      - [Owned generation and maintenance foundation (2026-10-16)](#owned-generation-and-maintenance-foundation-2026-10-16) — 60 lines
+      - [Foundation review round 1 and verified corrections (2026-10-16)](#foundation-review-round-1-and-verified-corrections-2026-10-16) — 31 lines
+      - [Foundation review round 2 (2026-10-16)](#foundation-review-round-2-2026-10-16) — 14 lines
+      - [Pool replacement and framework cleanup ownership (2026-10-16)](#pool-replacement-and-framework-cleanup-ownership-2026-10-16) — 50 lines
+      - [Pool-cleanup slice review round 1 (2026-10-16)](#pool-cleanup-slice-review-round-1-2026-10-16) — 23 lines
+      - [Pool-cleanup slice review round 2 (2026-10-16)](#pool-cleanup-slice-review-round-2-2026-10-16) — 15 lines
+      - [Source-lifetime and facade continuation (2026-10-16)](#source-lifetime-and-facade-continuation-2026-10-16) — 21 lines
+      - [Core-phase and direct-facade qualification (2026-10-16)](#core-phase-and-direct-facade-qualification-2026-10-16) — 61 lines
+      - [Complete Step 4 implementation validation (2026-10-16)](#complete-step-4-implementation-validation-2026-10-16) — 21 lines
+      - [Full Step 4 review round 1 (2026-10-16)](#full-step-4-review-round-1-2026-10-16) — 42 lines
+      - [Full Step 4 round-1 correction validation (2026-10-16)](#full-step-4-round-1-correction-validation-2026-10-16) — 34 lines
+      - [Full Step 4 review round 2 (2026-10-16)](#full-step-4-review-round-2-2026-10-16) — 26 lines
+      - [Full Step 4 round-2 correction validation and closeout (2026-10-16)](#full-step-4-round-2-correction-validation-and-closeout-2026-10-16) — 53 lines
+  - [P02b-4 Step 5 — transactional owner and terminal audit (2026-10-16)](#p02b-4-step-5--transactional-owner-and-terminal-audit-2026-10-16) — 185 lines
+  - [P02b-4 Step 6 — tenant capacity reservations (2026-10-16)](#p02b-4-step-6--tenant-capacity-reservations-2026-10-16) — 323 lines
+    - [Step 6 implementation and qualification (2026-10-17)](#step-6-implementation-and-qualification-2026-10-17) — 51 lines
+    - [Step 6 validation receipts (2026-10-17)](#step-6-validation-receipts-2026-10-17) — 71 lines
+    - [Step 6 full review round 1 (2026-10-17)](#step-6-full-review-round-1-2026-10-17) — 74 lines
+    - [Step 6 full review round 2 and local closeout (2026-10-17)](#step-6-full-review-round-2-and-local-closeout-2026-10-17) — 95 lines
+  - [P02b-4 external completed-failure proposal (2026-10-16)](#p02b-4-external-completed-failure-proposal-2026-10-16) — 55 lines
+    - [ADR-0061 revision after maintainer review (2026-10-17)](#adr-0061-revision-after-maintainer-review-2026-10-17) — 29 lines
+  - [ADR-0061 acceptance and Step 7 contract (2026-10-17)](#adr-0061-acceptance-and-step-7-contract-2026-10-17) — 32 lines
+  - [P02b-4 Step 7 — external stages and recovery (2026-10-17)](#p02b-4-step-7--external-stages-and-recovery-2026-10-17) — 1,084 lines
+    - [Native terminal and finalizer policy qualification (2026-10-17)](#native-terminal-and-finalizer-policy-qualification-2026-10-17) — 126 lines
+    - [Step 7 full review round 1 (2026-10-17)](#step-7-full-review-round-1-2026-10-17) — 90 lines
+    - [Step 7 full review round 2 (2026-10-17)](#step-7-full-review-round-2-2026-10-17) — 53 lines
+  - [P02b-4 Step 8 — durable recurrence and restricted fan-out (2026-10-18)](#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18) — 658 lines
+    - [Step 8 full review round 1 (2026-10-18)](#step-8-full-review-round-1-2026-10-18) — 74 lines
+    - [Step 8 full review round 2 (2026-10-18)](#step-8-full-review-round-2-2026-10-18) — 80 lines
+  - [P02b-4 Step 9 — enforcement and packet closeout (2026-10-18)](#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18) — 946 lines
+    - [Step 9 full review round 1 (2026-10-18)](#step-9-full-review-round-1-2026-10-18) — 76 lines
+    - [Step 9 full review round 2 (2026-10-18)](#step-9-full-review-round-2-2026-10-18) — 35 lines
+  - [P02b-4 local closeout (2026-10-18)](#p02b-4-local-closeout-2026-10-18) — 1,401 lines
+    - [Hosted CI qualification follow-up (2026-10-18)](#hosted-ci-qualification-follow-up-2026-10-18) — 1,316 lines
+      - [ADR-0062 revision and read-only baseline (2026-10-18)](#adr-0062-revision-and-read-only-baseline-2026-10-18) — 116 lines
+      - [ADR-0062 acceptance and CI implementation (2026-10-18)](#adr-0062-acceptance-and-ci-implementation-2026-10-18) — 1,132 lines
+        - [ADR-0063 review revision (2026-10-18)](#adr-0063-review-revision-2026-10-18) — 77 lines
+        - [ADR-0063 acceptance and implementation (2026-10-18)](#adr-0063-acceptance-and-implementation-2026-10-18) — 19 lines
+        - [ADR-0063 Step 1 — complete selector plan (2026-10-19)](#adr-0063-step-1--complete-selector-plan-2026-10-19) — 80 lines
+        - [ADR-0063 Step 2 — bounded shard execution (2026-10-19)](#adr-0063-step-2--bounded-shard-execution-2026-10-19) — 90 lines
+        - [ADR-0063 Step 3 — workflow and aggregate enforcement (2026-10-19)](#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19) — 490 lines
+  - [P02b-4 review corrections (2026-10-19)](#p02b-4-review-corrections-2026-10-19) — 374 lines
+    - [Additional verification and evidence reconciliation (2026-10-19)](#additional-verification-and-evidence-reconciliation-2026-10-19) — 169 lines
+  - [P02b-4 merge and closeout (2026-10-19)](#p02b-4-merge-and-closeout-2026-10-19) — 101 lines
+- [P02b-5 — API authentication](#p02b-5--api-authentication) — 2,014 lines
+  - [P02b-5 decision package (2026-10-19)](#p02b-5-decision-package-2026-10-19) — 876 lines
+    - [Decision-pass review round 1 (2026-10-19)](#decision-pass-review-round-1-2026-10-19) — 22 lines
+    - [Decision-pass review round 2 and readiness (2026-10-19)](#decision-pass-review-round-2-and-readiness-2026-10-19) — 24 lines
+    - [Maintainer review follow-up (2026-10-19)](#maintainer-review-follow-up-2026-10-19) — 38 lines
+    - [Revised proposal review round 1 (2026-10-19)](#revised-proposal-review-round-1-2026-10-19) — 14 lines
+    - [Revised proposal review round 2 and readiness (2026-10-19)](#revised-proposal-review-round-2-and-readiness-2026-10-19) — 25 lines
+    - [Maintainer acceptance and implementation start (2026-10-19)](#maintainer-acceptance-and-implementation-start-2026-10-19) — 26 lines
+    - [P02b-5 Step 1 — token foundation (2026-10-19)](#p02b-5-step-1--token-foundation-2026-10-19) — 85 lines
+      - [Step 1 review round 1 (2026-10-19)](#step-1-review-round-1-2026-10-19) — 28 lines
+      - [Step 1 review round 2 and closeout (2026-10-19)](#step-1-review-round-2-and-closeout-2026-10-19) — 14 lines
+    - [P02b-5 Step 2 — real read-only application subject (2026-10-19)](#p02b-5-step-2--real-read-only-application-subject-2026-10-19) — 75 lines
+    - [P02b-5 Step 3 — attributed reconciliation and subject admission (2026-10-19)](#p02b-5-step-3--attributed-reconciliation-and-subject-admission-2026-10-19) — 92 lines
+    - [P02b-5 Step 4 — atomic HTTP activation and contracts (2026-10-19)](#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19) — 93 lines
+    - [P02b-5 Step 5 — production enforcement and closeout (2026-10-19)](#p02b-5-step-5--production-enforcement-and-closeout-2026-10-19) — 145 lines
+    - [P02b-5 Step 5 — local implementation and review closeout (2026-10-19)](#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19) — 45 lines
+  - [P02b-5 external review remediation (2026-10-20)](#p02b-5-external-review-remediation-2026-10-20) — 188 lines
+  - [P02b-5 second external review follow-up (2026-10-20)](#p02b-5-second-external-review-follow-up-2026-10-20) — 449 lines
+    - [ADR-0066 maintainer review revision (2026-10-20)](#adr-0066-maintainer-review-revision-2026-10-20) — 79 lines
+    - [ADR-0066 acceptance and implementation (2026-10-20)](#adr-0066-acceptance-and-implementation-2026-10-20) — 135 lines
+  - [P02b-5 systematic proof and document corrections (2026-10-20)](#p02b-5-systematic-proof-and-document-corrections-2026-10-20) — 399 lines
+  - [P02b-5 merge and closeout (2026-10-20)](#p02b-5-merge-and-closeout-2026-10-20) — 100 lines
+- [P02b-6 — Realm and seed](#p02b-6--realm-and-seed) — 5,117 lines
+  - [P02b-6 decision package (2026-10-20)](#p02b-6-decision-package-2026-10-20) — 446 lines
+  - [P02b-6 Step 1 — executable realm and identity declaration (2026-10-21)](#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21) — 97 lines
+  - [P02b-6 Step 2 — owned warm-realm reconciliation (2026-10-21)](#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21) — 553 lines
+    - [Server-information response budget — proposal (2026-10-21)](#server-information-response-budget--proposal-2026-10-21) — 77 lines
+    - [Additional version-source investigation (2026-10-21)](#additional-version-source-investigation-2026-10-21) — 87 lines
+    - [Server-information allowance acceptance (2026-10-21)](#server-information-allowance-acceptance-2026-10-21) — 15 lines
+    - [Shared implementation and pre-review verification (2026-10-21)](#shared-implementation-and-pre-review-verification-2026-10-21) — 216 lines
+    - [Account-console self-service capability — proposal (2026-10-21)](#account-console-self-service-capability--proposal-2026-10-21) — 148 lines
+  - [P02b-6 Step 3 — shared seed/demo lifecycle (2026-10-21)](#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21) — 176 lines
+  - [P02b-6 Step 4 — real identity qualification and closeout (2026-10-21)](#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21) — 3,843 lines
+    - [P02b-6 PR review corrections (2026-10-21)](#p02b-6-pr-review-corrections-2026-10-21) — 22 lines
+    - [P02b-6 systematic corrections and hosted qualification (2026-10-21)](#p02b-6-systematic-corrections-and-hosted-qualification-2026-10-21) — 473 lines
+    - [Further setup and proof corrections — 2026-10-21](#further-setup-and-proof-corrections--2026-10-21) — 75 lines
+    - [Dedicated issuance-carrier review corrections — 2026-10-21](#dedicated-issuance-carrier-review-corrections--2026-10-21) — 76 lines
+    - [ADR-0067 acceptance and carrier reconciliation (2026-10-21)](#adr-0067-acceptance-and-carrier-reconciliation-2026-10-21) — 101 lines
+    - [P02b-6 additional verification and correction pass (2026-10-22)](#p02b-6-additional-verification-and-correction-pass-2026-10-22) — 399 lines
+    - [ADR-0068 acceptance and implementation (2026-10-22)](#adr-0068-acceptance-and-implementation-2026-10-22) — 40 lines
+    - [ADR-0068 Step 1 — qualified stock assignment implementation (2026-10-22)](#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22) — 120 lines
+    - [ADR-0068 Step 2 — owned visibility preparation (2026-10-22)](#adr-0068-step-2--owned-visibility-preparation-2026-10-22) — 233 lines
+    - [ADR-0068 Step 3 — complete historical-path qualification (2026-10-22)](#adr-0068-step-3--complete-historical-path-qualification-2026-10-22) — 1,127 lines
+    - [P02b-6 closed-PR CI rerun correction (2026-10-22)](#p02b-6-closed-pr-ci-rerun-correction-2026-10-22) — 130 lines
+    - [P02b-6 native constructor-stop failure attribution (2026-10-22)](#p02b-6-native-constructor-stop-failure-attribution-2026-10-22) — 123 lines
+      - [First native-wait diagnostic review (2026-10-22)](#first-native-wait-diagnostic-review-2026-10-22) — 24 lines
+      - [Second native-wait diagnostic review (2026-10-22)](#second-native-wait-diagnostic-review-2026-10-22) — 15 lines
+      - [Diagnostic-source hosted A qualification (2026-10-22)](#diagnostic-source-hosted-a-qualification-2026-10-22) — 17 lines
+    - [P02b-6 fixture hint waits for actual prior cleanup (2026-10-22)](#p02b-6-fixture-hint-waits-for-actual-prior-cleanup-2026-10-22) — 91 lines
+      - [First fixture-handoff review and cancellation guard (2026-10-22)](#first-fixture-handoff-review-and-cancellation-guard-2026-10-22) — 24 lines
+      - [Second fixture-handoff review (2026-10-22)](#second-fixture-handoff-review-2026-10-22) — 18 lines
+    - [P02b-6 hosted browser dependency acquisition (2026-10-22)](#p02b-6-hosted-browser-dependency-acquisition-2026-10-22) — 85 lines
+      - [First browser-acquisition correction review (2026-10-22)](#first-browser-acquisition-correction-review-2026-10-22) — 19 lines
+      - [Second browser-acquisition correction review (2026-10-22)](#second-browser-acquisition-correction-review-2026-10-22) — 17 lines
+    - [P02b-6 public-demo outer budget allocation (2026-10-22)](#p02b-6-public-demo-outer-budget-allocation-2026-10-22) — 82 lines
+    - [P02b-6 OpenAPI fixture maintenance completion (2026-10-22)](#p02b-6-openapi-fixture-maintenance-completion-2026-10-22) — 66 lines
+    - [P02b-6 aggregate gate-refusal diagnostics (2026-10-22)](#p02b-6-aggregate-gate-refusal-diagnostics-2026-10-22) — 69 lines
+    - [P02b-6 Outbox startup ownership and isolated diagnostics (2026-10-22)](#p02b-6-outbox-startup-ownership-and-isolated-diagnostics-2026-10-22) — 59 lines
+    - [P02b-6 aggregate producer-state refusal attribution (2026-10-22)](#p02b-6-aggregate-producer-state-refusal-attribution-2026-10-22) — 73 lines
+    - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
+- [Status archive](#status-archive) — 112 lines
+
+<!-- END GENERATED INDEX -->
 
 ## P02b-0 — Phase entry
 

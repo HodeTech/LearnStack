@@ -21,6 +21,92 @@ each packet decided and delivered, as
   *the register* — still mean the single document it was written in; the plan
   sections they point at now live in the phase document. The
   [Status archive](#status-archive) keeps the retired Status block.
+- **Read the index, not the log.** The index below lists every packet section,
+  every entry and every dated sub-entry with its length in lines. Pick the entry
+  there, search for its heading to find its line, and read only that many lines.
+  After adding an entry, run `make docs-index`: the index is generated navigation,
+  not a record, and CI refuses a stale one.
+
+<!-- BEGIN GENERATED INDEX: scripts/delivery-log-index.py — run `make docs-index`; do not edit by hand -->
+
+**Index**
+
+- [P02d-1 — Education schema and database-level isolation](#p02d-1--education-schema-and-database-level-isolation) — 430 lines
+  - [P02d-1 decision pass (2026-09-14)](#p02d-1-decision-pass-2026-09-14) — 134 lines
+  - [Delivery Record (P02d-1)](#delivery-record-p02d-1) — 294 lines
+    - [Step 1 — Shared database controls (2026-09-14)](#step-1--shared-database-controls-2026-09-14) — 28 lines
+    - [Step 2 — Education schema and isolation (2026-09-14)](#step-2--education-schema-and-isolation-2026-09-14) — 45 lines
+    - [Step 3 — Packet completion (2026-09-14)](#step-3--packet-completion-2026-09-14) — 210 lines
+      - [PR verification (2026-09-14)](#pr-verification-2026-09-14) — 36 lines
+      - [Independent PR review follow-up (2026-09-14)](#independent-pr-review-follow-up-2026-09-14) — 63 lines
+      - [Merge and closeout (2026-09-14)](#merge-and-closeout-2026-09-14) — 37 lines
+- [P02d-2 — Writers and seed](#p02d-2--writers-and-seed) — 730 lines
+  - [Pending Course Marketplace proposal](#pending-course-marketplace-proposal) — 30 lines
+  - [P02d-2 decision package (2026-10-02)](#p02d-2-decision-package-2026-10-02) — 195 lines
+    - [G3 supersession (2026-10-02)](#g3-supersession-2026-10-02) — 28 lines
+  - [P02d-2 implementation delivery (2026-10-02)](#p02d-2-implementation-delivery-2026-10-02) — 449 lines
+    - [PR review corrections (2026-10-02)](#pr-review-corrections-2026-10-02) — 71 lines
+    - [Additional PR review corrections (2026-10-02)](#additional-pr-review-corrections-2026-10-02) — 89 lines
+    - [Branding tenant-existence correction (2026-10-02)](#branding-tenant-existence-correction-2026-10-02) — 28 lines
+  - [P02d-2 merge and closeout (2026-10-02)](#p02d-2-merge-and-closeout-2026-10-02) — 54 lines
+- [P02d-3 — Read internals](#p02d-3--read-internals) — 543 lines
+  - [P02d-3 decision package (2026-10-02)](#p02d-3-decision-package-2026-10-02) — 212 lines
+  - [Delivery record: P02d-3](#delivery-record-p02d-3) — 276 lines
+    - [PR #24 review remediation (2026-10-03)](#pr-24-review-remediation-2026-10-03) — 78 lines
+    - [PR #24 depth and settings correction (2026-10-03)](#pr-24-depth-and-settings-correction-2026-10-03) — 30 lines
+  - [P02d-3 merge and closeout (2026-10-03)](#p02d-3-merge-and-closeout-2026-10-03) — 53 lines
+- [P02d-4 — Public read API and contract checks](#p02d-4--public-read-api-and-contract-checks) — 1,016 lines
+  - [P02d-4 decision package (2026-10-03)](#p02d-4-decision-package-2026-10-03) — 650 lines
+  - [P02d-4 Step 3: public Education reads](#p02d-4-step-3-public-education-reads) — 89 lines
+  - [P02d-4 Step 4: contract, SDK and CI](#p02d-4-step-4-contract-sdk-and-ci) — 216 lines
+  - [P02d-4 merge and closeout (2026-10-08)](#p02d-4-merge-and-closeout-2026-10-08) — 59 lines
+- [P02d-5 — Server-rendering path](#p02d-5--server-rendering-path) — 1,155 lines
+  - [P02d-5 decision package (2026-10-08)](#p02d-5-decision-package-2026-10-08) — 237 lines
+  - [P02d-5 delivery record](#p02d-5-delivery-record) — 372 lines
+    - [P02d-5 packet closeout (2026-10-09)](#p02d-5-packet-closeout-2026-10-09) — 88 lines
+  - [P02d-5 external-review remediation (2026-10-09)](#p02d-5-external-review-remediation-2026-10-09) — 483 lines
+  - [P02d-5 merge and closeout (2026-10-09)](#p02d-5-merge-and-closeout-2026-10-09) — 61 lines
+- [P02d-6 — Public renderer](#p02d-6--public-renderer) — 1,713 lines
+  - [P02d-6 decision package (2026-10-09)](#p02d-6-decision-package-2026-10-09) — 300 lines
+    - [Acceptance validation (2026-10-10)](#acceptance-validation-2026-10-10) — 9 lines
+    - [External i18n draft review reconciliation (2026-10-09)](#external-i18n-draft-review-reconciliation-2026-10-09) — 24 lines
+  - [P02d-6 Step 1: Localization and document foundation](#p02d-6-step-1-localization-and-document-foundation) — 93 lines
+    - [Step 1 review round 1 (2026-10-10)](#step-1-review-round-1-2026-10-10) — 14 lines
+    - [Step 1 review round 2 (2026-10-10)](#step-1-review-round-2-2026-10-10) — 18 lines
+  - [P02d-6 Step 2: Catalog and course pages](#p02d-6-step-2-catalog-and-course-pages) — 67 lines
+  - [P02d-6 Step 3: Ordered lesson presentation](#p02d-6-step-3-ordered-lesson-presentation) — 89 lines
+    - [Step 3 review round 1 (2026-10-10)](#step-3-review-round-1-2026-10-10) — 20 lines
+    - [Step 3 review round 2 (2026-10-10)](#step-3-review-round-2-2026-10-10) — 19 lines
+  - [P02d-6 Step 4: Product proof and accessibility closeout](#p02d-6-step-4-product-proof-and-accessibility-closeout) — 1,095 lines
+    - [Step 4 review round 1 (2026-10-10)](#step-4-review-round-1-2026-10-10) — 23 lines
+    - [Step 4 review round 2 and automated verification (2026-10-10)](#step-4-review-round-2-and-automated-verification-2026-10-10) — 36 lines
+    - [Manual accessibility handoff (2026-10-10)](#manual-accessibility-handoff-2026-10-10) — 17 lines
+    - [Manual browser observations and remaining AT check (2026-10-10)](#manual-browser-observations-and-remaining-at-check-2026-10-10) — 60 lines
+    - [P02d-6 packet closeout (2026-10-10)](#p02d-6-packet-closeout-2026-10-10) — 63 lines
+    - [P02d-6 external-review remediation (2026-10-10)](#p02d-6-external-review-remediation-2026-10-10) — 51 lines
+    - [P02d-6 systematic-review decision package (2026-10-10)](#p02d-6-systematic-review-decision-package-2026-10-10) — 800 lines
+      - [Maintainer decisions (2026-10-10)](#maintainer-decisions-2026-10-10) — 49 lines
+        - [Test-toolchain migration — approved (2026-10-10)](#test-toolchain-migration--approved-2026-10-10) — 24 lines
+        - [ADR-0055 draft review reconciliation (2026-10-10)](#adr-0055-draft-review-reconciliation-2026-10-10) — 29 lines
+      - [ADR-0055 isolated feasibility observation (2026-10-10)](#adr-0055-isolated-feasibility-observation-2026-10-10) — 38 lines
+      - [ADR-0055 acceptance and implementation plan (2026-10-10)](#adr-0055-acceptance-and-implementation-plan-2026-10-10) — 384 lines
+  - [P02d-6 merge and closeout (2026-10-10)](#p02d-6-merge-and-closeout-2026-10-10) — 67 lines
+- [P02d-7 — Demo, full-stack CI and exit](#p02d-7--demo-full-stack-ci-and-exit) — 956 lines
+  - [P02d-7 decision package (2026-10-10)](#p02d-7-decision-package-2026-10-10) — 219 lines
+  - [P02d-7 Step 1 — shared demo lifecycle (2026-10-11)](#p02d-7-step-1--shared-demo-lifecycle-2026-10-11) — 83 lines
+  - [P02d-7 Step 2 — genericity and exit foundations (2026-10-11)](#p02d-7-step-2--genericity-and-exit-foundations-2026-10-11) — 92 lines
+  - [P02d-7 Step 3 — browser and audit proof (2026-10-11)](#p02d-7-step-3--browser-and-audit-proof-2026-10-11) — 150 lines
+  - [P02d-7 Step 4 — CI enforcement and phase exit (2026-10-11)](#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11) — 342 lines
+    - [Step 4 review round 1 (2026-10-11)](#step-4-review-round-1-2026-10-11) — 35 lines
+    - [Step 4 review round 2 (2026-10-11)](#step-4-review-round-2-2026-10-11) — 25 lines
+    - [P02d-7 CI and phase-exit closeout (2026-10-11)](#p02d-7-ci-and-phase-exit-closeout-2026-10-11) — 217 lines
+      - [Reviewed implementation head verification (2026-10-11)](#reviewed-implementation-head-verification-2026-10-11) — 19 lines
+      - [External review follow-up (2026-10-11)](#external-review-follow-up-2026-10-11) — 21 lines
+      - [Systematic review remediation (2026-10-11)](#systematic-review-remediation-2026-10-11) — 117 lines
+  - [P02d-7 merge and closeout (2026-10-11)](#p02d-7-merge-and-closeout-2026-10-11) — 68 lines
+- [Status archive](#status-archive) — 143 lines
+
+<!-- END GENERATED INDEX -->
 
 ## P02d-1 — Education schema and database-level isolation
 

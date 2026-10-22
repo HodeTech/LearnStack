@@ -78,7 +78,7 @@ The following are kept current and treated as code:
 | Standard (`standards/`) | Ongoing engineering rules | Editable as the team learns |
 | Runbook (`runbooks/`) | Operational procedures | Editable; review quarterly |
 | Roadmap (`roadmap/`) | Phased plan: the six sections and a bounded Status block, no records ([Roadmap § Phase Structure](../roadmap/README.md#phase-structure)) | Editable per phase |
-| Delivery log (`roadmap/phase-NN-delivery-log.md`) | A phase's dated decision packages, step records, reviews, corrections and closeouts, one section per packet | Append-only; a shipped packet's delivery record is not rewritten; an Accepted decision package is normative |
+| Delivery log (`roadmap/phase-NN-delivery-log.md`) | A phase's dated decision packages, step records, reviews, corrections and closeouts, one section per packet | Append-only; a shipped packet's delivery record is not rewritten; an Accepted decision package is normative; its opening index is generated (`make docs-index`), never edited by hand |
 
 A delivery record that cites something false — an amendment withdrawn before merge, a test
 since renamed — gets a dated correction inline beside the false text, in the shape of an

@@ -272,9 +272,14 @@ lint-frontend: ## `pnpm -r lint` (Next/ESLint).
 	(cd frontend && pnpm -r lint)
 
 .PHONY: lint-docs
-lint-docs: ## Whole-tree Markdown fragment audit and roadmap structure guard (ADR-0069).
+lint-docs: ## Whole-tree Markdown fragment audit, roadmap structure and current delivery log indexes (ADR-0069).
 	python3 scripts/markdown-fragment-audit.py
 	python3 scripts/roadmap-structure.py
+	python3 scripts/delivery-log-index.py
+
+.PHONY: docs-index
+docs-index: ## Regenerate the index that opens each delivery log (ADR-0069).
+	python3 scripts/delivery-log-index.py --write
 
 .PHONY: format
 format: ## Apply formatters in place (backend dotnet-format + frontend prettier).

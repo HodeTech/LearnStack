@@ -998,11 +998,18 @@ jobs:
         timeout-minutes: 1
         run: python3 scripts/roadmap-structure.py
 
+      - name: Delivery log indexes are current
+        # ADR-0069, 2026-10-23: each delivery log opens with an index generated from
+        # its headings; a stale or hand-edited one fails here. Fix: `make docs-index`.
+        timeout-minutes: 1
+        run: python3 scripts/delivery-log-index.py
+
       - name: Documentation guard controls
         timeout-minutes: 1
         run: |
           python3 scripts/test-markdown-fragment-audit.py
           python3 scripts/test-roadmap-structure.py
+          python3 scripts/test-delivery-log-index.py
 
       - name: ADR lifecycle parser controls
         run: python3 scripts/test-adr-status.py

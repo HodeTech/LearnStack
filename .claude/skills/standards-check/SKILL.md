@@ -409,7 +409,8 @@ checklist:
 - [ ] Phase deliverable changed → `docs/roadmap/phase-NN-*.md` updated.
 - [ ] Packet record written → a dated entry in the phase's delivery log, the
   packet's Status row updated, and no status narrative added to the phase doc,
-  `CLAUDE.md`, the README or the roadmap index; `make lint-docs` passes.
+  `CLAUDE.md`, the README or the roadmap index; `make docs-index` was run and
+  `make lint-docs` passes.
 - [ ] Module added / module spec changed → `docs/modules/<m>/audit.md` and
   `docs/modules/<m>/permissions.md` updated.
 - [ ] Frontend i18n key changed → `I18n:` commit trailer present.

@@ -88,7 +88,8 @@ Then read the phase that is live and the one it stands on:
 - [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md) —
   **the live phase**. Its Status block owns packet state; its decision register owns
   gate state and links each Accepted decision package in the delivery log, which is
-  normative — read it before writing the code its gate governs.
+  normative — read it before writing the code its gate governs. Navigate a delivery
+  log by the generated index at its top; never read the whole file.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md) —
   complete; the delivered public-site baseline. It sorts after `02b`/`02c` but runs
   **before** them: the roadmap dependency map, not filename order, is authoritative.

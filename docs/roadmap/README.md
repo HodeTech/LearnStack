@@ -215,7 +215,9 @@ independently mergeable slice with its own pull request; see [Glossary](../gloss
 - The **delivery log**, `phase-<id>-delivery-log.md`, is the phase's dated record:
   one `##` section per packet (`P02b-4 — Background jobs`), plus `Phase entry`,
   `Cross-packet records` and `Status archive` where needed, each entry a dated `###`
-  heading. It is append-only; a shipped packet's entries are not rewritten.
+  heading. It is append-only; a shipped packet's entries are not rewritten. It opens
+  with an index generated from its headings — `make docs-index` writes it, CI refuses
+  a stale one — so a reader opens the index and then only the entry it needs.
 - An optional **exit evidence index**, `phase-<id>-exit-evidence.md`, maps each exit
   criterion to its proof at phase exit, as
   [Phase 02d's](phase-02d-exit-evidence.md) does.

@@ -191,7 +191,9 @@ list, update what applies, leave nothing stale:
   criterion? Note it. A packet's decision package, step record, review round,
   correction or closeout is a dated `###` entry under its packet in the phase's
   `phase-<id>-delivery-log.md`, never a section of the phase doc; the phase
-  doc changes only the packet's Status row. Do not narrate packet status in
+  doc changes only the packet's Status row. Read a log through the generated
+  index at its top, never whole, and run `make docs-index` after adding an
+  entry. Do not narrate packet status in
   `CLAUDE.md`, the repository README or the roadmap index
   ([ADR-0069](../../../docs/decisions/0069-phase-documents-and-delivery-logs.md)).
 - **Standards.** Did the change introduce a new rule or refine an existing
