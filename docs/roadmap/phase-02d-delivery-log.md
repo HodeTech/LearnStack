@@ -17,8 +17,10 @@ each packet decided and delivered, as
 - **Moved, not rewritten.** Every entry dated up to 2026-10-22 moved here from the
   phase document with its heading text and anchor unchanged. Heading levels shifted
   to sit under the packet sections, and links whose targets now live in the other
-  file were retargeted. The [Status archive](#status-archive) keeps the retired
-  Status block.
+  file were retargeted. Position words inside a moved entry — *above*, *below*,
+  *the register* — still mean the single document it was written in; the plan
+  sections they point at now live in the phase document. The
+  [Status archive](#status-archive) keeps the retired Status block.
 
 ## P02d-1 — Education schema and database-level isolation
 

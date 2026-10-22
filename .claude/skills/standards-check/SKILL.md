@@ -68,7 +68,7 @@ What does the diff touch?
 | `.md` under `docs/architecture/` | Architecture doc. |
 | `.md` under `docs/decisions/` | ADR. |
 | `.md` under `docs/standards/` | Standards doc. |
-| `.md` under `docs/roadmap/` | Phase doc. |
+| `.md` under `docs/roadmap/` | Phase doc (the plan), delivery log (`*-delivery-log.md`, dated packet records) or exit evidence index (`*-exit-evidence.md`) — [ADR-0069](../../../docs/decisions/0069-phase-documents-and-delivery-logs.md). |
 | `.md` at the root | CLAUDE.md / AGENTS.md / README.md / glossary. |
 | `infra/` | Operational infra (compose, Dapr components, APISIX). |
 | `.claude/skills/` | Skill catalogue. |
@@ -407,6 +407,9 @@ checklist:
 - [ ] Architecture doc changed → cross-references to standards + ADRs
   refreshed.
 - [ ] Phase deliverable changed → `docs/roadmap/phase-NN-*.md` updated.
+- [ ] Packet record written → a dated entry in the phase's delivery log, the
+  packet's Status row updated, and no status narrative added to the phase doc,
+  `CLAUDE.md`, the README or the roadmap index; `make lint-docs` passes.
 - [ ] Module added / module spec changed → `docs/modules/<m>/audit.md` and
   `docs/modules/<m>/permissions.md` updated.
 - [ ] Frontend i18n key changed → `I18n:` commit trailer present.

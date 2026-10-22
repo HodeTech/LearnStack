@@ -39,474 +39,38 @@ repository holds only LearnStack's side of the boundary, in
 
 ## What state this is in
 
-**Phase 01 and [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) complete —
-every packet 0–10 shipped; packets 3b–10 were re-scoped on 2026-08-08
-after a four-report audit of the corpus.
-[Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9) —
-audit infrastructure and the entitlement socket, decided by
-[ADR-0044](docs/decisions/0044-audit-write-path.md) and
-[ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md) — shipped the
-lit audit write path, the `audit` health check, and the entitlement socket:
-`IEntitlementProvider` with `NullEntitlementProvider` registered in every deployment
-mode, `IFeatureFlags` composing over it, the three typed key registries, and
-`platform_killswitches` **read-only** — every toggle runs inside
-`EnterPlatformAdminScope`, whose gate refuses everyone until
-[Phase 03](docs/roadmap/phase-03-identity-admin.md) brings the Platform-scope
-permission.
-[Packet 10](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-10) closed
-the phase against its own exit decision: thirty catalogue entries name it as the packet
-that implemented them — module boundaries in all four legs, domain genericity across names,
-schema, slugs, keys and the frontend tree, the port and entitlement-key bans, ADR-0040's
-two behavioural properties, and three named isolation proofs as `learnstack_app`. The
-standards were re-stated against enforcement at Packet 10 closeout (nineteen
-`Active`, three `Adopted`), and four guards now hold the corpus to its own claims,
-so a status header, a
-catalogue entry, a published count or a planted `Skip` fails the build rather than a
-reader. The whole .NET suite runs with **zero skips**, which the runner now refuses to
-let change.
-**[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is complete and merged**
-through PR #28 on 2026-10-11. Its kickoff
-shipped the packet table and the decision register, and every later packet opens with
-its decision pass. **P02d-1 is complete and merged** through
-[PR #22](https://github.com/HodeTech/LearnStack/pull/22) on 2026-09-14. Education's
-domain, schema and isolation proofs pass; all three steps completed two independent
-agent review rounds. The [merge closeout](docs/roadmap/phase-02d-delivery-log.md#merge-and-closeout-2026-09-14)
-records verification of the final PR head and merge commit. **P02d-2's decision pass
-is Accepted — 2026-10-02**: its [decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-2-decision-package-2026-10-02)
-and ADR-0050/0051 establish protected content, exact write contracts and four
-implementation steps. Implementation resumed on development: Step 1 supplies the
-access-policy migration, exact-definition/locale contracts, presentation validation
-and contextual seed verification queries; both review rounds passed. Step 2 adds
-locale/branding writers and whole-value setting audit redaction; both review rounds
-passed.
-Step 3 adds Education writers; both review rounds and a fresh focused fix review
-passed. Step 4 completes convergent seed execution after both review rounds.
-**P02d-2 is complete and merged** through
-[PR #23](https://github.com/HodeTech/LearnStack/pull/23) on 2026-10-02; its
-[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-2-merge-and-closeout-2026-10-02)
-records the accepted head and merge verification. P02d-3 read internals are implemented;
-its [decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-3-decision-package-2026-10-02)
-is Accepted — 2026-10-02. Step 1 implements typed settings and locale resolution;
-both review rounds passed. Step 2 implements batched definition reads; both review
-rounds passed. Step 3
-adds generation caching and scope-safe bypass; both review rounds passed.
-**P02d-3 is complete and merged** through
-[PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
-[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-3-merge-and-closeout-2026-10-03)
-records final verification. Public reads stay with P02d-4.
-Its [decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-4-decision-package-2026-10-03)
-and ADR-0052 are Accepted — 2026-10-03. The approved four-step implementation and
-two-round review loop run on development; delivery evidence is recorded per step.
-Step 1 implements immutable host provenance and physical read-only transactions;
-both review rounds and the focused fix review pass. Step 2 implements live site
-configuration and GET/HEAD with no-store; both review rounds and focused fix
-verification pass. Step 3 implements Education GET/HEAD reads, exact-locale
-marketing/content projections and scoped seek cursors; both independent review
-rounds pass. Step 4 implements served/snapshot contract controls, the injected typed
-SDK and always-running OpenAPI compatibility CI. Both independent review rounds
-and fresh fix verification pass. All six real CI jobs pass; the approved sixth
-required check is active with all other live settings preserved. **P02d-4 is complete
-and merged** through [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on
-2026-10-08; its [merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-4-merge-and-closeout-2026-10-08)
-records final verification. P02d-5 delivers trusted public server rendering under
-Accepted ADR-0053 and ADR-0054: native HTTPS ingress, coordinated visitor/peer
-admission, the configured bounded server caller, live-host/locale entry and
-source/runtime proof controls. The [remediation and closeout record](docs/roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
-owns implementation steps, independent reviews and validation. **P02d-5 is complete
-and merged** through [PR #26](https://github.com/HodeTech/LearnStack/pull/26) on
-2026-10-09. Its
-[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-5-merge-and-closeout-2026-10-09)
-records final verification.
-Work stays on development. **P02d-6's decision pass is Accepted — 2026-10-09**:
-[ADR-0027](docs/decisions/0027-frontend-i18n.md) and its
-[decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09)
-authorize four implementation steps and two independent review rounds per step.
-Step 1 implements the pinned i18n and document foundation, verified request-local
-admission/content loaders, atomic color theming, chrome and controlled status/error/
-loading components. Its
-[delivery record](docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-1-localization-and-document-foundation)
-owns its validation and review evidence. Step 2 adds actual catalog/course pages,
-independent pagination and metadata from the shared resource loader. Its
-[delivery record](docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-2-catalog-and-course-pages)
-owns current verification and review status. Step 3 adds the ordered plain-text
-lesson page, eligible lesson metadata and 31 blocking JSX accessibility rules
-with actual-config planted controls. Its
-[delivery record](docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-3-ordered-lesson-presentation)
-owns verification and review status. Step 4 adds concurrent host/locale, theme,
-freshness and content-fault product proofs; its
-[delivery record](docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-records both completed review rounds. **P02d-6 is complete and merged** through
-[PR #27](https://github.com/HodeTech/LearnStack/pull/27) on 2026-10-10; its
-[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-6-merge-and-closeout-2026-10-10)
-records final verification. The
-[packet closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10)
-records passing manual browser checks and the maintainer's VoiceOver smoke.
-ADR-0055 remediation delivers
-single-bootstrap admission and passing production replacement proofs. All three
-steps completed both independent review rounds;
-the [Step 3 record](docs/roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
-owns completed Step 3 reviews, verified fixes and delivery evidence. The five new
-catalogue rules are Implemented.
-P02d-7's demo, Lighthouse and phase-exit
-[decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-7-decision-package-2026-10-10)
-was approved on 2026-10-11, including bounded seventh-check activation after real
-success. ADR-0056 was accepted on the same date. Steps 1 and 2 completed both
-independent review rounds; the
-[Step 3 record](docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
-owns browser/audit implementation, passing complete local reruns and both
-completed Step 3 review rounds. The
-[Step 4 record](docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
-owns CI enforcement, completed reviews and individual exit reconciliation. Its
-[CI and exit closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
-verifies all seven real PR jobs, complete artifacts and live seventh-check
-activation with all other protection settings preserved. All four steps completed
-both review rounds. [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged;
-the [merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-7-merge-and-closeout-2026-10-11)
-owns final verification. P02b-0's
-[entry audit](docs/roadmap/phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12)
-is complete; P02b-1's [producer decision package](docs/roadmap/phase-02b-delivery-log.md#p02b-1-decision-package-2026-10-12)
-and ADR-0057 are Accepted — 2026-10-12. The four implementation steps are
-authorized. Step 1 implements the shared snapshot/producer/audit lifecycle; its
-[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-1-step-1--shared-execution-lifecycle-2026-10-12)
-records passing verification and both completed independent review rounds.
-Step 2 implements immediate outbox production; its
-[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-1-step-2--immediate-outbox-production-2026-10-12)
-records passing verification and both completed review rounds.
-Step 3 implements successful-save collection, owner-only completion and the
-completed-provisioning publisher; its
-[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12)
-records passing verification and both completed review rounds. Step 4 adds
-production-census guards and catalogue enforcement; its
-[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
-records passing full backend verification and both completed review rounds.
-**P02b-1 is complete and merged** through
-[PR #29](https://github.com/HodeTech/LearnStack/pull/29) on 2026-10-12. The
-[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-1-merge-and-closeout-2026-10-12)
-owns final verification. **P02b-2's revised decision package and ADR-0046 are
-Accepted — 2026-10-12.** The four implementation steps and two independent review
-rounds per step are authorized on development. The
-[Step 1 record](docs/roadmap/phase-02b-delivery-log.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
-records both completed Step 1 reviews. Step 2 implements fenced transitions and
-row-bound terminal MUST audit; both independent review rounds pass.
-Step 3 implements hosted execution and observation; its
-[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
-owns verification and both completed review rounds. Step 4 enforcement and local
-closeout are complete; all four steps completed both independent review rounds.
-**P02b-2 is complete and merged** through
-[PR #30](https://github.com/HodeTech/LearnStack/pull/30) on 2026-10-13. Its
-[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
-owns final source/merge verification and CI evidence.
-Acceptance registers six new catalogue rules; the Step 4 record owns their
-delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3's
-[decision package](docs/roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13)
-is Accepted — 2026-10-13. Six implementation steps, each with commit and two
-independent review rounds, deliver durable acceptance, shared inbox/ledger,
-independent retries, both real defaults and Seeder handoff. Implementation is
-complete and merged through PR #31 on 2026-10-15. Step 1 implements shared
-storage and privilege proofs; both independent review rounds are complete. Its
-[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-1--shared-storage-and-privileges-2026-10-13)
-owns verification and review status. Step 2 implements durable acceptance and
-inbox primitives; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-2--durable-acceptance-and-inbox-primitives-2026-10-13)
-owns validation and both completed review rounds. Step 3 implements the closed
-business owner and completion gate; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-3--business-owner-and-completion-gate-2026-10-13)
-owns validation and both completed review rounds. Step 4 adds independent
-subscriber scheduling, terminal audit, replay and bounded observation; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13)
-owns validation and both completed review rounds. Step 5 implements useful
-defaults and semantic seed handoff; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
-owns validation and both completed independent review rounds. Both real default
-subscriptions are Active. Step 6 implements production-census enforcement and
-full packet closeout; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-owns completed validation/review receipts and PR/CI handoff. All six steps
-completed both independent review rounds. The
-[external review follow-up](docs/roadmap/phase-02b-delivery-log.md#p02b-3-external-review-follow-up-2026-10-15)
-records verified corrections and two further independent review rounds; the
-[second follow-up](docs/roadmap/phase-02b-delivery-log.md#p02b-3-second-external-review-follow-up-2026-10-15)
-records subsequent runtime/proof corrections and their completed reviews. The
-[P02b-3 merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15)
-owns final source/merge and CI verification.
-**P02b-4 is complete and merged** through
-[PR #32](https://github.com/HodeTech/LearnStack/pull/32) on 2026-10-19. Its
-[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
-records all nine job-runtime steps, three CI steps, independent reviews and both
-complete final-source hosted assignments. Production business and recurrence
-definitions remain empty. **P02b-5's decision package and ADR-0064 are Accepted
-— 2026-10-19**; their
-[decision pass](docs/roadmap/phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19)
-authorizes five implementation steps, each with commit and two fresh independent
-review rounds. Step 1 completes acceptance disclosures and the isolated token
-foundation after both independent review rounds; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-5-step-1--token-foundation-2026-10-19)
-owns the verified metric-privacy correction. Step 2 completes the real read-only
-subject after both independent review rounds; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19)
-owns validation. Step 3 completes attributed reconciliation and subject admission
-after both independent reviews; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-5-step-3--attributed-reconciliation-and-subject-admission-2026-10-19)
-owns verified log-emission and default-window test corrections. Step 4 installs
-the complete HTTP boundary and typed contract after both review rounds; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
-owns validation and completed reviews. Step 5 completes production enforcement
-and both independent review rounds; its
-[local closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
-separates source-bound CI receipts from live PR-head qualification and merge.
-All five steps are complete. A subsequent
-[review remediation](docs/roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20)
-verifies external findings. ADR-0065 is Accepted on 2026-10-20 after maintainer
-review. Its implementation and local proofs are delivered; the remediation
-record retains completed independent correction reviews and pre-merge receipts.
-BFF sessions and phase exit remain P02b-7–8; P02b-6's current record follows below.
-The [second external-review follow-up](docs/roadmap/phase-02b-delivery-log.md#p02b-5-second-external-review-follow-up-2026-10-20)
-owns subsequent runtime/proof corrections and their source-bound reviews.
-[ADR-0066](docs/decisions/0066-bounded-tenant-subject-admission.md) is Accepted —
-2026-10-20. Its retained-subject bound, cleanup ownership and closed fault/refusal
-signals are implemented with local runtime/exported proofs. The
-[implementation record](docs/roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
-retains source-bound validation and independent reviews; the merge closeout below
-owns final-source qualification.
-The [systematic correction record](docs/roadmap/phase-02b-delivery-log.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
-owns subsequent proof/diagnostic, document and measured CI timing reconciliation;
-all three correction steps and both independent review rounds are complete.
-**P02b-5 is complete and merged** through
-[PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20. Its
-[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
-owns exact final-head CI, unchanged-plan A/B qualification and identical merge
-trees. P02b-6's realm/TTL
-[decision pass](docs/roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
-is Accepted — 2026-10-21. The maintainer approved the package at `6d75e532`
-and its four implementation steps. G12's realm/reconciliation/callback choices
-and G13's issuance-TTL part are Accepted; G13's session part stays Open.
-The dedicated issuance follow-up,
-[ADR-0067](docs/decisions/0067-development-tenant-access-token-issuance.md), is
-Accepted — 2026-10-21 after separate maintainer approval. It formalizes the
-existing issuance choice without changing runtime or G13's Open session portion.
-P02b-6 Step 1 is complete locally after both review rounds; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
-owns implementation, fresh-provider qualification and review status.
-P02b-6 Step 2 is complete locally after both review rounds and fresh fix
-reviews; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21)
-owns the Accepted server-information response allowance and current proofs.
-Step 3 is complete locally after both review rounds and fresh correction
-verification; its
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21)
-owns actual seed/demo and cancellation evidence. Step 4's
-[record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-owns completed local implementation/reviews and source-bound qualification receipts.
-The correction record below owns source-bound hosted qualification; merge is
-separate.
-All four implementation steps and their recorded correction reviews are complete
-locally. The subsequent systematic correction pass retains its own review and
-current-head hosted qualification gates in the
-[correction record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-systematic-corrections-and-hosted-qualification-2026-10-21).
-P02b-6 implementation is merged through
-[PR #34](https://github.com/HodeTech/LearnStack/pull/34) on 2026-10-22.
-The [closed-PR CI correction](docs/roadmap/phase-02b-delivery-log.md#p02b-6-closed-pr-ci-rerun-correction-2026-10-22)
-owns subsequent rerun validation and its evidence limits.
-The [additional correction record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
-owns the current verified findings.
-[ADR-0068](docs/decisions/0068-development-warm-realm-qualification.md)
-is Accepted — 2026-10-22 under the maintainer's conditional approval after verified
-review corrections. Its first correction step is complete locally after both
-review rounds; the [stock qualification record](docs/roadmap/phase-02b-delivery-log.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
-owns evidence. Its [second correction step](docs/roadmap/phase-02b-delivery-log.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
-completes owned preparation and fresh complete planning after both independent
-review rounds. Its [third correction step](docs/roadmap/phase-02b-delivery-log.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
-completes local historical entry, credential/MFA, signed API and self-service
-proof after both independent review rounds. That record owns exact source-bound
-hosted assignments and their evidence limits. The merged implementation and
-post-merge CI correction are recorded above.
-P02b-7–8 remain pending;
-Phase 02b remains in progress.
-Phase 06 retains the full
+**Phase 01, Phase 02a and Phase 02d are complete; Phase 02b is the live phase.**
+[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md), the two-tenant walking
+skeleton and the first user-visible milestone, merged through PR #28 on
+2026-10-11: two hosts, two tenants, two education sites, one binary and one
+database. In [Phase 02b](docs/roadmap/phase-02b-events-auth.md), P02b-0 through
+P02b-5 are complete and P02b-1–5 merged through PRs #29–#33 — transactional event
+production, durable dispatch, subscriber delivery, background jobs and tenant API
+authentication — and P02b-6's realm and identity implementation is merged through
+PR #34, with post-merge CI corrections continuing on `development`. P02b-7 (BFF
+session) and P02b-8 (exit enforcement) are pending, and G13's session part stays
+Open, so browser sign-in is not implemented. Phase 06 retains the full
 renderer/Studio expansion.
 
-**Phase 01** shipped the .NET 10 solution scaffold under `backend/`
-(core + 7 modules × 4 projects + 4 test projects including the
-non-skippable `LearnStack.Tests.Architecture`), the `pnpm` frontend
-monorepo under `frontend/` (`apps/web` Next.js App Router +
-`packages/{config,ui,sdk}`), the local-dev compose stack at
-`infra/compose/dev.yml`, and the DX + CI surround (repo-root `Makefile`,
-`.env.example` single source of truth, `.githooks/pre-commit` formatter +
-Leakwatch, `infra/compose/e2e.yml` ephemeral overlay,
-`.github/workflows/ci.yml` with backend + frontend + meta + secret-scan
-required checks, `scripts/seed.sh`).
+**Status lives in one place.** Each phase document's Status block owns packet
+state and its decision register owns gate state; the phase's delivery log
+(`docs/roadmap/phase-<id>-delivery-log.md`) owns the dated decision packages, step
+records, reviews and closeouts
+([ADR-0069](docs/decisions/0069-phase-documents-and-delivery-logs.md)). This
+section stays a pointer: it links phase documents, never a delivery log, and does
+not restate a packet's history.
 
-**Phase 02a packets 0–3** shipped the decision set (Vogen, API
-versioning, audit partition management), the shared kernel core
-(`Result<T>` + `LocalizedMessage`, `Entity<TId>` / `AuditableEntity<TId>`,
-domain events, cursor pagination, `IClock` / `IRandom` / `IGuidFactory`),
-and the [ADR-0032](docs/decisions/0032-exception-handling-logging-and-observability.md)
-cross-cutting foundation (L1 `IExceptionHandler`, the eight-step MediatR
-pipeline, Serilog → OTLP, `TenantContextSpanProcessor`,
-`IErrorTrackingProvider`, `IProviderResilience<TPort>`, the `LS0001`
-analyzer). Those records are frozen delivery history.
+**What the kernel already guarantees** — tenancy and Row Level Security
+isolation, the audit write path, the entitlement socket, the API conventions and
+the foundation ports — is recorded packet by packet in
+[Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md), whose delivery records are
+frozen history, together with the 2026-08-08 restructure that moved correctness
+earlier, additive infrastructure later and proof earlier.
 
-**Packet 3b** repaired what the audit found before the first consumer
-existed: `Results.Unit` renamed to `None`, `Entity<TId>` given one typed
-equality body and `IStronglyTypedId` an `IsInitialized()`, the corpus's
-non-compiling examples and mis-prefixed localization keys corrected, and
-the Phase 01 development loop made to work — `make seed` exits 0, the e2e
-overlay boots, and compose ports bind loopback. Its record is
-[Delivery Record (Packet 3b)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-3b),
-kept separate from the frozen packets 0–3 record.
-
-**Packet 4** shipped the API conventions: `/api/v{N}` routing with startup
-guards for the escapes a route rule cannot see, one RFC 7807 shape on every
-error including the three the framework used to produce without one, cursor
-pagination and the sort grammar, the
-[ADR-0036](docs/decisions/0036-tenant-resolution-trusted-inputs.md) tenancy
-edge (host normalization, the trusted hop, headers as assertions, the anonymous
-rate limiter, a required `Deployment:Mode`), idempotency keys and ETag
-concurrency under
-[ADR-0037](docs/decisions/0037-idempotency-key-contract.md), a request-body
-limit that a test can actually assert, the first working SDK generation, and
-the OpenAPI mapping for strongly-typed identifiers that ADR-0023 had assigned
-to it. Its record —
-[Delivery Record (Packet 4)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-4)
-— lists the six defects the packet introduced and caught in its own review
-rounds alongside what it built, because most of them answered a **success** the
-client had no way to question — and the two that did not were worse: one handed
-back a truncated body under a `200`, the other a `500` per request that an
-anonymous caller could trigger at will.
-
-**Packet 5** shipped the foundation ports with the implementations that
-actually run today — `ICacheService` / `InMemoryCacheService`, `IEventBus` /
-`InProcessEventBus`, and Packet 3's `ISecretProvider` /
-`ConfigurationSecretProvider` — each selected at a single composition-root site
-so Phase 11's adapter is one line rather than a search. With them: `CacheKey`
-and `EnsureValid`, because there is no query filter and no RLS policy in front
-of a dictionary, so the key *is* the isolation boundary; the
-[ADR-0038](docs/decisions/0038-cross-cutting-port-and-event-contracts.md) port
-and event contracts, including `IntegrationEventEnvelope` and the non-generic
-`PublishAsync`; and the compose `gated` profile that took Kafka, Valkey, Vault,
-APISIX and the two Dapr containers out of `make dev`. `IHostToTenantResolver`
-and `IEntitlementProvider` are **not** here — they need the tenancy schema and
-belong to Packets 7 and 9. Its record,
-[Delivery Record (Packet 5)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-5),
-is long because several of its defects were introduced by the *fix* for an
-earlier one, and because three tests were caught agreeing with the code instead
-of constraining it — the packet's most repeated lesson.
-
-**Packet 7** shipped what a request does with a tenant: host classification and
-resolution, `EffectiveHost` normalization, the negative host cache, the
-four-origin `TenantContextFactory`, and `TenantContextBehavior`'s two-gate
-authority ceiling with `[AllowsUnresolvedTenantContext]` and `[PublicSurface]` as
-enumerated holes. With them: `ProvisionTenantCommand`, the one operation
-[ADR-0042](docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
-sanctions to write two aggregate roots on one transaction; `CreateOrganizationCommand`
-and `MapHostToTenantCommand`, both taking their tenant from the context and never
-from the request; `LearnStack.Tools.Seeder` and the two seed tenants
-(`demo-english`, `demo-yoga`) written through those commands, so `make seed` exercises
-the request path rather than a second one; and the request-level isolation suite —
-the first fixture pairing the real middleware chain with a real database. Its record,
-[Delivery Record (Packet 7)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-7),
-is long for the reason Packets 5 and 6's were: eleven steps, each reviewed twice,
-and the second round repeatedly found the first round's fix. The sharpest finding
-was a test that asserted an anonymous POST failed and therefore passed against a
-deleted endpoint.
-
-**Packet 6** shipped the tenancy schema: the four database roles, ten tables in
-two independent migration chains, and every one of them under `ENABLE` **and**
-`FORCE ROW LEVEL SECURITY` with the corrected
-[ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md)
-template — one `AND`-ed policy per table, in the four table classes. With them:
-`TenantId` / `OrganizationId` as Vogen value objects, the `Tenant` and
-`Organization` aggregates, the repository's first module spec at
-[docs/modules/tenancy/](docs/modules/tenancy/README.md), and
-[ADR-0040](docs/decisions/0040-ambient-unit-of-work.md)'s ambient unit of work —
-one connection per scope, every module `DbContext` enlisted on it, and
-`TransactionBehavior`'s body replacing the Packet 3 shell. Its record,
-[Delivery Record (Packet 6)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-6),
-is long for the reason Packet 5's was: the packet's own review rounds found that
-`make migrate` could not apply the migration the packet exists to ship, that a
-structural sweep is only as wide as the schema it runs on — a second permissive
-policy on `outbox_messages` passed the whole suite — and that the transaction
-boundary was wrong in the two places it is hardest to see.
-
-**Packet 8** shipped the Tenant Customization foundation — the module that makes
-the genericity claim true. Two aggregates a tenant declares as data,
-`TenantContentType` and `TenantLevelTaxonomy`; the payload gate
-[ADR-0043](docs/decisions/0043-customization-payload-validation.md) decides, with
-`JsonSchema.Net` pinned behind `IJsonSchemaValidator` and four ordered gates a
-tenant document passes before a row is written; four tables in a third migration
-chain under the corrected RLS template; four commands and the generation counter
-that every cache key will embed; and a built-in seed so a tenant that has authored
-nothing still has something to render. Its record,
-[Delivery Record (Packet 8)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-8),
-is long for the reason Packets 5, 6 and 7's were: the defects are its own review
-rounds' findings, and the sharpest was a term added by one round that the next
-round found had no test — removing it left all 1390 cases green.
-
-**Packet 9** shipped the audit write path and the entitlement socket. Audit first,
-because everything else commits through it: the `audit_log` / `audit_config` schema
-with its three append-only layers, the change-tracker capture, `PostgresAuditStore`'s
-four writes, the merged `IAuditCatalog`, and the two pipeline steps that use them —
-`AuditLogBehavior` classifies and parks intents at step 3 and reconciles in its
-`finally`, `TransactionBehavior` flushes the MUST-class rows on the owning frame
-immediately before `COMMIT`. With them the observable half of the fail-closed rule
-([ADR-0033 Amendment 3](docs/decisions/0033-audit-durability-model.md)): the `audit`
-health check, two counters and a `Critical` line. Two non-pipeline writers land too —
-`PlatformAdminScope.EnterAsync` records its own `security-event` row before the
-operation runs, and `AuditingTenantAssertionRecorder` audits a rejected tenant
-assertion per occurrence when a principal is attached and as a **burst** when none is.
-Then the socket [ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md)
-decides: `IEntitlementProvider` with `NullEntitlementProvider` registered in every
-deployment mode, `IFeatureFlags` composing over the port rather than reading
-`platform_entitlement_cache`, the three typed key registries carrying the Hub's own
-spellings, and `platform_killswitches` with its policies, its overlay and its cache
-family — and **no writer**, because every toggle runs inside a scope whose gate refuses
-everyone. Its record,
-[Delivery Record (Packet 9)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9),
-carries something the earlier ones did not: four **decisions**, because three of them
-are readings of an Accepted ADR rather than applications of it — and a reading inferred
-from a diff is one nobody can disagree with later. The lesson the rounds kept
-repeating was narrower than Packet 8's and sharper: a rule that cannot tell *clean*
-from *blind*. Three separate guards passed because nothing in the repository violated
-them and their mechanism was never exercised; each now ships with a companion that
-proves it can fail.
-
-**The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
-all recorded in the Phase 02a Status block:
-
-- *Correctness moved earlier.* The Row Level Security template that four
-  documents carried produced two **permissive** policies, which
-  PostgreSQL combines with `OR` — leaking every tenant-wide row across
-  tenants. [ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md)
-  corrects it, and [ADR-0033](docs/decisions/0033-audit-durability-model.md)
-  makes MUST-class audit a durable intent inside the business
-  transaction — which is also what stops the corrected policy from
-  rejecting every audit insert.
-- *Additive infrastructure moved later.* Per
-  [ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md), Packet 5
-  ships the foundation **ports and their default implementations**; the
-  Dapr, Kafka, APISIX and Vault adapters land in
-  [Phase 11](docs/roadmap/phase-11-production-hardening.md) against
-  written triggers.
-- *Proof moved earlier.* Two seed tenants in unrelated domains land in
-  Packet 7, and [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md)
-  renders both of them in a browser.
-
-**[Phase 02d: Two-Tenant Walking Skeleton](docs/roadmap/phase-02d-walking-skeleton.md)
-is the first delivered user-visible milestone** — the first phase whose output
-someone who does not read C# can evaluate: two hosts, two tenants, two
-education sites, one binary and one database.
-
-**Four modules hold domain code**, as of P02d-1 Step 2: Tenancy — the `Tenant`
-and `Organization` aggregates and `TenancyDbContext`; Customization —
-`TenantContentType`, `TenantLevelTaxonomy`, their generation counter and
-`CustomizationDbContext`; Audit — `AuditEntry`, `AuditConfig` and `AuditDbContext`;
-and Education — separate `Course` and `Lesson` roots, their contained translations
-and `EducationDbContext`. Content, Identity and Media remain scaffolded.
-P02d-1 is merged; its implementation, agent reviews and required PR checks are complete.
-P02d-2 supplies unrouted authoring commands and seeded content; public reads belong
-to P02d-4. Other module-level references
-in the docs (e.g. `ILiveClassProvider`, `ITenantSearch`) still describe intended
-shape owned by their named phases.
+**Four modules hold domain code:** Tenancy, Customization, Audit and Education.
+Content, Identity and Media remain scaffolded. Module-level references in the docs
+to types such as `ILiveClassProvider` or `ITenantSearch` describe intended shape
+owned by their named phases.
 
 ## Where to start
 
@@ -521,38 +85,16 @@ For any task, read in this order:
 
 Then read the phase that is live and the one it stands on:
 
-- [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md)
-  — **the live phase**. P02b-0 entry verification is complete; P02b-1 is complete
-  and merged through PR #29 on 2026-10-12. Its four steps deliver the producer
-  runtime and production-census enforcement. P02b-2's revised package/ADR-0046 are
-  Accepted. Steps 1–2 completed both review rounds; Step 3 implements hosted
-  dispatch and observation, with both independent review rounds complete. Step 4
-  enforcement and local closeout are complete; all four steps completed both
-  independent review rounds. P02b-2 is complete and merged through PR #30 on
-  2026-10-13; its merge closeout above owns final verification. P02b-3 is complete
-  and merged through PR #31 on 2026-10-15; all six steps and correction bundles
-  completed both review rounds. Its merge closeout above owns final verification.
-  P02b-4 is complete and merged through PR #32 on 2026-10-19; its merge closeout
-  above owns final verification. P02b-5's decision package and ADR-0064 are Accepted;
-  all five implementation steps and correction reviews are complete and merged
-  through PR #33 on 2026-10-20. Its merge closeout above owns verification.
-  P02b-6's realm/TTL decision package and four-step plan above are Accepted —
-  2026-10-21. Its [Step 1 record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
-  owns the executable fresh import and provider proofs. Step 2's record above
-  owns the completed local reconciler and Accepted response-budget decision;
-  Step 3 is complete locally after both review rounds and fresh corrections;
-  its record above owns actual lifecycle evidence. Step 4's record above owns
-  local implementation and source-bound qualification receipts; the correction
-  record above owns final hosted qualification and its evidence limits.
-  P02b-7–8 retain their
-  own decision passes; G13's session part stays Open.
-- [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
-  — complete and merged; the delivered public-site baseline and P02b-0 handoff.
-  `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency
-  map is authoritative for order, filename order is not.
-- [docs/roadmap/phase-02a-kernel-tenancy.md](docs/roadmap/phase-02a-kernel-tenancy.md)
-  — complete, with a dated Status block and a delivery record per packet. It is
-  the authority on what the kernel already guarantees, not on what to build next.
+- [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md) —
+  **the live phase**. Its Status block owns packet state; its decision register owns
+  gate state and links each Accepted decision package in the delivery log, which is
+  normative — read it before writing the code its gate governs.
+- [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md) —
+  complete; the delivered public-site baseline. It sorts after `02b`/`02c` but runs
+  **before** them: the roadmap dependency map, not filename order, is authoritative.
+- [docs/roadmap/phase-02a-kernel-tenancy.md](docs/roadmap/phase-02a-kernel-tenancy.md) —
+  complete; the authority on what the kernel already guarantees, not on what to
+  build next.
 
 Once the high-level reading is done, pick **exactly one** skill entry point based
 on the user's intent. The entry point dispatches the rest internally; do not
@@ -578,7 +120,7 @@ let the entry point pick it.
 | `docs/architecture/` | Conceptual descriptions of what we are building. Numbered `NN-topic.md` linearly. | Editable as the system evolves. |
 | `docs/decisions/` | ADRs — one-time decisions with status, context, decision, consequences. Redirect / superseded ADRs live under `_redirects/`. | Accepted ADRs are immutable except for dated Amendments and the two bounded corrections in [Documentation Standards § Correcting and Amending ADRs](docs/standards/13-documentation.md) ([ADR-0041](docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)). |
 | `docs/standards/` | Engineering rules (`NN-topic.md`, 00 – 21). Each anchored standard carries a `**Derives from:** ADR-NNNN` header. | Editable as the team learns; standard changes cite an ADR. |
-| `docs/roadmap/` | Phased plan (`phase-NN-topic.md`, 00 – 12 with 02a/02b/02c/**02d**, 08a/08b/08c, and 09/09b splits). Every phase doc carries the same six sections — Goal, Scope, Deliverables, Completion Criteria, Risks, Phase Exit Decision — with three declared exceptions listed in [the roadmap index](docs/roadmap/README.md): Phase 09b and Phase 12 are pointer documents into the Hub repository, and Phase 01 predates the convention. | Editable per phase; the Status block of a shipped packet is a dated delivery record and is not rewritten. |
+| `docs/roadmap/` | Phased plan (`phase-NN-topic.md`, 00 – 12 with 02a/02b/02c/**02d**, 08a/08b/08c, and 09/09b splits). Every phase doc carries the same six sections — Goal, Scope, Deliverables, Completion Criteria, Risks, Phase Exit Decision — with three declared exceptions listed in [the roadmap index](docs/roadmap/README.md): Phase 09b and Phase 12 are pointer documents into the Hub repository, and Phase 01 predates the convention. A phase with packets keeps its dated records — decision packages, step records, reviews, closeouts — in a sibling `phase-NN-delivery-log.md` ([ADR-0069](docs/decisions/0069-phase-documents-and-delivery-logs.md)); Phase 02a keeps its legacy single-file shape. | Phase doc editable per phase, its Status block holding packet state only. The delivery log is append-only: a shipped packet's records are not rewritten, and an Accepted decision package there is normative. |
 | `docs/modules/` | Per-module specifications (`<module>/README.md` + `permissions.md` + `audit.md`), one directory per module, created with the first spec — [Tenancy](docs/modules/tenancy/README.md), Phase 02a Packet 6, [Customization](docs/modules/customization/README.md), Packet 8, and [Audit](docs/modules/audit/README.md), Packet 9. The ten sections are fixed by [Documentation Standards](docs/standards/13-documentation.md). | Editable with the module. |
 | `docs/glossary.md` | Terminology source of truth. | Editable; new term goes here first, then used. |
 
@@ -692,6 +234,14 @@ rules:
   material moves by secret-store replication and is referenced by path
   from `PUT /api/internal/tenants/{id}/host-mappings`, never by value
   through a payload LearnStack caches, logs, audits and mirrors.
+- **Append a dated packet record to a phase document, or narrate packet status
+  anywhere but its Status block.** Decision packages, step records, reviews,
+  corrections and closeouts are entries in the phase's delivery log. This file and
+  the repository README point at the phase document and link no delivery log, and
+  the roadmap index's § Phases links none either
+  ([ADR-0069](docs/decisions/0069-phase-documents-and-delivery-logs.md)).
+  `scripts/roadmap-structure.py` fails the build otherwise, and
+  `scripts/markdown-fragment-audit.py` fails it on any anchor a move leaves broken.
 - Copy the RLS template into a second document. It lives only in
   [Database Standards](docs/standards/05-database.md); everywhere else
   links to it. The last duplication shipped a broken policy into four
@@ -794,8 +344,7 @@ rules:
   rows directly — use `IAuditStore`, `IEntitlementProvider.RefreshAsync`, `IOutbox`.
   Only ADR-0046's confined dispatcher writes outbox status through fenced
   parameterized SQL; its terminal UPDATE and narrow witness-bound audit INSERT
-  share one transaction. P02b-2 Step 2 implements that accepted exception; both
-  independent review rounds passed.
+  share one transaction.
 - Write `inbox_messages` or `event_deliveries` from a module or Seeder. ADR-0046's
   transport-owned acceptance, inbox/business owner and confined scheduler alone
   write their granted columns.

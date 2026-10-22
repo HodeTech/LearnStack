@@ -77,15 +77,12 @@ keeps the phase from re-deciding settled questions or repairing repaired defects
   [ADR-0044](../decisions/0044-audit-write-path.md). This phase adds the entry points it
   does not yet cover.
 
-At the [P02b-0 entry audit](phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12), `IOutbox`
-and step 7's implementation were absent. P02b-1 Step 2 now supplies immediate
-enqueue and the enrollment/invariant guard. P02b-2 Step 3 implements the
-API-host `OutboxProcessor` BackgroundService, with both independent review
-rounds complete. P02b-3 delivers `IInboxGuard` and `inbox_messages` as shared
-transport infrastructure under ADR-0046. P02b-4 delivers guarded Hangfire
-storage, worker activation and all nine runtime steps; its
-[merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) owns final verification.
-The realm's protocol mappers belong to P02b-6. Packet 5's earlier `IInboxGuard`
+At the [P02b-0 entry audit](phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12),
+`IOutbox` and step 7's implementation were absent. P02b-1 supplies immediate
+enqueue and the enrollment/invariant guard; P02b-2 the API-host `OutboxProcessor`
+BackgroundService; P02b-3 `IInboxGuard` and `inbox_messages` as shared transport
+infrastructure under ADR-0046; P02b-4 guarded Hangfire storage and worker
+activation; P02b-6 the realm's protocol mappers. Packet 5's earlier `IInboxGuard`
 references were planned comments, not an interface declaration.
 
 ### What this phase is not
@@ -220,10 +217,8 @@ Decisions made or referenced in this phase:
 - [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) is Accepted
   with its bounded delivery supersessions and separate additive audit seam.
   [ADR-0047](../decisions/0047-transactional-background-job-runtime.md) and
-  [P02b-4's package](phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15) are Accepted — 2026-10-15;
-  all nine implementation steps are complete and merged; the
-  [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) owns final-source
-  qualification and merge verification.
+  [P02b-4's package](phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15)
+  are Accepted — 2026-10-15.
 
 ## Scope
 
@@ -237,12 +232,12 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | Packet | Contents | Cannot start until |
 |---|---|---|
 | **P02b-0** | Phase entry: every premise the register below cites re-verified against `HEAD` — the code, the corpus, the Hub repository — and the register corrected where Phase 02d moved it. It drafts no record: each gate closes in the decision pass of the first packet it shapes, and each glossary headword this phase needs — `inbox`, outbox lease, dead letter, audit frame, job activator, integration-event consumer — is written in the pass whose gate fixes its meaning | [Phase 02d](phase-02d-walking-skeleton.md) exits |
-| **P02b-1** | **Complete and merged — [PR #29 closeout](phase-02b-delivery-log.md#p02b-1-merge-and-closeout-2026-10-12).** Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
-| **P02b-2** | **Complete and merged — [PR #30 closeout](phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13).** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
-| **P02b-3** | **Complete and merged — [PR #31 closeout](phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15).** Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
-| **P02b-4** | **Complete and merged — [PR #32 closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19).** Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; all nine implementation steps and their review gates delivered; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
-| **P02b-5** | **Complete and merged — [PR #33 closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20).** Five steps and correction reviews complete under Accepted ADR-0064/0065/0066. API authentication: closed JWT profile, ordered reconciliation and attributed rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
-| **P02b-6** | **Implementation merged through PR #34 — [Step 4 qualification](phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21); [post-merge CI correction](phase-02b-delivery-log.md#p02b-6-closed-pr-ci-rerun-correction-2026-10-22).** Realm and seed: shared client scope/mappers, protected user-profile UUIDs agreeing with `SeedData`, safe warm reconciliation, narrow account self-service and real Keycloak/API proofs | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
+| **P02b-1** | Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
+| **P02b-2** | Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
+| **P02b-3** | Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
+| **P02b-4** | Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
+| **P02b-5** | API authentication: closed JWT profile, ordered reconciliation and attributed rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
+| **P02b-6** | Realm and seed: shared client scope/mappers, protected user-profile UUIDs agreeing with `SeedData`, safe warm reconciliation, narrow account self-service and real Keycloak/API proofs | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
 | **P02b-7** | BFF session: Auth.js, the cookie session, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
 | **P02b-8** | `LS0002`, the carrier reconciliations this phase owes, the re-verification that the behavioural check is still required under the name it reports, and the exit checks | G16, G18 (the erasure inventory) Accepted |
 
@@ -293,11 +288,7 @@ premise a row cites is re-verified at that pass rather than trusted.
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
 an enrollment/invariant guard, and supply owner-side domain collection and the
 first publisher. P02b-2 delivers hosted producer dispatch and production-census
-enforcement; all four steps and both independent review rounds are complete and
-merged. The [merge closeout](phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13) owns final
-verification. P02b-3 delivers independent subscriber execution and enforcement;
-it is complete and merged, with final CI/review/merge verification in its
-[merge closeout](phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15).
+enforcement; P02b-3 delivers independent subscriber execution and enforcement.
 The table shipped in Packet 6.
 
 A handler calls `IOutbox.EnqueueAsync` and the row commits on the same **transaction**
@@ -331,9 +322,8 @@ Dapr trigger verbatim — so it stays with Phase 11.
   role guard, on
   the pattern `Platform_DataSource_Resolved_Only_By_PlatformAdminScope` already holds.
   `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor` is **Implemented**
-  with Step 4's nonempty credential caller census and passing planted controls;
-  all four steps and both independent review rounds are complete and merged.
-  The [merge closeout](phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
+  with P02b-2 Step 4's nonempty credential caller census and passing planted
+  controls.
 - The three carriers that say the credential lives in "the worker host" —
   [Database Standards § Database roles](../standards/05-database.md#database-roles),
   `architecture/15` and `.env.example` — are derived cells, not a topology decision;
@@ -444,12 +434,10 @@ Phase 11 owns `/readyz` and production alert windows.
 
 ### Background jobs
 
-**Current implementation — 2026-10-18.** P02b-4's nine implementation steps and
-review gates are locally complete under Accepted ADR-0047/0058/0059/0060/0061.
-The [local closeout](phase-02b-delivery-log.md#p02b-4-local-closeout-2026-10-18) owns exact qualification
-and remaining PR/CI/merge work. The pre-acceptance checklist below is historical
-preparation; the Accepted decision package and delivery records above own current
-authority.
+P02b-4 delivers this scope under Accepted ADR-0047/0058/0059/0060/0061; its
+[decision package](phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15) holds the accepted
+answers. The pre-acceptance checklist below is historical preparation, not
+current authority.
 
 **Historical pre-acceptance preparation (not current authority).**
 
@@ -1034,16 +1022,9 @@ P02b-3's
 also cover the combined HTTP/event-delivery tracing criterion: actual committed
 rows match the enqueuing activity, announced tenant/org and exact nonempty
 partition. The
-[P02b-3 merge closeout](phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15) owns final combined
-event verification. P02b-4's job infrastructure is complete and merged; its
-[merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) owns exact qualification.
-P02b-5 is complete and merged after all five steps and their independent reviews;
-its [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) owns exact final-source
-qualification and validation limits. P02b-6's four implementation steps and local
-reviews are complete; its Step 4 and correction records own local qualification,
-independent reviews and source-bound complete hosted receipts.
-P02b-7–8 remain pending.
-The whole phase is not complete.
+[P02b-3 merge closeout](phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15) owns final
+combined event verification. Packet state lives in the Status block at the top of
+this document; this section names criteria and the records that prove them.
 
 - An aggregate change and its outbox row commit together and roll back together,
   asserted as `learnstack_app`. An enqueue whose event `TenantId` differs from the

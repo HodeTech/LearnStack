@@ -56,8 +56,8 @@ anonymous, so it needs no identity provider.
 
 ### What this phase inherits
 
-This is the Phase 02a entry baseline. The dated delivery records below own current
-implementation; P02d-2 now supplies the locale, branding and Education writers.
+This is the Phase 02a entry baseline. The dated records in the
+[delivery log](phase-02d-delivery-log.md) own what the phase built on it.
 
 Most of what this phase meets is already shipped or already decided. Each item links its
 owner; where a choice is still open, it names the register row that answers it.

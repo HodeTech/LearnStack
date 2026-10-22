@@ -171,7 +171,8 @@ match the change:
   for prerequisites, artifact review and cleanup. The Playwright library proof
   covers nine seeded pages and 27 audits; Phase 06 owns the full Playwright Test/
   axe suite. There is no `pnpm test:a11y` or `pnpm test:e2e` script.
-- Documentation-only → broken-link sweep + `docs/analysis/` residual scan
+- Documentation-only → `make lint-docs` (whole-tree fragment audit and roadmap
+  structure guard) + broken-link sweep + `docs/analysis/` residual scan
   (see Step 7's link audit).
 
 A failing test is the work telling you to keep going. Fix the underlying issue;
@@ -187,7 +188,12 @@ list, update what applies, leave nothing stale:
 
 - **Roadmap.** Did this phase deliver something new? Update the phase doc's
   Deliverables / Completion Criteria. Did this complete a phase exit
-  criterion? Note it.
+  criterion? Note it. A packet's decision package, step record, review round,
+  correction or closeout is a dated `###` entry under its packet in the phase's
+  `phase-<id>-delivery-log.md`, never a section of the phase doc; the phase
+  doc changes only the packet's Status row. Do not narrate packet status in
+  `CLAUDE.md`, the repository README or the roadmap index
+  ([ADR-0069](../../../docs/decisions/0069-phase-documents-and-delivery-logs.md)).
 - **Standards.** Did the change introduce a new rule or refine an existing
   one? Update the relevant standard + cite the ADR (use
   [write-adr](../write-adr/SKILL.md) if the rule deserves one).

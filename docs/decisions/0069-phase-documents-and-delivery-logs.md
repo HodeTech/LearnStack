@@ -249,3 +249,25 @@ Acceptance authorizes this work, in this order:
   [§ Decision Timing](../roadmap/README.md#decision-timing).
 - [Documentation Standards](../standards/13-documentation.md).
 - [Glossary § Phase, Packet](../glossary.md).
+
+## Amendments
+
+### 2026-10-22 — The README carries status, and budgets count non-blank lines
+
+Applying § Implementation Notes step 2 found a carrier the Decision Drivers did not
+name. The repository [README](../../README.md)'s § Where it is today narrated packet
+state in 105 lines with 23 delivery-log links, and its Quickstart carried two more
+links and a completed packet's review-round narrative. It is held
+exactly as `CLAUDE.md` is: § Where it is today within 40 lines, and no
+delivery-log link anywhere in the file. The structure guard enforces both.
+
+The Decision states its section budgets in lines without saying how they are
+counted. Every budget except the whole-file one counts **non-blank** lines: the
+Status block is everything between the title and `## Goal`, a section runs from its
+heading to the next heading of the same or a higher level, and a roadmap index
+entry is one top-level list item with its continuation lines. The phase document's
+2,000-line budget stays a count of physical lines.
+
+The Decision is unchanged — status lives once, and each bound applies the same
+rule to one more place or states how an existing bound is measured.
+
