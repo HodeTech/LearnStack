@@ -16906,6 +16906,9 @@ remains pending until its real settlement. Other URLs, URL objects and calls
 with options/explicit second arguments pass through unchanged. Any remaining
 timer is cleared on actual settlement; notifications cannot replace the original
 response/error.
+Fetch resolves at response headers: the two-second budget does not extend through
+Next's later JSON body consumption. The existing readiness refusal still bounds
+that preparation check; no universal body/network I/O deadline is claimed.
 The shipped launcher, workflow, plan and all ingress/HMR readiness, probe,
 cleanup and success conditions remain unchanged.
 
@@ -16958,6 +16961,26 @@ test execution; the corrected repository runner completes. Both inspect the
 recorded evidence limits and retain the historical A3 failure. No provider,
 native or full frontend experiment is repeated. All subprocesses finish and the
 tracked tree remains clean. The second fresh review round remains required.
+
+#### Second independent CI-correction review
+
+Two different fresh reviewers inspect all seventeen files in
+`61e47ff3..8ae35ecf` and their relevant dependencies: `gpt-6.1-sol` at `xhigh`
+and `gpt-6-astra` at `high`. Both approve without a verified actionable finding.
+The first independently passes the three added Python controls, checks raw
+VSTest events alongside original/sanitized TRX and verifies nine source, six
+top-level and seven mutant-subreceipt hashes. The second independently passes
+all twenty-three focused frontend cases with the actual report guard and zero
+skips/todos. Their source/receipt checks confirm original-count separation,
+application-role observation, strict parser output, real fetch settlement,
+unchanged readiness/cleanup admission, provider/build hashes and unchanged plan.
+
+The explicit limit above distinguishes fetch/header settlement from later body
+consumption; it adds no runtime change. Both reviewers preserve the historical
+A3 failure and pending corrected-source hosted qualification. No provider,
+native, .NET or broad frontend suite is repeated. All subprocesses finish and
+the tracked tree stays clean. Both fresh correction review rounds are complete;
+complete corrected-source hosted qualification is the remaining gate.
 
 
 ## Completion Criteria
