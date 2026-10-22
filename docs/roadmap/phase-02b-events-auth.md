@@ -16939,6 +16939,26 @@ fragments with no broken target, new analysis reference or overlong added prose.
 The diagnostic correction still needs its two fresh independent review rounds
 and complete corrected-source hosted qualification before closeout.
 
+#### First independent CI-correction review
+
+Two fresh reviewers inspect all seventeen files in `61e47ff3..87ecc114` and
+their relevant dependencies: `gpt-6-astra` at `xhigh` and `gpt-6.1-sol` at
+`high`. Both approve without a verified actionable finding. They independently
+check application-role snapshot attribution, original-count separation, closed
+parser output, actual failure preservation, exact fetch targeting/settlement,
+current-child admission and unchanged success/cleanup conditions.
+
+The security reviewer passes all forty-six offline controls and independently
+checks nine source hashes, six receipt hashes, the real mutant's original
+assertion/stack and sanitized failed outcome. The frontend reviewer independently
+passes all twenty-three focused cases through the actual runner/report guard,
+with zero skips/todos, and verifies native/final source bindings and installed
+provider/build hashes. An initial unsupported runner invocation refuses before
+test execution; the corrected repository runner completes. Both inspect the
+recorded evidence limits and retain the historical A3 failure. No provider,
+native or full frontend experiment is repeated. All subprocesses finish and the
+tracked tree remains clean. The second fresh review round remains required.
+
 
 ## Completion Criteria
 
