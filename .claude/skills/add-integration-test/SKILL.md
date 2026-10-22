@@ -57,7 +57,7 @@ architecture test) plus any other invariant the change touches. See
 |-------|----------|-------------|
 | Scenario | Yes | A short name + setup + act + assert. |
 | Seed | Yes | Minimum tenants / orgs / users / customization data the scenario needs. |
-| Required containers | Yes | **Postgres, always and only.** Not Valkey, not Kafka — nothing the backend runs calls them. Meilisearch / LiveKit / SeaweedFS only for a provider-contract test, and only from the phase that ships the adapter. |
+| Required containers | Yes | PostgreSQL for application data; pinned Keycloak with its separate PostgreSQL for actual identity-provider proofs. Other providers require a shipping adapter consumer under ADR-0035. |
 | Tenant context | Yes | Which tenant + org the act phase runs as. |
 
 ## Workflow
@@ -85,9 +85,29 @@ architecture test) plus any other invariant the change touches. See
 > Anything touching either carries `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`,
 > which is how CI routes it to `backend-integration` rather than `backend`.
 
-What the fixtures do today:
+**P02b-6 provider fixture.** Real issuance uses
+[`TenancyIdentity/KeycloakFixture`](../../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/KeycloakFixture.cs)
+with pinned Keycloak and its own PostgreSQL database. Share read-only provider
+state through `SharedKeycloakRealm`; mutating classes and variants own separate
+providers and restore case-owned changes before returning.
+Its generated CA is trusted only by the fixture's HTTPS clients, with normal
+hostname validation and a wrong-root refusal control. Never install a fixture CA
+in the host trust store or bypass TLS/cookie rules to get a passing login.
+Use real code/S256 authentication, keep credentials/tokens out of assertions and
+logs, and never follow the unimplemented BFF callback to claim session coverage.
+This fixture does not replace application-role isolation proofs. Every consuming
+test class has the Docker trait, including classes outside `Database/`.
+Real-token API qualification uses the separate nonparallel
+`TenantRealmApiTestGroup`, combining this provider with `PublicReadFixture` while
+retaining the existing physical read-only/application-role observer. Do not add
+an application database to the provider-only collection. Profile protection uses
+a separate class fixture, with serialized cases and owned restoration. Do not
+mutate the shared read-only provider. No fixture-only grant or mapper may supply
+a delivered self-service baseline that the committed import/reconciler lacks.
 
-- Spin **Postgres only** via Testcontainers. Not Valkey, not Kafka — nothing the
+What the database fixtures do today:
+
+- Spin **Postgres** via Testcontainers. Not Valkey, not Kafka — nothing the
   backend runs today calls either, and both sit behind the `gated` compose profile
   per [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md).
 - Provision the **four database roles** by running the same script the compose

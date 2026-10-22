@@ -30,6 +30,13 @@ public sealed partial class DatabaseRoleTests : IClassFixture<PostgresFixture>
 
     public DatabaseRoleTests(PostgresFixture postgres) => _postgres = postgres;
 
+    [Fact]
+    public async Task ThePublishedDatabasePortIsExclusivelyLoopback()
+    {
+        (await _postgres.PublishedPortsAreLoopbackAsync()).Should().BeTrue(
+            "application and identity fixtures must share one publication address");
+    }
+
     [Theory]
     [InlineData("learnstack_migration", false)]
     [InlineData("learnstack_app", false)]

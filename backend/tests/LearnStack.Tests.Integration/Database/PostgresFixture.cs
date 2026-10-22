@@ -1,4 +1,5 @@
 using System.Data.Common;
+using DotNet.Testcontainers.Configurations;
 using Npgsql;
 using Testcontainers.PostgreSql;
 using Xunit;
@@ -103,6 +104,8 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithEnvironment("LEARNSTACK_APP_PW", AppPassword)
         .WithEnvironment("LEARNSTACK_PLATFORM_PW", PlatformPassword)
         .WithEnvironment("LEARNSTACK_OUTBOX_PW", OutboxPassword)
+        // Keep concurrent publishers in one allocator address family, including identity fixtures.
+        .WithCreateParameterModifier(parameters => ContainerLoopbackPorts.Configure(parameters, "5432/tcp"))
         .Build();
 
     /// <summary>Owns every table. `dotnet ef database update` and nothing else.</summary>
@@ -117,10 +120,27 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary><c>BYPASSRLS</c>; only the outbox dispatcher's equivalent.</summary>
     public string OutboxConnectionString => For("learnstack_outbox_admin", OutboxPassword);
 
+    internal async Task<bool> PublishedPortsAreLoopbackAsync()
+    {
+        using var docker = TestcontainersSettings.OS.DockerEndpointAuthConfig.GetDockerClientBuilder(Guid.NewGuid()).Build();
+        var actual = await docker.Containers.InspectContainerAsync(_container.Id);
+        return ContainerLoopbackPorts.IsExclusive(actual, "5432/tcp");
+    }
+
 
     public async Task InitializeAsync()
     {
         await _container.StartAsync();
+        try
+        {
+            if (!await PublishedPortsAreLoopbackAsync())
+                throw new InvalidOperationException("Application fixture published port is not exclusively loopback.");
+        }
+        catch
+        {
+            await _container.DisposeAsync();
+            throw;
+        }
 
         var script = await File.ReadAllTextAsync(RepositoryPath.RolesScript());
         await _container.CopyAsync(System.Text.Encoding.UTF8.GetBytes(script), ContainerScriptPath);

@@ -2,7 +2,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { composeSelection } from './compose.mjs';
-import { DemoProcesses } from './demo-process.mjs';
+import { DemoCommandError, DemoProcesses } from './demo-process.mjs';
 import { boundedBody } from './demo-http.mjs';
 
 export function defaultServices(model) {
@@ -57,7 +57,7 @@ export async function waitCompose(selected, processes, signal, postgresOnly = fa
           .map((line) => JSON.parse(line));
     if (healthyServices(model, rows, postgresOnly)) break;
     if (Date.now() >= deadline)
-      throw new Error('Compose readiness deadline; inspect the selected project');
+      throw new DemoCommandError('Compose readiness', undefined, undefined, { reason: 'deadline' });
     await pause(1000, undefined, { signal });
   }
   if (postgresOnly) return;
@@ -75,7 +75,8 @@ export async function waitCompose(selected, processes, signal, postgresOnly = fa
       } catch {
         /* Bounded first-boot polling; never expose server responses. */
       }
-      if (Date.now() >= deadline) throw new Error('Both Keycloak realm discoveries must be ready');
+      if (Date.now() >= deadline)
+        throw new DemoCommandError('Keycloak realm readiness', undefined, undefined, { reason: 'deadline' });
       await pause(1000, undefined, { signal });
     }
   }

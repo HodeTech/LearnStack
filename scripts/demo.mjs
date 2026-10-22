@@ -14,7 +14,7 @@ import { resolve, join } from 'node:path';
 import { getCACertificates } from 'node:tls';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { composeSelection, repositoryRoot } from './compose.mjs';
+import { composeProcessEnvironment, composeSelection, repositoryRoot } from './compose.mjs';
 import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
 import { demoRequest, vacant } from './demo-http.mjs';
 import { defaultServices, waitCompose } from './wait-compose.mjs';
@@ -22,6 +22,9 @@ import { publicDemoApiEnvironment, publicWebEnvironment } from './public-runtime
 import { apiCompletionObserver } from './demo-observation.mjs';
 import { publicSeederEnvironment, validateDemoDatabaseConfiguration } from './demo-database.mjs';
 import { demoSource } from './demo-source.mjs';
+import { RealmError, realmFailureNotice } from './development-realm-errors.mjs';
+import { readRealmEnvironmentFile, realmEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
+import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
 const backendRoot = join(repositoryRoot, 'backend');
@@ -29,6 +32,14 @@ const seederDll = join(
   backendRoot,
   'src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll',
 );
+
+class DemoSetupCancellation extends Error {
+  constructor(error) {
+    const notice = error instanceof RealmError && error.preparationDispatched === true
+      ? '\n' + realmFailureNotice(error) : '';
+    super('demo: setup cancelled' + notice);
+  }
+}
 
 /** Only the owned host's structured lifetime event establishes listener readiness. */
 export function isApiListenerEvent(line, origin) {
@@ -75,12 +86,13 @@ export async function disposeDemoResources({ processes, finish, teardown, remove
 
 /** Only fixed local diagnostics may leave the launcher boundary. */
 export function demoFailureMessage(error) {
-  return error instanceof DemoCommandError ||
-    (error instanceof Error &&
+  if (error instanceof RealmError) return realmFailureNotice(error);
+  if (error instanceof DemoCommandError) return `${error.message} (${error.reason})`;
+  return error instanceof Error &&
       (error.message === 'Local demo database configuration is invalid' ||
         /^(?:Use make demo|Port \d+ is occupied|Another demo owns|TLS leaf|Seed hosts|Environment disagrees|CI requires)/.test(
           error.message,
-        )))
+        ))
     ? error.message
     : 'demo: startup/proof failed; inspect prerequisites, TLS, configuration and selected stack';
 }
@@ -110,7 +122,9 @@ export async function startDemo(mode) {
   const run = (command, args, label, options = {}) =>
     processes.run(command, args, {
       cwd: repositoryRoot,
-      env: process.env,
+      // Build and setup tools need process prerequisites, not private realm or
+      // dispatcher credentials. Compose and runtime children have exact owners.
+      env: publicSeederEnvironment(),
       label,
       ...options,
     });
@@ -211,6 +225,8 @@ export async function startDemo(mode) {
         return Math.min(bound, workflowDeadline - Date.now());
       });
     }
+    if (mode === 'local' && existsSync(rootEnv))
+      realmEnvironment(await readRealmEnvironmentFile(rootEnv));
     mkdirSync(join(repositoryRoot, '.data'), { recursive: true });
     try {
       mkdirSync(lock, { mode: 0o700 });
@@ -231,8 +247,12 @@ export async function startDemo(mode) {
     ])
       await run(command, args, `Required ${command}`, {
         cwd: command === 'dotnet' ? backendRoot : repositoryRoot,
+        ...(command === 'docker' ? { env: composeProcessEnvironment() } : {}),
         timeout: 15000,
       });
+    const dockerEnvironment = composeProcessEnvironment();
+    validateLocalDockerContext(dockerEnvironment, JSON.parse(await run('docker', ['context', 'inspect'],
+      'Local Docker context', { env: dockerEnvironment, capture: true, timeout: 5000 })));
     privateRoot = mkdtempSync(join(tmpdir(), 'learnstack-demo-'));
     // Git/hook configuration is untouched. The frontend lock and pinned SDK/tool
     // manifests are the same dependency inputs used by required checks.
@@ -300,6 +320,7 @@ export async function startDemo(mode) {
           .map(([key, value]) => `${key}=${value}`)
           .join('\n') + '\n';
       writeFileSync(rootEnv, ownedEnvironment, { flag: 'wx', mode: 0o600 });
+      realmEnvironment(ownedEnvironment);
       await run(
         'openssl',
         [
@@ -328,9 +349,12 @@ export async function startDemo(mode) {
           flag: 'wx',
           mode: 0o600,
         });
+      realmEnvironment(await readRealmEnvironmentFile(rootEnv));
       await run('node', ['scripts/public-local.mjs', 'prepare'], 'Private local preparation');
     }
-    const rawValues = parseLocalEnvironment(readFileSync(rootEnv, 'utf8'));
+    const privateSource = await readRealmEnvironmentFile(rootEnv);
+    realmEnvironment(privateSource);
+    const rawValues = parseLocalEnvironment(privateSource);
     for (const [key, value] of Object.entries(rawValues))
       if (process.env[key] !== undefined && process.env[key] !== value)
         throw new Error('Environment disagrees with private root configuration');
@@ -374,6 +398,9 @@ export async function startDemo(mode) {
       LEARNSTACK_COMPOSE_ENV_FILE: rootEnv,
     };
     selected = composeSelection(mode === 'ci' ? 'e2e' : 'dev', composeEnvironment);
+    // Selection can remove inherited Docker controls assigned in the private file.
+    validateLocalDockerContext(selected.env, JSON.parse(await run('docker', ['context', 'inspect'],
+      'Selected Docker context', { env: selected.env, capture: true, timeout: 5000 })));
     const composeModel = JSON.parse(
       await compose(['config', '--format', 'json'], {
         capture: true,
@@ -402,7 +429,10 @@ export async function startDemo(mode) {
     await waitCompose(selected, processes, controller.signal, true);
     await run('make', ['migrate'], 'All migration chains', {
       env: {
-        ...process.env,
+        ...publicSeederEnvironment(),
+        LEARNSTACK_COMPOSE_PROJECT: selected.project,
+        LEARNSTACK_COMPOSE_ENV_FILE: selected.file,
+        LEARNSTACK_COMPOSE_MODE: selected.mode,
         ConnectionStrings__Migration: rawValues.ConnectionStrings__Migration,
       },
       timeout: 300000,
@@ -413,6 +443,7 @@ export async function startDemo(mode) {
       env: publicSeederEnvironment(rawValues.ConnectionStrings__Default),
       timeout: 180000,
     });
+    await reconcileDevelopmentRealm({ selected, signal: controller.signal });
     if (mode === 'ci') {
       await compose(['stop', 'keycloak'], { timeout: 20000 });
       const rows = await compose(['ps', '--status', 'running', '--format', '{{.Service}}'], {
@@ -474,7 +505,8 @@ export async function startDemo(mode) {
     const readinessDeadline = Date.now() + 60000;
     while (!observation.apiReady || !observation.webReady) {
       processes.assertActive();
-      if (Date.now() >= readinessDeadline) throw new Error('Owned API/web startup deadline');
+      if (Date.now() >= readinessDeadline)
+        throw new DemoCommandError('Owned API/web startup', undefined, undefined, { reason: 'deadline' });
       await pause(100, undefined, { signal: controller.signal });
     }
     for (const lane of manifest) {
@@ -520,8 +552,12 @@ export async function startDemo(mode) {
     try {
       await dispose();
     } catch {
-      throw new DemoCommandError('Cleanup could not be confirmed; owned private files retained');
+      if (error instanceof RealmError && error.preparationDispatched === true)
+        throw new RealmError('cleanup', 'cleanup', true);
+      throw new DemoCommandError('Cleanup could not be confirmed; owned private files retained',
+        undefined, undefined, { reason: 'cleanup' });
     }
+    if (mode === 'local' && signalRequested) throw new DemoSetupCancellation(error);
     throw error;
   }
 }
@@ -548,7 +584,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       ]);
     }
   } catch (error) {
-    if (runtime?.mode !== 'local' || !runtime.signalRequested()) {
+    if (error instanceof DemoSetupCancellation) {
+      console.error(error.message);
+      process.exitCode = 130;
+    } else if (runtime?.mode !== 'local' || !runtime.signalRequested()) {
       // Labels are fixed locally; never echo provider, configuration or build output.
       console.error(demoFailureMessage(error));
       process.exitCode = 1;

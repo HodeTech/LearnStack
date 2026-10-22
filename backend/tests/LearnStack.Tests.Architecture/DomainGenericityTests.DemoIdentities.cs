@@ -104,6 +104,11 @@ public sealed partial class DomainGenericityTests
                 }
             }
         }
+        foreach (var identity in SeedData.IdentityUsers)
+        {
+            values.Should().Contain(new DemoIdentity("id", identity.UserId.Value.ToString("D")));
+            values.Should().Contain(new DemoIdentity("identity-username", identity.Username));
+        }
         values.Where(row => row.Kind == "id").Select(row => row.Value).Should().OnlyHaveUniqueItems();
         values.Should().NotContain(row => row.Value == "Published" || row.Value == "enrollment_required" || row.Value == "en");
         var fixture = Path.Combine(RepositoryPaths.RepoRoot(), "frontend/apps/web/src/test/fixtures/demo-identities.json");
@@ -119,7 +124,10 @@ public sealed partial class DomainGenericityTests
         var identity = vocabulary.Values.First(row => row.Kind == "tenant-name").Value;
         var id = vocabulary.Values.First(row => row.Kind == "id").Value;
         var key = vocabulary.Values.First(row => row.Kind == "content-type-key" && !vocabulary.PlatformValues.Contains(row.Value)).Value;
-        foreach (var value in new[] { identity, key, Guid.Parse(id).ToString("B").ToUpperInvariant(), Guid.Parse(id).ToString("N") })
+        var username = SeedData.IdentityUsers[0].Username;
+        var actor = SeedData.IdentityUsers[0].UserId.Value.ToString("D");
+        foreach (var value in new[] { identity, key, username, actor,
+            Guid.Parse(id).ToString("B").ToUpperInvariant(), Guid.Parse(id).ToString("N") })
             DemoLiteralViolations("Probe.cs", $"class Probe {{ string Value = {JsonSerializer.Serialize(value)}; }}", vocabulary)
                 .Should().ContainSingle("each backend identity/customization/alternate UUID spelling must be seen");
         var project = Path.GetFullPath("/repo/backend/src/Probe");
@@ -282,7 +290,8 @@ public sealed partial class DomainGenericityTests
     private static readonly string[] IdentityKinds = [
         "id", "tenant-slug", "tenant-name", "host", "organization-slug", "organization-name",
         "content-type-key", "taxonomy-key", "definition-label", "band-key", "band-label",
-        "course-key", "course-slug", "course-title", "lesson-slug", "lesson-title", "property-name", "field-label"
+        "course-key", "course-slug", "course-title", "lesson-slug", "lesson-title", "property-name", "field-label",
+        "identity-username"
     ];
     private static readonly string[] ProductionSourceRoots = [RepositoryPaths.BackendSrc(),
         Path.Combine(RepositoryPaths.RepoRoot(), "backend/analyzers")];

@@ -95,7 +95,12 @@ not deferred to the showcase phase.
   The [individual exit evidence](phase-02d-exit-evidence.md) maps each exit
   criterion to its actual proof and completed disposition.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
-  — **P02b-0 through P02b-4 complete; P02b-1–4 merged through PRs #29–32**. Its
+  — **P02b-0 through P02b-5 complete; P02b-1–5 merged through PRs #29–33**.
+  P02b-6 implementation is complete locally; the correction records below own
+  validation and independent reviews.
+  [PR #34](https://github.com/HodeTech/LearnStack/pull/34) records current-head
+  hosted qualification and maintainer review. Merge remains separate;
+  P02b-7–8 are pending. Its
   [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
   verifies the inherited baseline; Accepted ADR-0057 and the
   [producer package](phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
@@ -140,16 +145,51 @@ not deferred to the showcase phase.
   owns validation and both completed reviews. Step 5 completes the authority
   census, carrier reconciliation and both review rounds; its
   [local closeout](phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
-  separates exact CI receipts from live PR-head qualification and merge. All five
-  steps are locally complete and unmerged. After P02b-5 merge, the next packet is
-  P02b-6's realm/TTL decision pass.
+  retains its source-bound pre-merge scope. **P02b-5 is complete and merged**
+  through [PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20.
+  Its [merge closeout](phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+  owns final-source CI, unchanged-plan A/B qualification and identical merge
+  trees. P02b-6's realm/TTL
+  [decision pass](phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+  is Accepted — 2026-10-21, including its four implementation steps. G12's
+  realm/reconciliation/callback choices and G13's issuance-TTL part are Accepted;
+  the dedicated issuance follow-up
+  [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) is
+  Accepted — 2026-10-21 after separate maintainer approval, with no runtime or
+  G13 session-policy change.
+  The [additional correction record](phase-02b-events-auth.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
+  owns current findings; [ADR-0068](../decisions/0068-development-warm-realm-qualification.md)
+  is Accepted — 2026-10-22 after verified review corrections under conditional
+  maintainer authority. Its [first correction step](phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
+  completes both review rounds locally. Its
+  [second correction step](phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
+  completes owned preparation and fresh planning after both independent review
+  rounds. Its [third correction step](phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+  completes local historical entry, credential/MFA, signed API and self-service
+  proof after both review rounds, and owns source-bound hosted qualification.
+  Step 1 is complete locally after both review rounds; its
+  [record](phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
+  owns fresh-provider qualification and implementation reviews. Step 2 is
+  complete locally after both review rounds and fresh fix reviews; its [record](phase-02b-events-auth.md#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21)
+  owns the Accepted server-information response allowance and actual correction
+  qualification. Step 3 is complete locally after both review rounds and fresh
+  corrections; its
+  [record](phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21)
+  owns actual seed/demo and cancellation evidence. Step 4's
+  [record](phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+  owns completed local provider/API proofs, both independent review rounds and
+  source-bound correction/CI receipts. The correction record above owns exact
+  hosted assignments and evidence limits; merge remains separate. All four steps
+  are complete locally;
+  G13's session part stays Open.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
-  owns current corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
+  retains its source-bound corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
   is Accepted — 2026-10-20; its subject-cap, cleanup and refusal refinements are
   implemented with local runtime/exported proofs. Its
   [implementation record](phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
-  owns source-bound validation, independent reviews and final-source CI qualification.
-  Realm reconciliation, BFF sessions and phase-exit enforcement remain P02b-6–8.
+  retains source-bound validation and independent reviews; the merge closeout
+  above owns final-source qualification.
+  BFF sessions and phase-exit enforcement remain P02b-7–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)

@@ -6,6 +6,10 @@
 model, and session-variable placement**),
 [ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
 (Amendment 1: `learnstack-hub` realm),
+[ADR-0067 Development Tenant Access-Token Issuance](../decisions/0067-development-tenant-access-token-issuance.md)
+(the configured development issuance lifespan and provider timestamp semantics),
+[ADR-0068 Development Warm-Realm Qualification](../decisions/0068-development-warm-realm-qualification.md)
+(the bounded preparation and stock-console assignment authority),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [ADR-0036 Tenant Resolution and Trusted Inputs](../decisions/0036-tenant-resolution-trusted-inputs.md)
@@ -153,6 +157,54 @@ General rules:
   password reuse for the last 5.
 - Account lockout after 5 failed attempts in 10 minutes; lifted after 15 minutes or
   admin unlock.
+
+**Development warm-realm qualification — Accepted 2026-10-22.**
+[ADR-0068](../decisions/0068-development-warm-realm-qualification.md) owns the
+exception allowing qualified missing-definition preparation before a fresh full
+plan and the three stock-console assignment detachments. All identity-independent
+refusals precede preparation; all other writes require complete planning. Existing
+readable definitions, credentials and unrelated state remain preserved. This is
+account-preserving reconciliation with named assignment deletion, not general
+delete authority. All three correction steps complete local implementation and
+both independent review rounds. The
+[qualification record](../roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+owns actual historical lifecycle, usable credential/MFA, signed API and stored
+self-service proof, together with exact hosted assignments and evidence limits.
+Acceptance or a partial experiment alone does not establish qualification.
+
+**Development access-token issuance — Accepted 2026-10-21.** This standard owns
+the issuance-lifetime rule decided by
+[ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md), retaining
+the earlier approval in the
+[P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20):
+the tenant development realm uses a configured 900-second access-token lifespan.
+[`learnstack.json`](../../infra/keycloak/realms/learnstack.json) owns the executable
+value; the development reconciler enforces it with no conflicting override on
+either named client. P02b-6 Steps 1–3 supply the fresh-import definition and
+bounded reconciliation through both seed/demo entries; their delivery records
+own actual local qualification. Step 4 delivers complete real-token/API proof
+after both independent reviews; its
+[record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+owns local proof/review closure and source-bound qualification receipts. The
+required CI checks qualify their exact source and assignment. ADR-0064's one-hour
+API acceptance ceiling and 30-second skew remain separate from issuance.
+P02b-7 owns BFF idle/absolute lifetimes and refresh custody; that part of G13
+remains Open.
+
+The pinned provider also copies the access-token expiration into generated ID
+tokens, including shorter session-clamped issuance. ID tokens remain identity
+credentials rejected by the tenant API; this shared expiration does not select
+a BFF session lifetime.
+
+Keycloak 26.6.2 reads issuance and expiration clocks separately. The configured
+lifespan is not an exact `exp - iat` guarantee or a fixed 901-second ceiling.
+Qualify exact realm configuration and absence of client overrides independently;
+fresh signed expiration must fit the observed UTC/monotonic code-exchange window
+plus that lifespan. Any explicit fixture/provider clock tolerance is at most the
+API's existing skew; an indeterminate clock/window fails qualification. Preserve
+session-clamping coverage for shorter late-session issuance and independent
+mutants with wrong expiration or configuration. Existing tokens retain their API
+acceptance bound; a shorter issuance setting does not revoke them immediately.
 
 ## Ingress / Gateway (APISIX)
 

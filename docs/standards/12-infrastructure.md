@@ -254,6 +254,13 @@ See [10-observability.md](10-observability.md).
   demand-gated to Phase 11 by ADR-0035. Application code uses `ISecretProvider` in
   either case; direct `VaultClient` usage is forbidden.
 - Local: `.env` (not committed) — sufficient for `Development` mode.
+- P02b-6's development realm uses `KEYCLOAK_WEB_CLIENT_SECRET` as a private
+  import/reconciliation source; P02b-7's BFF is its later runtime consumer.
+  Never pass it or Keycloak admin credentials to the API, public renderer or
+  .NET Seeder. Existing confidential secrets are verified, never silently
+  rotated. The [accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+  owns bounded tooling, selected-target validation and the no-credential-output
+  contract; the [realm guide](../../infra/keycloak/README.md) owns local setup.
 - **Development-only defaults in `infra/compose/*.yml` are not committed secrets.** A
   `${VAR:-literal}` fallback that only ever reaches a container in `Development` mode is
   exempt from [Standards 17 § Blockers](17-code-review.md)'s committed-secret rule, and

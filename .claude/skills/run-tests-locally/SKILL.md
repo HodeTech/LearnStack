@@ -35,7 +35,7 @@ flags, and a triage map for the most common failure shapes.
 |-------|----------|-------------|
 | Suite | Yes | `unit` / `integration` / `architecture` / `contract` / `frontend` / `public-demo` (P02d-7). Phase 06 owns the broader Playwright Test/axe suite. |
 | Filter | No | `--filter <expr>` to run a subset. |
-| Docker available? | Integration (`Requires=Docker`) | A running daemon. Postgres only — no Valkey, no Kafka. |
+| Docker available? | Integration (`Requires=Docker`) | A running daemon for PostgreSQL and the pinned Keycloak/PostgreSQL provider fixture. Other adapters retain their named triggers. |
 
 ## Workflow
 
@@ -55,7 +55,7 @@ pnpm --version
 (cd backend && dotnet restore LearnStack.slnx)
 (cd frontend && pnpm install --frozen-lockfile)
 
-# Docker must be running for the integration suite's Database/ cases
+# Docker must be running for Database/ and TenancyIdentity/ provider cases
 docker info >/dev/null && echo "docker OK"
 ```
 
@@ -66,8 +66,8 @@ backend/tests/
   LearnStack.Tests.Unit/           # No DB, no Docker. Pure unit tests.
   LearnStack.Tests.Architecture/   # Reflection + Roslyn + migration-scan rules.
   LearnStack.Tests.Integration/    # WebApplicationFactory HTTP tests (no Docker) AND the
-                                   # Testcontainers Postgres suite under Database/ (as
-                                   # learnstack_app), split by [Trait("Requires","Docker")].
+                                   # Postgres (learnstack_app) and TenancyIdentity/
+                                   # Keycloak/Postgres, split by [Trait("Requires","Docker")].
   LearnStack.Tests.Contract/       # OpenAPI / SDK contract assertions.
 
 frontend/apps/web/                 # Guarded Vitest unit/component/control suites.
@@ -118,15 +118,16 @@ before concluding a net is under you.
 | `MediatR_Pipeline_Order_Matches_Canonical_Sequence` | A behavior moved; the eight-step order is fixed by [ADR-0032](../../../docs/decisions/0032-exception-handling-logging-and-observability.md). |
 | `Integration_Event_TopicNames_FollowConvention` | Topic isn't `learnstack.{module}.{aggregate}`. |
 | `No_Source_Folder_Named_Verticals` | A `Verticals/` folder exists; ADR-0018 forbids it. |
-| `Every_Database_Test_Carries_The_Docker_Trait` | A test class under `Database/`, or one anywhere that takes a database fixture, is missing `[Trait(RequiresDocker.Key, RequiresDocker.Value)]` and would run in the wrong CI job. |
+| `Every_Database_Test_Carries_The_Docker_Trait` | A test class under `Database/`, or one anywhere referencing a database/Keycloak fixture or collection, is missing `[Trait(RequiresDocker.Key, RequiresDocker.Value)]` and would run in the wrong CI job. |
 | `Migrate_Target_Covers_Every_Migration_Chain` | A new chain exists that `make migrate` does not apply. |
 
 ### Step 5: Run integration tests
 
-The assembly holds two kinds. The `WebApplicationFactory` HTTP tests need no
-Docker; everything under `Database/` does, and **a running Docker daemon is
-required** for it — Postgres only, no Valkey and no Kafka, because nothing the
-backend runs calls either
+The assembly holds Docker-free HTTP/offline tests and Docker-backed proofs.
+Everything under `Database/` requires PostgreSQL; `TenancyIdentity/` also includes
+the pinned Keycloak fixture with its separate PostgreSQL database. **A running
+Docker daemon is required** for both provider populations. Neither needs Valkey
+or Kafka, because nothing the backend runs calls either
 ([ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)). The two
 are split by `[Trait("Requires","Docker")]`; CI further partitions Docker tests
 into native/ordinary execution jobs behind the required integration aggregate. Locally

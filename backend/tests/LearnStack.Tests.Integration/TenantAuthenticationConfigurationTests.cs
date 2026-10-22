@@ -15,6 +15,15 @@ namespace LearnStack.Tests.Integration;
 
 public sealed class TenantAuthenticationConfigurationTests
 {
+    [Fact]
+    public void Backchannel_rejects_a_supplied_certificate_validation_bypass()
+    {
+        using var handler = new SocketsHttpHandler();
+        handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, errors) => errors == System.Net.Security.SslPolicyErrors.None;
+        var act = () => new TenantAuthenticationBackchannel(handler);
+        act.Should().Throw<InvalidOperationException>();
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

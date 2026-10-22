@@ -132,7 +132,7 @@ try {
     currentCase = name;
     const directory = join(proof, String(++caseNumber));
     mkdirSync(directory);
-    for (const file of ['fixture-support.mjs', 'stop-test-child.mjs'])
+    for (const file of ['fixture-support.mjs', 'stop-test-child.mjs', 'ingress-readiness.mjs'])
       copyFileSync(join(appRoot, 'scripts', file), join(directory, file));
     const script = join(directory, 'fixture.mjs');
     writeFileSync(script, source);

@@ -6,7 +6,7 @@ description: >
   fixtures and data-only showcases. P02d-2 includes enabled locales, built-in and
   tenant-specific definitions, complete branding and scoped Course/Lesson content.
   DO NOT USE FOR: production provisioning, production reseeding, Hub licensing,
-  identity setup or domain-specific application branches.
+  production identity provisioning or domain-specific application branches.
 ---
 
 # Seeding a tenant
@@ -56,20 +56,38 @@ to a BYPASSRLS/superuser role on every physical connection.
 
 ### 1. Check the environment and migrations
 
+Prepare the selected private source before `make dev` or `make seed`: it must
+include `KEYCLOAK_WEB_CLIENT_SECRET`, retain an existing confidential secret,
+and be a current-user-owned regular, nonsymlink, single-link file without
+group/other permissions. For a verified legacy file, explicitly run
+`chmod 600 .env` (or the selected path); Makefile creation does not repair it.
+Follow [secret continuity and recovery](../../../infra/keycloak/README.md#secret-continuity-and-recovery)
+on mismatch. Do not read secrets into an agent transcript or place them on argv.
+
 ```bash
 make seed
 ```
 
 This target starts the selected stack and waits for PostgreSQL before migration.
 `scripts/seed.sh` then checks full Compose health and both realm issuers before
-running the .NET tool. `scripts/compose.mjs` shares project/files/env selection
-with the demo lifecycle; inherited Compose profiles cannot widen its default set.
+running the fresh Release Seeder DLL and then the shared development-only realm
+reconciler. Both combined entries reject an incomplete selected private realm
+source before infrastructure work; older files must explicitly add the BFF
+secret key. The [realm guide](../../../infra/keycloak/README.md) owns the exact
+contract and delivery status. `scripts/compose.mjs` shares project/files/env
+selection with the demo lifecycle; inherited Compose profiles cannot widen its
+default set.
+It verifies the effective Docker context before starting the selected stack.
+Seed preparation reports fixed stage progress and closed failure reasons rather
+than forwarding potentially sensitive child output. On cancellation/failure,
+wait for owned cleanup; follow [lock recovery](../../../infra/keycloak/README.md#lock-recovery)
+if the previous realm owner left its exclusive lock.
 The direct tool runs
 from `backend/`, where `global.json` pins the SDK:
 
 ```bash
 (cd backend && ConnectionStrings__Default="<learnstack_app connection string>" \
-    dotnet run --project src/LearnStack.Tools.Seeder --nologo)
+    dotnet run --project src/LearnStack.Tools.Seeder --configuration Release)
 ```
 
 Do not put a real connection string on `argv` or print it. The script reads the
@@ -223,4 +241,12 @@ localized schemas/bodies/pins supported by shipped contracts. Derive inventory a
 test expectations from the declaration. A new locale must be enabled before its
 translation is written. Domain-specific application behavior requires the owning
 phase's platform-feature decision; it cannot be hidden inside seed orchestration.
-Keycloak users still come from compose realm imports, not this tool.
+P02b-6 Step 1 declares development authentication personas in `SeedData.IdentityUsers`
+and exposes credential-free `--identity-manifest`; that mode opens no data source.
+Fresh Keycloak accounts come from the checked realm import. The accepted
+[P02b-6 package](../../../docs/roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+owns the separate development reconciler, awaited by both combined seed/demo
+entries after application seed convergence. Its
+[Step 4 record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+owns real account/API qualification and the completed independent reviews.
+Direct .NET seeding creates no provider account or application membership.

@@ -1,128 +1,310 @@
 # Keycloak — Two-Realm Identity (Dev)
 
-Self-hosted Keycloak in dev compose, per
-[ADR-0004 (Authentication Strategy)](../../docs/decisions/0004-authentication-strategy.md)
-and [ADR-0019 (LearnStack Hub)](../../docs/decisions/0019-learnstack-hub.md). Two
-realms, **hard-isolated from each other** — neither realm trusts tokens issued by
-the other. This is an architectural invariant, not a configurable policy.
+The pinned development provider is Keycloak 26.6.2. Two realms remain isolated
+under [ADR-0004](../../docs/decisions/0004-authentication-strategy.md) and
+[ADR-0019](../../docs/decisions/0019-learnstack-hub.md).
+[ADR-0067](../../docs/decisions/0067-development-tenant-access-token-issuance.md)
+decides development issuance;
+[Security 11](../../docs/standards/11-security.md#authentication) owns its ongoing
+rule. The
+[P02b-6 accepted package](../../docs/roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+retains the earlier approval and owns safe warm-realm convergence.
+Authentication grants no application membership or permission; Phase 03 owns
+those records.
 
-## Realms
+## Realms and accounts
 
-| Realm | Purpose | User population | Clients | Demo users |
-|-------|---------|-----------------|---------|------------|
-| `learnstack` | Tenant-facing: admins, instructors, learners | All customer users | `learnstack-api` (confidential, service-account) + `learnstack-web` (public PKCE) | `demo-admin@tenant-a.test`, `demo-learner@tenant-a.test` (both `demo-dev-secret`) |
-| `learnstack-hub` | Operator-facing: platform admin, support, billing-viewer | LearnStack staff only | `learnstack-hub-web` (public PKCE) | `demo-operator@learnstack.test` (`demo-dev-secret`) |
+| Realm | Population | Clients |
+|-------|------------|---------|
+| `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account |
+| `learnstack-hub` | Platform operators | `learnstack-hub-web`: public PKCE; unchanged by P02b-6 |
 
-## Access
+[SeedData.IdentityUsers](../../backend/src/LearnStack.Tools.Seeder/SeedData.cs)
+owns actor UUIDs and the account/tenant association. The read-only Seeder
+`--identity-manifest` projection opens no database. The realm export is checked
+against it, including the host's default organization where applicable.
 
-- **Admin console** — http://localhost:8080 (Keycloak Admin UI)
-- **Master admin** — `admin` / `admin-dev-secret`
-- **Tenant realm OIDC discovery** — http://localhost:8080/realms/learnstack/.well-known/openid-configuration
-- **Hub realm OIDC discovery** — http://localhost:8080/realms/learnstack-hub/.well-known/openid-configuration
+- `demo-admin@tenant-a.test`, `demo-learner@tenant-a.test`: existing tenant-wide
+  accounts and passwords are preserved on upgrade.
+- `demo-admin@tenant-b.test`, `demo-learner@tenant-b.test`: the second tenant's
+  default organization is included in its identity claims.
+- Fresh development accounts use `demo-dev-secret`. Existing passwords, provider
+  account IDs, MFA, required actions and unrelated attributes are not reset.
+- The four personas declare only the built-in `account/manage-account`
+  self-service capability in addition to their existing inert realm roles.
+  This permits owner credential/linked-account management; it grants no
+  LearnStack permission or membership. The
+  [approved adjustment](../../docs/roadmap/phase-02b-events-auth.md#account-console-self-service-capability--proposal-2026-10-21)
+  owns this explicit exception to role-assignment preservation.
+- The operator account remains `demo-operator@learnstack.test`; its separate
+  realm is untouched. Neither realm's token is accepted by the other surface.
 
-## Dev credentials are dev credentials
+## Local access and private sources
 
-Every secret in this directory (master admin password, client secret, demo user
-passwords) is **dev-only**. Production deployments load these from Vault via
-`ISecretProvider` per [Standards 12 § Secrets Management](../../docs/standards/12-infrastructure.md)
-and [Standards 20](../../docs/standards/20-infrastructure-stack.md). Do not reuse
-any of these strings outside local Docker.
+- Admin console: <http://localhost:8080/admin/>; local master defaults are
+  `admin` / `admin-dev-secret`.
+- Tenant discovery:
+  <http://localhost:8080/realms/learnstack/.well-known/openid-configuration>.
+- Operator discovery:
+  <http://localhost:8080/realms/learnstack-hub/.well-known/openid-configuration>.
+- `.env.example` declares a public development example for
+  `KEYCLOAK_WEB_CLIENT_SECRET`; newly scaffolded private files inherit that example.
+  File permissions do not make a published value confidential. Compose passes it
+  only to Keycloak; the import resolves its environment placeholder. The development
+  reconciler and the later P02b-7 BFF are its other consumers. The API, public
+  renderer and .NET Seeder never receive this secret.
+- Older private `.env` files must add that key explicitly, matching an already
+  imported confidential client's secret. Convergence verifies that existing
+  secret; a mismatch requires operator correction rather than automatic rotation.
+  Conversion of the old public client installs
+  the selected private source once.
+- Before `make dev`, `make seed` or `make demo`, prepare the selected private
+  file and preserve its secret across restarts. A missing key refuses before
+  container creation or reconciliation; neither supplies an automatic secret
+  fallback. See
+  [secret continuity and recovery](#secret-continuity-and-recovery).
 
-## Two realms, zero cross-trust
+Compose and the reconciler read the selected file through one no-follow handle
+and verify that it is a regular file owned by the current user, has one hard link
+and has no group/other permission bits. A new Makefile-created `.env` is private;
+existing files are never repaired silently. This prerequisite also applies to
+lifecycle commands: an older `0644` file is refused before Docker. After verifying
+an older path is your own regular, nonsymlink, single-link file, explicitly run
+`chmod 600 .env` (or the selected private path). Do not print its contents or copy
+it to a report.
+Compose, seed and reconciliation report these file-property refusals as
+`preflight/private_file`, with the same fixed ownership/permission instruction.
 
-The realm separation is a **hard architectural invariant** per
-[ADR-0004 Amendment 1](../../docs/decisions/0004-authentication-strategy.md#amendment-1--learnstack-hub-realm-for-operators-2026-05-18):
+Recognized `down`, `logs`, `ps`, `stop` and `config --services` invocations can
+parse an older private file without the web key by using a process-only nonsecret
+placeholder. This does not write the private file or install a provider secret.
+Container-creating commands, full configuration output and unknown argument forms
+retain the required-secret check. The private-file prerequisite still applies.
 
-- A `learnstack-hub` token MUST be rejected on every tenant-facing endpoint
-  (the gateway + the backend both check the `iss` claim against the realm URL).
-- A `learnstack` token MUST be rejected on every `/api/internal/*` endpoint
-  (the Hub-internal contract gates on mTLS + signed JWT, not on user tokens).
-- An operator account cannot also be a tenant user under the same identity, and
-  vice versa.
+These credentials are development-only. Production provisioning and rotation
+belong to Phase 11 and [Infrastructure Standards](../../docs/standards/12-infrastructure.md#secrets-management).
+Do not reuse local secrets in production or put them in command arguments,
+URLs, logs or public configuration.
 
-The Phase 02b OIDC integration enforces this in code; the dev seed mirrors it
-in data (no shared users, no shared client IDs).
+## Secret continuity and recovery
 
-## Dev-only client posture
+`KEYCLOAK_WEB_CLIENT_SECRET` is create-once local state, not a new value on every
+seed. Before the first Keycloak import, set it in the selected private file.
+Use the same value for Compose, reconciliation and the later BFF. The API,
+public renderer and application Seeder never receive it.
 
-The realm JSONs keep `fullScopeAllowed: true` on every client for dev
-simplicity — service-account tokens (for `learnstack-api`) and user tokens
-(for `learnstack-web` / `learnstack-hub-web`) carry every realm role
-automatically, so demo flows work without per-client `defaultClientScopes`
-provisioning. **Production realm provisioning** (Terraform /
-keycloak-config-cli, not these JSONs) flips this:
+- `missing_web_secret`: add the key explicitly before starting the stack, matching
+  the existing imported client when present. A previously populated file is not
+  supplemented with a fallback automatically.
+- `secret_conflict`: stop the affected local consumers and inspect the selected
+  confidential `learnstack-web` client privately in the Admin Console. Recover
+  its existing secret into the selected private source if that source was lost
+  or changed accidentally. Reconciliation will not overwrite the provider secret.
+- If an import used the committed public development example, treat it as
+  exposed. The operator must explicitly rotate that local client secret in the
+  Admin Console and update the selected private source together; the reconciler
+  does not perform this rotation. Restart only the owned affected consumers,
+  then explicitly rerun convergence.
 
-| Client | Type | Dev | Production target |
-|--------|------|-----|-------------------|
-| `learnstack-api` | confidential, service-account | `fullScopeAllowed: true`, `directAccessGrantsEnabled: false`, `webOrigins: []` | `fullScopeAllowed: false` + explicit `scopeMappings` (least-privilege) |
-| `learnstack-web` | public, PKCE | `fullScopeAllowed: true` | `fullScopeAllowed: false` + explicit `defaultClientScopes` listing the tenant-* roles only |
-| `learnstack-hub-web` | public, PKCE | `fullScopeAllowed: true` | `fullScopeAllowed: false` + explicit `defaultClientScopes` listing the hub-* roles only |
+Do not reset users, delete the client, drop provider data or enable a public
+client to bypass the refusal. Never put the recovered/rotated secret on argv,
+in logs, in a URL or in committed configuration.
 
-These notes used to sit inline in each client's `description` field, but
-Keycloak's `CLIENT.DESCRIPTION` column is `varchar(255)` and the long
-inline notes broke realm import. The descriptions in the JSON now point
-back to this section.
+## Lock recovery
 
-## Dev-only realm posture (tenant realm)
+One local owner protects each selected container/realm. The default lock is
+under `os.tmpdir()/learnstack-realm-<uid>/`, named
+`sha256(<selected-container-id> + "/realms/learnstack").lock`. This is separate
+from the demo lifecycle's project lock. The parent is current-user-owned `0700`;
+the exclusive regular lock file is `0600`. No age or guessed PID proves a lock
+is stale, and the tool never reclaims one automatically.
 
-The `learnstack` realm JSON carries permissive defaults so the demo flows
-work without operator intervention. Each of these defaults is **flipped**
-by the production realm-provisioning flow (Terraform / keycloak-config-cli),
-not by editing the dev JSON:
+On `lock_busy`, first identify the exact selected project, container and realm,
+and verify that every previous seed/demo/reconciler owner for that target has
+finished and joined its children. Do not stop foreign processes. If cleanup is
+uncertain, keep the lock and investigate; a timeout is not cleanup evidence.
+Only after establishing that no owner remains may the local operator remove
+that exact lock, after checking its directory, ownership, file type, permissions
+and single-link status. Never remove the whole directory, glob locks or delete
+a lock based only on elapsed time. Explicitly rerun convergence afterwards;
+partial Admin REST writes remain durable and are re-read.
 
-| Attribute | Dev (`learnstack.json`) | Production target | Why dev value |
-|-----------|------------------------|-------------------|---------------|
-| `registrationAllowed` | `true` | `false` (invite-only) | Lets reviewers exercise the tenant sign-up flow against `localhost:3000` without seeding a user first. |
-| `verifyEmail` | `false` | `true` | Dev SMTP is Mailpit; flipping verification on would gate every demo on visiting `localhost:8025`. |
-| `accessTokenLifespan` | `1800` (matches `learnstack-hub`) | `900` recommended (≤ 15 min, refresh-token-driven) | Halves the round-trip churn of debug sessions; still short enough to surface refresh bugs. |
-| `bruteForceProtected` | `true` (same as prod) | `true` | No dev relaxation. |
+## Tenant client contract
 
-The `learnstack-hub` realm is **already** at the stricter posture
-(`registrationAllowed: false`, `verifyEmail: true`, `accessTokenLifespan: 1800`)
-because operators are seeded out-of-band per
-[ADR-0019](../../docs/decisions/0019-learnstack-hub.md). The tenant-realm
-fields above are the only intentional dev/prod deltas.
+`learnstack-web` permits authorization code with S256 PKCE and a server-held
+secret. Password grants, implicit flow, service accounts and browser CORS origins
+are disabled. Only these exact callbacks are registered:
 
-## MFA
+- `https://demo-english.learnstack.local:3000/api/auth/callback/keycloak`
+- `https://demo-yoga.learnstack.local:3000/api/auth/callback/keycloak`
 
-- `learnstack-hub` realm: `CONFIGURE_TOTP` declared as a required action so the
-  TOTP enrolment flow is visible in dev; production enforces MFA mandatory for
-  every operator per ADR-0004 Amendment 1.
-- `learnstack` realm: MFA is **optional in dev**; tenant policy may make it
-  mandatory per-tenant in Phase 03.
+Post-logout redirects are the corresponding exact HTTPS roots on port 3000,
+joined with Keycloak's `##` attribute separator. No wildcard or localhost HTTP
+callback remains. Host-file and trusted development TLS setup are still needed
+for a browser; P02b-7 owns the callback/session implementation. Provider tests
+capture the redirect without following it and do not claim a browser session.
+Their isolated provider uses HTTPS with a generated fixture CA and normal
+hostname verification; this does not change the selected Compose issuer or
+install certificates in the developer's trust store.
 
-## How the realms are seeded
+`learnstack-api` has no browser code flow or redirects. Its legacy service account
+and secret are retained; its tokens cannot satisfy the API's user-token profile.
+Both named clients attach `learnstack-tenant-api` as a default scope:
 
-Keycloak boots with `start-dev --import-realm`. The JSON files under
-`realms/` are bind-mounted to `/opt/keycloak/data/import/` and consumed once
-at first start. To re-seed:
+- `user_id`, optional `tenant_id` and optional `organization_id` are scalar String
+  user-attribute claims in access and ID tokens. Profile view/edit permission for
+  all three attributes is admin-only; organization is protected too.
+- The explicit `learnstack-api` audience is added to access tokens only.
+- The export includes the actual pinned built-in scope definitions, especially
+  `basic` and its `sub` mapper. Listing a missing built-in name is insufficient
+  when an import supplies its own `clientScopes` collection.
 
-```bash
-docker compose --env-file .env -f infra/compose/dev.yml down keycloak
-docker compose --env-file .env -f infra/compose/dev.yml up -d keycloak
-```
+The configured tenant-realm access-token lifespan is 900 seconds, without
+per-client overrides. [Security Standards](../../docs/standards/11-security.md#authentication)
+owns the distinction between configured lifespan, observed timestamps and the
+API acceptance bound. Previously issued tokens are not immediately revoked.
+The Hub realm retains its own settings.
 
-Re-import overwrites the realm only if the realm did NOT already exist (Keycloak
-default behaviour). To force a clean re-seed of the realm itself, wipe the
-Keycloak database first:
+Existing realm roles and `fullScopeAllowed: true` remain a development posture;
+the API derives no membership, permission or platform authority from them.
+The web client's retained roles scope can put the `account` audience and eligible
+account roles into its access token. That token can authorize Keycloak owner
+self-service, including ordinary profile updates; it is not restricted to the
+LearnStack API. The configured issuance lifetime limits token duration, not its
+capability. P02b-7 owns server-side BFF token custody; narrowing this already
+approved development capability requires a separate decision.
+The tenant export enables open registration with email as username, password
+reset and remember-me, while email verification is disabled. It declares no
+password policy or event-persistence/listener configuration. These are local
+development settings; production provisioning owns its own hardened configuration.
+Production client scope mapping, refresh rotation and MFA enforcement remain
+Phase 11 work; Phase 03 owns tenant identity policy. Tenant MFA stays optional in
+this development export; the operator realm keeps its declared TOTP action.
 
-```bash
-# Stop Keycloak first: PostgreSQL refuses to drop a database that still has a
-# connected client, and Keycloak holds a pool open for its whole lifetime.
-docker compose --env-file .env -f infra/compose/dev.yml stop keycloak
-docker compose --env-file .env -f infra/compose/dev.yml exec postgres \
-  psql -U learnstack -d learnstack -c "DROP DATABASE keycloak;"
-docker compose --env-file .env -f infra/compose/dev.yml exec postgres \
-  psql -U learnstack -d learnstack -c "CREATE DATABASE keycloak OWNER learnstack;"
-docker compose --env-file .env -f infra/compose/dev.yml up -d keycloak
-```
+The ordinary Account REST profile update does not establish an email/login rename:
+Keycloak's [email condition](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/userprofile/DeclarativeUserProfileProviderFactory.java#L156-L187)
+makes email read-only in that context under the current realm settings. A 204 can
+therefore leave email unchanged. Separate required-action or administrator
+changes use different paths. If a reserved login is changed,
+reconciliation refuses ownership instead of adopting another account or resetting
+credentials. Verify the existing provider ID and protected actor privately before
+restoring an intended reserved login; never repair a conflict by changing actor IDs.
 
-## What does NOT live here
+## Fresh import and warm upgrade
 
-- Production realm configuration — managed via terraform / keycloak-config-cli
-  per environment; the dev JSONs are not the source of truth for production.
-- LearnStack-side identity domain (`User`, `Membership`, `Role`, `Permission`,
-  `Invitation`) — that's Phase 03, owned by `LearnStack.Modules.Identity`. The
-  realms here only define authentication; authorisation is application-side.
-- OIDC code integration in the .NET API — Phase 02b wires `AddJwtBearer` and
-  the BFF callback handler.
+Keycloak starts with `start-dev --import-realm`, reading both committed exports
+only when their realms do not already exist. Restarting a populated database
+does not apply export changes. Dropping the database or replaying a whole import
+is not an upgrade procedure.
+
+P02b-6 Step 1 supplies the executable fresh import; Step 2 supplies the bounded
+shared Admin REST reconciler. Both completed their local review rounds. Step 3
+connects `make seed` and `make demo` to the same awaited operation after
+application seed convergence. Its actual lifecycle qualification and reviews
+are recorded in the [Step 3 delivery record](../../docs/roadmap/phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21).
+The exact pre-P02b-6 export has a stock profile that hides identity values and
+broader account-console assignments. The qualified correction handles these
+prerequisites without inferring account ownership from a hidden projection.
+[ADR-0068](../../docs/decisions/0068-development-warm-realm-qualification.md)
+is Accepted — 2026-10-22 after verified review corrections under conditional
+maintainer authority. Its three-step implementation and automatic-path proof
+are tracked in the [acceptance record](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22).
+The [first correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
+adds fixed historical graph qualification and assignment-only normalization,
+with both independent review rounds complete. The
+[second correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
+completes automatic preparation and fresh complete planning after both independent
+review rounds. The
+[third correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+completes local historical seed/demo, usable credential/MFA, signed API and stored
+self-service proof after both review rounds. That record owns exact source-bound
+hosted assignments and their evidence limits; merge remains separate.
+Current identity-visibility guards remain active. Do not remove them, wipe the
+database or silently normalize customized scopes by name.
+
+Direct .NET Seeder remains an application-data tool; its identity manifest is a
+read-only declaration. Both combined entries build its fresh Release DLL and
+keep private realm credentials out of that child.
+
+An older private environment must add `KEYCLOAK_WEB_CLIENT_SECRET` explicitly
+before either combined entry starts stack or database work. Do not wipe the
+provider database to upgrade. The tool reports fixed refusal reasons, keeps
+partial Admin changes durable and requires an explicit verified rerun. The
+[accepted account-console adjustment](../../docs/roadmap/phase-02b-events-auth.md#account-console-self-service-capability--proposal-2026-10-21)
+is implemented; its actual stock-parity, warm-preservation, profile/API
+qualification and both completed independent review rounds are recorded with
+Step 4. Qualification applies only to the recorded source and scope; subsequent
+corrections require their own validation and independent reviews. Merge remains
+a separate maintainer action.
+
+Fresh import declares both stock `account` and `account-console` definitions,
+including the stock role/composite and scope-mapping baseline. Warm reconciliation
+does not replace these clients, role definitions or composites. It qualifies
+their existing bounded capability and scope allowance before any mutation,
+adds only a missing named capability for a managed persona and preserves every
+prior mapping. An inherited effective capability needs no redundant grant.
+
+The console receives one fixed-account role emitter in access/introspection
+tokens, retaining its stock S256, audience resolver and restricted full scope.
+It emits no realm/all-client roles or ID/user-info/lightweight-token roles.
+Incompatible role, scope or mapper customization refuses before writes.
+Compatible existing emitters retain their identities. Because the console is
+shared, its mapper may also restore self-service for nonmanifest users already
+holding eligible account roles; their account data and grants stay unchanged.
+
+The accepted warm-upgrade contract preserves nonmanifest accounts, credentials,
+provider IDs and all Hub state. Only known legacy seed attributes are migrated;
+incompatible identities, effective mapper conflicts and private-source mismatch
+refuse before ordinary writes. Independently observable conflicts refuse before
+preparation too. Partial Admin REST changes are durable, without automatic
+rollback. A later explicit run re-reads and resumes; a completed rerun makes no
+mutating Admin calls. Use the packet's delivery records for implementation and
+qualification status.
+
+Admin user responses are profile projections, not raw attribute storage. Before
+interpreting a missing identity as absent, the reconciler requires an
+admin-readable definition without a default or selector, or an explicitly
+admin-readable unmanaged policy. External user-storage profiles and independently
+detectable configuration conflicts refuse before any write. When definitions
+are missing and the unmanaged policy does not expose them, the reconciler first
+qualifies all identity-independent preconditions. It may then append only the
+missing admin-only scalar definitions in one `prepare` PUT, preserving existing
+definitions, ordered arrays and the unmanaged policy. A separate GET verifies
+the complete profile before a fresh full plan reads the revealed identities.
+An existing hidden, defaulted or selector-based protected definition refuses
+without preparation. An exposed conflicting UUID is never overwritten.
+
+Preparation counts as a dispatched mutation even when its acknowledgement is
+lost. Any later failure retains the fixed notice that profile metadata may
+already be durable: inspect current realm state before an explicit rerun. No
+automatic replay or rollback occurs. A separately planned ordinary profile PUT
+is counted separately and requires the fresh full plan. Identity-dependent
+conflicts may leave only preparation metadata; no ordinary mutation follows a
+fresh-plan refusal. The shared five-second request and 120-second pass deadlines
+are unchanged. Step 3 retains complete lifecycle and credential/token proof.
+
+Protected claims must come from user attributes. Aggregation and inherited
+group identity values are incompatible with that contract and refuse before
+writes. Safe ordinary groups and memberships are preserved. The bounded group
+inventory includes nested groups. Unpaginated membership reads follow the
+mapper's group stream; any exposed membership outside that ordinary inventory
+refuses before writes. The pinned cached model excludes Keycloak Organization
+groups from that stream, including retained memberships after the feature is
+disabled. Its actual-token control is separate from the defensive refusal for
+unknown membership IDs. This is separate from LearnStack's own organization
+IDs. The named single-user import does not inherit realm default groups;
+new-account membership is independently checked as empty.
+
+The entire projected change must also fit the existing bounded readers and
+request bodies. Known overflow refuses before preparation. Payload growth revealed
+only by preparation can still refuse the fresh plan, leaving that metadata durable
+with no ordinary mutation. Every ordinary write requires the complete bounded plan.
+
+## What does not live here
+
+- Production realm configuration: Phase 11 provisioning owns it; these JSONs are
+  local fixtures, not a production source of truth.
+- Application `User`, membership, role, permission and invitation state: Phase 03
+  owns it in LearnStack; the provider export supplies authentication only.
+- BFF cookie/session custody, CSRF, callback and logout implementation: P02b-7.
+  Full browser OIDC journeys belong to Phase 06.

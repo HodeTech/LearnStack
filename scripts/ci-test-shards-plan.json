@@ -84,6 +84,62 @@
       "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
       "runId": "39417319998",
       "note": "Run attempt 2; owner architecture-5; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12262804978. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds."
+    },
+    "p02b6-local-api": {
+      "kind": "local_trx",
+      "artifactSha256": "7fafa97c24ea554cb0a629b5c3c952942d1ee54b767a7a988f4b9c5a5e8eb02e",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
+    },
+    "p02b6-local-account": {
+      "kind": "local_trx",
+      "artifactSha256": "a2b000ff5f9646ed7e4f03e20e74054a831e71410f863331892fbb3c0b30ca39",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
+    },
+    "p02b6-local-profile": {
+      "kind": "local_trx",
+      "artifactSha256": "f470c252cbbfc908e1d4996278cf116ba2b78eb514755d729c57a6ae6f8a2aa7",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
+    },
+    "adr68-local-preparation": {
+      "kind": "local_trx",
+      "artifactSha256": "b701d3166e5266dab904ae7e921a08034db5d2f6683d17c605bc625c8fa5dc83",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Complete local provider receipt, all rows Passed/zero skips. Source commit absent from TRX; observed planner SHA256 8ef1d58c2774b531d88170ff6e04939bdd631a77d749527764744fdc832e94ed; other source hashes retained separately. Actual TestMethod groups sum case ms, scale 2.271245, ceil/min1; advisory, not wall bounds or final-head qualification."
+    },
+    "adr68-local-mapper-correction": {
+      "kind": "local_trx",
+      "artifactSha256": "4497a991aab51936afb923cbd60aa6d01d9480a700211580f6a9fe0b183a1db8",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Complete local provider receipt, all rows Passed/zero skips. Source commit absent from TRX; observed account policy SHA256 3cc2c01bdfbb64e2343bed2c757434ed6c81f25b93001860c1a34238d9b39dd4; other source hashes retained separately. Actual TestMethod groups sum case ms, scale 2.271245, ceil/min1; advisory, not wall bounds or final-head qualification."
+    },
+    "adr68-hosted-baseline-ordinary-1": {
+      "kind": "hosted_trx",
+      "artifactSha256": "515636cb1318709236b068f05bc984385ae651c79a0fd5236aec36c62b51d5f4",
+      "sourceSha": "d55ae6fc37b794e482c42ebbdd49d3e59a9c3f0a",
+      "runId": "39699380813",
+      "note": "Run attempt 1; owner ordinary-1; PR head f714a5af96363d880e7e3d72a24ee2642a29cf47; artifact ID 12393016518; API archive SHA256 98c6174c249fa80ad3b53356a2efe0c764f500454de74dc429698766137a14a7. Sanitized TRX IDs bind actual discovery FullyQualifiedName metadata; complete passing owner. Exact summed row ms, ceil/min1; advisory, not wall bounds."
+    },
+    "adr68-hosted-baseline-ordinary-4": {
+      "kind": "hosted_trx",
+      "artifactSha256": "7fcf4e254a1f35a96b59c187affdf345aa6400e60a13fc1b16712c3778717159",
+      "sourceSha": "d55ae6fc37b794e482c42ebbdd49d3e59a9c3f0a",
+      "runId": "39699380813",
+      "note": "Run attempt 1; owner ordinary-4; PR head f714a5af96363d880e7e3d72a24ee2642a29cf47; artifact ID 12392133270; API archive SHA256 d02f5a7ac79d62ce023ffde59d2989b7059be142925128f71cb6d129ebf714d6. Sanitized TRX IDs bind actual discovery FullyQualifiedName metadata; complete passing owner. Exact summed row ms, ceil/min1; advisory, not wall bounds."
+    },
+    "adr68-local-warm-journey": {
+      "kind": "local_trx",
+      "artifactSha256": "3487a4510af4444908eaef908365e8cc4334b0dfc6a531b0af25276f49e657c9",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Complete final refresh-presence-guard local journey Fact, 1/1 Passed and zero skips. Commit is not embedded in TRX. Separate seven-file source hash manifest SHA256 92cde32454dfb23f0421ce4e2d92ffe3c054281138cfe2d8a2ebe8c734960da3. Actual TestMethod row is 40205.7204 ms; local scale 2.271245, ceil/min1. Advisory, not a hosted wall bound or final-source CI qualification."
     }
   },
   "weights": [
@@ -8102,9 +8158,294 @@
       "method": "LearnStack.Tests.Integration.Database.WriteStoreConflictTests.A_uniqueness_violation_still_becomes_the_port_s_conflict_type",
       "milliseconds": 29,
       "source": "local-ordinary-scaled"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.A_genuine_Hub_issuer_token_is_rejected_without_changing_the_operator_or_Hub_client",
+      "milliseconds": 3665,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.A_genuine_ID_token_without_API_audience_is_401_on_account_and_public_routes",
+      "milliseconds": 7662,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.A_real_claimless_actor_retains_HostOnly_attribution_without_protected_read_authority",
+      "milliseconds": 2945,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.A_real_provider_organization_disagreement_refuses_and_records_the_trusted_host_organization",
+      "milliseconds": 3045,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.Anonymous_public_reads_and_masked_account_refusals_do_not_contact_an_unavailable_identity_endpoint",
+      "milliseconds": 3048,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.Every_seed_persona_reads_its_actual_account_site_under_the_matching_host_scope",
+      "milliseconds": 6681,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.Historical_automatic_upgrade_preserves_live_password_and_MFA_then_serves_signed_API_and_console_users",
+      "milliseconds": 91318,
+      "source": "adr68-local-warm-journey"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.Real_cross_tenant_tokens_refuse_before_configuration_and_audit_the_defended_host",
+      "milliseconds": 2684,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.The_real_backchannel_accepts_only_the_owned_CA_and_preserves_all_transport_bounds",
+      "milliseconds": 2615,
+      "source": "p02b6-local-api"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmExportTests.Export_controls_reject_unsafe_mapper_profile_client_and_identity_variants",
+      "milliseconds": 217,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmExportTests.The_committed_realm_matches_typed_identity_and_security_declarations",
+      "milliseconds": 12,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Actual_signed_tokens_detect_live_mapper_scope_audience_scalar_and_lifespan_mutants",
+      "milliseconds": 42829,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Authorization_refuses_a_missing_or_plain_challenge",
+      "milliseconds": 59,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Authorization_refuses_an_unregistered_callback",
+      "milliseconds": 592,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Code_exchange_refuses_a_missing_or_wrong_client_secret",
+      "milliseconds": 244,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Code_exchange_refuses_a_missing_or_wrong_verifier",
+      "milliseconds": 610,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Fixture_HTTPS_requires_its_owned_certificate_authority",
+      "milliseconds": 563,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Fresh_import_issues_the_API_profile_for_all_four_declared_identities",
+      "milliseconds": 1203,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Late_session_refresh_is_clamped_while_the_configured_access_lifespan_remains_exactly_900",
+      "milliseconds": 43202,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Live_import_has_exact_lifespan_callbacks_and_confidential_PKCE_configuration",
+      "milliseconds": 178,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Tenant_password_grant_stays_disabled",
+      "milliseconds": 17,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests.Ordinary_registration_works_and_injected_authority_never_becomes_new_account_data",
+      "milliseconds": 2161,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests.Same_seed_account_can_edit_ordinary_profile_but_cannot_see_write_or_delete_authority",
+      "milliseconds": 1789,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests.User_editable_profile_counterfactual_breaks_the_same_protection_predicate",
+      "milliseconds": 2261,
+      "source": "p02b6-local-profile"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Committed_fresh_import_is_already_converged_and_repeated_runs_have_zero_writes",
+      "milliseconds": 12843,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Group_carried_identity_requires_a_no_write_refusal",
+      "milliseconds": 222936,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Hidden_historical_actor_conflict_is_revealed_after_preparation_without_any_ordinary_write",
+      "milliseconds": 47653,
+      "source": "adr68-local-preparation"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Hidden_stored_identity_refuses_before_ordinary_writes_and_preserves_the_conflicting_actor",
+      "milliseconds": 102474,
+      "source": "adr68-local-preparation"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Historical_stock_upgrade_automatically_prepares_once_then_converges_with_seventeen_writes",
+      "milliseconds": 55935,
+      "source": "adr68-local-mapper-correction"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Identity_mapper_secret_and_duplicate_lookup_conflicts_refuse_before_the_first_write",
+      "milliseconds": 95073,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Interrupted_historical_preparation_counts_the_dispatched_write_and_requires_an_explicit_resume",
+      "milliseconds": 111989,
+      "source": "adr68-local-preparation"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Legacy_upgrade_resumes_durable_partial_writes_and_preserves_accounts_and_unrelated_state",
+      "milliseconds": 250858,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Missing_protected_definitions_do_not_allow_preparation_before_an_independent_secret_conflict",
+      "milliseconds": 49365,
+      "source": "adr68-local-preparation"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Missing_protected_definitions_do_not_allow_preparation_for_a_customized_stock_scope_lookalike",
+      "milliseconds": 46986,
+      "source": "adr68-local-preparation"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Partial_admin_view_only_definition_is_preserved_by_preparation_then_normalized_by_a_distinct_ordinary_write",
+      "milliseconds": 55312,
+      "source": "adr68-local-mapper-correction"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Projected_identity_profile_configuration_refuses_before_any_pending_write",
+      "milliseconds": 93561,
+      "source": "adr68-local-preparation"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Readback_failure_is_nonzero_and_a_new_explicit_pass_verifies_the_committed_result",
+      "milliseconds": 64288,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Retained_cached_organization_groups_do_not_override_strict_user_identity",
+      "milliseconds": 54861,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Uninterrupted_legacy_upgrade_preserves_nonmanifest_actor_and_account_state",
+      "milliseconds": 58888,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Unrelated_nested_groups_converge_and_preserve_membership_and_strict_token_identity",
+      "milliseconds": 50216,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests.Effective_inherited_capability_and_a_compatible_existing_mapper_need_no_redundant_additions",
+      "milliseconds": 123811,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests.Explicit_fresh_builtins_preserve_stock_bootstrap_and_add_only_the_approved_mapper_and_four_grants",
+      "milliseconds": 45264,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests.Shared_mapper_restores_an_already_eligible_nonmanifest_account_without_changing_its_data_or_grants",
+      "milliseconds": 49972,
+      "source": "p02b6-local-account"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests.Unsafe_account_customization_refuses_before_any_pending_write_and_preserves_the_customization",
+      "milliseconds": 246337,
+      "source": "adr68-local-mapper-correction"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmStockBaselineTests.Historical_24705a7a_bootstrap_matches_the_fixed_26_6_2_scope_role_and_mapper_baseline",
+      "milliseconds": 98022,
+      "source": "adr68-hosted-baseline-ordinary-1"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmStockBaselineTests.Historical_stock_ordinary_reconciliation_detaches_only_three_console_edges_and_then_writes_zero",
+      "milliseconds": 102868,
+      "source": "adr68-hosted-baseline-ordinary-4"
     }
   ],
   "sharedFixtureClasses": [
+    "LearnStack.Tests.Integration.ApiHandlerCompositionTests",
+    "LearnStack.Tests.Integration.ApiVersioningHttpTests",
+    "LearnStack.Tests.Integration.AssertionRecorderCompositionTests",
+    "LearnStack.Tests.Integration.AuthenticatedRateLimitTests",
+    "LearnStack.Tests.Integration.AuthorityCeilingHttpTests",
+    "LearnStack.Tests.Integration.CompositionRootCatalogueTests",
+    "LearnStack.Tests.Integration.CrossCuttingFoundationHttpTests",
+    "LearnStack.Tests.Integration.Database.AccountSiteHttpTests",
+    "LearnStack.Tests.Integration.Database.AccountSiteQueryTests",
     "LearnStack.Tests.Integration.Database.AmbientUnitOfWorkTests",
     "LearnStack.Tests.Integration.Database.AuditCaptureWiringTests",
     "LearnStack.Tests.Integration.Database.AuditConfigServiceTests",
@@ -8130,11 +8471,13 @@
     "LearnStack.Tests.Integration.Database.BackgroundJobSubmissionTests",
     "LearnStack.Tests.Integration.Database.CourseContentAccessMigrationTests",
     "LearnStack.Tests.Integration.Database.CustomizationCatalogTests",
+    "LearnStack.Tests.Integration.Database.CustomizationContentTypeQuotaTests",
     "LearnStack.Tests.Integration.Database.CustomizationDefaultDeliveryTests",
     "LearnStack.Tests.Integration.Database.CustomizationDefaultInitializationTests",
     "LearnStack.Tests.Integration.Database.CustomizationProjectionTests",
     "LearnStack.Tests.Integration.Database.CustomizationPublicationConcurrencyTests",
     "LearnStack.Tests.Integration.Database.CustomizationSchemaTests",
+    "LearnStack.Tests.Integration.Database.DatabaseRoleTests",
     "LearnStack.Tests.Integration.Database.DeliveryDispatchStoreTests",
     "LearnStack.Tests.Integration.Database.DeliveryExecutionTests",
     "LearnStack.Tests.Integration.Database.DeliveryProcessorTests",
@@ -8146,18 +8489,22 @@
     "LearnStack.Tests.Integration.Database.EducationPersistenceTests",
     "LearnStack.Tests.Integration.Database.EducationStructureTests",
     "LearnStack.Tests.Integration.Database.EducationWriterTests",
+    "LearnStack.Tests.Integration.Database.EntitlementExpiryReversalTests",
     "LearnStack.Tests.Integration.Database.EventDeliveryMigrationTests",
     "LearnStack.Tests.Integration.Database.FeatureFlagsTests",
     "LearnStack.Tests.Integration.Database.HangfireGenerationTests",
     "LearnStack.Tests.Integration.Database.HangfirePoolOwnerTests",
+    "LearnStack.Tests.Integration.Database.HangfireStorageTests",
     "LearnStack.Tests.Integration.Database.HostResolutionTests",
     "LearnStack.Tests.Integration.Database.InboxGuardTests",
     "LearnStack.Tests.Integration.Database.KillswitchOverlayTests",
+    "LearnStack.Tests.Integration.Database.MigrationRollbackTests",
     "LearnStack.Tests.Integration.Database.OrgScopeMigrationTests",
     "LearnStack.Tests.Integration.Database.OrgScopeSchemaTests",
     "LearnStack.Tests.Integration.Database.OrganizationScopeValidatorTests",
     "LearnStack.Tests.Integration.Database.OutboxDispatchMigrationTests",
     "LearnStack.Tests.Integration.Database.OutboxDispatchStoreTests",
+    "LearnStack.Tests.Integration.Database.OutboxDispatcherRoleGuardTests",
     "LearnStack.Tests.Integration.Database.OutboxProcessorTests",
     "LearnStack.Tests.Integration.Database.OutboxProducerTests",
     "LearnStack.Tests.Integration.Database.P02d2FoundationTests",
@@ -8165,21 +8512,47 @@
     "LearnStack.Tests.Integration.Database.PlatformSchemaTests",
     "LearnStack.Tests.Integration.Database.PoolHangfireStorageParityTests",
     "LearnStack.Tests.Integration.Database.ProducerExecutionTests",
+    "LearnStack.Tests.Integration.Database.PublicAdmissionRenderingTests",
+    "LearnStack.Tests.Integration.Database.PublicEducationHttpTests",
+    "LearnStack.Tests.Integration.Database.PublicEducationStoreTests",
+    "LearnStack.Tests.Integration.Database.PublicLocalLaunchTests",
     "LearnStack.Tests.Integration.Database.PublicLocaleEvolutionHttpTests",
     "LearnStack.Tests.Integration.Database.PublicReadTransactionTests",
+    "LearnStack.Tests.Integration.Database.PublicServerRenderingTests",
+    "LearnStack.Tests.Integration.Database.PublicSiteHttpTests",
     "LearnStack.Tests.Integration.Database.SeederTests",
     "LearnStack.Tests.Integration.Database.TenancySchemaTests",
     "LearnStack.Tests.Integration.Database.TenancyWriterTests",
     "LearnStack.Tests.Integration.Database.TenantAssertionAuditTests",
+    "LearnStack.Tests.Integration.Database.TenantAuthenticationRejectionAuditTests",
     "LearnStack.Tests.Integration.Database.TenantContextGuardTests",
     "LearnStack.Tests.Integration.Database.TenantCreatedProducerTests",
+    "LearnStack.Tests.Integration.Database.TenantIsolationHttpTests",
     "LearnStack.Tests.Integration.Database.TenantLocaleDefaultTests",
     "LearnStack.Tests.Integration.Database.TenantLocaleEnabledMigrationTests",
     "LearnStack.Tests.Integration.Database.TenantProvisioningTests",
     "LearnStack.Tests.Integration.Database.TenantSettingsAccessorTests",
+    "LearnStack.Tests.Integration.Database.TrustedVisitorHttpTests",
     "LearnStack.Tests.Integration.Database.UnitOfWorkCommitCleanupTests",
     "LearnStack.Tests.Integration.Database.UnitOfWorkTests",
-    "LearnStack.Tests.Integration.Database.WriteStoreConflictTests"
+    "LearnStack.Tests.Integration.Database.WriteStoreConflictTests",
+    "LearnStack.Tests.Integration.ErrorShapeHttpTests",
+    "LearnStack.Tests.Integration.FoundationPortResolutionTests",
+    "LearnStack.Tests.Integration.HostClassificationHttpTests",
+    "LearnStack.Tests.Integration.IdempotencyHttpTests",
+    "LearnStack.Tests.Integration.IdempotentEndpointConventionTests",
+    "LearnStack.Tests.Integration.RateLimitForwardedForTests",
+    "LearnStack.Tests.Integration.RateLimitingHttpTests",
+    "LearnStack.Tests.Integration.SmokeTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests",
+    "LearnStack.Tests.Integration.TenantAssertionDimensionTests",
+    "LearnStack.Tests.Integration.TenantAssertionHttpTests",
+    "LearnStack.Tests.Integration.TenantWideOrganizationAssertionTests",
+    "LearnStack.Tests.Integration.VersionedRouteEnforcementTests"
   ],
   "fixedCosts": {
     "basePreTestMs": [

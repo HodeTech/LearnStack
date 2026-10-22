@@ -12,7 +12,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <summary>Natural real-store SDK/provider flow. Construction-only host does not claim native Hangfire handoff.</summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed partial class BackgroundJobPositiveSdkTests(SchemaFixture schema)
+public sealed partial class BackgroundJobPositiveSdkTests(SchemaFixture schema, Xunit.Abstractions.ITestOutputHelper output)
 {
     private static BackgroundJobPositiveSdkFixture Fixture => BackgroundJobPositiveSdkFixture.Shared;
 

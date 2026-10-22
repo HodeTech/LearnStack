@@ -32,6 +32,15 @@ those flows. It owns durable subject/actor mapping, real membership, permissions
 and permission-sensitive routes. Bootstrap seed mapper emission remains P02b-6;
 this phase extends that integration to the live identity/membership lifecycle.
 
+**P02b-6 SDK-boundary handoff — 2026-10-21.** The
+[accepted package](phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+uses development Admin REST tooling without a runtime provider SDK. Phase 03
+owns the first runtime identity-provider adapter and the
+[`Provider_SDK_Types_NotImportedOutsideInfrastructure`](../standards/21-architecture-tests-catalogue.md#awaiting-backfill)
+backfill when that adapter introduces an actual SDK. Re-verify the subject
+before the first writer; direct HTTP alone does not qualify SDK coverage.
+The rule remains Awaiting backfill; the SDK exception rule remains enforced.
+
 Before replacing deny-all membership, qualify affirmative row-7 organization
 selection and row-14 claim-only resolution through real HTTP controls. Decide
 header-mismatch evidence ownership after a successful claim-only platform-host

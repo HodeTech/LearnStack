@@ -9,8 +9,13 @@ Services in order they appear in `dev.yml` (data plane → identity → media �
 eventing → secrets → Dapr sidecar → gateway).
 
 Bring it up with `make dev` from the repo root (the orchestrator copies
-`.env.example` → `.env` on first run, so every `${VAR:-default}` reference
-in `dev.yml` resolves against the developer's copy). The end-to-end overlay
+`.env.example` → a private `.env` on first run). Before starting Keycloak,
+prepare `KEYCLOAK_WEB_CLIENT_SECRET` in that selected private source; Compose
+refuses a missing value instead of importing a published fallback. Preserve an
+existing confidential secret and follow the
+[recovery procedure](../keycloak/README.md#secret-continuity-and-recovery) on
+mismatch. Existing file permissions require explicit operator correction.
+The end-to-end overlay
 adds tmpfs volumes for ephemeral test runs — see `e2e.yml` below.
 
 ### Data plane (Phase 01 packet 3)
@@ -31,11 +36,13 @@ adds tmpfs volumes for ephemeral test runs — see `e2e.yml` below.
 
 Two realms imported on first boot from `infra/keycloak/realms/`:
 
-- `learnstack` (tenant users) — clients `learnstack-api` (confidential) + `learnstack-web` (public PKCE); demo users `demo-admin@tenant-a.test` and `demo-learner@tenant-a.test` (both `demo-dev-secret`).
+- `learnstack` (tenant users) — confidential API and code/S256 web clients, with
+  four declared tenant personas. The [realm guide](../keycloak/README.md) owns
+  the exact identities, private secret source and callbacks.
 - `learnstack-hub` (operators) — client `learnstack-hub-web` (public PKCE); demo user `demo-operator@learnstack.test` (`demo-dev-secret`). `CONFIGURE_TOTP` required-action present so the MFA flow surfaces in dev.
 
 See [../keycloak/README.md](../keycloak/README.md) for the realm-isolation
-invariant, re-seed procedure, and the Phase 02b/03 wiring notes.
+invariant, non-destructive reconciliation and the Phase 02b/03 wiring notes.
 
 Two Postgres init scripts run, in name order, **only on the first start of a
 fresh `postgres-data` volume**:
@@ -58,9 +65,12 @@ docker compose --env-file .env -f infra/compose/dev.yml exec -T postgres   sh -c
 It is idempotent, so re-running it against a cluster that already has the roles
 is a no-op rather than an error.
 
-Re-seeding the Keycloak realm structure requires either `down -v` (wipes all
-volumes) or a manual
-`DROP DATABASE keycloak; CREATE DATABASE keycloak OWNER learnstack;`.
+Fresh imports do not upgrade an existing realm. P02b-6's bounded warm-realm
+reconciler is shared by `make seed` and `make demo` after application seed. Both
+entries validate the selected private source before infrastructure work; older
+files must add the BFF secret key explicitly. Existing credentials and provider
+IDs are preserved. The [realm guide](../keycloak/README.md) owns exact behavior,
+refusals and current qualification status; a database wipe is not an upgrade.
 
 ### Live media (Phase 01 packet 5)
 

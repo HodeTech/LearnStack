@@ -2,7 +2,16 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer as createHttpsServer } from 'node:https';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -34,6 +43,10 @@ import {
 } from '../../../../../scripts/public-runtime.mjs';
 import { defaultServices, healthyServices } from '../../../../../scripts/wait-compose.mjs';
 
+function writePrivateFileSync(path: string, source: Parameters<typeof writeFileSync>[1]) {
+  writeFileSync(path, source, { mode: 0o600 });
+}
+
 const roots: string[] = [];
 const owners: DemoProcesses[] = [];
 afterEach(async () => {
@@ -41,7 +54,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 function temporary() {
-  const root = mkdtempSync(join(tmpdir(), 'learnstack-demo-control-'));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'learnstack-demo-control-')));
   roots.push(root);
   return root;
 }
@@ -49,6 +62,48 @@ function owner(signal = new AbortController().signal) {
   const processes = new DemoProcesses(signal);
   owners.push(processes);
   return processes;
+}
+
+function seedFixture(root: string) {
+  for (const directory of ['scripts', 'backend', 'bin']) mkdirSync(join(root, directory));
+  for (const file of [
+    'seed.sh',
+    'seed.mjs',
+    'connection-string.awk',
+    'compose.mjs',
+    'demo-database.mjs',
+    'demo-process.mjs',
+    'development-realm-owner.mjs',
+    'development-realm-errors.mjs',
+  ])
+    writeFileSync(
+      join(root, 'scripts', file),
+      readFileSync(new URL(`../../../../../scripts/${file}`, import.meta.url)),
+    );
+  mkdirSync(join(root, 'frontend/apps/web/scripts'), { recursive: true });
+  writeFileSync(
+    join(root, 'frontend/apps/web/scripts/stop-test-child.mjs'),
+    readFileSync(new URL('../../scripts/stop-test-child.mjs', import.meta.url)),
+  );
+  for (const [file, method, event] of [
+    ['wait-compose', 'waitCompose', 'ready'],
+    ['reconcile-development-realm', 'reconcileDevelopmentRealm', 'realm'],
+  ])
+    writeFileSync(
+      join(root, `scripts/${file}.mjs`),
+      `import { appendFileSync } from 'node:fs';
+export async function ${method}() { appendFileSync(${JSON.stringify(join(root, 'events'))}, '${event}\\n'); return { mutations: 0 }; }
+`,
+    );
+  return [
+    'ConnectionStrings__Migration=Username=learnstack_migration',
+    'ConnectionStrings__Default=Username=learnstack_app',
+    'ConnectionStrings__OutboxDispatcher=Username=learnstack_outbox_admin',
+    'KEYCLOAK_ADMIN=fixture-admin',
+    `KEYCLOAK_ADMIN_PASSWORD=${randomBytes(16).toString('hex')}`,
+    `KEYCLOAK_WEB_CLIENT_SECRET=${randomBytes(16).toString('hex')}`,
+    '',
+  ].join('\n');
 }
 
 describe('launcher-owned local database validation', () => {
@@ -184,12 +239,37 @@ describe('launcher-owned local database validation', () => {
     },
   );
   it('keeps every Seeder mode free of inherited credentials and diagnostics', () => {
+    const tooling = Object.fromEntries(
+      [
+        'HTTP_PROXY',
+        'HTTPS_PROXY',
+        'ALL_PROXY',
+        'NO_PROXY',
+        'http_proxy',
+        'https_proxy',
+        'all_proxy',
+        'no_proxy',
+        'NODE_EXTRA_CA_CERTS',
+        'SSL_CERT_FILE',
+        'SSL_CERT_DIR',
+        'NUGET_PACKAGES',
+        'NUGET_HTTP_CACHE_PATH',
+        'COREPACK_HOME',
+        'PNPM_HOME',
+        'XDG_CACHE_HOME',
+        'NPM_CONFIG_CACHE',
+        'npm_config_cache',
+        'NPM_CONFIG_STORE_DIR',
+        'npm_config_store_dir',
+      ].map((key) => [key, `selected-${key}`]),
+    );
     const base = {
       PATH: '/bin',
       HOME: '/home',
       DOTNET_ROOT: '/dotnet',
       TMPDIR: '/tmp',
       APPDATA: '/profile',
+      ...tooling,
       ConnectionStrings__Default: 'ambient-application',
       ConnectionStrings__Migration: 'owner',
       ConnectionStrings__OutboxDispatcher: 'dispatcher',
@@ -197,6 +277,7 @@ describe('launcher-owned local database validation', () => {
       'ConnectionStrings:OutboxDispatcher': 'colon-dispatcher',
       LEARNSTACK_OUTBOX_PW: 'dispatcher-password',
       DEBUG: '*',
+      NODE_TLS_REJECT_UNAUTHORIZED: '0',
     };
     const prerequisites = {
       PATH: '/bin',
@@ -204,6 +285,7 @@ describe('launcher-owned local database validation', () => {
       DOTNET_ROOT: '/dotnet',
       TMPDIR: '/tmp',
       APPDATA: '/profile',
+      ...tooling,
     };
     expect(publicSeederEnvironment(undefined, base)).toEqual(prerequisites);
     expect(publicSeederEnvironment('selected-application', base)).toEqual({
@@ -219,6 +301,178 @@ describe('launcher-owned local database validation', () => {
 });
 
 describe('shared explicit demo stack selection', () => {
+  function composeCliFixture() {
+    const root = temporary();
+    mkdirSync(join(root, 'bin'));
+    mkdirSync(join(root, 'scripts'));
+    for (const name of ['compose', 'development-realm-errors'])
+      writeFileSync(
+        join(root, `scripts/${name}.mjs`),
+        readFileSync(new URL(`../../../../../scripts/${name}.mjs`, import.meta.url)),
+      );
+    const file = join(root, 'selected.env');
+    writePrivateFileSync(file, '# Older private configuration without a web secret\n');
+    const canary = randomBytes(20).toString('hex');
+    writeFileSync(
+      join(root, 'bin/docker'),
+      `#!${process.execPath}
+const argv = process.argv.slice(2);
+if (process.env.KEYCLOAK_WEB_CLIENT_SECRET !== 'learnstack-lifecycle-placeholder') {
+  console.error('fixture: required web secret is absent');
+  process.exit(43);
+}
+process.stdout.write(JSON.stringify({ argv, placeholder: true,
+  inheritedSecret: Object.keys(process.env).some(key => /bff|unrelated_private/i.test(key)) }));
+`,
+      { mode: 0o700 },
+    );
+    return {
+      root,
+      file,
+      run(args: string[]) {
+        const result = spawnSync(
+          process.execPath,
+          [join(root, 'scripts/compose.mjs'), 'selected', ...args],
+          {
+            cwd: root,
+            env: {
+              NODE_ENV: 'test',
+              PATH: join(root, 'bin'),
+              LEARNSTACK_COMPOSE_MODE: 'e2e',
+              LEARNSTACK_COMPOSE_PROJECT: 'owned-lifecycle',
+              LEARNSTACK_COMPOSE_ENV_FILE: file,
+              KEYCLOAK_WEB_CLIENT_SECRET: canary,
+              Authentication__Bff__ClientSecret: canary,
+              UNRELATED_PRIVATE_VALUE: canary,
+            },
+            encoding: 'utf8',
+            timeout: 5000,
+          },
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.stdout).not.toContain(canary);
+        expect(result.stderr).not.toContain(canary);
+        return result;
+      },
+    };
+  }
+
+  it.each([
+    ['down'],
+    ['--profile', '*', 'down', '-v', '--remove-orphans'],
+    ['logs', '-f', '--tail=100'],
+    ['ps', '-a', '-q'],
+    ['stop', 'keycloak'],
+    ['config', '--services'],
+  ])('gives the actual lifecycle CLI %j only a nonsecret interpolation placeholder', (...args) => {
+    const f = composeCliFixture();
+    const result = f.run(args);
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      argv: [
+        'compose',
+        '--project-name',
+        'owned-lifecycle',
+        '--env-file',
+        f.file,
+        '-f',
+        join(f.root, 'infra/compose/dev.yml'),
+        '-f',
+        join(f.root, 'infra/compose/e2e.yml'),
+        ...args,
+      ],
+      placeholder: true,
+      inheritedSecret: false,
+    });
+    expect(readFileSync(f.file, 'utf8')).toBe(
+      '# Older private configuration without a web secret\n',
+    );
+  });
+
+  it.each([
+    ['up', '-d'],
+    ['create'],
+    ['run', '--rm', 'keycloak'],
+    ['start'],
+    ['restart'],
+    ['config'],
+    ['config', '--format', 'json'],
+    ['config', '--services', '--environment'],
+    ['--unknown', 'down'],
+    ['--profile'],
+    ['--profile', '*'],
+    ['--profile=*', 'down'],
+    ['--profile', '*', 'up', '-d'],
+    ['down', '--file', 'foreign.yml'],
+  ])('keeps creation, full config and ambiguous CLI %j strict', (...args) => {
+    const result = composeCliFixture().run(args);
+    expect(result.status).toBe(43);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('fixture: required web secret is absent\n');
+    expect(
+      readFileSync(new URL('../../../../../infra/compose/dev.yml', import.meta.url), 'utf8'),
+    ).toContain('KEYCLOAK_WEB_CLIENT_SECRET: ${KEYCLOAK_WEB_CLIENT_SECRET:?');
+  });
+
+  it.each(['shared', 'symlink', 'reserved'])(
+    'keeps lifecycle private-source qualification for %s files ahead of Docker',
+    (kind) => {
+      const f = composeCliFixture();
+      if (kind === 'shared') chmodSync(f.file, 0o644);
+      else if (kind === 'symlink') {
+        const target = join(f.root, 'target.env');
+        writePrivateFileSync(target, '# private\n');
+        rmSync(f.file);
+        symlinkSync(target, f.file);
+      } else writePrivateFileSync(f.file, 'COMPOSE_FILE=foreign.yml\n');
+      const result = f.run(['--profile', '*', 'down']);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain(
+        kind === 'reserved' ? 'Reserved COMPOSE_*' : 'preflight/private_file',
+      );
+      expect(result.stderr).not.toContain(f.file);
+    },
+  );
+
+  it.each([
+    ['missing', 'Compose environment file is missing; run make public-env'],
+    ['mode', 'Unsupported Compose mode'],
+    ['project', 'Invalid Compose project'],
+    ['reserved', 'Reserved COMPOSE_* controls cannot appear in the selected environment'],
+  ])(
+    'retains the fixed %s Compose selection notice through the actual seed CLI',
+    (kind, notice) => {
+      const root = temporary();
+      const source = seedFixture(root);
+      if (kind !== 'missing')
+        writePrivateFileSync(
+          join(root, '.env'),
+          source + (kind === 'reserved' ? 'COMPOSE_FILE=foreign.yml\n' : ''),
+        );
+      const result = spawnSync(
+        process.execPath,
+        [join(root, 'scripts/seed.mjs'), '--validate-config'],
+        {
+          cwd: root,
+          env: {
+            NODE_ENV: 'test',
+            PATH: root,
+            ...(kind === 'mode' ? { LEARNSTACK_COMPOSE_MODE: 'unknown' } : {}),
+            ...(kind === 'project' ? { LEARNSTACK_COMPOSE_PROJECT: '../foreign' } : {}),
+          },
+          encoding: 'utf8',
+          timeout: 5000,
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe(`seed: ${notice}\n`);
+      expect(result.stderr).not.toContain(root);
+    },
+  );
+
   it.each([
     'COMPOSE_PROFILES=gated',
     ' export COMPOSE_PROFILES = gated',
@@ -227,21 +481,25 @@ describe('shared explicit demo stack selection', () => {
     'COMPOSE_ENV_FILES=foreign.env',
   ])('refuses a selected dotenv Compose control before Docker: %s', (assignment) => {
     const root = temporary();
-    writeFileSync(join(root, '.env'), `POSTGRES_PASSWORD=private\n${assignment}\n`);
+    writePrivateFileSync(join(root, '.env'), `POSTGRES_PASSWORD=private\n${assignment}\n`);
     expect(() => composeSelection('dev', {}, root)).toThrow('Reserved COMPOSE_*');
-    writeFileSync(join(root, '.env'), '# COMPOSE_PROFILES=gated\nPOSTGRES_PASSWORD=private\n');
+    writePrivateFileSync(
+      join(root, '.env'),
+      '# COMPOSE_PROFILES=gated\nPOSTGRES_PASSWORD=private\n',
+    );
     expect(() => composeSelection('dev', {}, root)).not.toThrow();
   });
   it('refuses stale ambient seed credentials before stack or database actions', () => {
     const root = temporary();
-    mkdirSync(join(root, 'scripts'));
+    const privateSource = seedFixture(root);
     const script = join(root, 'scripts/seed.sh');
-    writeFileSync(script, readFileSync(new URL('../../../../../scripts/seed.sh', import.meta.url)));
     const migration = 'Host=localhost;Username=learnstack_migration';
     const app = 'Host=localhost;Username=learnstack_app';
-    writeFileSync(
+    writePrivateFileSync(
       join(root, 'selected.env'),
-      `ConnectionStrings__Migration=${migration}\nConnectionStrings__Default=${app}\n`,
+      privateSource
+        .replace('Username=learnstack_migration', migration)
+        .replace('Username=learnstack_app', app),
     );
     const env = {
       PATH: process.env.PATH,
@@ -261,36 +519,58 @@ describe('shared explicit demo stack selection', () => {
       const result = run({ ...env, [key]: 'Host=foreign;Username=stale' });
       expect(result.error).toBeUndefined();
       expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain('disagrees');
+      expect(result.stderr).toContain('realm: preflight/configuration');
       expect(result.stderr).not.toContain('foreign');
     }
   });
-  it('launches the argument-free Seeder without selected or ambient dispatcher credentials', () => {
+  it('freshly builds the Release Seeder and launches its argument-free DLL with only its credential', () => {
     const root = temporary();
-    for (const directory of ['scripts', 'backend', 'bin']) mkdirSync(join(root, directory));
-    for (const file of ['seed.sh', 'connection-string.awk', 'demo-database.mjs'])
-      writeFileSync(
-        join(root, 'scripts', file),
-        readFileSync(new URL(`../../../../../scripts/${file}`, import.meta.url)),
-      );
+    writePrivateFileSync(join(root, '.env'), seedFixture(root));
     writeFileSync(
-      join(root, '.env'),
-      'ConnectionStrings__Migration=Username=learnstack_migration\nConnectionStrings__Default=Username=learnstack_app\nConnectionStrings__OutboxDispatcher=Username=learnstack_outbox_admin\n',
+      join(root, 'bin/docker'),
+      `#!${process.execPath}
+const { appendFileSync } = require('node:fs');
+if (JSON.stringify(process.argv.slice(2)) === JSON.stringify(['context', 'inspect'])) {
+  process.stdout.write(JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }]));
+  process.exit(0);
+}
+if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['compose', 'version']) || Object.keys(process.env).some(key => /keycloak|connectionstrings|_pw$|bff|debug/i.test(key))) process.exit(13);
+appendFileSync(${JSON.stringify(join(root, 'events'))}, 'compose-version\\n');
+`,
+      { mode: 0o700 },
     );
-    for (const [name, body] of Object.entries({
-      docker: '[ "$*" = "compose version" ]',
-      node: 'if [ "$*" = "scripts/wait-compose.mjs" ]; then exit 0; fi\nexec "$REAL_NODE" "$@"',
-      dotnet:
-        '[ "$#" = 3 ] && [ "$1" = run ] && [ "$2" = --project ] && [ "$3" = src/LearnStack.Tools.Seeder ] && [ "$(basename "$PWD")" = backend ] && [ "$ConnectionStrings__Default" = Username=learnstack_app ] && [ "$HOME" = /seed-home ] && [ -n "$PATH" ] && [ -z "${ConnectionStrings__OutboxDispatcher+x}" ] && [ -z "${CONNECTIONSTRINGS__OUTBOXDISPATCHER+x}" ] && [ -z "${LEARNSTACK_OUTBOX_PW+x}" ] && ! env | /usr/bin/grep -q "^ConnectionStrings:OutboxDispatcher=" && printf launched > ../launched',
-    }))
-      writeFileSync(join(root, 'bin', name), `#!/bin/sh\n${body}\n`, { mode: 0o700 });
+    writeFileSync(
+      join(root, 'bin/make'),
+      `#!${process.execPath}
+const { appendFileSync } = require('node:fs');
+const args = process.argv.slice(2);
+const startup = JSON.stringify(args) === JSON.stringify(['dev']);
+const migration = JSON.stringify(args) === JSON.stringify(['migrate']);
+const forbidden = Object.keys(process.env).filter(key => /keycloak|connectionstrings|_pw$|bff|debug/i.test(key) && !(migration && key === 'ConnectionStrings__Migration'));
+if ((!startup && !migration) || forbidden.length || process.env.ConnectionStrings__Migration !== (migration ? 'Username=learnstack_migration' : undefined) || process.env.LEARNSTACK_COMPOSE_PROJECT !== 'learnstack-dev' || process.env.LEARNSTACK_COMPOSE_ENV_FILE !== ${JSON.stringify(join(root, '.env'))} || process.env.LEARNSTACK_COMPOSE_MODE !== 'dev') process.exit(13);
+appendFileSync(${JSON.stringify(join(root, 'events'))}, (startup ? 'stack-up' : 'migrate') + '\\n');
+`,
+      { mode: 0o700 },
+    );
+    writeFileSync(
+      join(root, 'bin/dotnet'),
+      `#!${process.execPath}
+const { appendFileSync } = require('node:fs');
+const { join } = require('node:path');
+const args = process.argv.slice(2);
+const build = JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo']);
+const seed = args.length === 1 && args[0] === join(${JSON.stringify(root)}, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll');
+const forbidden = Object.keys(process.env).filter(key => /keycloak|outbox|migration|platform|debug/i.test(key));
+if ((!build && !seed) || process.cwd() !== ${JSON.stringify(join(root, 'backend'))} || forbidden.length || process.env.HOME !== '/seed-home' || !process.env.PATH || (build ? process.env.ConnectionStrings__Default !== undefined : process.env.ConnectionStrings__Default !== 'Username=learnstack_app')) process.exit(13);
+appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'appseed') + '\\n');
+`,
+      { mode: 0o700 },
+    );
     const launch = () =>
       spawnSync('bash', [join(root, 'scripts/seed.sh')], {
         cwd: root,
         env: {
           PATH: `${join(root, 'bin')}:${process.env.PATH}`,
-          TEST_ROOT: root,
-          REAL_NODE: process.execPath,
           HOME: '/seed-home',
           NODE_ENV: 'test',
           ConnectionStrings__OutboxDispatcher: 'ambient-dispatcher',
@@ -302,18 +582,19 @@ describe('shared explicit demo stack selection', () => {
         timeout: 5000,
       });
     expect(launch().status).toBe(0);
-    expect(readFileSync(join(root, 'launched'), 'utf8')).toBe('launched');
-    const script = join(root, 'scripts/seed.sh');
-    writeFileSync(
-      script,
-      readFileSync(script, 'utf8').replace(
-        "['run', '--project', 'src/LearnStack.Tools.Seeder']",
-        "['run', '--project', 'src/LearnStack.Tools.Seeder', '--nologo']",
-      ),
+    expect(readFileSync(join(root, 'events'), 'utf8')).toBe(
+      'compose-version\nstack-up\nready\nmigrate\nready\nbuild\nappseed\nrealm\n',
     );
+    const script = join(root, 'scripts/seed.mjs');
+    const source = readFileSync(script, 'utf8');
+    expect(source).toContain('[seederDll]');
+    writeFileSync(script, source.replace('[seederDll]', "[seederDll, '--nologo']"));
+    writeFileSync(join(root, 'events'), '');
     const refused = launch();
     expect(refused.status).not.toBe(0);
-    expect(refused.stderr).toContain('tenant seeding failed');
+    expect(readFileSync(join(root, 'events'), 'utf8')).toBe(
+      'compose-version\nstack-up\nready\nmigrate\nready\nbuild\n',
+    );
   });
   it('reads the selected migration env file and refuses its runtime role before any database act', () => {
     const root = temporary();
@@ -326,7 +607,7 @@ describe('shared explicit demo stack selection', () => {
       join(root, 'scripts/connection-string.awk'),
       readFileSync(new URL('../../../../../scripts/connection-string.awk', import.meta.url)),
     );
-    writeFileSync(
+    writePrivateFileSync(
       join(root, '.env'),
       'ConnectionStrings__Migration=Username=learnstack_platform\n',
     );
@@ -364,7 +645,7 @@ describe('shared explicit demo stack selection', () => {
   });
   it('keeps project/files/env stable and removes inherited Compose and dotenv shadows', () => {
     const root = temporary();
-    writeFileSync(join(root, '.env'), 'POSTGRES_PASSWORD=private-file-value\n');
+    writePrivateFileSync(join(root, '.env'), 'POSTGRES_PASSWORD=private-file-value\n');
     const selected = composeSelection(
       'e2e',
       {
@@ -374,6 +655,13 @@ describe('shared explicit demo stack selection', () => {
         COMPOSE_PROJECT_NAME: 'foreign',
         POSTGRES_PASSWORD: 'ambient-shadow',
         LEARNSTACK_COMPOSE_PROJECT: 'owned-demo',
+        Authentication__Bff__ClientSecret: randomBytes(20).toString('hex'),
+        UNRELATED_PRIVATE_VALUE: randomBytes(20).toString('hex'),
+        DEBUG: '*',
+        NODE_OPTIONS: '--trace-warnings',
+        DOCKER_CONTEXT: 'desktop-linux',
+        DOCKER_HOST: 'unix:///var/run/docker.sock',
+        DOCKER_CONFIG: '/docker-config',
       },
       root,
     );
@@ -393,13 +681,18 @@ describe('shared explicit demo stack selection', () => {
     expect(selected.env).not.toHaveProperty('COMPOSE_FILE');
     expect(selected.env).not.toHaveProperty('COMPOSE_PROJECT_NAME');
     expect(selected.env).not.toHaveProperty('POSTGRES_PASSWORD');
-    expect(selected.env.PATH).toBe('/bin');
+    expect(selected.env).toEqual({
+      PATH: '/bin',
+      DOCKER_CONTEXT: 'desktop-linux',
+      DOCKER_HOST: 'unix:///var/run/docker.sock',
+      DOCKER_CONFIG: '/docker-config',
+    });
     expect(Object.isFrozen(selected.args)).toBe(true);
   });
   it('refuses missing environment, unsupported mode and unsafe project names', () => {
     const root = temporary();
     expect(() => composeSelection('dev', {}, root)).toThrow();
-    writeFileSync(join(root, '.env'), 'A=B\n');
+    writePrivateFileSync(join(root, '.env'), 'A=B\n');
     expect(() => composeSelection('unknown', {}, root)).toThrow();
     expect(() =>
       composeSelection('dev', { LEARNSTACK_COMPOSE_PROJECT: '../foreign' }, root),

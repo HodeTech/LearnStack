@@ -110,7 +110,7 @@ if (stage === 'ef') {
       const calls = readFileSync(log, 'utf8')
         .split('\n')
         .filter(Boolean)
-        .map((line) => JSON.parse(line) as { args: string[]; cwd: string; connection: string });
+        .map((line) => JSON.parse(line) as { args: string[]; cwd: string; connection?: string });
       return { result, calls };
     },
   };
@@ -137,16 +137,36 @@ it.each([false, true])(
         '--configuration',
         'Release',
         '--no-build',
-        '--connection',
-        'Host=localhost;Username=learnstack_migration',
       ]),
     ]);
     for (const call of calls) {
       expect(call.cwd).toBe(join(files.root, 'backend'));
-      expect(call.connection).toBe('Host=localhost;Username=learnstack_migration');
+      expect(call.connection).toBe(
+        call.args[0] === 'ef' ? 'Host=localhost;Username=learnstack_migration' : undefined,
+      );
+      expect(call.args).not.toContain('Host=localhost;Username=learnstack_migration');
+      expect(call.args).not.toContain('--connection');
     }
   },
 );
+
+it('confines a selected-file migration credential to EF after credential-free restore and build', () => {
+  const files = fixture();
+  const connection = 'Host=localhost;Username=learnstack_migration';
+  writeFileSync(join(files.root, 'selected.env'), `ConnectionStrings__Migration=${connection}\n`, {
+    mode: 0o600,
+  });
+  const { result, calls } = files.run({
+    ConnectionStrings__Migration: '',
+    LEARNSTACK_COMPOSE_ENV_FILE: join(files.root, 'selected.env'),
+  });
+  expect(result.status, result.stderr).toBe(0);
+  expect(calls.length).toBeGreaterThan(2);
+  expect(calls.slice(0, 2).every((call) => call.connection === undefined)).toBe(true);
+  expect(calls.slice(2).every((call) => call.connection === connection)).toBe(true);
+  expect(result.stdout).not.toContain(connection);
+  expect(result.stderr).not.toContain(connection);
+});
 
 it.each(['tool', 'build'])(
   'refuses %s failure before any EF operation despite an existing Release DLL and without shell errexit',

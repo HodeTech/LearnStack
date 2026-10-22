@@ -8,7 +8,8 @@ namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
 /// Forwards a real PostgreSQL session, withholding exactly one completed COMMIT's
-/// acknowledgement. The optional held socket proves cancellation independently of disconnect.
+/// acknowledgement, or holding one request before forwarding its real ACK.
+/// The optional held socket proves cancellation independently of disconnect.
 /// </summary>
 internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
 {
@@ -20,6 +21,10 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     private readonly bool _rejectReconciliationConnections;
     private readonly bool _holdCommitResponse;
     private readonly bool _dropCommitRequest;
+    private readonly Func<bool>? _holdCommitRequestWhen;
+    private readonly TaskCompletionSource _commitRequestHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseHeldRequest = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _heldCommitRequests;
     private readonly TaskCompletionSource _commitRequestDropped = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _issuedCommits, _droppedCommitRequests;
     private readonly TaskCompletionSource _commitResponseHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -58,14 +63,17 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
 
     public CommitResponseDroppingProxy(string connectionString, bool rejectReconciliationConnections = false,
         int commitsToPass = 0, bool holdCommitResponse = false, TimeSpan? lifetime = null, bool dropCommitRequest = false,
-        Guid? observedCheckpointJob = null)
+        Guid? observedCheckpointJob = null, Func<bool>? holdCommitRequestWhen = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(commitsToPass);
+        if (holdCommitRequestWhen is not null && (dropCommitRequest || holdCommitResponse))
+            throw new ArgumentException("A held request must forward its actual acknowledgement.", nameof(holdCommitRequestWhen));
         _stopping = new(lifetime ?? TimeSpan.FromSeconds(30));
         _commitsToPass = commitsToPass;
         _rejectReconciliationConnections = rejectReconciliationConnections;
         _holdCommitResponse = holdCommitResponse;
         _dropCommitRequest = dropCommitRequest;
+        _holdCommitRequestWhen = holdCommitRequestWhen;
         _observedCheckpointJob = observedCheckpointJob;
         var target = new NpgsqlConnectionStringBuilder(connectionString);
         _targetHost = target.Host ?? throw new ArgumentException("The test proxy requires a PostgreSQL host.", nameof(connectionString));
@@ -90,6 +98,9 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     public int CompletedCommits => Volatile.Read(ref _completedCommits);
     public int AcceptedConnections => Volatile.Read(ref _acceptedConnections);
     public Task CommitResponseHeld => _commitResponseHeld.Task;
+    public Task CommitRequestHeld => _commitRequestHeld.Task;
+    public int HeldCommitRequests => Volatile.Read(ref _heldCommitRequests);
+    public void ReleaseHeldRequest() => _releaseHeldRequest.TrySetResult();
     public Task CommitRequestDropped => _commitRequestDropped.Task;
     public int DroppedCommitRequests => Volatile.Read(ref _droppedCommitRequests);
     public void ReleaseHeldResponse() => _releaseHeldResponse.TrySetResult();
@@ -190,7 +201,7 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
             await using var clientStream = client.GetStream();
             await using var serverStream = server.GetStream();
             var checkpointLock = new CheckpointLockSession(_observedCheckpointJob);
-            var toServer = _dropCommitRequest || _observedCheckpointJob is not null
+            var toServer = _dropCommitRequest || _holdCommitRequestWhen is not null || _observedCheckpointJob is not null
                 ? ForwardRequestsAsync(clientStream, serverStream, checkpointLock, stopping.Token)
                 : clientStream.CopyToAsync(serverStream, stopping.Token);
             var toClient = ForwardResponsesAsync(serverStream, clientStream, checkpointLock, stopping.Token);
@@ -244,6 +255,15 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
                 // that frame; closing this session rolls its transaction back.
                 _commitRequestDropped.TrySetResult();
                 return;
+            }
+            if (_holdCommitRequestWhen is not null && header[0] == (byte)'Q' && body.AsSpan().SequenceEqual("COMMIT\0"u8)
+                && _holdCommitRequestWhen() && Interlocked.Increment(ref _issuedCommits) > _commitsToPass
+                && Interlocked.CompareExchange(ref _heldCommitRequests, 1, 0) == 0)
+            {
+                // Hold the real COMMIT before PostgreSQL releases its row lock,
+                // then forward both request and acknowledgement without alteration.
+                _commitRequestHeld.TrySetResult();
+                await _releaseHeldRequest.Task.WaitAsync(token);
             }
             await server.WriteAsync(header, token);
             await server.WriteAsync(body, token);
@@ -368,7 +388,7 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
                 quarantineRead = false;
             }
             if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("COMMIT\0"u8)
-                && Interlocked.Increment(ref _completedCommits) > _commitsToPass && !_dropCommitRequest
+                && Interlocked.Increment(ref _completedCommits) > _commitsToPass && !_dropCommitRequest && _holdCommitRequestWhen is null
                 && Interlocked.CompareExchange(ref _droppedCommitResponses, 1, 0) == 0)
             {
                 // The real server has committed. Forward neither CommandComplete

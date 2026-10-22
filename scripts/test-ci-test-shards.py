@@ -67,6 +67,111 @@ class ShardControls(unittest.TestCase):
             self.assertEqual(set(map(OWNER.case_key, manifest['allTests'])), set(all_cases))
             self.assertEqual('A' if attempt == '1' else 'B', assignment['variant'])
 
+    def test_shared_fixture_witness_matches_actual_source_classes(self):
+        self.assertEqual(OWNER.fixture_class_census(), self.plan['sharedFixtureClasses'])
+        self.assertIn('LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests',
+                      self.plan['sharedFixtureClasses'])
+        self.assertIn('LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests',
+                      self.plan['sharedFixtureClasses'])
+        for name in ('LearnStack.Tests.Integration.ApiHandlerCompositionTests',
+                     'LearnStack.Tests.Integration.Database.PublicSiteHttpTests',
+                     'LearnStack.Tests.Integration.Database.HangfireStorageTests'):
+            self.assertIn(name, self.plan['sharedFixtureClasses'])
+
+    def test_fixture_census_binds_qualified_collections_and_other_explicit_class_fixtures(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'backend/tests/LearnStack.Tests.Integration'
+            source.mkdir(parents=True)
+            (source / 'Definitions.cs').write_text('''namespace Example.Database;
+[CollectionDefinition(Name)]
+public sealed class SharedSchema : ICollectionFixture<SchemaFixture> { }
+[CollectionDefinition(Name)]
+public sealed class PublicReadTestGroup : ICollectionFixture<PublicReadFixture> { }
+[CollectionDefinition(Name)]
+public sealed class WithoutFixture { }
+''')
+            (source / 'Tests.cs').write_text('''using Example.Database;
+namespace Example;
+[Collection(Database.SharedSchema.Name)]
+public sealed class Qualified { }
+[global::Xunit.CollectionAttribute(global::Example.Database.PublicReadTestGroup.Name)]
+public sealed class OtherCollection { }
+public sealed class OtherFixture(SchemaFixture fixture) : Xunit.IClassFixture<SchemaFixture> { }
+[Collection(WithoutFixture.Name)]
+public sealed class NoFixtureCollection { }
+public sealed class UnrelatedAfterCollection { }
+// [Collection(Database.SharedSchema.Name)] public class Comment : IClassFixture<Ghost> { }
+public sealed class LiteralHolder
+{
+    const string Fake = """
+[Collection(Database.SharedSchema.Name)] public class Literal : IClassFixture<Ghost> { }
+""";
+}
+''')
+            self.assertEqual(['Example.OtherCollection', 'Example.OtherFixture', 'Example.Qualified'],
+                             OWNER.fixture_class_census(root))
+
+    def test_fixture_census_refuses_unknown_unsupported_and_ambiguous_forms(self):
+        for declaration, reason in (
+                ('[Collection(Unknown.Name)] public sealed class Tests { }', 'fixture_collection_unresolved'),
+                ('[Collection(typeof(Known))] public sealed class Tests { }', 'fixture_attribute_unsupported'),
+                ('[Other.Collection(Known.Name)] public sealed class Tests { }', 'fixture_attribute_unsupported'),
+                ('public sealed class Tests : IClassFixture<Generic<Fixture>> { }', 'fixture_declaration_unsupported'),
+                ('public sealed class Tests(IClassFixture<Fixture> parameter) { }', 'fixture_declaration_unsupported')):
+            with self.subTest(declaration=declaration), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / 'backend/tests/LearnStack.Tests.Integration'
+                source.mkdir(parents=True)
+                (source / 'Tests.cs').write_text('namespace Example;\n' + declaration)
+                self.refuses(reason, OWNER.fixture_class_census, root)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'backend/tests/LearnStack.Tests.Integration'
+            source.mkdir(parents=True)
+            for filename in ('First.cs', 'Second.cs'):
+                (source / filename).write_text('namespace Example;\npublic partial class Tests : IClassFixture<Fixture> { }')
+            self.refuses('fixture_declaration_ambiguous', OWNER.fixture_class_census, root)
+
+    def test_fixture_census_refuses_local_and_separate_global_attribute_aliases(self):
+        for prefix in ('using ', 'global using '):
+            for attribute in ('CollectionAttribute', 'CollectionDefinitionAttribute',
+                              'Xunit.CollectionAttribute', 'global::Xunit.CollectionDefinitionAttribute'):
+                with self.subTest(prefix=prefix, attribute=attribute), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    source = root / 'backend/tests/LearnStack.Tests.Integration'
+                    source.mkdir(parents=True)
+                    alias = prefix + 'Group = ' + attribute + ';\n'
+                    if prefix.startswith('global'):
+                        (source / 'Aliases.cs').write_text(alias)
+                    (source / 'Tests.cs').write_text(('' if prefix.startswith('global') else alias) + '''namespace Example;
+[CollectionDefinition(Name)]
+public sealed class SharedSchema : ICollectionFixture<Fixture> { }
+public sealed class Existing : IClassFixture<Fixture> { }
+[Group(SharedSchema.Name)]
+public sealed class AliasedCollectionTests { }
+''')
+                    self.refuses('fixture_attribute_alias_unsupported', OWNER.fixture_class_census, root)
+
+    def test_plan_revision_diff_uses_one_manifest_and_reports_actual_case_moves(self):
+        manifest = self.manifest()
+        clean = OWNER.assignment_diff(manifest, self.plan, self.plan)
+        self.assertTrue(all(item['movedCases'] == 0 for item in clean['layouts'].values()))
+        changed = copy.deepcopy(self.plan)
+        changed['weights'] = []
+        for index, case in enumerate(manifest['ordinary'][::2]):
+            changed['weights'].append({'assembly': case['assembly'], 'method': case['method'],
+                'milliseconds': index + 1, 'source': next(iter(changed['sources']))})
+        diff = OWNER.assignment_diff(manifest, self.plan, changed)
+        self.assertEqual(clean['manifestDigest'], diff['manifestDigest'])
+        self.assertNotEqual(diff['beforePlanDigest'], diff['afterPlanDigest'])
+        for attempt, layout in (('1', 'A'), ('2', 'B')):
+            actual = diff['layouts'][layout]
+            self.assertGreater(actual['movedCases'], 0)
+            self.assertEqual(actual['movedCases'], len(actual['changes']))
+            self.assertEqual(OWNER.digest(actual['changes']), actual['changesDigest'])
+            self.assertEqual(actual['movedMethods'] * 2, actual['movedCases'])
+
     def test_theory_rows_and_equal_selector_in_different_assemblies_are_not_split(self):
         manifest = self.manifest()
         manifest['nonDocker'][0]['method'] = manifest['ordinary'][0]['method']

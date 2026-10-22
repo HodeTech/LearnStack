@@ -276,7 +276,7 @@ The actual singleton-budget suppression path is also exported through the root's
 `LearnStack.Api` meter subscription. Its test waits for the correlated Warning
 while the logger owner is alive: a metrics flush is not a log-delivery receipt.
 The ordinary-destination controls are implemented; the
-[P02b-5 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+[P02b-5 merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
 owns their current qualification status.
 
 Step 3 implements recorder/claimless/quota diagnostics; Steps 4–5 qualify the

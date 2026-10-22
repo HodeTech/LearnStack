@@ -72,6 +72,11 @@ public sealed record DemoIdentities(IReadOnlyList<DemoIdentity> Values, IReadOnl
                 }
             }
         }
+        foreach (var user in SeedData.IdentityUsers)
+        {
+            Id(user.UserId.Value);
+            Add("identity-username", user.Username);
+        }
         // Built-ins retain their semantic vocabulary; their tenant-owned identities
         // are generated at initialization and are not demo literals.
         Add("content-type-key", BuiltInCustomizations.Card.Key);

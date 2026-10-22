@@ -893,6 +893,10 @@ public sealed partial class PersistenceConventionTests
 
         files.Should().Contain(file => file.Item1.StartsWith("Database/", StringComparison.Ordinal),
             "the Docker-bound suite lives there, and a rule that scans nothing passes");
+        var declarations = files.SelectMany(file => CSharpSyntaxTree.ParseText(file.Item2).GetRoot()
+            .DescendantNodes().OfType<TypeDeclarationSyntax>().Select(type => type.Identifier.ValueText)).ToHashSet(StringComparer.Ordinal);
+        DockerFixtures.Should().OnlyContain(name => declarations.Contains(name),
+            "renaming a fixture must update the Docker source census rather than silently remove its coverage");
 
         UntraitedDockerTests(files).Should().BeEmpty(
             "every test class under Database/, and every one that takes a database fixture, "
@@ -921,6 +925,17 @@ public sealed partial class PersistenceConventionTests
             ("RootForgotTests.cs", "public class RootForgotTests(Database.SchemaFixture schema) { [Fact] public void A() { } }"),
             ("RootTraitedTests.cs", $"{Qualified} public class RootTraitedTests(Database.SchemaFixture schema) {{ [Theory] public void A() {{ }} }}"),
             ("HttpOnlyTests.cs", "public class HttpOnlyTests { [Fact] public void A() { } }"),
+            ("IdentityMissingTests.cs", "public class IdentityMissingTests(KeycloakFixture realm) { [Fact] public void A() { } }"),
+            ("IdentityCollectionMissingTests.cs", "[Collection(SharedKeycloakRealm.Name)] public class IdentityCollectionMissingTests { [Fact] public void A() { } }"),
+            ("IdentityTraitedTests.cs", $"{Trait} public class IdentityTraitedTests(KeycloakFixture realm) {{ [Fact] public void A() {{ }} }}"),
+            ("IdentityApiCollectionMissingTests.cs", "[Collection(TenantRealmApiTestGroup.Name)] public class IdentityApiCollectionMissingTests { [Fact] public void A() { } }"),
+            ("IdentityApiCollectionTraitedTests.cs", $"{Trait} [Collection(TenantRealmApiTestGroup.Name)] public class IdentityApiCollectionTraitedTests {{ [Fact] public void A() {{ }} }}"),
+            ("IdentityApiPartialMain.cs", "namespace ApiPartial; [Collection(TenantRealmApiTestGroup.Name)] public partial class SplitTests { }"),
+            ("IdentityApiPartialCase.cs", "namespace ApiPartial; public partial class SplitTests { [Fact] public void A() { } }"),
+            ("IdentityApiPartialTraitedMain.cs", $"namespace ApiTraited; {Trait} [Collection(TenantRealmApiTestGroup.Name)] public partial class SplitTests {{ }}"),
+            ("IdentityApiPartialTraitedCase.cs", "namespace ApiTraited; public partial class SplitTests { [Fact] public void A() { } }"),
+            ("PublicReadMissingTests.cs", "public class PublicReadMissingTests(PublicReadFixture database) { [Fact] public void A() { } }"),
+            ("PublicReadTraitedTests.cs", $"{Trait} public class PublicReadTraitedTests(PublicReadFixture database) {{ [Fact] public void A() {{ }} }}"),
             ("Database/PartialMain.cs", $"namespace Valid; {Trait} public partial class SplitTests {{ }}"),
             ("Database/PartialCase.cs", "namespace Valid; public partial class SplitTests { [Fact] public void A() { } }"),
             ("Database/MissingPartialMain.cs", "namespace Missing; public partial class SplitTests { }"),
@@ -934,7 +949,8 @@ public sealed partial class PersistenceConventionTests
             ("Database/NonPartialTrait.cs", $"namespace Unmerged; {Trait} public class UnmergedTests {{ }}"),
             ("Database/NonPartialCase.cs", "namespace Unmerged; public class UnmergedTests { [Fact] public void A() { } }"),
         ]).Should().Equal("Database/CommentOnly.cs", "Database/ForeignTrait.cs", "Database/ForgotTests.cs", "Database/MissingPartialCase.cs",
-            "Database/NonPartialCase.cs", "Database/SameFile.cs", "RootForgotTests.cs");
+            "Database/NonPartialCase.cs", "Database/SameFile.cs", "IdentityApiCollectionMissingTests.cs", "IdentityApiPartialCase.cs",
+            "IdentityCollectionMissingTests.cs", "IdentityMissingTests.cs", "PublicReadMissingTests.cs", "RootForgotTests.cs");
 
         const string Native = "[Trait(NativeCrashProof.Key, NativeCrashProof.Value)]";
         const string Namespace = "namespace LearnStack.Tests.Integration.Database; ";
@@ -1267,8 +1283,9 @@ public sealed partial class PersistenceConventionTests
             or ("Database.RequiresDocker.Key", "Database.RequiresDocker.Value");
     }
 
-    /// <summary>The fixtures that start a PostgreSQL container, by the names a test takes them under.</summary>
-    private static readonly string[] DockerFixtures = ["SchemaFixture", "PostgresFixture", "SharedSchema"];
+    /// <summary>Fixture and collection identifiers that own PostgreSQL or Keycloak containers.</summary>
+    private static readonly string[] DockerFixtures =
+        ["SchemaFixture", "PostgresFixture", "PublicReadFixture", "SharedSchema", "KeycloakFixture", "SharedKeycloakRealm", "TenantRealmApiTestGroup"];
 
     [Fact]
     public void Migrate_Target_Covers_Every_Migration_Chain()

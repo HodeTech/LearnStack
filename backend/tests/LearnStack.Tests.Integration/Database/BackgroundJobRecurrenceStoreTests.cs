@@ -13,7 +13,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <summary>Real confined-role manifest activation, coalescing and atomic progress under PostgreSQL locks.</summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed partial class BackgroundJobRecurrenceStoreTests(SchemaFixture schema)
+public sealed partial class BackgroundJobRecurrenceStoreTests(SchemaFixture schema, Xunit.Abstractions.ITestOutputHelper output)
 {
     private static BackgroundJobRecurrenceFixture Fixture => BackgroundJobRecurrenceFixture.Shared;
 

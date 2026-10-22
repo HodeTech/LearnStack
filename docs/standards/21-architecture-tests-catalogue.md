@@ -39,17 +39,21 @@ owns review, packet and exact PR-head CI/job-budget status),
 (Accepted 2026-10-18; general CI obligation implemented; the phase record owns
 final-source hosted qualification),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
-(Accepted 2026-10-19; P02b-5 obligations implemented; Step 5 and the remediation
-record own local/source evidence; PR #33 owns current-head hosted qualification),
+(Accepted 2026-10-19; P02b-5 obligations implemented and merged through PR #33;
+the [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+owns final-source hosted qualification),
 [ADR-0065 Bounded Tenant Assertion Diagnostics](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
 (Accepted 2026-10-20; extends existing obligations below; audit-budget and
 telemetry controls implemented; the
-[P02b-5 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+[P02b-5 merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
 owns current qualification status),
 [ADR-0066 Bounded Tenant Subject Admission](../decisions/0066-bounded-tenant-subject-admission.md)
 (Accepted 2026-10-20; extends the existing subject-admission obligation;
 the [delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
-owns source-bound validation, reviews and hosted qualification).
+owns source-bound validation, reviews and hosted qualification),
+[ADR-0067 Development Tenant Access-Token Issuance](../decisions/0067-development-tenant-access-token-issuance.md)
+(Accepted 2026-10-21; formalizes the existing issuance obligation's authority
+without adding a rule or changing its implementation status).
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -183,8 +187,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**229 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
-The other 96 are no less binding, and most could not live there. The table says where
+**231 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
+The other 98 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -1687,7 +1691,8 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 - **Asserts:** every test file in `LearnStack.Tests.Integration` that declares a test and
   needs a container — one under `Database/`, or one anywhere that names `SchemaFixture`,
-  `PostgresFixture` or the `SharedSchema` collection — carries
+  `PostgresFixture`, `PublicReadFixture`, `KeycloakFixture` or the `SharedSchema` /
+  `SharedKeycloakRealm` / `TenantRealmApiTestGroup` collections — carries
   `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`.
   ADR-0062's shared native trait belongs to exactly the two complete native proof
   classes, including all predicate/theory/mutant rows. A nonempty source closure
@@ -1707,7 +1712,8 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   the whole project in Packet 9's fifth review. Its companion,
   `The_Docker_Trait_Sweep_Can_Actually_Fail`, feeds the predicate the shapes it must and
   must not flag, including the added native ownership/closure controls in P02b-4's
-  ADR-0062 follow-up. Actual discovered case IDs and complete partition results
+  ADR-0062 follow-up and P02b-6's provider-fixture/missing-trait controls.
+  Actual discovered case IDs and complete partition results
   are additionally checked by `scripts/ci-native-tests.py`.
 - **Phase:** 02a (Packet 6; widened in Packet 9).
 
@@ -3848,7 +3854,7 @@ implements it.
 
 | Test | Rule | Kind | Owning phase | Named in |
 |---|---|---|---|---|
-| `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. A superset of [`Adapters_Wrap_Provider_Exceptions`](#adapters_wrap_provider_exceptions), which already holds the exception types of the SDKs it lists — the one slice of this rule that runs today | structural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with the first provider adapter; it then binds per provider as each adapter lands | [Tenant Isolation](../architecture/09-tenant-isolation.md) |
+| `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. A superset of [`Adapters_Wrap_Provider_Exceptions`](#adapters_wrap_provider_exceptions), which already holds the exception types of the SDKs it lists — the one slice of this rule that runs today | structural | [Phase 03](../roadmap/phase-03-identity-admin.md#goal), at the first runtime identity-provider adapter's actual SDK introduction; re-verify before its first writer. Direct-HTTP tooling does not qualify; it then binds per provider as each SDK adapter lands | [Tenant Isolation](../architecture/09-tenant-isolation.md); [P02b-6 accepted handoff](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20) |
 | `LicenseKey_Payload_MatchesSchema` | `entitlement-v1.schema.json` is pinned by a snapshot test run in **both** repositories against the same checked-in schema | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with the schema | [Hybrid License Model](../architecture/26-hybrid-license-model.md); [ADR-0021](../decisions/0021-feature-based-entitlement.md), as `EntitlementProjection_Shape_IsStable` — see § Canonical names |
 | `Entitlement_Read_Path_Falls_Through_To_Durable_Row` | With L1 and L2 flushed and the Hub unreachable, the tenant resolves from `platform_entitlement_cache` and no exception escapes the flag read | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with `HubEntitlementProvider` | [Hybrid License Model](../architecture/26-hybrid-license-model.md) |
 | `CustomDomain_TenantId_NeverReadFrom_RequestBody` | Custom-domain submission derives the tenant from the authenticated session, never from the body or the query | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), Hub side, per [ADR-0022](../decisions/0022-custom-domain-tls.md) | ADR-0022; [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
@@ -4498,6 +4504,117 @@ structural test proves — and what it does not.
   `TenantAssertionAuditAdmissionTests` own behavioural allowance/expiry/scope
   accounting under `Tenant_Assertions_Are_Compared_Not_Resolved` above.
 - **Phase:** 02a (Packet 4); P02b-5 2026-10-20 remediation extends coverage.
+
+#### `Tenant_Realm_Issuance_Matches_The_Api_Profile`
+
+- **Asserts:** the committed tenant realm imported into pinned Keycloak issues
+  ADR-0064's real scalar identity/API profile through code/S256 exchange for all
+  four declared seed identities. Exact callbacks, confidential-secret/PKCE
+  refusals, protected admin-only attributes and the actual `basic`/identity/
+  audience mappers hold. Real tokens reach AccountSite through the API handler
+  and app-role PostgreSQL; cross-scope/Hub requests refuse, while claimless
+  principals retain the public ceiling without protected-read authority.
+  Exact realm lifespan and absent client overrides are checked independently
+  from bounded observed fresh expiration and shorter late-session issuance.
+  Ordinary account-edit success, independent admin readback and dirty/clean
+  mapper/profile/TTL variants prove protection and drift controls can fail.
+  The same seed personas use only the declared self-service baseline; actual
+  registration and writable-profile counterfactuals reach stored values rather
+  than passing through a generic refusal or account-console HTML response.
+- **Source:** ADR-0004; ADR-0064;
+  [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md)
+  (development issuance);
+  [ADR-0068](../decisions/0068-development-warm-realm-qualification.md)
+  (historical warm qualification);
+  [Security 11](11-security.md#authentication);
+  [accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
+- **Type:** xUnit Integration with Docker, real Keycloak code exchange, API
+  HTTP and `learnstack_app` database controls. **Kind:** behavioural.
+- **Test owner:** `TenantRealmIssuanceTests`, `TenantRealmProfileProtectionTests`
+  and `TenantRealmApiTests` in
+  `backend/tests/LearnStack.Tests.Integration`.
+- **Status:** **Implemented** — `TenantRealmIssuanceTests`,
+  `TenantRealmProfileProtectionTests` and `TenantRealmApiTests`; P02b-6 Step 4.
+  Actual provider/API controls run in ordinary Docker CI; local and hosted
+  receipts and independent review closure live in the Step 4 record.
+- **ADR-0068 Accepted extension — 2026-10-22, implemented:** The added Asserts
+  obligation covers historical changed-password/MFA login, four signed API
+  personas, full before/after console claims and manifest/nonmanifest POST with
+  independent stored-field readback.
+  `TenantRealmApiTests.WarmQualification.cs` implements the actual historical
+  journey alongside the existing self-service/issuance/profile controls. It
+  measures both new scope refusals and the retained offline session/credential;
+  no universal role-loss or immediate-revocation guarantee is inferred.
+  [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its
+  [three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
+  own actual receipts, completed correction reviews and source-bound hosted proof.
+  Existing Implemented status and rule counts remain unchanged.
+- **Phase:** P02b-6 Steps 1/4.
+
+#### `Development_Realm_Reconciliation_Preserves_Accounts`
+
+- **Asserts:** the actual shared development reconciler converges fresh and
+  pre-mapper warm realms without resetting existing credentials or changing
+  account IDs, unrelated user/profile/client state or the Hub realm. Independently
+  observable identity/configuration conflicts, unqualified visibility definitions,
+  group aggregation/inheritance and membership sources refuse before preparation.
+  A conflict revealed by qualified metadata preparation permits no ordinary write;
+  the fixed durable-progress notice survives failure and cleanup.
+  Projected request/response and collection limits are checked before apply.
+  Safe groups/memberships and actual account fields remain unchanged; derived
+  profile metadata is verified with its global configuration rather than
+  mistaken for stored-account data. The approved self-service adjustment adds
+  only missing four-persona account capability and a compatible fixed-account
+  console mapper. Stock bootstrap parity, existing/inherited grants and shared
+  mapper effects on an already eligible nonmanifest user are independently
+  observed; unsafe role/scope/mapper customization refuses before any pending
+  write. Partial/uncertain writes require an
+  explicit verified rerun. Independent readback checks protected claims/TTL;
+  a completed third run performs zero mutations. Both seed/demo entries retain
+  exact target/environment identity, bounded HTTP/process cleanup, secret
+  confinement and local lock ownership under failure/cancellation/races.
+- **Source:** ADR-0004; ADR-0064;
+  [ADR-0068](../decisions/0068-development-warm-realm-qualification.md);
+  [Security 11](11-security.md#authentication);
+  [accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
+- **Type:** xUnit Integration with Docker and actual warm Keycloak Admin REST;
+  offline Node tooling transport/process/CLI controls in meta.
+  **Kind:** behavioural.
+- **Test owner:** `TenantRealmReconciliationTests` and
+  `TenantRealmSelfServiceTests` in `backend/tests/LearnStack.Tests.Integration`;
+  shared reconciler Node controls under `scripts/`, including
+  `reconcile-development-realm.test.mjs`, own bounded transport/process/CLI
+  evidence. `frontend/apps/web/src/test/demo-realm-lifecycle.test.ts` owns the
+  seed/demo caller's awaited handoff, selection, confinement and cancellation
+  cleanup controls; its reconciler stub does not prove Admin REST convergence.
+- **Status:** **Implemented** — `TenantRealmReconciliationTests` and
+  `TenantRealmSelfServiceTests`, with offline Node controls in meta; P02b-6
+  Steps 2–4. Actual warm-provider, lifecycle and cancellation receipts and
+  independent review closure live in the Step 4 record.
+- **ADR-0068 Accepted extension — 2026-10-22, implemented:** The added Asserts
+  obligation is reproduced stock-graph qualification, all identity-independent
+  refusals before preparation, exact metadata-only progress, separately counted
+  ordinary writes, three qualified DELETEs and explicit partial-progress reruns.
+  `TenantRealmReconciliationTests`,
+  `TenantRealmSelfServiceTests`, `TenantRealmStockBaselineTests` and the shared
+  Node controls own this extension. The stock-baseline owner reproduces the
+  immutable historical expectation and the ordinary assignment path after explicit
+  test-owned metadata setup; it does not prove automatic preparation.
+  The second correction step adds actual historical automatic preparation,
+  exact-profile readback, independent pre-write refusal and explicit interrupted
+  resumption controls in `TenantRealmReconciliationTests`, with shared Node
+  transport/progress/cleanup controls. The third step adds the actual historical
+  credential/token/API/profile journey and a zero-write pass after self-service
+  in `TenantRealmApiTests.WarmQualification.cs`. Actual entry experiments and
+  their distinct bootstrap-source/cleanup limits live in the step record; stubbed
+  lifecycle tests alone do not prove warm Admin REST or complete public audits.
+  A hidden fresh-plan conflict may leave preparation metadata, but no ordinary
+  mutation; the earlier zero-write scope remains historical implemented coverage.
+  [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its
+  [three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
+  own actual receipts, completed correction reviews and source-bound hosted proof.
+  Existing Implemented status and rule counts remain unchanged.
+- **Phase:** P02b-6 Steps 2–4.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`
 

@@ -15,6 +15,19 @@ if (args is ["--demo-manifest"])
     Console.WriteLine(JsonSerializer.Serialize(DemoManifest.Create(), JsonSerializerOptions.Web));
     return 0;
 }
+if (args is ["--identity-manifest"])
+{
+    try
+    {
+        Console.WriteLine(JsonSerializer.Serialize(SeedIdentityManifest.Create(), JsonSerializerOptions.Web));
+        return 0;
+    }
+    catch (InvalidOperationException)
+    {
+        Console.Error.WriteLine("seed: development identity declaration is inconsistent.");
+        return 2;
+    }
+}
 if (args.Length != 0)
 {
     Console.Error.WriteLine("seed: unsupported arguments.");

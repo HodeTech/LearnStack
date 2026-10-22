@@ -61,7 +61,8 @@ membership refusal has no audit row and only Debug visibility today.
 owns reachable issuer/DNS/TLS drills, operational failure signals, rotation,
 readiness, alerts and exercised runbooks before production exposure. P02b-6 owns
 real realm issuance; P02b-7 owns session custody and recovery. These are separate
-from P02b-5's locally implemented API boundary.
+from P02b-5's
+[merged API boundary](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20).
 
 ## 1. Topology
 
@@ -445,8 +446,10 @@ current metadata; disabling last-known-good fallback does not promise either an
 outage grace period or immediate refusal of every warm-cache request. The
 [Phase 11 authentication activation gate](../roadmap/phase-11-production-hardening.md#tenant-authentication-production-activation)
 owns topology, cold/warm-cache and key-rotation drills, diagnostic/readiness decisions
-and operational runbooks before production use. P02b-6/7 still own actual realm
-issuance and browser-session integration.
+and operational runbooks before production use. P02b-6 delivers actual realm
+issuance and safe development convergence; its
+[Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+owns qualification. Browser-session integration remains P02b-7.
 
 ## 6. Rate limit policy
 

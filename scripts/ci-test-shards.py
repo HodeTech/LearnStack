@@ -293,8 +293,114 @@ def different_layouts(manifest, plan):
     return True
 
 
+def fixture_class_census(root=ROOT):
+    """Explicit class fixtures and members of fixture-bearing collections.
+
+    Recognize this repository's top-level classes, file-scoped namespaces and
+    xUnit .Name collection references. Mask comments/literals; bind attributes
+    and interfaces to one declaration. Unsupported recognized fixture markers
+    and collection-attribute aliases refuse. This observes no starts/costs.
+    """
+    ignored = re.compile(r'//[^\n]*|/\*[\s\S]*?\*/|\$*(?P<raw>"{3,})[\s\S]*?(?P=raw)'
+                         r'|@"(?:""|[^"])*"|\$?"(?:\\[\s\S]|[^"\\])*"|\'(?:\\.|[^\'\\])*\'')
+    declaration = re.compile(r'(?m)^[ \t]*(?P<attributes>(?:\[[^\[\]]*\][ \t\r\n]*)*)'
+        r'(?:(?:public|internal|private|protected|sealed|partial|abstract|static|new|file|unsafe)\s+)*'
+        r'\bclass\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?P<header>[^{};]*)(?:\{|;)')
+    marker = re.compile(r'\b(?:IClassFixture|ICollectionFixture)\s*<'
+                        r'|\[[^\[\]]*\bCollection(?:Definition)?(?:Attribute)?\s*\(')
+    attribute = r'(?:^|\[|,)\s*(?:global\s*::\s*)?(?:Xunit\s*\.\s*)?%s(?:Attribute)?\s*\(([^()]*)\)'
+    classes = {}
+    for path in (root / 'backend/tests/LearnStack.Tests.Integration').rglob('*.cs'):
+        if {'bin', 'obj'} & set(path.relative_to(root).parts):
+            continue
+        source = ignored.sub(lambda match: re.sub(r'[^\n]', ' ', match[0]), path.read_text())
+        # Attribute aliases hide the Collection marker, including when a
+        # separate global-using file supplies the alias. They need explicit
+        # support before entering the source census.
+        require(not re.search(r'\busing\s+[^;=]+\s*=\s*(?:[A-Za-z_]\w*\s*::\s*)?'
+                              r'(?:[A-Za-z_]\w*\s*\.\s*)*Collection(?:Definition)?(?:Attribute)?\s*;', source),
+                'fixture_attribute_alias_unsupported')
+        markers = list(marker.finditer(source))
+        if not markers:
+            continue
+        declared = list(declaration.finditer(source))
+        require(all(any(item.start() <= found.start() < item.end() for item in declared)
+                    for found in markers), 'fixture_declaration_unsupported')
+        namespaces = re.findall(r'^\s*namespace\s+([A-Za-z_][A-Za-z0-9_.]*)\s*;', source, re.MULTILINE)
+        require(len(namespaces) == 1, 'fixture_namespace_invalid')
+        namespace = namespaces[0]
+        imports = re.findall(r'^\s*using\s+([A-Za-z_][A-Za-z0-9_.]*)\s*;', source, re.MULTILINE)
+        for item in declared:
+            if not marker.search(item[0]):
+                continue
+            # Fixture declarations are top-level. A nested or inherited form
+            # must gain an executing control before entering this source census.
+            prefix = source[:item.start()]
+            require(prefix.count('{') == prefix.count('}'), 'fixture_declaration_unsupported')
+            name = namespace + '.' + item['name']
+            require(name not in classes, 'fixture_declaration_ambiguous')
+            header = re.fullmatch(r'\s*(?:\([^{};]*\))?\s*(?::(?P<bases>[^{};]*))?\s*', item['header'])
+            require(header is not None, 'fixture_declaration_unsupported')
+            bases = header['bases'] or ''
+            # All current explicit fixture arguments are simple/qualified types.
+            interfaces = re.findall(r'(?:^|,)\s*(?:global\s*::\s*)?(?:Xunit\s*\.\s*)?'
+                                    r'(IClassFixture|ICollectionFixture)\s*<\s*[A-Za-z_][A-Za-z0-9_.]*\s*>\s*(?=,|$)', bases)
+            require(len(interfaces) == len(re.findall(r'\bI(?:Class|Collection)Fixture\s*<', item['header'])),
+                    'fixture_declaration_unsupported')
+            definitions = re.findall(attribute % 'CollectionDefinition', item['attributes'])
+            references = re.findall(attribute % 'Collection', item['attributes'])
+            require(len(definitions) + len(references) == len(re.findall(
+                r'\bCollection(?:Definition)?(?:Attribute)?\s*\(', item['attributes'])),
+                'fixture_attribute_unsupported')
+            require(len(definitions) <= 1 and len(references) <= 1, 'fixture_attribute_ambiguous')
+            classes[name] = {'namespace': namespace, 'imports': imports,
+                'definition': bool(definitions), 'classFixture': 'IClassFixture' in interfaces,
+                'collectionFixture': 'ICollectionFixture' in interfaces,
+                'reference': re.sub(r'\s', '', references[0]) if references else None}
+    definitions = {name: item for name, item in classes.items() if item['definition']}
+    result = set()
+    for name, item in classes.items():
+        fixture = item['classFixture']
+        reference = item['reference']
+        if reference is not None:
+            require(re.fullmatch(r'(?:global::)?[A-Za-z_][A-Za-z0-9_.]*\.Name', reference),
+                    'fixture_collection_reference_invalid')
+            relative = reference[:-len('.Name')].removeprefix('global::')
+            namespaces = item['namespace'].split('.')
+            candidates = [relative] if reference.startswith('global::') else [
+                '.'.join(namespaces[:length]) + '.' + relative for length in range(len(namespaces), 0, -1)]
+            candidates += [relative] + [namespace + '.' + relative for namespace in item['imports']]
+            matches = list(dict.fromkeys(candidate for candidate in candidates if candidate in definitions))
+            require(len(matches) == 1, 'fixture_collection_unresolved')
+            fixture = fixture or definitions[matches[0]]['collectionFixture']
+        if fixture and not item['definition']:
+            result.add(name)
+    require(result, 'fixture_class_census_empty')
+    return sorted(result)
+
+
+def assignment_diff(manifest, before, after):
+    """Compare two reviewed plans on exactly the same complete case manifest."""
+    result = {'manifestDigest': manifest_digest(manifest), 'beforePlanDigest': digest(before),
+              'afterPlanDigest': digest(after), 'layouts': {}}
+    for attempt in ('1', '2'):
+        first, second = (assign(manifest, plan, attempt)['owners'] for plan in (before, after))
+        def owners(value):
+            return {case_key(case): owner for owner, cases in value.items() for case in cases}
+        previous, current = owners(first), owners(second)
+        changes = [{'assembly': case['assembly'], 'id': case['id'], 'method': case['method'],
+                    'before': previous[case_key(case)], 'after': current[case_key(case)]}
+                   for case in sorted(manifest['allTests'], key=case_key)
+                   if previous[case_key(case)] != current[case_key(case)]]
+        result['layouts'][variant(attempt)] = {'beforeAssignmentDigest': digest(first),
+            'afterAssignmentDigest': digest(second), 'movedCases': len(changes),
+            'movedMethods': len({method_key(case) for case in changes}),
+            'changesDigest': digest(changes), 'changes': changes}
+    return result
+
+
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in ('topology', 'aggregate-backend', 'aggregate-integration'):
+    if len(sys.argv) != 2 or sys.argv[1] not in ('topology', 'prepare-fixtures', 'aggregate-backend', 'aggregate-integration'):
         print('{"protocol":1,"error":"mode_refused"}')
         return 1
     result = None
@@ -306,6 +412,8 @@ def main():
             result.source_topology(load_plan())
             print('{"protocol":1,"topology":"complete"}')
             return 0
+        if sys.argv[1] == 'prepare-fixtures':
+            return result.prepare_fixture_images()
         return result.aggregate(sys.argv[1].removeprefix('aggregate-'))
     except Exception as failure:
         # Known owners expose only closed refusals. An unexpected import/parser
