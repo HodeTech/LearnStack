@@ -18243,6 +18243,26 @@ canary exclusion and clean-path silence. The next complete final-source A/B is
 still required; later successful metadata does not repair this failed attempt.
 Fresh independent review rounds remain required.
 
+#### Gate-diagnostic correction review round 1
+
+Two fresh independent reviewers (`gpt-6-astra`, high correctness/security;
+`gpt-6.1-sol`, high evidence/governance) inspect `979750cd..5bce55db` and
+approve without findings. The correctness reviewer passes 30,492 direct input
+combinations across every source-owned producer, gate and scalar/structured
+state value; the evidence reviewer independently passes 1,890 combinations
+and all twenty aggregate controls. Both confirm unchanged refusal and silent
+success. The evidence reviewer validates both historical log hashes and both
+later snapshots with the baseline and current verifier identically. The
+original failing API response remains unavailable. Root's combined owner/
+aggregate suite passes 61 controls in 2.532s with no skips; diff hygiene passes.
+
+The same failed whole attempt's public artifact is retained independently by
+API ID `12428514412`, digest
+`22c3236ca499a1f095a40472301667f6b9f0b292bd5ae2871318b6e80909399c`.
+Its archive has all 27 JSON/HTML report pairs; the native receipt reports passed,
+150.158s setup, 628.378s proof and 10.986s confirmed cleanup. This component
+observation does not qualify the failed whole workflow or a changed source.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
