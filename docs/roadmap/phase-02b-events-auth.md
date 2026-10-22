@@ -18313,7 +18313,7 @@ connections. A separate twelve-second startup injection makes exactly the
 observations show actual startup completion with the join present; removing
 only that join produces one disposal while startup remains pending. Both
 counterparts finish naturally, join their process groups/listener and confirm
-both exact owned PostgreSQL containers absent. The expected failing counterparts
+both exact owned containers absent. The expected failing counterparts
 are diagnostic controls, not successful production qualification.
 
 The finite result/completion observations use the test's output helper: a
@@ -18389,6 +18389,26 @@ It does not restore the unavailable original backend API observation. Production
 behavior, passing deadlines, retry/identity policy and case populations remain
 unchanged. A second fresh independent pair and final-source full A/B remain
 required.
+
+#### Outbox/producer diagnostic correction review round 2
+
+A different fresh pair (`gpt-6-astra`, high correctness/security;
+`gpt-6.1-sol`, high evidence/governance) inspects `95edb219..0fa8e641`
+and the precise evidence-wording correction below. Both approve without
+remaining findings. Each independently runs all 63 launcher and 21 aggregate
+controls; the evidence reviewer also runs the combined 62-case owner suite.
+The correctness reviewer adds 33 parser boundary/refusal assertions. Both
+rehash all six receipts and associated source/TRX/log identities, match the
+nineteen discovered class cases and independently decode the joined and
+abandoned adapter traces. Both confirm actual disposal observations and
+retained natural process/listener/container cleanup checks.
+
+Root narrows an overstatement from "both exact owned PostgreSQL containers"
+to "both exact owned containers": the harness identifies two created IDs and
+checks each absent, but its cleanup receipt does not retain both image
+identities. Both reviewers inspect and approve that correction. No runtime,
+parser or refusal change is needed. Both review rounds are complete; new
+same-source complete hosted A/B remains pending and the PR remains draft.
 
 ## Completion Criteria
 
