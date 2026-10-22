@@ -16447,6 +16447,23 @@ commands join; no actual Compose/provider work is claimed by these stubbed
 entry controls. Fresh independent correction reviews follow before closeout.
 
 
+
+#### First-round Step 2 correction verification
+
+Both first-round reviewers independently inspect `8b99de3..16771fc1` and approve
+without a remaining verified finding. Each independently passes all 343 guarded
+Node cases across seven files and all 61 lifecycle controls. The security reviewer
+also passes ten supplemental assertion controls covering the original failures,
+genuinely hidden legacy admission, direct mapper conflicts in compatible/stock
+graphs and missing/optional-only resolver refusal. The governance reviewer
+independently reproduces the old clean/default/visible-actor configurations and
+confirms that each dirty version now refuses before preparation with zero writes.
+Whitespace checks pass and every review subprocess joins without tracked edits.
+Neither repeats provider/.NET/Docker/hosted execution or converts the reported
+receipts into independently observed qualification. A different fresh second
+pair reviews the whole Step 2 change before closeout.
+
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
