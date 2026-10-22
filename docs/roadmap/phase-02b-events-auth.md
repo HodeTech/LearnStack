@@ -18044,6 +18044,23 @@ fragment. All thirteen targeted controls pass again. The implementation shell
 does not change. A different fresh review pair and complete final-source hosted
 A/B remain required.
 
+#### Second browser-acquisition correction review (2026-10-22)
+
+A different fresh pair reviews `9eecf967..60275302`: `gpt-6-astra` at
+`high` for correctness and `gpt-6.1-sol` at `high` for evidence/governance.
+Both approve without an actionable finding. Each independently passes sixteen
+actual-shell executions: all eight paths under hosted default Bash errexit and
+the stricter test flags. The evidence reviewer additionally observes exactly
+one configuration line before partial-write cleanup, exit 18 and no browser
+invocation. Both verify the pinned runner source and the old validation receipt's
+explicit source limits; they do not extend its hashes to changed test/docs.
+Neither runs Node, .NET, Docker, APT or privileged commands.
+
+All five real-Git link-audit controls also pass in 2.119 seconds. Whitespace
+checks and commit hooks pass. Both browser-acquisition review rounds are
+complete. The resulting source stays draft until complete same-source A/B,
+including the real hosted APT installer and public product proof, qualifies.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
