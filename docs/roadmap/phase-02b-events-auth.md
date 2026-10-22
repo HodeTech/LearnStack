@@ -17195,6 +17195,108 @@ Complete current-source qualification is required before readiness; a successful
 sibling or earlier revision supplies no waiver. Merge and P02b-7 remain separate.
 
 
+#### Reviewed-source recurrence failure and evidence boundary
+
+[Run `39723329277`](https://github.com/HodeTech/LearnStack/actions/runs/39723329277),
+attempt 1/layout A, freezes reviewed head
+`4e06ffa1359bb2701e7a097a1fb1b7f9244ad9d1`, tree
+`565a62db2958306fc29d198b2672e531b5318fb1`. All twenty-seven jobs finish:
+twenty-five pass; ordinary-8 fails and integration refuses that producer. No
+layout B starts. All twenty producer archives and the successful backend
+aggregate archive are retained with their raw API inventory and verified
+digests. The failed-run capture summary has SHA-256
+`46a0af0a9af9b64593ef834a8474d5a8fa84887c6d0c1fd9051dd848f8b669e3`.
+This capture records failure, not complete qualification.
+
+The held actual native recurrence callback case fails in 32.5851077 seconds.
+Its artifact, `12402495557`, has SHA-256
+`c19332a22de1977c1368e4262430f29bd677ac52d50b40ea81a3d333d1c79be9`.
+The retained top-level exception class is `timeout`; no mapped source location
+is available. The owner reports `owned_completion_missing`, workload
+`tests_failed` and forced cleanup. Multiple independent thirty-second waits
+exist; the test's cleanup can also replace an earlier exception. Duration alone
+identifies none of these boundaries.
+
+The actual job log contains no underlying adapter stack or error message.
+Ordinary console output is discarded, raw execution diagnostics are deleted and
+TRX errors are sanitized. Neither native recurrence source file has a finite
+location mapping. Empty exported locations therefore do not establish an empty
+original stack. Two independent read-only inspections find no source-proven
+production defect; this run's exact timeout boundary is unrecoverable from its
+retained evidence. The next correction preserves the first exception, maps both
+source files and records finite first-failure and later cleanup facts separately.
+It changes no production behavior, assertion, wait or admission rule.
+
+Public demo independently passes on this same source. Immutable artifact
+`12403135471`, SHA-256
+`3d31ba7b57bb3de2c19a868fed71eb7b42fde79fde4ca794ec63b925e2bccd55`,
+is retained with its raw API binding. All twenty-seven report pairs, nine PNGs,
+nine navigations and twenty-four visibility checks pass; all 134 API completions
+return 200. Toolchain, TLS/timeout controls and natural cleanup pass; cleanup
+takes 11.783 seconds. Independent verification-summary SHA-256 is
+`5335e9a6dcde02f51cda4c103508afdc32e07e75018974d4f1db801847957a72`.
+This successful sibling supplies no waiver for the failed recurrence case.
+
+
+#### Recurrence failure transport and first-exception proof
+
+The correction retains the existing case identity, assertions and timeouts.
+Its first body, explicit cleanup or post-cleanup exception is preserved through
+`ExceptionDispatchInfo`. Later cleanup steps are attempted independently. An
+early body failure also requests the two actual source disposals; only their
+positive completion can establish cleanup. No production code changes.
+
+One exact integration case may project its two test-owned `StdOutMsgs` markers.
+Finite boundary, task/thread, owner-count and source-state fields distinguish
+the first failure from the later cleanup observation. The sibling task arrays
+retain their production-published order. Neither diagnostic proves completion
+or changes a failed outcome. Unknown or malformed data is refused; identities,
+raw errors, SQL and arbitrary text are excluded. Both recurrence source files
+now have finite source-location mappings. These bounds constrain output; the
+owner snapshots are not represented as lock-free or universally nonblocking.
+
+A private one-substitution control changes only the held callback assertion's
+expected count from one to an impossible negative value. The actual pinned
+adapter transports the intended failed case at `held_assertions`: callback one,
+thread alive, return pending and both sources undisposed. Its original assertion
+and stack survive. After callback release, the actual thread returns, all three
+pools, three control loops and fixed sibling/control/runtime tasks complete,
+and both source disposals complete without unconfirmed cleanup. The failed
+outcome remains failed after output sanitization; no process exit supplies the
+internal cleanup evidence.
+
+A separate two-substitution control adds an awaited cleanup failure after the
+actual stop completes. The exact case's output proves this second fault was
+reached. The first assertion and its stack still survive, while subsequent
+completion, thread and source cleanup continue successfully. An initial private
+build refuses a literal throw under CA2219; the corrected awaited failure keeps
+that rule enabled. Offline proof validators initially refuse duplicate summary
+output and replay-file bindings. Their refusals remain recorded; validation is
+corrected against the same unchanged actual execution and exact case output,
+without rerunning the test to replace its result.
+
+Both fault experiments have one intended failure and zero skips. The untouched
+source is then rebuilt with zero warnings/errors; scoped format verification
+passes. The original case passes once with zero skips in 2.7962847 test seconds,
+9.522 command seconds. Each experiment's process group and two exact owned
+containers disappear naturally. The combined private receipt has SHA-256
+`f37b584d22c72191a54465b4dd2e1649ea2d9db641a9a4d5f0139ec1885926b4`.
+Root independently verifies seven source hashes and sixty-one retained artifact
+hashes, including raw protocol, original/sanitized TRX and actual owner cleanup.
+These local controls qualify the diagnostic correction; they cannot recover the
+earlier hosted timeout's missing boundary.
+
+All fifty-three offline launcher controls pass. Twenty fresh metadata commands
+complete in 22.886 seconds, retaining all 5,920 exact cases and unchanged plan,
+manifest and A/B assignment digests. Their private summary has SHA-256
+`127e95b0d206e067c89d4cbc0061e3c1b706938c62c50569880161c7925e71c9`.
+Seven corpus/Docker-trait controls pass with zero skips in 9.863 seconds; their
+process group is absent. Changed-document validation finds no broken relative
+link or fragment, added analysis reference or overlong prose.
+Fresh independent correction reviews and complete current-source hosted
+qualification remain required before readiness.
+
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

@@ -84,6 +84,8 @@ FAILURE_SOURCES = {
     'TenantRealmApiTests.WarmQualification.cs': 'realm_warm_qualification',
     'BackgroundJobPositiveSdkTests.CausalRestart.cs': 'positive_sdk_causal_restart',
     'BackgroundJobPositiveSdkTests.NativeSettlement.cs': 'positive_sdk_native_settlement',
+    'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs': 'recurrence_native_ownership',
+    'BackgroundJobRecurrenceStoreTests.Runtime.cs': 'recurrence_runtime',
     'BackgroundJobRuntimeFacadeTests.AuxiliaryCleanup.cs': 'facade_auxiliary_cleanup',
     'BackgroundJobRuntimeFacadeTests.Business.cs': 'facade_business',
     'BackgroundJobRuntimeFacadeTests.CapacityAdmission.cs': 'facade_capacity_admission',
@@ -173,6 +175,90 @@ SETTLEMENT_FAILURE_CASES = {
     'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
     'Actual_stored_recovery_selection_repairs_the_early_finalize_hint_only_after_its_real_cleanup',
 }
+
+
+RECURRENCE_NATIVE_FAILURE_CASE = (
+    'LearnStack.Tests.Integration.Database.BackgroundJobRecurrenceStoreTests.'
+    'A_held_actual_native_callback_preserves_durable_progress_and_both_sources_until_real_return'
+)
+RECURRENCE_NATIVE_BOUNDARIES = {
+    'start', 'callback_entry', 'native_retained', 'execution', 'durable_progress', 'held_assertions',
+    'applications', 'cancelled_stop', 'bridge_stop_publication', 'control_loops_publication',
+    'recurrence_loop_publication', 'sibling_join', 'sibling_assertions', 'parent_pin', 'source_pin',
+    'cleanup_stop', 'cleanup_completion', 'cleanup_thread', 'cleanup_sources', 'post_cleanup',
+}
+RECURRENCE_NATIVE_FIELDS = (
+    'callbacks', 'entered', 'returned', 'executed', 'thread', 'nativeOutstanding', 'nativeRetained',
+    'sqlHealthy', 'applications', 'retainedApplications', 'pendingHistory', 'executions', 'pendingOutcomes',
+    'bootstrap', 'pools', 'loops', 'controlRelay', 'recurrenceRelay', 'shared', 'bridgeLoop', 'bridgeStop',
+    'controlCancellation', 'recurrenceLoop', 'control', 'recurrence', 'runtime', 'sourceDisposed',
+    'applicationDisposed', 'sourceUnconfirmed', 'applicationUnconfirmed',
+)
+
+
+def closed_recurrence_native_details(raw):
+    """Preserve finite first-failure facts separately from later cleanup observations."""
+    messages = raw.get('Messages')
+    if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
+        return None
+    if any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+           or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+           or not isinstance(item['Text'], str) for item in messages):
+        return None
+    if sum(len(item['Text']) for item in messages) > 65536:
+        return None
+    tasks = {'not_issued', 'unpublished', 'pending', 'succeeded', 'faulted', 'canceled', 'unavailable'}
+    counts = {'callbacks', 'applications', 'retainedApplications', 'pendingHistory', 'executions', 'pendingOutcomes'}
+    booleans = {'nativeOutstanding', 'nativeRetained', 'sqlHealthy', 'bootstrap', 'sourceDisposed',
+                'applicationDisposed', 'sourceUnconfirmed', 'applicationUnconfirmed'}
+    result = {'stage': 'recurrence_native'}
+    for kind in ('failure', 'cleanup'):
+        marker = 'Recurrence native ' + kind + ';'
+        count = sum(item['Text'].count(marker) for item in messages)
+        if kind == 'cleanup' and count == 0:
+            continue
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        if count != 1 or len(lines) != 1:
+            return None
+        fields = ('boundary', *RECURRENCE_NATIVE_FIELDS) if kind == 'failure' else RECURRENCE_NATIVE_FIELDS
+        pattern = re.escape(marker) + ';'.join(name + r'=([a-z_0-9,]{1,128})' for name in fields) + r'\.'
+        matched = re.fullmatch(pattern, lines[0])
+        if matched is None:
+            return None
+        values = dict(zip(fields, matched.groups()))
+        for field, value in values.items():
+            if field == 'boundary':
+                if value not in RECURRENCE_NATIVE_BOUNDARIES:
+                    return None
+            elif field in counts:
+                if value == 'unavailable':
+                    values[field] = None
+                elif value != 'out_of_range':
+                    if not re.fullmatch(r'0|[1-9][0-9]?', value) or not 0 <= int(value) <= 64:
+                        return None
+                    values[field] = int(value)
+            elif field in booleans:
+                if value not in ('true', 'false', 'unavailable'):
+                    return None
+                values[field] = None if value == 'unavailable' else value == 'true'
+            elif field == 'thread':
+                if value not in ('not_entered', 'alive', 'returned', 'unavailable'):
+                    return None
+            elif field in ('pools', 'loops'):
+                if value in ('not_issued', 'unavailable') or field == 'loops' and value == 'unpublished':
+                    continue
+                states = value.split(',')
+                if not 1 <= len(states) <= (8 if field == 'pools' else 3) or any(state not in tasks for state in states):
+                    return None
+                values[field] = states
+            elif value not in tasks:
+                return None
+        if kind == 'failure':
+            result.update(values)
+        else:
+            result['cleanup'] = values
+    return result
 
 
 def closed_settlement_failure_details(raw):
@@ -272,6 +358,8 @@ def closed_settlement_failure_details(raw):
 
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
+    if case['name'] == RECURRENCE_NATIVE_FAILURE_CASE:
+        return closed_recurrence_native_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in SETTLEMENT_FAILURE_CASES:
         if case['assembly'] != 'learnstack.tests.integration':
             return None

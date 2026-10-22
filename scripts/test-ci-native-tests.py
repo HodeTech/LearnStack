@@ -401,6 +401,8 @@ except launcher.Refusal as failure:
             r'C:\private\BackgroundJobRuntimeFacadeTests.CapacityNoStart.cs:line 109' + '\n'
             '/private/path/BackgroundJobPositiveSdkTests.CausalRestart.cs:line 123\n'
             '/private/path/BackgroundJobPositiveSdkTests.NativeSettlement.cs:line 186\n'
+            '/private/path/BackgroundJobRecurrenceStoreTests.NativeOwnership.cs:line 71\n'
+            '/private/path/BackgroundJobRecurrenceStoreTests.Runtime.cs:line 179\n'
             '/private/path/TenantRealmApiTests.WarmQualification.cs:line 321\n'
             '/private/path/UnexpectedBackgroundJobPositiveSdkTests.NativeSettlement.cs:line 555\n'
             '/private/path/BackgroundJobRuntimeFacadeTests.ControlFailures.cs:line 10001\n')
@@ -412,7 +414,9 @@ except launcher.Refusal as failure:
             {'source': 'facade_capacity_no_start', 'line': 109}, {'source': 'facade_control_failure', 'line': 74},
             {'source': 'positive_sdk_causal_restart', 'line': 123},
             {'source': 'positive_sdk_native_settlement', 'line': 186},
-            {'source': 'realm_warm_qualification', 'line': 321}]},
+            {'source': 'realm_warm_qualification', 'line': 321},
+            {'source': 'recurrence_native_ownership', 'line': 71},
+            {'source': 'recurrence_runtime', 'line': 179}]},
             {'assembly': cases[1]['assembly'], 'id': cases[1]['id'], 'locations': []}], progress.failure_locations)
         self.assertNotIn('PRIVATE-CANARY', json.dumps(progress.failure_locations))
         self.assertNotIn('private', json.dumps(progress.failure_locations))
@@ -423,6 +427,8 @@ except launcher.Refusal as failure:
             'BackgroundJobRuntimeFacadeTests*.cs')} | {
                 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
+                'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
+                'BackgroundJobRecurrenceStoreTests.Runtime.cs',
                 'TenantRealmApiTests.WarmQualification.cs'}
         self.assertEqual(expected, set(self.owner.FAILURE_SOURCES))
         self.assertEqual(len(expected), len(set(self.owner.FAILURE_SOURCES.values())))
@@ -618,6 +624,149 @@ except launcher.Refusal as failure:
         self.assertEqual([], ET.parse(path).findall('.//t:Output', self.owner.NS))
         self.assertNotIn('PRIVATE-CANARY', path.read_text())
         self.assertNotIn('provider_start', path.read_text())
+        self.refuses('results_incomplete', self.owner.validate_results, output, cases[:1])
+
+    @staticmethod
+    def recurrence_native_sentence(kind='failure', **changes):
+        values = {'boundary': 'sibling_join', 'callbacks': '1', 'entered': 'succeeded', 'returned': 'pending',
+                  'executed': 'succeeded', 'thread': 'alive', 'nativeOutstanding': 'true', 'nativeRetained': 'true',
+                  'sqlHealthy': 'true', 'applications': '0', 'retainedApplications': '0', 'pendingHistory': '0',
+                  'executions': '0', 'pendingOutcomes': '0', 'bootstrap': 'true',
+                  'pools': 'succeeded,pending,succeeded', 'loops': 'succeeded,succeeded,succeeded',
+                  'controlRelay': 'succeeded', 'recurrenceRelay': 'succeeded', 'shared': 'pending',
+                  'bridgeLoop': 'succeeded', 'bridgeStop': 'succeeded', 'controlCancellation': 'succeeded',
+                  'recurrenceLoop': 'succeeded', 'control': 'pending', 'recurrence': 'pending', 'runtime': 'pending',
+                  'sourceDisposed': 'false', 'applicationDisposed': 'false',
+                  'sourceUnconfirmed': 'false', 'applicationUnconfirmed': 'false'}
+        values.update(changes)
+        if kind == 'cleanup':
+            values.pop('boundary')
+        return 'Recurrence native ' + kind + ';' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    def test_recurrence_native_details_bind_one_case_and_keep_failure_separate_from_cleanup(self):
+        case = self.case(1, self.owner.RECURRENCE_NATIVE_FAILURE_CASE)
+        parse = self.owner.closed_failure_details
+        stdout = lambda text: {'Category': 'StdOutMsgs', 'Text': text}
+        failure = self.recurrence_native_sentence()
+        cleanup = self.recurrence_native_sentence('cleanup', returned='succeeded', thread='returned',
+            pools='succeeded,succeeded,succeeded', shared='succeeded', control='succeeded', recurrence='succeeded',
+            runtime='succeeded', sourceDisposed='true', applicationDisposed='true')
+        raw = {'ErrorMessage': 'PRIVATE-CANARY original failure',
+               'Messages': [stdout('PRIVATE-CANARY\n' + failure + '\n' + cleanup + '\n')]}
+        value = parse(case, raw)
+        self.assertEqual('recurrence_native', value['stage'])
+        self.assertEqual('sibling_join', value['boundary'])
+        self.assertEqual(['succeeded', 'pending', 'succeeded'], value['pools'])
+        self.assertEqual('pending', value['returned'])
+        self.assertTrue(value['nativeRetained'])
+        self.assertFalse(value['sourceDisposed'])
+        self.assertEqual('succeeded', value['cleanup']['returned'])
+        self.assertTrue(value['cleanup']['sourceDisposed'])
+        self.assertNotIn('boundary', value['cleanup'])
+        self.assertNotIn('PRIVATE-CANARY', json.dumps(value))
+        self.assertIsNotNone(parse(case, {'Messages': [stdout(failure)]}))
+        for boundary in self.owner.RECURRENCE_NATIVE_BOUNDARIES:
+            observed = parse(case, {'Messages': [stdout(self.recurrence_native_sentence(boundary=boundary))]})
+            self.assertEqual(boundary, observed['boundary'])
+        for changed in ({**case, 'assembly': 'learnstack.tests.unit'}, {**case, 'name': case['name'] + 'Extra'},
+                        {**case, 'name': case['name'] + '(row: True)'},
+                        {**case, 'name': case['name'].replace('BackgroundJobRecurrenceStoreTests', 'OtherTests')}):
+            self.assertIsNone(parse(changed, raw))
+
+    def test_recurrence_native_details_allow_only_bounded_owner_states_and_counts(self):
+        case = self.case(1, self.owner.RECURRENCE_NATIVE_FAILURE_CASE)
+        def parse(**changes):
+            sentence = self.recurrence_native_sentence(**changes)
+            return self.owner.closed_failure_details(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence}]})
+        count_fields = ('callbacks', 'applications', 'retainedApplications', 'pendingHistory', 'executions', 'pendingOutcomes')
+        bool_fields = ('nativeOutstanding', 'nativeRetained', 'sqlHealthy', 'bootstrap', 'sourceDisposed',
+                       'applicationDisposed', 'sourceUnconfirmed', 'applicationUnconfirmed')
+        task_fields = ('entered', 'returned', 'executed', 'controlRelay', 'recurrenceRelay', 'shared', 'bridgeLoop',
+                       'bridgeStop', 'controlCancellation', 'recurrenceLoop', 'control', 'recurrence', 'runtime')
+        for field in count_fields:
+            for raw, expected in (('0', 0), ('64', 64), ('unavailable', None), ('out_of_range', 'out_of_range')):
+                self.assertEqual(expected, parse(**{field: raw})[field])
+            for invalid in ('-1', '65', '00', '+1', '1.0', '1e0', 'unknown', 'PRIVATE-CANARY'):
+                self.assertIsNone(parse(**{field: invalid}))
+        for field in bool_fields:
+            for raw, expected in (('true', True), ('false', False), ('unavailable', None)):
+                self.assertIs(expected, parse(**{field: raw})[field])
+            for invalid in ('True', 'False', '0', '1', 'unknown', 'PRIVATE-CANARY'):
+                self.assertIsNone(parse(**{field: invalid}))
+        for field in task_fields:
+            for state in ('not_issued', 'unpublished', 'pending', 'succeeded', 'faulted', 'canceled', 'unavailable'):
+                self.assertEqual(state, parse(**{field: state})[field])
+            self.assertIsNone(parse(**{field: 'PRIVATE-CANARY'}))
+        for state in ('not_entered', 'alive', 'returned', 'unavailable'):
+            self.assertEqual(state, parse(thread=state)['thread'])
+        for field, maximum in (('pools', 8), ('loops', 3)):
+            self.assertEqual(['pending'] * maximum, parse(**{field: ','.join(['pending'] * maximum)})[field])
+            for invalid in (','.join(['pending'] * (maximum + 1)), ',pending', 'pending,', 'pending,,succeeded',
+                            'succeeded,PRIVATE-CANARY', 'succeeded;' + 'x' * 128):
+                self.assertIsNone(parse(**{field: invalid}))
+            for sentinel in ('not_issued', 'unavailable'):
+                self.assertEqual(sentinel, parse(**{field: sentinel})[field])
+        self.assertEqual('unpublished', parse(loops='unpublished')['loops'])
+        self.assertEqual(['unpublished'], parse(pools='unpublished')['pools'])
+
+    def test_recurrence_native_details_refuse_ambiguous_malformed_or_wrong_channel_data(self):
+        case = self.case(1, self.owner.RECURRENCE_NATIVE_FAILURE_CASE)
+        parse = self.owner.closed_failure_details
+        failure, cleanup = self.recurrence_native_sentence(), self.recurrence_native_sentence('cleanup')
+        stdout = lambda text: {'Category': 'StdOutMsgs', 'Text': text}
+        exact_limit = failure + '\n' + 'x' * (65536 - len(failure) - 1)
+        self.assertIsNotNone(parse(case, {'Messages': [stdout(exact_limit)]}))
+        for messages in (None, {}, [], ['PRIVATE-CANARY'], [stdout(failure)] * 33,
+                         [{'Category': 'StdOutMsgs'}], [{'Category': 'StdOutMsgs', 'Text': None}],
+                         [{'Category': '', 'Text': failure}], [{'Category': 'x' * 33, 'Text': failure}],
+                         [{'Category': 'StdOutMsgs', 'Text': failure, 'extra': 'PRIVATE-CANARY'}],
+                         [{'Category': 'StdErrMsgs', 'Text': failure}], [{'Category': 'StdOut', 'Text': failure}],
+                         [stdout(cleanup)], [stdout(failure), stdout(failure)], [stdout(failure + '\n' + failure)],
+                         [stdout(failure), {'Category': 'StdErrMsgs', 'Text': failure}], [stdout(exact_limit + 'x')],
+                         [stdout(failure[:-1])], [stdout('prefix ' + failure)], [stdout(failure + 'PRIVATE-CANARY')],
+                         [stdout(failure.replace(';callbacks=', ';unknown='))],
+                         [stdout(failure + '\n' + cleanup + '\n' + cleanup)],
+                         [stdout(failure), {'Category': 'StdErrMsgs', 'Text': cleanup}],
+                         [stdout(failure + '\n' + cleanup[:-1])], [stdout(failure + '\n' + 'prefix ' + cleanup)],
+                         [stdout(self.recurrence_native_sentence(boundary='unlisted'))],
+                         [stdout(self.recurrence_native_sentence(thread='PRIVATE-CANARY'))]):
+            self.assertIsNone(parse(case, {'Messages': messages}))
+        self.assertIsNone(parse(case, {'ErrorMessage': failure, 'ErrorStackTrace': failure}))
+
+    def test_recurrence_native_actual_protocol_keeps_failure_and_sanitizes_private_output(self):
+        cases = [self.case(1, self.owner.RECURRENCE_NATIVE_FAILURE_CASE), self.case(2)]
+        stream, console = io.StringIO(), io.StringIO()
+        progress = self.progress(self.root / 'recurrence.diag', 'LearnStack.Tests.Integration', cases, stream)
+        results = []
+        for case, outcome in zip(cases, (2, 1)):
+            item = self.execution_result(case, outcome=outcome)
+            item['ErrorMessage'] = 'PRIVATE-CANARY original failure'
+            item['ErrorStackTrace'] = '/private/PRIVATE-CANARY/BackgroundJobRecurrenceStoreTests.NativeOwnership.cs:line 71'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + self.recurrence_native_sentence()
+                                + '\n' + self.recurrence_native_sentence('cleanup') + '\n'}]
+            results.append(item)
+        with contextlib.redirect_stdout(console):
+            progress.line(self.execution_message('TestExecution.StatsChange', {'NewTestResults': results}).encode().rstrip(b'\n'))
+        self.assertEqual(1, len(progress.failure_locations))
+        observed = progress.failure_locations[0]
+        self.assertEqual([{'source': 'recurrence_native_ownership', 'line': 71}], observed['locations'])
+        self.assertEqual('sibling_join', observed['details']['boundary'])
+        self.assertFalse(progress.completed, 'Diagnostics never provide an owned-completion witness')
+        rows = [json.loads(line) for line in stream.getvalue().splitlines()]
+        self.assertEqual(['Failed', 'Passed'], [row['outcome'] for row in rows])
+        measurement = self.root / 'recurrence-measurements.json'
+        self.owner.write_json(measurement, {'failureLocations': progress.failure_locations})
+        for text in (measurement.read_text(), stream.getvalue(), console.getvalue()):
+            for private in ('PRIVATE-CANARY', '/private/', 'Recurrence native failure;', 'Recurrence native cleanup;'):
+                self.assertNotIn(private, text)
+        output = self.root / 'recurrence-output'
+        trx = self.trx(output / 'results', cases[:1], outcome='Failed', raw_canary=True)
+        tree = ET.parse(trx)
+        raw_output = tree.find('t:Results/t:UnitTestResult/t:Output', self.owner.NS)
+        ET.SubElement(raw_output, '{' + self.owner.NS['t'] + '}StdOut').text = self.recurrence_native_sentence()
+        tree.write(trx, encoding='utf-8')
+        self.assertEqual('Failed', self.owner.trx_cases(trx, sanitize=True)[0]['outcome'])
+        self.assertEqual([], ET.parse(trx).findall('.//t:Output', self.owner.NS))
         self.refuses('results_incomplete', self.owner.validate_results, output, cases[:1])
 
     @staticmethod
