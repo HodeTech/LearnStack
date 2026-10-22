@@ -17752,6 +17752,16 @@ hashes, including the executed 1,840-case total. These are source and retained
 evidence reviews, not independent hosted/runtime reruns. All subprocesses join.
 A different fresh second pair follows the committed correction.
 
+The different second fresh pair reviews `b25c1c4a..76ca3adc`:
+`gpt-6.1-sol` and `gpt-6-astra`, both at `high`, approve without an
+actionable finding. Both independently verify the retained summary/log hashes,
+actual workflow ownership, exact-path admission and unchanged unknown-source/
+runtime-refusal controls. Neither reruns Node, a provider or hosted jobs.
+Whitespace checks pass and all review subprocesses join. Both correction review
+rounds are complete; the failed initial attempt may be superseded by the corrected
+push, and its partial successes are not complete qualification. Fresh full A/B
+attempts on the same corrected source remain required before draft readiness.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
