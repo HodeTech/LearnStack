@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using FluentAssertions;
 using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Jobs;
@@ -8,6 +9,8 @@ using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
+using LearnStack.SharedKernel.Time;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -20,8 +23,11 @@ public sealed partial class BackgroundJobPositiveSdkTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public Task Actual_Outcome_ACK_settles_renewal_before_its_held_cleanup_can_release_the_native_identity(bool knownFailure) =>
-        AssertHeldOutcomeSettlementAsync(knownFailure, retainedRecovery: false);
+    public async Task Actual_Outcome_ACK_settles_renewal_before_its_held_cleanup_can_release_the_native_identity(bool knownFailure)
+    {
+        await AssertHeldOutcomeSettlementAsync(knownFailure, retainedRecovery: false);
+        if (knownFailure) await AssertExplicitOwnerLaterFinalizeAttributionAsync();
+    }
 
     [Fact]
     public Task Actual_stored_recovery_selection_repairs_the_early_finalize_hint_only_after_its_real_cleanup() =>
@@ -74,12 +80,22 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var release = new ManualResetEventSlim();
         BackgroundJobExecutionControl? captured = null;
+        BackgroundJobExecutionControl? finalizer = null;
         BackgroundJobCommitGate? outcomeGate = null;
         var held = 0;
         using var listener = new ActivityListener
         {
             ShouldListenTo = activitySource => activitySource.Name == BackgroundJobObservation.InstrumentationName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStarted = activity =>
+            {
+                if (activity.OperationName != "job.execution" || activity.TraceId != parent.TraceId) return;
+                var controller = (BackgroundJobControl)NativeSdkField(runtime, "_jobs");
+                lock (NativeSdkField(controller, "_sync"))
+                    if (((Dictionary<Guid, BackgroundJobExecutionControl>)NativeSdkField(controller, "_executions"))
+                        .TryGetValue(job.Value, out var execution) && execution.Gate.Kind == BackgroundJobCheckpointKind.Finalize)
+                        finalizer = execution;
+            },
             ActivityStopped = activity =>
             {
                 if (activity.OperationName != "job.external_checkpoint" || activity.TraceId != parent.TraceId) return;
@@ -100,6 +116,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var boundary = "start";
         long? observedAttempts = null;
         Task<JobExternalCheckpointResult>? outcomeTask = null;
+        ExceptionDispatchInfo? failure = null;
         try
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -188,37 +205,289 @@ public sealed partial class BackgroundJobPositiveSdkTests
             boundary = "provider_counts";
             (await provider.CountsAsync(acknowledged.Outcome.OperationId)).Should().Be((1L, 0L, knownFailure ? 0L : 1L));
         }
-        catch
+        catch (Exception error)
         {
-            // The case-bound output survives a later cleanup failure. Do not
-            // replace the original exception, or let diagnostic reads mask it.
-            try
-            {
-                var facts = await ReadNativeSettlementFactsAsync(database, job, finalized, captured?.Identity?.WakeGeneration);
-                var outcome = outcomeTask is null ? "unknown" : !outcomeTask.IsCompleted ? "pending"
-                    : outcomeTask.IsCompletedSuccessfully ? "succeeded" : outcomeTask.IsCanceled ? "cancelled" : "failed";
-                output.WriteLine("Native settlement failure;boundary={0};observedAttempts={1};snapshot={2};total={3};normal={4};finalize={5};normalCounter={6};finalizeCounter={7};phase={8};terminal={9};generationDelta={10};executions={11};outcome={12};finalized={13}.",
-                    boundary, NativeSettlementNumber(observedAttempts, 12), facts.State,
-                    NativeSettlementNumber(facts.Total, 12), NativeSettlementNumber(facts.Normal, 6), NativeSettlementNumber(facts.Finalize, 6),
-                    NativeSettlementNumber(facts.NormalCounter, 6), NativeSettlementNumber(facts.FinalizeCounter, 6), facts.Phase, facts.Terminal,
-                    NativeSettlementNumber(facts.GenerationDelta, 12, -12), NativeSettlementNumber(runtime.Snapshot.Control?.Executions, 64),
-                    outcome, NativeSettlementNumber(facts.Finalized, 1));
-            }
-            catch (Exception) { /* Diagnostics cannot replace the original failure. */ }
-            throw;
+            failure = ExceptionDispatchInfo.Capture(error);
+            await WriteNativeSettlementFailureAsync(database, job, finalized, boundary, observedAttempts,
+                captured, finalizer, outcomeTask, runtime.Snapshot.Control);
         }
         finally
         {
             release.Set();
-            runtime.RequestStop();
-            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
-            await runtime.StopAsync(cleanup.Token);
-            await runtime.Completion.WaitAsync(cleanup.Token);
+            try
+            {
+                runtime.RequestStop();
+                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+                await runtime.StopAsync(cleanup.Token);
+                await runtime.Completion.WaitAsync(cleanup.Token);
+            }
+            catch (Exception error)
+            {
+                if (failure is null)
+                {
+                    failure = ExceptionDispatchInfo.Capture(error);
+                    await WriteNativeSettlementFailureAsync(database, job, finalized, "cleanup", observedAttempts,
+                        captured, finalizer, outcomeTask, runtime.Snapshot.Control);
+                }
+            }
         }
-        held.Should().Be(1);
-        runtime.Snapshot.Control!.Executions.Should().Be(0);
-        runtime.Snapshot.Control.LeaseLossElapsed.Should().Be(0);
-        runtime.Snapshot.Control.LeaseLossRenewalRefused.Should().Be(0);
+        failure?.Throw();
+        try
+        {
+            held.Should().Be(1);
+            runtime.Snapshot.Control!.Executions.Should().Be(0);
+            finalizer.Should().NotBeNull();
+            finalizer.Should().NotBeSameAs(captured);
+            // Process totals include later Finalize identities. The held
+            // Outcome's sticky first cause survives settlement and removal.
+            NativeSettlementCause(captured).Should().Be("none");
+        }
+        catch
+        {
+            await WriteNativeSettlementFailureAsync(database, job, finalized, "post_cleanup", observedAttempts,
+                captured, finalizer, outcomeTask, runtime.Snapshot.Control);
+            throw;
+        }
+    }
+
+    private async Task AssertExplicitOwnerLaterFinalizeAttributionAsync()
+    {
+        // Independent counterexample: real PostgreSQL/publication/control owners
+        // are invoked explicitly. This phase does not claim stock Hangfire handoff.
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
+        await using var provider = await BackgroundJobProviderJournalDatabase.CreateAsync(schema.Postgres);
+        var prepared = OrganizationId.From(Guid.CreateVersion7());
+        var finalized = OrganizationId.From(Guid.CreateVersion7());
+        var resource = Guid.CreateVersion7();
+        await provider.SetModeAsync(resource, "not_repeatable");
+        await using var host = Fixture.Host(database, provider.Settings);
+        var submitted = await Fixture.SubmitAsync(host.Services, Fixture.Parameters(resource, prepared, finalized));
+        submitted.IsSuccess.Should().BeTrue();
+        var job = submitted.Value;
+        var executor = host.Services.GetRequiredService<JobExecutor>();
+        var routing = host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>();
+        await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
+        var runtime = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
+        var bounds = new BackgroundJobRuntimeOptions { RenewalInterval = TimeSpan.FromSeconds(1) };
+        var controller = new BackgroundJobControl(source, Fixture.Registry, executor, runtime, bounds,
+            new SystemGuidFactory(), TimeProvider.System);
+        var store = new PostgresBackgroundJobControlStore(source, Fixture.Registry, bounds, new SystemGuidFactory(), runtime);
+        var generation = new HangfireGenerationWork(Fixture.Registry.Infrastructure.Pools["external"], runtime);
+        BackgroundJobExecutionControl? original = null, finalizer = null;
+        await using var proxy = new CommitResponseDroppingProxy(database.AppConnectionString,
+            holdCommitRequestWhen: () => finalizer?.Gate is { Kind: BackgroundJobCheckpointKind.Finalize, CommitStarted: true },
+            lifetime: TimeSpan.FromMinutes(2));
+        await using var finalizeHost = Fixture.Host(database, provider.Settings)
+            .WithWebHostBuilder(builder => builder.UseSetting("ConnectionStrings:Default", proxy.ConnectionString));
+        var finalizeExecutor = finalizeHost.Services.GetRequiredService<JobExecutor>();
+        using var releaseCallback = new ManualResetEventSlim();
+        var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationTokenRegistration? callback = null;
+        HangfireGenerationWork.Invocation? originalWork = null, finalizeWork = null;
+        Task<JobBusinessExecutionResult>? business = null;
+        Task<JobExternalCheckpointResult>? outcome = null;
+        var originalJoined = false;
+        var finalizerJoined = false;
+        var boundary = "later_original";
+        long? observedAttempts = null;
+        ExceptionDispatchInfo? failure = null;
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var claim = await routing.TryClaimAsync(job, await GenerationAsync(database, job));
+            claim.Should().NotBeNull();
+            originalWork = generation.TryBegin()!;
+            original = controller.TryBegin(claim!, originalWork)!;
+            originalWork.HoldExecution(original);
+            var admission = executor.ExecutePublishedAsync(claim!, original.Publication, original.AdmissionGate, null, originalWork.Token);
+            originalWork.HoldAdmission(admission);
+            original.HoldAdmission(admission);
+            (await admission.WaitAsync(deadline.Token)).Outcome.Should().Be(JobStartExecutionOutcome.Started);
+            await original.WaitForPublicationAsync().WaitAsync(deadline.Token);
+            (await controller.ExecuteExternalNormalAsync(original).WaitAsync(deadline.Token)).Should().BeTrue();
+            outcome = (Task<JobExternalCheckpointResult>)NativeSdkField(original, "_externalOutcome");
+            var acknowledged = await outcome;
+            acknowledged.CommitAcknowledged.Should().BeTrue();
+            original.LeaseWorkSettled.Should().BeTrue();
+            NativeSettlementCause(original).Should().Be("none");
+            originalJoined = await original.JoinAsync(operationCleanupConfirmed: true).WaitAsync(deadline.Token);
+            originalJoined.Should().BeTrue();
+            await originalWork.CompleteAsync(originalJoined).WaitAsync(deadline.Token);
+            controller.Snapshot.Executions.Should().Be(0);
+
+            boundary = "later_admission";
+            var finalizeClaim = await routing.TryClaimAsync(job, await GenerationAsync(database, job));
+            finalizeClaim.Should().NotBeNull();
+            finalizeWork = generation.TryBegin()!;
+            finalizer = controller.TryBegin(finalizeClaim!, finalizeWork)!;
+            finalizeWork.HoldExecution(finalizer);
+            var finalizeAdmission = finalizeExecutor.ExecutePublishedAsync(finalizeClaim!, finalizer.Publication,
+                finalizer.AdmissionGate, null, finalizeWork.Token);
+            finalizeWork.HoldAdmission(finalizeAdmission);
+            finalizer.HoldAdmission(finalizeAdmission);
+            var admitted = await finalizeAdmission.WaitAsync(deadline.Token);
+            admitted.Outcome.Should().Be(JobStartExecutionOutcome.Started);
+            admitted.CleanupFailed.Should().BeFalse();
+            await finalizer.WaitForPublicationAsync().WaitAsync(deadline.Token);
+            finalizer.Gate.Kind.Should().Be(BackgroundJobCheckpointKind.Finalize);
+            finalizer.Identity!.SelectedNormalAttemptId.Should().Be(original.Identity!.AttemptId);
+            finalizer.Identity.AttemptId.Should().NotBe(original.Identity.AttemptId);
+            business = finalizeExecutor.ExecuteBusinessAsync(admitted.Receipt!, finalizer.Gate, finalizeWork.Token);
+            finalizer.HoldBusiness(business);
+            finalizeWork.HoldBusiness(business);
+            boundary = "later_commit_held";
+            await proxy.CommitRequestHeld.WaitAsync(deadline.Token);
+            proxy.HeldCommitRequests.Should().Be(1);
+            var completedCommitsBeforeRelease = proxy.CompletedCommits;
+            finalizer.Gate.CommitStarted.Should().BeTrue();
+            finalizer.Gate.CommitAcknowledged.Should().BeFalse();
+            finalizer.RenewalPermitted.Should().BeTrue();
+            await using (var connection = await source.OpenConnectionAsync(deadline.Token))
+            await using (var command = new NpgsqlCommand(
+                "SELECT id FROM background_jobs WHERE id=@id FOR NO KEY UPDATE SKIP LOCKED", connection)
+            { CommandTimeout = 5 })
+            {
+                command.Parameters.AddWithValue("id", job.Value);
+                (await command.ExecuteScalarAsync(deadline.Token)).Should().BeNull("the actual finalizer still owns its row lock");
+            }
+            // Register after Npgsql issued its COMMIT. The owned callback holds
+            // cancellation propagation while the already-admitted COMMIT settles.
+            callback = finalizeWork.Token.Register(() =>
+            {
+                callbackEntered.TrySetResult();
+                if (!releaseCallback.Wait(TimeSpan.FromSeconds(30)))
+                    throw new TimeoutException("Finalize cancellation callback was not released.");
+            });
+            boundary = "later_refusal";
+            controller.Start();
+            await callbackEntered.Task.WaitAsync(deadline.Token);
+            NativeSettlementCause(original).Should().Be("none");
+            NativeSettlementCause(finalizer).Should().Be("renewal_refused");
+            controller.Snapshot.LeaseLossRenewalRefused.Should().Be(1);
+            controller.Snapshot.LeaseLossElapsed.Should().Be(0);
+            finalizer.Gate.CommitAcknowledged.Should().BeFalse();
+            finalizer.RunGate.IsClosed.Should().BeTrue();
+            boundary = "later_ack";
+            proxy.ReleaseHeldRequest();
+            while (!finalizer.Gate.CommitAcknowledged) await Task.Delay(10, deadline.Token);
+            proxy.CompletedCommits.Should().Be(completedCommitsBeforeRelease + 1);
+            proxy.DroppedCommitRequests.Should().Be(0);
+            proxy.DroppedCommitResponses.Should().Be(0);
+            releaseCallback.Set();
+            await callback.Value.DisposeAsync();
+            callback = null;
+            var completed = await business.WaitAsync(deadline.Token);
+            completed.CommitAcknowledged.Should().BeTrue();
+            completed.CleanupFailed.Should().BeFalse();
+            (await finalizer.FinishExternalFinalizeAsync(completed, store).WaitAsync(deadline.Token)).Should().BeTrue();
+            boundary = "later_facts";
+            observedAttempts = await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job);
+            observedAttempts.Value.Should().Be(2);
+            var facts = await ReadNativeSettlementFactsAsync(database, job, finalized, original.Identity.WakeGeneration);
+            facts.State.Should().Be("available");
+            facts.Normal.Should().Be(1);
+            facts.Finalize.Should().Be(1);
+            facts.NormalCounter.Should().Be(1);
+            facts.FinalizeCounter.Should().Be(1);
+            facts.Finalized.Should().Be(1);
+            facts.GenerationDelta.Should().Be(1);
+            (await provider.CountsAsync(acknowledged.Outcome!.OperationId)).Should().Be((1L, 0L, 0L));
+        }
+        catch (Exception error)
+        {
+            failure = ExceptionDispatchInfo.Capture(error);
+            await WriteNativeSettlementFailureAsync(database, job, finalized, boundary, observedAttempts,
+                original, finalizer, outcome, controller.Snapshot);
+        }
+        finally
+        {
+            // Release every test-owned barrier before bounded actual joins, even
+            // when an earlier assertion failed. Preserve that first exception.
+            proxy.ReleaseHeldRequest();
+            releaseCallback.Set();
+            try
+            {
+                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                if (callback is { } registration) await registration.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+                if (finalizer is not null)
+                {
+                    finalizerJoined = await finalizer.JoinAsync(operationCleanupConfirmed: true).WaitAsync(cleanup.Token);
+                    await finalizeWork!.CompleteAsync(finalizerJoined).WaitAsync(cleanup.Token);
+                }
+                if (original is not null && !originalJoined)
+                {
+                    originalJoined = await original.JoinAsync(operationCleanupConfirmed: true).WaitAsync(cleanup.Token);
+                    await originalWork!.CompleteAsync(originalJoined).WaitAsync(cleanup.Token);
+                }
+                generation.CloseStarts();
+                controller.RequestStop();
+                await controller.Completion.WaitAsync(cleanup.Token);
+                await generation.Completion.WaitAsync(cleanup.Token);
+            }
+            catch (Exception error)
+            {
+                controller.RequestStop();
+                if (failure is null)
+                {
+                    failure = ExceptionDispatchInfo.Capture(error);
+                    await WriteNativeSettlementFailureAsync(database, job, finalized, "later_cleanup", observedAttempts,
+                        original, finalizer, outcome, controller.Snapshot);
+                }
+            }
+        }
+        failure?.Throw();
+        try
+        {
+            originalJoined.Should().BeTrue();
+            finalizerJoined.Should().BeTrue();
+            controller.Snapshot.Executions.Should().Be(0);
+            NativeSettlementCause(finalizer).Should().Be("renewal_refused");
+            controller.Snapshot.LeaseLossRenewalRefused.Should().Be(1);
+            controller.Snapshot.LeaseLossElapsed.Should().Be(0);
+            NativeSettlementCause(original).Should().Be("none", "the original Outcome identity remains settled despite the later Finalize refusal");
+        }
+        catch
+        {
+            await WriteNativeSettlementFailureAsync(database, job, finalized, "later_post_cleanup", observedAttempts,
+                original, finalizer, outcome, controller.Snapshot);
+            throw;
+        }
+    }
+
+    private async Task WriteNativeSettlementFailureAsync(DisposableSchemaDatabase database, BackgroundJobId job,
+        OrganizationId finalized, string boundary, long? observedAttempts, BackgroundJobExecutionControl? original,
+        BackgroundJobExecutionControl? finalizer, Task? outcomeTask, BackgroundJobControlHealth? health)
+    {
+        // Output is case-bound and finite. Neither a failed read nor output may
+        // replace the original exception, including a failure during cleanup.
+        try
+        {
+            var facts = await ReadNativeSettlementFactsAsync(database, job, finalized, original?.Identity?.WakeGeneration);
+            var outcome = outcomeTask is null ? "unknown" : !outcomeTask.IsCompleted ? "pending"
+                : outcomeTask.IsCompletedSuccessfully ? "succeeded" : outcomeTask.IsCanceled ? "cancelled" : "failed";
+            output.WriteLine("Native settlement failure;boundary={0};observedAttempts={1};snapshot={2};total={3};normal={4};finalize={5};normalCounter={6};finalizeCounter={7};phase={8};terminal={9};generationDelta={10};executions={11};outcome={12};finalized={13};originalCause={14};finalizeCause={15};renewalLosses={16};elapsedLosses={17}.",
+                boundary, NativeSettlementNumber(observedAttempts, 12), facts.State,
+                NativeSettlementNumber(facts.Total, 12), NativeSettlementNumber(facts.Normal, 6), NativeSettlementNumber(facts.Finalize, 6),
+                NativeSettlementNumber(facts.NormalCounter, 6), NativeSettlementNumber(facts.FinalizeCounter, 6), facts.Phase, facts.Terminal,
+                NativeSettlementNumber(facts.GenerationDelta, 12, -12), NativeSettlementNumber(health?.Executions, 64),
+                outcome, NativeSettlementNumber(facts.Finalized, 1), NativeSettlementCause(original), NativeSettlementCause(finalizer),
+                NativeSettlementNumber(health?.LeaseLossRenewalRefused, 64), NativeSettlementNumber(health?.LeaseLossElapsed, 64));
+        }
+        catch (Exception) { /* Diagnostics cannot replace the original failure. */ }
+    }
+
+    private static string NativeSettlementCause(BackgroundJobExecutionControl? execution)
+    {
+        if (execution is null) return "unknown";
+        lock (NativeSdkField(execution, "_sync"))
+            return (BackgroundJobLeaseLossCause)(int)NativeSdkField(execution, "_firstLeaseLoss") switch
+            {
+                BackgroundJobLeaseLossCause.None => "none",
+                BackgroundJobLeaseLossCause.RenewalRefused => "renewal_refused",
+                BackgroundJobLeaseLossCause.Elapsed => "elapsed",
+                _ => "other",
+            };
     }
 
     private static async Task<NativeSettlementFacts> ReadNativeSettlementFactsAsync(DisposableSchemaDatabase database,

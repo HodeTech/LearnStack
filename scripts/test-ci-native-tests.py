@@ -625,7 +625,8 @@ except launcher.Refusal as failure:
         values = {'boundary': 'count_assert', 'observedAttempts': '3', 'snapshot': 'available',
                   'total': '3', 'normal': '1', 'finalize': '2', 'normalCounter': '1', 'finalizeCounter': '2',
                   'phase': 'terminal_pending', 'terminal': 'external_retry_forbidden', 'generationDelta': '2',
-                  'executions': '0', 'outcome': 'succeeded', 'finalized': '1'}
+                  'executions': '0', 'outcome': 'succeeded', 'finalized': '1',
+                  'originalCause': 'none', 'finalizeCause': 'renewal_refused', 'renewalLosses': '1', 'elapsedLosses': '0'}
         values.update(changes)
         return 'Native settlement failure;' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
 
@@ -635,7 +636,8 @@ except launcher.Refusal as failure:
         expected = {'stage': 'native_settlement', 'boundary': 'count_assert', 'observedAttempts': 3,
                     'snapshot': 'available', 'total': 3, 'normal': 1, 'finalize': 2, 'normalCounter': 1,
                     'finalizeCounter': 2, 'phase': 'terminal_pending', 'terminal': 'external_retry_forbidden',
-                    'generationDelta': 2, 'executions': 0, 'outcome': 'succeeded', 'finalized': 1}
+                    'generationDelta': 2, 'executions': 0, 'outcome': 'succeeded', 'finalized': 1,
+                    'originalCause': 'none', 'finalizeCause': 'renewal_refused', 'renewalLosses': 1, 'elapsedLosses': 0}
         self.assertEqual(3, len(self.owner.SETTLEMENT_FAILURE_CASES))
         for name in self.owner.SETTLEMENT_FAILURE_CASES:
             case = self.case(1, name)
@@ -644,7 +646,9 @@ except launcher.Refusal as failure:
                 {'Category': 'StdErrMsgs', 'Text': 'PRIVATE-CANARY provider text'}]}
             self.assertEqual(expected, parse(case, raw))
             for boundary in ('start', 'held_outcome', 'early_hint', 'held_count_read', 'held_count_assert',
-                             'completion_wait', 'count_read', 'normal_attempts', 'generation', 'outcome', 'provider_counts'):
+                             'completion_wait', 'count_read', 'normal_attempts', 'generation', 'outcome', 'provider_counts',
+                             'cleanup', 'post_cleanup', 'later_original', 'later_admission', 'later_commit_held',
+                             'later_refusal', 'later_ack', 'later_facts', 'later_cleanup', 'later_post_cleanup'):
                 text = self.settlement_sentence(boundary=boundary)
                 self.assertEqual({**expected, 'boundary': boundary},
                                  parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]}))
@@ -665,13 +669,30 @@ except launcher.Refusal as failure:
         self.assertEqual('unavailable', observed['snapshot'])
         for field, low, high in (('observedAttempts', 0, 12), ('total', 0, 12), ('normal', 0, 6),
                                 ('finalize', 0, 6), ('normalCounter', 0, 6), ('finalizeCounter', 0, 6),
-                                ('generationDelta', -12, 12), ('executions', 0, 64), ('finalized', 0, 1)):
+                                ('generationDelta', -12, 12), ('executions', 0, 64), ('finalized', 0, 1),
+                                ('renewalLosses', 0, 64), ('elapsedLosses', 0, 64)):
             for value in (low, high, 'out_of_range'):
                 text = self.settlement_sentence(**{field: str(value)})
                 self.assertEqual(value, parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]})[field])
             for value in (low - 1, high + 1, '00', '-0', '01', '1.0', '+1', '1e0', '999999999999999999999'):
                 text = self.settlement_sentence(**{field: str(value)})
                 self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]}))
+
+    def test_settlement_attribution_is_sticky_and_independent_of_aggregate_totals(self):
+        case = self.case(1, sorted(self.owner.SETTLEMENT_FAILURE_CASES)[0])
+        for field in ('originalCause', 'finalizeCause'):
+            for cause in ('unknown', 'other', 'none', 'renewal_refused', 'elapsed'):
+                sentence = self.settlement_sentence(boundary='later_post_cleanup', **{field: cause})
+                details = self.owner.closed_failure_details(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence}]})
+                self.assertEqual(cause, details[field])
+                self.assertEqual(1, details['renewalLosses'])
+            for invalid in ('None', 'RenewalRefused', 'Elapsed', '0', '1', '2', 'private_cause'):
+                sentence = self.settlement_sentence(**{field: invalid})
+                self.assertIsNone(self.owner.closed_failure_details(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence}]}))
+        for field in ('renewalLosses', 'elapsedLosses'):
+            sentence = self.settlement_sentence(**{field: 'unknown'})
+            details = self.owner.closed_failure_details(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence}]})
+            self.assertIsNone(details[field])
 
     def test_settlement_details_refuse_ambiguous_malformed_oversized_or_private_output(self):
         parse = self.owner.closed_failure_details
@@ -695,7 +716,7 @@ except launcher.Refusal as failure:
                          [stdout(self.settlement_sentence(total='unknown'))]):
             with self.subTest(shape=type(messages).__name__):
                 self.assertIsNone(parse(case, {'Messages': messages}))
-        for field in ('boundary', 'snapshot', 'phase', 'terminal', 'outcome'):
+        for field in ('boundary', 'snapshot', 'phase', 'terminal', 'outcome', 'originalCause', 'finalizeCause'):
             for value in ('', 'PRIVATE-CANARY', 'unknown_private', 'pending\n', 'pending\x00'):
                 text = self.settlement_sentence(**{field: value})
                 self.assertIsNone(parse(case, {'Messages': [stdout(text)]}))

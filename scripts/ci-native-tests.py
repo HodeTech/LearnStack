@@ -195,7 +195,7 @@ def closed_settlement_failure_details(raw):
         return None
     fields = ('boundary', 'observedAttempts', 'snapshot', 'total', 'normal', 'finalize',
               'normalCounter', 'finalizeCounter', 'phase', 'terminal', 'generationDelta',
-              'executions', 'outcome', 'finalized')
+              'executions', 'outcome', 'finalized', 'originalCause', 'finalizeCause', 'renewalLosses', 'elapsedLosses')
     pattern = re.escape(marker) + ';'.join(name + r'=([a-z_0-9-]{1,32})' for name in fields) + r'\.'
     matched = re.fullmatch(pattern, lines[0])
     if matched is None:
@@ -204,19 +204,22 @@ def closed_settlement_failure_details(raw):
     enums = {
         'boundary': {'start', 'held_outcome', 'early_hint', 'held_count_read', 'held_count_assert',
                      'completion_wait', 'count_read', 'count_assert', 'normal_attempts', 'generation',
-                     'outcome', 'provider_counts'},
+                     'outcome', 'provider_counts', 'cleanup', 'post_cleanup', 'later_original', 'later_admission',
+                     'later_commit_held', 'later_refusal', 'later_ack', 'later_facts', 'later_cleanup', 'later_post_cleanup'},
         'snapshot': {'available', 'missing', 'unavailable'},
         'phase': {'unknown', 'other', 'pending', 'preparing', 'prepared', 'executing', 'reconciling',
                   'finalize_pending', 'finalizing', 'terminal_pending', 'completed', 'quarantined'},
         'terminal': {'unknown', 'none', 'other', 'external_retry_forbidden', 'permanent_failure',
                      'retry_exhausted', 'finalize_refused', 'finalize_exhausted', 'retired_definition', 'invalid_envelope'},
         'outcome': {'unknown', 'pending', 'succeeded', 'cancelled', 'failed'},
+        'originalCause': {'unknown', 'other', 'none', 'renewal_refused', 'elapsed'},
+        'finalizeCause': {'unknown', 'other', 'none', 'renewal_refused', 'elapsed'},
     }
     if any(values[field] not in allowed for field, allowed in enums.items()):
         return None
     bounds = {'observedAttempts': (0, 12), 'total': (0, 12), 'normal': (0, 6), 'finalize': (0, 6),
               'normalCounter': (0, 6), 'finalizeCounter': (0, 6), 'generationDelta': (-12, 12),
-              'executions': (0, 64), 'finalized': (0, 1)}
+              'executions': (0, 64), 'finalized': (0, 1), 'renewalLosses': (0, 64), 'elapsedLosses': (0, 64)}
     result = {'stage': 'native_settlement', **values}
     for field, (minimum, maximum) in bounds.items():
         value = values[field]

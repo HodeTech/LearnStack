@@ -16982,6 +16982,111 @@ native, .NET or broad frontend suite is repeated. All subprocesses finish and
 the tracked tree stays clean. Both fresh correction review rounds are complete;
 complete corrected-source hosted qualification is the remaining gate.
 
+#### Reviewed-source hosted failure and identity attribution
+
+[Run `39716534536`](https://github.com/HodeTech/LearnStack/actions/runs/39716534536),
+attempt 1/layout A, freezes reviewed head
+`7b0fd1b6f718d49c7c5daad318685295b48d90cc`. All twenty-seven jobs finish:
+twenty-five pass; ordinary-7 fails and integration refuses that producer. The
+frontend job now passes. No layout B starts and no earlier green receipt waives
+this failed source. All twenty producer archives and the successful backend
+aggregate archive are retained and API-digest checked before another transition.
+The private failed-run capture summary has SHA-256
+`0c4c7c37ab39af1ed37afa6494a57e68efc63876c4fdbc9d76ba62ed7a6a2394`;
+it records a failed run, not complete qualification.
+
+The known-failure Outcome ACK/held-cleanup case fails in 20.6750301 seconds at
+source line 221: the final process-wide `LeaseLossRenewalRefused == 0` assertion.
+Its earlier count, generation, outcome and provider assertions pass. Runtime
+stop/completion and the preceding zero-execution/elapsed-loss assertions also
+pass. This location is distinct from the earlier count boundary. The retained
+artifact has SHA-256
+`6f37596cf9acd045fe6993f67adf8c30e6513617d74648566ac8ff2742479c70`.
+The diagnostic catch precedes these post-cleanup assertions, so no marker records
+the counter value, execution identity or triggering renewal branch. None is
+inferred from the stack location alone.
+
+Independent source inspection identifies a legal candidate interleaving: the
+later Finalize execution holds the job row, renewal skips its lock and observes
+no renewed row before managed commit acknowledgement. Conservative refusal can
+then increment the cumulative counter while a commit already admitted completes.
+This is a source-supported counterexample to treating the cumulative counter as
+an observation of only the held Outcome identity; it is not a recovered CI trace.
+The existing refusal/commit policy remains unchanged. Exact-identity attribution
+and a controlled real-store interleaving are required before correcting the
+proof; waits and deadlines are not increased.
+
+Public demo independently passes on the same source. Its immutable artifact
+`12400165434`, SHA-256
+`c6c5ab29fb83ca43e187a95d00758cde9eab7db690fbec6ffd539aab9a7fde99`,
+is retained before any rerun. All twenty-seven JSON/HTML pairs, nine PNGs, nine
+navigations and twenty-four visibility checks pass; all 134 API completions
+return 200, both TLS and the timeout refusals pass, and all cleanup flags pass.
+Natural cleanup takes 10.732 seconds. Independent verification-summary SHA-256 is
+`a0e3688c3ab02d6403d145845485b43499dc8d6f9bbde4ac5ec0866832cd1ef2`.
+This successful producer does not change the run's failed conclusion.
+
+#### Exact lease-loss attribution proof
+
+The corrected stock proof keeps all three case identities, its held-cleanup
+barrier, exact counts, generation, provider observations and original deadlines.
+It checks the captured Outcome execution's sticky first cause after actual
+cleanup instead of attributing later process totals to that identity. The later
+Finalize control is captured independently. Aggregate zero checks remain while
+only the original held identity exists. Post-cleanup and cleanup-first failures
+now produce the same bounded diagnostics; cleanup cannot replace an earlier
+exception. Closed per-identity causes and cumulative counts remain observations,
+never admission or completion evidence.
+
+A separate explicit-owner subphase runs inside the existing known-failure case.
+It uses real publication, provider, Outcome, Finalize and PostgreSQL control
+owners; it does not claim a stock Hangfire handoff. A test-only proxy holds the
+real Finalize COMMIT request only after that exact gate admits commit. An actual
+`SKIP LOCKED` read confirms its row remains locked. The production renewal lane
+then refuses the omitted identity. A test-owned cancellation callback holds
+propagation while the already-admitted real COMMIT request and ACK complete.
+All barriers release before actual joins. No control field, counter, completion
+or production policy is manufactured or changed.
+
+The initial experiment uses a COMMIT ordinal and refuses at the required
+`CommitStarted` precondition: the held transaction is preparatory. It is not
+accepted as the intended negative; both owned containers and all processes
+finish. The corrected barrier uses the exact gate predicate and measures the
+actual before/after COMMIT count rather than guessing an ordinal.
+
+The source-attested one-substitution experiment restores the old global-zero
+assertion only at the final explicit-owner boundary. Two siblings pass and that
+case fails exactly at `later_post_cleanup`, with zero skips. The real pinned
+adapter transports original cause `none`, Finalize cause `renewal_refused`,
+cumulative renewal loss one, elapsed loss zero and zero active executions.
+Actual attempts are two (one normal, one Finalize), generation advances once and
+one finalized row exists. The original assertion survives; sanitization removes
+output and preserves the failed outcome. Both owned containers are absent.
+The private mutant receipt has SHA-256
+`ac261c52d4a5b261cb5928b397b8993e4cb17b24432dd491544f5d3468e7c906`.
+Root independently checks its finite facts and receipt hash. This proves the
+attribution counterexample, without asserting the missing CI interleaving.
+
+Untouched-source Release rebuilds report zero warnings/errors, scoped format
+verification passes and all forty-seven offline launcher controls pass. The
+single clean real run passes all three cases with zero skips: false 16.184
+seconds, known failure 19.449 seconds including the separate counterexample,
+and retained recovery 21.383 seconds. Command wall time is 63.415 seconds.
+Both owned containers and the process group are absent; all commands join.
+The combined private receipt has SHA-256
+`10658b0cf90dea34b533b80941514f243085e4eac0e48d1a71b538570fe3b735`.
+Root independently verifies seven current source hashes, nineteen retained
+artifact hashes and both clean TRX hashes. Rebuilt production binary identity
+is recorded per build; byte-identical binaries are not claimed.
+
+Fresh complete metadata discovery executes twenty bounded commands in 19.077
+seconds. All 5,920 exact identities, the plan, manifest and both assignment
+digests remain unchanged. The private summary has SHA-256
+`f64f219670a3d12a8efa99b81001c05740aec3e6ea4ba63f96d30cd99c0bbdd0`.
+Seven corpus/Docker-trait controls pass with zero skips in 9.465 seconds and
+their process group is absent. Independent review and complete corrected-source
+hosted qualification remain required; no earlier red receipt is waived.
+
 
 ## Completion Criteria
 
