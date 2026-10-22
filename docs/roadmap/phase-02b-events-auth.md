@@ -17976,6 +17976,49 @@ pass. Both fixture correction review rounds are complete. The historical
 hosted cancellation remains unexplained; complete final-source A/B remains
 required before draft readiness.
 
+### P02b-6 hosted browser dependency acquisition (2026-10-22)
+
+At source `9eecf967`, run `39767540577` attempt 2 qualifies complete B:
+27 successful jobs and 5,921 passed cases, with independently checked producer,
+aggregate and public-demo evidence. The independent summary has SHA-256
+`a5173cf4c33805e6a886e357d9924698be854ef3c99f546f09ad2714b74857c3`;
+the public proof receipt has SHA-256
+`cafcca3abb54c14e1ee31cfabea06daedab1b78e7fcba736426026f803dd1423`.
+Neither unsuccessful A attempt contributes to that qualification.
+
+Attempts 1 and 3 fail before product launch in the unchanged five-minute
+`Install pinned browser tools` step. Package installation through pnpm completes;
+Playwright's APT acquisition waits on the runner's existing Ubuntu mirror while
+fetching system fonts. Attempt 1 visibly reaches the next official mirror only
+after minutes. Attempt 3's raw job log has SHA-256
+`bc4ea0cabcee872092f6e8645daabb32a95aae5a0f731e2278918f53ca3c92c6`.
+These observations establish a dependency-acquisition failure, not a browser,
+application, DNS, IPv6 or provider defect. Failed attempts remain failed.
+
+The correction uses the runner project's
+[pinned APT acquire handling](https://github.com/actions/runner-images/blob/dff7cf5f1d89bdac4336cd261875e553582fe769/images/ubuntu/scripts/build/configure-apt.sh#L15-L39):
+one retry and 15-second HTTP/HTTPS timeouts for the existing x64 job. The actual
+workflow creates one exclusive, late-sorting temporary APT fragment, checks the
+three effective root settings without evaluation and removes only its fragment
+on shell exit. No sources, package verification, package set, browser revision,
+sandbox, permission or job/proof deadline changes. This is an ADR-0056 setup
+repair, not new host-crash authority or a total-duration guarantee. A forced
+termination can leave the fragment until the disposable VM is removed; such an
+attempt cannot qualify.
+
+The existing workflow-shell owner gains eight controls: successful complete
+installation and configuration cleanup, plus creation, partial-write, readback,
+installer, cleanup, pnpm and unsupported-architecture refusals. They execute the
+actual shell with isolated command substitutes and no local privilege or APT
+mutation. All thirteen cases pass. Committed-source independent reviews and
+complete A/B qualification on the resulting source remain required; the prior
+source's complete B cannot qualify the changed workflow.
+
+The complete frontend runner passes 1,848 cases across both packages with zero
+skips/todos. Workspace typecheck, lint and the changed TypeScript formatter
+check pass. These isolated shell controls do not claim real APT or hosted
+mirror-failover execution.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

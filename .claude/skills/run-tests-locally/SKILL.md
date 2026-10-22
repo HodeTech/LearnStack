@@ -221,6 +221,15 @@ It runs nine linked product pages and 27 cold Lighthouse audits over one unchang
 API/build/database, with real admission pacing and certificate-specific trust.
 Missing browser installation fails the proof rather than skipping it.
 
+The hosted workflow bounds APT mirror acquisition with one retry and 15-second
+HTTP/HTTPS timeouts in an exclusively created temporary configuration fragment.
+It checks the effective settings as root without evaluation, then removes only
+that fragment on shell exit. Sources, package verification, the complete
+Playwright dependency set and the five-minute installation limit stay intact.
+This is hosted setup handling, not a workstation prerequisite or a guarantee of
+total setup duration. The actual workflow-shell controls live in
+`frontend/apps/web/src/test/public-demo-ci.test.ts`.
+
 On GitHub-hosted Linux runners, run `node scripts/ci-public-chromium.mjs prepare`
 after installation and before the lifecycle, then run
 `node scripts/ci-public-chromium.mjs cleanup` in an always-running cleanup step.

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -45,6 +45,116 @@ function proofScript() {
   if (!script) throw new Error('Missing real workflow proof command');
   return script;
 }
+
+function browserSetup(failure = '') {
+  const files = fixture();
+  const configuration = join(files.root, 'apt-config');
+  const captured = join(files.root, 'installed-with');
+  const foreign = join(files.root, 'foreign-apt-config');
+  writeFileSync(foreign, 'preserve existing runner configuration');
+  for (const [name, body] of [
+    ['uname', 'printf "%s\\n" "${ARCHITECTURE:-x86_64}"'],
+    [
+      'pnpm',
+      `
+      printf 'pnpm %s\\n' "$*" >> "$INVOCATION"
+      if [ "$*" = 'install --frozen-lockfile' ]; then
+        [ "$FAILURE" != dependencies ] || exit 19
+      elif [ "$*" = 'exec playwright install --with-deps chromium' ]; then
+        /bin/cp "$CONFIGURATION" "$CAPTURED"
+        [ "$FAILURE" != browser ] || exit 23
+      else exit 99; fi
+    `,
+    ],
+    [
+      'sudo',
+      `
+      printf 'sudo %s\\n' "$*" >> "$INVOCATION"
+      [ "$1" = -n ] || exit 99
+      shift
+      case "$1" in
+        mktemp)
+          [ "$*" = 'mktemp /etc/apt/apt.conf.d/zzzz-learnstack-browser-XXXXXX' ] || exit 99
+          [ "$FAILURE" != creation ] || exit 17
+          (set -C; : > "$CONFIGURATION") || exit 98
+          printf '/etc/apt/apt.conf.d/zzzz-learnstack-browser-Ab1cD2\\n'
+          ;;
+        tee)
+          [ "$*" = 'tee /etc/apt/apt.conf.d/zzzz-learnstack-browser-Ab1cD2' ] || exit 99
+          /bin/cat > "$CONFIGURATION"
+          [ "$FAILURE" != write ] || exit 18
+          ;;
+        apt-config)
+          [ "$*" = 'apt-config shell RETRIES Acquire::Retries HTTP_TIMEOUT Acquire::http::Timeout HTTPS_TIMEOUT Acquire::https::Timeout' ] || exit 99
+          if [ "$FAILURE" = readback ]; then printf "RETRIES='3'\\n";
+          else printf "%s\\n" "RETRIES='1'" "HTTP_TIMEOUT='15'" "HTTPS_TIMEOUT='15'"; fi
+          ;;
+        rm)
+          [ "$*" = 'rm -- /etc/apt/apt.conf.d/zzzz-learnstack-browser-Ab1cD2' ] || exit 99
+          [ "$FAILURE" != cleanup ] || exit 29
+          /bin/rm -- "$CONFIGURATION"
+          ;;
+        *) exit 99 ;;
+      esac
+    `,
+    ],
+  ] as const) {
+    writeFileSync(join(files.root, name), '#!/bin/sh\nset -eu\n' + body + '\n');
+    chmodSync(join(files.root, name), 0o700);
+  }
+  const step = job?.match(
+    / {6}- name: Install pinned browser tools\n {8}timeout-minutes: 5\n {8}working-directory: frontend\n {8}run: \|\n((?: {10}.*\n|\n)+)/,
+  );
+  if (!step?.[1]) throw new Error('Missing bounded browser installation command');
+  const result = spawnSync('/bin/bash', ['-euo', 'pipefail', '-c', step[1]], {
+    env: {
+      ...files.env,
+      CONFIGURATION: configuration,
+      CAPTURED: captured,
+      FAILURE: failure,
+      ARCHITECTURE: failure === 'architecture' ? 'aarch64' : 'x86_64',
+    },
+    encoding: 'utf8',
+    timeout: 10000,
+  });
+  return { ...files, result, configuration, captured, foreign };
+}
+
+it('installs all pinned browser dependencies with verified APT bounds and removes only its fragment', () => {
+  const files = browserSetup();
+  expect(files.result.status).toBe(0);
+  expect(readFileSync(files.captured, 'utf8')).toBe(
+    'Acquire::Retries "1";\nAcquire::http::Timeout "15";\nAcquire::https::Timeout "15";\n',
+  );
+  expect(existsSync(files.configuration)).toBe(false);
+  expect(readFileSync(files.foreign, 'utf8')).toBe('preserve existing runner configuration');
+  const calls = readFileSync(files.invocation, 'utf8').trim().split('\n');
+  expect(calls[0]).toBe('pnpm install --frozen-lockfile');
+  expect(calls.at(-2)).toBe('pnpm exec playwright install --with-deps chromium');
+  expect(calls.at(-1)).toBe('sudo -n rm -- /etc/apt/apt.conf.d/zzzz-learnstack-browser-Ab1cD2');
+});
+
+it.each([
+  ['creation', 17, false],
+  ['write', 18, true],
+  ['readback', 1, true],
+  ['browser', 23, true],
+  ['cleanup', 29, true],
+  ['dependencies', 19, false],
+  ['architecture', 1, false],
+] as const)(
+  'fails closed on browser setup %s and cleans only a created fragment',
+  (failure, code, created) => {
+    const files = browserSetup(failure);
+    expect(files.result.status).toBe(code);
+    expect(readFileSync(files.foreign, 'utf8')).toBe('preserve existing runner configuration');
+    expect(existsSync(files.configuration)).toBe(failure === 'cleanup');
+    const calls = readFileSync(files.invocation, 'utf8');
+    expect(calls.includes('sudo -n rm --')).toBe(created);
+    expect(existsSync(files.captured)).toBe(['browser', 'cleanup'].includes(failure));
+    if (['dependencies', 'architecture'].includes(failure)) expect(calls).not.toContain('sudo ');
+  },
+);
 
 it('starts the absolute budget before checkout and reserves four minutes of the job ceiling', () => {
   const files = fixture();
