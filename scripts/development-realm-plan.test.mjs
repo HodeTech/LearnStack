@@ -635,6 +635,46 @@ test('independent account scope readback resolves and requalifies each full repr
   }
 });
 
+test('unsafe direct console mappers retain mapper_conflict before stock-assignment qualification', async () => {
+  const clean = provider();
+  clean.state.realm.accessTokenLifespan = 1800;
+  await apply(await plan(clean));
+  assert.equal((await plan(clean)).actions.length, 0);
+  for (const [protocolMapper, config] of [
+    ['oidc-usermodel-realm-role-mapper', { 'claim.name': 'realm_access.roles', 'jsonType.label': 'String', multivalued: 'true', 'access.token.claim': 'true' }],
+    ['oidc-hardcoded-role-mapper', { role: 'account.view-profile' }],
+  ]) {
+    const fixture = provider();
+    fixture.state.realm.accessTokenLifespan = 1800;
+    fixture.state.clients.find(client => client.clientId === 'account-console').protocolMappers.push({
+      id: 'unsafe-direct', name: 'unsafe-direct', protocol: 'openid-connect', protocolMapper, config,
+    });
+    const original = clone(fixture.state);
+    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'mapper_conflict');
+    assert.deepEqual(fixture.state, original);
+    assert.deepEqual(fixture.writes, []);
+  }
+});
+
+test('a compatible console can inherit its sole resolver while the complete graph still rejects duplicate resolvers', async () => {
+  const fixture = provider();
+  const console = fixture.state.clients.find(client => client.clientId === 'account-console');
+  const resolver = console.protocolMappers.find(mapper => mapper.protocolMapper === 'oidc-audience-resolve-mapper');
+  console.protocolMappers = console.protocolMappers.filter(mapper => mapper !== resolver);
+  const scope = { id: 'console-resolver-scope', name: 'console-resolver-scope',
+    protocol: 'openid-connect', protocolMappers: [resolver] };
+  fixture.state.scopes.push(scope);
+  console.defaultClientScopes = [scope.name];
+  const original = clone(fixture.state);
+  const change = await plan(fixture);
+  assert.deepEqual(change.actions, []);
+  await change.verify();
+  assert.deepEqual(fixture.state, original);
+  console.protocolMappers.push({ ...clone(resolver), id: 'duplicate-resolver' });
+  await assert.rejects(plan(fixture), error => error.stage === 'plan');
+  assert.deepEqual(fixture.writes, []);
+});
+
 test('unsafe account composites, direct/default/optional scope allowances and implicit mappers refuse before pending writes', async () => {
   const variants = [
     fixture => { fixture.state.accountRoles.find(role => role.name === 'manage-account').containerId = 'foreign'; },

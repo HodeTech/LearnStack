@@ -34,7 +34,11 @@ const seederDll = join(
 );
 
 class DemoSetupCancellation extends Error {
-  constructor() { super('demo: setup cancelled'); }
+  constructor(error) {
+    const notice = error instanceof RealmError && error.preparationDispatched === true
+      ? '\n' + realmFailureNotice(error) : '';
+    super('demo: setup cancelled' + notice);
+  }
 }
 
 /** Only the owned host's structured lifetime event establishes listener readiness. */
@@ -548,10 +552,12 @@ export async function startDemo(mode) {
     try {
       await dispose();
     } catch {
+      if (error instanceof RealmError && error.preparationDispatched === true)
+        throw new RealmError('cleanup', 'cleanup', true);
       throw new DemoCommandError('Cleanup could not be confirmed; owned private files retained',
         undefined, undefined, { reason: 'cleanup' });
     }
-    if (mode === 'local' && signalRequested) throw new DemoSetupCancellation();
+    if (mode === 'local' && signalRequested) throw new DemoSetupCancellation(error);
     throw error;
   }
 }

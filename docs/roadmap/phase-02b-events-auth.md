@@ -16331,6 +16331,122 @@ manifest/nonmanifest self-service POST proof, request/phase cost and hosted
 qualification. A passing Step 2 subset does not complete those obligations.
 
 
+
+#### First independent Step 2 review and partial-profile correction
+
+Two fresh first-round reviewers inspect `52c73e60..8b99de3`: `gpt-6-astra` at
+`xhigh` for security/runtime/proofs and `gpt-6.1-sol` at `high` for governance,
+reliability and test meaning. Both independently pass all 335 guarded Node cases
+and reproduce a knowable refusal deferred until after one metadata PUT. With all
+four accounts already present, a visible legacy tenant makes an ordinary account
+update necessary, but an unrelated writable defaulted attribute's preservation
+guard is skipped by the preparation-only branch. Both also reproduce a visible
+actor mismatch or duplicate actor being deferred merely because another claim's
+definition is missing. These are two verified Major mechanisms of overly broad
+preparation deferral, not authorization to adopt conflicting identities.
+
+The correction derives readable claims from the actual current profile and reuses
+the ordinary actor, field and duplicate-actor validators for those values. Only
+checks depending on newly exposed values wait for the fresh full plan. The shared
+attribute-preservation guard also precedes every prospective existing-account
+write. Six new clean/dirty controls cover the profile-preservation failure,
+readable actor mismatch/absence, the legacy absence exception, tenant/organization
+disagreement, duplicate actor and the genuinely hidden-conflict boundary. The
+complete source-censused suite passes 341 cases across seven files, zero
+cancellations/skips/todos. The first provider receipt remains bound to the earlier
+implementation. After the partial-profile correction, the same eleven actual
+provider cases pass without retries/skips in 270.549s after a zero-warning/error
+Release build. TRX SHA-256 is
+`b701d3166e5266dab904ae7e921a08034db5d2f6683d17c605bc625c8fa5dc83`.
+The seven new fixtures again independently establish fourteen exact containers
+and seven networks absent after joined disposal; the existing fixtures retain
+only their normal joined-cleanup claim.
+
+Both reviewers find no further verified diagnostic, cleanup, immutable-ADR or
+catalogue-status defect; their limits explicitly exclude provider/.NET/hosted
+execution. All review and counterexample subprocesses join without tracked edits.
+A different fresh second pair reviews the committed correction before Step 2
+closes. Complete Step 3 obligations remain unchanged.
+
+
+
+#### Step 1 hosted mapper-reason regression and correction
+
+[Run `39694542640`](https://github.com/HodeTech/LearnStack/actions/runs/39694542640)
+at head `52c73e60`, merge checkout `54730795`, finishes with 25 successful jobs
+and failures in ordinary-1 and its integration aggregate. Ordinary-1 retains
+220 executed cases: 218 pass and the two unsafe account-console direct/implicit
+mapper variants fail. Artifact ID `12391396743` is independently bound to API
+archive SHA-256
+`219bdb75b6f13537a9dba07ae386778a396898feb9869151d94e92cea18a77c4`.
+The sanitized TRX exposes no assertion payload; empty finite failure locations
+are not a diagnosis. Its failed completion envelope likewise proves neither a
+runtime resource leak nor unjoined disposal.
+
+A targeted actual-provider invocation of those exact two rows reproduces both
+failures, with no retry, at the reason assertion: stage `plan` is correct,
+`unsupported` differs from the existing `mapper_conflict` contract. It is not a
+startup failure. The invocation executes two failed cases, zero skips, in
+61.217s; retained TRX SHA-256 is
+`104eb1c6178f7002c40c902dd967e28fddbcdf7a597656f34e6a3a7a32e72b8d`.
+The later zero-write/preservation assertions are not reached in that failed run
+and supply no provider-preservation claim. Offline exact variants independently
+refuse without writes.
+
+The stock fallback had reclassified direct mapper incompatibility while trying
+its strict baseline. Direct mappers are outside assignment-normalization repair
+authority. The correction qualifies that subset with the shared mapper policy
+before fallback, preserving `mapper_conflict`. A direct subset need not contain
+the resolver if its compatible scope supplies it; the complete graph still
+requires exactly one resolver. Two new controls require the precise direct
+refusal and prove inherited-resolver preservation plus duplicate rejection.
+The full seven-file Node census passes 343 cases with zero cancellations,
+skips or todos. The initial inherited-resolver test incorrectly placed it in a scope also
+assigned to application clients, triggering their valid duplicate-resolver guard;
+the corrected console-only scope isolates the intended existing compatibility.
+The code does not weaken application mapper validation.
+
+The corrected-source provider subset passes all seven selected cases without
+retries/skips in 179.348s. All five unsafe variants reach their final zero-write
+and exact provider-state assertions; direct and implicit mappers retain
+`plan/mapper_conflict`, while the other three retain `plan/unsupported`. Both
+historical automatic/partial-admin-view proofs pass with their original write
+counts, graph and state assertions. TRX SHA-256 is
+`4497a991aab51936afb923cbd60aa6d01d9480a700211580f6a9fe0b183a1db8`.
+The two new historical fixtures independently establish four exact containers
+and two networks absent; the existing self-service fixtures finish normal
+cleanup without a separate absence observation. Every invocation joins.
+
+Fresh independent reviews follow before this correction closes. No failed
+hosted assignment or earlier native settlement failure is waived, and historical
+green receipts remain source-bound.
+
+
+
+#### Entry-caller durable-progress preservation
+
+An author follow-through of the seed/demo call chain finds that their existing
+outer cleanup can mask the new dispatched-preparation notice. Seed's finally
+can replace either a prepared failure or a successful prepared result; demo's
+cleanup replacement and local setup-cancellation wrapper can replace a prepared
+reconciliation error. These callers are outside the already tested shared
+reconciliation owner's own cleanup boundary.
+
+Ten targeted entry controls first run against unchanged callers. All five real
+`RealmError` prepared-progress cases fail while all five nonpreparation twins
+pass, isolating this propagation defect. The correction retains the closed
+metadata notice through seed cleanup and failed-reconciliation demo cleanup or
+local cancellation, without changing unrelated runtime/public-proof errors,
+credential flows or the local cancellation exit convention. Six further actual
+seed CLI cases extend the entry controls to sixteen additions. The complete
+lifecycle file passes all 61 cases, zero skips, in 24.13s; workspace typecheck
+and lint pass. Its changed test file receives the configured Prettier formatting. Prepared and unprepared twins prove error/result cleanup propagation,
+fixed diagnostics and actual local CLI cancellation/cleanup exits. Successful
+demo progress is not retained into unrelated renderer/runtime failures. All
+commands join; no actual Compose/provider work is claimed by these stubbed
+entry controls. Fresh independent correction reviews follow before closeout.
+
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

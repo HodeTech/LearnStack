@@ -164,6 +164,10 @@ export async function planAccountSelfService({ admin, desired, manifest, candida
   if (!canonical || canonical.protocolMapper !== 'oidc-usermodel-client-role-mapper') refuse('plan', 'unsupported');
   let before = await snapshot(admin, 'plan');
   let stock;
+  // Assignment normalization never repairs a direct mapper. Keep its existing
+  // refusal code; the complete graph may obtain its sole resolver via a scope.
+  if (accountMapperCompatibility(before.directMappers, canonical, 'plan', { requireResolver: false }) === undefined)
+    refuse('plan', 'mapper_conflict');
   const compatible = mapperState(before, canonical, 'plan');
   if (!compatibleAllowances(before) || compatible.all === undefined || compatible.defaultCarrier === undefined) {
     const graph = await readStockConsoleGraph({ admin, existingAccountGraph: before });

@@ -96,6 +96,87 @@ test('new definitions must remain the separately declared admin-only scalar prof
   }
 });
 
+test('a known ordinary account update cannot admit preparation before its shared profile-preservation guard', async () => {
+  const clean = hiddenProfile(['organization_id']);
+  clean.state.users[0].attributes.tenant_id = ['tenant-a'];
+  const preparation = await probe(clean);
+  await clean.admin.put('users/profile', preparation.profile);
+  const ordinary = await buildRealmPlan(input(clean));
+  assert.deepEqual(ordinary.actions.map(action => action.label), ['update_user_attributes']);
+  await ordinary.actions[0].apply();
+  await ordinary.verify();
+  for (const projection of [{ defaultValue: 'synthesized' }, { selector: {} }]) {
+    const dirty = hiddenProfile(['organization_id']);
+    dirty.state.users[0].attributes.tenant_id = ['tenant-a'];
+    dirty.state.profile.attributes.push({ name: 'retained',
+      permissions: { view: ['admin'], edit: ['admin'] }, ...projection });
+    await assert.rejects(probe(dirty), refusal('plan', 'unsupported'));
+    assert.deepEqual(dirty.writes, []);
+  }
+});
+
+test('an already-readable actor must qualify before preparation for another missing claim', async () => {
+  assert.ok(await probe(hiddenProfile(['organization_id'])));
+  for (const actor of [['01910000-0000-7000-8000-00000000ffff'], ['invalid'], null, []]) {
+    const fixture = hiddenProfile(['organization_id']);
+    // The Yoga identity has no legacy actor-absence exception.
+    fixture.state.users[2].attributes.user_id = actor;
+    await assert.rejects(probe(fixture), refusal('plan', 'identity_conflict'));
+    assert.deepEqual(fixture.writes, []);
+  }
+});
+
+test('readable legacy actor absence needs its readable legacy tenant before another claim can be prepared', async () => {
+  const clean = hiddenProfile(['organization_id']);
+  delete clean.state.users[0].attributes.user_id;
+  clean.state.users[0].attributes.tenant_id = ['tenant-a'];
+  assert.ok(await probe(clean));
+  for (const tenant of [undefined, [manifest.users[0].tenantId], ['foreign']]) {
+    const fixture = hiddenProfile(['organization_id']);
+    delete fixture.state.users[0].attributes.user_id;
+    if (tenant === undefined) delete fixture.state.users[0].attributes.tenant_id;
+    else fixture.state.users[0].attributes.tenant_id = tenant;
+    await assert.rejects(probe(fixture), refusal('plan', 'identity_conflict'));
+    assert.deepEqual(fixture.writes, []);
+  }
+});
+
+test('readable tenant and organization disagreements refuse before preparation of a different claim', async () => {
+  for (const [missing, name, index] of [
+    [['organization_id'], 'tenant_id', 0],
+    [['user_id'], 'organization_id', 2],
+    [['user_id'], 'organization_id', 0],
+  ]) {
+    assert.ok(await probe(hiddenProfile(missing)));
+    for (const value of [['01910000-0000-7000-8000-00000000ffff'], ['invalid'], ['one', 'two']]) {
+      const fixture = hiddenProfile(missing);
+      fixture.state.users[index].attributes[name] = value;
+      await assert.rejects(probe(fixture), refusal('plan', 'identity_conflict'));
+      assert.deepEqual(fixture.writes, []);
+    }
+  }
+});
+
+test('already-readable actor duplication on a differently named account refuses before preparation', async () => {
+  assert.ok(await probe(hiddenProfile(['organization_id'])));
+  const fixture = hiddenProfile(['organization_id']);
+  fixture.state.users.push({ id: 'unmanaged-existing', username: 'unmanaged-existing',
+    attributes: { user_id: [manifest.users[0].userId] } });
+  await assert.rejects(probe(fixture), refusal('plan', 'identity_conflict'));
+  assert.deepEqual(fixture.writes, []);
+});
+
+test('only genuinely hidden identity conflicts wait for preparation and the fresh complete plan', async () => {
+  const fixture = hiddenProfile(['user_id', 'tenant_id']);
+  fixture.state.users[0].attributes.user_id = ['01910000-0000-7000-8000-00000000ffff'];
+  const preparation = await probe(fixture);
+  assert.deepEqual(fixture.writes, []);
+  await fixture.admin.put('users/profile', preparation.profile);
+  preparation.verify(await fixture.admin.get('users/profile'));
+  await assert.rejects(buildRealmPlan(input(fixture)), refusal('plan', 'identity_conflict'));
+  assert.equal(fixture.writes.length, 1);
+});
+
 const independentConflicts = [
   ['disabled realm', fixture => { fixture.state.realm.enabled = false; }, 'unsupported'],
   ['disabled client', fixture => { fixture.state.clients.find(client => client.clientId === 'learnstack-web').enabled = false; }, 'unsupported'],

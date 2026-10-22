@@ -90,17 +90,19 @@ export async function reconcileDevelopmentRealm({ selected, signal }) {
   f.signalIdentity &&= signal === f.signal && signal instanceof AbortSignal;
   f.selectedDescription = { project: selected.project, file: selected.file, mode: selected.mode };
   if (f.scenario === 'reconcile-failure') throw f.realmFailure;
-  if (f.scenario === 'cancel') {
-    setTimeout(() => f.subject === 'demo' ? process.kill(process.pid, 'SIGINT') : f.controller.abort(), 10);
+  if (f.scenario.startsWith('progress-') && f.scenario.includes('-failure'))
+    throw new RealmError('plan', 'identity_conflict', f.preparationDispatched);
+  if (f.scenario === 'cancel' || f.scenario.includes('-cancel')) {
+    setTimeout(() => f.subject === 'demo' || f.entryCli ? process.kill(process.pid, 'SIGINT') : f.controller.abort(), 10);
     await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
     f.events.push('realm-cancel');
     await new Promise(resolve => setTimeout(resolve, 30));
     f.events.push('realm-joined');
-    throw new RealmError('preflight', 'cancelled');
+    throw new RealmError(f.preparationDispatched ? 'prepare' : 'preflight', 'cancelled', f.preparationDispatched);
   }
   await new Promise(resolve => setTimeout(resolve, 30));
   f.events.push('realm-complete');
-  return { mutations: 0 };
+  return { mutations: f.preparationDispatched ? 1 : 0, ...(f.preparationDispatched ? { preparationDispatched: true } : {}) };
 }
 `,
   );
@@ -166,6 +168,9 @@ type Fixture = ReturnType<typeof fixture>;
 type Result = {
   events: string[];
   failure: string;
+  notice: string;
+  preparationDispatched: boolean;
+  exitCode?: number | null;
   selectionIdentity: boolean;
   signalIdentity: boolean;
   selectedDescription?: { project: string; file: string; mode: string };
@@ -187,6 +192,7 @@ function execute(
   subject: 'seed' | 'demo',
   scenario = 'success',
   demoMode: 'local' | 'ci' = scenario === 'preflight' ? 'local' : 'ci',
+  entryCli = false,
 ) {
   if (subject === 'demo' && scenario !== 'preflight') {
     execFileSync(
@@ -220,16 +226,21 @@ function execute(
   const harness = join(f.root, 'scripts/fixture-harness.mjs');
   writeFileSync(
     harness,
-    `import { copyFileSync } from 'node:fs';
+    `import { copyFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DemoProcesses } from './demo-process.mjs';
 import { composeSelection } from './compose.mjs';
+import { RealmError, realmFailureNotice } from './development-realm-errors.mjs';
 const f = globalThis.lifecycle = { events: [], commands: [], scenario: ${JSON.stringify(scenario)},
-  subject: ${JSON.stringify(subject)},
+  subject: ${JSON.stringify(subject)}, entryCli: ${JSON.stringify(entryCli)}, preparationDispatched: ${JSON.stringify(scenario.startsWith('progress-prepared-'))},
   selectionIdentity: true, signalIdentity: true, migrationSelection: false,
   controller: new AbortController(), seedFailure: new Error('seed refusal'),
   realmFailure: new Error('realm refusal'), boundary: new Error('renderer boundary') };
-DemoProcesses.prototype.dispose = async function() { f.events.push('dispose'); };
+DemoProcesses.prototype.dispose = async function() {
+  f.events.push('dispose');
+  if (f.scenario.startsWith('progress-') && f.scenario.endsWith('-cleanup'))
+    throw new Error('cleanup refusal', { cause: new Error(${JSON.stringify(f.canaries[0])}) });
+};
 DemoProcesses.prototype.daemon = function() { f.events.push('daemon'); throw new Error('Unexpected daemon'); };
 DemoProcesses.prototype.run = async function(command, args, options = {}) {
   const env = options.env ?? {};
@@ -281,7 +292,13 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
   if (command === 'pnpm' && args.at(-1) === 'build') { f.events.push('renderer'); throw f.boundary; }
   return '';
 };
-let failure = '';
+let failure = '', notice = '', preparationDispatched = false;
+const report = () => ({ events: f.events, commands: f.commands, failure, notice, preparationDispatched,
+  selectionIdentity: f.selectionIdentity, signalIdentity: f.signalIdentity,
+  selectedDescription: f.selectedDescription, migrationSelection: f.migrationSelection });
+if (${JSON.stringify(entryCli)}) {
+  process.on('exit', () => writeFileSync(${JSON.stringify(join(f.root, 'entry-report'))}, JSON.stringify(report())));
+} else {
 console.log = () => {};
 try {
   if (${JSON.stringify(subject)} === 'seed') {
@@ -293,26 +310,48 @@ try {
     const { startDemo } = await import('./demo.mjs');
     await startDemo(${JSON.stringify(demoMode)});
   }
-} catch (error) { failure = error.message; }
-process.stdout.write(JSON.stringify({ events: f.events, commands: f.commands, failure,
-  selectionIdentity: f.selectionIdentity, signalIdentity: f.signalIdentity,
-  selectedDescription: f.selectedDescription, migrationSelection: f.migrationSelection }));
+} catch (error) {
+  failure = error.message;
+  notice = ${JSON.stringify(subject)} === 'demo' ? (await import('./demo.mjs')).demoFailureMessage(error) : realmFailureNotice(error);
+  preparationDispatched = error instanceof RealmError && error.preparationDispatched === true;
+}
+process.stdout.write(JSON.stringify(report()));
+}
 `,
   );
   const environment: NodeJS.ProcessEnv = { ...f.env };
   if (subject === 'demo') delete environment.ConnectionStrings__OutboxDispatcher;
-  const execution = spawnSync(process.execPath, [harness], {
-    cwd: f.root,
-    env: environment,
-    encoding: 'utf8',
-    timeout: 10000,
-  });
+  if (entryCli && subject === 'seed')
+    Object.assign(environment, {
+      LEARNSTACK_COMPOSE_PROJECT: 'owned-seed',
+      LEARNSTACK_COMPOSE_ENV_FILE: 'selected.env',
+    });
+  const execution = spawnSync(
+    process.execPath,
+    entryCli
+      ? [
+          '--import',
+          harness,
+          join(f.root, `scripts/${subject}.mjs`),
+          ...(subject === 'demo' ? [demoMode] : []),
+        ]
+      : [harness],
+    { cwd: f.root, env: environment, encoding: 'utf8', timeout: 10000 },
+  );
   expect(execution.error).toBeUndefined();
-  expect(execution.status, execution.stderr).toBe(0);
+  if (!entryCli) expect(execution.status, execution.stderr).toBe(0);
+  expect(execution.signal).toBeNull();
   for (const canary of f.canaries) {
     expect(execution.stdout).not.toContain(canary);
     expect(execution.stderr).not.toContain(canary);
   }
+  if (entryCli)
+    return {
+      ...(JSON.parse(readFileSync(join(f.root, 'entry-report'), 'utf8')) as Result),
+      failure: execution.stderr.trim(),
+      notice: execution.stderr.trim(),
+      exitCode: execution.status,
+    };
   return JSON.parse(execution.stdout) as Result;
 }
 
@@ -1326,4 +1365,140 @@ describe('private configuration refuses launch before commands', () => {
       demoFailureMessage(new Error('realm: preflight/missing_web_secret injected-private-value')),
     ).not.toContain('injected-private-value');
   });
+});
+
+const preparationNotice =
+  'realm: profile metadata may already be durable; inspect current realm state before an explicit rerun; see infra/keycloak/README.md';
+
+describe('closed preparation progress at the seed and demo entry owners', () => {
+  it.each(
+    [true, false].flatMap((prepared) =>
+      ['failure', 'success'].map((outcome) => ({ prepared, outcome })),
+    ),
+  )(
+    'prints a closed seed CLI cleanup notice for $outcome progress=$prepared',
+    ({ prepared, outcome }) => {
+      const f = fixture();
+      writePrivateFileSync(join(f.root, 'selected.env'), f.source);
+      const result = execute(
+        f,
+        'seed',
+        `progress-${prepared ? 'prepared' : 'plain'}-${outcome}-cleanup`,
+        'ci',
+        true,
+      );
+      expect(result.exitCode).toBe(1);
+      expect(result.notice).toBe(
+        prepared
+          ? `realm: cleanup/cleanup\n${preparationNotice}`
+          : 'seed: setup or convergence failed; verify configuration and migrations.',
+      );
+      expect(result.events).toContain('realm-start');
+      expect(result.events.includes('realm-complete')).toBe(outcome === 'success');
+      expect(result.events.at(-1)).toBe('dispose');
+    },
+  );
+
+  it.each([true, false])(
+    'prints a closed seed CLI cancellation notice for progress=%s',
+    (prepared) => {
+      const f = fixture();
+      writePrivateFileSync(join(f.root, 'selected.env'), f.source);
+      const result = execute(
+        f,
+        'seed',
+        `progress-${prepared ? 'prepared' : 'plain'}-cancel`,
+        'ci',
+        true,
+      );
+      expect(result.exitCode).toBe(130);
+      expect(result.notice).toBe(
+        prepared ? `realm: prepare/cancelled\n${preparationNotice}` : 'realm: preflight/cancelled',
+      );
+      expect(result.events.slice(-3)).toEqual(['realm-cancel', 'realm-joined', 'dispose']);
+    },
+  );
+
+  it.each(
+    [true, false].flatMap((prepared) =>
+      ['failure', 'success'].map((outcome) => ({ prepared, outcome })),
+    ),
+  )(
+    'preserves seed $outcome progress=$prepared when its own process cleanup fails',
+    ({ prepared, outcome }) => {
+      const f = fixture();
+      writePrivateFileSync(join(f.root, 'selected.env'), f.source);
+      const result = execute(
+        f,
+        'seed',
+        `progress-${prepared ? 'prepared' : 'plain'}-${outcome}-cleanup`,
+      );
+      expect(result.failure).toBe(prepared ? 'realm: cleanup/cleanup' : 'cleanup refusal');
+      expect(result.preparationDispatched).toBe(prepared);
+      expect(result.notice).toBe(
+        prepared
+          ? `realm: cleanup/cleanup\n${preparationNotice}`
+          : 'realm: preflight/configuration',
+      );
+      expect(result.events).toContain('realm-start');
+      expect(result.events.includes('realm-complete')).toBe(outcome === 'success');
+      expect(result.events.at(-1)).toBe('dispose');
+      expect(readFileSync(join(f.root, 'selected.env'), 'utf8')).toBe(f.source);
+    },
+  );
+
+  it.each([true, false])(
+    'preserves demo failure progress=%s when setup cleanup fails',
+    (prepared) => {
+      const f = fixture();
+      const result = execute(
+        f,
+        'demo',
+        `progress-${prepared ? 'prepared' : 'plain'}-failure-cleanup`,
+      );
+      expect(result.preparationDispatched).toBe(prepared);
+      expect(result.notice).toBe(
+        prepared
+          ? `realm: cleanup/cleanup\n${preparationNotice}`
+          : 'demo: Cleanup could not be confirmed; owned private files retained failed (cleanup)',
+      );
+      expect(result.events).toContain('realm-start');
+      expect(result.events).not.toContain('stop-keycloak');
+      expect(result.events).not.toContain('renderer');
+      expect(result.events).not.toContain('daemon');
+      expect(existsSync(join(f.root, '.env'))).toBe(true);
+      expect(existsSync(join(f.root, '.data/demo.lock'))).toBe(true);
+    },
+  );
+
+  it.each(
+    [true, false].flatMap((prepared) => [true, false].map((cleanup) => ({ prepared, cleanup }))),
+  )(
+    'keeps actual local demo CLI cancellation progress=$prepared cleanup-failure=$cleanup closed',
+    ({ prepared, cleanup }) => {
+      const f = fixture();
+      const result = execute(
+        f,
+        'demo',
+        `progress-${prepared ? 'prepared' : 'plain'}-cancel${cleanup ? '-cleanup' : ''}`,
+        'local',
+        true,
+      );
+      expect(result.exitCode).toBe(cleanup ? 1 : 130);
+      expect(result.notice).toBe(
+        cleanup
+          ? prepared
+            ? `realm: cleanup/cleanup\n${preparationNotice}`
+            : 'demo: Cleanup could not be confirmed; owned private files retained failed (cleanup)'
+          : prepared
+            ? `demo: setup cancelled\nrealm: prepare/cancelled\n${preparationNotice}`
+            : 'demo: setup cancelled',
+      );
+      expect(result.events.slice(-3)).toEqual(['realm-cancel', 'realm-joined', 'dispose']);
+      expect(result.events).not.toContain('renderer');
+      expect(result.events).not.toContain('daemon');
+      expect(existsSync(join(f.root, '.data/demo.lock'))).toBe(cleanup);
+      expect(existsSync(join(f.root, '.env'))).toBe(true);
+    },
+  );
 });

@@ -131,18 +131,20 @@ function plainAttributeProjection(attribute) {
     && Object.keys(attribute).every(key => profileAttributeFields.has(key));
 }
 
+function readableIdentityClaims(profile) {
+  return identityClaims.filter(name => {
+    const attribute = profile.attributes.find(value => value.name === name);
+    return attribute ? adminCanRead(attribute) && plainAttributeProjection(attribute)
+      : ['ENABLED', 'ADMIN_EDIT', 'ADMIN_VIEW'].includes(profile.unmanagedAttributePolicy);
+  });
+}
+
 function validateIdentityVisibility(profile, stage) {
-  const attributes = unique(array(profile.attributes, stage), 'name', stage);
+  unique(array(profile.attributes, stage), 'name', stage);
   if (profile.groups !== undefined) unique(array(profile.groups, stage), 'name', stage);
-  for (const name of identityClaims) {
-    const attribute = attributes.find(value => value.name === name);
-    // Admin representations are profile projections, not raw storage reads.
-    // Missing values prove absence only when this policy exposes unmanaged
-    // attributes, or a managed definition exposes the actual stored values.
-    if (attribute ? !adminCanRead(attribute) || !plainAttributeProjection(attribute)
-      : !['ENABLED', 'ADMIN_EDIT', 'ADMIN_VIEW'].includes(profile.unmanagedAttributePolicy))
-      refuse(stage, 'identity_conflict');
-  }
+  // Admin responses are projections. Absence is authoritative only for claims
+  // exposed by an ordinary definition or an admin-readable unmanaged policy.
+  if (readableIdentityClaims(profile).length !== identityClaims.length) refuse(stage, 'identity_conflict');
 }
 
 function validateAttributePreservation(profile, creating = false) {
@@ -164,15 +166,26 @@ function legacyDeclaration(declaration) {
   return declaration.legacyTenantAttribute === 'tenant-a' && declaration.organizationId === null;
 }
 
-function qualifiedExistingActor(user, declaration, stage) {
+function qualifiedExistingActor(user, declaration, stage, readableClaims = identityClaims) {
+  if (!readableClaims.includes('user_id')) return;
   const actor = user.attributes?.user_id;
   if (Array.isArray(actor) && actor.length === 1 && typeof actor[0] === 'string'
     && actor[0].toLowerCase() === declaration.userId.toLowerCase()) return;
   // A public registration matching a reserved username is not a seed identity.
   // Only the two historical accounts have this explicit migration discriminator.
-  if ((actor === undefined || (Array.isArray(actor) && actor.length === 0))
-    && legacyDeclaration(declaration) && equal(user.attributes?.tenant_id, ['tenant-a'])) return;
+  if ((actor === undefined || (Array.isArray(actor) && actor.length === 0)) && legacyDeclaration(declaration)) {
+    if (!readableClaims.includes('tenant_id') || equal(user.attributes?.tenant_id, ['tenant-a'])) return;
+  }
   refuse(stage, 'identity_conflict');
+}
+
+function validateIdentityAttribute(name, current, wanted, declaration, stage) {
+  if (current === undefined || (Array.isArray(current) && current.length === 0)) return;
+  if (!Array.isArray(current) || current.length !== 1 || typeof current[0] !== 'string')
+    refuse(stage, 'identity_conflict');
+  if (name === 'tenant_id' && legacyDeclaration(declaration) && current[0] === 'tenant-a') return;
+  if (wanted === null || !uuidValue(current[0]) || current[0].toLowerCase() !== wanted.toLowerCase())
+    refuse(stage, 'identity_conflict');
 }
 
 function identityAttributes(user, declaration, stage) {
@@ -183,18 +196,15 @@ function identityAttributes(user, declaration, stage) {
   for (const name of identityClaims) {
     const current = attributes[name];
     const wanted = expected[name];
+    validateIdentityAttribute(name, current, wanted, declaration, stage);
     if (current === undefined || (Array.isArray(current) && current.length === 0)) {
       if (wanted !== null) merged[name] = [wanted];
       continue;
     }
-    if (!Array.isArray(current) || current.length !== 1 || typeof current[0] !== 'string')
-      refuse(stage, 'identity_conflict');
     if (name === 'tenant_id' && legacyDeclaration(declaration) && current[0] === 'tenant-a') {
       merged[name] = [wanted];
       continue;
     }
-    if (wanted === null || !uuidValue(current[0]) || current[0].toLowerCase() !== wanted.toLowerCase())
-      refuse(stage, 'identity_conflict');
   }
   return merged;
 }
@@ -293,6 +303,7 @@ async function snapshot(admin, desired, manifest, stage, { preparationProfile, p
   // substitutes the proposed configuration or a fabricated account projection.
   const profile = preparationProfile ?? requireObject(await admin.get('users/profile'), stage);
   if (!preparing) validateIdentityVisibility(profile, stage);
+  const readableClaims = readableIdentityClaims(profile);
   const scopes = unique(array(await admin.get('client-scopes'), stage), 'name', stage, 'mapper_conflict');
   unique(scopes, 'id', stage, 'mapper_conflict');
   const scopeByName = new Map(scopes.map(scope => [scope.name, scope]));
@@ -331,12 +342,12 @@ async function snapshot(admin, desired, manifest, stage, { preparationProfile, p
     const user = requireObject(await admin.get(`users/${encode(matched[0].id)}`), stage);
     if (user.id !== matched[0].id || user.username !== declaration.username
       || user.federationLink || user.serviceAccountClientId) refuse(stage, 'identity_conflict');
-    if (!preparing) qualifiedExistingActor(user, declaration, stage);
+    qualifiedExistingActor(user, declaration, stage, readableClaims);
     const credentials = array(await admin.get(`users/${encode(user.id)}/credentials`), stage);
     const roles = requireObject(await admin.get(`users/${encode(user.id)}/role-mappings`), stage);
     candidates.set(declaration.username, { user, credentials, roles });
   }
-  return { realm, profile, scopes, scopeByName, scopeMappers, clients, users, candidates };
+  return { realm, profile, scopes, scopeByName, scopeMappers, clients, users, candidates, readableClaims };
 }
 
 function mergedProfile(current, desired) {
@@ -423,8 +434,8 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
   return assemblePlan({ admin, desired, manifest, webSecret, before });
 }
 
-// Only this internal path defers the two identity-dependent guards. Every other
-// qualifier is the same one used by the ordinary planner. Provisional actions
+// Only this internal path defers checks needing newly visible protected values.
+// Every other qualifier is shared with the ordinary planner. Provisional actions
 // never escape: the caller receives only a profile and its exact verification.
 export async function buildRealmPreparation({ admin, desired, manifest, webSecret }) {
   validateInputs(desired, manifest, webSecret);
@@ -574,7 +585,7 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, prepa
   const account = await planAccountSelfService({ admin, desired, manifest, candidateUsers: before.candidates,
     add, preflightResponse, changedScopeIds });
   // A manifest actor may not already belong to a differently named account.
-  for (const user of preparationOnly ? [] : before.users) {
+  for (const user of before.readableClaims.includes('user_id') ? before.users : []) {
     const values = user.attributes?.user_id;
     if (!Array.isArray(values)) continue;
     for (const value of values) {
@@ -588,10 +599,17 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, prepa
     const existing = before.candidates.get(declaration.username);
     if (existing) {
       if (preparationOnly) {
+        // A partial profile does not hide every claim. Apply the same guards to
+        // every already-readable value before any exceptional metadata write.
+        const observed = existing.user.attributes === undefined ? {} : requireObject(existing.user.attributes, 'plan');
+        const values = { user_id: declaration.userId, tenant_id: declaration.tenantId,
+          organization_id: declaration.organizationId };
+        for (const name of before.readableClaims)
+          validateIdentityAttribute(name, observed[name], values[name], declaration, 'plan');
+        validateAttributePreservation(before.profile);
         // Budget observed account data plus every prospective canonical identity
         // byte. These numbers grant no identity/ownership or mutation authority;
         // newly visible stored values still require a fresh complete plan.
-        const observed = existing.user.attributes === undefined ? {} : requireObject(existing.user.attributes, 'plan');
         const canonical = { user_id: [declaration.userId], tenant_id: [declaration.tenantId],
           ...(declaration.organizationId === null ? {} : { organization_id: [declaration.organizationId] }) };
         const reserve = jsonBytes({ attributes: canonical });

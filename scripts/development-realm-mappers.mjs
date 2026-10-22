@@ -89,7 +89,7 @@ export function accountMapperRepresentation(mapper) {
 
 // The shared console may emit account roles, but no realm/all-client role
 // carrier or implicit role/audience transformer is qualified by a claim name.
-export function accountMapperCompatibility(mappers, canonical, stage = 'plan') {
+export function accountMapperCompatibility(mappers, canonical, stage = 'plan', { requireResolver = true } = {}) {
   const fail = () => refuse(stage, 'mapper_conflict');
   const configBoundary = {
     'usermodel.clientRoleMapping.clientId': 'account', 'usermodel.clientRoleMapping.rolePrefix': '',
@@ -119,7 +119,7 @@ export function accountMapperCompatibility(mappers, canonical, stage = 'plan') {
         || ['resource_access', 'realm_access', ...reservedClaims].includes(claimRoot(config['claim.name']))) return undefined;
     }
   }
-  if (resolvers !== 1 || carriers > 1) return undefined;
+  if ((requireResolver ? resolvers !== 1 : resolvers > 1) || carriers > 1) return undefined;
   return carriers === 1;
 }
 

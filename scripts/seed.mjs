@@ -45,6 +45,7 @@ export async function seedDevelopment({ selected, signal }) {
     LEARNSTACK_COMPOSE_PROJECT: selected.project, LEARNSTACK_COMPOSE_ENV_FILE: selected.file,
     LEARNSTACK_COMPOSE_MODE: selected.mode };
   const processes = new DemoProcesses(signal);
+  let preparationDispatched = false;
   const run = (command, args, options) => {
     console.log(`seed: ${options.label}`);
     return processes.run(command, args, options);
@@ -75,9 +76,18 @@ export async function seedDevelopment({ selected, signal }) {
     await run('dotnet', [seederDll], {
       cwd: backendRoot, env: publicSeederEnvironment(connection), label: 'Application seed', timeout: 180000,
     });
-    return await reconcileDevelopmentRealm({ selected, signal });
+    const result = await reconcileDevelopmentRealm({ selected, signal });
+    preparationDispatched = result.preparationDispatched === true;
+    return result;
+  } catch (error) {
+    preparationDispatched = error instanceof RealmError && error.preparationDispatched === true;
+    throw error;
   } finally {
-    await processes.dispose();
+    try { await processes.dispose(); }
+    catch (error) {
+      if (preparationDispatched) throw new RealmError('cleanup', 'cleanup', true);
+      throw error;
+    }
   }
 }
 
