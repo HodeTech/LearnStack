@@ -17156,6 +17156,44 @@ Seven corpus/Docker-trait controls pass with zero skips in 8.868 seconds;
 their process group is absent. The second fresh independent review round and
 corrected-source hosted qualification remain required.
 
+#### Second independent attribution review and source freeze
+
+Two different fresh reviewers inspect all six files in
+`7b0fd1b6..c9abc978` and their dependencies: `gpt-6.1-sol` at `xhigh` for
+ownership/security and `gpt-6-astra` at `high` for evidence/governance. Both
+approve without a verified Blocker, Major or Minor. Both independently confirm
+the first round's cleanup correction: actual flights precede positive joins,
+private completion is reused, independent cleanup continues and first failure
+survives. The early negative verifies issued business and held cancellation
+cleanup; it does not infer cleanup from process exit.
+
+The first passes all forty-nine offline controls in 16.588 seconds. Both inspect
+the actual driver, adapter output, four raw/sanitized TRX hashes and nineteen
+artifact hashes, preserving the intended failure and clean three-case outcome.
+The second also approves the unpublished PR description and its explicit
+qualification boundary. Neither repeats .NET/provider/Docker/native experiments.
+All commands join. One initial status probe reports an existing untracked
+directory entry; no contents are opened or enumerated, and later status probes
+exclude untracked paths.
+
+The commit hook normalizes only line 461's leading indentation from sixteen
+spaces to twelve. Reversing the exact retained mutant substitution reconstructs
+the tested source, SHA-256
+`4538ae656ffded55fe4c39d2918a143a882276958403ea6a4dd8be0db7da68df`.
+Both reviewers independently verify the one-line whitespace mapping to committed
+SHA-256 `1cefcb2f5c5f6e996cd3f4c9ada7164b2ca487b2d8225361ba62b52ae810c1cd`;
+the other six attested files match byte-for-byte. Seven-file byte identity is
+not claimed after the hook. The separate private binding receipt has SHA-256
+`e3b73f02e9b572ab602a5875360be7e48450005b23c4195d85695871d2d6b0cc`.
+It records a formatting bridge, not a new runtime or binary-identity claim.
+
+Local implementation, validation and both fresh independent attribution review
+rounds are complete. [PR #34](https://github.com/HodeTech/LearnStack/pull/34)
+records the frozen head's exact run/attempt identities, complete A/B assignments,
+retained producer/aggregate/public artifacts and current seven-check result.
+Complete current-source qualification is required before readiness; a successful
+sibling or earlier revision supplies no waiver. Merge and P02b-7 remain separate.
+
 
 ## Completion Criteria
 
