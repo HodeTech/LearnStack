@@ -18209,6 +18209,40 @@ cleanup completes. Both verify hosted identity/evidence limits and corrected
 physical source anchors. No repository edits or broader runtime is performed
 by reviewers. Both rounds are complete; final-source full A/B remains pending.
 
+### P02b-6 aggregate gate-refusal diagnostics (2026-10-22)
+
+Run `39784545745` attempt 1 at `58d9ecdf` completes all twenty producer jobs
+and the public-demo job successfully, but both aggregates refuse with
+`producer_gate_not_successful`. Backend job `119851050390` retains log SHA-256
+`0244aaf9f2efe10941f066268a323c28a769bac24489cd6fed617d185e38173d`;
+integration job `119854078976` retains
+`e76f5b94d0c18a76e9b99281c6b3f145a0863bf7f21d07b73f7dec7f6d782431`.
+The final result is 24/27 successful jobs: the separate OpenAPI fixture cleanup
+failure and these aggregate refusals prevent whole-workflow qualification.
+
+The error occurs after a producer job's completed/success check, at one of
+its build, execution or upload gates. The original response is unavailable;
+subsequent exact-version, exact-page and ordinary job API reads show all three
+gates successful for all producers. Both retained later backend snapshots pass
+the unchanged seven-owner verifier. API projection lag is plausible but is not
+proven, and neither the failing owner nor its original gate state is known.
+The missing aggregate receipt and upload failure follow the refusal; they do
+not establish a wrong output path or a failed test.
+
+The correction adds only a closed stderr diagnostic before the same refusal:
+finite source-owned producer key, build/execute/upload gate, missing/one/multiple
+match class and allowlisted status/conclusion words. Unknown or structured API
+values become `other`; no API names, provider text, run/job identifiers, tokens
+or payloads are exported. Successful validation remains silent. The original
+refusal, nonzero CLI result, every identity/gate check and all time limits remain
+unchanged. No polling, retry, cross-response union or failure-to-success mapping
+is introduced.
+
+Twenty aggregate controls pass, including 21 planted gate/shape/state subcases,
+canary exclusion and clean-path silence. The next complete final-source A/B is
+still required; later successful metadata does not repair this failed attempt.
+Fresh independent review rounds remain required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

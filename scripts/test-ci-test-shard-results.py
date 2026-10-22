@@ -257,6 +257,42 @@ class AggregateControls(unittest.TestCase):
         dirty = copy.deepcopy(clean); other = copy.deepcopy(dirty[0]); other['id'] = 100; dirty.append(other)
         self.refuses('job_api_duplicate_producer', RESULTS.verify_jobs, dirty, context, self.plan, 'backend')
 
+    def test_gate_refusal_retains_only_closed_owner_gate_and_state_diagnostics(self):
+        context = self.context()
+        for index, gate in enumerate(('build', 'execute', 'upload')):
+            for mutation in ('missing', 'duplicate', 'queued', 'in_progress', 'failed', 'skipped', 'canary'):
+                with self.subTest(gate=gate, mutation=mutation):
+                    jobs = self.jobs('backend', context)
+                    # The final Architecture producer proves this is the actual failed owner.
+                    owner = 'architecture-' + str(self.plan['counts']['architecture'] - 1)
+                    steps = jobs[-1]['steps']
+                    if mutation == 'missing':
+                        steps.pop(index)
+                    elif mutation == 'duplicate':
+                        steps.append(copy.deepcopy(steps[index]))
+                    elif mutation in ('queued', 'in_progress'):
+                        steps[index].update(status=mutation, conclusion=None)
+                    elif mutation == 'canary':
+                        steps[index].update(status='PRIVATE-STATUS-CANARY', conclusion={'PRIVATE-CANARY': 'value'})
+                    else:
+                        steps[index]['conclusion'] = 'failure' if mutation == 'failed' else 'skipped'
+                    output = io.StringIO()
+                    with mock.patch.object(RESULTS.sys, 'stderr', output):
+                        self.refuses('producer_gate_not_successful', RESULTS.verify_jobs,
+                            jobs, context, self.plan, 'backend')
+                    diagnostic = json.loads(output.getvalue())
+                    self.assertEqual({'protocol': 1, 'diagnostic': 'producer_gate_refusal', 'owner': owner,
+                        'gate': gate, 'matches': {'missing': 'missing', 'duplicate': 'multiple'}.get(mutation, 'one'),
+                        'status': mutation if mutation in ('queued', 'in_progress') else
+                            'completed' if mutation in ('failed', 'skipped') else 'other',
+                        'conclusion': 'failure' if mutation == 'failed' else 'skipped' if mutation == 'skipped' else 'other'},
+                        diagnostic)
+                    self.assertNotIn('PRIVATE', output.getvalue())
+        output = io.StringIO()
+        with mock.patch.object(RESULTS.sys, 'stderr', output):
+            self.assertTrue(RESULTS.verify_jobs(self.jobs('backend', context), context, self.plan, 'backend'))
+        self.assertEqual('', output.getvalue())
+
     def test_run_head_and_actual_merge_checkout_are_distinct_and_related(self):
         context = self.context()
         run = {'id': 123, 'run_attempt': 1, 'head_sha': context['headSha'], 'path': '.github/workflows/ci.yml',

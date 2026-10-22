@@ -358,8 +358,20 @@ def verify_jobs(jobs, context, plan, scope):
         steps = job.get('steps', [])
         for name in (BUILD_STEP, EXECUTE_STEP, UPLOAD_STEP):
             matches = [step for step in steps if step.get('name') == name]
-            require(len(matches) == 1 and matches[0].get('status') == 'completed'
-                    and matches[0].get('conclusion') == 'success', 'producer_gate_not_successful')
+            successful = (len(matches) == 1 and matches[0].get('status') == 'completed'
+                          and matches[0].get('conclusion') == 'success')
+            if not successful:
+                # Retain only finite gate/state words, never arbitrary API text.
+                step = matches[0] if len(matches) == 1 else {}
+                status, conclusion = step.get('status'), step.get('conclusion')
+                print(json.dumps({'protocol': 1, 'diagnostic': 'producer_gate_refusal',
+                    'owner': owner, 'gate': {BUILD_STEP: 'build', EXECUTE_STEP: 'execute', UPLOAD_STEP: 'upload'}[name],
+                    'matches': 'one' if len(matches) == 1 else 'missing' if not matches else 'multiple',
+                    'status': status if status in ('queued', 'in_progress', 'completed') else 'other',
+                    'conclusion': conclusion if conclusion in ('success', 'failure', 'neutral', 'cancelled',
+                        'skipped', 'timed_out', 'action_required', 'startup_failure', 'stale') else 'other'},
+                    sort_keys=True), file=sys.stderr)
+            require(successful, 'producer_gate_not_successful')
         result[owner] = job
     return result
 
