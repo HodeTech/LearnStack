@@ -72,6 +72,7 @@ const nonRuntimeFiles = new Set([
   'scripts/openapi-policy.py',
   'scripts/seed.sh',
   'scripts/test-adr-status.py',
+  'scripts/test-markdown-link-audit.py',
   'scripts/test-ci-native-environment.py',
   'scripts/test-ci-native-provisioning.py',
   'scripts/test-ci-native-tests.py',

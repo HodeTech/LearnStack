@@ -17726,6 +17726,23 @@ The correction is locally complete after both independent review rounds. The
 follow-up PR remains draft until complete same-source A/B hosted qualification;
 no partial producer evidence or closed-PR identity refusal is treated as passing.
 
+#### Follow-up frontend census correction
+
+The first follow-up attempt on `b25c1c4a` passes `meta`, including the corrected
+link audit, but frontend's real repository census refuses the newly added
+Python regression file as unclassified. The first two review rounds and local
+backend controls did not cover that frontend census. This failed whole attempt
+is not A qualification.
+
+The narrow correction adds exactly `scripts/test-markdown-link-audit.py` to the
+existing explicit non-runtime tooling list. Unknown paths/formats and runtime
+JS/TS exemptions remain refused. The complete guarded frontend suite passes
+1,840 cases across both packages, with zero skips/todos, in 26.468 seconds;
+its retained summary has SHA-256
+`2e5d31d914e52c9c24d4006445e557a535e1458d63c6d48b13adea51b083258d`.
+No workflow, selector, runtime or case-count contract changes. Both independent
+review rounds follow this census correction before a new full qualification.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
