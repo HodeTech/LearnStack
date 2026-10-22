@@ -18366,6 +18366,30 @@ is not counted; the actual explicit owner entry points above provide the
 reported populations. An initial formatter invocation names a nonexistent
 `.sln` and is likewise superseded by the successful actual-project invocation.
 
+#### Outbox/producer diagnostic correction review round 1
+
+Two fresh independent reviewers (`gpt-6-astra`, high correctness/security;
+`gpt-6.1-sol`, high evidence/governance) inspect `95edb219..8231d171`
+and approve without findings. The correctness reviewer runs the three focused
+Outbox parser/protocol controls, all 21 aggregate controls and 56 additional
+parser boundary/refusal assertions. The evidence reviewer independently runs
+all 63 launcher controls, the combined 62 shard/aggregate controls and the
+standalone 21 aggregate controls. Both check exact baseline/final source and
+all six named receipt identities, full-class discovery/TRX equality, actual
+adapter projections and retained natural cleanup observations. No reviewer
+runs .NET, Node, a provider or Docker.
+
+Both distinguish the original unknown hosted exception/API state from the
+verified local mechanisms; neither treats a later successful snapshot or
+component as whole-attempt qualification. The same failed attempt's integration
+aggregate log (`119872787733`) independently retains
+`producer_not_successful`, SHA-256
+`efd26c774659250373774d9400b9a3f169e9fe3ea8ffd778fafb102c68ed8fdc`.
+It does not restore the unavailable original backend API observation. Production
+behavior, passing deadlines, retry/identity policy and case populations remain
+unchanged. A second fresh independent pair and final-source full A/B remain
+required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
