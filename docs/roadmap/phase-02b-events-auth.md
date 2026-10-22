@@ -18153,9 +18153,9 @@ actual comparison steps do not run. The retained log SHA-256 is
 `137c5fa3d7ef08a4d50547eaad3bf141030286e0d0ee026a0ac5b7a75da3d909`.
 The runner reports Git 2.55.0. This whole attempt cannot qualify.
 
-[Git 2.55's automatic-maintenance owner](https://github.com/git/git/blob/v2.55.0/run-command.c#L1849-L1883)
+[Git 2.55's automatic-maintenance owner](https://github.com/git/git/blob/v2.55.0/run-command.c#L1956-L1992)
 waits the maintenance command, which can detach its background work. The
-[maintenance implementation](https://github.com/git/git/blob/v2.55.0/builtin/gc.c#L1683-L1723)
+[maintenance implementation](https://github.com/git/git/blob/v2.55.0/builtin/gc.c#L1785-L1828)
 can continue touching the object store after the waited commit returns.
 The hosted log lacks process tracing: this is a verified mechanism consistent
 with its cleanup failure, not a proven trace of that particular failure.
@@ -18178,6 +18178,25 @@ are observed on Apple Git 2.54.0, not represented as Git 2.55 runtime proof.
 All fifteen snapshot controls pass in 2.223 seconds; `git diff --check` passes.
 Fresh independent review rounds and complete final-source hosted A/B remain
 required.
+
+#### OpenAPI maintenance correction review round 1
+
+Two fresh independent reviewers (`gpt-6-astra`, high correctness;
+`gpt-6.1-sol`, high evidence/governance) inspect `58d9ecdf..f5696ec0`.
+The correctness reviewer reproduces a Minor proof gap: an existing graph plus
+an owned graph-chain lock lets the regression pass despite the real graph
+process exiting 128. The regression now requires that process's exit code zero;
+the same planted failure is rejected and clean execution passes. The evidence
+reviewer identifies normalized web-parser line numbers in two source links;
+both now target independently downloaded physical v2.55 source lines. The raw
+source SHA-256 values are `68cdb7e7a83b1d3ca71af1620e16af3e537e8e3921564c6e8acb60460bcea1e1`
+and `6640547903186a7e597b2826cd7b64a36c01033c49bee845c0d032dab19d3581`.
+Both approve the corrected scope without remaining findings. Independently
+executed 15-case suites and negative/guarded real-Git counterparts pass;
+reviewers distinguish local 2.54 runtime evidence from hosted 2.55 source
+analysis. Root's final corrected fifteen-case suite passes in 2.277 seconds;
+the actual eight-file changed-doc audit passes. No broader runtime is needed
+for this two-file test/document correction.
 
 ## Completion Criteria
 

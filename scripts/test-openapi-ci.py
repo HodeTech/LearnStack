@@ -151,6 +151,7 @@ class SnapshotControls(unittest.TestCase):
             graph_exit = next(index for index, event in enumerate(events)
                 if event.get('event') == 'exit' and event['sid'] in graphs)
             self.assertLess(graph_exit, parent_exit, 'Actual maintenance must finish before commit returns')
+            self.assertEqual(0, events[graph_exit]['code'], 'The forced graph write must succeed')
             self.assertIn('--no-detach', maintenance['argv'])
             self.assertTrue((self.root / '.git/objects/info/commit-graphs/commit-graph-chain').is_file())
 
