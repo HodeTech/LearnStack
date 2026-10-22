@@ -17829,6 +17829,30 @@ in this failed run. Deterministic qualification of that fixture path remains
 with this correction; no production defect, timeout increase, passing retry or
 waiver is inferred from it. Complete final-source hosted A/B remains required.
 
+#### First native-wait diagnostic review (2026-10-22)
+
+The first fresh pair reviews `d2a32c9e..f3ca5c4d`: `gpt-6-astra` at
+`xhigh` and `gpt-6.1-sol` at `high`. Both approve the tracked correction;
+neither runs .NET, Node, Docker or hosted jobs. The correctness reviewer
+independently passes all sixty offline controls and verifies raw/sanitized
+results, protocol observations, eighty retained artifact hashes and all three
+source overlays. The evidence reviewer independently verifies artifact and
+source binding and the stated limits. No source finding remains.
+
+One proof-bookkeeping finding is corrected with original records preserved.
+The private proof runner shadowed its container list with the diagnostic
+projection, so three initial receipts counted twelve absent containers rather
+than two. Each original `cleanup.json` records exactly two owned containers,
+both independently absent. The derived corrected summary has SHA-256
+`09a103c975baf193f3bae5d6f4dd4be8983c30e14e18b6033378d91e38c5dcba`;
+it binds original receipts, cleanup records and corrected receipts. The initial
+summary above remains unchanged. This count correction neither manufactures
+cleanup nor changes any process, test result or source digest. Reconstructed
+clean and four planted source variants exactly match the original pre-execution
+manifests; their materials index has SHA-256
+`e0c1f749e07b315ac770e53eab3292a6fcc32c81081aa7695e2383371102e888`.
+The separate helper interleaving and hosted cancellation cause remain unproven.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
