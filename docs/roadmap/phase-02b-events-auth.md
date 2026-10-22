@@ -18143,6 +18143,42 @@ and root-observed local suite results are distinguished from their own checks.
 No source correction is required. Both rounds are complete; the final source
 still requires new complete A/B qualification before the draft becomes ready.
 
+### P02b-6 OpenAPI fixture maintenance completion (2026-10-22)
+
+At source `58d9ecdf`, run `39784545745` attempt 1's OpenAPI job
+`119844135596` fails during `SnapshotControls.tearDown`: temporary repository
+removal raises `OSError: [Errno 39] Directory not empty: objects`.
+The snapshot-admission control body reaches its cleanup; breaking-policy and
+actual comparison steps do not run. The retained log SHA-256 is
+`137c5fa3d7ef08a4d50547eaad3bf141030286e0d0ee026a0ac5b7a75da3d909`.
+The runner reports Git 2.55.0. This whole attempt cannot qualify.
+
+[Git 2.55's automatic-maintenance owner](https://github.com/git/git/blob/v2.55.0/run-command.c#L1849-L1883)
+waits the maintenance command, which can detach its background work. The
+[maintenance implementation](https://github.com/git/git/blob/v2.55.0/builtin/gc.c#L1683-L1723)
+can continue touching the object store after the waited commit returns.
+The hosted log lacks process tracing: this is a verified mechanism consistent
+with its cleanup failure, not a proven trace of that particular failure.
+
+Only the synthetic snapshot-control repository sets
+`maintenance.autoDetach=false` immediately after initialization. Its actual
+maintenance then finishes before the waited Git command returns and before
+strict temporary-directory removal. No error is swallowed, removal retried,
+repository maintenance disabled, workflow deadline extended or OpenAPI
+comparison/admission rule changed. Project and user Git configuration remain
+untouched.
+
+A real-Git regression supplies a private global configuration requesting
+background work, forces actual commit-graph maintenance, and reads Trace2
+immediately after commit returns. The nested graph process must exit before
+the commit process, use the foreground path and produce the graph-chain file.
+A private negative counterpart without the fixture setting produces the real
+graph after commit returns; the guarded counterpart finishes it first. Both
+are observed on Apple Git 2.54.0, not represented as Git 2.55 runtime proof.
+All fifteen snapshot controls pass in 2.223 seconds; `git diff --check` passes.
+Fresh independent review rounds and complete final-source hosted A/B remain
+required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
