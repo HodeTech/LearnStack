@@ -18410,6 +18410,70 @@ identities. Both reviewers inspect and approve that correction. No runtime,
 parser or refusal change is needed. Both review rounds are complete; new
 same-source complete hosted A/B remains pending and the PR remains draft.
 
+### P02b-6 pending aggregate metadata acquisition (2026-10-22)
+
+Run `39799864449` attempt 1 at `ed223aca` completes all twenty producers
+and the other five checks successfully, but both aggregates refuse and the
+whole result is 25/27. The integration job `119905589422` observes
+`ordinary-7 / in_progress / other`; the backend job `119908475486` observes
+`architecture-5 / in_progress / other`. Their retained log SHA-256 values are
+`d34c3df792b1520c1176728712a40dc477b346c49aa01968659da652f0bb77c3`
+and `f87dc50abfac0415345d2603949241923b69e89a008dd8878f583b84aba1f48d`.
+The original conclusions are not known: the closed `other` diagnostic includes
+null and arbitrary values and must never itself authorize waiting.
+
+A retained snapshot also observes integration queued while ordinary-7 is still
+in progress. Later metadata reports that producer completed at 15:09:41 UTC;
+the aggregate's refusal is logged at 15:09:53 UTC. These observations establish
+an incomplete API projection at the aggregate read, not the underlying cache
+or propagation mechanism. Later successful producer/gate reads cannot repair
+the failed attempt. Independent baseline-verifier analysis of all twenty
+immutable producer archives verifies 3,350 non-Docker and 2,571 Docker cases,
+5,921 total, with matching complete manifests. The private component-summary
+SHA-256 is `8be85e8eb61e84bc2f2f8a37917ce56a3f2729115aedd659dfdfc93894841d02`.
+All four Outbox startup cases now pass in 0.804–0.824s. These are component
+observations only; whole-attempt qualification remains false.
+
+ADR-0063 fixes final current-attempt evidence and the five-minute aggregate
+ceiling, not an immediate first-read decision. The implementation now gives
+jobs metadata its own at-most-thirty-second window, at most sixteen complete
+observations and two-second pacing, further bounded by the unchanged original
+aggregate deadline. All paginated requests share that one acquisition deadline;
+artifact work retains the original deadline and sixty-second upload reserve.
+This explicitly extends the earlier diagnostic-only correction, which added
+no polling. It introduces no new runner, permission, plan, execution retry,
+artifact reuse or acceptance predicate.
+
+Only an explicitly present null conclusion together with `queued` or
+`in_progress` can remain pending. Validate all identities, unique required
+owners and all three required gates before deciding to wait. A terminal,
+unknown, malformed, missing or duplicate gate/owner, API failure, inconsistent
+pagination, timestamp error or completed-producer ceiling violation refuses
+immediately, including when an earlier owner is pending. Completed/null and
+in-progress/success are not pending. The pending producer's completion time
+must be explicitly null; in-progress start times remain well-formed.
+
+Each pending snapshot is discarded. One independently validated snapshot must
+have every required producer and gate completed/success before the unchanged
+artifact, outcome, provenance and union checks run. Neither successful subsets
+from different reads nor a worker payload can replace that witness. Fixed
+`producer_metadata_pending` diagnostics contain only source-owned owner/gate,
+protocol and bounded observation number. An immediate clean read stays silent;
+exhaustion remains a nonzero failure. Thirty seconds is a bounded acquisition
+allocation, not a measured propagation guarantee. Its cost reduces time
+available for artifact work; complete new-source hosted A/B must establish fit.
+
+Offline controls cover each producer and gate in both aggregates settling to
+success; earlier pending followed by terminal/malformed evidence; pending then
+failure; no cross-snapshot union; absent/non-null/structured conclusions;
+API/pagination refusal; per-request/pacing/global deadlines and the sixteen-read
+cap. The real aggregate fixture settles a first pending response, then still
+downloads every immutable artifact and checks complete output/provenance.
+The combined owner/aggregate suite passes 66 controls without skips in 3.080s.
+The existing `CI_Test_Shards_Are_Complete_And_Bounded` Asserts records the
+obligation; its rule/status/count stays unchanged. Both fresh review rounds
+and complete new final-source hosted A/B remain required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

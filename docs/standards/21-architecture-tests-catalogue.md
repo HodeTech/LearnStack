@@ -5901,6 +5901,9 @@ and fixture definitions make the implemented controls non-vacuous.
   qualify final-source independence and finite execution/meta/aggregate budgets;
   advisory duration estimates never establish membership or fit. Native and
   non-Docker authorities remain separated.
+  Pending-only API acquisition validates each fresh complete snapshot under
+  one finite deadline; it never combines responses or retries terminal,
+  malformed, missing, duplicate or identity-invalid evidence.
 - **Source:** [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md).
 - **Type:** actual Python plan/owner subprocess controls and workflow/API/hosted
   result proofs. **Kind:** structural + behavioural.
