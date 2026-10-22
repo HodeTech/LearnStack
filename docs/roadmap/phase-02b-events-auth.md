@@ -17690,6 +17690,25 @@ and `1c9483f979aeedca06e26076789e2a1e16708d7c184b6b5575bce11a3a07b15e`.
 The unchanged application sources require no new local provider experiment;
 the follow-up's complete hosted assignments remain separate proof.
 
+#### First independent link-audit correction review
+
+Two fresh reviewers inspect `2fdf31eb..e2a476cf`: `gpt-6.1-sol` at `high`
+for shell/Git correctness and regression meaning, and `gpt-6-astra` at `high`
+for governance, chronology and scope. Both approve all eight changed files
+without an actionable finding. The first independently runs the five corrected
+controls (2.206 seconds), observes five assertion failures against the original
+owner, and passes the actual six-file Markdown audit. The second independently
+verifies the identical reviewed/squash/reconciliation trees and retained
+regression hashes; it does not claim independent hosted or runtime execution.
+
+The root also executes the corrected actual workflow audit against the event
+base: all six changed Markdown files pass. Seven existing corpus/Docker-trait
+controls pass in 8.301 seconds, with retained receipt SHA-256
+`be6a5dd437113a81932ee7ece49a2ff5dcccb3e6634f4c50fb3f5a345424304b`.
+A different fresh reviewer pair follows before the open follow-up PR and complete
+hosted A/B qualification. No application/provider experiment or closed-PR
+identity exception is introduced.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
