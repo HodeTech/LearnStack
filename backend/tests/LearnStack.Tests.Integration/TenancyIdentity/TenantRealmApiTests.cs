@@ -11,7 +11,7 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 /// <summary>Committed provider issuance through Program, stock bearer validation and real application-role reads.</summary>
 [Collection(TenantRealmApiTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed partial class TenantRealmApiTests(PublicReadFixture database, KeycloakFixture provider)
+public sealed partial class TenantRealmApiTests(PublicReadFixture database, KeycloakFixture provider, Xunit.Abstractions.ITestOutputHelper output)
 {
     [Theory]
     [InlineData(0)]

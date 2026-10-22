@@ -4,6 +4,11 @@ import { realmRequest } from '../../../../scripts/development-realm-http.mjs';
 import { RealmError } from '../../../../scripts/development-realm-errors.mjs';
 let writes = 0;
 let input;
+let passStarted;
+let elapsedMilliseconds = 0;
+let prepared = false;
+const requests = Object.fromEntries(['discovery', 'authentication', 'version', 'initialPlan', 'prepare', 'freshPlan', 'apply', 'readback']
+  .map(stage => [stage, 0]));
 try {
   if (Number(process.versions.node.split('.')[0]) < 22) throw new RealmError('preflight', 'unsupported');
   const chunks = [];
@@ -19,9 +24,13 @@ try {
   const abort = new AbortController();
   let injected = false;
   const transport = async (url, options) => {
+    const phase = options.stage === 'plan' ? prepared ? 'freshPlan' : 'initialPlan' : options.stage;
+    if (!Object.hasOwn(requests, phase) || requests[phase] >= 65536) throw new RealmError('preflight', 'configuration');
+    requests[phase]++;
     const mutation = url.pathname.startsWith('/admin/realms/learnstack/')
       && options.method !== undefined && options.method !== 'GET';
     if (mutation) writes++;
+    if (mutation && options.stage === 'prepare') prepared = true;
     const response = await realmRequest(url, options);
     if (mutation) {
       if (!injected && response.status >= 200 && response.status < 300) {
@@ -50,14 +59,17 @@ try {
     }
     return response;
   };
-  const result = await reconcileRealm({ ...input, signal: abort.signal, transport });
+  passStarted = performance.now();
+  let result;
+  try { result = await reconcileRealm({ ...input, signal: abort.signal, transport }); }
+  finally { elapsedMilliseconds = performance.now() - passStarted; }
   if (writes !== result.mutations || (input.scenario !== 'normal' && !injected))
     throw new RealmError('readback', 'response', result.preparationDispatched === true);
-  process.stdout.write(JSON.stringify({ outcome: 'success', mutations: writes,
+  process.stdout.write(JSON.stringify({ outcome: 'success', mutations: writes, requests, elapsedMilliseconds,
     ...(result.preparationDispatched === true ? { preparationDispatched: true } : {}) }) + '\n');
 } catch (error) {
   const closed = error instanceof RealmError ? error : new RealmError('preflight', 'configuration');
-  process.stdout.write(JSON.stringify({ outcome: 'failure', mutations: writes,
+  process.stdout.write(JSON.stringify({ outcome: 'failure', mutations: writes, requests, elapsedMilliseconds,
     stage: closed.stage, reason: closed.reason,
     ...(closed.preparationDispatched === true ? { preparationDispatched: true } : {}) }) + '\n');
   process.exitCode = 1;

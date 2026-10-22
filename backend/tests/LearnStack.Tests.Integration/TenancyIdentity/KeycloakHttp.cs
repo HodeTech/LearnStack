@@ -94,7 +94,7 @@ internal static class KeycloakHttp
 
     internal static string? ClosedOAuthError(string? error) => error switch
     {
-        "invalid_request" or "invalid_client" or "invalid_grant" or "unauthorized_client" or "access_denied" => error,
+        "invalid_request" or "invalid_client" or "invalid_grant" or "invalid_scope" or "unauthorized_client" or "access_denied" => error,
         null => null,
         _ => "other_provider_error",
     };

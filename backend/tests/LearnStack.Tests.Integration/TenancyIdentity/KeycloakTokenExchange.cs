@@ -71,8 +71,23 @@ internal sealed record KeycloakIssuanceWindow(DateTimeOffset StartedUtc, DateTim
 
 internal static class KeycloakTokenVerifier
 {
-    internal static async Task<JsonElement> ValidateAsync(KeycloakFixture fixture, string token, string audience,
+    internal static Task<JsonElement> ValidateAsync(KeycloakFixture fixture, string token, string audience,
         string realm = "learnstack", bool allowMissingSubject = false)
+    {
+        var clientId = realm == "learnstack-hub" ? "learnstack-hub-web" : "learnstack-web";
+        return ValidateProfileAsync(fixture, token, audience, realm, clientId,
+            audience == clientId ? "ID" : "Bearer", allowMissingSubject);
+    }
+
+    // Stock legacy console access has no audience. That closed expectation still
+    // requires signature, issuer, lifetime, purpose, subject and account-console azp.
+    internal static Task<JsonElement> ValidateConsoleAsync(KeycloakFixture fixture, string token,
+        bool idToken, bool accountAudience = true) => ValidateProfileAsync(fixture, token,
+            idToken ? "account-console" : accountAudience ? "account" : null,
+            "learnstack", "account-console", idToken ? "ID" : "Bearer", allowMissingSubject: false);
+
+    private static async Task<JsonElement> ValidateProfileAsync(KeycloakFixture fixture, string token, string? audience,
+        string realm, string clientId, string purposeType, bool allowMissingSubject)
     {
         try
         {
@@ -85,6 +100,7 @@ internal static class KeycloakTokenVerifier
                 {
                     ValidIssuer = fixture.IssuerFor(realm),
                     ValidAudience = audience,
+                    RequireAudience = audience is not null,
                     IssuerSigningKeys = new JsonWebKeySet(keys.RootElement.GetRawText()).GetSigningKeys(),
                     RequireSignedTokens = true,
                     RequireExpirationTime = true,
@@ -102,13 +118,13 @@ internal static class KeycloakTokenVerifier
                 || string.IsNullOrEmpty(keyId.GetString())) throw new InvalidOperationException();
             using var payload = JsonDocument.Parse(Base64UrlEncoder.DecodeBytes(token.Split('.')[1]));
             var root = payload.RootElement;
-            var clientId = realm == "learnstack-hub" ? "learnstack-hub-web" : "learnstack-web";
             if ((!allowMissingSubject && (!root.TryGetProperty("sub", out var subject)
                     || subject.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(subject.GetString())))
                 || !root.TryGetProperty("azp", out var party) || party.ValueKind != JsonValueKind.String
                 || party.GetString() != clientId
                 || !root.TryGetProperty("typ", out var purpose) || purpose.ValueKind != JsonValueKind.String
-                || purpose.GetString() != (audience == clientId ? "ID" : "Bearer")) throw new InvalidOperationException();
+                || purpose.GetString() != purposeType
+                || (audience is null && root.TryGetProperty("aud", out _))) throw new InvalidOperationException();
             return root.Clone();
         }
         catch (Exception)

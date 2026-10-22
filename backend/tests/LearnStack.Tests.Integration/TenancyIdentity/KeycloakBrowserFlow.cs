@@ -27,7 +27,8 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
     }
 
     internal async Task<KeycloakAuthorization> AuthorizeAsync(string username, string password, string redirectUri,
-        KeycloakPkce pkce = KeycloakPkce.S256, string clientId = "learnstack-web", string scope = "openid profile email")
+        KeycloakPkce pkce = KeycloakPkce.S256, string clientId = "learnstack-web", string scope = "openid profile email",
+        Func<Task<string>>? otpCode = null)
     {
         var state = RandomValue();
         var verifier = RandomValue();
@@ -63,7 +64,20 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
             }));
         var completed = Callback(login, redirectUri, state, verifier, clientId, nonce);
         if (completed is not null) return completed;
-        return KeycloakAuthorization.Refused(login.StatusCode, LoginRefusal(await KeycloakHttp.ReadBodyAsync(login)));
+        var html = await KeycloakHttp.ReadBodyAsync(login);
+        if (!html.Contains("kc-otp-login-form", StringComparison.Ordinal))
+            return KeycloakAuthorization.Refused(login.StatusCode, LoginRefusal(html));
+        var otpAction = OtpAction(html, out var otpFields);
+        if (otpCode is null) return KeycloakAuthorization.Refused(login.StatusCode, "mfa_challenge_required", mfaChallenged: true);
+        otpFields["otp"] = await otpCode();
+        using var otp = await KeycloakHttp.SendAsync(_client, HttpMethod.Post, otpAction,
+            new FormUrlEncodedContent(otpFields));
+        var authorized = Callback(otp, redirectUri, state, verifier, clientId, nonce);
+        if (authorized is not null) return authorized.WithMfaChallenge();
+        var refused = await KeycloakHttp.ReadBodyAsync(otp);
+        return KeycloakAuthorization.Refused(otp.StatusCode,
+            refused.Contains("id=\"input-error-otp\"", StringComparison.Ordinal) ? "invalid_otp" : LoginRefusal(refused),
+            mfaChallenged: true);
     }
 
     // The pinned registration form is exercised as delivered, including any hidden inputs.
@@ -191,6 +205,29 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
         throw new InvalidOperationException("Keycloak fixture expected the ordinary login form.");
     }
 
+    private string OtpAction(string html, out Dictionary<string, string> fields)
+    {
+        var form = FormTag().Matches(html).Cast<Match>().SingleOrDefault(match =>
+            Attributes(match.Value).GetValueOrDefault("id") == "kc-otp-login-form")
+            ?? throw new InvalidOperationException("Keycloak fixture expected the pinned OTP challenge.");
+        var attributes = Attributes(form.Value);
+        var end = html.IndexOf("</form>", form.Index + form.Length, StringComparison.OrdinalIgnoreCase);
+        if (attributes.GetValueOrDefault("method")?.ToLowerInvariant() != "post"
+            || !attributes.TryGetValue("action", out var action)
+            || !Uri.TryCreate(_baseAddress, action, out var uri) || !SameOrigin(uri, _baseAddress)
+            || uri.AbsolutePath != "/realms/" + _realm + "/login-actions/authenticate" || end < 0)
+            throw new InvalidOperationException("Keycloak fixture OTP action is outside the provider boundary.");
+        var inputs = InputTag().Matches(html[form.Index..end]).Cast<Match>().Select(match => Attributes(match.Value)).ToArray();
+        var hidden = inputs.Where(input => input.GetValueOrDefault("type")?.Equals("hidden", StringComparison.OrdinalIgnoreCase) == true).ToArray();
+        if (inputs.Count(input => input.GetValueOrDefault("name") == "otp") != 1
+            || hidden.Length != 1 || hidden[0].GetValueOrDefault("name") != "selectedCredentialId"
+            || !Guid.TryParse(hidden[0].GetValueOrDefault("value"), out _)
+            || html[form.Index..end].Contains("id=\"kc-otp-credential-", StringComparison.Ordinal))
+            throw new InvalidOperationException("Keycloak fixture OTP form differs from the pinned single-credential form.");
+        fields = new Dictionary<string, string> { ["selectedCredentialId"] = hidden[0]["value"] };
+        return uri.AbsoluteUri;
+    }
+
     private KeycloakAuthorization? Callback(HttpResponseMessage response, string redirectUri,
         string state, string verifier, string clientId, string nonce)
     {
@@ -232,7 +269,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
 
 /// <summary>Sensitive values deliberately have no record-generated diagnostic representation.</summary>
 internal sealed class KeycloakAuthorization(HttpStatusCode statusCode, string? code, string verifier,
-    string redirectUri, string clientId, string? error, string nonce = "")
+    string redirectUri, string clientId, string? error, string nonce = "", bool mfaChallenged = false)
 {
     internal HttpStatusCode StatusCode { get; } = statusCode;
     internal string? Code { get; } = code;
@@ -242,8 +279,10 @@ internal sealed class KeycloakAuthorization(HttpStatusCode statusCode, string? c
     internal string? Error { get; } = error;
     internal string Nonce { get; } = nonce;
     internal bool Authorized => Code is not null;
-    internal static KeycloakAuthorization Refused(HttpStatusCode status, string? error = null) =>
-        new(status, null, "", "", "", error);
+    internal bool MfaChallenged { get; } = mfaChallenged;
+    internal KeycloakAuthorization WithMfaChallenge() => new(StatusCode, Code, Verifier, RedirectUri, ClientId, Error, Nonce, true);
+    internal static KeycloakAuthorization Refused(HttpStatusCode status, string? error = null, bool mfaChallenged = false) =>
+        new(status, null, "", "", "", error, mfaChallenged: mfaChallenged);
     public override string ToString() => "Keycloak authorization result (sensitive values omitted)";
 }
 

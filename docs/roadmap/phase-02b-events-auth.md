@@ -16495,6 +16495,179 @@ catalogue/carrier reconciliation and source-appropriate complete hosted checks.
 No deadline, identity refusal, required check or earlier failure is waived.
 
 
+
+### ADR-0068 Step 3 — complete historical-path qualification (2026-10-22)
+
+The third correction step starts after Step 2 closes at `f714a5af`. Its provider
+journey adds changed-password/MFA, strict signed persona/API issuance and
+manifest/nonmanifest console self-service proof. A separate serialized owner
+exercises actual seed/demo entries in private source copies with test-owned
+historical bootstrap input. No new production seam or identity policy is inferred
+from test setup. Complete request/phase costs, catalogue/carrier reconciliation,
+case assignment and hosted qualification follow actual evidence.
+
+The private entry proof freezes `f714a5af`, keeps production scripts, Makefile and
+the desired current realm byte-for-byte, and changes only the proof copy's Compose
+import bind to an external owned historical-input directory. This explicit
+bootstrap delta allows a newly occupied random CI project to start historical;
+it neither prewarms a supposedly empty CI project nor mutates a workstation
+realm. Credentials remain private, source attestation belongs to the proof copy,
+and its results cannot replace untouched final-source hosted qualification.
+
+The first private entry experiment freezes source tree
+`2b3663df5c8dd566158d8eaeaee12542530d7a6f`; its archive SHA-256 is
+`41126981657cc35148af17c470ead345cdc23cde85af4c9e431effe0be4133f3`.
+Only three historical credential literals are transformed in the private bootstrap
+input; the Hub input is byte-identical. The desired export and production entry
+sources remain unchanged. The private receipt SHA-256 is
+`353fa9338bc155d363f2f54fc8da5321bfebd8b137d089d31540e700b6c38d17`.
+
+Actual `make seed` succeeds with seventeen writes, then zero on explicit rerun,
+in 36.224 and 16.491 seconds. Independent reads confirm the original provider and
+client IDs, credential DTOs, the complete appended profile, retained five default/
+three optional console edges and observed Hub state. The second full snapshot is
+identical. Credential DTO preservation alone is not a usable password/MFA proof.
+Natural teardown takes 10.416 seconds; all seven exact owned containers and the
+owned network are independently absent, with no fallback or forced stop.
+
+The first actual historical `make demo DEMO_MODE=ci` experiment is **red**:
+323.004 seconds, make exit 2, an audit worker exit 1 without a signal at lane 1,
+lesson run 3. Nine page navigations and twenty-four visibility controls pass, but
+only eight of twenty-seven Lighthouse report pairs complete. Each retained report
+has no runtime error/warning and accessibility score 1.0; these partial results do
+not establish the full audit suite. The initial two-user/eleven-edge state and live
+four-user/eight-edge/three-definition convergence are independently observed.
+The demo entry does not expose reconciliation mutation counts; none is inferred.
+Its native public receipt SHA-256 is
+`ad6a02b69c8561401312ad913e77d0826b579d743449c85a50cfaeeb884876d3`.
+
+The retained finite diagnostic establishes worker exit only, with no worker stage
+or failed report; it cannot identify an audit, protocol or budget root cause.
+Natural cleanup takes 10.722 seconds and all owned processes join. The selected
+Compose project is empty; the two remaining container IDs and network captured
+from the exact owned process tree are independently absent. Five earlier container
+IDs were not observed, so their individual absence is not claimed. No retry,
+threshold relaxation or automatic replay converts this failed receipt into success.
+A separately recorded fresh experiment may assess repeatability; it cannot erase
+this failure or substitute for final-source hosted proof.
+
+The committed historical journey in `TenantRealmApiTests.WarmQualification.cs`
+starts the genuine stock profile/eleven-edge graph with a test-owned changed legacy
+password, usable OTP credential and an already eligible nonmanifest account.
+Immediate pre/post reconciliation snapshots avoid confusing subsequent successful
+logins with credential metadata changes. All old provider IDs, credential DTOs,
+groups/grants, unrelated account fields, global scope/role graphs, other-client
+assignments, API secret and observed Hub state are preserved. Only the approved
+manifest capability/identity changes and three console edges differ.
+
+The final-source Fact passes, one case and zero skips. Four independently signed
+access/ID token pairs reach matching AccountSite hosts through the production
+bearer handler and physical ReadOnly `learnstack_app` transactions. Changed
+password/MFA work before and after; missing/wrong OTP refuses. Both manifest and
+eligible nonmanifest users complete ordinary Account REST POST with independent
+admin readback. All three protected attribute replacements fail to persist, and
+fresh signed claims preserve the manifest identity/nonmanifest authority boundary.
+ID-token access hashes are checked before comparing complete signed claim deltas.
+The closed legacy-console profile alone admits an absent audience, while still
+requiring signature, issuer, lifetime, purpose and `account-console` authorized
+party; all normal web/API audience checks remain strict.
+
+Before upgrade, ordinary Account REST returns 401 for the legacy manifest user
+and 200 for the already eligible nonmanifest user. The approved mapper/grant
+changes add only the measured account capability; no universal role-loss or
+security-gain claim is made. Explicit `microprofile-jwt` has the measured `upn`
+access/ID delta before detachment; subsequent new requests for either detached
+optional scope return the verified `invalid_scope` callback. An actual pre-upgrade
+offline refresh succeeds and yields the credential retained for the later check.
+Both original and newly returned refresh credentials are positively checked as
+nonempty before the post-upgrade negative, preventing an empty-input false proof.
+After upgrade, that credential returns 400 `invalid_grant`, with no access/ID token,
+while its independently read offline session remains present. This is the observed
+owned historical case, not a universal revocation or session-deletion guarantee.
+
+Production core passes perform seventeen, zero and zero writes. The third
+explicit pass follows real self-service edits and preserves their stored fields,
+credentials and grants. They issue 481/301/301 bounded requests in 3.126/1.352/1.280
+seconds; preparation uses two requests and the initial/fresh plan each use 112.
+Fixture startup is separately measured at 19.130 seconds and token/API/profile
+work at 13.220 seconds. These are small-fixture observations, not worst-case
+capacity or deadline-fit bounds. The existing five/120-second request/pass limits
+are unchanged. The Fact's exact recorded duration is 40.2057204 seconds; its TRX
+SHA-256 is `3487a4510af4444908eaef908365e8cc4334b0dfc6a531b0af25276f49e657c9`.
+A separate seven-file source manifest has SHA-256
+`92cde32454dfb23f0421ce4e2d92ffe3c054281138cfe2d8a2ebe8c734960da3`;
+TRX does not embed a commit. Real disposal joins and both exact owned provider
+containers and their network are independently absent.
+
+Exploratory red Facts exposed pinned v2 OTP-form differences and incorrect test
+expectations for historical status/callback behavior. A redundant second failed
+password stimulus also triggered the real provider's quick-login protection.
+The fixture preserves the exact OTP credential selector and closed `invalid_scope`
+error, removes that redundant stimulus and checks attack-detection state. No
+provider security policy is weakened. The final-source Fact is rerun after those
+harness corrections and scoped formatting, rather than treating an earlier
+partially reached assertion as complete proof. Eighteen adjacent provider cases
+and seven corpus/Docker-trait guards pass with zero skips. Integration and
+Architecture builds have zero warnings/errors; scoped whitespace/style verification
+passes for all six C# files. Only newline formatting and the two refresh-presence
+proof guards follow the eighteen-case receipt; the final historical Fact runs
+again against those exact bytes.
+Independent correction reviews and full hosted qualification remain pending.
+
+The new historical journey source also receives one literal CI failure-location
+code, `realm_warm_qualification`, with the existing bounded line projection.
+No raw stack, path, message, token or provider value is exported. The existing
+planted trace control fails without the mapping, then all forty-three offline
+launcher controls pass with it. Source inventory includes the exact new partial
+file; no diagnostic code is inferred from arbitrary filenames.
+
+Measured weights replace the renamed selector and cover the nine completed
+Step 2 method groups. Two previously unknown historical-baseline methods gain
+actual hosted durations from this Step 2 run's independently verified ordinary-1
+and ordinary-4 receipts: 98,022 and 102,868 milliseconds. Local row sums retain
+the existing advisory scaling; hosted rows are not scaled. These weights are
+assignment hints, not wall-clock upper bounds or proof of final hosted fit.
+The offline shard/result controls pass sixty and nineteen cases respectively.
+The journey adds a 91,318-millisecond advisory weight from its actual TRX row;
+the plan now has 1,382 weights. Twenty explicit bounded VSTest discovery calls
+complete in 20.356 seconds with all owned process groups/readers joined. Actual
+ID/FullyQualifiedName metadata preserves all 5,919 earlier case identities and
+adds only the new journey: 5,920 total, 3,350 non-Docker, 2,539 ordinary and 31
+native. Every changed selector belongs to that manifest; the retired selector is
+absent. Source, plan, parsers and four Release assembly hashes stay frozen.
+
+On that same complete manifest, the revised plan moves 1,055 methods/2,289 cases
+in layout A and 932 methods/2,018 cases in B relative to the Step 2 plan. Both
+layouts have complete unions and materially different co-memberships. Maximum
+filter/argv bytes are 15,491/16,137 in A and 26,048/26,695 in B, below the unchanged
+32,768/65,536 limits. Unknown method weights fall from 53 to 43; those remaining
+use the existing default and are not represented as measured. The manifest digest
+is `c79e7e37f5304b3e27d966f0e628b80d8746872aa911933a52383c434ac4bc8e`;
+the finite validation-summary SHA-256 is
+`9f9f400132c21ff9ffd291a2bd4b606bd69f45199c79edfea347f4720210b4b1`.
+This is complete metadata/assignment validation, not final-source execution.
+The execution VM count of twenty, seven required names and whole-job ceilings
+remain unchanged; both final hosted layouts still require execution.
+
+[Run `39699380813`](https://github.com/HodeTech/LearnStack/actions/runs/39699380813)
+finishes successfully at Step 2 head `f714a5af`: all twenty-seven jobs and seven
+required contexts pass. Checkout `d55ae6fc37b794e482c42ebbdd49d3e59a9c3f0a`
+has the recorded source tree. The hosted fresh demo independently completes all
+nine pages and twenty-seven hash-bound report pairs; it does not erase the failed
+local historical-input experiment. Native proof passes all thirty-one cases, and
+base passes 2,917 cases, with zero skips. Independent revalidation of all twenty
+producer archives verifies API digests, current-attempt ownership and exact case
+unions: backend 3,350 plus integration 2,569 (2,538 ordinary and 31 native), all
+5,919 passing with no skips. Both aggregate receipts match recomputation using
+that source's validators. The verification-summary SHA-256 is
+`60cf4e7af91b76a512f717b6c7df875e996c7804edcc1197a29a92ab9a637012`.
+The failed `52c73e60` assignment remains failed; its reproduced mapper
+classification defect is fixed and independently qualified at this later source.
+Final Step 3 source and its revised plan still require ADR-0063's materially
+different complete assignments at the same frozen source, rather than borrowed
+receipts.
+
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

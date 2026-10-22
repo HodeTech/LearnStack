@@ -4524,6 +4524,8 @@ structural test proves — and what it does not.
 - **Source:** ADR-0004; ADR-0064;
   [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md)
   (development issuance);
+  [ADR-0068](../decisions/0068-development-warm-realm-qualification.md)
+  (historical warm qualification);
   [Security 11](11-security.md#authentication);
   [accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
 - **Type:** xUnit Integration with Docker, real Keycloak code exchange, API
@@ -4535,24 +4537,29 @@ structural test proves — and what it does not.
   `TenantRealmProfileProtectionTests` and `TenantRealmApiTests`; P02b-6 Step 4.
   Actual provider/API controls run in ordinary Docker CI; local and hosted
   receipts and independent review closure live in the Step 4 record.
-- **ADR-0068 Accepted extension — 2026-10-22, pending implementation and
-  qualification:** The added Asserts obligation is actual historical-stock before/after
-  token/claim and manifest/nonmanifest console POST with independent stored-field
-  readback under the three-edge delta. `TenantRealmSelfServiceTests` owns this
-  extension alongside the existing issuance/profile/API owners.
+- **ADR-0068 Accepted extension — 2026-10-22, locally implemented;
+  qualification in progress:** The added Asserts obligation covers historical
+  changed-password/MFA login, four signed API personas, full before/after console
+  claims and manifest/nonmanifest POST with independent stored-field readback.
+  `TenantRealmApiTests.WarmQualification.cs` implements the actual historical
+  journey alongside the existing self-service/issuance/profile controls. It
+  measures both new scope refusals and the retained offline session/credential;
+  no universal role-loss or immediate-revocation guarantee is inferred.
   [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its
   [three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
-  own pending proof/reviews. Existing Implemented status and counts cover shipped
-  scope only; acceptance supplies no extension implementation claim.
+  own actual receipts, pending correction reviews and final-source hosted proof.
+  Existing Implemented status and rule counts remain unchanged.
 - **Phase:** P02b-6 Steps 1/4.
 
 #### `Development_Realm_Reconciliation_Preserves_Accounts`
 
 - **Asserts:** the actual shared development reconciler converges fresh and
   pre-mapper warm realms without resetting existing credentials or changing
-  account IDs, unrelated user/profile/client state or the Hub realm. Conflicting
-  managed identity/configuration refuses before writes, including hidden
-  attributes, group aggregation/inheritance and unqualified membership sources.
+  account IDs, unrelated user/profile/client state or the Hub realm. Independently
+  observable identity/configuration conflicts, unqualified visibility definitions,
+  group aggregation/inheritance and membership sources refuse before preparation.
+  A conflict revealed by qualified metadata preparation permits no ordinary write;
+  the fixed durable-progress notice survives failure and cleanup.
   Projected request/response and collection limits are checked before apply.
   Safe groups/memberships and actual account fields remain unchanged; derived
   profile metadata is verified with its global configuration rather than
@@ -4567,6 +4574,7 @@ structural test proves — and what it does not.
   exact target/environment identity, bounded HTTP/process cleanup, secret
   confinement and local lock ownership under failure/cancellation/races.
 - **Source:** ADR-0004; ADR-0064;
+  [ADR-0068](../decisions/0068-development-warm-realm-qualification.md);
   [Security 11](11-security.md#authentication);
   [accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
 - **Type:** xUnit Integration with Docker and actual warm Keycloak Admin REST;
@@ -4583,8 +4591,8 @@ structural test proves — and what it does not.
   `TenantRealmSelfServiceTests`, with offline Node controls in meta; P02b-6
   Steps 2–4. Actual warm-provider, lifecycle and cancellation receipts and
   independent review closure live in the Step 4 record.
-- **ADR-0068 Accepted extension — 2026-10-22, pending implementation and
-  qualification:** The added Asserts obligation is independently reproduced stock-graph
+- **ADR-0068 Accepted extension — 2026-10-22, locally implemented;
+  qualification in progress:** The added Asserts obligation is reproduced stock-graph
   qualification, all identity-independent refusals before preparation, exact
   metadata-only progress, separately counted ordinary writes, three qualified
   DELETEs and explicit partial-progress reruns. `TenantRealmReconciliationTests`,
@@ -4595,14 +4603,17 @@ structural test proves — and what it does not.
   The second correction step adds actual historical automatic preparation,
   exact-profile readback, independent pre-write refusal and explicit interrupted
   resumption controls in `TenantRealmReconciliationTests`, with shared Node
-  transport/progress/cleanup controls. This partial delivery does not complete
-  lifecycle/password/MFA/token/self-service or hosted qualification.
+  transport/progress/cleanup controls. The third step adds the actual historical
+  credential/token/API/profile journey and a zero-write pass after self-service
+  in `TenantRealmApiTests.WarmQualification.cs`. Actual entry experiments and
+  their distinct bootstrap-source/cleanup limits live in the step record; stubbed
+  lifecycle tests alone do not prove warm Admin REST or complete public audits.
   A hidden fresh-plan conflict may leave preparation metadata, but no ordinary
   mutation; the earlier zero-write scope remains historical implemented coverage.
   [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its
   [three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
-  own pending proof/reviews. Existing Implemented status and counts cover shipped
-  scope only; acceptance supplies no extension implementation claim.
+  own actual receipts, pending correction reviews and final-source hosted proof.
+  Existing Implemented status and rule counts remain unchanged.
 - **Phase:** P02b-6 Steps 2–4.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`

@@ -55,7 +55,13 @@ internal static class KeycloakReconciliationDriver
             // Only the driver's closed vocabulary can leave this process owner.
             if (!success && (!Stages.Contains(stage, StringComparer.Ordinal) || !Reasons.Contains(reason, StringComparer.Ordinal)))
                 throw new InvalidOperationException();
-            outcome = new ReconciliationOutcome(success, mutations, stage, reason, preparationDispatched);
+            var counts = result.GetProperty("requests").EnumerateObject().ToDictionary(value => value.Name, value => value.Value.GetInt32());
+            if (counts.Count != RequestPhases.Length || counts.Any(value => !RequestPhases.Contains(value.Key, StringComparer.Ordinal)
+                    || value.Value < 0 || value.Value > 65536)) throw new InvalidOperationException();
+            var milliseconds = result.GetProperty("elapsedMilliseconds").GetDouble();
+            if (!double.IsFinite(milliseconds) || milliseconds < 0 || milliseconds > 140000) throw new InvalidOperationException();
+            outcome = new ReconciliationOutcome(success, mutations, stage, reason, preparationDispatched,
+                counts, TimeSpan.FromMilliseconds(milliseconds));
         }
         catch (Exception)
         {
@@ -94,6 +100,8 @@ internal static class KeycloakReconciliationDriver
     private static readonly string[] Reasons =
         ["configuration", "identity_conflict", "mapper_conflict", "secret_conflict", "unsupported", "response", "status",
             "redirect", "deadline", "cancelled", "transport", "lock_busy", "body_limit", "readback_conflict", "cleanup", "missing_web_secret"];
+    private static readonly string[] RequestPhases =
+        ["discovery", "authentication", "version", "initialPlan", "prepare", "freshPlan", "apply", "readback"];
 
     private static async Task<string> ReadBoundedAsync(StreamReader reader, CancellationToken cancellationToken)
     {
@@ -109,4 +117,5 @@ internal static class KeycloakReconciliationDriver
     }
 }
 
-internal sealed record ReconciliationOutcome(bool Success, int Mutations, string? Stage, string? Reason, bool PreparationDispatched = false);
+internal sealed record ReconciliationOutcome(bool Success, int Mutations, string? Stage, string? Reason,
+    bool PreparationDispatched = false, IReadOnlyDictionary<string, int>? Requests = null, TimeSpan Elapsed = default);

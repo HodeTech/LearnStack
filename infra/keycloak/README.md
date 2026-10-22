@@ -252,7 +252,8 @@ holding eligible account roles; their account data and grants stay unchanged.
 The accepted warm-upgrade contract preserves nonmanifest accounts, credentials,
 provider IDs and all Hub state. Only known legacy seed attributes are migrated;
 incompatible identities, effective mapper conflicts and private-source mismatch
-refuse before writes. Partial Admin REST changes are durable, without automatic
+refuse before ordinary writes. Independently observable conflicts refuse before
+preparation too. Partial Admin REST changes are durable, without automatic
 rollback. A later explicit run re-reads and resumes; a completed rerun makes no
 mutating Admin calls. Use the packet's delivery records for implementation and
 qualification status.
@@ -292,8 +293,9 @@ IDs. The named single-user import does not inherit realm default groups;
 new-account membership is independently checked as empty.
 
 The entire projected change must also fit the existing bounded readers and
-request bodies. A configuration that would exceed those limits refuses during
-planning, before an earlier unrelated change can be committed.
+request bodies. Known overflow refuses before preparation. Payload growth revealed
+only by preparation can still refuse the fresh plan, leaving that metadata durable
+with no ordinary mutation. Every ordinary write requires the complete bounded plan.
 
 ## What does not live here
 
