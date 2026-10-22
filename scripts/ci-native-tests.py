@@ -291,7 +291,7 @@ def closed_settlement_failure_details(raw):
     values = dict(zip(fields, matched.groups()))
     enums = {
         'boundary': {'start', 'held_outcome', 'early_hint', 'held_count_read', 'held_count_assert',
-                     'renewal_first', 'renewal_progress', 'renewal_second', 'timer_cleanup',
+                     'deadline_armed', 'renewal_first', 'renewal_progress', 'renewal_second', 'timer_cleanup',
                      'completion_wait', 'count_read', 'count_assert', 'normal_attempts', 'generation',
                      'outcome', 'provider_counts', 'cleanup', 'post_cleanup', 'later_original', 'later_admission',
                      'later_commit_held', 'later_refusal', 'later_ack', 'later_facts', 'later_cleanup', 'later_post_cleanup',
@@ -365,15 +365,15 @@ def closed_settlement_failure_details(raw):
                         for line in item['Text'].splitlines() if pacing_marker in line]
         if pacing_count != 1 or len(pacing_lines) != 1 or values['boundary'].startswith(('later_', 'prepare_')):
             return None
-        pacing_fields = ('lease', 'first', 'second', 'fault', 'cleanup')
+        pacing_fields = ('lease', 'deadline', 'first', 'second', 'fault', 'cleanup')
         pacing_pattern = re.escape(pacing_marker) + ';'.join(name + r'=([a-z_]{1,16})' for name in pacing_fields) + r'\.'
         pacing_match = re.fullmatch(pacing_pattern, pacing_lines[0])
         if pacing_match is None:
             return None
         pacing = dict(zip(pacing_fields, pacing_match.groups()))
-        timer_states = {'not_issued', 'armed', 'entered', 'returned', 'joined', 'cancelled', 'incomplete'}
+        timer_states = {'not_issued', 'creating', 'armed', 'entered', 'returned', 'joined', 'cancelled', 'incomplete'}
         if (pacing['lease'] not in {'unseen', 'waiting', 'released', 'aborted'}
-                or any(pacing[field] not in timer_states for field in ('first', 'second'))
+                or any(pacing[field] not in timer_states for field in ('deadline', 'first', 'second'))
                 or pacing['fault'] not in {'none', 'ambiguous', 'timeout', 'callback_failed', 'timer_failed'}
                 or pacing['cleanup'] not in {'not_started', 'joined', 'incomplete'}):
             return None
@@ -390,6 +390,10 @@ def closed_failure_details(case, raw):
             return None
         details = closed_settlement_failure_details(raw)
         if details and ('cleanup' in details or details['boundary'].startswith('prepare_')) and not case['name'].endswith('(knownFailure: True)'):
+            return None
+        if (details and 'knownFailure:' not in case['name']
+                and (details['boundary'] == 'deadline_armed'
+                     or details.get('pacing', {}).get('deadline', 'not_issued') != 'not_issued')):
             return None
         return details
     message = raw.get('ErrorMessage')

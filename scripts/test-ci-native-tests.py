@@ -918,7 +918,8 @@ except launcher.Refusal as failure:
 
     @staticmethod
     def settlement_pacing_sentence(**changes):
-        values = {'lease': 'released', 'first': 'joined', 'second': 'joined', 'fault': 'none', 'cleanup': 'joined'}
+        values = {'lease': 'released', 'deadline': 'not_issued', 'first': 'joined', 'second': 'joined',
+                  'fault': 'none', 'cleanup': 'joined'}
         values.update(changes)
         return 'Native settlement pacing;' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
 
@@ -928,8 +929,8 @@ except launcher.Refusal as failure:
         pacing = self.settlement_pacing_sentence()
         stdout = lambda text: {'Category': 'StdOutMsgs', 'Text': text}
         fields = {'lease': ('unseen', 'waiting', 'released', 'aborted'),
-                  'first': ('not_issued', 'armed', 'entered', 'returned', 'joined', 'cancelled', 'incomplete'),
-                  'second': ('not_issued', 'armed', 'entered', 'returned', 'joined', 'cancelled', 'incomplete'),
+                  'first': ('not_issued', 'creating', 'armed', 'entered', 'returned', 'joined', 'cancelled', 'incomplete'),
+                  'second': ('not_issued', 'creating', 'armed', 'entered', 'returned', 'joined', 'cancelled', 'incomplete'),
                   'fault': ('none', 'ambiguous', 'timeout', 'callback_failed', 'timer_failed'),
                   'cleanup': ('not_started', 'joined', 'incomplete')}
         for name in self.owner.SETTLEMENT_FAILURE_CASES:
@@ -955,6 +956,24 @@ except launcher.Refusal as failure:
                              [stdout(self.settlement_sentence(boundary='later_refusal') + '\n' + pacing)],
                              [stdout(self.settlement_sentence(boundary='prepare_refusal') + '\n' + pacing)]):
                 self.assertIsNone(parse(case, {'Messages': messages}))
+
+    def test_settlement_deadline_observation_is_normal_publication_only(self):
+        parse = self.owner.closed_failure_details
+        for name in self.owner.SETTLEMENT_FAILURE_CASES:
+            case = self.case(1, name)
+            normal = 'knownFailure:' in name
+            for state in ('not_issued', 'creating', 'armed', 'entered', 'returned', 'joined', 'cancelled', 'incomplete'):
+                for boundary in ('start', 'deadline_armed', 'renewal_second'):
+                    text = self.settlement_sentence(boundary=boundary) + '\n' + self.settlement_pacing_sentence(deadline=state)
+                    raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]}
+                    details = parse(case, raw)
+                    if normal or state == 'not_issued' and boundary != 'deadline_armed':
+                        self.assertEqual(state, details['pacing']['deadline'])
+                    else:
+                        self.assertIsNone(details)
+            for state in ('PRIVATE-CANARY', '', '0', 'true', 'joined\x00'):
+                text = self.settlement_sentence() + '\n' + self.settlement_pacing_sentence(deadline=state)
+                self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]}))
 
     def test_settlement_attribution_is_sticky_and_independent_of_aggregate_totals(self):
         case = self.case(1, sorted(self.owner.SETTLEMENT_FAILURE_CASES)[0])

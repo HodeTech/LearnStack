@@ -17507,6 +17507,108 @@ that the historical refusal branch is recovered. The second fresh independent
 review round and complete corrected-source hosted A/B qualification remain
 required.
 
+#### Second independent settlement review: deadline finding
+
+Two different fresh reviewers inspect the complete six-file change through
+`c971f4cc`, with `gpt-6-sol` at `xhigh` for ownership/correctness and
+`gpt-6-astra` at `high` for privacy/evidence/governance. The governance
+reviewer identifies one verified Major: normal publication calculates the
+remaining deadline before creating the lease timer, but starts its deadline
+observer only after that factory returns. The fixture's blocking handshake
+therefore shifts the native deadline observation by its wait duration. The
+running system clock and lease timer do not compensate for that distinct delay.
+The ownership reviewer initially approves, then independently confirms this
+ordering in an explicit addendum that supersedes that approval. Both require
+the correction; neither reports another verified finding.
+
+This limits the preceding unchanged-deadline claim. The three clean passes and
+both private controls remain retained evidence for their exact source, not
+qualification of deadline preservation. Recovery's separate elapsed-time
+re-debit does not repair the normal publication path. The correction must start
+both actual normal timers before holding publication, retain their real
+cleanup ownership and keep the initial renewal scan ahead of identity
+publication. Production code and deadline policy remain unchanged.
+
+The reviewers independently verify source/receipt/artifact hashes, the finite
+projection, raw/sanitized outcomes and retained failure chronology. No runtime,
+test, build, process or container is started. The original API response behind
+attempt 3's population refusal remains unavailable. Fresh source-bound proof,
+independent fix verification and complete hosted A/B qualification are required
+after the deadline correction.
+
+#### Deadline-preserving settlement correction
+
+The normal fixture returns the actual lease-timer handle immediately and
+intercepts only the next deadline-timer factory in that same execution flow.
+A shared consumed slot prevents inherited execution contexts from selecting it
+again. The actual System deadline timer starts with its original duration
+before the publication hold; its callback is never gated. The test deliberately
+holds first pacing-timer creation, verifies both actual normal timers and the
+unpublished identity, spends real time inside the existing startup budget, then
+opens pacing creation. An expired deadline cannot authorize business execution
+when that synchronous construction path resumes. This does not claim the
+execution-close action runs while its own synchronous prefix is held.
+
+Retained recovery keeps its separate lease-return handshake and elapsed-time
+re-debit; it has no normal deadline observer. Cleanup seals factories before
+opening waits, observes every issued factory return, and joins actual timer
+and callback disposal before releasing synchronization resources. The three
+case identities, production source, stage durations, four-second post-ACK
+observation and physical application-role assertions remain unchanged.
+
+The finite diagnostic projection adds the normal-only `deadline_armed`
+boundary and actual deadline-timer state. Retained recovery cannot claim that
+boundary or an issued normal deadline timer. Fifty-six offline launcher
+controls pass, including case binding, closed values and canary rejection;
+the existing eight-location cap remains unchanged.
+
+The corrected-source actual pinned-adapter run passes all three settlement
+cases with zero skips. Both normal cases prove actual lease/deadline arming
+before the held first pacing factory; the known-failure case also executes the
+unchanged real Prepare and later Finalize counterexamples. A copied complete
+settlement-exclusion defect makes all three fail at `renewal_second`, preserving
+the original assertion, physical acknowledged Outcome and actual timer/runtime
+joins. These results are source-bound local proof, not hosted qualification.
+
+A separate copied deadline-ordering defect moves actual deadline creation after
+the publication handshake. Both normal cases fail at `deadline_armed`, and
+retained recovery passes. The original cancellations survive sanitization and
+the selected deadline and first pacing timers finish/cancel, but runtime
+completion has no positive join within the unchanged drain budget. Its full cleanup oracle therefore
+refuses. The bounded test process exits naturally and both exact owned
+containers become absent; those observations do not replace the missing
+internal runtime witness. This is retained detection evidence with an explicit
+cleanup limit, not a passed cleanup control. No corrected-source change or
+production change is inferred from that deliberately broken construction.
+The earlier planted Prepare control remains evidence for its original frozen
+source only; the unchanged helper body does not turn an old binary into fresh
+corrected-source proof.
+
+The retained corrected-source summary has SHA-256
+`195fff62567643010e27f0dc5f0cde5bb2af24a94fe50ef5cd3f319891cb8f5e`;
+its 1,927-file frozen source manifest has SHA-256
+`5b0988882c9a6331c4f0c878c063597256566711a2104a5dbdf6a26649813d37`.
+Independent replay matches all actual adapter protocol completions, original
+and sanitized TRX outcomes/durations, finite facts and source substitutions.
+All retained artifact hashes and five workspace overlay hashes match. The
+final workspace Release build passes with zero warnings/errors in 47.217
+seconds; scoped format verification passes in 23.198 seconds. Every owned
+command group exits. The initial clean Docker absence inspection inherited
+its helper environment, with application credential-prefix presence checked
+false; all .NET commands and subsequent Docker checks use the explicit tool
+environment allowlist. This distinction remains in the provenance receipt.
+
+Fresh metadata discovery completes twenty bounded commands in 18.006 seconds:
+5,920 exact identities, unchanged complete A/B unions and materially different
+assignments. Its summary has SHA-256
+`940090d702545aa7eb791559b333f7c46408cb0b30ad902c75c2ce6f9ea6072d`.
+Seven current corpus/Docker-trait controls pass in 8.631 seconds; their receipt
+has SHA-256
+`5e092c42b844d746d7ad6a5be99682641c95a6ec71b08b62542f94253a857ad3`.
+All 749 final workspace build outputs match their retained manifest.
+Independent fix verification and complete corrected-source hosted A/B remain
+required before final qualification.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

@@ -81,7 +81,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         ActivityContext.TryParse(original.Traceparent, null, out var parent).Should().BeTrue();
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         using var globals = new NativeSdkGlobalFilterSnapshot();
-        var time = new NativeSettlementTimeProvider();
+        var time = new NativeSettlementTimeProvider(retainedRecovery);
         var runtime = NativeSdkRuntime(host.Services, source, bounds, time);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var release = new ManualResetEventSlim();
@@ -135,6 +135,12 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(startup.Token);
+            if (!retainedRecovery)
+            {
+                boundary = "deadline_armed";
+                await time.ProveNormalDeadlineArmedBeforePacingAsync(startup.Token);
+                boundary = "start";
+            }
             await entered.Task.WaitAsync(startup.Token);
             boundary = "held_outcome";
             var execution = captured!;
