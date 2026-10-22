@@ -16667,6 +16667,92 @@ Final Step 3 source and its revised plan still require ADR-0063's materially
 different complete assignments at the same frozen source, rather than borrowed
 receipts.
 
+#### Step 3 first independent review round
+
+Implementation is committed at `ca3560df`. Two fresh independent reviewers inspect
+the complete thirteen-file `f714a5af..ca3560df` change and adjacent authorities:
+`gpt-6-astra` at `xhigh` for security and nonvacuous provider proof, and
+`gpt-6.1-sol` at `high` for governance, assignment/evidence meaning and reliability.
+Both approve without a verified Blocker, Major or Minor finding. Neither changes
+repository files or executes provider, Docker or .NET/build/format commands.
+
+The security reviewer reads the complete historical journey and independently
+checks the final TRX and seven source hashes. It verifies usable password/MFA
+controls, strict web/API versus closed historical-console validation, nonce and
+access-token hash binding, stored self-service/protected-field readback, the
+positively nonempty offline credential and the exact preservation/cleanup claims.
+It distinguishes the observed offline result from universal revocation and keeps
+the failed historical demo and final hosted obligations visible.
+
+The governance reviewer independently verifies the eighteen adjacent and seven
+corpus outcomes, all twelve timing upserts/one retirement/five sources and their
+actual selector bindings. It reparses all twenty retained discovery diagnostics
+to the exact 5,920-case manifest, preserving every prior case identity plus one
+new case. Both complete assignment unions, distinct co-memberships, movement and
+filter bounds recompute. All forty-three offline launcher controls pass, including
+the literal finite failure-location projection. Accepted ADR bodies and catalogue
+statuses/counts remain unchanged. All review commands join. A different fresh
+second review pair and final-source complete hosted assignments remain required.
+
+#### Independent historical demo repeat
+
+One explicit independent repeat of the same historical-input experiment succeeds
+without runtime, budget, capture or threshold changes. It freezes the same
+`f714a5af` production archive and identical transformed historical/Hub inputs.
+The private proof commit is `d7e981ab102b7ae4502789773f422ddba2b61a48`, tree
+`304651aa11d636cc456b8bfd40ebb2142a429367`; its only source delta is the owned
+Compose import bind, SHA-256
+`3a4773ed123eb159fafe2aae88a7e202485504fd93772c55819935a2769c755a`.
+Production-source hashes remain equal and the private proof source stays clean.
+
+Actual `make demo DEMO_MODE=ci` exits zero in 662.279 seconds within the unchanged
+1,200-second whole-run budget. Nine navigations, twenty-four visibility controls
+and all twenty-seven JSON/HTML report pairs complete. All reports have no runtime
+error/warning and accessibility score 1.0; all nine screenshots are inspected for
+readability/clipping. All 134 observed API completions return 200, and both TLS
+refusal controls plus the timeout refusal control pass. Independent reads observe
+the original two users/eleven edges, then four declared protected identities,
+eight retained edges and exactly three appended profile definitions. The unchanged
+demo entry exposes no reconciliation mutation count; none is inferred.
+
+Natural cleanup takes 10.711 seconds. All seven proactively captured owned
+container IDs and the network independently return not-found; the selected
+Compose project is empty, private environment/lock files are removed and all
+owned processes/readers join. No forced or fallback cleanup runs. The final
+private receipt SHA-256 is
+`64c647657a3a3afe671996d7da957c78e81cca4040fbd820ae80d463ead189d1`;
+the native public receipt SHA-256 is
+`ae53906f2a476abc4c3f208a2dd0daf646e838ef3ab2f4a8bf83b13b6f336cae`.
+This completes the independently recorded historical entry proof. It neither
+explains nor erases the first red experiment and does not replace untouched
+final-source hosted qualification.
+
+#### Step 3 second independent review round
+
+Two different fresh reviewers independently inspect `f714a5af..ca3560df` and
+one-hop dependencies: `gpt-6.1-sol` at `xhigh` for security, runtime correctness
+and nonvacuous provider proof; `gpt-6-astra` at `high` for governance, CI/evidence
+meaning and reliability. Both approve without a verified Blocker, Major or Minor
+finding. Both read the entire new historical journey and all thirteen changed
+files. Their review approval does not substitute for the separately executed
+historical demo or final-source hosted checks.
+
+Each independently verifies the final historical TRX, its exact duration and all
+seven committed source hashes. The security reviewer checks actual credential/
+MFA controls, nonce/access-hash binding, strict web/API and closed historical
+console boundaries, physical application-role ReadOnly observations and stored
+POST/protected-field assertions. The governance reviewer reparses all twenty
+discovery diagnostics, verifies every prior identity plus the one new journey,
+and recomputes both complete assignments, limits and local/hosted timing weights.
+Both pass all 122 offline launcher/assignment/result controls; the governance
+reviewer also checks that removing the diagnostic mapping breaks its planted
+control. No reviewer executes provider, Docker or .NET/build/format commands;
+all review commands join. Accepted ADR bodies and catalogue counts/statuses stay
+unchanged. All three correction steps now complete their local implementation
+and two independent review rounds. Full final-source A/B hosted qualification is
+the remaining completion gate; no merge or P02b-7 work is authorized by this
+record.
+
 
 ## Completion Criteria
 
