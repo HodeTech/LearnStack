@@ -17743,6 +17743,15 @@ its retained summary has SHA-256
 No workflow, selector, runtime or case-count contract changes. Both independent
 review rounds follow this census correction before a new full qualification.
 
+The first fresh correction pair reviews `b25c1c4a..36adb3aa`:
+`gpt-6.1-sol` and `gpt-6-astra`, both at `high`, approve without an
+actionable finding. Both verify the exact classification, actual Python
+owner, unchanged unknown-format/runtime refusal controls and honest failed-run
+scope. The second independently checks the retained receipt and both log
+hashes, including the executed 1,840-case total. These are source and retained
+evidence reviews, not independent hosted/runtime reruns. All subprocesses join.
+A different fresh second pair follows the committed correction.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
