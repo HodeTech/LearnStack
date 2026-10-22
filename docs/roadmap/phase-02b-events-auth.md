@@ -17609,6 +17609,26 @@ All 749 final workspace build outputs match their retained manifest.
 Independent fix verification and complete corrected-source hosted A/B remain
 required before final qualification.
 
+#### Independent deadline-fix verification
+
+Two new independent reviewers approve `c971f4cc..c618414e`: `gpt-6-astra`
+at `xhigh` for correctness/ownership and `gpt-6.1-sol` at `high` for
+privacy/evidence/governance. Both inspect all five changed files and the
+adjacent publication, recovery, native lease and cleanup paths. Neither finds
+a verified Blocker, Major or Minor. Each independently checks the original
+deadline ordering, actual timer arming before the hold, publication/gate safety,
+factory/callback ownership and the recovery distinction. Their offline replay
+matches exact identities, durations, raw/sanitized outcomes, substitutions and
+retained hashes; focused in-memory parser checks also pass. Neither executes
+.NET, providers, Docker, Node or a build, edits the repository or scans processes.
+
+Both explicitly preserve the ordering control's refused runtime-cleanup
+oracle. Its natural process/container absence is not substituted for internal
+quiescence. The earlier unchanged-deadline claim remains limited by the dated
+finding above. Post-commit hashes match all five tested overlays. The reviewed
+correction is ready for a new complete hosted A/B qualification; no prior green
+sibling or failed-job rerun supplies that missing final-source proof.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
