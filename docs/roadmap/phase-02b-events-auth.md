@@ -17709,6 +17709,23 @@ A different fresh reviewer pair follows before the open follow-up PR and complet
 hosted A/B qualification. No application/provider experiment or closed-PR
 identity exception is introduced.
 
+#### Second independent link-audit correction review
+
+Two different fresh reviewers inspect `2fdf31eb..ecc9f92e`: `gpt-6.1-sol`
+at `high` for correctness/proof behavior and `gpt-6-astra` at `high` for
+cross-document governance and evidence limits. Both approve all eight files
+without an actionable finding. Both independently pass the five corrected
+actual-workflow controls (2.374 and 1.924 seconds), observe five assertion
+failures against the original owner, and pass the actual six-file audit.
+Both verify unchanged required names, ceilings and permissions, untouched
+aggregate identity checks and identical reviewed/squash/reconciliation trees.
+The second also verifies all seven supplied retained receipt hashes; this is
+not a fresh hosted API/archive verification. All review subprocesses join.
+
+The correction is locally complete after both independent review rounds. The
+follow-up PR remains draft until complete same-source A/B hosted qualification;
+no partial producer evidence or closed-PR identity refusal is treated as passing.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
