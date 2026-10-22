@@ -18129,6 +18129,20 @@ and failure propagation, not real GNU signal timing or hosted fit. The actual
 changed-doc workflow audit passes all eight changed Markdown files. No provider,
 Docker, privileged installer or application runtime is launched by reviewers.
 
+#### Outer-budget correction review round 2
+
+A different fresh pair (`gpt-6-astra`, high correctness/security;
+`gpt-6.1-sol`, high evidence/governance) inspects `e2954be9..2dc9d745` and
+approves without actionable findings. The correctness reviewer independently
+passes seventeen extracted-shell/receipt checks, including proof failures and
+exhausted-budget refusal. The evidence reviewer passes nine shell controls,
+fully revalidates both historical 5,921-case producer sets and both public
+archives, and verifies the previous roadmap bytes remain intact. Both retain
+the fake-timeout/hosted-fit limitations. Reviewer-reported round-1 executions
+and root-observed local suite results are distinguished from their own checks.
+No source correction is required. Both rounds are complete; the final source
+still requires new complete A/B qualification before the draft becomes ready.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
