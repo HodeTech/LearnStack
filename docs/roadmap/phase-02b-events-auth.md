@@ -17853,6 +17853,21 @@ manifests; their materials index has SHA-256
 `e0c1f749e07b315ac770e53eab3292a6fcc32c81081aa7695e2383371102e888`.
 The separate helper interleaving and hosted cancellation cause remain unproven.
 
+#### Second native-wait diagnostic review (2026-10-22)
+
+A different fresh pair reviews `d2a32c9e..8234856c`: `gpt-6-astra` at
+`xhigh` and `gpt-6.1-sol` at `high`. Both approve without an actionable finding.
+Both independently pass all sixty offline controls, verify eighty artifact
+hashes, three committed overlays, five exact source variants and corrected
+receipt linkage. The evidence reviewer reprocesses every retained protocol
+stream and reproduces the recorded case sets, outcomes and finite diagnostics;
+the correctness reviewer independently checks original-exception preservation
+and diagnostic authority boundaries. Each verifies actual raw cleanup records
+for two owned containers per scenario. Neither runs .NET, Node, Docker, a
+provider or hosted jobs. Whitespace checks pass. Both diagnostic correction
+review rounds are complete; the earlier hosted cause remains unknown. Full
+same-source A/B qualification is still required before draft readiness.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
