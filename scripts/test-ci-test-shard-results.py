@@ -194,6 +194,26 @@ class AggregateControls(unittest.TestCase):
                 self.assertEqual(1, state['reads'])
                 self.assertEqual([], state['sleeps'])
 
+    def test_pending_metadata_never_hides_invalid_creation_timestamps(self):
+        clean = self.jobs('backend')
+        for status in ('queued', 'in_progress', 'completed'):
+            for created in (None, 'PRIVATE-CANARY', '2099-01-01T00:00:00Z'):
+                if status == 'queued' and created == '2099-01-01T00:00:00Z':
+                    continue  # No started timestamp exists to compare yet.
+                rows = self.pending_job(copy.deepcopy(clean))
+                if status != 'completed':
+                    self.pending_job(rows, -1, status)
+                if created is None:
+                    rows[-1].pop('created_at')
+                else:
+                    rows[-1]['created_at'] = created
+                with self.subTest(status=status, created=created), \
+                        self.acquisition([rows, clean]) as (state, output, acquire):
+                    self.refuses('api_timestamp_invalid', acquire)
+                    self.assertEqual(1, state['reads'])
+                    self.assertEqual([], state['sleeps'])
+                    self.assertNotIn('PRIVATE-CANARY', output.getvalue())
+
     def test_metadata_acquisition_charges_requests_and_pacing_to_one_bounded_deadline(self):
         pending = self.pending_job(self.jobs('backend'))
         for deadline, request_seconds in ((1000, 0), (5, 1), (1, 2)):

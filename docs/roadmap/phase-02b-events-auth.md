@@ -18474,6 +18474,30 @@ The existing `CI_Test_Shards_Are_Complete_And_Bounded` Asserts records the
 obligation; its rule/status/count stays unchanged. Both fresh review rounds
 and complete new final-source hosted A/B remain required.
 
+#### Pending-metadata correction review round 1
+
+Two fresh independent reviewers (`gpt-6-astra`, high correctness/security;
+`gpt-6.1-sol`, high evidence/governance) inspect `ed223aca..4834e0c8`.
+The evidence reviewer reproduces a timestamp gap: a queued producer with
+missing creation time, or a completed peer with missing/reversed creation time,
+can wait alongside an earlier pending owner. All required creation timestamps
+are now parsed before waiting; completed and in-progress producers require
+creation at or before start. Eight planted missing/malformed/ordering subcases
+exercise this boundary. The corrected combined suite passes 67 controls in
+2.885s without skips; diff hygiene passes.
+
+Both reviewers approve the inspected correction with no remaining findings.
+The evidence reviewer reruns all three original reproductions: each refuses
+`api_timestamp_invalid` on its first read with zero sleeps. The correctness
+reviewer independently passes four focused controls and verifies that the new
+timestamp control rejects the previous implementation with five assertion
+failures and no harness errors. Its initial inspection also kills five
+in-memory regressions: absent-null check, early pending exit hiding another
+failure, accepting a pending snapshot, sliding deadline and seventeen reads.
+Both verify existing authority/evidence limits and do not run providers or
+broader runtimes. A different second pair and final-source full A/B remain
+required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

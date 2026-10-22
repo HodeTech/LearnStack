@@ -375,14 +375,16 @@ def verify_jobs(jobs, context, plan, scope, *, allow_pending=False):
                     'skipped', 'timed_out', 'action_required', 'startup_failure', 'stale') else 'other'},
                 sort_keys=True), file=sys.stderr)
         require(completed or waiting, 'producer_not_successful')
+        created = timestamp(job.get('created_at'))
         if completed:
             start, end = timestamp(job.get('started_at')), timestamp(job.get('completed_at'))
+            require(created <= start, 'api_timestamp_invalid')
             require(0 < end - start <= 20 * 60, 'producer_ceiling_exceeded')
         else:
             require('completed_at' in job and job['completed_at'] is None
                     and 'started_at' in job, 'api_timestamp_invalid')
             if job['status'] == 'in_progress':
-                require(timestamp(job.get('created_at')) <= timestamp(job['started_at']), 'api_timestamp_invalid')
+                require(created <= timestamp(job['started_at']), 'api_timestamp_invalid')
             else:
                 require(job['started_at'] is None, 'api_timestamp_invalid')
             pending = pending or (owner, 'job')
