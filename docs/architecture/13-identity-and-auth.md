@@ -35,7 +35,7 @@ delivers the approved account capability and complete provider/API security
 proofs after both independent review rounds and verified corrections; its
 [record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns local implementation, review closure and source-bound qualification receipts.
-The PR's required checks own current-head hosted qualification; merge is separate.
+The correction record below owns exact hosted assignments; merge is separate.
 G13's BFF session part
 stays Open for P02b-7. The
 [development realm guide](../../infra/keycloak/README.md) owns exact callbacks,
@@ -290,11 +290,14 @@ owns the account-preserving warm upgrade and its named account-console adjustmen
 2026-10-22, adds bounded profile preparation and three qualified stock-console
 assignment detachments. This deletes named assignment edges, while preserving
 accounts and global definitions. Its [implementation record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
-tracks implementation and pending complete qualification. The preparation owner
-reuses identity-independent qualifiers, verifies the exact profile and discards
-its projections before complete planning. A later identity conflict retains a
-fixed metadata-progress notice and permits no ordinary write. Full lifecycle,
-credential/token and self-service proof remains with the third correction step.
+tracks all three locally completed steps and their independent review rounds.
+The preparation owner reuses identity-independent qualifiers, verifies the exact
+profile and discards its projections before complete planning. A later identity
+conflict retains a fixed metadata-progress notice and permits no ordinary write.
+The
+[third correction step](../roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+owns actual historical lifecycle, usable credential/MFA, signed API and stored
+self-service proof, with source-bound hosted assignments and evidence limits.
 The realm guide owns the exact local procedure and refusal boundaries. G10 is
 Accepted: one token carries at most one active tenant. A user in both tenants
 also needs `Membership`, which [Phase 03](../roadmap/phase-03-identity-admin.md)

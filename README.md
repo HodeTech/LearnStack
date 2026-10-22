@@ -97,8 +97,11 @@ P02b-6 implements real issuance, protected profiles and safe shared seed/demo
 reconciliation. Its
 [Step 4 record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 retains completed implementation/review evidence and source-bound qualification
-receipts. Current corrections require their own validation and independent
-reviews. Qualification applies to the recorded source and scope; merge is separate.
+receipts. ADR-0068's
+[three correction steps](docs/roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+complete local historical upgrade/credential/API/self-service proof and both
+independent review rounds. Qualification applies to the recorded source and scope;
+the correction record owns exact hosted assignments and merge remains separate.
 BFF sessions and phase exit remain P02b-7–8; browser sign-in is not implemented.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is

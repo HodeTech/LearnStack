@@ -27,6 +27,7 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import { createIngressReadiness, isReadinessNotification } from './ingress-readiness.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url));
@@ -47,11 +48,9 @@ const scanners = [];
 let verificationFailed = false;
 const responseScanner = createPrivateScanner([secret]);
 const diagnosticsLeaked = () => scanners.some((scanner) => scanner.leaked);
-const diagnosticIncludes = (value) => scanners.some((scanner) => scanner.tail.includes(value));
 const fence = randomBytes(16).toString('hex');
 const children = [];
-const bindings = new WeakMap();
-const startupFailures = new WeakSet();
+const readiness = new WeakMap();
 const upgrades = [];
 const observations = new Map();
 let observationId = 0;
@@ -205,6 +204,10 @@ try {
     join(appRoot, 'scripts/development-hmr.mjs'),
     join(app, 'scripts/development-hmr.mjs'),
   );
+  copyFileSync(
+    join(appRoot, 'scripts/ingress-readiness.mjs'),
+    join(app, 'scripts/ingress-readiness.mjs'),
+  );
   writeFileSync(join(app, '.env.production.local'), 'DEBUG=next:*\n');
   writeFileSync(join(app, '.env.development.local'), 'DEBUG=next:*\n');
   writeFileSync(
@@ -226,11 +229,29 @@ try {
   const launcher = readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8');
   const handlerAnchor = '  const handle = app.getRequestHandler();';
   const listenerAnchor = "  server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1',";
-  for (const anchor of [handlerAnchor, listenerAnchor])
+  const prepareAnchor = '  await app.prepare();';
+  const importAnchor = "  const { default: next } = await import('next');";
+  for (const anchor of [handlerAnchor, listenerAnchor, prepareAnchor, importAnchor])
     assert.equal(launcher.split(anchor).length, 2, 'Ingress instrumentation anchor must be unique');
   writeFileSync(
     join(app, 'scripts/public-server.mjs'),
     launcher
+      .replace(
+        importAnchor,
+        `  if (process.argv.includes('--dev')) {
+    const { boundNextVersionFetch } = await import('./ingress-readiness.mjs');
+    globalThis.fetch = boundNextVersionFetch(globalThis.fetch, (observation) => {
+      if (process.connected) process.send({ kind: 'version-fetch', pid: process.pid, ...observation }, () => {});
+    });
+  }
+${importAnchor}`,
+      )
+      .replace(
+        prepareAnchor,
+        `  process.send?.({ kind: 'readiness', pid: process.pid, phase: 'preparing' });
+  await app.prepare();
+  process.send?.({ kind: 'readiness', pid: process.pid, phase: 'prepared' });`,
+      )
       .replace(
         handlerAnchor,
         `  let nextCalls = 0;
@@ -295,11 +316,11 @@ function start(argv, dev = false) {
       detached: process.platform !== 'win32',
     }),
   );
-  bindings.set(child, new Map());
-  child.once('error', () => startupFailures.add(child));
+  const childReadiness = createIngressReadiness(child);
+  readiness.set(child, childReadiness);
   child.on('message', (message) => {
-    if (message.kind === 'bound') bindings.get(child).set(message.port, message);
-    else if (message.id) observations.get(message.id)?.receive(message);
+    if (isReadinessNotification(message)) return;
+    if (message.id) observations.get(message.id)?.receive(message);
     else upgrades.push(message);
   });
   children.push(child);
@@ -311,6 +332,7 @@ function start(argv, dev = false) {
     let overlap = '';
     stream.on('data', (chunk) => {
       scanner.push(chunk);
+      childReadiness.output(chunk);
       const text = overlap + chunk.toString();
       for (const [id, observation] of observations) {
         if (observation.child === child && text.includes(fence + ':' + id + ':end\n'))
@@ -425,8 +447,14 @@ function call(tls, port, path, headers = {}, method = 'GET', tlsOptions = {}) {
         });
       },
     );
-    const deadline = setTimeout(() => outgoing.destroy(new Error('Readiness timeout')), 2000);
-    outgoing.on('timeout', () => outgoing.destroy(new Error('Readiness timeout')));
+    const timeout = () =>
+      outgoing.destroy(
+        Object.assign(new Error('Readiness timeout'), {
+          code: 'INGRESS_PROBE_TIMEOUT',
+        }),
+      );
+    const deadline = setTimeout(timeout, 2000);
+    outgoing.on('timeout', timeout);
     outgoing.on('error', (error) => {
       clearTimeout(deadline);
       reject(error);
@@ -454,43 +482,12 @@ async function assertOptimizerImage(response) {
 }
 
 async function ready(child, tls, port) {
-  let lastStatus;
-  const deadline = performance.now() + 20000;
-  while (performance.now() < deadline) {
-    owner.assertActive();
-    if (startupFailures.has(child) || child.exitCode !== null || child.signalCode !== null)
-      throw new Error('Fixture startup failed');
-    try {
-      const response = await call(tls, port, '/api/healthz');
-      lastStatus = response.status;
-      const bound = bindings.get(child).get(port);
-      if (
-        bound?.pid === child.pid &&
-        bound.address === '127.0.0.1' &&
-        child.exitCode === null &&
-        child.signalCode === null &&
-        response.status === 200 &&
-        JSON.parse(response.body).status === 'healthy'
-      )
-        return;
-    } catch {
-      /* Readiness may race preparation; no application retry policy here. */
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error(
-    'Fixture did not become ready: ' +
-      JSON.stringify({
-        lastStatus,
-        compilation: diagnosticIncludes('Failed to compile'),
-        missingModule:
-          diagnosticIncludes('Module not found') || diagnosticIncludes('Cannot find module'),
-        typescript: diagnosticIncludes('TypeScript'),
-        postcss: diagnosticIncludes('postcss'),
-        symlink: diagnosticIncludes('symlink'),
-        middleware: diagnosticIncludes('middleware'),
-      }),
-  );
+  const observation = await readiness.get(child).wait({
+    port,
+    probe: () => call(tls, port, '/api/healthz'),
+    assertActive: owner.assertActive,
+  });
+  console.warn('Ingress readiness observation: ' + JSON.stringify(observation));
 }
 
 async function run() {

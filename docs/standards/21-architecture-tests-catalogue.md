@@ -4537,17 +4537,17 @@ structural test proves — and what it does not.
   `TenantRealmProfileProtectionTests` and `TenantRealmApiTests`; P02b-6 Step 4.
   Actual provider/API controls run in ordinary Docker CI; local and hosted
   receipts and independent review closure live in the Step 4 record.
-- **ADR-0068 Accepted extension — 2026-10-22, locally implemented;
-  qualification in progress:** The added Asserts obligation covers historical
-  changed-password/MFA login, four signed API personas, full before/after console
-  claims and manifest/nonmanifest POST with independent stored-field readback.
+- **ADR-0068 Accepted extension — 2026-10-22, implemented:** The added Asserts
+  obligation covers historical changed-password/MFA login, four signed API
+  personas, full before/after console claims and manifest/nonmanifest POST with
+  independent stored-field readback.
   `TenantRealmApiTests.WarmQualification.cs` implements the actual historical
   journey alongside the existing self-service/issuance/profile controls. It
   measures both new scope refusals and the retained offline session/credential;
   no universal role-loss or immediate-revocation guarantee is inferred.
   [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its
   [three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
-  own actual receipts, pending correction reviews and final-source hosted proof.
+  own actual receipts, completed correction reviews and source-bound hosted proof.
   Existing Implemented status and rule counts remain unchanged.
 - **Phase:** P02b-6 Steps 1/4.
 
@@ -4591,11 +4591,11 @@ structural test proves — and what it does not.
   `TenantRealmSelfServiceTests`, with offline Node controls in meta; P02b-6
   Steps 2–4. Actual warm-provider, lifecycle and cancellation receipts and
   independent review closure live in the Step 4 record.
-- **ADR-0068 Accepted extension — 2026-10-22, locally implemented;
-  qualification in progress:** The added Asserts obligation is reproduced stock-graph
-  qualification, all identity-independent refusals before preparation, exact
-  metadata-only progress, separately counted ordinary writes, three qualified
-  DELETEs and explicit partial-progress reruns. `TenantRealmReconciliationTests`,
+- **ADR-0068 Accepted extension — 2026-10-22, implemented:** The added Asserts
+  obligation is reproduced stock-graph qualification, all identity-independent
+  refusals before preparation, exact metadata-only progress, separately counted
+  ordinary writes, three qualified DELETEs and explicit partial-progress reruns.
+  `TenantRealmReconciliationTests`,
   `TenantRealmSelfServiceTests`, `TenantRealmStockBaselineTests` and the shared
   Node controls own this extension. The stock-baseline owner reproduces the
   immutable historical expectation and the ordinary assignment path after explicit
@@ -4612,7 +4612,7 @@ structural test proves — and what it does not.
   mutation; the earlier zero-write scope remains historical implemented coverage.
   [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its
   [three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
-  own actual receipts, pending correction reviews and final-source hosted proof.
+  own actual receipts, completed correction reviews and source-bound hosted proof.
   Existing Implemented status and rule counts remain unchanged.
 - **Phase:** P02b-6 Steps 2–4.
 

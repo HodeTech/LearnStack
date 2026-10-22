@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.Application.Jobs;
@@ -96,17 +97,22 @@ public sealed partial class BackgroundJobPositiveSdkTests
             },
         };
         ActivitySource.AddActivityListener(listener);
+        var boundary = "start";
+        long? observedAttempts = null;
+        Task<JobExternalCheckpointResult>? outcomeTask = null;
         try
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(startup.Token);
             await entered.Task.WaitAsync(startup.Token);
+            boundary = "held_outcome";
             var execution = captured!;
             execution.Identity!.IsRecovery.Should().Be(retainedRecovery);
             if (retainedRecovery)
                 typeof(BackgroundJobExecutionControl).GetField("_externalProvider", BindingFlags.Instance | BindingFlags.NonPublic)!
                     .GetValue(execution).Should().BeNull("retained completed facts select without a Reconcile/provider scope");
             var actual = (Task<JobExternalCheckpointResult>)NativeSdkField(execution, "_externalOutcome");
+            outcomeTask = actual;
             actual.IsCompleted.Should().BeFalse("the actual Activity cleanup remains blocked after the physical COMMIT ACK");
             outcomeGate!.Kind.Should().Be(BackgroundJobCheckpointKind.Outcome);
             outcomeGate.CommitAcknowledged.Should().BeTrue();
@@ -134,6 +140,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             // Force the legal interleaving: a new-generation opaque hint has
             // already completed while the old native identity forbids routing.
             // Its ACK postpones repair; vendor success is not domain completion.
+            boundary = "early_hint";
             using (var early = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
             {
                 NativeFinalizeHint? hint = null;
@@ -154,20 +161,51 @@ public sealed partial class BackgroundJobPositiveSdkTests
             }
             actual.IsCompleted.Should().BeFalse();
             controller.CanRoute(job).Should().BeFalse();
-            (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
+            boundary = "held_count_read";
+            observedAttempts = await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job);
+            boundary = "held_count_assert";
+            observedAttempts.Value.Should().Be(1);
             release.Set();
+            boundary = "completion_wait";
             using var completed = new CancellationTokenSource(TimeSpan.FromSeconds(80));
             while ((await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!.Phase
                     != (knownFailure ? "terminal_pending" : "completed")
                 || runtime.Snapshot.Control!.Executions != 0)
                 await Task.Delay(20, completed.Token);
-            (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(2);
+            boundary = "count_read";
+            observedAttempts = null;
+            observedAttempts = await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job);
+            boundary = "count_assert";
+            observedAttempts.Value.Should().Be(2);
+            boundary = "normal_attempts";
             (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!.NormalAttempts.Should().Be(1);
+            boundary = "generation";
             (await GenerationAsync(database, job)).Should().Be(execution.Identity!.WakeGeneration + 1,
                 "repair resends the same eligibility generation instead of admitting another external attempt");
+            boundary = "outcome";
             var acknowledged = await actual;
             acknowledged.Outcome!.IsStoredCompleted.Should().Be(retainedRecovery);
+            boundary = "provider_counts";
             (await provider.CountsAsync(acknowledged.Outcome.OperationId)).Should().Be((1L, 0L, knownFailure ? 0L : 1L));
+        }
+        catch
+        {
+            // The case-bound output survives a later cleanup failure. Do not
+            // replace the original exception, or let diagnostic reads mask it.
+            try
+            {
+                var facts = await ReadNativeSettlementFactsAsync(database, job, finalized, captured?.Identity?.WakeGeneration);
+                var outcome = outcomeTask is null ? "unknown" : !outcomeTask.IsCompleted ? "pending"
+                    : outcomeTask.IsCompletedSuccessfully ? "succeeded" : outcomeTask.IsCanceled ? "cancelled" : "failed";
+                output.WriteLine("Native settlement failure;boundary={0};observedAttempts={1};snapshot={2};total={3};normal={4};finalize={5};normalCounter={6};finalizeCounter={7};phase={8};terminal={9};generationDelta={10};executions={11};outcome={12};finalized={13}.",
+                    boundary, NativeSettlementNumber(observedAttempts, 12), facts.State,
+                    NativeSettlementNumber(facts.Total, 12), NativeSettlementNumber(facts.Normal, 6), NativeSettlementNumber(facts.Finalize, 6),
+                    NativeSettlementNumber(facts.NormalCounter, 6), NativeSettlementNumber(facts.FinalizeCounter, 6), facts.Phase, facts.Terminal,
+                    NativeSettlementNumber(facts.GenerationDelta, 12, -12), NativeSettlementNumber(runtime.Snapshot.Control?.Executions, 64),
+                    outcome, NativeSettlementNumber(facts.Finalized, 1));
+            }
+            catch (Exception) { /* Diagnostics cannot replace the original failure. */ }
+            throw;
         }
         finally
         {
@@ -182,6 +220,63 @@ public sealed partial class BackgroundJobPositiveSdkTests
         runtime.Snapshot.Control.LeaseLossElapsed.Should().Be(0);
         runtime.Snapshot.Control.LeaseLossRenewalRefused.Should().Be(0);
     }
+
+    private static async Task<NativeSettlementFacts> ReadNativeSettlementFactsAsync(DisposableSchemaDatabase database,
+        BackgroundJobId job, OrganizationId finalized, long? originalGeneration)
+    {
+        try
+        {
+            // A separate bounded observation after failure is not the failed
+            // assertion's count. The marker retains both values distinctly.
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await using var connection = new NpgsqlConnection(database.AppConnectionString);
+            await connection.OpenAsync(deadline.Token);
+            await using var transaction = await connection.BeginTransactionAsync(deadline.Token);
+            await using (var announce = new NpgsqlCommand("""
+                SELECT set_config('app.tenant_id',@tenant,true),set_config('app.organization_id','',true),set_config('app.scope','',true)
+                """, connection, transaction) { CommandTimeout = 5 })
+            {
+                announce.Parameters.AddWithValue("tenant", SchemaFixture.TenantA.ToString("D"));
+                await announce.ExecuteNonQueryAsync(deadline.Token);
+            }
+            await using var command = new NpgsqlCommand("""
+                SELECT current_user::text,j.phase,j.terminal_reason,j.normal_attempts,j.finalize_attempts,j.wake_generation,
+                    (SELECT count(*) FROM background_job_attempts a WHERE a.job_id=j.id),
+                    (SELECT count(*) FROM background_job_attempts a WHERE a.job_id=j.id AND a.stage='normal'),
+                    (SELECT count(*) FROM background_job_attempts a WHERE a.job_id=j.id AND a.stage='finalize'),
+                    (SELECT count(*) FROM organizations o WHERE o.id=@finalized)
+                FROM background_jobs j WHERE j.id=@job
+                """, connection, transaction) { CommandTimeout = 5 };
+            command.Parameters.AddWithValue("job", job.Value);
+            command.Parameters.AddWithValue("finalized", finalized.Value);
+            await using var row = await command.ExecuteReaderAsync(deadline.Token);
+            if (!await row.ReadAsync(deadline.Token)) return new("missing");
+            if (row.GetString(0) != "learnstack_app") return new("unavailable");
+            var phase = row.GetString(1) switch
+            {
+                "pending" or "preparing" or "prepared" or "executing" or "reconciling" or "finalize_pending"
+                    or "finalizing" or "terminal_pending" or "completed" or "quarantined" => row.GetString(1),
+                _ => "other",
+            };
+            var terminal = row.IsDBNull(2) ? "none" : row.GetString(2) switch
+            {
+                "external_retry_forbidden" or "permanent_failure" or "retry_exhausted" or "finalize_refused"
+                    or "finalize_exhausted" or "retired_definition" or "invalid_envelope" => row.GetString(2),
+                _ => "other",
+            };
+            return new("available", phase, terminal, row.GetInt64(6), row.GetInt64(7), row.GetInt64(8),
+                row.GetInt32(3), row.GetInt32(4), originalGeneration is { } generation ? checked(row.GetInt64(5) - generation) : null,
+                row.GetInt64(9));
+        }
+        catch (Exception) { return new("unavailable"); }
+    }
+
+    private static string NativeSettlementNumber(long? value, long maximum, long minimum = 0) => value is null ? "unknown"
+        : value < minimum || value > maximum ? "out_of_range" : value.Value.ToString(CultureInfo.InvariantCulture);
+
+    private sealed record NativeSettlementFacts(string State, string Phase = "unknown", string Terminal = "unknown",
+        long? Total = null, long? Normal = null, long? Finalize = null, long? NormalCounter = null,
+        long? FinalizeCounter = null, long? GenerationDelta = null, long? Finalized = null);
 
     private static async Task PersistRetainedSdkOutcomeAsync(DisposableSchemaDatabase database,
         ConfirmedStartReceipt receipt, BackgroundJobRetainedExternalObservation observation)

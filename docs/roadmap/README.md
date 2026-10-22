@@ -161,7 +161,9 @@ not deferred to the showcase phase.
   completes both review rounds locally. Its
   [second correction step](phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
   completes owned preparation and fresh planning after both independent review
-  rounds; complete lifecycle/credential/token qualification proceeds in Step 3.
+  rounds. Its [third correction step](phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+  completes local historical entry, credential/MFA, signed API and self-service
+  proof after both review rounds, and owns source-bound hosted qualification.
   Step 1 is complete locally after both review rounds; its
   [record](phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
   owns fresh-provider qualification and implementation reviews. Step 2 is
@@ -173,8 +175,8 @@ not deferred to the showcase phase.
   owns actual seed/demo and cancellation evidence. Step 4's
   [record](phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
   owns completed local provider/API proofs, both independent review rounds and
-  source-bound correction/CI receipts. The PR's required checks own current-head
-  hosted qualification; merge remains separate. All four implementation steps
+  source-bound correction/CI receipts. The correction record above owns exact
+  hosted assignments and evidence limits; merge remains separate. All four steps
   are complete locally;
   G13's session part stays Open.
   The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)

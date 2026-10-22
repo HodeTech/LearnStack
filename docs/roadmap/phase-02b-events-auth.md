@@ -1,6 +1,6 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Current status — 2026-10-21.** P02b-0 through P02b-5 are complete.
+**Current status — 2026-10-22.** P02b-0 through P02b-5 are complete.
 P02b-1, P02b-2 and P02b-3 are merged through PRs #29, #30 and #31;
 their dated merge closeouts below retain final verification.
 **P02b-4 is complete and merged** through
@@ -37,8 +37,11 @@ The dedicated issuance record,
 separately Accepted — 2026-10-21; it changes no runtime or session policy.
 P02b-6's four implementation steps and local reviews are complete; the
 [Step 4 record](#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-owns local qualification and correction receipts. Current-head PR checks own
-complete hosted qualification; the correction follow-up below records failures.
+owns local qualification and correction receipts. ADR-0068's three correction
+steps and both independent review rounds are complete locally; their
+[qualification record](#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+owns exact hosted assignments, retained failures and evidence limits. Current CI
+failure investigation and corrected-source qualification remain open.
 P02b-7 BFF sessions and
 P02b-8 enforcement/erasure inventory remain pending; Phase 02b remains in
 progress. Earlier dated delivery
@@ -16753,6 +16756,189 @@ and two independent review rounds. Full final-source A/B hosted qualification is
 the remaining completion gate; no merge or P02b-7 work is authorized by this
 record.
 
+#### Final hosted qualification
+
+[Run `39705264083`](https://github.com/HodeTech/LearnStack/actions/runs/39705264083)
+freezes Step 3 head `ca3560df775ac86304fdfefbc0c3bf81cc118cef`. Checkout
+`0d65aa34cf54d3424f1d7870c5a042a971e0b374` has that exact second parent and the
+same tree, `e124af40d71057ba73657a925c32c67413956409`. No code, plan, deadline or
+success witness changes between assignments.
+
+Attempt 1, layout A, passes all twenty-seven jobs and seven required contexts.
+Its public demo archive is downloaded and independently verified before rerun:
+all twenty-seven report pairs, nine screenshots, nine navigations and twenty-four
+visibility controls pass. Its private verification-summary SHA-256 is
+`aa0f3c673e83ca7bd5ffc10de14f36253c8251cd1ab09bc92a82c89fb2cb61a5`.
+After the full rerun starts, prior artifact API endpoints return not-found; no
+cause is inferred. Initial job-log capture is separately blocked by the installed
+CLI's terminal-escape output guard, not an observed HTTP refusal. Using its
+documented flag only into private pipes/files later recovers both original
+aggregate log receipts. They report 3,350 backend and 2,570 integration cases at
+the exact source/attempt; their private canonical receipt SHA-256 values are
+`1242916895281b40c7e21d8d50f18a382904fa95a244fda953a6ab1a6a0e7a19`
+and `c8602bea4b1c508a06ee1dcc65f4ae308749247f3e74a1091181d545efee688b`.
+The original successful jobs API response and downloaded public proof also remain
+retained, but complete independent producer-archive revalidation is not claimed
+for attempt 1. The later A assignment is explicitly for complete retained
+qualification evidence, not a failed-test retry or permission to combine siblings.
+
+Attempt 2, layout B, passes all twenty-seven jobs and seven required contexts.
+Before any further rerun, all twenty producer archives and both aggregate archives
+are downloaded, API-digest checked and independently revalidated with the frozen
+source's pure validators. Exact current-attempt job/source identities, build/
+execution/upload gates, cleanup, toolchains, runner observations and complete
+case/TRX unions pass. Backend contains 3,350 cases (2,917 base and 433 Architecture);
+integration contains 2,570 (2,539 ordinary and 31 native). All 5,920 cases pass,
+with zero skips. Both aggregate payloads match independent recomputation.
+The longest observed producer whole-job wall time is 911 seconds, within the
+unchanged 1,200-second ceiling; queue delay is separate and not hidden in that
+measurement. Observed SDK/console are `10.0.402` and
+`18.7.0-release-26505-111`, with their actual binary hashes retained.
+
+The B verification-summary SHA-256 is
+`dfb122abc2bab511b8be916baa6566385a408f4eeb62d84f001334265f7554a1`.
+The original capture checks both aggregate API digests, but does not retain the
+integration aggregate's raw API envelope. Its ZIP, digest, payload comparison and
+the verifier source remain retained; the latter has SHA-256
+`1e7d235d74aa63ecf6fdb715a7f68be6f965d9f118717431f6daad8cd6dde5f6`.
+A subsequent independent reviewer can replay all twenty cached producer API/
+archive bindings and both complete unions/payloads, but cannot independently
+replay that one aggregate API binding from a cached raw envelope. This limit is
+distinct from the original capture's checked assertion. Later capture retains
+both raw aggregate API envelopes before another transition.
+Its plan digest is
+`aec25a0597f0944dd4168fc5caf36faef983eb96fc0f053b6eb74befefd2e4be`,
+manifest digest
+`c79e7e37f5304b3e27d966f0e628b80d8746872aa911933a52383c434ac4bc8e`,
+and assignment digest
+`fe4cde10ee32f0ef85df6abbfa7e3137cc6a783a1791215abfa182e267d9b244`.
+The separate B public-demo verification-summary SHA-256 is
+`713a5dd039532fd4c847975c864ed7e466ef37795c467421f7174e3f566b4344`:
+all twenty-seven JSON/HTML pairs and nine PNGs match their native manifest,
+the full report contract passes, all 134 API completions return 200 and all
+cleanup flags pass. This hosted clean-bootstrap evidence remains distinct from
+the private historical-import experiment.
+
+The complete third attempt, layout A, starts only after B's archives and full
+revalidation are retained. Its source and plan stay frozen. It finishes **red**:
+twenty-four jobs pass, ordinary-7 and frontend fail independently, and integration
+correctly refuses the failed producer. No earlier green assignment waives it.
+The public demo producer separately passes all twenty-seven report pairs and
+owned cleanup; its independent verification-summary SHA-256 is
+`6afe2a1b664de4c59013f2a0a85077af3326634a151bada78734cc21bd9c09cf`.
+
+Ordinary-7 retains one failed known-failure variant of the actual Outcome ACK/
+held-cleanup test, 62.8366378 seconds, with finite source locations 164/179/183 in
+`BackgroundJobPositiveSdkTests.NativeSettlement.cs`. The owner reports
+`owned_completion_missing`, workload `tests_failed` and forced cleanup. Source
+line 164 combines an awaited count query and the exact-two assertion; the retained
+TRX/message cannot distinguish a query fault from a count mismatch, and no actual
+count is recorded. A simple ledger visibility-delay explanation is not supported
+by the transactional ordering. No wait, assertion or deadline is weakened.
+
+Frontend fails at the first development-server readiness boundary after the
+production ingress/optimizer controls. No probe response completes; all existing
+closed compilation/configuration flags are false. Current-child progress and the
+probe-error kind are absent, so preparation delay, health-route delay, connection
+refusal and TLS failure cannot be separated. The subsequent failed-fixture cleanup
+command is not reached. Test-only finite diagnostics and exercised transport
+controls are the justified next correction; neither failure has a proven
+functional root cause from this receipt. Complete corrected-source qualification
+remains required.
+
+#### CI failure diagnosis and exercised transport
+
+The settlement correction separates the original count read from its assertion
+and records a bounded, case-bound observation before cleanup. A separate
+application-role query observes ledger stages, counters and closed state; its
+later snapshot is never represented as the failed assertion's original count.
+Unknown/unavailable observations stay explicit. A bare rethrow preserves the
+original failure. Only the three exact settlement cases and actual xUnit
+`StdOutMsgs` can project these finite facts; raw output, identities, error text
+and SQL are excluded. No assertion, wait or cleanup deadline changes.
+
+All forty-six offline launcher controls pass. A private copied-source experiment
+changes only the last known-failure assertion's expected count to an impossible
+negative value. The real pinned adapter transports that failed case's output:
+the original count is two, the later snapshot is two (normal/finalize one each),
+and the original assertion/stack remain intact. Two sibling cases pass and the
+intended case fails, with zero skips. Sanitization removes output and preserves
+the failed outcome. Initial immediate reaper absence is not proven; that refusal
+is retained separately from later exact-ID proof that both owned containers
+disappear naturally. Private compile-harness setup refusals precede execution;
+no repository rule is disabled.
+
+The untouched source is rebuilt and all three real cases pass, with zero skips;
+their command takes 62.599 seconds including runner/fixture work. All owned
+processes and containers finish. Release builds report zero warnings/errors and
+scoped format verification passes. The combined private receipt SHA-256 is
+`0074b9dd2bab6371f992163cd76f6f4e4b3920999092cd0b3e58a80969286489`;
+root independently checks all nine source hashes and six retained receipt hashes.
+Rebuilt binary hashes are recorded per build; byte-identical production binaries
+are not claimed.
+
+Fresh complete metadata discovery executes twenty bounded commands in 18.086
+seconds: the same 5,920 exact cases, manifest, plan and both assignments. Its
+summary SHA-256 is
+`11ac0e91f607bf3b70cd41e20e2f2da3e4c472388e60937b16ea1e485b8d11b8`.
+These receipts qualify diagnostics and preserve the historical A3 failure; they
+do not establish that failure's missing root cause.
+
+Frontend's first instrumented local run remains red: its development child is
+running in preparation, with no observed bind and 196 refused probes/zero
+responses in 20.058 seconds. A second, separately instrumented run observes
+Next 15.5.27's exact informational npm version fetch still pending after 19.533
+seconds. The unchanged readiness boundary fails at 20.052 seconds. Production,
+stock and optimizer-mutant listeners had readied in 1.068/0.526/0.642 seconds.
+The pinned `HotReloaderWebpack.start()` awaits `getVersionInfo()` before compiler
+startup; that exact global fetch has no timeout. This establishes the pending
+dependency in the local reproduction, without guessing a DNS/remote/network
+cause or claiming to recover the earlier CI child's missing observation.
+The second private receipt SHA-256 is
+`943f5ce5d18631e2c8151b43c06079172c679fb23643a674f38f9f1b81b7118f`.
+Both failed runs retain their outcomes and complete owned cleanup.
+
+The correction adds an owned two-second abort only to that exact, one-argument
+informational fetch inside the disposable development launcher. Next's existing
+failure/unknown-staleness path handles the actual rejection. No synthetic HTTP
+response or competing completion race is introduced; a delegate ignoring abort
+remains pending until its real settlement. Other URLs, URL objects and calls
+with options/explicit second arguments pass through unchanged. Any remaining
+timer is cleared on actual settlement; notifications cannot replace the original
+response/error.
+The shipped launcher, workflow, plan and all ingress/HMR readiness, probe,
+cleanup and success conditions remain unchanged.
+
+Twenty-three focused controls pass, including actual signal expiry, ignored-abort
+settlement, timer cleanup, private-error containment, current-child attribution
+and separation from upgrade messages. The single corrected actual native run
+passes in 21.828 seconds. Both development children observe a real timeout at
+2.004 seconds, then genuine healthy owned binds at 4.298/3.390 seconds; original
+TLS, GET/HEAD, stock-bypass, optimizer mutant, DEBUG, query, HMR and both shutdown
+signals pass. Its private receipt SHA-256 is
+`00743393b8da99607eae39693803a4b51d6415f56f2ab958987bc8295fbb3b4e`.
+Root independently matches five proof-source hashes and the observed Next package,
+hot-reloader, lockfile and build-ID hashes. This fixes the demonstrated local
+informational-lookup stall; it does not invent the earlier CI child's missing
+internal trace. Full correction reviews and hosted qualification remain required.
+
+Final frontend validation passes workspace lint/typecheck, all 1,840 guarded
+cases in two packages with zero skips/todos, and all nineteen cleanup controls.
+An initial typecheck rejects two unchecked mock-call tuple accesses in the new
+controls; explicit call-count/tuple guards correct only that test source. The
+immutable native receipt is retained, and all four harness/helper/declaration
+files still match it. The final guard binds all five current sources; its
+private receipt SHA-256 is
+`9422382afa7da79557c63fa799e76db2c23667b34cc8a554d12f600df2a0f29e`.
+Root independently matches those five hashes. The unchanged, attested production
+build is exercised by the native proof; no new production build is claimed.
+
+Root passes seven corpus/Docker-trait controls with zero skips; all testhost
+processes finish. Changed-document validation checks 1,415 real relative links/
+fragments with no broken target, new analysis reference or overlong added prose.
+The diagnostic correction still needs its two fresh independent review rounds
+and complete corrected-source hosted qualification before closeout.
+
 
 ## Completion Criteria
 
@@ -16774,8 +16960,8 @@ event verification. P02b-4's job infrastructure is complete and merged; its
 P02b-5 is complete and merged after all five steps and their independent reviews;
 its [merge closeout](#p02b-5-merge-and-closeout-2026-10-20) owns exact final-source
 qualification and validation limits. P02b-6's four implementation steps and local
-reviews are complete; its Step 4 record owns local qualification and correction
-receipts, while current-head PR checks own complete hosted qualification.
+reviews are complete; its Step 4 and correction records own local qualification,
+independent reviews and source-bound complete hosted receipts.
 P02b-7–8 remain pending.
 The whole phase is not complete.
 

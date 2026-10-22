@@ -165,11 +165,12 @@ plan and the three stock-console assignment detachments. All identity-independen
 refusals precede preparation; all other writes require complete planning. Existing
 readable definitions, credentials and unrelated state remain preserved. This is
 account-preserving reconciliation with named assignment deletion, not general
-delete authority. The first two correction steps implement graph qualification
-and owned preparation; complete lifecycle and credential/token qualification
-remains pending in the
-[three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22).
-Acceptance and partial proof alone do not establish complete qualification.
+delete authority. All three correction steps complete local implementation and
+both independent review rounds. The
+[qualification record](../roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+owns actual historical lifecycle, usable credential/MFA, signed API and stored
+self-service proof, together with exact hosted assignments and evidence limits.
+Acceptance or a partial experiment alone does not establish qualification.
 
 **Development access-token issuance — Accepted 2026-10-21.** This standard owns
 the issuance-lifetime rule decided by

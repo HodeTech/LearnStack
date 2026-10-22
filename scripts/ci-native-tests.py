@@ -165,8 +165,82 @@ def closed_exception_kind(raw):
     return FAILURE_EXCEPTION_LABELS.get(label) if separator else None
 
 
+SETTLEMENT_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Actual_Outcome_ACK_settles_renewal_before_its_held_cleanup_can_release_the_native_identity(knownFailure: False)',
+    'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Actual_Outcome_ACK_settles_renewal_before_its_held_cleanup_can_release_the_native_identity(knownFailure: True)',
+    'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Actual_stored_recovery_selection_repairs_the_early_finalize_hint_only_after_its_real_cleanup',
+}
+
+
+def closed_settlement_failure_details(raw):
+    """Read the named case's xUnit output; its original exception stays untouched."""
+    messages = raw.get('Messages')
+    if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
+        return None
+    if any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+           or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+           or not isinstance(item['Text'], str) for item in messages):
+        return None
+    if sum(len(item['Text']) for item in messages) > 65536:
+        return None
+    marker = 'Native settlement failure;'
+    if sum(item['Text'].count(marker) for item in messages) != 1:
+        return None
+    lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+             for line in item['Text'].splitlines() if marker in line]
+    if len(lines) != 1:
+        return None
+    fields = ('boundary', 'observedAttempts', 'snapshot', 'total', 'normal', 'finalize',
+              'normalCounter', 'finalizeCounter', 'phase', 'terminal', 'generationDelta',
+              'executions', 'outcome', 'finalized')
+    pattern = re.escape(marker) + ';'.join(name + r'=([a-z_0-9-]{1,32})' for name in fields) + r'\.'
+    matched = re.fullmatch(pattern, lines[0])
+    if matched is None:
+        return None
+    values = dict(zip(fields, matched.groups()))
+    enums = {
+        'boundary': {'start', 'held_outcome', 'early_hint', 'held_count_read', 'held_count_assert',
+                     'completion_wait', 'count_read', 'count_assert', 'normal_attempts', 'generation',
+                     'outcome', 'provider_counts'},
+        'snapshot': {'available', 'missing', 'unavailable'},
+        'phase': {'unknown', 'other', 'pending', 'preparing', 'prepared', 'executing', 'reconciling',
+                  'finalize_pending', 'finalizing', 'terminal_pending', 'completed', 'quarantined'},
+        'terminal': {'unknown', 'none', 'other', 'external_retry_forbidden', 'permanent_failure',
+                     'retry_exhausted', 'finalize_refused', 'finalize_exhausted', 'retired_definition', 'invalid_envelope'},
+        'outcome': {'unknown', 'pending', 'succeeded', 'cancelled', 'failed'},
+    }
+    if any(values[field] not in allowed for field, allowed in enums.items()):
+        return None
+    bounds = {'observedAttempts': (0, 12), 'total': (0, 12), 'normal': (0, 6), 'finalize': (0, 6),
+              'normalCounter': (0, 6), 'finalizeCounter': (0, 6), 'generationDelta': (-12, 12),
+              'executions': (0, 64), 'finalized': (0, 1)}
+    result = {'stage': 'native_settlement', **values}
+    for field, (minimum, maximum) in bounds.items():
+        value = values[field]
+        if value in ('unknown', 'out_of_range'):
+            result[field] = None if value == 'unknown' else value
+        elif re.fullmatch(r'0|[1-9][0-9]?|-[1-9][0-9]?', value) and minimum <= int(value) <= maximum:
+            result[field] = int(value)
+        else:
+            return None
+    snapshot_fields = ('total', 'normal', 'finalize', 'normalCounter', 'finalizeCounter', 'finalized')
+    if values['snapshot'] != 'available':
+        if any(values[field] != 'unknown' for field in (*snapshot_fields, 'phase', 'terminal', 'generationDelta')):
+            return None
+    elif any(values[field] == 'unknown' for field in (*snapshot_fields, 'phase', 'terminal')):
+        return None
+    if values['boundary'] in ('held_count_assert', 'count_assert') and values['observedAttempts'] == 'unknown':
+        return None
+    return result
+
+
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
+    if case['name'] in SETTLEMENT_FAILURE_CASES:
+        return closed_settlement_failure_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     message = raw.get('ErrorMessage')
     if not isinstance(message, str):
         return None

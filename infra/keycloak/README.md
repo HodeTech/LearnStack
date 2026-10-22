@@ -214,8 +214,11 @@ adds fixed historical graph qualification and assignment-only normalization,
 with both independent review rounds complete. The
 [second correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
 completes automatic preparation and fresh complete planning after both independent
-review rounds. Complete lifecycle/token/self-service qualification remains with
-the third correction step.
+review rounds. The
+[third correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+completes local historical seed/demo, usable credential/MFA, signed API and stored
+self-service proof after both review rounds. That record owns exact source-bound
+hosted assignments and their evidence limits; merge remains separate.
 Current identity-visibility guards remain active. Do not remove them, wipe the
 database or silently normalize customized scopes by name.
 
