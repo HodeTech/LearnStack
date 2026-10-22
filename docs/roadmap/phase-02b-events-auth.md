@@ -18116,6 +18116,19 @@ Local validation passes: 22 actual workflow-shell/control cases; complete fronte
 Prettier verification. The five real-Git link-audit controls and
 `git diff --check` pass. These local checks do not qualify hosted fit.
 
+#### Outer-budget correction review round 1
+
+Two fresh independent reviewers (`gpt-6-astra`, high correctness/security;
+`gpt-6.1-sol`, high evidence/governance) inspect `e2954be9..d5f19826` and approve
+without actionable findings. Both independently replay the actual first-step
+reservation and eight tail argument/status cases using private fake commands.
+The correctness reviewer also executes the sanitized receipt Python body: ten
+offline checks pass. Both verify historical API/archive identities, hashes and
+complete/partial report distinctions. These controls verify wrapper arguments
+and failure propagation, not real GNU signal timing or hosted fit. The actual
+changed-doc workflow audit passes all eight changed Markdown files. No provider,
+Docker, privileged installer or application runtime is launched by reviewers.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
