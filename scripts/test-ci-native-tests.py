@@ -432,6 +432,7 @@ except launcher.Refusal as failure:
             'BackgroundJobRuntimeFacadeTests*.cs')} | {
                 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
+                'BackgroundJobPositiveSdkTests.NativeWait.cs', 'BackgroundJobPositiveSdkTests.NativeHistory.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
                 'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
@@ -775,6 +776,81 @@ except launcher.Refusal as failure:
         self.assertEqual('Failed', self.owner.trx_cases(trx, sanitize=True)[0]['outcome'])
         self.assertEqual([], ET.parse(trx).findall('.//t:Output', self.owner.NS))
         self.refuses('results_incomplete', self.owner.validate_results, output, cases[:1])
+
+    @staticmethod
+    def native_wait_sentence(kind='failure', **changes):
+        values = dict(boundary='constructor', constructor='pending', invocation='not_issued',
+                      wrapper='not_issued', actual='not_issued', runtime='running', completion='pending',
+                      control='succeeded', pools='pending,pending,pending', shared='pending',
+                      bridgeLoop='pending', bridgeStop='not_issued')
+        values.update(changes)
+        return 'Native wait ' + kind + ';' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    def test_native_wait_details_preserve_first_boundary_and_separate_real_cleanup_observations(self):
+        parse = self.owner.closed_failure_details
+        for name in self.owner.NATIVE_WAIT_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            failure = self.native_wait_sentence()
+            cleanup = self.native_wait_sentence('cleanup', boundary='cleanup_stop', runtime='stopping',
+                pools='succeeded,pending,succeeded', control='succeeded')
+            raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + failure + '\n' + cleanup}]}
+            result = parse(case, raw)
+            self.assertEqual('constructor', result['failure']['boundary'])
+            self.assertEqual('cleanup_stop', result['cleanup']['boundary'])
+            self.assertEqual(['succeeded', 'pending', 'succeeded'], result['cleanup']['pools'])
+            self.assertEqual('native_wait', result['stage'])
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
+            self.assertIsNone(parse({**case, 'assembly': 'unregistered'}, raw))
+            self.assertIsNone(parse({**case, 'name': 'other'}, raw))
+            for boundary in ('start', 'handoff', 'capture', 'cancel', 'return', 'wrapper', 'held',
+                             'cleanup_request', 'cleanup_stop', 'cleanup_completion'):
+                self.assertEqual(boundary, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.native_wait_sentence(boundary=boundary)}]})['failure']['boundary'])
+
+    def test_native_wait_details_accept_unavailable_projection_without_inventing_join_facts(self):
+        case = {**self.case(1), 'name': sorted(self.owner.NATIVE_WAIT_FAILURE_CASES)[0]}
+        parse = self.owner.closed_failure_details
+        raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text':
+            'Native wait failure;boundary=cleanup_stop;snapshot=unavailable.\n'
+            'Native wait cleanup;boundary=cleanup_stop;snapshot=unavailable.'}]}
+        result = parse(case, raw)
+        self.assertEqual({'boundary': 'cleanup_stop', 'snapshot': 'unavailable'}, result['failure'])
+        self.assertEqual(result['failure'], result['cleanup'])
+
+    def test_native_wait_details_refuse_ambiguous_private_or_inconsistent_observations(self):
+        case = {**self.case(1), 'name': sorted(self.owner.NATIVE_WAIT_FAILURE_CASES)[0]}
+        parse = self.owner.closed_failure_details
+        sentence = self.native_wait_sentence()
+        stdout = lambda text: {'Category': 'StdOutMsgs', 'Text': text}
+        for messages in ([stdout(sentence * 2)], [{'Category': 'StdErrMsgs', 'Text': sentence}],
+                         [stdout(sentence + '\n' + self.native_wait_sentence('cleanup', boundary='constructor'))],
+                         [stdout(self.native_wait_sentence('cleanup', boundary='cleanup_stop'))],
+                         [stdout('X' * 65536 + sentence)], [stdout(sentence.replace(';wrapper=', ';unlisted='))]):
+            self.assertIsNone(parse(case, {'Messages': messages}))
+        for field, value in (('boundary', 'unlisted'), ('constructor', 'PRIVATE-CANARY'),
+                             ('runtime', 'host.example'), ('wrapper', 'ready'), ('control', 'TRUE'),
+                             ('actual', 'succeeded'), ('pools', ','.join(['pending'] * 9)),
+                             ('pools', 'not_issued,pending')):
+            self.assertIsNone(parse(case, {'Messages': [stdout(self.native_wait_sentence(**{field: value}))]}))
+
+    def test_native_wait_protocol_exports_only_closed_details_and_truthful_failed_outcome(self):
+        case = {**self.case(1), 'name': sorted(self.owner.NATIVE_WAIT_FAILURE_CASES)[0]}
+        stream = io.StringIO()
+        progress = self.progress(self.root / 'native-wait.diag', 'LearnStack.Tests.Integration', [case], stream)
+        item = self.execution_result(case); item['Outcome'] = 2
+        item['ErrorMessage'] = 'System.OperationCanceledException : PRIVATE-CANARY'
+        item['ErrorStackTrace'] = '/private/path/BackgroundJobPositiveSdkTests.NativeWait.cs:line 98'
+        item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.native_wait_sentence(boundary='cleanup_stop')}]
+        with contextlib.redirect_stdout(io.StringIO()):
+            progress.results({'NewTestResults': [item]})
+        result = progress.failure_locations[0]
+        self.assertEqual([{'source': 'positive_sdk_native_wait', 'line': 98}], result['locations'])
+        self.assertEqual('cleanup_stop', result['details']['failure']['boundary'])
+        self.assertEqual('cancellation', result['exceptionKind'])
+        self.assertEqual('Failed', json.loads(stream.getvalue())['outcome'])
+        for text in ('PRIVATE-CANARY', '/private/', 'Native wait failure;'):
+            self.assertNotIn(text, json.dumps(result))
+        progress.close()
 
     @staticmethod
     def settlement_sentence(**changes):

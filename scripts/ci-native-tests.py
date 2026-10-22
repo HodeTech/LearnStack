@@ -84,6 +84,8 @@ FAILURE_SOURCES = {
     'TenantRealmApiTests.WarmQualification.cs': 'realm_warm_qualification',
     'BackgroundJobPositiveSdkTests.CausalRestart.cs': 'positive_sdk_causal_restart',
     'BackgroundJobPositiveSdkTests.NativeSettlement.cs': 'positive_sdk_native_settlement',
+    'BackgroundJobPositiveSdkTests.NativeWait.cs': 'positive_sdk_native_wait',
+    'BackgroundJobPositiveSdkTests.NativeHistory.cs': 'positive_sdk_native_history',
     'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs': 'positive_sdk_settlement_scheduling',
     'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs': 'positive_sdk_settlement_prepare',
     'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs': 'recurrence_native_ownership',
@@ -381,8 +383,69 @@ def closed_settlement_failure_details(raw):
     return result
 
 
+NATIVE_WAIT_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Native_stop_returns_the_wrapper_before_a_held_external_constructor_really_cleans_up(reason: "' + reason + '")'
+    for reason in ('host_stop', 'lease_loss')
+}
+
+
+def closed_native_wait_details(raw):
+    """First failure and later cleanup are separate, finite observations, never join authority."""
+    messages = raw.get('Messages')
+    if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
+        return None
+    if any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+           or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+           or not isinstance(item['Text'], str) for item in messages):
+        return None
+    if sum(len(item['Text']) for item in messages) > 65536:
+        return None
+    stages = {'start', 'handoff', 'constructor', 'capture', 'cancel', 'return', 'wrapper', 'held',
+              'cleanup_request', 'cleanup_stop', 'cleanup_completion', 'cleanup_complete'}
+    tasks = {'not_issued', 'succeeded', 'cancelled', 'faulted', 'pending'}
+    fields = ('boundary', 'constructor', 'invocation', 'wrapper', 'actual', 'runtime', 'completion',
+              'control', 'pools', 'shared', 'bridgeLoop', 'bridgeStop')
+    result = {'stage': 'native_wait'}
+    for kind in ('failure', 'cleanup'):
+        marker = 'Native wait ' + kind + ';'
+        count = sum(item['Text'].count(marker) for item in messages)
+        if not count and kind == 'cleanup':
+            continue
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        if count != 1 or len(lines) != 1:
+            return None
+        unavailable = re.fullmatch(re.escape(marker) + r'boundary=([a-z_]+);snapshot=unavailable\.', lines[0])
+        if unavailable is not None:
+            values = {'boundary': unavailable[1], 'snapshot': 'unavailable'}
+        else:
+            match = re.fullmatch(re.escape(marker) + ';'.join(name + r'=([a-z_,]{1,128})' for name in fields) + r'\.', lines[0])
+            if match is None:
+                return None
+            values = dict(zip(fields, match.groups()))
+            if values['constructor'] not in ('entered', 'pending') or values['invocation'] not in ('not_issued', 'captured'):
+                return None
+            if values['runtime'] not in {'not_started', 'bootstrapping', 'starting', 'running', 'stopping', 'retained', 'stopped', 'unknown'}:
+                return None
+            if any(values[name] not in tasks for name in ('wrapper', 'actual', 'completion', 'control', 'shared', 'bridgeLoop', 'bridgeStop')):
+                return None
+            pools = values['pools'].split(',')
+            if not 1 <= len(pools) <= 8 or any(value not in tasks for value in pools) or 'not_issued' in pools and len(pools) != 1:
+                return None
+            values['pools'] = pools
+            if values['invocation'] == 'not_issued' and (values['wrapper'] != 'not_issued' or values['actual'] != 'not_issued'):
+                return None
+        if values['boundary'] not in stages or kind == 'cleanup' and not values['boundary'].startswith('cleanup_'):
+            return None
+        result[kind] = values
+    return result
+
+
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
+    if case['name'] in NATIVE_WAIT_FAILURE_CASES:
+        return closed_native_wait_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == RECURRENCE_NATIVE_FAILURE_CASE:
         return closed_recurrence_native_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in SETTLEMENT_FAILURE_CASES:

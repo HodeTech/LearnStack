@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Messaging;
@@ -38,16 +39,24 @@ public sealed partial class BackgroundJobPositiveSdkTests
         submitted.IsSuccess.Should().BeTrue();
         var job = submitted.Value;
         HangfireGenerationWork.Invocation? owned = null;
+        Task<bool>? wrapper = null;
+        Task? actual = null;
+        ExceptionDispatchInfo? failure = null;
+        var boundary = "start";
         try
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(startup.Token);
+            boundary = "handoff";
             await EnsureNativeSdkStartAsync(runtime, source, job, construction.Entered, startup.Token);
+            boundary = "constructor";
             await construction.Entered.WaitAsync(startup.Token);
+            boundary = "capture";
             owned = NativeSdkInvocation(runtime);
             var framework = (HangfireInvocationContract.BoundInvocation)NativeSdkField(owned, "_framework");
-            var wrapper = (Task<bool>)NativeSdkField(framework, "_wrapperWait");
-            var actual = (Task)NativeSdkField(framework, "_operationObserver");
+            wrapper = (Task<bool>)NativeSdkField(framework, "_wrapperWait");
+            actual = (Task)NativeSdkField(framework, "_operationObserver");
+            boundary = "cancel";
             if (reason == "host_stop") runtime.RequestStop();
             else
             {
@@ -59,8 +68,11 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 expire.Parameters.AddWithValue("id", job.Value);
                 (await expire.ExecuteNonQueryAsync()).Should().Be(1);
             }
+            boundary = "return";
             await owned.ReturnRequested.WaitAsync(TimeSpan.FromSeconds(15));
+            boundary = "wrapper";
             (await wrapper.WaitAsync(TimeSpan.FromSeconds(10))).Should().BeFalse();
+            boundary = "held";
             actual.IsCompleted.Should().BeFalse("the actual synchronous constructor is still held, despite the native wrapper's return");
             owned.Token.IsCancellationRequested.Should().BeTrue();
             owned.Token.WaitHandle.Should().NotBeNull();
@@ -72,14 +84,37 @@ public sealed partial class BackgroundJobPositiveSdkTests
             (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, prepared.Value)).Should().Be(1);
             (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, finalized.Value)).Should().Be(0);
         }
+        catch (Exception error) when (NativeWaitCatchable(error))
+        {
+            failure = ExceptionDispatchInfo.Capture(error);
+            WriteNativeWaitObservation("failure", boundary, construction, owned, wrapper, actual, runtime);
+        }
         finally
         {
             construction.Release();
-            runtime.RequestStop();
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
-            await runtime.StopAsync(cleanup.Token);
-            await runtime.Completion.WaitAsync(cleanup.Token);
+            boundary = "cleanup_request";
+            try
+            {
+                runtime.RequestStop();
+                boundary = "cleanup_stop";
+                await runtime.StopAsync(cleanup.Token);
+                boundary = "cleanup_completion";
+                await runtime.Completion.WaitAsync(cleanup.Token);
+                boundary = "cleanup_complete";
+            }
+            catch (Exception error) when (NativeWaitCatchable(error))
+            {
+                if (failure is null)
+                {
+                    failure = ExceptionDispatchInfo.Capture(error);
+                    WriteNativeWaitObservation("failure", boundary, construction, owned, wrapper, actual, runtime);
+                }
+            }
+            if (failure is not null)
+                WriteNativeWaitObservation("cleanup", boundary, construction, owned, wrapper, actual, runtime);
         }
+        failure?.Throw();
         runtime.Snapshot.Control!.Executions.Should().Be(0);
         runtime.Snapshot.RetainedInvocations.Should().Be(0);
         var handle = () => owned!.Token.WaitHandle;
@@ -101,6 +136,63 @@ public sealed partial class BackgroundJobPositiveSdkTests
         (await provider.CountsAsync(row.GetGuid(0))).Should().Be((0L, 0L, 0L));
         row.GetInt64(1).Should().Be(1, "lease/host cancellation does not prove no intent or release occupancy");
     }
+
+    // Pure diagnostic projection: no SQL, provider call, cancellation or completion
+    // capability is issued here. A failed cleanup never replaces the first failure.
+    private void WriteNativeWaitObservation(string kind, string boundary,
+        BackgroundJobPositiveProviderConstructionProbe construction, HangfireGenerationWork.Invocation? owned,
+        Task<bool>? wrapper, Task? actual, BackgroundJobRuntime runtime)
+    {
+        static object? Field(object owner, string name) => owner.GetType()
+            .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(owner);
+        static string State(Task? task) => task?.Status switch
+        {
+            null => "not_issued",
+            TaskStatus.RanToCompletion => "succeeded",
+            TaskStatus.Canceled => "cancelled",
+            TaskStatus.Faulted => "faulted",
+            _ => "pending",
+        };
+        try
+        {
+            var jobs = (BackgroundJobControl)NativeSdkField(runtime, "_jobs");
+            HangfirePoolOwner[] pools;
+            lock (NativeSdkField(runtime, "_sync"))
+                pools = ((IEnumerable<HangfirePoolOwner>)NativeSdkField(runtime, "_pools")).ToArray();
+            var shared = Field(runtime, "_shared") as HangfireSharedComponents;
+            var snapshot = runtime.Snapshot;
+            var runtimeState = snapshot.State switch
+            {
+                BackgroundJobRuntimeState.NotStarted => "not_started",
+                BackgroundJobRuntimeState.Bootstrapping => "bootstrapping",
+                BackgroundJobRuntimeState.Starting => "starting",
+                BackgroundJobRuntimeState.Running => "running",
+                BackgroundJobRuntimeState.Stopping => "stopping",
+                BackgroundJobRuntimeState.Retained => "retained",
+                BackgroundJobRuntimeState.Stopped => "stopped",
+                _ => "unknown",
+            };
+            var poolStates = pools.Length == 0 ? "not_issued" : string.Join(',', pools.Select(pool => State(pool.Completion)));
+            output.WriteLine("Native wait " + kind + ";boundary=" + boundary
+                + ";constructor=" + (construction.Entered.IsCompleted ? "entered" : "pending")
+                + ";invocation=" + (owned is null ? "not_issued" : "captured")
+                + ";wrapper=" + State(wrapper) + ";actual=" + State(actual)
+                + ";runtime=" + runtimeState + ";completion=" + State(runtime.Completion)
+                + ";control=" + State(jobs.Completion) + ";pools=" + poolStates
+                + ";shared=" + State(shared?.Completion)
+                + ";bridgeLoop=" + State(Field(runtime, "_bridgeLoop") as Task)
+                + ";bridgeStop=" + State(Field(runtime, "_bridgeStop") as Task) + ".");
+        }
+        catch (Exception error) when (NativeWaitCatchable(error))
+        {
+            // Diagnostic failure is not authority to replace the test failure.
+            try { output.WriteLine("Native wait " + kind + ";boundary=" + boundary + ";snapshot=unavailable."); }
+            catch (Exception outputError) when (NativeWaitCatchable(outputError)) { }
+        }
+    }
+
+    private static bool NativeWaitCatchable(Exception error) => error.GetType() != typeof(OutOfMemoryException)
+        && error.GetType() != typeof(StackOverflowException);
 
     [Fact]
     public async Task Native_external_constructor_uses_the_long_external_wait_after_short_Prepare_finishes()

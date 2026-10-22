@@ -17762,6 +17762,73 @@ rounds are complete; the failed initial attempt may be superseded by the correct
 push, and its partial successes are not complete qualification. Fresh full A/B
 attempts on the same corrected source remain required before draft readiness.
 
+### P02b-6 native constructor-stop failure attribution (2026-10-22)
+
+The corrected follow-up source `d2a32c9e` completes all 27 jobs in
+[run 39753775916, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/39753775916/attempts/1).
+Twenty-five jobs pass, including frontend, meta and the backend aggregate.
+Independent artifact identity/digest/assignment checks cover all twenty
+producers and the complete 5,920-case population: 5,919 pass and one fails.
+The failed-attempt summary has SHA-256
+`6d5241086f709942d0608b85376cb6273b0d23949635c794ddb39e5d6e614f92`.
+This is not successful A qualification.
+
+The failed `ordinary-0` case is `Native_stop_returns_the_wrapper_before_a_held_external_constructor_really_cleans_up`
+with `reason: lease_loss`, ID `a37ab998-d153-7507-f862-98fd478840c8`.
+Artifact `12415871381` records 32.0063708 seconds, a closed `cancellation`
+label and no registered source location. The aggregate correctly refuses
+this actual producer failure. `owned_completion_missing` and forced workload
+cleanup are consequences, not an independently established test cause or
+positive internal cleanup evidence.
+
+Duration alone cannot distinguish the 30-second startup token from the
+runtime's separate 30-second shutdown wait. The test's 40-second caller cleanup
+budget does not remove that internal bound. Its original `finally` can also
+replace an earlier body exception with a cleanup exception. Three separate
+local process observations on the prior source pass both theory cases
+(six results); they do not reproduce or explain the hosted failure. Their
+summary has SHA-256
+`21b5d51eba72a4c86eb09cf61b6abc0479bbbfc186cdda1958716ad23e3cc602`.
+
+The test-only correction preserves the first body or explicit runtime-join
+exception with its original stack. It separately records first-failure and
+later-cleanup boundaries, constructor/invocation observation and actual task
+states for the wrapper, operation observer, runtime, control, ordered pools,
+shared maintenance and bridge. These are finite diagnostic observations,
+not authority to declare cleanup. Logging failure cannot replace the original
+exception. Existing startup, wrapper, return and shutdown budgets stay intact.
+
+The launcher accepts this diagnostic only for the two exact existing theory
+cases and the integration assembly, with bounded messages, closed state sets,
+separate failure/cleanup markers and no raw provider/error/path text. The two
+native helper files receive finite source codes under the existing eight-location
+bound. No runtime, policy, case identity, selector or topology changes.
+
+Sixty offline launcher/parser controls pass, including malformed/ambiguous/
+wrong-case/wrong-channel/canary and truthful failed-outcome controls. The
+copied real-provider proof passes both clean cases. Three distinct copied
+controls produce six intended failures: body only, cleanup only and both.
+The paired corrected control preserves the original body exception, whereas
+the same paired control in the legacy test loses it to the cleanup exception.
+Every usable cleanup fault is planted after actual runtime completion;
+process groups join and exact owned containers are independently absent.
+The retained proof summary has SHA-256
+`909b18c47080ca618eecdc1df4f42d774b049a75f15096971dd7dcffcf2483c0`.
+This establishes diagnostic and first-failure behavior, **not** the cause of
+the earlier hosted cancellation. The final integration-project Release build
+passes with zero warnings/errors. Seven corpus/Docker-trait cases and targeted
+C# whitespace verification pass; the tested three overlay hashes match the
+workspace. Committed-source independent reviews follow.
+
+A separate source inspection finds a one-extra-hint scheduling weakness in
+`EnsureNativeSdkStartAsync`: committed bridge metadata does not prove an earlier
+null-routing recovery control has finished private cleanup. Its extra hint can
+therefore be rejected before the 60-second repair grace, beyond the caller's
+30-second startup budget. This is not evidence that the interleaving occurred
+in this failed run. Deterministic qualification of that fixture path remains
+with this correction; no production defect, timeout increase, passing retry or
+waiver is inferred from it. Complete final-source hosted A/B remains required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
