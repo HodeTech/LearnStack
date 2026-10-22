@@ -18263,6 +18263,21 @@ Its archive has all 27 JSON/HTML report pairs; the native receipt reports passed
 150.158s setup, 628.378s proof and 10.986s confirmed cleanup. This component
 observation does not qualify the failed whole workflow or a changed source.
 
+#### Gate-diagnostic correction review round 2
+
+A different fresh pair (`gpt-6-astra`, high correctness/security;
+`gpt-6.1-sol`, high evidence/governance) inspects `979750cd..84f681a6` and
+approves without findings. Independent baseline/current matrices pass 36,414
+and 20,286 combinations respectively, with 63 silent successes each. The
+correctness reviewer kills five in-memory diagnostic/refusal mutants using the
+committed 21-subcase control. The evidence reviewer runs all twenty aggregate
+controls, verifies historical hashes and both backend snapshots, and confirms
+that an earlier incomplete integration snapshot still refuses. It independently
+checks the public artifact API/digest and all 27 per-report pairs against the
+native receipt. Both preserve the unknown original API state and failed whole
+attempt status. Both review rounds are complete; new final-source full A/B is
+required before the draft becomes ready.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
