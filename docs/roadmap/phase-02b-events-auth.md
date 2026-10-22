@@ -18198,6 +18198,17 @@ analysis. Root's final corrected fifteen-case suite passes in 2.277 seconds;
 the actual eight-file changed-doc audit passes. No broader runtime is needed
 for this two-file test/document correction.
 
+#### OpenAPI maintenance correction review round 2
+
+A different fresh pair (`gpt-6-astra`, high correctness; `gpt-6.1-sol`, high
+evidence/governance) independently inspects `58d9ecdf..ace2a77a` and approves
+without findings. Both run all fifteen controls (2.132s / 1.952s), real-Git
+negative/guarded counterparts and the planted existing-graph/owned-lock failure.
+The planted exit 128 is rejected by the success assertion; strict fixture
+cleanup completes. Both verify hosted identity/evidence limits and corrected
+physical source anchors. No repository edits or broader runtime is performed
+by reviewers. Both rounds are complete; final-source full A/B remains pending.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
