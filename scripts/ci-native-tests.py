@@ -237,13 +237,48 @@ def closed_settlement_failure_details(raw):
         return None
     if values['boundary'] in ('held_count_assert', 'count_assert') and values['observedAttempts'] == 'unknown':
         return None
+    cleanup_marker = 'Native settlement cleanup;'
+    cleanup_count = sum(item['Text'].count(cleanup_marker) for item in messages)
+    if cleanup_count:
+        cleanup_lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                         for line in item['Text'].splitlines() if cleanup_marker in line]
+        if cleanup_count != 1 or len(cleanup_lines) != 1 or not values['boundary'].startswith('later_'):
+            return None
+        cleanup_fields = ('originalAdmission', 'finalizeAdmission', 'external', 'business', 'disposition',
+                          'callback', 'original', 'finalize', 'control', 'generation', 'executions', 'running', 'retained', 'privateWork')
+        cleanup_pattern = re.escape(cleanup_marker) + ';'.join(name + r'=([a-z_0-9]{1,16})' for name in cleanup_fields) + r'\.'
+        cleanup_match = re.fullmatch(cleanup_pattern, cleanup_lines[0])
+        if cleanup_match is None:
+            return None
+        cleanup = dict(zip(cleanup_fields, cleanup_match.groups()))
+        if any(cleanup[field] not in ('joined', 'incomplete', 'not_issued') for field in (*cleanup_fields[:10], 'privateWork')):
+            return None
+        if any(cleanup[field] == 'not_issued' for field in ('control', 'generation', 'privateWork')):
+            return None
+        for field in ('executions', 'running', 'retained'):
+            value = cleanup[field]
+            if value == 'out_of_range':
+                continue
+            if not re.fullmatch(r'0|[1-9][0-9]?', value) or not 0 <= int(value) <= 64:
+                return None
+            cleanup[field] = int(value)
+        if cleanup['generation'] == 'joined' and (cleanup['running'] != 0 or cleanup['retained'] != 0):
+            return None
+        if cleanup['privateWork'] == 'joined' and cleanup['generation'] != 'joined':
+            return None
+        result['cleanup'] = cleanup
     return result
 
 
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
     if case['name'] in SETTLEMENT_FAILURE_CASES:
-        return closed_settlement_failure_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+        if case['assembly'] != 'learnstack.tests.integration':
+            return None
+        details = closed_settlement_failure_details(raw)
+        if details and 'cleanup' in details and not case['name'].endswith('(knownFailure: True)'):
+            return None
+        return details
     message = raw.get('ErrorMessage')
     if not isinstance(message, str):
         return None

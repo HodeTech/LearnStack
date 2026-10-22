@@ -15712,7 +15712,10 @@ hosted qualification is claimed; the failed lifecycle receipt remains unwaived.
 
 ### P02b-6 additional verification and correction pass (2026-10-22)
 
-**Status: implementation and validation in progress on `development`.** External
+**Status: implementation and local validation complete on `development`.**
+Source-bound reviews and correction evidence are recorded below.
+[PR #34](https://github.com/HodeTech/LearnStack/pull/34) records current-head
+hosted qualification and maintainer review; merge remains separate. External
 review assertions are hypotheses until checked against current source or retained
 execution evidence. They do not authorize policy changes, host mutations or
 cleanup of another task's resources. No next packet or merge starts here.
@@ -17086,6 +17089,72 @@ digests remain unchanged. The private summary has SHA-256
 Seven corpus/Docker-trait controls pass with zero skips in 9.465 seconds and
 their process group is absent. Independent review and complete corrected-source
 hosted qualification remain required; no earlier red receipt is waived.
+
+#### First independent attribution review
+
+Two fresh reviewers inspect all five files in `7b0fd1b6..9adba275` and their
+ownership, renewal, persistence and diagnostic dependencies: `gpt-6-astra` at
+`xhigh` and `gpt-6.1-sol` at `high`. Both request changes for the same verified
+Major: the new explicit-owner failure cleanup releases barriers but can call
+`JoinAsync` before issued business/admission/external tasks actually return.
+An unfinished task then makes cleanup fault sticky and retains the invocation;
+preserving the first exception does not prove a completed join. The successful
+path's retained receipt does not qualify this early-failure path.
+
+Both otherwise confirm the attribution boundary, real gate-bound COMMIT/ACK,
+unchanged default proxy behavior, finite diagnostic privacy and honest evidence
+limits. The first passes all forty-seven offline controls in 17.125 seconds and
+independently verifies seven source and nineteen artifact hashes. The second
+independently verifies changed executable sources and four raw/sanitized TRX
+hashes. Neither reruns provider/.NET/Docker work, and all commands join.
+The pre-existing stock pre-ACK guards remain setup requirements; this review
+does not claim an earlier loss is impossible or change conservative refusal.
+
+The verified correction retains each actually issued admission, external,
+business and disposition flight before its synchronous prefix. Failure cleanup
+closes future issuance, requests owned cancellation and releases its barriers,
+then independently awaits actual flights and their cleanup results before
+positive execution/private joins. An already-started private completion task is
+retained and reused. One failed step cannot skip independent stop/join steps,
+and an unfinished or cleanup-faulted operation never supplies a positive witness.
+
+The original failure observation remains separate from a closed post-cleanup
+witness. Only the exact known-failure case and stdout category can carry that
+optional witness; finite states/counts, malformed/ambiguous/private-output
+refusals and sanitizer behavior remain enforced. It grants no completion or
+admission authority and cannot turn a failed case into success.
+
+A single copied-source substitution plants an impossible expected renewal count
+after the cancellation callback enters, while the real business task is pending
+and COMMIT remains held. The actual adapter reports the intended `later_refusal`
+failure with one active execution. Its separate cleanup witness records both
+admissions, external/business flights, callback, both identities, private work,
+control and generation joined; unissued disposition stays `not_issued`.
+Executions, running work and retained work are zero. Two siblings pass, the
+intended case fails and zero cases skip. The original assertion survives,
+sanitized TRX remains failed and both owned containers/process group are absent
+without forced cleanup. The private mutant receipt has SHA-256
+`99cff1933d6de69c190542b2141e04799f7406f45b5de7c6ac3b62399f166889`.
+Root independently verifies the pre/post-cleanup facts and seven source hashes.
+
+Corrected-source Release builds report zero warnings/errors; scoped format
+verification and all forty-nine offline controls pass. The single clean real
+run passes three cases with zero skips: false 16.070 seconds, known failure
+18.092 seconds and recovery 21.263 seconds; command wall time is 61.189 seconds.
+Both owned containers and the process group are naturally absent and all
+commands join. Combined private receipt SHA-256 is
+`bdbf89a86f718b30c6d449dc5f127efa467c961e86beb9bb697c66460d3968c6`.
+Root independently verifies seven current source hashes, nineteen artifact
+hashes and both clean TRX hashes. The earlier attribution and rejected ordinal
+experiments remain source-bound historical evidence, not new-source reruns.
+
+Twenty fresh metadata commands complete in 16.080 seconds, preserving every
+one of the 5,920 identities, the plan/manifest and both complete assignments.
+Private summary SHA-256 is
+`67d477db5a547e837ac7ea3e908b80f89463884cf7bef3b1670f4ef68c8f41c0`.
+Seven corpus/Docker-trait controls pass with zero skips in 8.868 seconds;
+their process group is absent. The second fresh independent review round and
+corrected-source hosted qualification remain required.
 
 
 ## Completion Criteria

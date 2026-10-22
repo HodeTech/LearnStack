@@ -284,10 +284,17 @@ public sealed partial class BackgroundJobPositiveSdkTests
         using var releaseCallback = new ManualResetEventSlim();
         var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationTokenRegistration? callback = null;
+        var callbackIssued = false;
         HangfireGenerationWork.Invocation? originalWork = null, finalizeWork = null;
+        TaskCompletionSource<Task<JobStartExecutionResult>>? originalAdmissionFlight = null, finalizeAdmissionFlight = null;
+        TaskCompletionSource<Task<bool>>? externalFlight = null, dispositionFlight = null;
+        TaskCompletionSource<Task<JobBusinessExecutionResult>>? businessFlight = null;
         Task<JobBusinessExecutionResult>? business = null;
         Task<JobExternalCheckpointResult>? outcome = null;
+        Task<bool>? originalJoin = null;
+        Task? originalPrivateCompletion = null, finalizePrivateCompletion = null;
         var originalJoined = false;
+        var originalCompleted = false;
         var finalizerJoined = false;
         var boundary = "later_original";
         long? observedAttempts = null;
@@ -300,20 +307,27 @@ public sealed partial class BackgroundJobPositiveSdkTests
             originalWork = generation.TryBegin()!;
             original = controller.TryBegin(claim!, originalWork)!;
             originalWork.HoldExecution(original);
-            var admission = executor.ExecutePublishedAsync(claim!, original.Publication, original.AdmissionGate, null, originalWork.Token);
+            originalAdmissionFlight = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var admission = IssueNativeSettlementFlight(originalAdmissionFlight,
+                () => executor.ExecutePublishedAsync(claim!, original.Publication, original.AdmissionGate, null, originalWork.Token));
             originalWork.HoldAdmission(admission);
             original.HoldAdmission(admission);
             (await admission.WaitAsync(deadline.Token)).Outcome.Should().Be(JobStartExecutionOutcome.Started);
             await original.WaitForPublicationAsync().WaitAsync(deadline.Token);
-            (await controller.ExecuteExternalNormalAsync(original).WaitAsync(deadline.Token)).Should().BeTrue();
+            externalFlight = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var external = IssueNativeSettlementFlight(externalFlight, () => controller.ExecuteExternalNormalAsync(original));
+            (await external.WaitAsync(deadline.Token)).Should().BeTrue();
             outcome = (Task<JobExternalCheckpointResult>)NativeSdkField(original, "_externalOutcome");
             var acknowledged = await outcome;
             acknowledged.CommitAcknowledged.Should().BeTrue();
             original.LeaseWorkSettled.Should().BeTrue();
             NativeSettlementCause(original).Should().Be("none");
-            originalJoined = await original.JoinAsync(operationCleanupConfirmed: true).WaitAsync(deadline.Token);
+            originalJoin = original.JoinAsync(operationCleanupConfirmed: true);
+            originalJoined = await originalJoin.WaitAsync(deadline.Token);
             originalJoined.Should().BeTrue();
-            await originalWork.CompleteAsync(originalJoined).WaitAsync(deadline.Token);
+            originalPrivateCompletion = originalWork.CompleteAsync(originalJoined);
+            await originalPrivateCompletion.WaitAsync(deadline.Token);
+            originalCompleted = true;
             controller.Snapshot.Executions.Should().Be(0);
 
             boundary = "later_admission";
@@ -322,8 +336,10 @@ public sealed partial class BackgroundJobPositiveSdkTests
             finalizeWork = generation.TryBegin()!;
             finalizer = controller.TryBegin(finalizeClaim!, finalizeWork)!;
             finalizeWork.HoldExecution(finalizer);
-            var finalizeAdmission = finalizeExecutor.ExecutePublishedAsync(finalizeClaim!, finalizer.Publication,
-                finalizer.AdmissionGate, null, finalizeWork.Token);
+            finalizeAdmissionFlight = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var finalizeAdmission = IssueNativeSettlementFlight(finalizeAdmissionFlight,
+                () => finalizeExecutor.ExecutePublishedAsync(finalizeClaim!, finalizer.Publication,
+                    finalizer.AdmissionGate, null, finalizeWork.Token));
             finalizeWork.HoldAdmission(finalizeAdmission);
             finalizer.HoldAdmission(finalizeAdmission);
             var admitted = await finalizeAdmission.WaitAsync(deadline.Token);
@@ -333,7 +349,9 @@ public sealed partial class BackgroundJobPositiveSdkTests
             finalizer.Gate.Kind.Should().Be(BackgroundJobCheckpointKind.Finalize);
             finalizer.Identity!.SelectedNormalAttemptId.Should().Be(original.Identity!.AttemptId);
             finalizer.Identity.AttemptId.Should().NotBe(original.Identity.AttemptId);
-            business = finalizeExecutor.ExecuteBusinessAsync(admitted.Receipt!, finalizer.Gate, finalizeWork.Token);
+            businessFlight = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            business = IssueNativeSettlementFlight(businessFlight,
+                () => finalizeExecutor.ExecuteBusinessAsync(admitted.Receipt!, finalizer.Gate, finalizeWork.Token));
             finalizer.HoldBusiness(business);
             finalizeWork.HoldBusiness(business);
             boundary = "later_commit_held";
@@ -359,14 +377,16 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 if (!releaseCallback.Wait(TimeSpan.FromSeconds(30)))
                     throw new TimeoutException("Finalize cancellation callback was not released.");
             });
+            callbackIssued = true;
             boundary = "later_refusal";
             controller.Start();
             await callbackEntered.Task.WaitAsync(deadline.Token);
+            business.IsCompleted.Should().BeFalse("the actual COMMIT request and cancellation callback remain held");
             NativeSettlementCause(original).Should().Be("none");
             NativeSettlementCause(finalizer).Should().Be("renewal_refused");
-            controller.Snapshot.LeaseLossRenewalRefused.Should().Be(1);
+            controller.Snapshot.LeaseLossRenewalRefused.Should().Be(1, "the real renewal lane refused the held Finalize identity");
             controller.Snapshot.LeaseLossElapsed.Should().Be(0);
-            finalizer.Gate.CommitAcknowledged.Should().BeFalse();
+            finalizer.Gate.CommitAcknowledged.Should().BeFalse("the actual Finalize COMMIT request remains held before ACK");
             finalizer.RunGate.IsClosed.Should().BeTrue();
             boundary = "later_ack";
             proxy.ReleaseHeldRequest();
@@ -380,7 +400,9 @@ public sealed partial class BackgroundJobPositiveSdkTests
             var completed = await business.WaitAsync(deadline.Token);
             completed.CommitAcknowledged.Should().BeTrue();
             completed.CleanupFailed.Should().BeFalse();
-            (await finalizer.FinishExternalFinalizeAsync(completed, store).WaitAsync(deadline.Token)).Should().BeTrue();
+            dispositionFlight = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var disposition = IssueNativeSettlementFlight(dispositionFlight, () => finalizer.FinishExternalFinalizeAsync(completed, store));
+            (await disposition.WaitAsync(deadline.Token)).Should().BeTrue();
             boundary = "later_facts";
             observedAttempts = await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job);
             observedAttempts.Value.Should().Be(2);
@@ -402,38 +424,88 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }
         finally
         {
-            // Release every test-owned barrier before bounded actual joins, even
-            // when an earlier assertion failed. Preserve that first exception.
+            // Stop future issuance and release every test-owned barrier before
+            // awaiting the actual flights. A returned waiter is not cleanup.
+            generation.RequestHostStop();
+            controller.RequestStop();
             proxy.ReleaseHeldRequest();
             releaseCallback.Set();
-            try
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            async Task<bool> CleanupStepAsync(Func<Task> step)
             {
-                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                if (callback is { } registration) await registration.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
-                if (finalizer is not null)
+                try { await step().WaitAsync(cleanup.Token); return true; }
+                catch (Exception error)
                 {
-                    finalizerJoined = await finalizer.JoinAsync(operationCleanupConfirmed: true).WaitAsync(cleanup.Token);
-                    await finalizeWork!.CompleteAsync(finalizerJoined).WaitAsync(cleanup.Token);
+                    if (failure is null)
+                    {
+                        failure = ExceptionDispatchInfo.Capture(error);
+                        await WriteNativeSettlementFailureAsync(database, job, finalized, "later_cleanup", observedAttempts,
+                            original, finalizer, outcome, controller.Snapshot);
+                    }
+                    return false;
                 }
-                if (original is not null && !originalJoined)
-                {
-                    originalJoined = await original.JoinAsync(operationCleanupConfirmed: true).WaitAsync(cleanup.Token);
-                    await originalWork!.CompleteAsync(originalJoined).WaitAsync(cleanup.Token);
-                }
-                generation.CloseStarts();
-                controller.RequestStop();
-                await controller.Completion.WaitAsync(cleanup.Token);
-                await generation.Completion.WaitAsync(cleanup.Token);
             }
-            catch (Exception error)
-            {
-                controller.RequestStop();
-                if (failure is null)
+            var callbackJoined = callback is not { } registration
+                || await CleanupStepAsync(() => registration.DisposeAsync().AsTask());
+            // Attempt every independent join, even when a preceding flight or
+            // callback failed. Never call Join(true) on an unfinished operation.
+            var originalAdmissionJoined = await CleanupStepAsync(() => originalAdmissionFlight?.Task.Unwrap() ?? Task.CompletedTask);
+            var finalizeAdmissionJoined = await CleanupStepAsync(() => finalizeAdmissionFlight?.Task.Unwrap() ?? Task.CompletedTask);
+            var externalJoined = await CleanupStepAsync(() => externalFlight?.Task.Unwrap() ?? Task.CompletedTask);
+            var businessJoined = await CleanupStepAsync(() => businessFlight?.Task.Unwrap() ?? Task.CompletedTask);
+            var dispositionJoined = await CleanupStepAsync(() => dispositionFlight?.Task.Unwrap() ?? Task.CompletedTask);
+            var originalAdmissionClean = originalAdmissionJoined && NativeSettlementAdmissionClean(originalAdmissionFlight);
+            var finalizeAdmissionClean = finalizeAdmissionJoined && NativeSettlementAdmissionClean(finalizeAdmissionFlight);
+            var externalClean = externalJoined && (externalFlight is null || externalFlight.Task.Result.Result);
+            var businessClean = businessJoined && (businessFlight is null || businessFlight.Task.Result.Result is
+            { CleanupFailed: false, SourceOwner.CleanupConfirmed: true });
+            var dispositionClean = dispositionJoined && (dispositionFlight is null || dispositionFlight.Task.Result.Result);
+            var originalClean = originalAdmissionClean && externalClean;
+            var finalizeClean = callbackJoined && finalizeAdmissionClean && businessClean && dispositionClean;
+            if (finalizer is not null && finalizeClean)
+                await CleanupStepAsync(async () =>
                 {
-                    failure = ExceptionDispatchInfo.Capture(error);
-                    await WriteNativeSettlementFailureAsync(database, job, finalized, "later_cleanup", observedAttempts,
-                        original, finalizer, outcome, controller.Snapshot);
+                    finalizerJoined = await finalizer.JoinAsync(operationCleanupConfirmed: true);
+                    if (finalizerJoined)
+                    {
+                        finalizePrivateCompletion = finalizeWork!.CompleteAsync(cleanupConfirmed: true);
+                        await finalizePrivateCompletion;
+                    }
+                });
+            if (original is not null && !originalCompleted && originalClean)
+                await CleanupStepAsync(async () =>
+                {
+                    originalJoin ??= original.JoinAsync(operationCleanupConfirmed: true);
+                    if (!originalJoined) originalJoined = await originalJoin;
+                    if (originalJoined)
+                    {
+                        originalPrivateCompletion ??= originalWork!.CompleteAsync(cleanupConfirmed: true);
+                        await originalPrivateCompletion;
+                        originalCompleted = true;
+                    }
+                });
+            var controlJoined = await CleanupStepAsync(() => controller.Completion);
+            var generationJoined = await CleanupStepAsync(() => generation.Completion);
+            if (failure is not null)
+            {
+                // The first failure marker describes its pre-cleanup boundary;
+                // this separate closed witness records actual cleanup afterwards.
+                try
+                {
+                    output.WriteLine("Native settlement cleanup;originalAdmission={0};finalizeAdmission={1};external={2};business={3};disposition={4};callback={5};original={6};finalize={7};control={8};generation={9};executions={10};running={11};retained={12};privateWork={13}.",
+                        NativeSettlementCleanupState(originalAdmissionFlight, originalAdmissionClean),
+                        NativeSettlementCleanupState(finalizeAdmissionFlight, finalizeAdmissionClean),
+                        NativeSettlementCleanupState(externalFlight, externalClean),
+                        NativeSettlementCleanupState(businessFlight, businessClean),
+                        NativeSettlementCleanupState(dispositionFlight, dispositionClean),
+                        !callbackIssued ? "not_issued" : callbackJoined ? "joined" : "incomplete", NativeSettlementCleanupState(original, originalJoined && originalCompleted),
+                        NativeSettlementCleanupState(finalizer, finalizerJoined), NativeSettlementCleanupState(controller, controlJoined),
+                        NativeSettlementCleanupState(generation, generationJoined), NativeSettlementNumber(controller.Snapshot.Executions, 64),
+                        NativeSettlementNumber(generation.Snapshot.Running, 64), NativeSettlementNumber(generation.Snapshot.Retained, 64),
+                        generationJoined && (originalWork is null || originalPrivateCompletion?.IsCompletedSuccessfully == true)
+                            && (finalizeWork is null || finalizePrivateCompletion?.IsCompletedSuccessfully == true) ? "joined" : "incomplete");
                 }
+                catch (Exception) { /* Cleanup diagnostics cannot replace the original failure. */ }
             }
         }
         failure?.Throw();
@@ -454,6 +526,26 @@ public sealed partial class BackgroundJobPositiveSdkTests
             throw;
         }
     }
+
+    private static Task<T> IssueNativeSettlementFlight<T>(TaskCompletionSource<Task<T>> owner, Func<Task<T>> issue)
+    {
+        // The caller publishes this outer owner before entering any synchronous
+        // operation prefix. Production controls still hold the actual Task.
+        try
+        {
+            var actual = issue();
+            owner.SetResult(actual);
+            return actual;
+        }
+        catch (Exception error) { owner.SetException(error); throw; }
+    }
+
+    private static bool NativeSettlementAdmissionClean(TaskCompletionSource<Task<JobStartExecutionResult>>? flight) =>
+        flight is not null && flight.Task.IsCompletedSuccessfully && flight.Task.Result.IsCompletedSuccessfully
+            && flight.Task.Result.Result is { CleanupFailed: false, SourceOwner.CleanupConfirmed: true };
+
+    private static string NativeSettlementCleanupState(object? owner, bool joined) => owner is null ? "not_issued"
+        : joined ? "joined" : "incomplete";
 
     private async Task WriteNativeSettlementFailureAsync(DisposableSchemaDatabase database, BackgroundJobId job,
         OrganizationId finalized, string boundary, long? observedAttempts, BackgroundJobExecutionControl? original,

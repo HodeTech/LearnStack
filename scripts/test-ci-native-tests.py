@@ -678,6 +678,71 @@ except launcher.Refusal as failure:
                 text = self.settlement_sentence(**{field: str(value)})
                 self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]}))
 
+    @staticmethod
+    def settlement_cleanup_sentence(**changes):
+        values = {'originalAdmission': 'joined', 'finalizeAdmission': 'joined', 'external': 'joined',
+                  'business': 'joined', 'disposition': 'not_issued', 'callback': 'joined', 'original': 'joined',
+                  'finalize': 'joined', 'control': 'joined', 'generation': 'joined',
+                  'executions': '0', 'running': '0', 'retained': '0', 'privateWork': 'joined'}
+        values.update(changes)
+        return 'Native settlement cleanup;' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    def test_settlement_cleanup_witness_is_case_bound_and_independent_of_original_failure(self):
+        parse = self.owner.closed_failure_details
+        case = self.case(1, next(name for name in self.owner.SETTLEMENT_FAILURE_CASES if name.endswith('(knownFailure: True)')))
+        failure = self.settlement_sentence(boundary='later_refusal', executions='1', observedAttempts='unknown')
+        cleanup = self.settlement_cleanup_sentence()
+        raw = {'ErrorMessage': 'PRIVATE-CANARY original assertion', 'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': failure + '\n' + cleanup + '\nPRIVATE-CANARY'}]}
+        details = parse(case, raw)
+        self.assertEqual('later_refusal', details['boundary'])
+        self.assertEqual(1, details['executions'])
+        self.assertEqual(0, details['cleanup']['executions'])
+        self.assertEqual('joined', details['cleanup']['business'])
+        self.assertEqual('joined', details['cleanup']['callback'])
+        self.assertEqual('joined', details['cleanup']['generation'])
+        for name in self.owner.SETTLEMENT_FAILURE_CASES - {case['name']}:
+            self.assertIsNone(parse({**case, 'name': name}, raw))
+        self.assertIsNone(parse({**case, 'assembly': 'learnstack.tests.unit'}, raw))
+        for field in ('originalAdmission', 'finalizeAdmission', 'external', 'business', 'disposition',
+                      'callback', 'original', 'finalize'):
+            for state in ('joined', 'incomplete', 'not_issued'):
+                text = failure + '\n' + self.settlement_cleanup_sentence(**{field: state}, generation='incomplete', privateWork='incomplete')
+                self.assertEqual(state, parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]})['cleanup'][field])
+        for field in ('executions', 'running', 'retained'):
+            for value in ('0', '64', 'out_of_range'):
+                text = failure + '\n' + self.settlement_cleanup_sentence(**{field: value}, generation='incomplete', privateWork='incomplete')
+                actual = parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]})['cleanup'][field]
+                self.assertEqual(value if value == 'out_of_range' else int(value), actual)
+
+    def test_settlement_cleanup_witness_refuses_malformed_ambiguous_or_private_facts(self):
+        parse = self.owner.closed_failure_details
+        case = self.case(1, next(name for name in self.owner.SETTLEMENT_FAILURE_CASES if name.endswith('(knownFailure: True)')))
+        failure = self.settlement_sentence(boundary='later_refusal')
+        cleanup = self.settlement_cleanup_sentence()
+        stdout = lambda text: {'Category': 'StdOutMsgs', 'Text': text}
+        for messages in ([stdout(cleanup)], [stdout(failure + '\n' + cleanup + '\n' + cleanup)],
+                         [stdout(failure), {'Category': 'StdErrMsgs', 'Text': cleanup}],
+                         [stdout(self.settlement_sentence() + '\n' + cleanup)],
+                         [stdout(failure + '\n' + cleanup + 'PRIVATE-CANARY')],
+                         [stdout(failure + '\n' + 'prefix ' + cleanup)],
+                         [stdout(failure + '\n' + cleanup[:-1])]):
+            self.assertIsNone(parse(case, {'Messages': messages}))
+        fields = ('originalAdmission', 'finalizeAdmission', 'external', 'business', 'disposition',
+                  'callback', 'original', 'finalize', 'control', 'generation', 'privateWork')
+        for field in fields:
+            for value in ('', 'true', 'false', 'PRIVATE-CANARY', 'joined\x00', 'unknown'):
+                text = failure + '\n' + self.settlement_cleanup_sentence(**{field: value})
+                self.assertIsNone(parse(case, {'Messages': [stdout(text)]}))
+        for field in ('executions', 'running', 'retained'):
+            for value in ('-1', '65', '00', '1.0', '1e0', '+1', 'unknown', 'PRIVATE-CANARY'):
+                text = failure + '\n' + self.settlement_cleanup_sentence(**{field: value})
+                self.assertIsNone(parse(case, {'Messages': [stdout(text)]}))
+        for changes in ({'generation': 'not_issued'}, {'control': 'not_issued'}, {'privateWork': 'not_issued'},
+                        {'generation': 'incomplete'}, {'running': '1'}, {'retained': '1'}):
+            text = failure + '\n' + self.settlement_cleanup_sentence(**changes)
+            self.assertIsNone(parse(case, {'Messages': [stdout(text)]}))
+
     def test_settlement_attribution_is_sticky_and_independent_of_aggregate_totals(self):
         case = self.case(1, sorted(self.owner.SETTLEMENT_FAILURE_CASES)[0])
         for field in ('originalCause', 'finalizeCause'):
