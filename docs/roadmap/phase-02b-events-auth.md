@@ -17297,6 +17297,33 @@ Fresh independent correction reviews and complete current-source hosted
 qualification remain required before readiness.
 
 
+#### First independent recurrence diagnostic review
+
+Two fresh reviewers inspect all five files in `4e06ffa1..55dfeaea` and their
+relevant dependencies: `gpt-6-astra` at `xhigh` for ownership/security and
+`gpt-6.1-sol` at `high` for export/evidence/governance. Both approve without a
+verified Blocker, Major or Minor. Both confirm first-fault preservation,
+independent cleanup, unchanged assertions/timeouts, actual thread/owner/source
+completion, ordered sibling observations and failure-only finite transport.
+Neither treats a disposal request, elapsed wait or process exit as cleanup.
+
+Both independently verify seven current source hashes and all sixty-one retained
+artifact hashes, reconstruct the exact private substitutions and inspect actual
+protocol, original/sanitized TRX, proof drivers and cleanup records. The dual
+control's exact-case marker proves its second fault was reached while the first
+assertion and stack survive. The export reviewer independently replays both
+failed controls and the clean result through the decoder, verifies forty-two
+clean assembly hashes and passes all fifty-three offline controls in 17.016
+seconds. The core reviewer independently checks the production completion chains
+and the sibling helper's unchanged adjacent caller.
+
+The export reviewer also checks all twenty-one failed-run archives against their
+raw API inventory. The record retains the unrecoverable historical timeout and
+requires complete corrected-source qualification. No .NET/provider/Docker/Node
+experiment is repeated. All commands join, no files change and the tracked tree
+stays clean. The second fresh independent review round remains required.
+
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
