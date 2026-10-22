@@ -17486,6 +17486,27 @@ SHA-256
 The phase's 288 relative links/fragments resolve. Independent implementation
 reviews and complete corrected-source hosted A/B qualification remain required.
 
+#### First independent settlement scheduling review
+
+Two fresh reviewers inspect all six files in `dbfad06b..0dc962dc` and their
+relevant production owners, publication, timer, proxy and cleanup dependencies:
+`gpt-6-astra` at `xhigh` for correctness/ownership and `gpt-6.1-sol` at
+`high` for privacy/evidence/governance. Both approve without a verified
+Blocker, Major or Minor. They confirm unchanged production policy, exact
+case identities/deadlines, actual timer joins, first-fault preservation and
+positive cleanup only after every issued operation is observed.
+
+Both independently match all five executable-source overlays and forty-eight
+scenario artifacts. Raw TRX confirms three clean passes, three intended
+post-ACK exclusion failures and the single intended Prepare failure with two
+passing siblings. The evidence reviewer additionally reconstructs all three
+actual adapter protocols, checks the 1,927-file clean manifest, all twenty-one
+historical archives against their API inventory and the partial-rerun capture.
+Neither starts tests, builds, processes or containers, edits a file or claims
+that the historical refusal branch is recovered. The second fresh independent
+review round and complete corrected-source hosted A/B qualification remain
+required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
