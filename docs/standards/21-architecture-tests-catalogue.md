@@ -5499,7 +5499,8 @@ source checkpoints; `src/test/public-demo-diagnostics.test.ts` covers closed
 failure attribution with real children and provider canaries.
 `src/test/public-demo-ci.test.ts` executes the actual workflow deadline and
 browser-installation shells, including effective APT acquire settings and
-invocation-owned fragment cleanup on success and failure;
+invocation-owned fragment cleanup on success and failure, plus bounded tail
+commands that preserve ordinary and forced-timeout failure statuses;
 `scripts/ci-public-chromium.test.mjs` tests owned Linux sandbox preparation and
 cleanup before the job runs the real managed-browser launch smoke.
 The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)

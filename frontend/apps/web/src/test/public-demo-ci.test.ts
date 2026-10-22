@@ -160,7 +160,7 @@ it.each([
   },
 );
 
-it('starts the absolute budget before checkout and reserves four minutes of the job ceiling', () => {
+it('starts the absolute budget before checkout and reserves three minutes of the job ceiling', () => {
   const files = fixture();
   const first = job?.match(
     /steps:\n(?: {6}#.*\n)* {6}- name: Reserve demo cleanup and artifact time\n {8}run: (.+)\n/,
@@ -170,7 +170,58 @@ it('starts the absolute budget before checkout and reserves four minutes of the 
   if (!first?.[1]) throw new Error('Missing first-step budget reservation');
   const result = spawnSync('/bin/bash', ['-eu', '-c', first[1]], { env: files.env });
   expect(result.status).toBe(0);
-  expect(readFileSync(files.environment, 'utf8')).toBe('PUBLIC_DEMO_DEADLINE=1960\n');
+  expect(readFileSync(files.environment, 'utf8')).toBe('PUBLIC_DEMO_DEADLINE=2020\n');
+});
+
+it('restores the existing NuGet cache without adding a cache-save post step', () => {
+  const cache = job?.match(
+    / {6}- name: Cache NuGet packages\n([\s\S]*?) {6}- name: Install pinned browser tools\n/,
+  )?.[1];
+  expect(cache).toContain('uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830');
+  expect(cache).toContain('path: ~/.nuget/packages');
+  expect(cache).toContain("hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props')");
+  expect(cache).toContain('restore-keys:');
+  expect(cache).not.toContain('uses: actions/cache@');
+});
+
+it.each([
+  ['sandbox', 0],
+  ['sandbox', 1],
+  ['sandbox', 124],
+  ['sandbox', 137],
+  ['receipt', 0],
+  ['receipt', 1],
+  ['receipt', 124],
+  ['receipt', 137],
+] as const)('bounds the actual %s tail shell and preserves exit %s', (kind, status) => {
+  const files = fixture();
+  writeFileSync(
+    join(files.root, 'timeout'),
+    '#!/bin/sh\nprintf "%s\\n" "$@" > "$INVOCATION"\nexit "$FORCED_EXIT"\n',
+  );
+  const script =
+    kind === 'sandbox'
+      ? job?.match(
+          / {6}- name: Remove only the owned Chromium sandbox profile\n {8}if: always\(\)\n {8}timeout-minutes: 1\n {8}run: (.+)\n/,
+        )?.[1]
+      : job?.match(
+          / {6}- name: Record bounded workflow outcome\n {8}if: always\(\)\n {8}timeout-minutes: 1\n {8}env:\n[\s\S]*? {8}run: \|\n((?: {10}.*\n|\n)+)/,
+        )?.[1];
+  if (!script) throw new Error('Missing actual bounded tail command');
+  const result = spawnSync('/bin/bash', ['-eu', '-c', script], {
+    env: { ...files.env, FORCED_EXIT: String(status) },
+    timeout: 10000,
+  });
+  expect(result.status).toBe(status);
+  expect(readFileSync(files.invocation, 'utf8').split('\n')).toEqual([
+    '--signal=TERM',
+    '--kill-after=5s',
+    '15s',
+    ...(kind === 'sandbox'
+      ? ['node', 'scripts/ci-public-chromium.mjs', 'cleanup']
+      : ['python3', '-']),
+    '',
+  ]);
 });
 
 it('bounds the real workflow command by the remaining budget and requests owned SIGINT cleanup', () => {

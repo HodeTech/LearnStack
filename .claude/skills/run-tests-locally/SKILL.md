@@ -230,6 +230,16 @@ This is hosted setup handling, not a workstation prerequisite or a guarantee of
 total setup duration. The actual workflow-shell controls live in
 `frontend/apps/web/src/test/public-demo-ci.test.ts`.
 
+The workflow's outer setup/proof allowance ends at minute 17 from its first
+step, reserving three minutes within the same 20-minute job ceiling. The native
+proof and cleanup retain their separate 12-minute and 30-second caps. Sandbox
+cleanup and workflow-receipt commands receive TERM after 15 seconds and KILL
+after five more; artifact upload retains its one-minute step limit. The nominal
+35 + 20 + 20 + 60-second tail leaves 45 seconds for runner/post overhead, not a
+worst-case scheduling guarantee. A forced stop or unconfirmed cleanup fails.
+This job restores the existing NuGet cache without a save post-hook; cache
+misses still use ordinary dependency restoration.
+
 On GitHub-hosted Linux runners, run `node scripts/ci-public-chromium.mjs prepare`
 after installation and before the lifecycle, then run
 `node scripts/ci-public-chromium.mjs cleanup` in an always-running cleanup step.

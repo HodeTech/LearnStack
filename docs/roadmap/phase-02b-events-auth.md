@@ -18061,6 +18061,61 @@ checks and commit hooks pass. Both browser-acquisition review rounds are
 complete. The resulting source stays draft until complete same-source A/B,
 including the real hosted APT installer and public product proof, qualifies.
 
+### P02b-6 public-demo outer budget allocation (2026-10-22)
+
+At source `e2954be9`, run `39775966553` attempt 1 passes all 27 jobs and
+5,921 backend cases. Independent complete verification has summary SHA-256
+`3c71040273ec9d63a9aa0dd5ce9593bc97b6accdee7cb923af6e28648dd20233`
+and public-receipt SHA-256
+`30afd8a7479a953cdbf6696ad49cf7fe180b3df1b3045940a1465b493c0dd574`.
+The complete demo takes 196.294 seconds of setup, 661.787 seconds of proof
+and 10.725 seconds of natural cleanup. Browser installation passes in 32s.
+
+Attempt 2 passes all 5,921 backend cases and both aggregates, but fails the
+public demo at the sixteen-minute outer deadline. Its backend-only independent
+summary SHA-256 is
+`ebb8b7c5db62a397de2c3780cb16d9d2310ccdf597e6ddb9791c468592d6a111`;
+whole-workflow qualification remains false. Browser installation passes in 36s.
+The public artifact API/archive digest is
+`32d01fe2d31b1330aa58e1c5485425a27aca55a86fc7ff45976f98db9d14b495`.
+It retains 26 of 27 report pairs, nine navigations, 24 visibility controls and
+132 API completions, all 200. Setup takes 252.382 seconds; the final audit is
+cancelled after 651.728 seconds of proof, below the 720-second proof ceiling.
+Exit 124 agrees with outer-deadline exhaustion. Natural cleanup passes in
+10.714 seconds; neither its success nor partial reports qualify the failed run.
+This is separate from the earlier APT acquisition and native cancellation cases.
+
+[ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#pacing-runtime-and-artifacts)
+fixes the 12-minute proof, 30-second native cleanup and 20-minute whole-job
+ceilings and requires reserved tail time. It does not fix the 16/4 allocation.
+That allocation's dated delivery records remain historical. The correction
+uses a seventeen-minute outer allowance and three-minute reserve within the
+same approved limits; no audit, quiet interval, sandbox or correctness check
+is removed. The existing package permits implementation details inside those
+approved boundaries without a new decision.
+
+| Nominal tail allowance | Seconds |
+|------------------------|---------|
+| Existing owner stop/forced-stop grace | 35 |
+| Sandbox cleanup: TERM 15s, KILL after 5s | 20 |
+| Sanitized workflow receipt: same wrapper | 20 |
+| Existing artifact-upload step limit | 60 |
+| Runner transitions, cancellation and post-step margin | 45 |
+| Total reserve | 180 |
+
+These are scheduling allocations, not a worst-case OS guarantee. The 35-second
+failure grace does not enlarge passing native cleanup beyond 30 seconds.
+Forced termination proves no detached-child, container or private-resource
+absence; unconfirmed/censored cleanup or receipts fail. The public job uses the
+same pinned cache action's restore-only entry, removing its save post-hook.
+Other jobs retain cache writes and a miss still performs normal restoration.
+Complete final-source A/B and both fresh review rounds remain required.
+
+Local validation passes: 22 actual workflow-shell/control cases; complete frontend
+1,857 cases in two packages, zero skips/todos; typecheck, lint and scoped
+Prettier verification. The five real-Git link-audit controls and
+`git diff --check` pass. These local checks do not qualify hosted fit.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

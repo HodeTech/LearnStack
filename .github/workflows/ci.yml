@@ -670,10 +670,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      # Start before checkout. Reserve four minutes for the shared 30-second
-      # teardown, owned sandbox-policy cleanup and bounded receipt/artifact steps.
+      # Start before checkout. Reserve three minutes: 35s owner stop grace,
+      # 20s sandbox cleanup, 20s receipt, 60s upload and 45s runner/post margin.
       - name: Reserve demo cleanup and artifact time
-        run: echo "PUBLIC_DEMO_DEADLINE=$(( $(date +%s) + 16 * 60 ))" >> "$GITHUB_ENV"
+        run: echo "PUBLIC_DEMO_DEADLINE=$(( $(date +%s) + 17 * 60 ))" >> "$GITHUB_ENV"
 
       - name: Checkout
         timeout-minutes: 2
@@ -702,7 +702,7 @@ jobs:
 
       - name: Cache NuGet packages
         timeout-minutes: 1
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
@@ -752,7 +752,7 @@ jobs:
       - name: Remove only the owned Chromium sandbox profile
         if: always()
         timeout-minutes: 1
-        run: node scripts/ci-public-chromium.mjs cleanup
+        run: timeout --signal=TERM --kill-after=5s 15s node scripts/ci-public-chromium.mjs cleanup
 
       - name: Record bounded workflow outcome
         if: always()
@@ -763,7 +763,7 @@ jobs:
           SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          python3 - <<'PY'
+          timeout --signal=TERM --kill-after=5s 15s python3 - <<'PY'
           import json, os
           from pathlib import Path
           output = Path('artifacts/public-demo-ci')
