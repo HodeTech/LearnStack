@@ -17868,6 +17868,72 @@ provider or hosted jobs. Whitespace checks pass. Both diagnostic correction
 review rounds are complete; the earlier hosted cause remains unknown. Full
 same-source A/B qualification is still required before draft readiness.
 
+#### Diagnostic-source hosted A qualification (2026-10-22)
+
+[Run 39762258730, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/39762258730/attempts/1)
+qualifies assignment A at `12d4f088`: all 27 jobs and all 5,920 cases pass,
+with zero skips. Independent validation rechecks current-attempt producer API
+identities, archive digests, assignments and both aggregate calculations. Its
+summary has SHA-256
+`423e01b7d33acf081b999c2f4d78a209ef500c1c494a69c8fefa39082f7e44cf`.
+Independent public-demo verification covers 27 JSON/HTML report pairs, nine
+screenshots/navigations, 24 visibility controls, 134 API completions and natural
+cleanup; its receipt has SHA-256
+`502db1b3b3c088651dd136755f4938da2fb55f5bd08fbf9c09c8d5ab6b53dd94`.
+Both constructor-stop theory cases pass, including the previously failed
+`lease_loss` case at 4.7362398 seconds. This does not explain the earlier
+cancellation. The fixture correction below supersedes this source before B;
+this A is not final-source A/B qualification.
+
+### P02b-6 fixture hint waits for actual prior cleanup (2026-10-22)
+
+The separate fixture weakness above is reproduced with a controlled real
+native interleaving. Its original committed handoff can remain owned by a
+null-routing recovery invocation while private cleanup is pending. An extra
+hint sent merely because the bridge ACK is visible can be consumed by the
+local identity gate without entering the intended constructor. The bridge's
+60-second repair grace is outside these fixtures' 30-second startup budget.
+This controlled mechanism is not proof of the earlier hosted cancellation.
+
+`EnsureNativeSdkStartAsync` retains one extra real hint. It waits for the prior
+native job's success, empty actual external-pool work and routable local
+identity, then checks durable eligibility under the same generation. It never
+retries failed native work or resets its allowance on a changed generation.
+Pool readiness precedes generation capture under the pool's own lock. Polling
+SQL uses the original startup token. Pending, finalization and due recovery
+callers retain their existing boundaries; production behavior and all wait
+budgets are unchanged.
+
+The new real-provider fact holds the original invocation's actual timer-wrapper
+`DisposeAsync`, after joining the underlying System timer's disposal. A real
+initial SQL row lock forces the original empty acquisition, but that lock is
+committed before testing the helper. Independent observations then show the
+original native job still Processing, one owned recovery identity and
+`CanRoute == false`. The corrected helper creates no extra hint while that
+cleanup remains held. After release, one real same-generation hint enters one
+constructor and consumes one normal attempt, without a bridge repair.
+
+The copied counterfactual removes only readiness guards: its premature real
+extra hint succeeds at the native layer while the original identity remains
+owned, but no constructor enters. The native-count assertion intentionally
+fails. Both paths release barriers and independently join helper, pulse,
+transaction, bridge and runtime cleanup while preserving the first failure.
+The six clean cases (new fact and five existing callers) pass; the planted
+counterfactual remains failed. All actual process groups join and exactly two
+owned containers per scenario are independently absent. Four source overlays
+match the tested copy; its final proof summary has SHA-256
+`e11cb520b64abf105da06cc96f56d718668c3984c597022721f7275e9419b032`.
+Sixty offline controls pass, including the new finite source-code registration;
+C# whitespace verification passes and the final integration-project Release
+build has zero warnings/errors. Seven corpus/Docker-trait cases pass. Fresh
+local discovery executes twenty actual project/filter commands: all prior
+5,920 case identities remain unchanged and one fact is added, for 5,921 cases.
+Both assignments retain complete membership and different co-membership with
+the unchanged plan. The metadata receipt has SHA-256
+`262636b71c88456c39596b8aedc2bc5e18f2b4b02f47078bdbbe3cd920a6e038`.
+Committed-source reviews and final-source hosted A/B qualification remain
+required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

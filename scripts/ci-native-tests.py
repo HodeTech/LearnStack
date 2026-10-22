@@ -86,6 +86,7 @@ FAILURE_SOURCES = {
     'BackgroundJobPositiveSdkTests.NativeSettlement.cs': 'positive_sdk_native_settlement',
     'BackgroundJobPositiveSdkTests.NativeWait.cs': 'positive_sdk_native_wait',
     'BackgroundJobPositiveSdkTests.NativeHistory.cs': 'positive_sdk_native_history',
+    'BackgroundJobPositiveSdkTests.NativeHandoff.cs': 'positive_sdk_native_handoff',
     'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs': 'positive_sdk_settlement_scheduling',
     'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs': 'positive_sdk_settlement_prepare',
     'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs': 'recurrence_native_ownership',

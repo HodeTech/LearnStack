@@ -433,6 +433,7 @@ except launcher.Refusal as failure:
                 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
                 'BackgroundJobPositiveSdkTests.NativeWait.cs', 'BackgroundJobPositiveSdkTests.NativeHistory.cs',
+                'BackgroundJobPositiveSdkTests.NativeHandoff.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
                 'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
