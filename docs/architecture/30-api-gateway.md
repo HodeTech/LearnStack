@@ -25,7 +25,7 @@ the LearnStack core API and the LearnStack Hub API.
 > [Phase 03](../roadmap/phase-03-identity-admin.md). No authoring command is routed.
 > Present invalid credentials return 401 even on public routes; absent AccountSite
 > credentials return masked 404. The “validated twice” property in § 5 remains
-> the Phase 11 target. The [Step 4 delivery record](../roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+> the Phase 11 target. The [Step 4 delivery record](../roadmap/phase-02b-delivery-log.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
 > owns validation and review status, rather than this topology claiming completion.
 
 **Accepted P02d-5 local topology — 2026-10-08.**
@@ -62,7 +62,7 @@ owns reachable issuer/DNS/TLS drills, operational failure signals, rotation,
 readiness, alerts and exercised runbooks before production exposure. P02b-6 owns
 real realm issuance; P02b-7 owns session custody and recovery. These are separate
 from P02b-5's
-[merged API boundary](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20).
+[merged API boundary](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20).
 
 ## 1. Topology
 
@@ -448,7 +448,7 @@ outage grace period or immediate refusal of every warm-cache request. The
 owns topology, cold/warm-cache and key-rotation drills, diagnostic/readiness decisions
 and operational runbooks before production use. P02b-6 delivers actual realm
 issuance and safe development convergence; its
-[Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+[Step 4 record](../roadmap/phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns qualification. Browser-session integration remains P02b-7.
 
 ## 6. Rate limit policy

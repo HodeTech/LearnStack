@@ -1054,14 +1054,14 @@ immutable `HostScope`, matching public admission and host-scope intersection wit
 normal tenant/organization filters and RLS. Both independent review rounds and
 focused fix verification passed.
 [ADR-0052 Amendment 1](0052-anonymous-public-read-boundary.md#amendment-1--p02d-4-foundation-delivery-2026-10-03)
-and the [Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
+and the [Step 1 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-1-authority-and-read-only-foundation)
 own the implementation and evidence. Amendment 8 remains historical; the
 reconciliation matrix and trusted-input contract are unchanged.
 
 ### 2026-10-08 — Amendment 10: trusted public renderer decision navigation
 
 [ADR-0053](0053-trusted-public-server-rendering.md) is Accepted with the
-[P02d-5 package](../roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08).
+[P02d-5 package](../roadmap/phase-02d-delivery-log.md#p02d-5-decision-package-2026-10-08).
 It owns three bounded replacements: authenticated visitor-IP limiting with a peer
 ceiling; a server-only configured header setter outside the injected SDK; and the
 mode-independent no-hop startup policy/minimum of 32 characters. All other host
@@ -1121,7 +1121,7 @@ held by ADR-0047, not an ADR-0041 erratum. Implementation/proofs remain P02b-4.
 
 **Status: Accepted.** The maintainer accepts
 [ADR-0064](0064-tenant-api-authentication-boundary.md) and the
-[P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19).
+[P02b-5 package](../roadmap/phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19).
 Its [exact relationship to Accepted decisions](0064-tenant-api-authentication-boundary.md#exact-relationship-to-accepted-decisions)
 separates the following bounded supersession, additive contracts and fact correction.
 This is acceptance disclosure; P02b-5 runtime and its proofs are not delivered here.
@@ -1233,7 +1233,7 @@ ADR-0065 also ratifies `c6108bf9`'s process-wide native HTTP/DNS metric projecti
 and discloses ordinary dependency attribution loss. This is bounded normative
 supersession, not an ADR-0041 fact correction. Original Accepted metadata/body,
 prior amendments and dated implementation receipts are preserved verbatim. The
-[2026-10-20 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+[2026-10-20 remediation record](../roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20)
 owns subsequent implementation and proof status; acceptance does not deliver it.
 
 ## References

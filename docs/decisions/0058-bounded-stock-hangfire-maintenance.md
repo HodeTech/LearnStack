@@ -181,7 +181,7 @@ An independent update succeeds before the client reads the timeout response.
 Idle-in-transaction timeout then terminates the remaining backend. Two 350 ms
 statements succeed with a 500 ms statement budget; that budget is per statement.
 The commands, measurements and their limitations belong to the
-[Step 2 decision receipt](../roadmap/phase-02b-events-auth.md#step-2-maintenance-reassessment).
+[Step 2 decision receipt](../roadmap/phase-02b-delivery-log.md#step-2-maintenance-reassessment).
 
 **What changes this decision:** a required vendor dashboard/history contract or
 qualified finite-timeout upstream aggregator triggers renewed comparison. Loss
@@ -264,7 +264,7 @@ P02b-4 Step 2 implements the shared five-second idle-session setting and proves
 cold/warm reset, real idle/aborted-idle cleanup and healthy source reuse alongside
 existing outbox/delivery transactions. Both fresh step reviews and verified-fix
 checks are complete; the
-[Step 2 closeout](../roadmap/phase-02b-events-auth.md#step-2-final-proof-and-closeout)
+[Step 2 closeout](../roadmap/phase-02b-delivery-log.md#step-2-final-proof-and-closeout)
 owns exact commit, regression and distribution evidence. The earlier pending
 wording records acceptance-time state. Step 4 component/filter selection,
 expiration ownership and supported-pool progress, and Step 9 full enforcement
@@ -303,7 +303,7 @@ pending. Acceptance claims no implemented maintenance or heartbeat owner.
 ## References
 
 - [ADR-0047](0047-transactional-background-job-runtime.md).
-- [P02b-4 decision package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
+- [P02b-4 decision package](../roadmap/phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15).
 - [Database Standards](../standards/05-database.md).
 - [Infrastructure Standards](../standards/20-infrastructure-stack.md).
 - [Architecture-test catalogue](../standards/21-architecture-tests-catalogue.md).

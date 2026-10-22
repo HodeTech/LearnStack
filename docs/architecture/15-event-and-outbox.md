@@ -26,10 +26,10 @@ not land together.
 |---|---|---|
 | `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Schema and ownership shipped in Packet 6; producer dispatch is implemented in P02b-2 Step 3 |
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
-| `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; P02b-3 delivers the two independent default effects |
-| `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Producer runtime and enforcement complete and merged; all four steps completed both independent review rounds; CI/merge status: [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13) |
+| `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-delivery-log.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; P02b-3 delivers the two independent default effects |
+| `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-delivery-log.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Producer runtime and enforcement complete and merged; all four steps completed both independent review rounds; CI/merge status: [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13) |
 | Shared ledger/inbox and durable acceptance | [P02b-3](../roadmap/phase-02b-events-auth.md) | Steps 1–4 implement schema, acceptance/inbox, transactional business execution and independent scheduling/terminalization/replay; Step 5 activates both real defaults and semantic Seeder handoff |
-| Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
+| Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-delivery-log.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 
 **`InProcessEventBus` is a first-class transport.** P02b-3 Step 2 changes publish
@@ -39,43 +39,43 @@ supplies the shared ledger/inbox schema; Step 2 declares `IInboxGuard` and its
 transaction-bound claim primitive. Step 3 implements the business owner and
 completion gate; Step 4 adds independent scheduling, terminalization, replay and
 bounded observation. Step 5 activates both real defaults and semantic Seeder handoff.
-[Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
+[Phase 02b's entry verification](../roadmap/phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12)
 records the earlier immediate-invocation baseline. The producer/consumer diagrams
 and examples below describe the delivered ADR-0046 runtime. The
-[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+[Step 6 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 records production enforcement, validation and reviews. P02b-3 is complete and
 merged through PR #31; its
-[merge closeout](../roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+[merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final verification.
 
-The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
+The [P02b-1 decision package](../roadmap/phase-02b-delivery-log.md#p02b-1-decision-package-2026-10-12)
 and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
 authorize immediate enqueue, owner-only completion and produced-work refusal
 protection. P02b-1 Steps 1–3 implement shared execution, immediate enqueue,
 successful-save collection and the completed-provisioning publisher. Step 4
 implements production-census guards and catalogue enforcement; its
-[delivery record](../roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
+[delivery record](../roadmap/phase-02b-delivery-log.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
 owns final verification and review status. ADR-0046 accepts dispatcher/inbox
 contracts; producer dispatch is implemented through P02b-2 Step 3 and shared
 inbox/consumer execution through P02b-3 Steps 1–5.
 
-The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
+The [P02b-2 decision package](../roadmap/phase-02b-delivery-log.md#p02b-2-decision-package-2026-10-12)
 and [Accepted ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md)
 authorize fenced producer recovery, atomic terminal audit and the coupled shared
 inbox/subscriber contract. Steps 1–2 implement schema/composition, fenced
 transitions and atomic terminal audit; each completed both review rounds.
 Step 3 implements hosted execution and observation, with both independent
 review rounds complete in its
-[delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12).
+[delivery record](../roadmap/phase-02b-delivery-log.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12).
 Step 4 enforcement and local closeout are complete; all four steps completed both
-independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+independent review rounds. The [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status.
 P02b-3 implements consumer execution through Step 3 and independent scheduling,
 terminalization, replay and bounded observation in Step 4. Its production default
 subscriptions are Active with Step 5 initialization and semantic Seeder handoff. The
-[Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+[Step 5 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 records that step's validation and reviews; the
-[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+[Step 6 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 records enforcement, validation and reviews; the merge closeout above owns final
 CI/merge verification. Numerical
 runtime bounds live in the package, canonical DDL/grants in Standards 05 and
@@ -173,7 +173,7 @@ implemented for transition-witness construction and terminal audit in Step 2;
 both independent review rounds passed. Step 3 implements hosted execution and
 observation, with both independent review rounds complete. Step 4 implements
 credential/publication censuses and planted controls; all four steps completed
-both independent review rounds and local closeout. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+both independent review rounds and local closeout. The [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status.
 
 <a id="inbox-table-per-consumer-module"></a>
@@ -361,7 +361,7 @@ until actual completion. Acceptance and execution use separate serializer lanes;
 a held subscriber never queues new durable acceptance behind its callback/cleanup.
 Shutdown uses one finite wait shared with the host token.
 Numerical bounds and validation/review evidence belong to the
-[accepted package and Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13).
+[accepted package and Step 4 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13).
 
 ### Audit rides this outbox for fan-out, never for the audit row
 
@@ -410,7 +410,7 @@ concurrent live owners; crash recovery and lease expiry can still redeliver.
 ### The claim protocol
 
 **ADR-0046 producer runtime and enforcement complete and merged in P02b-2; all four
-steps completed both independent review rounds.** The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+steps completed both independent review rounds.** The [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. The processor admits a construction-free
 manifest policy before acquisition. Any required Pending subscription holds the
 contract and all aliases unchanged, even if stored payload is malformed. Active
@@ -727,10 +727,10 @@ below four retained overruns after storage recovery; healthy other pools remain
 independent subject to shared dependencies. The exact two-clause supersession
 is disclosed in [ADR-0047 Amendment 2](../decisions/0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16);
 [ADR-0058 Amendment 2](../decisions/0058-bounded-stock-hangfire-maintenance.md#amendment-2--independent-shared-component-ownership-2026-10-16)
-adds ownership navigation only. The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+adds ownership navigation only. The [Step 4 adaptation](../roadmap/phase-02b-delivery-log.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 is delivered with both full review rounds and verified corrections. P02b-4 is
 complete and merged through PR #32; its
-[merge closeout](../roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+[merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
 owns final qualification of the shipped lifecycle/API composition.
 
 **Accepted exceptional boundary — 2026-10-16.**
@@ -742,7 +742,7 @@ Step 4 delivers implementation; the merge closeout above records actual worker
 and native crash qualification separately from decision acceptance.
 Accepted [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md)
 adds only the named disposable native CI provisioning/partition authority;
-[its CI record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+[its CI record](../roadmap/phase-02b-delivery-log.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
 owns implementation, reviews and hosted qualification. The closed CI launcher
 requires complete complementary case results behind the existing integration
 aggregate; a successful native partition alone cannot pass it. Native children retain
@@ -763,7 +763,7 @@ Unknown durable work remains visible with empty local registries, and failed
 refresh retains the last sample with explicit unhealthy freshness. Observation
 supplies no source release, business completion or external-quiescence authority.
 The [metric inventory](../standards/10-observability.md#required-metrics) and
-[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+[Step 9 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 record the implemented observable, stage, trace, lease-loss and control signals,
 their source-specific qualification and full review status; the merge closeout
 above records final packet/CI verification.
@@ -782,21 +782,21 @@ remain distinct; a locked header precedes a fresh attempt-ledger read.
 The stable lazy application source now has a single disposal owner, sharing the
 job/messaging release witnesses. Job main/auxiliary operation bounds retain
 abandoned loaders and failed cleanup; independent HTTP/delivery headroom is not
-implied. The [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-5--transactional-owner-and-terminal-audit-2026-10-16)
+implied. The [Step 5 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-5--transactional-owner-and-terminal-audit-2026-10-16)
 owns implementation, qualification and review status. Step 6 adds tenant/group
 capacity admission and atomic reservation release. A failed transactional
 invocation must positively join its original source and private callbacks before
 the exact same-source cleanup checkpoint; distinct recovery authority is required.
 Missing local cleanup parks unresolved occupancy for paced probes. Its
-[record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+[record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
 owns passing local qualification and both completed full reviews. Step 7 external
 execution and recovery are complete after both full reviews and verified
 corrections; its
-[closeout](../roadmap/phase-02b-events-auth.md#step-7-full-review-round-2-2026-10-17)
+[closeout](../roadmap/phase-02b-delivery-log.md#step-7-full-review-round-2-2026-10-17)
 owns the source-specific receipts. Step 8 durable recurrence and restricted
 recipient submission are locally complete after both full reviews and verified
 corrections; its
-[record](../roadmap/phase-02b-events-auth.md#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18)
+[record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18)
 owns final qualification. Production recurrence and business registries stay empty.
 
 [Database Standards](../standards/05-database.md#background-jobs) owns canonical
@@ -808,11 +808,11 @@ vendor totals are not authoritative business outcomes; fewer live rows do not
 promise bounded disk/backlog or recovery rate. Phase 11 owns operational retention,
 space and measured production capacity.
 
-The [Step 2 closeout](../roadmap/phase-02b-events-auth.md#step-2-final-proof-and-closeout)
+The [Step 2 closeout](../roadmap/phase-02b-delivery-log.md#step-2-final-proof-and-closeout)
 owns completed schema/bootstrap/source qualification. The
-[Step 3 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
+[Step 3 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns submission and app-role admission implementation/review status;
-the [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+the [Step 4 continuation](../roadmap/phase-02b-delivery-log.md#source-lifetime-and-facade-continuation-2026-10-16)
 owns completed facade/source-lifetime implementation and qualification. Step 9
 implements full observation/enforcement and locally qualifies both extended
 canonical obligations. Its record owns full-review, local packet-closeout and

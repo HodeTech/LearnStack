@@ -130,7 +130,7 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
 P02d-2 accepts and implements G16's theme value grammar; P02d-4 delivers its public
 projection. [Tenant Branding](07-frontend-architecture.md#tenant-branding) owns that
 contract. P02d-6 Step 1 implements G42's atomic server-rendered color injection;
-the [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+the [delivery record](../roadmap/phase-02d-delivery-log.md#p02d-6-step-1-localization-and-document-foundation)
 owns verification and the remaining product/manual accessibility proof boundary.
 
 ## Server Actions

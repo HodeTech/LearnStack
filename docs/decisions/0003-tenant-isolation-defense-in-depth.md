@@ -358,7 +358,7 @@ corrected guards from the template.
 ## Amendment 6 — INSERT scope and parent mirrors (2026-09-14)
 
 **Accepted — 2026-09-14.** Approved by the maintainer in
-[P02d-1's decision pass](../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14),
+[P02d-1's decision pass](../roadmap/phase-02d-delivery-log.md#p02d-1-decision-pass-2026-09-14),
 before implementation. The original Decision and Status history remain unchanged.
 
 ### What the pass verified
@@ -487,7 +487,7 @@ scheduling grants, without envelope/payload SELECT or business-table access.
 This is an additive navigation disclosure, not an ADR-0041 correction or a claim
 that this ADR contained an outbox-only grant clause. Original acceptance metadata,
 body and prior amendments remain intact. Acceptance authorizes implementation;
-[P02b-2's delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
+[P02b-2's delivery record](../roadmap/phase-02b-delivery-log.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
 owns evidence. The platform-admin gate and pre-entry audit remain unchanged.
 
 ## Amendment 8 — Background-job grant and table-class extension (2026-10-15)

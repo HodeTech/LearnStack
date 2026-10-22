@@ -323,7 +323,7 @@ shutdown, keep-alive, stock browser Flight fallback and development source/API
 refresh. Public success and Problem Details media types are enforced before SDK
 parsing under the existing API contract.
 
-The [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+The [Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns executed checks, verified corrections and independent review status. Five
 catalogue rules are Implemented with named executable owners. The original
 acceptance metadata, decision and prior feasibility observations remain historical;
@@ -336,7 +336,7 @@ this delivery note changes no decision or P7/Phase 06 scope.
 - [ADR-0052 — Anonymous Public Read Boundary](0052-anonymous-public-read-boundary.md)
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)
 - [ADR-0054 — Bounded Public Renderer Admission](0054-bounded-public-renderer-admission.md)
-- [P02d-6 review decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-systematic-review-decision-package-2026-10-10)
+- [P02d-6 review decision package](../roadmap/phase-02d-delivery-log.md#p02d-6-systematic-review-decision-package-2026-10-10)
 - [Native launcher](../../frontend/apps/web/scripts/public-server.mjs)
 - [Middleware](../../frontend/apps/web/src/middleware.ts)
 - [RSC admission loader](../../frontend/apps/web/src/server/public-request.ts)

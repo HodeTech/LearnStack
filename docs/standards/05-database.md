@@ -49,7 +49,7 @@ PostgreSQL schema, EF Core, and migration conventions.
 - One `DbContext` per module (not one global).
 - Schema migrations live with the owning module.
 
-With [P02d-1 complete](../roadmap/phase-02d-walking-skeleton.md#delivery-record-p02d-1),
+With [P02d-1 complete](../roadmap/phase-02d-delivery-log.md#delivery-record-p02d-1),
 five migration chains exist: Tenancy, Platform, Customization, Audit and
 Education. P02b-3 Step 1 brings their inventory to twenty-three data tables and
 five migration-history tables.
@@ -1046,7 +1046,7 @@ privileges implicitly.
 
 ADR-0046 accepts the two P02b-2 cells above. Step 1 implements their migrations
 and exact-grant proofs; both independent review rounds are complete in the
-[delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12).
+[delivery record](../roadmap/phase-02b-delivery-log.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12).
 Outbox status grants land in the Platform chain. The audit
 INSERT grant lands in a new Audit-chain migration after `audit_log` exists, never
 in initdb. No audit SELECT/UPDATE/DELETE, business access or role membership is
@@ -1447,7 +1447,7 @@ fenced transitions and atomic terminal auditing; both review rounds passed.
 Step 3 implements hosted execution and metrics; both independent review rounds
 are complete.
 Step 4 enforcement and local closeout are complete; all four steps completed both
-independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+independent review rounds. The [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. Existing
 migrations remain immutable; a new Platform-chain migration replaces free-form
 legacy `last_error` with `migration:legacy:redacted` before its byte CHECK.
@@ -1618,7 +1618,7 @@ and its MUST audit atomically. See
 **P02b-3 Steps 1–4 deliver the shared schema, durable acceptance, inbox claims,
 business completion and independent subscriber scheduling.**
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
-and the [accepted P02b-3 package](../roadmap/phase-02b-events-auth.md#accepted-storage-and-authority-details)
+and the [accepted P02b-3 package](../roadmap/phase-02b-delivery-log.md#accepted-storage-and-authority-details)
 define transport-owned deduplication and independent subscription delivery.
 `event_deliveries` retains one immutable envelope copy per
 `(tenant_id, subscription_id, event_id)`; `inbox_messages` retains that tuple's
@@ -4042,9 +4042,9 @@ one-millisecond internal expiration interval must be verified before workers sta
 
 Version/guard/ACL failure refuses the explicit storage bootstrap before worker
 construction. Contract-only registration remains lazy and activates no worker.
-The [Step 2 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
+The [Step 2 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
 owns delivery status: Step 2 implements idle-session settings and source/reset
-qualification. The [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+qualification. The [Step 4 continuation](../roadmap/phase-02b-delivery-log.md#source-lifetime-and-facade-continuation-2026-10-16)
 owns current runtime/source qualification and full-step review dispositions.
 Step 4 is locally complete after both full review rounds and verified corrections.
 Later SQL lanes require fresh capacity qualification; Step 9 owns full
@@ -4140,14 +4140,14 @@ Its app checkpoint follows positive main/auxiliary/callback cleanup on the same
 invocation source owner, with old bindings permanently closed. One prebound
 checkpoint slot retains actual work and cancellation cleanup; a failed cleanup
 cannot start another scope. This sequential phase adds no simultaneous main or
-auxiliary checkout. The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+auxiliary checkout. The [Step 6 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
 owns passing local qualification, both completed full review rounds and verified
 corrections.
 
 These are current acquisition inventories under Accepted ADR-0047, not
 deployment-wide PostgreSQL capacity guarantees. Independent progress at each
 supported boundary has source-specific qualification in the
-[Step 9 record](../roadmap/phase-02b-events-auth.md#combined-physical-capacity-qualification).
+[Step 9 record](../roadmap/phase-02b-delivery-log.md#combined-physical-capacity-qualification).
 The combined real-owner proof at the default52 configuration complements the
 complete ledger and existing topology/retention controls; it does not claim52
 simultaneously busy connections or a tight empirical minimum.

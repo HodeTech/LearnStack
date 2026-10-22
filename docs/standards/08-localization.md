@@ -45,7 +45,7 @@ fallback remains the delivered P02d-3 contract; language attributes are P02d-6.
 **P02d-6 Step 1 UI foundation implemented — 2026-10-10.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) supplies next-intl and one app-local
 catalogue home, with UI-language fallback separate from content admission. The
-[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+[delivery record](../roadmap/phase-02d-delivery-log.md#p02d-6-step-1-localization-and-document-foundation)
 owns foundation validation. Step 2 adds catalog/course views with actual resolved
 label languages and exact-locale metadata; Step 3 adds ordered lesson fields and
 lesson metadata with eligible translated course/lesson slugs.
@@ -66,7 +66,7 @@ Rules:
 - Custom domains resolve tenant first; locale resolves from the path.
 
 **Accepted P02d-5 entry policy — 2026-10-08.**
-[The entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix) owns
+[The entry matrix](../roadmap/phase-02d-delivery-log.md#public-entry-matrix) owns
 Education path admission: bootstrap first, then bounded LocaleTag canonicalization
 and enabled membership before any shorthand/scaffold rule. Enabled noncanonical
 prefixes get `308`; default/locale-root entry gets `307`. Unsupported prefixes get
@@ -167,7 +167,7 @@ omitted rather than rendered dead.
 
 A slug collision is refused when the translation is inserted; its writing command
 returns `Result.Fail(business_rule_violation, …)`. The accepted 2026-10-02
-[P02d-2 G11 answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
+[P02d-2 G11 answer](../roadmap/phase-02d-delivery-log.md#p02d-2-accepted-answers)
 selects `AddCourseTranslationCommand` and `AddLessonTranslationCommand` for Education,
 mapping their named localized-slug uniqueness constraints at insertion. Publication
 does not reserve or newly collide a slug. P02d-2 Step 3 implements the mapping and
@@ -216,7 +216,7 @@ applying the fallback chain.
   with an explicit two-letter territory and no script, variant or extension to
   discard. Omit unrepresentable values; never guess a territory. HTML language,
   URL and hreflang retain BCP-47. The
-  [approved G40 addendum](../roadmap/phase-02d-walking-skeleton.md#p02d-6-systematic-review-decision-package-2026-10-10)
+  [approved G40 addendum](../roadmap/phase-02d-delivery-log.md#p02d-6-systematic-review-decision-package-2026-10-10)
   records this bounded projection and the optional-property tradeoff.
 
 ## Formatting
@@ -293,7 +293,7 @@ Enabled but untranslated means empty catalog or masked detail `404`, not fallbac
 none; bootstrap returns `404`. Invalid stored locale/default configuration is
 `503 dependency_unavailable`, never a synthesized default. URL-segment redirects
 are delivered by P02d-5 Step 3 under G6(c). ADR-0052 and the
-[accepted locale contract](../roadmap/phase-02d-walking-skeleton.md#locale-and-display-applicability)
+[accepted locale contract](../roadmap/phase-02d-delivery-log.md#locale-and-display-applicability)
 record the authority; no platform locale registry is introduced.
 
 **G13 reader implemented in P02d-2 Step 1 — 2026-10-02.** The
@@ -320,7 +320,7 @@ Step 1 implements direction selection and labelled fallback chrome; Step 2
 proves an empty admitted Arabic catalog in production. Step 3 adds per-field
 label direction. Step 4 adds eligible authored RTL content with concurrent
 host/locale HTML/Flight proofs. Passing manual accessibility is recorded in
-the [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout).
+the [delivery record](../roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout).
 
 ## Admin Studio UI
 

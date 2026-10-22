@@ -98,7 +98,7 @@ the same policy. Failure of a protected-access evaluator denies access.
 
 The maintainer approved [ADR-0050](../decisions/0050-publication-and-course-content-access.md)
 and the P02d-2 package on 2026-10-02. Its
-[dated G3 supersession](../roadmap/phase-02d-walking-skeleton.md#g3-supersession-2026-10-02)
+[dated G3 supersession](../roadmap/phase-02d-delivery-log.md#g3-supersession-2026-10-02)
 replaces ADR-0048's public-only implication while preserving the original answer and
 delivery history. Explicit persisted policy, restricted legacy backfill and fail-closed
 anonymous reads are decided. P02d-2 delivers the policy, migration and writers;

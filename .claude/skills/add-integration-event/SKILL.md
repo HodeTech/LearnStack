@@ -30,14 +30,14 @@ owns immediate producer admission, completion and payload policy. P02b-1
 Steps 2/3 implement immediate enqueue, payload admission, successful-save
 collection and the completed-provisioning publisher. Step 4 implements the
 production censuses and catalogue enforcement; the
-[delivery record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
+[delivery record](../../../docs/roadmap/phase-02b-delivery-log.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
 owns final verification and review status.
 Accepted [ADR-0046](../../../docs/decisions/0046-durable-event-delivery-and-recovery.md)
 owns dispatcher recovery, subscription readiness and the shared inbox contract.
 P02b-2 implements producer dispatch; P02b-3 Steps 1–4 implement durable
 acceptance, shared inbox/ledger storage, independent execution and scheduling.
 Step 5 supplies the real default subscriptions and semantic Seeder handoff; the
-[delivery record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+[delivery record](../../../docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 owns validation/review status.
 
 ## When to use

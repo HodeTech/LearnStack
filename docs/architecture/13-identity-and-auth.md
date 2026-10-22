@@ -8,24 +8,24 @@ This document covers what lives where: in Keycloak vs in LearnStack, how multi-t
 existed, but API JWT validation, tenant claim mappers, a BFF session and mirrored
 users/memberships had not shipped. Public sites used host-based anonymous
 admission without forwarding cookies or credentials.
-[Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
+[Phase 02b's entry verification](../roadmap/phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12)
 records that baseline. The P02b-5/P02b-6 delivery records below supersede its API
 validation and realm-issuance status. BFF sessions remain P02b-7; Phase 03 owns
 the application identity domain. Undelivered flows below remain target architecture.
 
 **P02b-5 decision Accepted — 2026-10-19.**
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) and its
-[decision package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
+[decision package](../roadmap/phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19)
 authorize scalar identity claims, one closed authenticated read and additional
 subject accounting. All five implementation steps and their two independent
 review rounds are complete and merged through PR #33 on 2026-10-20; the
-[merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+[merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
 owns delivery, correction reviews and final-source qualification. Authentication
 and authorization registration activate together with the closed surface in Step 4.
 P02b-6 supplies realm reconciliation as recorded below; BFF sessions remain P02b-7.
 
 **P02b-6 decision Accepted — 2026-10-21.** The
-[accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+[accepted package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
 authorizes four implementation steps for real issuance, protected seed attributes,
 account-preserving development reconciliation, exact callbacks and issuance TTL.
 Steps 1–3 supply the committed fresh-import scopes/profile/client definition,
@@ -33,7 +33,7 @@ typed identity manifest, bounded warm reconciliation and shared seed/demo entry.
 Their local reviews and actual lifecycle qualification are complete. Step 4
 delivers the approved account capability and complete provider/API security
 proofs after both independent review rounds and verified corrections; its
-[record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+[record](../roadmap/phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns local implementation, review closure and source-bound qualification receipts.
 The correction record below owns exact hosted assignments; merge is separate.
 G13's BFF session part
@@ -58,18 +58,18 @@ all tenants/hosts, bounded idle-only cleanup and distinct quota/capacity/fault
 signals. Occupied live slots can deny other tenants' new subjects; there is no
 reserved share or end-to-end throughput promise. Its implementation has local
 runtime/exported proofs; the
-[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+[implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns independent reviews and final-source CI qualification.
 ADR-0065 also ratifies
 process-wide native HTTP/DNS metric
 projection and ordinary dependency-attribution loss while preserving ordinary
 traces/logs. Acceptance precedes dependent budget implementation; the
-[2026-10-20 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+[2026-10-20 remediation record](../roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20)
 owns current implementation and proof status.
 
 **API activation — P02b-5 Step 4, 2026-10-19.** The production API now installs
 that strict bearer boundary and exposes exact `GET /api/v1/account/site`.
-The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+The [Step 4 record](../roadmap/phase-02b-delivery-log.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
 owns validation and review status. This updates the API-validation part of the
 2026-10-12 baseline above; P02b-6 owns the realm's issuance changes, P02b-7 the
 BFF session and Phase 03 the application identity model. Public transport stays
@@ -284,18 +284,18 @@ provisions `demo-english` and `demo-yoga` through the request path
 ([Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-7)),
 and a re-run is idempotent.
 
-G12's [accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+G12's [accepted package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
 owns the account-preserving warm upgrade and its named account-console adjustment.
 [ADR-0068](../decisions/0068-development-warm-realm-qualification.md), Accepted —
 2026-10-22, adds bounded profile preparation and three qualified stock-console
 assignment detachments. This deletes named assignment edges, while preserving
-accounts and global definitions. Its [implementation record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
+accounts and global definitions. Its [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0068-acceptance-and-implementation-2026-10-22)
 tracks all three locally completed steps and their independent review rounds.
 The preparation owner reuses identity-independent qualifiers, verifies the exact
 profile and discards its projections before complete planning. A later identity
 conflict retains a fixed metadata-progress notice and permits no ordinary write.
 The
-[third correction step](../roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+[third correction step](../roadmap/phase-02b-delivery-log.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
 owns actual historical lifecycle, usable credential/MFA, signed API and stored
 self-service proof, with source-bound hosted assignments and evidence limits.
 The realm guide owns the exact local procedure and refusal boundaries. G10 is

@@ -91,14 +91,14 @@ A subsequent explicit invocation reads the durable current state anew.
 ### Two bounded replacements of Accepted phase clauses
 
 The Accepted package's
-[Reconciler ownership, failure and security boundaries](../roadmap/phase-02b-events-auth.md#reconciler-ownership-failure-and-security-boundaries)
+[Reconciler ownership, failure and security boundaries](../roadmap/phase-02b-delivery-log.md#reconciler-ownership-failure-and-security-boundaries)
 requires: “Read and validate the complete bounded change plan before the first
 write.” Decision 1 replaces that ordering only for its single metadata write:
 qualify bounded preparation, write and verify it, then build the full fresh plan
 before all other mutations. The remaining ownership and preservation rules survive.
 
 The Accepted
-[Account-console self-service capability](../roadmap/phase-02b-events-auth.md#account-console-self-service-capability--proposal-2026-10-21)
+[Account-console self-service capability](../roadmap/phase-02b-delivery-log.md#account-console-self-service-capability--proposal-2026-10-21)
 requires:
 
 > Refuse a wider/customized role allowance or
@@ -115,10 +115,10 @@ Removing compatible stock edges too would lose the reason to continue once the
 last incompatible edge disappeared. The three-edge decision needs no durable
 marker: its final deletion naturally hands later passes to compatible preservation.
 
-The [dated acceptance record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
+The [dated acceptance record](../roadmap/phase-02b-delivery-log.md#adr-0068-acceptance-and-implementation-2026-10-22)
 names both replacements beside their phase clauses and retains the original
 package and review chronology. The
-[Step 2 review](../roadmap/phase-02b-events-auth.md#step-2-review-round-1--identity-visibility-and-plan-feasibility)
+[Step 2 review](../roadmap/phase-02b-delivery-log.md#step-2-review-round-1--identity-visibility-and-plan-feasibility)
 demonstrated an actual hidden-actor overwrite before the visibility guard. That
 guard is protective, and the old warm fixture enabled unmanaged attributes.
 The current bootstrap-parity fixture derives from today's desired export; it
@@ -394,7 +394,7 @@ prior phase receipts and invent no new canonical rule.
 
 ## References
 
-- [Accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
+- [Accepted P02b-6 package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20).
 - [Security 11 — Authentication](../standards/11-security.md#authentication).
 - [Architecture 13](../architecture/13-identity-and-auth.md) and [Keycloak guide](../../infra/keycloak/README.md).
 - [ADR-0004](0004-authentication-strategy.md), [ADR-0064](0064-tenant-api-authentication-boundary.md)

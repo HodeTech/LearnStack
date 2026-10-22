@@ -2,31 +2,31 @@
 
 **Status:** P02d-1 complete and merged — 2026-09-14. Domain, persistence, isolation
 proofs and both agent review rounds per step are complete. The
-[merge closeout](../../roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
+[merge closeout](../../roadmap/phase-02d-delivery-log.md#merge-and-closeout-2026-09-14)
 records all five required checks on the final PR head and merge commit.
-The [decision pass](../../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14)
+The [decision pass](../../roadmap/phase-02d-delivery-log.md#p02d-1-decision-pass-2026-09-14)
 records the accepted scope. P02d-2 implements unrouted writers and adds seed execution;
 P02d-4 Step 3 supplies public Education reads.
-The [P02d-2 package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+The [P02d-2 package](../../roadmap/phase-02d-delivery-log.md#p02d-2-decision-package-2026-10-02)
 is Accepted on 2026-10-02. Step 1 implements the course access column and contextual
 verification queries, explicitly classified Off. Step 3 implements six writers; both
 review rounds and a focused fix review passed. Step 4 completes the seed after both
 review rounds. P02d-2 is complete and merged — 2026-10-02; its
-[merge closeout](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
+[merge closeout](../../roadmap/phase-02d-delivery-log.md#p02d-2-merge-and-closeout-2026-10-02)
 records final verification. P02d-3 read internals are complete and merged through
 [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
-[merge closeout](../../roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
+[merge closeout](../../roadmap/phase-02d-delivery-log.md#p02d-3-merge-and-closeout-2026-10-03)
 records final verification. P02d-4's
-[public-read package](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+[public-read package](../../roadmap/phase-02d-delivery-log.md#p02d-4-decision-package-2026-10-03)
 and [ADR-0052](../../decisions/0052-anonymous-public-read-boundary.md) are Accepted —
 2026-10-03. Step 3 implements all three Education GET/HEAD pairs with app-role
 HTTP/database proofs; both independent review rounds passed. Step 4 adds
 OpenAPI/SDK/CI controls; both review rounds and fresh fix verification pass. The
-[delivery record](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+[delivery record](../../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
 records verified live rollout and all six successful required jobs.
 P02d-4 is complete and merged through
 [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08; its
-[merge closeout](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
+[merge closeout](../../roadmap/phase-02d-delivery-log.md#p02d-4-merge-and-closeout-2026-10-08)
 records final verification. The diagram includes the access column.
 
 ## Overview
@@ -288,8 +288,8 @@ No Education code names a Customization or Tenancy table.
 **P02d-4 Step 3 implemented — 2026-10-04; both review rounds complete.** Three institution
 Education requests dispatch through ISender under `[PublicSurface]`, audit Off and
 GET/HEAD. Site bootstrap is owned by Tenancy. The
-[public DTO/route contract](../../roadmap/phase-02d-walking-skeleton.md#public-routes-and-dto-contract)
-and [cursor codec](../../roadmap/phase-02d-walking-skeleton.md#catalog-and-outline-continuation)
+[public DTO/route contract](../../roadmap/phase-02d-delivery-log.md#public-routes-and-dto-contract)
+and [cursor codec](../../roadmap/phase-02d-delivery-log.md#catalog-and-outline-continuation)
 fix the allowlist and protocol before v1 freezes; no internal/seed DTO is exported.
 
 - Require resolved matching factory HostScope. Tenant host: tenant-wide rows only;
@@ -325,7 +325,7 @@ fix the allowlist and protocol before v1 freezes; no internal/seed DTO is export
 The public no-schema-evaluation guard is Implemented with direct, concrete and
 transitive/interface controls. App-role HTTP/database cases exercise the source
 queries and wire contracts; measurements and review evidence belong to the
-[Step 3 delivery record](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads).
+[Step 3 delivery record](../../roadmap/phase-02d-delivery-log.md#p02d-4-step-3-public-education-reads).
 Step 4 implements the recursive OpenAPI response guard with nested leak controls.
 
 [EducationPersistenceTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)

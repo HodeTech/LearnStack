@@ -69,7 +69,7 @@ The planned Studio editors below own human-facing authorization.
 Every command takes its tenant from context rather than request input. RLS and
 `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` protect the database write;
 reachability is the current authorization boundary, not a new permission grant.
-The [Step 5 record](../../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+The [Step 5 record](../../roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 owns implementation validation/review status.
 
 **Every key in the `{module}.{resource}.{action}` form.** The resources above are

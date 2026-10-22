@@ -11,7 +11,7 @@
 
 **Accepted — 2026-10-12.** The maintainer approves the bounded supersessions
 below and the
-[P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12).
+[P02b-1 decision package](../roadmap/phase-02b-delivery-log.md#p02b-1-decision-package-2026-10-12).
 
 **Bounded supersession:** ADR-0032 Sub-decision 2's step-7
 completion role and Sub-decision 12 / Architecture Tests' separate `event_id`
@@ -37,7 +37,7 @@ factual correction.
   outer caller absorbs the refusal. Joined frames are not savepoints under
   [ADR-0040 § Nesting](0040-ambient-unit-of-work.md#nesting).
 - Establish a useful production subject using the declared tenant defaults;
-  [P02b-0's audit](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
+  [P02b-0's audit](../roadmap/phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12)
   finds no useful invalidation effect for already fresh or uncached readers.
 
 ## Considered Options
@@ -252,7 +252,7 @@ source MUST audit already commits with the producer.
 
 ## Context
 
-[P02b-0](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
+[P02b-0](../roadmap/phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12)
 re-verified an existing outbox table and transport seam, but no enqueue port,
 collector, domain publisher or useful production consumer. ADR-0032's step-7
 target predates an implemented producer. It cannot own completion for direct
@@ -388,7 +388,7 @@ producer rules in the
 The acceptance-time Registered statements above remain historical commitments;
 the catalogue now records their implementing tests.
 
-The [Step 4 delivery record](../roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
+The [Step 4 delivery record](../roadmap/phase-02b-delivery-log.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
 owns final validation, independent reviews and packet status. This delivery note
 changes no decision or original acceptance metadata. Dispatcher/lease work
 remains P02b-2; production inbox/subscriptions and the Seeder identity handoff
@@ -410,7 +410,7 @@ section so that the entire original section, Date and Deciders remain intact.
 The accepted body wording is retained. The mutable carriers corrected are
 [Phase 02b](../roadmap/phase-02b-events-auth.md#the-decision-register)'s G5
 register row and
-[accepted G5 answer](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12),
+[accepted G5 answer](../roadmap/phase-02b-delivery-log.md#p02b-1-decision-package-2026-10-12),
 plus this amendment's entry in the [ADR index](README.md).
 These are all carriers changed for this locator correction. The Decision and
 the exact bounded supersession are unchanged: the two historical separate-column
@@ -431,7 +431,7 @@ exact Active shape. Warm/generated IDs survive; authored identities and exact
 pins remain strict. App-role tests cover backlog and fresh provisioning,
 independent inbox effects, audit rollback, duplicate acceptance and both winning
 orders of Seeder/subscriber races. The
-[Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+[Step 5 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 owns validation and review status; Step 6 retains production-census enforcement
 and full packet closeout. Earlier dated delivery notes retain their as-of state.
 

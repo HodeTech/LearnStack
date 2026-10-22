@@ -66,48 +66,48 @@ items, rules, custom fields and notification templates; their delivery is tracke
 
 **Phase 01, Phase 02a and Phase 02d are complete.** Phase 02d is merged through
 PR #28 on 2026-10-11. P02b-0's
-[entry audit](docs/roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
+[entry audit](docs/roadmap/phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12)
 is complete. **P02b-1 is complete and merged** through
 [PR #29](https://github.com/HodeTech/LearnStack/pull/29) on 2026-10-12. Its
-[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12)
+[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-1-merge-and-closeout-2026-10-12)
 records transactional event production, enforcement, completed reviews and final
 CI verification under Accepted ADR-0057. **P02b-2 is complete and merged** through
 [PR #30](https://github.com/HodeTech/LearnStack/pull/30) on 2026-10-13. Its
-[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 records hosted dispatch, terminal audit, observation/enforcement, completed
 reviews and final CI verification under Accepted ADR-0046. **P02b-3 is complete
 and merged** through [PR #31](https://github.com/HodeTech/LearnStack/pull/31) on
 2026-10-15. It delivers
 durable subscriber acceptance, shared inbox/delivery ledger, both real default
 subscriptions and Seeder handoff. Its
-[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final verification.
 **P02b-4 is complete and merged** through
 [PR #32](https://github.com/HodeTech/LearnStack/pull/32) on 2026-10-19. Its
-[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
 records all nine job-runtime steps, three CI steps, independent reviews and both
 complete final-source hosted assignments. Production business and recurrence
 definitions remain empty. **P02b-5 API authentication is complete and merged**
 through [PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20,
 under Accepted ADR-0064/0065/0066. All five steps and verified correction bundles
 completed their independent review rounds. Its
-[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
 records final-source CI, unchanged-plan A/B qualification and identical merge trees.
 P02b-6 implements real issuance, protected profiles and safe shared seed/demo
 reconciliation. Its
-[Step 4 record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+[Step 4 record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 retains completed implementation/review evidence and source-bound qualification
 receipts. ADR-0068's
-[three correction steps](docs/roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+[three correction steps](docs/roadmap/phase-02b-delivery-log.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
 complete local historical upgrade/credential/API/self-service proof and both
 independent review rounds. Qualification applies to the recorded source and scope;
 P02b-6 implementation is merged through
 [PR #34](https://github.com/HodeTech/LearnStack/pull/34). The
-[closed-PR CI correction](docs/roadmap/phase-02b-events-auth.md#p02b-6-closed-pr-ci-rerun-correction-2026-10-22)
+[closed-PR CI correction](docs/roadmap/phase-02b-delivery-log.md#p02b-6-closed-pr-ci-rerun-correction-2026-10-22)
 owns the post-merge rerun correction and its qualification scope.
 BFF sessions and phase exit remain P02b-7–8; browser sign-in is not implemented.
 Phase 02b remains in progress.
-[P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
+[P02d-1](docs/roadmap/phase-02d-delivery-log.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
 **P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,
 with four implementation steps. Step 1 implements the access policy, exact
@@ -117,19 +117,19 @@ redaction; both review rounds passed. Step 3 adds Education writers; both review
 rounds and the focused fix review passed. Step 4 completes convergent seed
 execution after both review rounds. **P02d-2 is complete and merged** through
 [PR #23](https://github.com/HodeTech/LearnStack/pull/23) on 2026-10-02; the
-[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
+[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-2-merge-and-closeout-2026-10-02)
 records verification. P02d-3 read internals are implemented; the
-[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+[decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-3-decision-package-2026-10-02)
 is Accepted — 2026-10-02, with Step 1 implemented and both review rounds passed.
 Step 2 implements batched definition reads; both review rounds passed. Step 3 adds
 generation caching and scope-safe bypass; both review rounds passed.
 **P02d-3 is complete and merged** through
 [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
-[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
+[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-3-merge-and-closeout-2026-10-03)
 records final verification.
 **P02d-4 is complete and merged** through
 [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08; its
-[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
+[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-4-merge-and-closeout-2026-10-08)
 records final verification.
 Its four steps deliver the read-only host boundary, anonymous site/Education
 GET/HEAD reads and OpenAPI/SDK/CI controls. Every step completed both review
@@ -137,35 +137,35 @@ rounds; final fix verification and all six real required CI jobs pass. The sixth
 required OpenAPI check is active, with all other live protection settings preserved.
 Trusted server rendering is delivered by P02d-5. P02d-6 implements localized
 catalog/course/lesson pages, ordered text fields, safe themes and metadata; its
-[product closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+[product closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 records automated verification/reviews and scoped browser/VoiceOver observations.
 The original P02d-6 implementation is complete. ADR-0055 remediation delivers
 single-bootstrap admission and passing production replacement proofs; all three
 steps completed both independent review rounds, and
-the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+the [Step 3 record](docs/roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns completed Step 3 reviews, verified fixes and delivery evidence. **P02d-6 is
 complete and merged** through [PR #27](https://github.com/HodeTech/LearnStack/pull/27)
 on 2026-10-10; its
-[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-6-merge-and-closeout-2026-10-10)
 records final verification. P02d-7's demo, Lighthouse and phase-exit
-[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
+[decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-7-decision-package-2026-10-10)
 and ADR-0056 were approved on 2026-10-11. All four steps completed both independent
 review rounds. The shared demo, genericity fences and seeded browser/Lighthouse
 proof pass real CI; the seventh required context is active. The
-[Step 4 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+[Step 4 record](docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 owns CI enforcement, reviews and the positive phase-exit verdict.
 [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; the
-[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-7-merge-and-closeout-2026-10-11)
 owns final verification. P02b-0 through P02b-5 are complete. P02b-0 has an entry
 verification; P02b-1–5 have the merge closeouts above for final source/merge
 verification. P02b-3 Steps 1–5 implement durable
 acceptance, shared inbox/ledger, independent subscriber scheduling and both
 useful defaults with semantic Seeder handoff. Its
-[Step 6 record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+[Step 6 record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 records completed enforcement/regression and both review rounds for all six steps.
-Its [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+Its [merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15)
 also records the verified external-review corrections. The
-[P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+[P02d-4 decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
 page consumers and P02d-7 the two-host browser demo.
@@ -281,7 +281,7 @@ configuration through `make demo DEMO_MODE=ci`. Install its locked managed brows
 first with `cd frontend && pnpm exec playwright install --with-deps chromium`.
 The CI mode requires a fresh checkout configuration and artifact directory; use
 local `make demo` for an existing workstation. The
-[Step 4 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+[Step 4 record](docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 owns actual CI and protection receipts.
 
 Readiness is <http://127.0.0.1:5080/healthz> for the API and
@@ -305,7 +305,7 @@ locales and refuses unavailable scope. The server caller enforces no-store,
 deadline/body limits and the closed authenticated hop. All four steps completed
 both independent review rounds and fix verification. Source fences, the no-skip
 test runner and real-API production HTML/RSC proofs pass. The
-[remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+[remediation and closeout record](docs/roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
 owns current review/CI evidence. P02d-6 implements public pages;
 P02d-7 supplies `make demo` and the seeded browser/Lighthouse proof. See
 [local setup](.claude/skills/local-dev-setup/SKILL.md) and

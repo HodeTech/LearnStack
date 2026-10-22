@@ -33,7 +33,7 @@ and permission-sensitive routes. Bootstrap seed mapper emission remains P02b-6;
 this phase extends that integration to the live identity/membership lifecycle.
 
 **P02b-6 SDK-boundary handoff — 2026-10-21.** The
-[accepted package](phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+[accepted package](phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
 uses development Admin REST tooling without a runtime provider SDK. Phase 03
 owns the first runtime identity-provider adapter and the
 [`Provider_SDK_Types_NotImportedOutsideInfrastructure`](../standards/21-architecture-tests-catalogue.md#awaiting-backfill)
@@ -134,7 +134,7 @@ answered in the decision pass of the packet that ships it, per
 command, the decision returns to this phase.
 
 **Decision update — 2026-10-02.** The [accepted P02d-2 G17
-answer](phase-02d-walking-skeleton.md#p02d-2-accepted-answers) selects whole-value
+answer](phase-02d-delivery-log.md#p02d-2-accepted-answers) selects whole-value
 `[PiiSensitive]` for generic `TenantSetting.Value` before its first writer; P02d-2 Step
 2 implements both the marker and the bounded branding writer. This phase still owns
 identity-backed access, DSAR and the marketplace purpose/recipient boundary; a public

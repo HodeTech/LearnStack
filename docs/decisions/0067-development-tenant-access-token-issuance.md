@@ -5,7 +5,7 @@
 Accepted — 2026-10-21. The maintainer explicitly approved the revised dedicated
 record after its review corrections and two fresh independent review rounds.
 The earlier P02b-6 approval of 900s development issuance remains recorded in its
-[decision package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20);
+[decision package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20);
 this separate acceptance does not backdate ADR authority.
 
 **Date:** 2026-10-21
@@ -213,7 +213,7 @@ runtime or current-head hosted test result.
 
 - [ADR-0004 — Authentication Strategy](0004-authentication-strategy.md).
 - [ADR-0064 — Tenant API Authentication Boundary](0064-tenant-api-authentication-boundary.md).
-- [P02b-6 decision package and approval](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
+- [P02b-6 decision package and approval](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20).
 - [Security 11 — Authentication](../standards/11-security.md#authentication).
 - [Documentation 13 — ADRs](../standards/13-documentation.md#adrs).
 - [Identity and authentication architecture](../architecture/13-identity-and-auth.md).

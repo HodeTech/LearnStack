@@ -70,9 +70,9 @@ shipped the packet table and the decision register, and every later packet opens
 its decision pass. **P02d-1 is complete and merged** through
 [PR #22](https://github.com/HodeTech/LearnStack/pull/22) on 2026-09-14. Education's
 domain, schema and isolation proofs pass; all three steps completed two independent
-agent review rounds. The [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
+agent review rounds. The [merge closeout](docs/roadmap/phase-02d-delivery-log.md#merge-and-closeout-2026-09-14)
 records verification of the final PR head and merge commit. **P02d-2's decision pass
-is Accepted — 2026-10-02**: its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+is Accepted — 2026-10-02**: its [decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-2-decision-package-2026-10-02)
 and ADR-0050/0051 establish protected content, exact write contracts and four
 implementation steps. Implementation resumed on development: Step 1 supplies the
 access-policy migration, exact-definition/locale contracts, presentation validation
@@ -83,18 +83,18 @@ Step 3 adds Education writers; both review rounds and a fresh focused fix review
 passed. Step 4 completes convergent seed execution after both review rounds.
 **P02d-2 is complete and merged** through
 [PR #23](https://github.com/HodeTech/LearnStack/pull/23) on 2026-10-02; its
-[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
+[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-2-merge-and-closeout-2026-10-02)
 records the accepted head and merge verification. P02d-3 read internals are implemented;
-its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+its [decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-3-decision-package-2026-10-02)
 is Accepted — 2026-10-02. Step 1 implements typed settings and locale resolution;
 both review rounds passed. Step 2 implements batched definition reads; both review
 rounds passed. Step 3
 adds generation caching and scope-safe bypass; both review rounds passed.
 **P02d-3 is complete and merged** through
 [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
-[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
+[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-3-merge-and-closeout-2026-10-03)
 records final verification. Public reads stay with P02d-4.
-Its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+Its [decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-4-decision-package-2026-10-03)
 and ADR-0052 are Accepted — 2026-10-03. The approved four-step implementation and
 two-round review loop run on development; delivery evidence is recorded per step.
 Step 1 implements immutable host provenance and physical read-only transactions;
@@ -107,176 +107,176 @@ SDK and always-running OpenAPI compatibility CI. Both independent review rounds
 and fresh fix verification pass. All six real CI jobs pass; the approved sixth
 required check is active with all other live settings preserved. **P02d-4 is complete
 and merged** through [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on
-2026-10-08; its [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
+2026-10-08; its [merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-4-merge-and-closeout-2026-10-08)
 records final verification. P02d-5 delivers trusted public server rendering under
 Accepted ADR-0053 and ADR-0054: native HTTPS ingress, coordinated visitor/peer
 admission, the configured bounded server caller, live-host/locale entry and
-source/runtime proof controls. The [remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+source/runtime proof controls. The [remediation and closeout record](docs/roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
 owns implementation steps, independent reviews and validation. **P02d-5 is complete
 and merged** through [PR #26](https://github.com/HodeTech/LearnStack/pull/26) on
 2026-10-09. Its
-[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-5-merge-and-closeout-2026-10-09)
 records final verification.
 Work stays on development. **P02d-6's decision pass is Accepted — 2026-10-09**:
 [ADR-0027](docs/decisions/0027-frontend-i18n.md) and its
-[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+[decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09)
 authorize four implementation steps and two independent review rounds per step.
 Step 1 implements the pinned i18n and document foundation, verified request-local
 admission/content loaders, atomic color theming, chrome and controlled status/error/
 loading components. Its
-[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+[delivery record](docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-1-localization-and-document-foundation)
 owns its validation and review evidence. Step 2 adds actual catalog/course pages,
 independent pagination and metadata from the shared resource loader. Its
-[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-2-catalog-and-course-pages)
+[delivery record](docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-2-catalog-and-course-pages)
 owns current verification and review status. Step 3 adds the ordered plain-text
 lesson page, eligible lesson metadata and 31 blocking JSX accessibility rules
 with actual-config planted controls. Its
-[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-3-ordered-lesson-presentation)
+[delivery record](docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-3-ordered-lesson-presentation)
 owns verification and review status. Step 4 adds concurrent host/locale, theme,
 freshness and content-fault product proofs; its
-[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+[delivery record](docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 records both completed review rounds. **P02d-6 is complete and merged** through
 [PR #27](https://github.com/HodeTech/LearnStack/pull/27) on 2026-10-10; its
-[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+[merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-6-merge-and-closeout-2026-10-10)
 records final verification. The
-[packet closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+[packet closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10)
 records passing manual browser checks and the maintainer's VoiceOver smoke.
 ADR-0055 remediation delivers
 single-bootstrap admission and passing production replacement proofs. All three
 steps completed both independent review rounds;
-the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+the [Step 3 record](docs/roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns completed Step 3 reviews, verified fixes and delivery evidence. The five new
 catalogue rules are Implemented.
 P02d-7's demo, Lighthouse and phase-exit
-[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
+[decision package](docs/roadmap/phase-02d-delivery-log.md#p02d-7-decision-package-2026-10-10)
 was approved on 2026-10-11, including bounded seventh-check activation after real
 success. ADR-0056 was accepted on the same date. Steps 1 and 2 completed both
 independent review rounds; the
-[Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+[Step 3 record](docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
 owns browser/audit implementation, passing complete local reruns and both
 completed Step 3 review rounds. The
-[Step 4 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+[Step 4 record](docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 owns CI enforcement, completed reviews and individual exit reconciliation. Its
-[CI and exit closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
+[CI and exit closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
 verifies all seven real PR jobs, complete artifacts and live seventh-check
 activation with all other protection settings preserved. All four steps completed
 both review rounds. [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged;
-the [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+the [merge closeout](docs/roadmap/phase-02d-delivery-log.md#p02d-7-merge-and-closeout-2026-10-11)
 owns final verification. P02b-0's
-[entry audit](docs/roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
-is complete; P02b-1's [producer decision package](docs/roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
+[entry audit](docs/roadmap/phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12)
+is complete; P02b-1's [producer decision package](docs/roadmap/phase-02b-delivery-log.md#p02b-1-decision-package-2026-10-12)
 and ADR-0057 are Accepted — 2026-10-12. The four implementation steps are
 authorized. Step 1 implements the shared snapshot/producer/audit lifecycle; its
-[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-1--shared-execution-lifecycle-2026-10-12)
+[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-1-step-1--shared-execution-lifecycle-2026-10-12)
 records passing verification and both completed independent review rounds.
 Step 2 implements immediate outbox production; its
-[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-2--immediate-outbox-production-2026-10-12)
+[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-1-step-2--immediate-outbox-production-2026-10-12)
 records passing verification and both completed review rounds.
 Step 3 implements successful-save collection, owner-only completion and the
 completed-provisioning publisher; its
-[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12)
+[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12)
 records passing verification and both completed review rounds. Step 4 adds
 production-census guards and catalogue enforcement; its
-[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
+[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
 records passing full backend verification and both completed review rounds.
 **P02b-1 is complete and merged** through
 [PR #29](https://github.com/HodeTech/LearnStack/pull/29) on 2026-10-12. The
-[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12)
+[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-1-merge-and-closeout-2026-10-12)
 owns final verification. **P02b-2's revised decision package and ADR-0046 are
 Accepted — 2026-10-12.** The four implementation steps and two independent review
 rounds per step are authorized on development. The
-[Step 1 record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
+[Step 1 record](docs/roadmap/phase-02b-delivery-log.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
 records both completed Step 1 reviews. Step 2 implements fenced transitions and
 row-bound terminal MUST audit; both independent review rounds pass.
 Step 3 implements hosted execution and observation; its
-[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
+[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
 owns verification and both completed review rounds. Step 4 enforcement and local
 closeout are complete; all four steps completed both independent review rounds.
 **P02b-2 is complete and merged** through
 [PR #30](https://github.com/HodeTech/LearnStack/pull/30) on 2026-10-13. Its
-[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 owns final source/merge verification and CI evidence.
 Acceptance registers six new catalogue rules; the Step 4 record owns their
 delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3's
-[decision package](docs/roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13)
+[decision package](docs/roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13)
 is Accepted — 2026-10-13. Six implementation steps, each with commit and two
 independent review rounds, deliver durable acceptance, shared inbox/ledger,
 independent retries, both real defaults and Seeder handoff. Implementation is
 complete and merged through PR #31 on 2026-10-15. Step 1 implements shared
 storage and privilege proofs; both independent review rounds are complete. Its
-[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-1--shared-storage-and-privileges-2026-10-13)
+[delivery record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-1--shared-storage-and-privileges-2026-10-13)
 owns verification and review status. Step 2 implements durable acceptance and
 inbox primitives; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-2--durable-acceptance-and-inbox-primitives-2026-10-13)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-2--durable-acceptance-and-inbox-primitives-2026-10-13)
 owns validation and both completed review rounds. Step 3 implements the closed
 business owner and completion gate; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-3--business-owner-and-completion-gate-2026-10-13)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-3--business-owner-and-completion-gate-2026-10-13)
 owns validation and both completed review rounds. Step 4 adds independent
 subscriber scheduling, terminal audit, replay and bounded observation; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13)
 owns validation and both completed review rounds. Step 5 implements useful
 defaults and semantic seed handoff; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 owns validation and both completed independent review rounds. Both real default
 subscriptions are Active. Step 6 implements production-census enforcement and
 full packet closeout; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 owns completed validation/review receipts and PR/CI handoff. All six steps
 completed both independent review rounds. The
-[external review follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-3-external-review-follow-up-2026-10-15)
+[external review follow-up](docs/roadmap/phase-02b-delivery-log.md#p02b-3-external-review-follow-up-2026-10-15)
 records verified corrections and two further independent review rounds; the
-[second follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-3-second-external-review-follow-up-2026-10-15)
+[second follow-up](docs/roadmap/phase-02b-delivery-log.md#p02b-3-second-external-review-follow-up-2026-10-15)
 records subsequent runtime/proof corrections and their completed reviews. The
-[P02b-3 merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+[P02b-3 merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final source/merge and CI verification.
 **P02b-4 is complete and merged** through
 [PR #32](https://github.com/HodeTech/LearnStack/pull/32) on 2026-10-19. Its
-[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
 records all nine job-runtime steps, three CI steps, independent reviews and both
 complete final-source hosted assignments. Production business and recurrence
 definitions remain empty. **P02b-5's decision package and ADR-0064 are Accepted
 — 2026-10-19**; their
-[decision pass](docs/roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
+[decision pass](docs/roadmap/phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19)
 authorizes five implementation steps, each with commit and two fresh independent
 review rounds. Step 1 completes acceptance disclosures and the isolated token
 foundation after both independent review rounds; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-1--token-foundation-2026-10-19)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-5-step-1--token-foundation-2026-10-19)
 owns the verified metric-privacy correction. Step 2 completes the real read-only
 subject after both independent review rounds; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19)
 owns validation. Step 3 completes attributed reconciliation and subject admission
 after both independent reviews; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-3--attributed-reconciliation-and-subject-admission-2026-10-19)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-5-step-3--attributed-reconciliation-and-subject-admission-2026-10-19)
 owns verified log-emission and default-window test corrections. Step 4 installs
 the complete HTTP boundary and typed contract after both review rounds; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
 owns validation and completed reviews. Step 5 completes production enforcement
 and both independent review rounds; its
-[local closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+[local closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
 separates source-bound CI receipts from live PR-head qualification and merge.
 All five steps are complete. A subsequent
-[review remediation](docs/roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+[review remediation](docs/roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20)
 verifies external findings. ADR-0065 is Accepted on 2026-10-20 after maintainer
 review. Its implementation and local proofs are delivered; the remediation
 record retains completed independent correction reviews and pre-merge receipts.
 BFF sessions and phase exit remain P02b-7–8; P02b-6's current record follows below.
-The [second external-review follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
+The [second external-review follow-up](docs/roadmap/phase-02b-delivery-log.md#p02b-5-second-external-review-follow-up-2026-10-20)
 owns subsequent runtime/proof corrections and their source-bound reviews.
 [ADR-0066](docs/decisions/0066-bounded-tenant-subject-admission.md) is Accepted —
 2026-10-20. Its retained-subject bound, cleanup ownership and closed fault/refusal
 signals are implemented with local runtime/exported proofs. The
-[implementation record](docs/roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+[implementation record](docs/roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 retains source-bound validation and independent reviews; the merge closeout below
 owns final-source qualification.
-The [systematic correction record](docs/roadmap/phase-02b-events-auth.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
+The [systematic correction record](docs/roadmap/phase-02b-delivery-log.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
 owns subsequent proof/diagnostic, document and measured CI timing reconciliation;
 all three correction steps and both independent review rounds are complete.
 **P02b-5 is complete and merged** through
 [PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20. Its
-[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+[merge closeout](docs/roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
 owns exact final-head CI, unchanged-plan A/B qualification and identical merge
 trees. P02b-6's realm/TTL
-[decision pass](docs/roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+[decision pass](docs/roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
 is Accepted — 2026-10-21. The maintainer approved the package at `6d75e532`
 and its four implementation steps. G12's realm/reconciliation/callback choices
 and G13's issuance-TTL part are Accepted; G13's session part stays Open.
@@ -285,37 +285,37 @@ The dedicated issuance follow-up,
 Accepted — 2026-10-21 after separate maintainer approval. It formalizes the
 existing issuance choice without changing runtime or G13's Open session portion.
 P02b-6 Step 1 is complete locally after both review rounds; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
 owns implementation, fresh-provider qualification and review status.
 P02b-6 Step 2 is complete locally after both review rounds and fresh fix
 reviews; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21)
 owns the Accepted server-information response allowance and current proofs.
 Step 3 is complete locally after both review rounds and fresh correction
 verification; its
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21)
 owns actual seed/demo and cancellation evidence. Step 4's
-[record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+[record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns completed local implementation/reviews and source-bound qualification receipts.
 The correction record below owns source-bound hosted qualification; merge is
 separate.
 All four implementation steps and their recorded correction reviews are complete
 locally. The subsequent systematic correction pass retains its own review and
 current-head hosted qualification gates in the
-[correction record](docs/roadmap/phase-02b-events-auth.md#p02b-6-systematic-corrections-and-hosted-qualification-2026-10-21).
+[correction record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-systematic-corrections-and-hosted-qualification-2026-10-21).
 P02b-6 implementation is merged through
 [PR #34](https://github.com/HodeTech/LearnStack/pull/34) on 2026-10-22.
-The [closed-PR CI correction](docs/roadmap/phase-02b-events-auth.md#p02b-6-closed-pr-ci-rerun-correction-2026-10-22)
+The [closed-PR CI correction](docs/roadmap/phase-02b-delivery-log.md#p02b-6-closed-pr-ci-rerun-correction-2026-10-22)
 owns subsequent rerun validation and its evidence limits.
-The [additional correction record](docs/roadmap/phase-02b-events-auth.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
+The [additional correction record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
 owns the current verified findings.
 [ADR-0068](docs/decisions/0068-development-warm-realm-qualification.md)
 is Accepted — 2026-10-22 under the maintainer's conditional approval after verified
 review corrections. Its first correction step is complete locally after both
-review rounds; the [stock qualification record](docs/roadmap/phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
-owns evidence. Its [second correction step](docs/roadmap/phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
+review rounds; the [stock qualification record](docs/roadmap/phase-02b-delivery-log.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
+owns evidence. Its [second correction step](docs/roadmap/phase-02b-delivery-log.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
 completes owned preparation and fresh complete planning after both independent
-review rounds. Its [third correction step](docs/roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+review rounds. Its [third correction step](docs/roadmap/phase-02b-delivery-log.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
 completes local historical entry, credential/MFA, signed API and self-service
 proof after both independent review rounds. That record owns exact source-bound
 hosted assignments and their evidence limits. The merged implementation and
@@ -537,7 +537,7 @@ Then read the phase that is live and the one it stands on:
   all five implementation steps and correction reviews are complete and merged
   through PR #33 on 2026-10-20. Its merge closeout above owns verification.
   P02b-6's realm/TTL decision package and four-step plan above are Accepted —
-  2026-10-21. Its [Step 1 record](docs/roadmap/phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
+  2026-10-21. Its [Step 1 record](docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
   owns the executable fresh import and provider proofs. Step 2's record above
   owns the completed local reconciler and Accepted response-budget decision;
   Step 3 is complete locally after both review rounds and fresh corrections;

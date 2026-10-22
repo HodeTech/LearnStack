@@ -29,7 +29,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
 > the current `meta` name and `backend integration (Testcontainers)`. A fresh API
 > read verified all five check names and their GitHub Actions attribution, with
 > strict up-to-date checking and every other protection setting preserved.
-> [P02d-1's delivery record](../docs/roadmap/phase-02d-walking-skeleton.md#step-3--packet-completion-2026-09-14)
+> [P02d-1's delivery record](../docs/roadmap/phase-02d-delivery-log.md#step-3--packet-completion-2026-09-14)
 > carries the dated verification.
 
 - **Require a pull request before merging**
@@ -71,7 +71,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       first-baseline proof. Its real PR run passed before activation. API read-back
       verifies all six GitHub Actions contexts, strict up-to-date checking and
       every other protection setting unchanged. The
-      [packet delivery record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+      [packet delivery record](../docs/roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
       records the successful job and activation proof.
     - `public demo + lighthouse` — **required since P02d-7, 2026-10-11.** The
       first complete [real PR run](https://github.com/HodeTech/LearnStack/actions/runs/38106505383)
@@ -79,9 +79,9 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       27 audits and owned cleanup. Full API read-back confirms seven GitHub
       Actions contexts, strict up-to-date checking, all six previous contexts
       retained and every unrelated protection setting unchanged. The
-      [CI and exit closeout](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
+      [CI and exit closeout](../docs/roadmap/phase-02d-delivery-log.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
       records execution, artifact validation and activation proof.
-      The separate [reviewed-head verification](../docs/roadmap/phase-02d-walking-skeleton.md#reviewed-implementation-head-verification-2026-10-11)
+      The separate [reviewed-head verification](../docs/roadmap/phase-02d-delivery-log.md#reviewed-implementation-head-verification-2026-10-11)
       identifies the exact implementation head inspected after activation;
       subsequent heads still require all seven passing checks.
   - P02d-5 keeps the existing check names. The frontend job uses the guarded
@@ -100,7 +100,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     The fixture uses an isolated disposable profile and certificate-specific
     public-key trust. Its Flight-to-document navigation and fresh HMR admission
     scope does not deliver P7's browser demo, full Playwright/axe or Lighthouse.
-    The [Step 3 record](../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+    The [Step 3 record](../docs/roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
     owns completed implementation, reviews and execution evidence.
   - P02d-7 replaces the disabled Lighthouse placeholder with the always-running
     `public demo + lighthouse` job under ADR-0056. It installs the locked browser
@@ -111,11 +111,11 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     sanitized receipts are uploaded; raw logs, profiles and private TLS/env files
     are excluded. The authorized seventh-context activation followed the complete
     successful real PR run on 2026-10-11. The
-    [Step 4 record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+    [Step 4 record](../docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
     owns the actual run and verified activation/read-back.
 
     GitHub matches required checks **by name**. The
-    [current CI and exit record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
+    [current CI and exit record](../docs/roadmap/phase-02d-delivery-log.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
     owns execution and dated API read-back; a workflow edit alone is not a
     protection-setting change.
 - **Require conversation resolution before merging**: on.

@@ -22,7 +22,7 @@ not merely a unit clarification. P7 delivers the always-running
 The hard gzip/CLS/automated-accessibility checks make this standard Active for
 that delivered scope. Timing medians remain advisory; production baselines,
 field telemetry and load tests remain Phase 11. The
-[Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+[Step 4 record](../roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 owns real CI receipts and bounded required-check activation.
 
 ## Initial Budgets
@@ -81,7 +81,7 @@ consumer query plans and representative local cold/warm measurements without a
 production p95 claim. P02d-5/G37 accepts dynamic/no-store public rendering under
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md); no shared Next
 representation cache is introduced. Internal definition caches remain independent.
-[The accepted package](../roadmap/phase-02d-walking-skeleton.md#branding-entitlement-and-cache-boundary)
+[The accepted package](../roadmap/phase-02d-delivery-log.md#branding-entitlement-and-cache-boundary)
 owns that boundary under ADR-0052.
 
 ### Pagination

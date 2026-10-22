@@ -20,7 +20,7 @@ optional per-organization override, rendering strategies, data fetching, the ten
 block resolver, entitlement-aware UI, custom-domain handling, and the path to extracting
 independent apps when warranted.
 
-The [P02d-5 external-review remediation](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+The [P02d-5 external-review remediation](../roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
 tracks verified gaps. [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md)
 is **Accepted — 2026-10-09**. P02d-5 delivers coordinated anonymous accounting,
 native method/upgrade admission and pinned URL controls. The remediation record
@@ -29,7 +29,7 @@ owns execution and independent review evidence; the ongoing rules live in
 
 **P02d-6 decisions Accepted — 2026-10-09; Steps 1–4 implemented.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) selects the UI foundation; the
-[decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+[decision package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09)
 selects pages, status/navigation, safe theme and product/accessibility proofs.
 Step 1 installs the pinned runtime and supplies shared request-local loaders,
 document language/direction, atomic theme injection, chrome and controlled
@@ -37,7 +37,7 @@ status/error/loading components. Step 2 adds actual catalog/course pages,
 independent opaque pagination and metadata. Step 3 adds ordered lesson fields,
 language attribution and eligible metadata. Step 4 adds concurrent host/locale,
 theme, freshness and content-fault product proofs. The
-[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+[delivery record](../roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 owns validation, completed reviews and passing manual accessibility closeout.
 
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md) is
@@ -45,10 +45,10 @@ owns validation, completed reviews and passing manual accessibility closeout.
 it replaces the duplicate RSC bootstrap with one middleware-owned live read and
 an immutable same-request snapshot, preserving exact bootstrap 429/503 before
 rendering. The
-[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+[Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns passing production replacement proofs and completed Step 3 reviews. Both
 review rounds for all three steps and focused fix verification are complete. The
-[review decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-systematic-review-decision-package-2026-10-10)
+[review decision package](../roadmap/phase-02d-delivery-log.md#p02d-6-systematic-review-decision-package-2026-10-10)
 separately records approval for Open Graph projection and bounded Next security
 maintenance. The isolated context-propagation experiment establishes feasibility;
 it is not production security/lifecycle proof or runtime delivery.
@@ -57,7 +57,7 @@ it is not production security/lifecycle proof or runtime delivery.
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
 > [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) selects host-resolved
 > site bootstrap in place of public edge ID lookup. Its
-> [approval package](../roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+> [approval package](../roadmap/phase-02d-delivery-log.md#p02d-4-decision-package-2026-10-03)
 > records public DTOs, locale and cache rules, read-only execution and implementation
 > steps. Runtime delivery is recorded by the packet; P02d-5 owns server transport.
 
@@ -179,12 +179,12 @@ so a claim cannot enlarge what the host serves.
 **P02d-5 Accepted — 2026-10-08.**
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) accepts native socket
 provenance, a server-only configured transport and uncached institution rendering.
-Its four-step [delivery plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-implementation-plan)
+Its four-step [delivery plan](../roadmap/phase-02d-delivery-log.md#p02d-5-implementation-plan)
 records all four completed steps and both independent review rounds per step.
 Frontend fences, no-skip outcomes and real-API production HTML/RSC proofs pass;
 P02d-5 and its external-review remediation are complete and merged through
 [PR #26](https://github.com/HodeTech/LearnStack/pull/26); the
-[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+[merge closeout](../roadmap/phase-02d-delivery-log.md#p02d-5-merge-and-closeout-2026-10-09)
 records final verification. P02d-6 owns public page consumers.
 
 ADR-0054 retains API-owned tenant authority and membership-first locale entry.
@@ -444,7 +444,7 @@ Studio and Portal have higher budgets because they are authenticated apps and be
 P02d-7's always-running `public demo + lighthouse` job exercises nine seeded
 public pages under ADR-0056. Performance Standards owns its hard budgets and
 advisory timing scope; the
-[Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+[Step 4 record](../roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 owns real CI and required-check receipts.
 
 ## Accessibility
@@ -460,7 +460,7 @@ owns real CI and required-check receipts.
   contrast and real screen-reader evidence for catalog → course → lesson names
   commit, environment and both hosts/locales. Automated product proofs and blocking
   lint controls are implemented; the
-  [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+  [packet closeout](../roadmap/phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10)
   records passing manual browser checks and maintainer-reported VoiceOver evidence.
   See
   [Testing Standards](../standards/06-testing.md#frontend-test-types); HTTP/RSC

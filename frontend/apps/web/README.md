@@ -26,14 +26,14 @@ entry under [ADR-0053](../../../docs/decisions/0053-trusted-public-server-render
 Exact scaffold roots continue only after bootstrap; enabled locale membership takes
 precedence. P02d-6 implements localized catalog/course/lesson pages, ordered
 plain-text presentation, safe four-color themes and G40 page states. Its
-[product closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+[product closeout](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 records completed verification, reviews and scoped browser/VoiceOver observations.
 P6 is complete and merged through PR #27 on 2026-10-10; its
-[merge closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+[merge closeout](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-merge-and-closeout-2026-10-10)
 owns final verification. P7's shared demo/browser package was approved on
 2026-10-11, together with ADR-0056. The shared local/CI lifecycle and narrow
 Playwright library proof are delivered: nine seeded pages and 27 Lighthouse audits.
-The [Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+The [Step 3 record](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
 owns local execution and reviews; the packet's Step 4 record and CONTRIBUTING own
 real CI receipts and required-check activation. Phase 06 retains the broader
 Playwright Test/axe suite.

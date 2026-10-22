@@ -195,7 +195,7 @@ flowchart LR
   through `IEventBus`. P02b-2 Step 3 implements hosted execution, with
   both independent review rounds complete. P02b-3 Steps 1–5 implement durable
   acceptance and independent subscriber execution with both real defaults Active.
-  The [packet record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+  The [packet record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
   owns current enforcement, validation and review status.
 - Publication is at-least-once. The transport-owned shared inbox and business
   completion commit together for ordinary database effects; external effects need
@@ -242,10 +242,10 @@ Application projects run **outside** containers during active development for fa
 
 P02d-5 delivers G33's paired loopback API and native TLS web ingress, with isolated
 real-API production-rendering fixtures. The
-[accepted local setup](../roadmap/phase-02d-walking-skeleton.md#local-setup-and-ingress-details)
+[accepted local setup](../roadmap/phase-02d-delivery-log.md#local-setup-and-ingress-details)
 owns host, certificate and private configuration preparation. P02d-7 delivers
 G45's `make demo` lifecycle and browser evidence; the
-[Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+[Step 4 record](../roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 owns completed reviews, CI enforcement and phase-exit verification.
 
 ## Observability

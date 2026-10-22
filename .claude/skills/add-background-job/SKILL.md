@@ -50,7 +50,7 @@ Use [implement-task](../implement-task/SKILL.md) as the substantive entry point.
 ### 1. Check the delivered boundary
 
 Read the feature roadmap and current
-[P02b-4 record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
+[P02b-4 record](../../../docs/roadmap/phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15).
 P02b-4 intentionally carries no production business definitions or recurrence
 manifests. The first feature must explicitly reconcile that infrastructure-only
 census when its own accepted phase delivers real definitions.

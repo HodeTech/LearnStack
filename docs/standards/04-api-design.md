@@ -12,7 +12,7 @@ P02b-5 Step 4 activates the closed HTTP boundary; its delivery record owns proof
 and review status. Subject-registry capacity, cleanup and refusal semantics
 derive from [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md),
 Accepted — 2026-10-20. Implementation has local runtime/exported proofs; the
-[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+[implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns independent reviews and final-source CI qualification.
 
 REST conventions for LearnStack public and admin APIs.
@@ -46,7 +46,7 @@ read pairs; Step 4 delivers the contract/SDK controls. Institution
 reads use `/api/v1/public`, separate from future authoring ID routes: `/site`,
 `/courses`, `/courses/{slug}` and `/courses/{slug}/lessons/{lessonSlug}`. Each has
 explicit GET and HEAD; Education routes require query locale. Response/continuation
-contracts are the [accepted packet](../roadmap/phase-02d-walking-skeleton.md#public-routes-and-dto-contract)
+contracts are the [accepted packet](../roadmap/phase-02d-delivery-log.md#public-routes-and-dto-contract)
 under [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 ## Versioning
@@ -318,7 +318,7 @@ Rules:
   and makes no confidentiality, MAC or snapshot promise. Invalid encoding/shape/
   scope is `400 validation_failed` naming the sent cursor parameter. Forward-only
   PageInfo keeps previousCursor null and hasPrevious false.
-  [The accepted pagination contract](../roadmap/phase-02d-walking-skeleton.md#catalog-and-outline-continuation)
+  [The accepted pagination contract](../roadmap/phase-02d-delivery-log.md#catalog-and-outline-continuation)
   owns exact payloads, bounds and seek behavior; P02d-4 Step 3 implements the codec.
 - Offset pagination is allowed only for admin-bounded lists (≤ 10k total rows).
 
@@ -503,7 +503,7 @@ SDK has no branch for.
   [Standards 07 § SDK](07-frontend-architecture.md) owns how and when.
 - Breaking OpenAPI changes fail the always-running `openapi diff` job under
   ADR-0024. Required-check registration is recorded only after a real run and
-  API read-back, in [the packet delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci).
+  API read-back, in [the packet delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci).
 
 **G31 delivered by Step 4.** `backend/openapi/v1.json` is the sole v1 snapshot,
 compared against the production served document. Non-empty eight-operation and
@@ -513,7 +513,7 @@ companions implement representable ADR-0024 rules; runtime tests own validator a
 status meaning absent from the document. Bootstrap builds and serves the verified
 base composition; only a base without a snapshot and without v1 operations
 qualifies. Verification/read failures and deleted head snapshots fail closed.
-[The accepted contract/CI plan](../roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
+[The accepted contract/CI plan](../roadmap/phase-02d-delivery-log.md#openapi-sdk-and-required-check-plan)
 owns pins, overrides and the six-check rollout; the delivery record owns execution.
 
 ## Request and Response Limits

@@ -18,7 +18,7 @@ Existing command reachability is unchanged. The
 [integration-event catalogue](README.md#integration-event-catalogue) owns the flow.
 
 **ADR-0046 P02b-2 complete and merged — 2026-10-13.** All four steps
-completed both independent review rounds. The [merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+completed both independent review rounds. The [merge closeout](../../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status.
 The API-owned dispatcher and terminal audit add no
 permission key or HTTP endpoint. P02b-3's

@@ -313,7 +313,7 @@ state.
 ## Validation
 
 [ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md)
-and the [P5 package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08)
+and the [P5 package](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-5-decision-package-2026-10-08)
 own the accepted host/TLS/transport contract. P02d-7 supplies foreground `make demo`
 and CI browser/audit mode. Follow README Quickstart for production-build launch,
 owned cleanup, retained local data and stale-lock handling. The packet's Step 4

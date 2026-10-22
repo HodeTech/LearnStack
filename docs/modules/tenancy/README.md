@@ -76,7 +76,7 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 ## P02d-2 accepted locale and branding contract
 
 **Step 2 complete after both review rounds — 2026-10-02.** The [phase
-package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+package](../../roadmap/phase-02d-delivery-log.md#p02d-2-decision-package-2026-10-02)
 records approval and seed inventory. All three commands are unrouted, require resolved
 tenant-wide context and write one aggregate; organization context is refused rather than
 silently promoted to tenant scope. Tenant ids are not caller authority.
@@ -150,7 +150,7 @@ No caller tenant/org IDs or cross-module table join is introduced.
   ADR-0052; no-store applies to all responses. Direct internal contracts inherit
   the ambient mode and create no request/audit intent.
 
-[The accepted public allowlist](../../roadmap/phase-02d-walking-skeleton.md#public-routes-and-dto-contract)
+[The accepted public allowlist](../../roadmap/phase-02d-delivery-log.md#public-routes-and-dto-contract)
 owns serialized fields; HTTP/database positive controls are required before exit.
 
 No platform locale registry is introduced. Admission uses the existing `LocaleTag`
@@ -175,7 +175,7 @@ physical READ ONLY frame. The live configuration reader independently retains
 its host, enlistment, tenant/organization lifecycle and locale checks. Theme/null
 and attribution follow the public contract above; `branding.theme` stays
 tenant-wide. P02b-5 Step 4 exposes only `GET /api/v1/account/site`; its
-[delivery record](../../roadmap/phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
+[delivery record](../../roadmap/phase-02b-delivery-log.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
 owns HTTP validation and review status.
 
 ### Whole-theme setting and public boundary
@@ -245,7 +245,7 @@ entry. The accessor uses the existing announced ambient transaction, without
 opening/announcing a new one or retaining a per-scope value snapshot. A subsequent
 read observes supported writes under the ambient isolation. Measure the indexed
 read/selection budget in P02d-3. The
-[accepted package](../../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+[accepted package](../../roadmap/phase-02d-delivery-log.md#p02d-3-decision-package-2026-10-02)
 records the tests and step plan.
 
 ### Job lifecycle projection
@@ -255,7 +255,7 @@ projection. The framework reads only the minimal columns allowed by
 [Database Standards](../../standards/05-database.md#job-lifecycle-projection);
 tenantless orchestration constructs no Tenancy service and accepts no arbitrary
 tenant selector. The additive Tenancy migration owns this SELECT-only grant.
-The [Step 8 record](../../roadmap/phase-02b-events-auth.md#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18)
+The [Step 8 record](../../roadmap/phase-02b-delivery-log.md#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18)
 owns implementation and pending complete qualification.
 
 ## Entity-relationship diagram
@@ -528,7 +528,7 @@ announcement while provisioning ambient context remains unresolved. State, event
 and the existing two MUST audit rows share one transaction. P02b-1 persists
 pending rows; P02b-2 implements hosted dispatch and production-census enforcement.
 All four steps completed both independent review rounds and local closeout.
-The [merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+The [merge closeout](../../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. P02b-3 Steps 1–4 implement consumer ownership and scheduling;
 Step 5 supplies the two actual default subscriptions and semantic Seeder handoff.
 
@@ -537,10 +537,10 @@ P02b-3 Step 5 activates both real Customization subscriptions together over
 transport-owned inbox and independent delivery ledger. The stable identities are
 `customization.initialize-content-type-default.v1` for `card@1` content type and
 `customization.initialize-taxonomy-default.v1` for `plain@1` taxonomy. The
-[Step 5 record](../../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+[Step 5 record](../../roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 records validation and reviews; neither subscription is a placeholder. P02b-3 is
 complete and merged through PR #31; its
-[merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+[merge closeout](../../roadmap/phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final verification.
 
 | Topic | Payload | Publisher | Consumers | Phase |

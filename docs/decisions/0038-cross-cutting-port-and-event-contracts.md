@@ -259,7 +259,7 @@ subscriber scheduling owns retry, terminalization and targeted internal replay.
 Transport diagnostics use closed reasons without logging raw handler exceptions
 or copied envelope data. The two real default subscriptions are Active.
 
-The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+The [Step 6 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 owns runtime proofs, bounded production censuses and current review/PR status.
 Original acceptance metadata, body and previous amendments are unchanged.
 

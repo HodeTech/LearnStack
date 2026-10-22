@@ -7,7 +7,7 @@ Public-read additions derive from
 Tenant API authentication additions derive from
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
 Public UI message mapping derives from [ADR-0027](../decisions/0027-frontend-i18n.md)
-and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
+and the [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
 Bootstrap response ownership and renderer Retry-After qualification derive from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
 Delivery/recovery additions derive from
@@ -17,7 +17,7 @@ Background-job policy derives from
 [ADR-0061](../decisions/0061-known-external-job-failure-policy.md).
 Hard-limit refusal follows [ADR-0021](../decisions/0021-feature-based-entitlement.md),
 [ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) and the
-[accepted quota accounting](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19).
+[accepted quota accounting](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting).
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
 
@@ -454,9 +454,9 @@ outcomes mapped to the bounded unavailable state. It does not authorize arbitrar
 Problem Details keys, titles, field errors or parameters as UI lookup identifiers
 or visible copy. This public-page mapping is Accepted — 2026-10-09;
 P02d-6 Steps 1–3 implement it, with evidence in the
-[Step 1](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation),
-[Step 2](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-2-catalog-and-course-pages)
-and [Step 3](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-3-ordered-lesson-presentation)
+[Step 1](../roadmap/phase-02d-delivery-log.md#p02d-6-step-1-localization-and-document-foundation),
+[Step 2](../roadmap/phase-02d-delivery-log.md#p02d-6-step-2-catalog-and-course-pages)
+and [Step 3](../roadmap/phase-02d-delivery-log.md#p02d-6-step-3-ordered-lesson-presentation)
 delivery records.
 
 ### Public Page Status and Recovery
@@ -495,7 +495,7 @@ as integer delta-seconds from zero through sixty inclusive. Preserve eligible
 values; omit malformed/date/negative/out-of-range values without clamping or
 inventing a retry. This qualifies renderer forwarding only; the API's selected
 refusal metadata and accounting remain unchanged. The
-[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+[Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 records passing exact-wire failure/lifecycle proofs, both independent review
 rounds and focused fix verification.
 
@@ -576,7 +576,7 @@ exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
 ## Background Jobs
 
 [Accepted ADR-0047](../decisions/0047-transactional-background-job-runtime.md#attempts-terminal-audit-and-diagnostics)
-owns the job failure policy. The [P02b-4 delivery records](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+owns the job failure policy. The [P02b-4 delivery records](../roadmap/phase-02b-delivery-log.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 own the delivered implementation; the
 [phase status](../roadmap/phase-02b-events-auth.md) owns remaining hosted qualification.
 
@@ -603,7 +603,7 @@ full enforcement. Acceptance supplies no completed runtime proof.
 ## Outbox
 
 **Accepted ADR-0046; P02b-2 producer runtime and enforcement complete and merged.**
-All four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+All four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. P02b-3 Steps 1–4 implement durable acceptance, shared inbox,
 independent subscriber execution/retries and terminal audit. Step 5 activates both
 real default

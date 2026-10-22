@@ -182,7 +182,7 @@ Additions to the existing host, not a new one:
 
 Typed transactional submission, exact tenant/org restoration, profile/capacity
 admission and the replacement BackgroundJob_* obligations are accepted by
-[P02b-4](phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
+[P02b-4](phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15).
 Their implementation/proofs remain pending; this phase depends on that completed
 foundation and adds no runner.
 

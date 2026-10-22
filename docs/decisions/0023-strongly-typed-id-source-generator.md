@@ -569,7 +569,7 @@ the body, Decision, acceptance metadata and earlier amendments remain intact.
 [ADR-0046](0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
 adds tenant and stable subscription to that natural identity; it still mints no
 surrogate. P02b-3 implements the shared table under its
-[accepted package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+[accepted package](../roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13).
 Carriers changed for this correction are this erratum/amendment, the ADR index,
 Database Standards' Inbox/Identifiers text and the phase package. Database
 Standards already excludes inbox from DB-side minting; its canonical DDL lands

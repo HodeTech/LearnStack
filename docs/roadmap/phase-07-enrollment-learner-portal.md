@@ -50,7 +50,7 @@ feature UI namespaces through the Phase 06 portal shell, preserving complete
 supported catalogues and checked ICU/callsite coverage. General UI identifiers
 remain distinct from backend `lockey_*`; the SDK supplies no translations.
 
-The [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+The [P02d-6 package](phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09)
 selects anonymous page/status composition and shared verified public admission.
 Its UI fallback changes no content locale or access policy. Its local 307→404 URL
 change and HTTP 200 noindex content-failure states do not decide authenticated

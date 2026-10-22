@@ -7,7 +7,7 @@ under [ADR-0004](../../docs/decisions/0004-authentication-strategy.md) and
 decides development issuance;
 [Security 11](../../docs/standards/11-security.md#authentication) owns its ongoing
 rule. The
-[P02b-6 accepted package](../../docs/roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+[P02b-6 accepted package](../../docs/roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
 retains the earlier approval and owns safe warm-realm convergence.
 Authentication grants no application membership or permission; Phase 03 owns
 those records.
@@ -34,7 +34,7 @@ against it, including the host's default organization where applicable.
   self-service capability in addition to their existing inert realm roles.
   This permits owner credential/linked-account management; it grants no
   LearnStack permission or membership. The
-  [approved adjustment](../../docs/roadmap/phase-02b-events-auth.md#account-console-self-service-capability--proposal-2026-10-21)
+  [approved adjustment](../../docs/roadmap/phase-02b-delivery-log.md#account-console-self-service-capability--proposal-2026-10-21)
   owns this explicit exception to role-assignment preservation.
 - The operator account remains `demo-operator@learnstack.test`; its separate
   realm is untouched. Neither realm's token is accepted by the other surface.
@@ -201,21 +201,21 @@ P02b-6 Step 1 supplies the executable fresh import; Step 2 supplies the bounded
 shared Admin REST reconciler. Both completed their local review rounds. Step 3
 connects `make seed` and `make demo` to the same awaited operation after
 application seed convergence. Its actual lifecycle qualification and reviews
-are recorded in the [Step 3 delivery record](../../docs/roadmap/phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21).
+are recorded in the [Step 3 delivery record](../../docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21).
 The exact pre-P02b-6 export has a stock profile that hides identity values and
 broader account-console assignments. The qualified correction handles these
 prerequisites without inferring account ownership from a hidden projection.
 [ADR-0068](../../docs/decisions/0068-development-warm-realm-qualification.md)
 is Accepted — 2026-10-22 after verified review corrections under conditional
 maintainer authority. Its three-step implementation and automatic-path proof
-are tracked in the [acceptance record](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22).
-The [first correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
+are tracked in the [acceptance record](../../docs/roadmap/phase-02b-delivery-log.md#adr-0068-acceptance-and-implementation-2026-10-22).
+The [first correction step](../../docs/roadmap/phase-02b-delivery-log.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
 adds fixed historical graph qualification and assignment-only normalization,
 with both independent review rounds complete. The
-[second correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
+[second correction step](../../docs/roadmap/phase-02b-delivery-log.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
 completes automatic preparation and fresh complete planning after both independent
 review rounds. The
-[third correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+[third correction step](../../docs/roadmap/phase-02b-delivery-log.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
 completes local historical seed/demo, usable credential/MFA, signed API and stored
 self-service proof after both review rounds. That record owns exact source-bound
 hosted assignments and their evidence limits; merge remains separate.
@@ -230,7 +230,7 @@ An older private environment must add `KEYCLOAK_WEB_CLIENT_SECRET` explicitly
 before either combined entry starts stack or database work. Do not wipe the
 provider database to upgrade. The tool reports fixed refusal reasons, keeps
 partial Admin changes durable and requires an explicit verified rerun. The
-[accepted account-console adjustment](../../docs/roadmap/phase-02b-events-auth.md#account-console-self-service-capability--proposal-2026-10-21)
+[accepted account-console adjustment](../../docs/roadmap/phase-02b-delivery-log.md#account-console-self-service-capability--proposal-2026-10-21)
 is implemented; its actual stock-parity, warm-preservation, profile/API
 qualification and both completed independent review rounds are recorded with
 Step 4. Qualification applies only to the recorded source and scope; subsequent

@@ -173,7 +173,7 @@ an existing user process. P6 adds separate production product modes for foundati
 pagination, presentation, concurrent isolation and freshness/failure states. Those
 HTTP/HTML/RSC proofs do not claim browser or screen-reader execution; P6's manual
 accessibility closeout is recorded with its tested scope in the
-[packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10).
+[packet closeout](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10).
 New UI changes require their own applicable manual checks; P7 supplies the narrow
 seeded browser demo described below.
 
@@ -188,7 +188,7 @@ to its certificate's public-key fingerprint; it does not use a personal profile.
 Browser observations cover a refused Flight followed by stock Next's fresh document
 navigation and separately counted API calls. HMR controls cover source recompilation
 and a fresh live site snapshot in the same development process. The
-[Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+[Step 3 record](../../../docs/roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns actual execution, completed reviews and verified fixes. This probe remains
 separate from P7's browser demo/Lighthouse and Phase 06's full Playwright Test/axe.
 
@@ -261,7 +261,7 @@ screenshots. Proof and owned cleanup must both pass. Archive only this sanitized
 artifact directory; private configuration, certificates, keys, profiles and raw
 process logs are excluded. Existing artifacts must be moved aside before another
 run so stale evidence cannot pass. The
-[P7 delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+[P7 delivery record](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
 owns local proof/review evidence; the packet's Step 4 record and
 [branch protection](../../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
 own real CI receipts and required-check activation. Local success alone does not
@@ -384,7 +384,7 @@ record and CONTRIBUTING; do not infer them from a local audit.
   applicable `jsx-a11y` rules and localized page-semantics checks, plus manual
   keyboard, focus, reflow, contrast and screen-reader evidence. Acceptance does
   not claim those controls pass; implementation records their actual results in
-  [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
+  [Phase 02d](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-accepted-answers).
 
 ## Common pitfalls
 
@@ -405,6 +405,6 @@ record and CONTRIBUTING; do not infer them from a local audit.
   standard does not prove implementation. Accepted P02d-6/G43 requires earlier
   failing lint/semantics controls and actual manual assistive-technology evidence;
   DOM assertions cannot substitute for a screen reader. Delivery is recorded in
-  [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
+  [Phase 02d](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-accepted-answers).
 - **CI-only failures.** Usually a race or timing assumption. Use `--blame-hang`
   + `--blame-crash` locally.

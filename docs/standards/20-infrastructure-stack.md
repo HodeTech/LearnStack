@@ -302,7 +302,7 @@ boundary in P02d-3, with planted interface/concrete/helper offenders and a clean
 control.
 
 **Settings are uncached in P02d-2/3.** The
-[Accepted G23 freshness answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
+[Accepted G23 freshness answer](../roadmap/phase-02d-delivery-log.md#p02d-2-accepted-answers)
 selects no settings cache. The adapter's existing `tenancy:settings` metric spelling
 is reserved, not an active reader or a TTL promise. P02d-3 owns the typed ambient
 accessor and explicit tenant/organization scope; it adds no settings generation
@@ -457,7 +457,7 @@ it cannot replace the API's own validation and host reconciliation.
   DDL CHECK. P02b-1 Steps 2/3 implement immediate enqueue, successful-save
   collection and the completed-provisioning publisher. Step 4 implements the
   production censuses and catalogue enforcement; the
-  [delivery record](../roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
+  [delivery record](../roadmap/phase-02b-delivery-log.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
   owns final verification and review status.
 - Only the owner drains successful-save domain events before invariants/MUST
   audit/commit. Domain handlers only translate to outbox; a total 256-event bound
@@ -488,13 +488,13 @@ it cannot replace the API's own validation and host reconciliation.
   Brokers and retention purge remain demand-gated Phase 11. P02b-2 Step 3
   implements hosted producer dispatch, with both independent review rounds complete;
   Step 4 enforcement and local closeout are complete; all four steps completed
-  both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+  both independent review rounds. The [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
   owns CI/merge status. P02b-3 Steps 1–4 implement shared storage, durable acceptance,
   transactional execution and independent scheduling/terminalization/replay. Its
   real defaults are Active with Step 5 initialization and semantic Seeder handoff. The
-  [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+  [Step 5 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
   records that step's validation and reviews. The
-  [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+  [Step 6 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
   owns current enforcement, validation and review/PR status.
 - Controlled subscriber tasks retain their actual app-role scope through
   cancellation callbacks and cleanup. Timeout closes the sticky commit gate
@@ -726,7 +726,7 @@ causal-envelope or payload read to the bypass scheduler. See
 Accepted [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
 owns H1: stock Hangfire transports opaque wakeups; LearnStack records own business
 intent, attempts, tenant/organization authority and completion. The
-[P02b-4 delivery record](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+[P02b-4 delivery record](../roadmap/phase-02b-delivery-log.md#source-lifetime-and-facade-continuation-2026-10-16)
 owns current implementation/qualification status; Step 4 qualifies API activation.
 
 **Accepted lifecycle addition — 2026-10-16.**
@@ -744,7 +744,7 @@ are qualified: a draining pool can block unrelated same-pool tenants with a spar
 slot and below four retained overruns, including after storage recovery, until
 actual cleanup. Other healthy pools remain independent subject to common
 dependencies; hard retention bounds, attempts, reservations and quiescence hold.
-The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+The [Step 4 adaptation](../roadmap/phase-02b-delivery-log.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 is authorized. Step 4 locally qualifies the shipped lifecycle and API composition;
 its delivery record owns both full reviews and verified corrections.
 
@@ -769,7 +769,7 @@ is not developer/shared/production host authority or a weaker child precondition
 The closed owners are `scripts/ci-native-provisioning.py` and
 `scripts/ci-native-tests.py`; their offline subprocess/partition controls run in
 `meta`. Exact discovery/result identities and all required execution outcomes gate the
-aggregate. The [CI record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+aggregate. The [CI record](../roadmap/phase-02b-delivery-log.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
 owns reviews and actual hosted qualification. Local controls do not qualify the
 hosted process boundary, complete partitions or their budget fit.
 
@@ -801,7 +801,7 @@ each aggregate to five; actual final-source fit is recorded in the phase.
   `ExternalWaitTimeout` bounds Execute; `ProbeTimeout` bounds Reconcile, checkpoint
   history and recovery confirmation. Expiry closes late admission while actual
   work, private cancellation callbacks and cleanup remain owned. The
-  [Step 7 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-7--external-stages-and-recovery-2026-10-17)
+  [Step 7 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-7--external-stages-and-recovery-2026-10-17)
   owns the stage-wait qualification.
 - A per-pool server-metadata heartbeat fault makes `jobs` unhealthy during retry,
   before draining. Only confirmed stored heartbeat success clears it. Two fixed
@@ -819,7 +819,7 @@ each aggregate to five; actual final-source fit is recorded in the phase.
   positive original cleanup and distinct recovery authority through the exact
   app-role checkpoint.
   Missing local cleanup preserves occupied capacity in paced recoverable parking.
-  The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+  The [Step 6 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
   owns passing local qualification, both completed full review rounds and verified
   corrections.
 - Definition/queue/recurrence keys come from finite code registries. Only the two

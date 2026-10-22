@@ -22,7 +22,7 @@ and P02d-2 decision package. Implementation has not started.
 **Date:** 2026-10-02
 **Deciders:** Cemil (repository maintainer)
 **Relationship:** Supersedes ADR-0048. The dated
-[G3 supersession](../roadmap/phase-02d-walking-skeleton.md#g3-supersession-2026-10-02)
+[G3 supersession](../roadmap/phase-02d-delivery-log.md#g3-supersession-2026-10-02)
 preserves the original answer and delivery history.
 
 ## Decision Drivers
@@ -164,7 +164,7 @@ implication changes when protected authoring is selected. This is a new decision
 not a correction of a false historical statement.
 
 The maintainer approved this contract on 2026-10-02. The
-[dated G3 supersession](../roadmap/phase-02d-walking-skeleton.md#g3-supersession-2026-10-02)
+[dated G3 supersession](../roadmap/phase-02d-delivery-log.md#g3-supersession-2026-10-02)
 records the current policy and packet obligations; ADR-0048 retains its original
 decision as history. Acceptance establishes the contract, not a shipped migration,
 writer or reader.
@@ -209,7 +209,7 @@ one-root publication, concurrency and audit guards remain required.
 ## References
 
 - [Education module](../modules/education/README.md)
-- [P02d-2 decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+- [P02d-2 decision package](../roadmap/phase-02d-delivery-log.md#p02d-2-decision-package-2026-10-02)
 - [Course access terminology](../glossary.md#enrollment--access)
 - [Phase 05](../roadmap/phase-05-education-learning-content.md)
 - [Phase 07](../roadmap/phase-07-enrollment-learner-portal.md)
@@ -238,7 +238,7 @@ Updated carriers: this status disclosure, [the ADR index](README.md),
 [Proposed ADR-0049](0049-institution-sites-and-course-marketplace.md),
 [Phase 04](../roadmap/phase-04-cms-media-pages.md) and
 [Phase 07](../roadmap/phase-07-enrollment-learner-portal.md). The
-[P02d-2 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-2-implementation-delivery-2026-10-02)
+[P02d-2 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-2-implementation-delivery-2026-10-02)
 is the current delivery authority.
 
 #### Amendment 2 — Status navigation (2026-10-02)
@@ -254,7 +254,7 @@ and the 2026-10-02 status disclosure left pending. Eligible restricted courses
 expose marketing metadata without lesson inventory; lesson reads require an
 eligible public-policy parent. Hidden outcomes share the same refusal, and all
 GET/HEAD outcomes are no-store. Real app-role store/HTTP tests and the
-[Step 3 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads)
+[Step 3 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-3-public-education-reads)
 record the proof. Phase 07 still owns authenticated grants; P02d-5/6 own the
 server/page consumers. No merge or browser delivery is claimed.
 

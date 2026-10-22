@@ -66,7 +66,7 @@ and [17-page-builder.md](../../../docs/architecture/17-page-builder.md).
 > and no active URL sink. The wider registry and component sketches below remain
 > Phase 04/05 and Phase 06 targets. The existing key lists in
 > `src/lib/customization/` are not renderer implementations. See the
-> [accepted package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
+> [accepted package](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-accepted-answers).
 
 `RegisterPrimitive`, `BlockRenderer`, `resolver.registerPrimitive` and
 `useContentEntries` below are illustrative future APIs, not existing symbols to
@@ -216,7 +216,7 @@ the page.
   planted controls, localized product-page semantics and real manual keyboard,
   focus, reflow, contrast and screen-reader evidence. Step 3 implements the
   applicable lint controls and synchronous lesson semantics. The
-  [Step 4 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+  [Step 4 record](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
   records product proofs and the scoped manual browser/screen-reader checks.
 - [Performance Standards](../../../docs/standards/15-performance.md) governs pages
   embedding the block. P02d-7's shared `make demo DEMO_MODE=ci` proof supplies

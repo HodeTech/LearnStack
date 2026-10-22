@@ -455,7 +455,7 @@ signals on Core tokens, the positive child exits while an actual stock process
 and a private cancellation callback remain held. A test-only observer confirms
 Core reached its forced shutdown signal. This proves neither actual cleanup nor
 production callback confinement; final teardown aborts unresolved background work.
-The [Step 4 decision receipt](../roadmap/phase-02b-events-auth.md#p02b-4-step-4--server-generation-decision-2026-10-16)
+The [Step 4 decision receipt](../roadmap/phase-02b-delivery-log.md#p02b-4-step-4--server-generation-decision-2026-10-16)
 owns reproducible commands, results and limits; experiments are not shipped
 enforcement or acceptance.
 

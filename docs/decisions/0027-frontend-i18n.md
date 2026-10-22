@@ -11,7 +11,7 @@ The maintainer accepted this reserved frontend-i18n decision and P02d-6 G39 befo
 implementation. At acceptance, no implementation is delivered; later delivery is
 recorded in dated amendments. P02d-6 owns the first consumer, and Phase 04 consumes
 that foundation. The
-[P02d-6 decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+[P02d-6 decision package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09)
 owns the page plan and approval boundary.
 
 ## Decision Drivers
@@ -282,7 +282,7 @@ Step 1 also supplies document language/direction, atomic four-color style-elemen
 injection, tenant chrome, bounded interactive error labels, loading/state views
 and the live-admitted fixed status page, which performs no Education read.
 Catalog/course pages remain Step 2; lesson presentation remains Step 3. The
-[Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+[Step 1 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-6-step-1-localization-and-document-foundation)
 owns current validation, review and product/accessibility proof status. The
 Decision, Status, Date and Deciders remain unchanged.
 
@@ -297,7 +297,7 @@ Resolved API label language remains distinct from UI fallback language.
 Step 4 adds separate real API/production Next product modes for concurrent
 host/locale isolation, authored RTL content, atomic theme fallback, publication
 freshness and content-failure recovery. The
-[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+[delivery record](../roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 owns execution and review evidence. Actual manual keyboard, focus, reflow,
 contrast and screen-reader evidence remains pending; P6 completion and
 Accessibility promotion are not claimed. This delivery note changes no decision
@@ -308,7 +308,7 @@ owns the browser demo and Lighthouse activation.
 ### Amendment 3 — P02d-6 manual accessibility closeout (2026-10-10)
 
 P02d-6 completes its four implementation steps and two independent review rounds
-per step. The [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+per step. The [packet closeout](../roadmap/phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10)
 records keyboard, focus, 320 CSS px desktop reflow and calculated contrast
 observations, followed by the maintainer's passing real VoiceOver checks on the
 English and Turkish catalog → course → lesson flows and missing/invalid-link
@@ -334,7 +334,7 @@ unchanged. The original acceptance metadata, body and prior amendments remain
 historical; this is bounded supersession navigation, not a correction.
 
 Acceptance delivers no runtime implementation or passing production proof. The
-[three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
+[three-step plan](../roadmap/phase-02d-delivery-log.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
 owns implementation, two independent review rounds per step and delivery status.
 
 ### Amendment 5 — Single-bootstrap loader delivery (2026-10-10)
@@ -342,7 +342,7 @@ owns implementation, two independent review rounds per step and delivery status.
 ADR-0055's replacement admission loader is implemented. Middleware publishes one
 validated immutable snapshot; provenance-checked request, resource and UI consumers
 share it only during that native request. Content locale and UI fallback remain
-separate. The [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+separate. The [Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns actual production proof, validation and independent review status. The original
 acceptance metadata, body and earlier amendments remain historical. This delivery
 note changes no decision or manual accessibility claim.

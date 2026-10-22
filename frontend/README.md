@@ -39,7 +39,7 @@ Before starting web, follow the root [HTTPS Quickstart](../README.md#quickstart)
 remain explicit developer steps. Start `make public-api` in another terminal.
 The native ingress serves the configured tenant hosts over HTTPS on port 3000.
 Direct stock `next dev/start` is unsupported. P6 implements localized public
-catalog/course/lesson pages; its [closeout](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+catalog/course/lesson pages; its [closeout](../docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 records completed reviews and passing manual accessibility. P6 is complete and
 merged through PR #27 on 2026-10-10. P7 delivers the shared demo and narrow
 Playwright library/Lighthouse proof; Phase 06 owns the broader Playwright Test/axe

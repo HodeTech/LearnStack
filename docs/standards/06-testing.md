@@ -11,7 +11,7 @@ The seeded browser/audit proof derives from
 Native admission, stock-browser fallback and HMR proof controls derive from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
 UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
-and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
+and the [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
 
 Test pyramid, conventions, and what every change must cover.
 
@@ -168,7 +168,7 @@ writes only literal `core`; it never restores a pipe. The unchanged child fixtur
 still qualifies its own preconditions and actual native exits. The required
 aggregate checks every producer outcome and matching complete artifacts. Offline
 provisioning/launcher controls run in `meta`. The
-[CI acceptance and implementation record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
+[CI acceptance and implementation record](../roadmap/phase-02b-delivery-log.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
 owns actual review and hosted qualification; local controls do not establish VM
 ownership, no-dump proof or either execution's whole-job budget fit.
 
@@ -214,7 +214,7 @@ aggregate refuses that missing identity even after a complete rerun. Further
 PR qualification uses an open follow-up PR, without weakening identity checks
 or combining receipts from different attempts. Normal future pushes execute
 one complete assignment. The
-[CI follow-up record](../roadmap/phase-02b-events-auth.md#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
+[CI follow-up record](../roadmap/phase-02b-delivery-log.md#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
 owns actual hosted fit and the two complete attempts; local controls do not
 establish either.
 
@@ -243,14 +243,14 @@ and were read as running.
   generated GET wrappers. Pinned CLI fixtures cover ADR-0024 compatibility, with
   explicit companions for the tool's open-enum gaps. Snapshot admission controls
   fail closed on missing/deleted snapshots and failed base verification.
-  [The packet record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+  [The packet record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
   records executed counts, reviews and the live required-check rollout.
 
 ### End-to-End Tests
 
 P02d-7 Step 3 implements the narrow seeded catalog → course → lesson browser
 proof over the running production API/native renderer. Its
-[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+[delivery record](../roadmap/phase-02d-delivery-log.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
 records the passing local nine-page walkthrough and 27 Lighthouse audits;
 both independent Step 3 reviews are complete. The packet's Step 4 record owns
 real CI receipts and required-check activation; local proof alone does not establish
@@ -323,7 +323,7 @@ Controls must fail for omitted cleanup, early split leaks followed by large outp
 disabled trust verification, stale listeners and unclosed upgrades. Healthy builds
 receive nonempty private configuration; a real public-only Client Component and a
 successfully built leaking mutant make emitted-asset containment falsifiable.
-The [remediation record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-3--fixture-reliability-and-containment)
+The [remediation record](../roadmap/phase-02d-delivery-log.md#remediation-step-3--fixture-reliability-and-containment)
 owns execution/review evidence. These are socket/build controls, not P7 browser
 or Lighthouse delivery.
 
@@ -354,7 +354,7 @@ so its catch-all cannot shadow product routes. Preserve `learnstack_app`, RLS,
 read-only transactions, native HTTPS, closed hop headers and fixture containment.
 Step 4 adds deterministic overlapping host/locale lanes, authored RTL content,
 whole-theme fallback, next-document freshness and one-shot content-failure modes.
-The [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+The [delivery record](../roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 owns execution, review evidence and the completed manual accessibility smoke.
 
 Assert visible HTML/DOM separately from Flight: status, `lang`/`dir`, headings,
@@ -369,7 +369,7 @@ documents cost two API calls, fixed status/scaffold documents one and followed
 missing documents three. Metadata/layout/page/UI reuse adds no bootstrap; the next
 document re-reads. HEAD/RSC/prefetch and Flight fallback need separately proven
 counts. The
-[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+[Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 records passing production replacement proofs; both independent Step 3 review
 rounds are complete. These HTTP/HTML/RSC proofs are not browser E2E evidence.
 

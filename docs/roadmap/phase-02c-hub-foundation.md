@@ -220,7 +220,7 @@ never a reason to fail a tenant's request.
 `IFeatureFlags.GetLimitAsync` returns the allowance — `-1` unlimited, `0` denied, `> 0`
 the allowance — and every `LimitKey` declares its `LimitEnforcement` (`Soft` | `Hard`).
 It shipped no gate. The first hard authoring gate is the
-[approved content-type quota](phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19),
+[approved content-type quota](phase-04-cms-media-pages.md#content-type-quota-accounting),
 which introduces the shared `403 limit_exceeded` mapping. The soft-limit reporting
 path lands here, because this is the first phase in which it has anywhere to report to
 ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)).

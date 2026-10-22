@@ -353,7 +353,7 @@ refuses qualification; no skip or synthetic-to-production inference closes the g
 - [ADR-0047](0047-transactional-background-job-runtime.md),
   [ADR-0058](0058-bounded-stock-hangfire-maintenance.md),
   [ADR-0059](0059-owned-hangfire-server-generations.md).
-- [P02b-4 Step 4 acceptance](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16).
+- [P02b-4 Step 4 acceptance](../roadmap/phase-02b-delivery-log.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16).
 - [Phase 11 Reliability](../roadmap/phase-11-production-hardening.md#reliability).
 - [Phase 04](../roadmap/phase-04-cms-media-pages.md),
   [Phase 03](../roadmap/phase-03-identity-admin.md).

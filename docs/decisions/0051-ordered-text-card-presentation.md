@@ -174,7 +174,7 @@ when their tests exist and run.
 
 ## References
 
-- [P02d-2 decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+- [P02d-2 decision package](../roadmap/phase-02d-delivery-log.md#p02d-2-decision-package-2026-10-02)
 - [Customization module](../modules/customization/README.md)
 - [Tenant customization model](../architecture/32-tenant-customization-model.md)
 - [Localization](../standards/08-localization.md)
@@ -203,7 +203,7 @@ Updated carriers: this status disclosure, [the ADR index](README.md),
 [Proposed ADR-0049](0049-institution-sites-and-course-marketplace.md),
 [Phase 04](../roadmap/phase-04-cms-media-pages.md) and
 [Phase 07](../roadmap/phase-07-enrollment-learner-portal.md). The
-[P02d-2 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-2-implementation-delivery-2026-10-02)
+[P02d-2 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-2-implementation-delivery-2026-10-02)
 is the current delivery authority.
 
 #### Amendment 2 — Status navigation (2026-10-02)
@@ -219,7 +219,7 @@ disclosure left pending. Exact eligible definitions supply ordered labels and
 plain string fields; unsupported/missing definitions or unsuitable selected
 content produce the bounded unavailable DTO. Reads do not repeat schema
 evaluation or rebind to a current revision. Display unit tests, app-role HTTP
-tests and the [Step 3 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads)
+tests and the [Step 3 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-3-public-education-reads)
 record the proof. P02d-6 still owns browser rendering, fallbacks and active-sink
 proofs; no browser delivery is claimed.
 
@@ -234,7 +234,7 @@ P02d-6 completes ordered plain-string lesson rendering with authored field order
 resolved label language/direction, omitted absent optional fields and bounded
 unavailable states. HTML/script/URL-like values remain inert text. Unit and
 production HTML/RSC cases cover the actual product routes; the
-[packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+[packet closeout](../roadmap/phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10)
 records automated evidence, two review rounds per step and passing manual
 browser/maintainer VoiceOver smoke. PR review and merge remain separate.
 

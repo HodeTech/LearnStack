@@ -23,9 +23,9 @@ and a non-developer tenant admin can maintain it.
 ### What Phase 02d supplies
 
 Rows identify P02d-6 scope merged through PR #27; its
-[merge closeout](phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+[merge closeout](phase-02d-delivery-log.md#p02d-6-merge-and-closeout-2026-10-10)
 records final verification. P02d-7's
-[delivery record](phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+[delivery record](phase-02d-delivery-log.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
 records the narrow browser/audit proof; the canonical Phase 02d closeout records
 its CI enforcement and phase-exit state.
 
@@ -44,7 +44,7 @@ app-local `src/i18n/messages/<locale>/<namespace>.json` and complete `en`/`tr`
 renderer UI. It preserves shared verified request admission, exact content locale,
 whole-catalogue UI fallback and missing-key failure; the SDK owns no translations.
 
-The [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+The [P02d-6 package](phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09)
 uses plain same-host anchors, opaque signed-target pagination, safe four-color
 injection and local 307→404 navigation to `/{locale}/status/not-found`. The URL
 changes; known content-call failures are translated HTTP 200 noindex states.

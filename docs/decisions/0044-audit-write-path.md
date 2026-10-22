@@ -1156,7 +1156,7 @@ prior amendments remain intact. Acceptance authorizes implementation, not delive
 ## Amendment 11 — Shared delivery capture exclusions (2026-10-13)
 
 **Status: Accepted.** [ADR-0046](0046-durable-event-delivery-and-recovery.md#bounded-supersession-and-additive-seams)
-and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13)
+and the [P02b-3 package](../roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13)
 add `InboxMessage` and `EventDelivery` to § 7's named capture exclusions. The inbox
 is transport-owned completion identity; the delivery ledger retains envelopes
 and retry/terminal machinery. Neither is a second business aggregate. Explicit
@@ -1184,7 +1184,7 @@ stored tenant/org/subscription/event identity and the live transaction; terminal
 state and audit commit together. The scheduler receives no payload or causal
 SELECT grant. Real-role identity substitutions, audit refusal and lost-COMMIT
 controls are recorded with the
-[Step 4 implementation](../roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13).
+[Step 4 implementation](../roadmap/phase-02b-delivery-log.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13).
 The catalogue names the
 [row-bound terminal proof](../standards/21-architecture-tests-catalogue.md#delivery_terminal_audit_identity_is_row_bound).
 
