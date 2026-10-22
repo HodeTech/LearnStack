@@ -17958,6 +17958,24 @@ the prior summary remains unchanged. The integration-project Release build
 passes with zero warnings/errors. Second-round independent review and complete
 final-source hosted A/B remain required.
 
+#### Second fixture-handoff review (2026-10-22)
+
+A different fresh pair reviews `12d4f088..9d1ba8cf`: `gpt-6-astra` at
+`xhigh` and `gpt-6.1-sol` at `high`. Both approve without a verified finding.
+Both independently verify the refreshed proof summary, four overlays, exact
+planted sources, 42 scenario artifact hashes, six clean passes and the intended
+premature-hint failure with actual native count two. The correctness reviewer
+also verifies 1,490 backend/script source hashes. The evidence reviewer replays
+the raw execution/discovery streams and twenty metadata streams, checks 61
+metadata artifact hashes, recomputes complete distinct assignments and passes
+all sixty offline controls. Both verify actual process joins and two exact
+owned-container absences per scenario. Neither runs .NET, Node, a provider or
+Docker. The original metadata record remains bound to `87ac3713`; the subsequent
+cancellation-only correction preserves all declarations. Whitespace checks
+pass. Both fixture correction review rounds are complete. The historical
+hosted cancellation remains unexplained; complete final-source A/B remains
+required before draft readiness.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
