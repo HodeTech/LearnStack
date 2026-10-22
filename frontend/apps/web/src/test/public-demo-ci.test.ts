@@ -81,8 +81,12 @@ function browserSetup(failure = '') {
           ;;
         tee)
           [ "$*" = 'tee /etc/apt/apt.conf.d/zzzz-learnstack-browser-Ab1cD2' ] || exit 99
+          if [ "$FAILURE" = write ]; then
+            IFS= read -r first_line
+            printf '%s\\n' "$first_line" > "$CONFIGURATION"
+            exit 18
+          fi
           /bin/cat > "$CONFIGURATION"
-          [ "$FAILURE" != write ] || exit 18
           ;;
         apt-config)
           [ "$*" = 'apt-config shell RETRIES Acquire::Retries HTTP_TIMEOUT Acquire::http::Timeout HTTPS_TIMEOUT Acquire::https::Timeout' ] || exit 99

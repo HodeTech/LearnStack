@@ -18019,6 +18019,31 @@ skips/todos. Workspace typecheck, lint and the changed TypeScript formatter
 check pass. These isolated shell controls do not claim real APT or hosted
 mirror-failover execution.
 
+Attempt 3 subsequently finishes with 26 successful jobs: all 5,921 backend
+cases and both aggregates pass. Independent source/API/archive/assignment
+revalidation produces a backend-only summary with SHA-256
+`984dfc4a315b5f7a273a81e250a240a17d8f13d80492159c507667c3b09d93a7`.
+Its whole-workflow qualification flag is false because the public setup fails.
+
+#### First browser-acquisition correction review (2026-10-22)
+
+Two fresh reviewers inspect `9eecf967..b25d00a9`: `gpt-6-astra` at `high`
+for security/correctness and `gpt-6.1-sol` at `high` for evidence/governance.
+Both approve without a Blocker or Major. They independently check the retained
+validation digest and all five file hashes. The correctness reviewer executes
+eleven extracted-shell cases under the hosted default Bash errexit behavior;
+the evidence reviewer executes all eight committed success/refusal paths with
+isolated substitutes. Neither runs Node, .NET, Docker, APT or privileged code.
+The reported full frontend result remains a root-observed console result,
+not independently retained raw-report evidence.
+
+One Minor proof mismatch is verified: the purported partial-write substitute
+previously wrote all configuration bytes before returning failure. It now writes
+only the first line and fails, so cleanup is tested after a genuinely incomplete
+fragment. All thirteen targeted controls pass again. The implementation shell
+does not change. A different fresh review pair and complete final-source hosted
+A/B remain required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
