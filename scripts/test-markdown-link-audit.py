@@ -49,7 +49,8 @@ def squashed_fixture(*, broken_change=False, broken_legacy=False):
         target = 'missing-changed.md' if broken_change else 'target.md'
         (docs / 'changed.md').write_text(
             '# After\n[changed](' + target + ')\n[external](https://example.invalid/external)\n'
-            '[anchor](#section)\n```md\n[example](missing-fenced.md)\n```\n')
+            '[anchor](#section)\n```md\n[example](missing-fenced.md)\n```\n'
+            'Sample: `[inline](missing-inline.md)` is code, not a link.\n')
         git(work, 'add', '.')
         git(work, 'commit', '-qm', 'Fixture topic')
         head = git(work, 'rev-parse', 'HEAD').stdout.strip()
@@ -91,6 +92,7 @@ class MarkdownLinkAuditTests(unittest.TestCase):
             self.assertEqual(1, result.returncode, result.stderr)
             self.assertIn('BROKEN: docs/changed.md', result.stdout)
             self.assertNotIn('no merge base', result.stderr)
+            self.assertNotIn('missing-inline.md', result.stdout)
 
     def test_push_uses_the_before_snapshot_without_ancestry_traversal(self):
         with squashed_fixture(broken_change=True) as (run, _, squash, checkout, git):

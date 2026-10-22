@@ -967,8 +967,11 @@ jobs:
                   # `NNNN-related.md` placeholders and ADR-0041's erratum shape.
                   # Working around it in the documents made both templates worse
                   # at being templates, which is the sign the check was the thing
-                  # that was wrong.
+                  # that was wrong. Code spans are stripped for the same reason:
+                  # `[x](y)` between backticks is sample text too (ADR-0069 names
+                  # the link shapes its fragment audit reads that way).
               done < <(awk '/^[[:space:]]*```/ { fence = !fence; next } !fence' "$f" \
+                  | sed -E 's/`[^`]*`//g' \
                   | grep -oE '\]\(([^)#][^)]*)\)' \
                   | sed -E 's/^\]\((.+)\)$/\1/')
           done <<< "$changed"
@@ -980,6 +983,26 @@ jobs:
       - name: Markdown link audit regression controls
         timeout-minutes: 1
         run: python3 scripts/test-markdown-link-audit.py
+
+      - name: Markdown fragment audit (whole tree)
+        # ADR-0069: the step above strips `#fragment` and reads changed files only, so a
+        # renamed or moved heading broke every link into it silently. This resolves
+        # every fragment link in the tree, since an edit in one file breaks links in
+        # files the change never touched.
+        timeout-minutes: 1
+        run: python3 scripts/markdown-fragment-audit.py
+
+      - name: Roadmap structure (plan, delivery log, status carriers)
+        # ADR-0069: a phase document holds the plan, its delivery log the dated
+        # records, and packet status lives once.
+        timeout-minutes: 1
+        run: python3 scripts/roadmap-structure.py
+
+      - name: Documentation guard controls
+        timeout-minutes: 1
+        run: |
+          python3 scripts/test-markdown-fragment-audit.py
+          python3 scripts/test-roadmap-structure.py
 
       - name: ADR lifecycle parser controls
         run: python3 scripts/test-adr-status.py
