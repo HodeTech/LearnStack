@@ -18498,6 +18498,28 @@ Both verify existing authority/evidence limits and do not run providers or
 broader runtimes. A different second pair and final-source full A/B remain
 required.
 
+#### Pending-metadata correction review round 2
+
+A different fresh pair (`gpt-6-astra`, high correctness/security;
+`gpt-6.1-sol`, high evidence/governance) independently inspects
+`ed223aca..8e437c3c` and approves without findings. Both run all 26 aggregate
+controls without skips (2.048s each). The evidence reviewer reruns the three
+original timestamp reproductions and confirms first-read refusal with zero
+sleeps, verifies both retained log hashes and the component-summary hash, and
+preserves the failed 25/27 whole-attempt boundary. It does not rerun the
+twenty-archive component analysis or claim whole qualification.
+
+The correctness reviewer independently exercises the actual paginated API
+path: two request budgets decrease from thirty to twenty seconds under one
+deadline. The real API subprocess refuses a local fake executable sleeping
+two seconds when given a 150ms deadline. Three in-memory regressions are
+killed by assertions without harness errors: accepting absent conclusions,
+removing creation/start ordering and treating a pending snapshot as success.
+Both verify unchanged final artifact/provenance/union requirements, five-minute
+ceiling and upload reserve; no broader runtime/provider execution occurs.
+Both review rounds are complete. New final-source full A/B and independent
+artifact/public/identity validation remain required before the draft is ready.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
