@@ -213,8 +213,9 @@ The [first correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068
 adds fixed historical graph qualification and assignment-only normalization,
 with both independent review rounds complete. The
 [second correction step](../../docs/roadmap/phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
-implements automatic preparation and fresh complete planning; its reviews and
-the complete lifecycle/token/self-service qualification remain pending.
+completes automatic preparation and fresh complete planning after both independent
+review rounds. Complete lifecycle/token/self-service qualification remains with
+the third correction step.
 Current identity-visibility guards remain active. Do not remove them, wipe the
 database or silently normalize customized scopes by name.
 

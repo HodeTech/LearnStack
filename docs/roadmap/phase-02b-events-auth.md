@@ -16464,6 +16464,37 @@ receipts into independently observed qualification. A different fresh second
 pair reviews the whole Step 2 change before closeout.
 
 
+
+#### Second independent Step 2 review and closeout
+
+Two different fresh reviewers inspect the complete `52c73e60..3810b071` Step 2
+change and dependencies: `gpt-6.1-sol` at `xhigh` for security/runtime/proofs and
+`gpt-6-astra` at `high` for governance, reliability and evidence meaning. Both
+approve without a verified finding. Each independently passes all 343 guarded
+Node cases across seven exact files and all 61 lifecycle controls. The security
+reviewer additionally passes 92 visibility/mapper cross-product controls across
+missing-definition subsets, four personas, visible/hidden conflicts and duplicate
+actors, direct mapper failures and explicit rerun. Its first supplemental harness
+omits an await on an async fixture; the corrected harness passes and supplies no
+product-failure claim. The governance reviewer also passes seven ADR parser
+controls and rejects an unverified metadata-capacity hypothesis after checking
+the actual derived metadata and reserve model.
+
+Both verify unchanged Accepted ADR bodies, retained catalogue status/counts,
+exact preparation/readback/fresh planning, early readable-fact refusals and fixed
+caller progress diagnostics. Whitespace and tracked-tree checks pass; all
+review commands join. Neither repeats provider/.NET/Docker/hosted execution or
+claims that reported receipts are independently observed. Complete Step 3 proof
+is still explicitly pending.
+
+Step 2 is complete locally after both independent rounds and verified fixes.
+Step 3 proceeds automatically under the Accepted plan: genuine historical seed/
+demo entry journeys, changed credentials/MFA, strict signed API issuance and
+manifest/nonmanifest self-service, measured request/phase costs, remaining
+catalogue/carrier reconciliation and source-appropriate complete hosted checks.
+No deadline, identity refusal, required check or earlier failure is waived.
+
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose

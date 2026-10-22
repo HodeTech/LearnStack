@@ -160,8 +160,8 @@ not deferred to the showcase phase.
   maintainer authority. Its [first correction step](phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
   completes both review rounds locally. Its
   [second correction step](phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
-  implements owned preparation and fresh planning; independent reviews and
-  complete lifecycle/credential/token qualification remain pending.
+  completes owned preparation and fresh planning after both independent review
+  rounds; complete lifecycle/credential/token qualification proceeds in Step 3.
   Step 1 is complete locally after both review rounds; its
   [record](phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
   owns fresh-provider qualification and implementation reviews. Step 2 is
