@@ -271,3 +271,24 @@ entry is one top-level list item with its continuation lines. The phase document
 The Decision is unchanged — status lives once, and each bound applies the same
 rule to one more place or states how an existing bound is measured.
 
+### 2026-10-23 — Each delivery log opens with a generated index
+
+The migrated logs are too large to read whole: Phase 02b's is 17,569 lines, about
+305,000 tokens, and an agent that needs one entry has no map of the rest. Each
+delivery log therefore opens with an index, between the generated-block markers,
+above its first `##` section. A row is a packet section, an entry, or a dated
+heading deeper than an entry — the dated depth matters because Phase 02b's
+post-merge corrections sit under one 3,843-line entry — with its anchor and its
+length in lines. That index is about 165 rows and 5,000 tokens for Phase 02b.
+
+Three properties are deliberate. Lengths, not line numbers: the index sits above
+every heading, so each new row would renumber every row below it. No inferred kind:
+a pattern that tags rows *decision* or *closeout* misread real headings in the
+prototype, and the heading text already names the record. Generated, never hand
+kept: `scripts/delivery-log-index.py` writes the block (`make docs-index`) and, in
+CI's `meta` job and `make lint-docs`, refuses a stale or misplaced one; the
+fragment audit checks every row's anchor.
+
+The index is navigation, not a record. Regenerating it rewrites no entry, so it
+does not touch the log's append-only rule. The Decision is unchanged.
+
