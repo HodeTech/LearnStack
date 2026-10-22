@@ -230,6 +230,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 && snapshot.Work is { Running: 0, Retained: 0, Closed: false }
                 && ((BackgroundJobControl)NativeSdkField(runtime, "_jobs")).CanRoute(job) && eligible)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (started.IsCompleted) return;
                 _ = NativeSdkWakeup(runtime, job, current);
                 if (afterObservation is not null) await afterObservation();

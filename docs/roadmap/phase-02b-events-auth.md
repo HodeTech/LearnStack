@@ -17934,6 +17934,30 @@ the unchanged plan. The metadata receipt has SHA-256
 Committed-source reviews and final-source hosted A/B qualification remain
 required.
 
+#### First fixture-handoff review and cancellation guard (2026-10-22)
+
+The first fresh pair reviews `12d4f088..87ac3713`: `gpt-6-astra` at
+`xhigh` and `gpt-6.1-sol` at `high`. Both approve the actual-cleanup correction.
+They independently verify the source overlays, 42 scenario artifact hashes,
+real discovery/execution results, intended premature-hint failure and actual
+process/container cleanup. The evidence reviewer replays the twenty discovery
+streams and recomputes both complete assignments. Neither runs a provider,
+.NET, Node or Docker. No additional source finding remains.
+
+One small cancellation correction is confirmed and applied: preserve the old
+helper's explicit cancellation check immediately before synchronous hint
+creation. Readiness-lock waits follow the last token-aware SQL read, so an
+already observable cancellation must be rechecked at emission. This check
+neither makes cancellation atomic with issuance nor explains the hosted failure.
+Fresh exact-source runs pass the new fact and five existing callers; the copied
+readiness-guard counterfactual still intentionally fails while preserving this
+same cancellation check. All actual process groups join and two exact owned
+containers per scenario are absent. The refreshed proof summary has SHA-256
+`8ad260316b633421806b8aa79c19bc57abf30c8746de4b330701d882cebf6b81`;
+the prior summary remains unchanged. The integration-project Release build
+passes with zero warnings/errors. Second-round independent review and complete
+final-source hosted A/B remain required.
+
 ## Completion Criteria
 
 Each criterion below is observable: a named test can pass or fail on it. Criteria whose
