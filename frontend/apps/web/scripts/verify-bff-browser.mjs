@@ -1,7 +1,8 @@
 // Narrow actual HTTPS browser proof with fake grants/API. Real OIDC/API has a separate owner.
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { createHash, randomBytes, X509Certificate } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:https';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -9,10 +10,15 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { startBffProof } from './bff-proof-host.mjs';
-import { createFixtureOwner, fixtureEnvironment } from './fixture-support.mjs';
+import {
+  createFixtureOwner,
+  createPrivateScanner,
+  fixtureEnvironment,
+} from './fixture-support.mjs';
+import { stopTestChild } from './stop-test-child.mjs';
 
 const owner = createFixtureOwner();
-owner.install();
+owner.install({ control: process.stdin, event: 'end' });
 const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-bff-browser-')));
 const source = fileURLToPath(new URL('../', import.meta.url));
 const secret = randomBytes(32).toString('base64url');
@@ -21,7 +27,8 @@ const privateValues = [secret, marker];
 const counter = process.argv[2] === '--without-history';
 let stage = 'input';
 let browser;
-let launched;
+let browserProcess;
+let nativeServer;
 let version;
 let naturalRestores = 0;
 let restoresVeiled = true;
@@ -38,23 +45,68 @@ const deadline = setTimeout(() => {
 deadline.unref();
 async function cleanup() {
   const failures = [];
-  for (const operation of [() => browser?.close(), () => launched?.close(), () => owner.dispose()])
+  for (const operation of [
+    () => browser?.close(),
+    async () => {
+      for (const child of [browserProcess, nativeServer?.process].filter(Boolean)) {
+        const stopped = await stopTestChild(child);
+        if (stopped.forced) failures.push(true);
+      }
+    },
+    () => owner.dispose(),
+  ])
     try {
       await operation();
     } catch {
       failures.push(true);
     }
   assert.equal(failures.length, 0, 'actual browser/native cleanup');
+  if (nativeServer) {
+    const stopped = await nativeServer.completed;
+    assert.equal(stopped.code, 0);
+    assert.equal(stopped.signal, null);
+  }
+}
+// A single bounded frame initializes the proof. Keep the pipe actively draining
+// afterwards: EOF is the parent's private lifetime signal, not input framing.
+function configuration() {
+  return new Promise((resolve, reject) => {
+    let buffered = '';
+    let accepted = false;
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => {
+      if (accepted) {
+        void owner.cancel();
+        return;
+      }
+      buffered += chunk;
+      try {
+        assert.ok(Buffer.byteLength(buffered) <= 65536);
+        const end = buffered.indexOf('\n');
+        if (end === -1) return;
+        assert.equal(end, buffered.length - 1);
+        const value = JSON.parse(buffered.slice(0, end));
+        accepted = true;
+        buffered = '';
+        resolve(value);
+      } catch {
+        accepted = true;
+        reject(new Error('Invalid private browser input'));
+      }
+    });
+    process.stdin.once('error', () => {
+      reject(new Error('Private browser input failed'));
+      void owner.cancel();
+    });
+    process.stdin.once('end', () => {
+      if (!accepted) reject(new Error('Private browser input incomplete'));
+    });
+  });
 }
 try {
   assert.ok(process.argv.length === 2 || (process.argv.length === 3 && counter));
-  let data = '';
-  process.stdin.setEncoding('utf8');
-  for await (const chunk of process.stdin) {
-    data += chunk;
-    assert.ok(Buffer.byteLength(data) <= 65536);
-  }
-  const input = JSON.parse(data);
+  const input = await configuration();
+  owner.assertActive();
   assert.equal(Object.keys(input).sort().join(','), 'protocol,sites');
   assert.equal(input.protocol, 1);
   assert.ok(Array.isArray(input.sites) && input.sites.length === 2);
@@ -96,6 +148,7 @@ try {
     },
   });
   scanners = host.scanners;
+  nativeServer = host.server;
   logoutServer.setSecureContext({
     key: readFileSync(join(root, 'key.pem')),
     cert: readFileSync(join(root, 'cert.pem')),
@@ -127,25 +180,54 @@ try {
       }),
     )
     .digest('base64');
-  launched = await chromium.launchServer({
-    executablePath,
-    headless: true,
-    chromiumSandbox: true,
-    env: fixtureEnvironment({ root }),
-    ignoreDefaultArgs: ['--disable-back-forward-cache'],
-    args: [
-      '--disable-background-networking',
-      '--disable-component-update',
-      '--disable-sync',
-      '--disable-breakpad',
-      '--no-proxy-server',
-      '--host-resolver-rules=' +
-        input.sites.map((site) => 'MAP ' + site.host.split(':')[0] + ' 127.0.0.1').join(','),
-      '--ignore-certificate-errors-spki-list=' + fingerprint,
-    ],
-  });
-  owner.ownChild(launched.process());
-  browser = await chromium.connect(launched.wsEndpoint());
+  const profile = join(root, 'chromium-profile');
+  mkdirSync(profile, { mode: 0o700 });
+  owner.assertActive();
+  browserProcess = owner.ownChild(
+    spawn(
+      executablePath,
+      [
+        '--headless=new',
+        '--remote-debugging-address=127.0.0.1',
+        '--remote-debugging-port=0',
+        '--user-data-dir=' + profile,
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-background-networking',
+        '--disable-component-update',
+        '--disable-sync',
+        '--disable-breakpad',
+        '--no-proxy-server',
+        '--host-resolver-rules=' +
+          input.sites.map((site) => 'MAP ' + site.host.split(':')[0] + ' 127.0.0.1').join(','),
+        '--ignore-certificate-errors-spki-list=' + fingerprint,
+        'about:blank',
+      ],
+      {
+        env: fixtureEnvironment({ root }),
+        detached: process.platform !== 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    ),
+  );
+  const browserOutput = createPrivateScanner(privateValues);
+  scanners.push(browserOutput);
+  for (const stream of [browserProcess.stdout, browserProcess.stderr]) {
+    stream.on('data', (chunk) => browserOutput.push(chunk));
+    stream.once('end', () => browserOutput.finish());
+  }
+  browserProcess.once('error', () => {});
+  const portFile = join(profile, 'DevToolsActivePort');
+  const launchDeadline = Date.now() + 10000;
+  while (!existsSync(portFile)) {
+    owner.assertActive();
+    assert.equal(browserProcess.exitCode, null);
+    assert.ok(Date.now() < launchDeadline);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  const port = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
+  assert.ok(Number.isInteger(port) && port > 0 && port <= 65535);
+  browser = await chromium.connectOverCDP('http://127.0.0.1:' + port, { timeout: 10000 });
   version = browser.version();
   assert.match(version, /^\d+(?:\.\d+){1,3}$/);
   const context = await browser.newContext(); // No ignoreHTTPSErrors or manual production-cookie injection.
@@ -430,6 +512,7 @@ try {
     false,
   );
   clearTimeout(deadline);
+  process.stdin.destroy();
   process.stdout.write(
     JSON.stringify({
       protocol: 1,
@@ -460,6 +543,7 @@ try {
     clean = false;
   }
   clearTimeout(deadline);
+  process.stdin.destroy();
   if (expectedCounter && clean) {
     process.stdout.write(
       JSON.stringify({

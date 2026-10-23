@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,107 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,186 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -218,6 +218,9 @@ each packet decided and delivered, as
   - [P02b-7 Step 4 review round 2 and closeout (2026-10-23)](#p02b-7-step-4-review-round-2-and-closeout-2026-10-23) — 26 lines
   - [P02b-7 Step 5 — real lifecycle proof in progress (2026-10-24)](#p02b-7-step-5--real-lifecycle-proof-in-progress-2026-10-24) — 61 lines
   - [P02b-7 Step 5 — implementation and local qualification (2026-10-24)](#p02b-7-step-5--implementation-and-local-qualification-2026-10-24) — 37 lines
+  - [P02b-7 Step 5 — independent review round 1 (2026-10-24)](#p02b-7-step-5--independent-review-round-1-2026-10-24) — 16 lines
+  - [P02b-7 Step 5 — stopped-provider public demo (2026-10-24)](#p02b-7-step-5--stopped-provider-public-demo-2026-10-24) — 18 lines
+  - [P02b-7 Step 5 — round 1 corrections and qualification (2026-10-24)](#p02b-7-step-5--round-1-corrections-and-qualification-2026-10-24) — 45 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18826,6 +18829,85 @@ The four broad BFF obligations remain Registered until all their proof owners
 ship. Two fresh independent review rounds, the fresh stopped-provider public
 demo, final catalogue promotion and exact-source hosted A/B qualification remain
 open. No PR-ready or packet-complete status is claimed by this local checkpoint.
+
+### P02b-7 Step 5 — independent review round 1 (2026-10-24)
+
+Two fresh source-only reviewers inspect `a48011cb..5efecf70`: Astra/xhigh
+reviews lifecycle/security and Sol/xhigh reviews browser/evidence/CI integrity.
+Neither runs builds, tests or providers. Their actionable findings overlap on
+abortive parent disposal: `BffNativeDriver` kills Node before its fixture owner
+can remove the temporary build/TLS tree. The lifecycle reviewer additionally
+finds that successful receipts establish group absence without requiring the
+native launcher's zero exit/no signal. Both are verified in the current source;
+normal passing runs do not disprove failure-path defects.
+
+Root queues focused failure/counter reproductions after the already-running
+fresh public demo, preserving the sole runtime executor and port ownership.
+Corrections and their actual validation remain pending in this entry; no review
+approval or successful failure-cleanup proof is inferred from source inspection.
+
+### P02b-7 Step 5 — stopped-provider public demo (2026-10-24)
+
+A fresh tracked-only clone of the same `development` branch qualifies source
+`5efecf708457841b14d43d75d0626bae68b977d1`, tree
+`412ddd8619ded86869298aa5502877a4a9b887c8`, through the unchanged
+`make demo DEMO_MODE=ci` lifecycle. No workstation environment file is copied.
+Its nine seeded public pages pass 27 Lighthouse runs after the selected
+Keycloak is stopped; all 27 JSON/HTML pairs and nine screenshots are present.
+The receipt records `passed: true`, setup 82.502 seconds and proof 577.291
+seconds, with pinned Playwright 1.64.0/Lighthouse 13.5.0 and managed Chromium
+revision 1248 (`156.0.8078.4`). Both negative TLS controls refuse.
+
+Cleanup passes in 10.726 seconds: owned processes stopped, temporary Compose
+project empty, private files/environment/lock removed. This is a local exact-
+source public proof, not hosted qualification or a new manual accessibility
+pass. Round 1's subsequent changes concern proof ownership and failure cleanup;
+they do not replace this receipt with a claim about a different source tree.
+
+### P02b-7 Step 5 — round 1 corrections and qualification (2026-10-24)
+
+Both verified findings are corrected. The C# parent creates a private outer
+fixture directory and supplies it only as the owned child's temporary location.
+Disposal closes the private input first, drains output and joins under a fresh
+cleanup budget, removes only an independently empty outer directory and always
+fails a forced fallback. The browser reads one bounded initialization line,
+keeps stdin actively draining as its lifetime channel and closes it on terminal
+paths. Its stock browser is synchronously spawned/owned before CDP connection,
+using the existing public-demo pattern; no unresolved launch can acquire an
+unowned process after cancellation. Native spawns check ownership before spawn.
+
+Successful BFF receipts now require native exit 0 without a signal and no forced
+group escalation. The shared stop helper exposes a cached immutable `forced`
+result without changing existing consumers' behavior. Its real uncooperative
+surviving-descendant controls prove that a zero-exit leader can still require
+forced cleanup; BFF proof treats that as failure. All resource attempts still
+run, including when an earlier stop fails.
+
+All five BFF Docker cases pass with zero skips: actual warm provider/API
+90.731 seconds, actual browser positive/history counter 33.541 seconds, ordinary
+no-network startup/stop 7.219 seconds, early-parent cleanup 7.903 seconds and the
+nonzero-native-stop counter 7.465 seconds. The early-parent case independently
+observes its exact outer directory disappear. The shutdown mutant changes only
+the copied native exit to 1 and is rejected at `complete/native-stop`; a general
+fixture failure cannot stand in for this counter. Both retained hosts still have
+seven real API witnesses each; provider startup is 24.386 seconds and joined
+cleanup 0.644 seconds, with both containers/network independently absent.
+
+The passing local TRX has SHA-256
+`a8aed7b2684219ebec622a931c85640c8a59fcfa40407aabe9f0be95a1208fb5`.
+The plan keeps this as a new advisory local source, preserving the prior receipt;
+no embedded immutable source or hosted wall fit is claimed. All 2,089 frontend
+cases still pass with zero skips/todos; the 35 focused ownership/output controls
+also pass. Release compilation with CI warning policy reports zero warnings and
+errors. The seven corpus/status/Docker-trait controls pass with zero skips.
+Fresh actual discovery contains 5,929 rows: 3,351 non-Docker and 2,578 Docker
+(31 native plus 2,547 ordinary). Both genuinely different local A/B assignments
+have complete disjoint unions and bounded filters; this proves assignment, not
+hosted fit. The four complete BFF catalogue controls are locally Implemented,
+with current owners and counters updated together. Assignment (67), aggregate
+(26) and execution (63) offline controls pass; all 2,197 Markdown fragment links
+resolve and roadmap/index guards pass. Fresh round 2 and exact-source hosted A/B
+remain required before PR readiness.
 
 ## Status archive
 

@@ -12,7 +12,7 @@ export function stopTestChild(child) {
 }
 
 async function stopOwnedChild(child) {
-  if (child.pid === undefined) return; // A failed spawn owns no process.
+  if (child.pid === undefined) return Object.freeze({ forced: false }); // Failed spawn owns no process.
   const group = process.platform !== 'win32';
   let retired = false;
   const signal = (name) => {
@@ -43,7 +43,7 @@ async function stopOwnedChild(child) {
       throw error;
     }
   };
-  if (!alive()) return;
+  if (!alive()) return Object.freeze({ forced: false });
   signal('SIGTERM');
   const started = Date.now();
   let forced = false;
@@ -56,4 +56,5 @@ async function stopOwnedChild(child) {
     }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
+  return Object.freeze({ forced });
 }

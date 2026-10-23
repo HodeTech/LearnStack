@@ -206,8 +206,8 @@ describe('fixture resource ownership', () => {
     let stopped!: () => void;
     vi.mocked(stopTestChild).mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
-          stopped = resolve;
+        new Promise<Readonly<{ forced: boolean }>>((resolve) => {
+          stopped = () => resolve({ forced: false });
         }),
     );
     const cleanup = owner.dispose();
@@ -231,7 +231,7 @@ describe('fixture resource ownership', () => {
     owner.ownChild({} as ChildProcess);
     vi.mocked(stopTestChild)
       .mockRejectedValueOnce(new Error('planted cleanup refusal'))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce({ forced: false });
     const closeAllConnections = vi.fn();
     const close = vi.fn((done: (error?: NodeJS.ErrnoException) => void) => done());
     const server = { closeAllConnections, close } as unknown as Server;
@@ -252,7 +252,7 @@ describe('fixture resource ownership', () => {
     output.on('data', (chunk) => scanner.push(chunk));
     output.on('end', () => scanner.finish());
     owner.ownChild({ stdout: output } as unknown as ChildProcess);
-    vi.mocked(stopTestChild).mockResolvedValue(undefined);
+    vi.mocked(stopTestChild).mockResolvedValue({ forced: false });
     const pending = owner.dispose();
     await Promise.resolve();
     await Promise.resolve();
@@ -284,8 +284,8 @@ describe('fixture resource ownership', () => {
       let stopped!: () => void;
       vi.mocked(stopTestChild).mockImplementation(
         () =>
-          new Promise<void>((resolve) => {
-            stopped = resolve;
+          new Promise<Readonly<{ forced: boolean }>>((resolve) => {
+            stopped = () => resolve({ forced: false });
           }),
       );
       if (trigger === 'close' || trigger === 'disconnect') control.emit(event);

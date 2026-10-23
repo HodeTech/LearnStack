@@ -38,6 +38,7 @@ export async function startBffProof({
   const app = join(root, 'frontend/apps/web');
   const scanners = [];
   function child(args, env, ipc = false) {
+    owner.assertActive();
     const process = owner.ownChild(
       spawn(globalThis.process.execPath, args, {
         cwd: app,
@@ -262,6 +263,8 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       "  process.env.NEXT_TRACE_SPAN_THRESHOLD_MS = '9007199254740991';",
       '',
     );
+  if (mutation === 'shutdown')
+    launcher = replace(launcher, 'process.exit(failed ? 1 : 0)', 'process.exit(1)');
   if (!external) {
     launcher = replace(
       launcher,

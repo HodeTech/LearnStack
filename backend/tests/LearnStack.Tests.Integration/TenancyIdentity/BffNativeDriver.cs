@@ -7,9 +7,15 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 internal sealed class BffNativeDriver : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private static readonly string[] ErrorStages = (new[] { "input", "input-issuer", "input-api", "input-secrets", "input-sites", "setup", "compile", "build", "start", "command", "request", "request-deadline", "request-connect", "request-tls", "request-socket", "response-json", "cleanup", "native-stop",
+                     "browser-launch", "browser-anonymous", "browser-signin-document", "browser-submit", "browser-origin-null", "browser-origin-absent", "browser-origin-other", "browser-storage", "browser-extension", "browser-logout-submit", "browser-logout-origin", "browser-logout-origin-null", "browser-logout-origin-other", "browser-logout-response", "browser-logout-location", "browser-logout-navigation", "browser-logout-cookie-header", "browser-logout-cookie", "browser-back-revalidation", "browser-history-setup", "browser-history-revalidation", "browser-headers" }
+                 .Concat(new[] { "browser-callback-", "browser-authorize-", "browser-logout-status-" }
+                     .SelectMany(prefix => new[] { "0", "200", "303", "400", "403", "404", "429", "503", "other" }.Select(code => prefix + code)))).ToArray();
     private readonly Process _child;
     private readonly CancellationTokenSource _deadline = new(TimeSpan.FromMinutes(4));
     private readonly Task<string?> _errors;
+    private readonly string _temporaryRoot = Directory.CreateTempSubdirectory("learnstack-bff-driver-").FullName;
+    private Task? _disposal;
     private bool _complete;
     private int _expectedExit;
 
@@ -25,10 +31,11 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             StandardInputEncoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
         };
         start.ArgumentList.Add(Path.Combine(root, "frontend/apps/web/scripts/" + (browser ? "verify-bff-browser.mjs" : "verify-bff-session.mjs")));
-        if (counter) start.ArgumentList.Add("--without-history");
+        if (counter) start.ArgumentList.Add(browser ? "--without-history" : "--without-successful-native-stop");
         start.Environment.Clear();
         start.Environment["PATH"] = Environment.GetEnvironmentVariable("PATH");
         start.Environment["NODE_TLS_REJECT_UNAUTHORIZED"] = "1";
+        foreach (var key in new[] { "TMPDIR", "TMP", "TEMP" }) start.Environment[key] = _temporaryRoot;
         _child = new() { StartInfo = start };
         try
         {
@@ -38,14 +45,17 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         {
             _deadline.Dispose();
             _child.Dispose();
+            RemoveEmptyTemporaryRoot();
             throw new InvalidOperationException("BFF native fixture could not start.");
         }
-        _errors = ReadErrorsAsync(_child.StandardError, _deadline.Token);
+        _errors = ReadErrorsAsync(_child.StandardError, CancellationToken.None);
     }
 
-    internal static async Task<BffNativeDriver> StartAsync(string root, object configuration)
+    internal string TemporaryRoot => _temporaryRoot;
+
+    internal static async Task<BffNativeDriver> StartAsync(string root, object configuration, bool shutdownCounter = false)
     {
-        var driver = new BffNativeDriver(root);
+        var driver = new BffNativeDriver(root, counter: shutdownCounter);
         try
         {
             await driver.WriteAsync(configuration);
@@ -63,8 +73,8 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     {
         await using var driver = new BffNativeDriver(root, browser: true, counter: counter);
         await driver.WriteAsync(configuration);
-        driver._child.StandardInput.Close();
         var reply = await driver.ReadAsync("browser_result");
+        driver._child.StandardInput.Close();
         await driver._child.WaitForExitAsync(driver._deadline.Token);
         await driver.AssertOutputEndedAsync();
         var expected = counter ? "rejected_history" : "passed";
@@ -134,7 +144,11 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             for (var count = 0; count < 8; ++count)
             {
                 var line = await ReadBoundedLineAsync(responseBudget.Token);
-                if (line is null) throw new InvalidOperationException();
+                if (line is null)
+                {
+                    await _child.WaitForExitAsync(responseBudget.Token);
+                    throw new InvalidOperationException();
+                }
                 using var parsed = JsonDocument.Parse(line);
                 if (parsed.RootElement.GetProperty("protocol").GetInt32() != 1) throw new InvalidOperationException();
                 var actual = parsed.RootElement.GetProperty("phase").GetString();
@@ -188,10 +202,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         while ((read = await reader.ReadAsync(buffer.AsMemory(), token)) > 0)
             if (text.Length + read <= 256) text.Append(buffer, 0, read); else overflow = true;
         if (text.Length == 0 && !overflow) return null;
-        foreach (var stage in new[] { "input", "input-issuer", "input-api", "input-secrets", "input-sites", "setup", "compile", "build", "start", "command", "request", "request-deadline", "request-connect", "request-tls", "request-socket", "response-json", "cleanup",
-                     "browser-launch", "browser-anonymous", "browser-signin-document", "browser-submit", "browser-origin-null", "browser-origin-absent", "browser-origin-other", "browser-storage", "browser-extension", "browser-logout-submit", "browser-logout-origin", "browser-logout-origin-null", "browser-logout-origin-other", "browser-logout-response", "browser-logout-location", "browser-logout-navigation", "browser-logout-cookie-header", "browser-logout-cookie", "browser-back-revalidation", "browser-history-setup", "browser-history-revalidation", "browser-headers" }
-                 .Concat(new[] { "browser-callback-", "browser-authorize-", "browser-logout-status-" }
-                     .SelectMany(prefix => new[] { "0", "200", "303", "400", "403", "404", "429", "503", "other" }.Select(code => prefix + code))))
+        foreach (var stage in ErrorStages)
             foreach (var prefix in new[] { "BFF session fixture failed: ", "BFF browser fixture failed: " })
             {
                 var closed = prefix + stage + "\n";
@@ -204,21 +215,60 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         return "unexpected_output";
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync() => new(_disposal ??= DisposeCoreAsync());
+
+    private async Task DisposeCoreAsync()
+    {
+        using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var forced = false;
+        try
+        {
+            // EOF is a private lifetime signal, not a request to kill Node before
+            // it can join its own groups and remove the nested TLS/build tree.
+            try { _child.StandardInput.Close(); }
+            catch (ObjectDisposedException) { }
+            catch (IOException) { }
+            var drained = DrainOutputAsync(_child.StandardOutput, budget.Token);
+            if (!_child.HasExited)
+            {
+                using var grace = CancellationTokenSource.CreateLinkedTokenSource(budget.Token);
+                grace.CancelAfter(TimeSpan.FromSeconds(15));
+                try { await _child.WaitForExitAsync(grace.Token); }
+                catch (OperationCanceledException)
+                {
+                    forced = true;
+                    try { _child.Kill(entireProcessTree: true); }
+                    catch (InvalidOperationException) when (_child.HasExited) { }
+                }
+            }
+            await _child.WaitForExitAsync(budget.Token);
+            await Task.WhenAll(drained, _errors.WaitAsync(budget.Token));
+            if (forced) throw new InvalidOperationException("BFF native fixture required forced cleanup.");
+            if (_complete && _child.ExitCode != _expectedExit)
+                throw new InvalidOperationException("BFF native fixture completed without a successful exit.");
+            if (!RemoveEmptyTemporaryRoot())
+                throw new InvalidOperationException("BFF native fixture retained its private TLS/build tree.");
+        }
+        catch (OperationCanceledException) { throw new InvalidOperationException("BFF native fixture cleanup could not be confirmed."); }
+        finally { _deadline.Dispose(); _child.Dispose(); }
+    }
+
+    private bool RemoveEmptyTemporaryRoot()
     {
         try
         {
-            if (!_child.HasExited)
-            {
-                try { _child.Kill(entireProcessTree: true); }
-                catch (InvalidOperationException) when (_child.HasExited) { }
-            }
-            await _child.WaitForExitAsync(CancellationToken.None);
-            try { await _errors; } catch (OperationCanceledException) { }
-            if (_complete && _child.ExitCode != _expectedExit)
-                throw new InvalidOperationException("BFF native fixture completed without a successful exit.");
+            if (!Directory.Exists(_temporaryRoot)) return true;
+            if (Directory.EnumerateFileSystemEntries(_temporaryRoot).Any()) return false;
+            Directory.Delete(_temporaryRoot); // Never recursively hide incomplete child cleanup.
+            return true;
         }
-        finally { _deadline.Dispose(); _child.Dispose(); }
+        catch { return false; }
+    }
+
+    private static async Task DrainOutputAsync(StreamReader reader, CancellationToken token)
+    {
+        var buffer = new char[1024];
+        while (await reader.ReadAsync(buffer.AsMemory(), token) != 0) { }
     }
 }
 

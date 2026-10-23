@@ -28,6 +28,33 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutputHelper output)
 {
     [Fact]
+    public async Task Early_parent_disposal_joins_and_removes_its_private_native_tree()
+    {
+        await using var unavailable = new UnavailableTenantIssuer();
+        using var authority = new KeycloakTls();
+        await using var native = await BffNativeDriver.StartAsync(RepositoryRoot(), NoNetworkConfiguration(unavailable, authority));
+        var root = native.TemporaryRoot;
+        Directory.Exists(root).Should().BeTrue();
+        await native.DisposeAsync();
+        Directory.Exists(root).Should().BeFalse("closed parent input must let Node join and remove its actual private tree");
+        unavailable.Connections.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Nonzero_native_shutdown_is_rejected_instead_of_publishing_success()
+    {
+        await using var unavailable = new UnavailableTenantIssuer();
+        using var authority = new KeycloakTls();
+        await using var native = await BffNativeDriver.StartAsync(RepositoryRoot(), NoNetworkConfiguration(unavailable, authority), shutdownCounter: true);
+        var root = native.TemporaryRoot;
+        await FluentActions.Awaiting(native.CompleteAsync).Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("BFF native fixture did not reach the closed complete/native-stop phase.");
+        await native.DisposeAsync();
+        Directory.Exists(root).Should().BeFalse();
+        unavailable.Connections.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Enabled_native_startup_and_shutdown_make_no_provider_or_API_connection()
     {
         await using var unavailable = new UnavailableTenantIssuer();
@@ -292,6 +319,22 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
     }
 
     private async Task<long[]> AuditCountsAsync() => [await database.AuditCountAsync(SeedData.English), await database.AuditCountAsync(SeedData.Yoga)];
+    private static object NoNetworkConfiguration(UnavailableTenantIssuer unavailable, KeycloakTls authority) => new
+    {
+        protocol = 1,
+        mode = "real",
+        issuer = unavailable.Issuer,
+        clientSecret = KeycloakFixture.WebClientSecret,
+        authority = authority.RootCertificate.ExportCertificatePem(),
+        apiOrigin = new UriBuilder("http", "127.0.0.1", new Uri(unavailable.Issuer).Port).Uri.GetLeftPart(UriPartial.Authority),
+        secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant(),
+        sites = SeedData.All.Select(site => new
+        {
+            host = site.Host + ":3000",
+            displayName = site.DisplayName,
+            locale = site.Curriculum!.Locales.Single(locale => locale.IsDefault).Locale
+        }),
+    };
     private static string Host(SeedTenant tenant) => tenant.Host + ":3000";
     private static string Form(string key, string value) => key + "=" + Uri.EscapeDataString(value);
     private static Uri PrivateLocation(BffWireResponse response) => Uri.TryCreate(response.Location, UriKind.Absolute, out var uri)

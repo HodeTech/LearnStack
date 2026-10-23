@@ -189,8 +189,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**231 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
-The other 98 are no less binding, and most could not live there. The table says where
+**235 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
+The other 102 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -5587,9 +5587,11 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 ## P02b-7 tenant BFF obligations
 
 The maintainer accepted [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)
-and the five-step package on 2026-10-23. These four new obligations remain
-Registered until their controls ship. Existing public/realm rules stay Implemented;
-acceptance changes no implemented-rule count.
+and the five-step package on 2026-10-23. Step 5 delivers the complete local
+controls below, including actual warm-provider/API and separate HTTPS browser
+evidence, failure cleanup and nonzero-shutdown counters, and the stopped-provider
+public demo. Exact-source hosted A/B and review closeout remain packet gates;
+local implementation alone claims no hosted timing fit.
 
 #### `Bff_Credentials_And_Projections_Are_Confined`
 
@@ -5600,7 +5602,8 @@ acceptance changes no implemented-rule count.
 - **Type:** frontend source/production canaries. **Kind:** structural.
 - **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and existing
   public boundary controls.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — frontend boundary, native protocol/canary and
+  fixture-output controls named above.
 - **Phase:** P02b-7 Steps 1/3–5.
 
 #### `Bff_Session_Refresh_And_Revocation_Have_One_Owner`
@@ -5614,7 +5617,8 @@ acceptance changes no implemented-rule count.
 - **Type:** unit and actual response-owning routes. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/server/auth/session-store.test.ts` and
   `frontend/apps/web/src/test/bff-session-routes.test.ts`.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — actual owner/route controls above and
+  `TenantBffSessionTests` real refresh/maximum and shutdown/failure controls.
 - **Phase:** P02b-7 Steps 2–5.
 
 #### `Bff_Auth_Admission_And_Csrf_Are_Closed`
@@ -5628,7 +5632,8 @@ acceptance changes no implemented-rule count.
 - **Type:** native listener and actual Next route controls. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/test/bff-auth-admission.test.ts` and
   `frontend/apps/web/src/test/bff-session-routes.test.ts`.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — native input/route controls above and the actual browser
+  form/Origin and no-network startup cases in `TenantBffSessionTests`.
 - **Phase:** P02b-7 Steps 3–5.
 
 #### `Bff_Host_Cookies_And_History_Are_Isolated`
@@ -5640,9 +5645,11 @@ acceptance changes no implemented-rule count.
   stored provider events. Stopped-provider public rendering remains independent.
 - **Source:** ADR-0070; Security 11 § Tenant BFF sessions.
 - **Type:** native HTTPS browser and Docker integration. **Kind:** behavioural.
-- **Test owner:** `frontend/apps/web/scripts/verify-bff-session.mjs` and backend
+- **Test owner:** `frontend/apps/web/scripts/verify-bff-session.mjs`,
+  `frontend/apps/web/scripts/verify-bff-browser.mjs` and backend
   `TenancyIdentity/TenantBffSessionTests.cs` using the app-role API/database.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — `TenantBffSessionTests`, its real-chain/browser scripts
+  and the stopped-provider public-demo lifecycle.
 - **Phase:** P02b-7 Step 5; Phase 06 retains full browser OIDC end-to-end expansion.
 
 ## P02b-4 background-job obligations

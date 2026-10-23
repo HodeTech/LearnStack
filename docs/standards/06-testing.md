@@ -30,6 +30,9 @@ distinct. Every fixture compiles the copied current native/Next sources, joins
 owned processes/listeners and exports no raw tokens, cookies, callback/logout
 URLs, provider text or HTML. Ordinary CI compiles native web/authenticated SDK
 entries before test discovery/execution within its existing whole-job budget.
+BFF success also requires unforced group settlement and native exit 0 without a
+terminating signal. Parent failure closes the private lifetime pipe first and
+verifies its own temporary directory is empty; forced/incomplete cleanup fails.
 
 ## Test Pyramid
 

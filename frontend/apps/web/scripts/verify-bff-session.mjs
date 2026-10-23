@@ -7,6 +7,7 @@ import { join } from 'node:path';
 
 import { startBffProof } from './bff-proof-host.mjs';
 import { createFixtureOwner, createPrivateScanner } from './fixture-support.mjs';
+import { stopTestChild } from './stop-test-child.mjs';
 
 const owner = createFixtureOwner();
 owner.install();
@@ -38,7 +39,8 @@ const send = (value) =>
     );
   });
 try {
-  assert.equal(process.argv.length, 2);
+  const shutdownCounter = process.argv[2] === '--without-successful-native-stop';
+  assert.ok(process.argv.length === 2 || (process.argv.length === 3 && shutdownCounter));
   const input = lines();
   const { value: config } = await input.next();
   assert.ok(config && config.protocol === 1 && config.mode === 'real');
@@ -106,6 +108,7 @@ try {
     uiMode: true,
     sites: config.sites,
     external: config,
+    mutation: shutdownCounter ? 'shutdown' : undefined,
     mark: (value) => {
       stage = value;
       void send({ protocol: 1, phase: 'progress', stage: value }).catch(() => owner.cancel());
@@ -218,7 +221,13 @@ try {
   }
   assert.ok(finished, 'explicit successful protocol completion');
   stage = 'cleanup';
+  const stopped = await stopTestChild(host.server.process);
   await owner.dispose();
+  stage = 'native-stop';
+  const native = await host.server.completed;
+  assert.equal(stopped.forced, false);
+  assert.equal(native.code, 0);
+  assert.equal(native.signal, null);
   assert.equal(
     host.scanners.some((scanner) => scanner.leaked),
     false,
