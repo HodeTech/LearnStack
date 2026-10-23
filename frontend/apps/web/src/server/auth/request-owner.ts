@@ -19,6 +19,8 @@ export function bffRequestOwner(): BffRequestHolder {
     !Object.isFrozen(value) ||
     !('version' in value) ||
     value.version !== 1 ||
+    !('activity' in value) ||
+    typeof value.activity !== 'function' ||
     !('publish' in value) ||
     typeof value.publish !== 'function' ||
     !('read' in value) ||

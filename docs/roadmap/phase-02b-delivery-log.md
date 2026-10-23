@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 820 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 855 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -211,6 +211,7 @@ each packet decided and delivered, as
   - [P02b-7 Step 2 review round 1 and visitor correction (2026-10-23)](#p02b-7-step-2-review-round-1-and-visitor-correction-2026-10-23) — 24 lines
   - [P02b-7 Step 2 review round 2 and closeout (2026-10-23)](#p02b-7-step-2-review-round-2-and-closeout-2026-10-23) — 19 lines
   - [P02b-7 Step 3 — closed HTTP and request projection (2026-10-23)](#p02b-7-step-3--closed-http-and-request-projection-2026-10-23) — 46 lines
+  - [P02b-7 Step 3 review round 1 (2026-10-23)](#p02b-7-step-3-review-round-1-2026-10-23) — 35 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18531,6 +18532,41 @@ Both independent review rounds still precede this step's closeout. Atomic
 production activation/localized UI remain Step 4; real provider/app-role API,
 browser and exact-source hosted qualification remain Step 5. The four BFF
 catalogue obligations remain Registered until their complete controls ship.
+
+
+### P02b-7 Step 3 review round 1 (2026-10-23)
+
+Two fresh independent source-only reviewers inspect `3279258d`. GPT-6-astra
+xhigh reviews protocol/security/lifecycle; GPT-6.1-sol high reviews evidence,
+confinement and corpus. The evidence reviewer approves without an actionable
+finding. The protocol reviewer verifies one major defect against pinned Next:
+its middleware adapter removes Flight headers before invoking middleware and
+restores them afterwards. Classifying the middleware headers therefore treats
+ordinary RSC navigation as passive. The initial production fixture observes
+rendering/confinement but does not detect that missing refresh/idle behavior.
+Neither reviewer runs runtime or independently reproduces reported passes.
+
+The native request holder now captures only a closed read/passive scalar from
+the original incoming protocol headers before Next. The scalar is bound to the
+same request lifetime and read by the response owner before publication; no
+request/header object is retained as session authority. RSC `auth()` remains a
+read-only safe projection lookup. Unit controls mutate/remove the original
+headers after capture and verify classification and phase/lifetime closure.
+
+The actual production Next fixture now uses a private deterministic clock and
+scalar IPC observations. RSC with `Accept: */*` and empty fetch destination
+refreshes expired access, validates AccountSite once and advances effective idle.
+Actual prefetch, HEAD and passive session polls do none of those operations.
+The same fixture independently builds a copied handoff with native activity
+removed: its preceding sign-in/callback positive succeeds, then the RSC assertion
+fails at that exact stage. A build/startup/cleanup failure cannot satisfy this
+counter-control. Grant/account capabilities remain explicit fakes; this is not
+provider/browser qualification.
+
+Frontend lint/typecheck/native compilation pass. The complete guarded frontend
+suite passes **2,036 cases in two packages**, zero skips/todos, including both
+actual Next runs. The correction is committed before the second fresh review
+pair. Production activation remains closed pending Step 4.
 
 
 ## Status archive

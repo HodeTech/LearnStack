@@ -63,7 +63,7 @@ export async function admitBffHttp(
       session: null,
     });
   }
-  const session = await protocol.project(input);
+  const session = await protocol.project(input, bffRequestOwner().activity(context));
   active();
   bffRequestOwner().publish(context, session);
   return Object.freeze({ response: null, session });

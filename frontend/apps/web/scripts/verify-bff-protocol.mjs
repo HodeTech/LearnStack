@@ -36,13 +36,13 @@ function replace(source, needle, value) {
   assert.equal(source.split(needle).length, 2, 'unique instrumentation anchor');
   return source.replace(needle, value);
 }
-function child(args, env) {
+function child(args, env, ipc = false) {
   const process = owner.ownChild(
     spawn(globalThis.process.execPath, args, {
       cwd: app,
       env,
       detached: globalThis.process.platform !== 'win32',
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe', ...(ipc ? ['ipc'] : [])],
     }),
   );
   const scanner = createPrivateScanner([secret, marker]);
@@ -100,6 +100,11 @@ const jar = (response) =>
     .filter((value) => !value.endsWith('='))
     .join('; ');
 try {
+  assert.ok(
+    process.argv.length === 2 ||
+      (process.argv.length === 3 && process.argv[2] === '--without-native-activity'),
+    'closed proof mode',
+  );
   mkdirSync(join(app, 'src/server/auth'), { recursive: true });
   mkdirSync(join(app, 'scripts'), { recursive: true });
   for (const name of [
@@ -115,6 +120,17 @@ try {
     recursive: true,
     filter: (path) => !path.endsWith('.test.ts'),
   });
+  if (process.argv[2] === '--without-native-activity') {
+    const path = join(app, 'src/server/auth/http-admission.ts');
+    file(
+      path,
+      replace(
+        readFileSync(path, 'utf8'),
+        'protocol.project(input, bffRequestOwner().activity(context))',
+        'protocol.project(input)',
+      ),
+    );
+  }
   symlinkSync(join(source, 'node_modules'), join(app, 'node_modules'), 'dir');
   symlinkSync(join(source, '.server'), join(app, '.server'), 'dir');
   cpSync(join(source, 'scripts/development-hmr.mjs'), join(app, 'scripts/development-hmr.mjs'));
@@ -214,8 +230,10 @@ import { randomBytes } from 'node:crypto';`,
     '  const admission = installPublicAdmissionRuntime();',
     `  const admission = installPublicAdmissionRuntime(true);
   const bffRequests = installBffRequestRuntime();
-  const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: 'https://identity.example.test/realms/learnstack', subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null }, accessExpiresAt: performance.now() + 900000, refreshExpiresAt: performance.now() + 3600000 });
-  const bffSessions = installBffSessionRuntime({ provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: 'https://identity.example.test/authorize' }), redeem: async () => credentials(), refresh: async () => credentials(), logoutUrl: () => 'https://identity.example.test/logout' }, account: async () => ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: 'Institution' }) });`,
+  let now = 0; let refreshes = 0; let accounts = 0;
+  process.on('message', value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; process.send?.({ kind: 'snapshot', now, refreshes, accounts }); } });
+  const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: 'https://identity.example.test/realms/learnstack', subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
+  const bffSessions = installBffSessionRuntime({ provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: 'https://identity.example.test/authorize' }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => 'https://identity.example.test/logout' }, account: async () => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: 'Institution' }); }, clock: { monotonic: () => now, utc: () => 1800000000000 + now } });`,
   );
   launcher = replace(
     launcher,
@@ -294,7 +312,17 @@ import { randomBytes } from 'node:crypto';`,
   }
   assert.equal(buildResult.code, 0, 'owned Next build');
   stage = 'start';
-  const server = child(['scripts/public-server.mjs'], env);
+  const server = child(['scripts/public-server.mjs'], env, true);
+  const advance = (milliseconds) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('owned IPC deadline')), 5000);
+      server.process.once('message', (snapshot) => {
+        clearTimeout(timer);
+        if (snapshot?.kind !== 'snapshot') reject(new Error('owned IPC shape'));
+        else resolve(snapshot);
+      });
+      server.process.send({ kind: 'advance', milliseconds });
+    });
   const until = Date.now() + 20_000;
   while (!server.scanner.tail.includes('Public HTTPS listener ready on 127.0.0.1:3000')) {
     assert.equal(server.process.exitCode, null, 'native listener alive');
@@ -354,15 +382,39 @@ import { randomBytes } from 'node:crypto';`,
   assert.equal(document.status, 200);
   assert.match(document.body, /<h1>authenticated<\/h1>/);
   assert.equal(document.body.includes(marker), false);
-  const flight = await get('/studio?_rsc=probe', active, { headers: { RSC: '1' } });
+  const before = await advance(901000);
+  const prior = JSON.parse((await get('/api/auth/session', active)).body);
+  const flight = await get('/studio?_rsc=probe', active, {
+    headers: { RSC: '1', Accept: '*/*', 'Sec-Fetch-Dest': 'empty' },
+  });
   assert.equal(flight.status, 200);
   assert.match(flight.headers['content-type'], /text\/x-component/);
   assert.equal(flight.body.includes(marker), false);
-  stage = 'session';
+  const after = await advance(0);
+  assert.equal(after.refreshes, before.refreshes + 1, 'actual RSC refreshes expired access');
+  assert.equal(after.accounts, before.accounts + 1, 'actual RSC validates AccountSite');
   const session = await get('/api/auth/session', active);
   const projection = JSON.parse(session.body);
+  assert.equal(projection.expiresAt, prior.expiresAt + 901000, 'RSC advances effective idle');
   assert.equal(projection.state, 'authenticated');
   assert.equal(session.body.includes(marker), false);
+  stage = 'passive';
+  await advance(60000);
+  const prefetched = await get('/studio?_rsc=prefetch', active, {
+    headers: { RSC: '1', 'Next-Router-Prefetch': '1', Accept: '*/*', 'Sec-Fetch-Dest': 'empty' },
+  });
+  assert.equal(prefetched.status, 200);
+  const head = await get('/studio', active, { method: 'HEAD', headers: { Accept: 'text/html' } });
+  assert.equal(head.status, 200);
+  assert.equal(head.body, '');
+  assert.equal(
+    JSON.parse((await get('/api/auth/session', active)).body).expiresAt,
+    projection.expiresAt,
+    'prefetch/HEAD/poll never touch idle',
+  );
+  const passive = await advance(0);
+  assert.equal(passive.accounts, after.accounts);
+  assert.equal(passive.refreshes, after.refreshes);
   stage = 'logout';
   const logout = await get('/api/auth/signout', active, {
     method: 'POST',

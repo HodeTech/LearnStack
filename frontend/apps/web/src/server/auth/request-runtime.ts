@@ -1,9 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EventEmitter } from 'node:events';
+import type { IncomingHttpHeaders } from 'node:http';
 
 import { canonicalAddress, normalizeHost, validTarget } from '../ingress.js';
 import type { IngressContext } from '../ingress.js';
-import { BFF_POST_PATHS } from './http-input.js';
+import { BFF_POST_PATHS, bffActivity } from './http-input.js';
 import type { SessionProjection } from './session-contract.js';
 import { isBffOpaque } from './session-store.js';
 
@@ -13,11 +14,13 @@ export type BffRequestRead = Readonly<{
 }>;
 export type BffRequestHolder = Readonly<{
   version: 1;
+  activity: (binding: IngressContext) => 'read' | 'passive';
   publish: (binding: IngressContext, session: SessionProjection | null) => void;
   read: (binding: IngressContext) => BffRequestRead;
 }>;
 type Store = {
   binding: IngressContext;
+  activity: 'read' | 'passive';
   phase: 'pending' | 'ready' | 'closed';
   session: SessionProjection | null;
   close: () => void;
@@ -60,6 +63,9 @@ export function createBffRequestRuntime() {
   }
   const holder: BffRequestHolder = Object.freeze({
     version: 1,
+    activity(binding) {
+      return current(binding, 'pending').activity;
+    },
     publish(binding, session) {
       const store = current(binding, 'pending');
       try {
@@ -84,7 +90,10 @@ export function createBffRequestRuntime() {
     holder,
     run<T>(
       binding: IngressContext,
-      request: Pick<EventEmitter, 'once' | 'removeListener'> & { readonly aborted: boolean },
+      request: Pick<EventEmitter, 'once' | 'removeListener'> & {
+        readonly aborted: boolean;
+        readonly headers: IncomingHttpHeaders;
+      },
       response: Pick<EventEmitter, 'once' | 'removeListener'> & {
         readonly destroyed: boolean;
         readonly writableEnded: boolean;
@@ -102,7 +111,22 @@ export function createBffRequestRuntime() {
         )
       )
         return unavailable();
+      // Capture protocol intent before Next strips Flight headers. Retain only
+      // the closed scalar, never the native request or its header collection.
+      const headers = new Headers();
+      for (const name of [
+        'rsc',
+        'next-router-prefetch',
+        'purpose',
+        'sec-purpose',
+        'sec-fetch-dest',
+        'accept',
+      ]) {
+        const value = request.headers[name];
+        if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(',') : value);
+      }
       const store: Store = {
+        activity: bffActivity(binding.method, headers),
         binding: Object.freeze({ ...binding }),
         phase: 'pending',
         session: null,

@@ -31,7 +31,7 @@ describe('read-only app-local auth()', () => {
         ? { value: runtime.holder, configurable: false, enumerable: false, writable: false }
         : original(object, key),
     );
-    const request = Object.assign(new EventEmitter(), { aborted: false });
+    const request = Object.assign(new EventEmitter(), { aborted: false, headers: {} });
     const response = Object.assign(new EventEmitter(), { destroyed: false, writableEnded: false });
     const session = {
       state: 'authenticated' as const,

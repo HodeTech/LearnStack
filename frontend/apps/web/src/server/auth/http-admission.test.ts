@@ -69,6 +69,7 @@ function harness(f: ReturnType<typeof bffFixture>) {
       body: options.body,
     });
     const request = new IncomingMessage(new Socket());
+    request.headers = Object.fromEntries(headers);
     const response = new ServerResponse(request);
     try {
       return await publicRuntime.run(context, request, response, () =>

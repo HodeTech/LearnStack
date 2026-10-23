@@ -65,17 +65,15 @@ function input(request: BffHttpRequest) {
 /** Called only after independent live-host bootstrap. No public SDK or browser bearer forwarding. */
 export function createBffHttpProtocol(store: BffSessionStore) {
   return Object.freeze({
-    async project(request: BffHttpRequest): Promise<SessionProjection | null> {
+    async project(
+      request: BffHttpRequest,
+      activity: 'read' | 'passive' = bffActivity(request.method, request.headers),
+    ): Promise<SessionProjection | null> {
       const cookies = input(request);
       const current = binding(request, cookies);
       if (!current) return null;
       try {
-        return await store.admit(
-          current,
-          request.source,
-          bffActivity(request.method, request.headers),
-          request.signal,
-        );
+        return await store.admit(current, request.source, activity, request.signal);
       } catch (error) {
         if (!(error instanceof BffSessionError)) throw error;
         // Public rendering remains anonymous after local invalidation. No writes in auth().

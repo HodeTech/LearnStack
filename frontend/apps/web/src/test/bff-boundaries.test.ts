@@ -11,7 +11,7 @@ import { createBffRequestRuntime } from '../server/auth/request-runtime';
 const context = { host: bffHost, peer: bffSource, method: 'GET', target: '/studio' };
 function lifetime() {
   return {
-    request: Object.assign(new EventEmitter(), { aborted: false }),
+    request: Object.assign(new EventEmitter(), { aborted: false, headers: {} }),
     response: Object.assign(new EventEmitter(), { destroyed: false, writableEnded: false }),
   };
 }
@@ -83,6 +83,26 @@ describe('native request projection boundary', () => {
     });
     expect(() => runtime.run(context, request, response, () => null)).toThrow();
   });
+  it('captures only the activity scalar before Next removes or mutates Flight headers', () => {
+    const runtime = createBffRequestRuntime();
+    for (const prefetch of [false, true]) {
+      const owner = lifetime();
+      Object.assign(owner.request.headers, {
+        rsc: '1',
+        ...(prefetch ? { 'next-router-prefetch': '1' } : {}),
+      });
+      runtime.run(context, owner.request, owner.response, () => {
+        delete (owner.request.headers as Record<string, string>).rsc;
+        delete (owner.request.headers as Record<string, string>)['next-router-prefetch'];
+        expect(runtime.holder.activity(context)).toBe(prefetch ? 'passive' : 'read');
+        runtime.holder.publish(context, null);
+        expect(() => runtime.holder.activity(context)).toThrow();
+        owner.response.emit('finish');
+      });
+    }
+    expect(runtime.counts()).toBe(0);
+    runtime.stop();
+  });
   it('the actual separately compiled native module and pinned NextRequest share only the immutable projection', () => {
     const moduleUrl = new URL('../../.server/auth/request-runtime.js', import.meta.url).href;
     const program = [
@@ -92,7 +112,7 @@ describe('native request projection boundary', () => {
       'const { installBffRequestRuntime } = await import(process.argv[1]);',
       'const runtime = installBffRequestRuntime();',
       'const context = { host: "institution.example.test:3000", peer: "203.0.113.1", method: "GET", target: "/studio" };',
-      'const request = Object.assign(new EventEmitter(), { aborted: false }); const response = Object.assign(new EventEmitter(), { destroyed: false, writableEnded: false });',
+      'const request = Object.assign(new EventEmitter(), { aborted: false, headers: {} }); const response = Object.assign(new EventEmitter(), { destroyed: false, writableEnded: false });',
       'const next = new NextRequest("https://" + context.host + context.target); assert.equal(next.method, context.method);',
       'await runtime.run(context, request, response, async () => { runtime.holder.publish(context, null); await Promise.resolve(); assert.equal(runtime.holder.read(context).session, null); response.emit("finish"); assert.throws(() => runtime.holder.read(context)); });',
       'assert.equal(runtime.counts(), 0); runtime.stop();',
@@ -113,6 +133,26 @@ describe('native request projection boundary', () => {
         maxBuffer: 65536,
       }),
     ).toBe('BFF native Next protocol: passed\n');
+  }, 160_000);
+  it('the same actual Next proof rejects a copy that drops native activity at the middleware handoff', () => {
+    const script = new URL('../../scripts/verify-bff-protocol.mjs', import.meta.url);
+    let failure: unknown;
+    try {
+      execFileSync(process.execPath, [script.pathname, '--without-native-activity'], {
+        encoding: 'utf8',
+        timeout: 150_000,
+        maxBuffer: 65536,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toMatchObject({
+      status: 1,
+      signal: null,
+      stdout: '',
+      stderr: 'BFF native Next protocol failed: rsc\n',
+    });
   }, 160_000);
   it('auth() is a passive server-only projection lookup and has no credential/provider/idle/cookie writer', () => {
     const source = readFileSync(new URL('../server/auth/auth.ts', import.meta.url), 'utf8');
