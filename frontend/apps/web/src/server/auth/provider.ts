@@ -163,6 +163,8 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
     } catch (error) {
       operation.interrupted();
       if (error instanceof BffProviderError) throw error;
+      if (error instanceof oidc.ClientError && error.cause instanceof BffProviderError)
+        throw new BffProviderError(error.cause.reason);
       if (error instanceof oidc.ResponseBodyError)
         throw new BffProviderError(
           error.error === 'invalid_grant' ? 'invalid_grant' : 'provider_refused',

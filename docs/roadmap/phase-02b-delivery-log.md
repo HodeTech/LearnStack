@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 651 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 686 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -206,6 +206,7 @@ each packet decided and delivered, as
   - [P02b-7 acceptance and implementation (2026-10-23)](#p02b-7-acceptance-and-implementation-2026-10-23) — 33 lines
   - [P02b-7 Step 1 — inactive RP foundation and provider events (2026-10-23)](#p02b-7-step-1--inactive-rp-foundation-and-provider-events-2026-10-23) — 48 lines
   - [P02b-7 Step 1 review round 1 and corrections (2026-10-23)](#p02b-7-step-1-review-round-1-and-corrections-2026-10-23) — 31 lines
+  - [P02b-7 Step 1 review round 2 and closeout (2026-10-23)](#p02b-7-step-1-review-round-2-and-closeout-2026-10-23) — 35 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18357,6 +18358,41 @@ The extra authorized event-policy PUT is explicitly counted, not hidden by a
 relaxed bound. Fresh architecture/event checks and a second new review pair
 still precede Step 1 closeout. No production activation or hosted evidence is
 claimed.
+
+
+### P02b-7 Step 1 review round 2 and closeout (2026-10-23)
+
+Two new independent read-only reviewers inspect `26ccc731`: GPT-6-astra high
+covers RP security/protocol and GPT-6.1-sol high covers provider policy/corpus.
+Both find one actionable issue. The author verifies each against pinned source,
+fixes it, and each reviewer independently confirms its focused correction.
+Neither reviewer executes runtime or claims independent test evidence.
+
+- openid-client wraps custom transport errors in `ClientError.cause`. The RP
+  boundary now recognizes only that actual library type with an actual closed
+  `BffProviderError`, and emits a fresh closed reason without retaining the cause.
+  Three actual-library controls cover token/JWKS and refresh network failures,
+  distinct transport classification, no grant replay and no private diagnostics.
+- **Correction to the initial Step 1 receipt:** the earlier 95-default/97-total
+  assertion was incorrect. Its source extraction omitted digit-bearing OAUTH2
+  names. Pinned Keycloak has **103 default-saved event types**; all 103 plus two
+  refresh types now appear in the export. An independent source-bound fixture
+  records the complete selection and tagged source SHA-256
+  `e96d8c99c67ff697d6798d2919bfcbeda238ff58dc923daaf59250672ab9b0b6`.
+  The export validator requires the full baseline, and a reachable control
+  removes each of its 103 types and requires the specific preservation violation.
+  The actual fresh provider also verifies the entire baseline after import.
+
+Final local validation: frontend lint/typecheck and guarded workspace **1,884
+passing cases** in two packages, including 32 RP controls; complete Node census
+**371 passing cases** in eight files and six gate controls; six targeted export/
+actual-provider cases and 14 architecture/corpus/Docker-trait/genericity controls,
+all with zero skips. Backend execution uses `CI=true`. The earlier four focused
+historical-count reruns pass; the other 19 broad historical cases already pass.
+No repeated broad execution, native route activation or hosted qualification is
+claimed. Both required independent review rounds and their verified corrections
+are complete. **Step 1 is locally complete; Step 2 begins automatically** under
+the accepted five-step package. Production BFF paths remain closed.
 
 
 ## Status archive

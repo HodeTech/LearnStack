@@ -28,6 +28,7 @@ async function fixture(issuer = 'https://identity.example.test/realms/learnstack
   let tokenPatch: Record<string, unknown> = {};
   let signingKey: CryptoKey | undefined;
   let refused = false;
+  let failedPath: string | undefined;
   let metadataPatch: Record<string, unknown> = {};
   let response: (() => Response) | undefined;
   const publicKey = await exportJWK(keys.publicKey);
@@ -37,6 +38,7 @@ async function fixture(issuer = 'https://identity.example.test/realms/learnstack
     calls.push({ url, method: init?.method ?? 'GET', body });
     expect(init?.redirect).toBe('error');
     expect(init?.credentials).toBe('omit');
+    if (failedPath && url.endsWith(failedPath)) throw new Error(privateCanary);
     if (response) return response();
     if (url.endsWith('/.well-known/openid-configuration'))
       return Response.json({
@@ -112,6 +114,9 @@ async function fixture(issuer = 'https://identity.example.test/realms/learnstack
     },
     setResponse(value: () => Response) {
       response = value;
+    },
+    setTransportFailure(path: string) {
+      failedPath = path;
     },
     setRefused() {
       refused = true;
@@ -237,6 +242,34 @@ describe('inactive tenant RP boundary', () => {
     await expect(f.login()).rejects.toMatchObject({ reason: 'configuration' });
     expect(f.calls).toHaveLength(1);
     expect(f.calls[0]?.body.toString()).not.toContain(privateCanary);
+  });
+
+  for (const path of ['/token', '/certs']) {
+    it(`preserves the closed transport reason through the library wrapper at ${path}`, async () => {
+      const f = await fixture();
+      f.setTransportFailure(path);
+      const error = await f.login().catch((value: unknown) => value);
+      expect(error).toBeInstanceOf(BffProviderError);
+      expect(error).toMatchObject({ reason: 'transport', message: 'BFF provider: transport' });
+      expect((error as Error).cause).toBeUndefined();
+      expect((error as Error).stack).not.toContain(privateCanary);
+      expect(f.calls.filter((call) => call.url.endsWith(path))).toHaveLength(1);
+    });
+  }
+
+  it('retains network uncertainty during refresh without retry or an upstream cause', async () => {
+    const f = await fixture();
+    const { result } = await f.login();
+    const before = f.calls.filter((call) => call.url.endsWith('/token')).length;
+    f.setTransportFailure('/token');
+    const error = await f.provider
+      .refresh(result.refreshToken!, result.identity)
+      .catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(BffProviderError);
+    expect(error).toMatchObject({ reason: 'transport', message: 'BFF provider: transport' });
+    expect((error as Error).cause).toBeUndefined();
+    expect((error as Error).stack).not.toContain(privateCanary);
+    expect(f.calls.filter((call) => call.url.endsWith('/token'))).toHaveLength(before + 1);
   });
 
   it('maps invalid_grant without retrying or preserving provider descriptions', async () => {

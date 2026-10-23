@@ -200,6 +200,8 @@ public sealed partial class TenantRealmExportTests
             Require(RequiredDevelopmentEvents.All(value => eventTypes.Contains(value, StringComparer.Ordinal)),
                 "explicit required authentication events including default-unsaved refresh");
             Require(eventTypes.Distinct(StringComparer.Ordinal).Count() == eventTypes.Length, "unique saved event types");
+            Require(DefaultSavedEvents.All(value => eventTypes.Contains(value, StringComparer.Ordinal)),
+                "complete pinned default-saved event selection");
             ValidateAccountDeclaration(realm, Require);
             var scopeNames = Scopes(realm).Select(scope => Text(scope?["name"])).ToArray();
             Require(scopeNames.Distinct(StringComparer.Ordinal).Count() == scopeNames.Length, "unique scope names");
@@ -445,15 +447,18 @@ public sealed partial class TenantRealmExportTests
         ProfileValue(realm)[0] = profile.ToJsonString();
     }
 
-    private static JsonObject ReadRealm()
+    private static JsonObject ReadRealm() => JsonNode.Parse(File.ReadAllText(RepositoryFile(
+        Path.Combine("infra", "keycloak", "realms", "learnstack.json"))))!.AsObject();
+
+    private static string RepositoryFile(string relative)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            var path = Path.Combine(directory.FullName, "infra", "keycloak", "realms", "learnstack.json");
-            if (File.Exists(path)) return JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+            var path = Path.Combine(directory.FullName, relative);
+            if (File.Exists(path)) return path;
             directory = directory.Parent;
         }
-        throw new InvalidOperationException("Repository realm export is missing.");
+        throw new InvalidOperationException("Repository proof input is missing.");
     }
 }

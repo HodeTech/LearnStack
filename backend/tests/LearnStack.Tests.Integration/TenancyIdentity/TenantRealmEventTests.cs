@@ -24,7 +24,8 @@ public sealed class TenantRealmEventTests(KeycloakFixture fresh)
         configuration.GetProperty("eventsEnabled").GetBoolean().Should().BeTrue();
         configuration.GetProperty("eventsExpiration").GetInt64().Should().Be(604800);
         Types(configuration).Should().Contain(Required);
-        Types(configuration).Should().Contain("UPDATE_CREDENTIAL", "existing default-saved security types remain selected");
+        Types(configuration).Should().Contain(TenantRealmExportTests.DefaultSavedEvents,
+            "every pinned default-saved security type remains selected");
 
         using var browser = fresh.Browser();
         var declaration = SeedData.IdentityUsers[0];
