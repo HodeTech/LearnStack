@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 855 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 875 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -212,6 +212,7 @@ each packet decided and delivered, as
   - [P02b-7 Step 2 review round 2 and closeout (2026-10-23)](#p02b-7-step-2-review-round-2-and-closeout-2026-10-23) — 19 lines
   - [P02b-7 Step 3 — closed HTTP and request projection (2026-10-23)](#p02b-7-step-3--closed-http-and-request-projection-2026-10-23) — 46 lines
   - [P02b-7 Step 3 review round 1 (2026-10-23)](#p02b-7-step-3-review-round-1-2026-10-23) — 35 lines
+  - [P02b-7 Step 3 review round 2 and closeout (2026-10-23)](#p02b-7-step-3-review-round-2-and-closeout-2026-10-23) — 20 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18567,6 +18568,26 @@ Frontend lint/typecheck/native compilation pass. The complete guarded frontend
 suite passes **2,036 cases in two packages**, zero skips/todos, including both
 actual Next runs. The correction is committed before the second fresh review
 pair. Production activation remains closed pending Step 4.
+
+
+### P02b-7 Step 3 review round 2 and closeout (2026-10-23)
+
+Two new independent source-only reviewers inspect `2ebae0c9..7fded69c`.
+GPT-6.1-sol xhigh covers protocol/security/lifecycle; GPT-6-astra high covers
+proofs, confinement and corpus. Both approve without an actionable finding.
+They independently trace the pinned Flight-header behavior and native scalar
+handoff, safe projection lifetime, callback/current attribution, cancellation
+ownership, CSRF and independent logout proofs. They confirm the actual Next
+counter-control reaches its RSC assertion after successful sign-in/callback.
+Neither reviewer runs runtime or independently attests reported passes.
+
+No code changes follow this round. The reviewed source's complete frontend
+guard passes 2,036 cases in two packages with zero skips/todos; lint, typecheck,
+native compilation and documentation guards pass. **Step 3 is locally complete;
+Step 4 begins automatically.** Production optional configuration/activation,
+localized session UI and skill reconciliation now have the next step's owner.
+Real provider/app-role API/browser/history and exact-source hosted evidence
+remain Step 5 gates, not claims inferred from fake capabilities or source review.
 
 
 ## Status archive
