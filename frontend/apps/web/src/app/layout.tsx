@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import type { ReactNode } from 'react';
 
+import { BFF_HISTORY_SOURCE } from '@/components/auth/history';
 import { PublicTheme } from '@/components/public/theme';
 import { textDirection } from '@/i18n/locale';
+import { bffSessionEnabled } from '@/server/auth/session-owner';
 import { assertPublicRequestActive } from '@/server/public-request';
 import { requirePublicResource } from '@/server/public-resource';
 
@@ -18,13 +21,18 @@ type RootLayoutProps = {
 
 export default async function RootLayout({ children }: RootLayoutProps) {
   // Do not let loading.tsx flush a shell before the missing-resource redirect.
-  const { request } = await requirePublicResource();
+  const { request, kind } = await requirePublicResource();
   assertPublicRequestActive(request);
   const locale = request.locale ?? 'en';
   return (
     <html lang={locale} dir={textDirection(locale)}>
       <head>
         <PublicTheme theme={request.site.theme} />
+        {kind === 'scaffold' && bffSessionEnabled() && (
+          <Script id="bff-history" strategy="beforeInteractive">
+            {BFF_HISTORY_SOURCE}
+          </Script>
+        )}
       </head>
       <body className="bg-ls-bg text-ls-fg font-sans antialiased">{children}</body>
     </html>

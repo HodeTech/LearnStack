@@ -220,6 +220,10 @@ projection. Verified host, browser binding, epoch and server state are required.
   provider refresh deadline. Response owners refresh expired/near-expiry access,
   touch qualifying activity and publish one revision. `auth()` is read-only.
   Explicit extension refreshes the provider; a timestamp alone does not extend it.
+  The safe projection includes effective expiry and whether the known absolute
+  deadline limits it. UI never promises extension at that maximum or when the
+  provider returns an unchanged deadline. Full document navigation and the
+  protected-document history veil require fresh network admission on return.
 - Retain 1,024 total owners, including unsettled work; 128 pending for five minutes,
   16 pending per verified visitor IP, eight session/logout-return owners per
   validated issuer/subject. Same-browser replacement settles old work first.

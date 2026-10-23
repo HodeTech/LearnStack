@@ -184,6 +184,7 @@ describe('native BFF ownership and bounded projection', () => {
       state: 'authenticated',
       displayName: 'Institution',
       expiresAt: 1_800_001_800_000,
+      limitedByAbsolute: false,
       csrfToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
     });
     expect(Object.isFrozen(projection)).toBe(true);
@@ -569,6 +570,7 @@ describe('effective deadlines and one refresh owner', () => {
     }
     const final = f.store.peek(binding)!;
     expect(final.expiresAt).toBe(1_800_000_000_000 + BFF_LIMITS.absoluteMs);
+    expect(final.limitedByAbsolute).toBe(true);
     expect(vi.mocked(f.provider.refresh).mock.calls.at(-1)![0]).toBe(privateCanary);
     f.advance(15 * 60_000);
     expect(f.store.peek(binding)).toBeNull();

@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+.auth-shell {
+  width: min(100%, 60rem);
+  padding: 2rem 1.5rem;
+  margin-inline: auto;
+}
+.auth-shell p,
+.auth-shell nav,
+.auth-shell form {
+  margin-block: 1rem;
+}
+.auth-shell nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.auth-shell [role='alert'] {
+  border: 2px solid currentColor;
+  padding: 1rem;
+}
+.auth-shell button {
+  background: var(--ls-bg);
+  color: var(--ls-fg);
+}
+.auth-shell button:focus-visible,
+.auth-shell a:focus-visible {
+  outline-color: var(--ls-fg);
+}
+
 /* Null or malformed whole themes retain these local defaults (P02d-6 G42). */
 :root {
   --ls-primary: #1f6feb;

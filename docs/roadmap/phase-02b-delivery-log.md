@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 875 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 939 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -213,6 +213,7 @@ each packet decided and delivered, as
   - [P02b-7 Step 3 — closed HTTP and request projection (2026-10-23)](#p02b-7-step-3--closed-http-and-request-projection-2026-10-23) — 46 lines
   - [P02b-7 Step 3 review round 1 (2026-10-23)](#p02b-7-step-3-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 Step 3 review round 2 and closeout (2026-10-23)](#p02b-7-step-3-review-round-2-and-closeout-2026-10-23) — 20 lines
+  - [P02b-7 Step 4 — optional activation and session UI (2026-10-23)](#p02b-7-step-4--optional-activation-and-session-ui-2026-10-23) — 64 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18588,6 +18589,70 @@ Step 4 begins automatically.** Production optional configuration/activation,
 localized session UI and skill reconciliation now have the next step's owner.
 Real provider/app-role API/browser/history and exact-source hosted evidence
 remain Step 5 gates, not claims inferred from fake capabilities or source review.
+
+
+### P02b-7 Step 4 — optional activation and session UI (2026-10-23)
+
+The native launcher activates both session/request holders and the closed POST
+admission together, only after agreeing private configuration passes. Absent or
+false opt-in returns no BFF issuer/secret configuration. Enabled source files are
+bounded, regular, single-link and owner-private; permission/link/conflict
+controls prove refusal without repair. Provider construction/discovery remains
+lazy. Native shutdown seals requests and joins actual session-owner settlement;
+the existing failed hard-stop ceiling is not evidence of successful cleanup.
+
+Middleware resolves the live public host/site and validates locale membership
+before cookie/provider work. Disabled auth stays 404 and disabled shells render
+localized no-store 503. Enabled shells redirect anonymous visitors to the closed
+same-host sign-in flow. Enabled locales still take precedence over a same-spelled
+studio/portal root. Rebuilt downstream headers carry no browser cookies, Origin
+or Authorization. Expected browser errors render bounded localized recovery;
+owner-authorized transaction-cookie edits survive without clearing another flow.
+
+Complete English/Turkish `auth` catalogues have typed callsite/ICU controls and
+whole-catalogue fallback. Next's production compiler refuses react-dom/server in
+middleware, so the closed sign-in document uses escaped text/attributes, validated
+four-color CSS and no script, password field or provider-error reflection.
+Studio/Portal render the safe AccountSite projection and native sign-out form;
+no roles, permissions or authoring capability are invented. Session warning uses
+effective expiry, offers actual forced refresh, reports unchanged expiry honestly
+and offers reauthentication at the known absolute maximum. A later admitted RSC
+projection supersedes an older in-flight client result. Failure hides the account
+view and focuses recovery; passive countdown never touches the server session.
+
+The browser action adapter permits only a fixed same-origin no-store extension,
+with bounded response/closed projection. Dirty URL/header/cache/redirect/renaming
+controls prove that exception does not authorize arbitrary fetch or API calls.
+Navigation uses document anchors. A fixed pre-interactive history script veils
+before caching and keeps a restored document hidden until network reload; this
+mechanism's actual cookie/history behavior remains the Step 5 browser proof.
+Route, feature-gate and i18n skills now describe the shipped app-local facade,
+not a nonexistent Auth.js package or permissions array. Configuration examples and
+setup/security/catalogue carriers are reconciled.
+
+Root-owned validation before the implementation commit:
+
+- Complete guarded frontend suite: **2,081 passed in two packages**, zero skips
+  or todos. Frontend lint, typecheck and native compilation pass.
+- Production Next build passes. A copied full production app exercises both
+  translated sign-in documents, HEAD, unknown-host refusal, callback, protected
+  HTML/Flight, passive requests, cross-host cookie rejection, real owner
+  extension and local logout. This uses explicit fake grant/AccountSite
+  capabilities; it is not real-provider or real-browser evidence.
+- Existing PostgreSQL/app-role `PublicAdmissionRenderingTests` passes, one case,
+  zero skips, 37 seconds reported test duration. Its anonymous shell overlap now
+  verifies the intended 503/site palette without RSC dispatch. Browser fallback,
+  late HEAD and real HMR use an existing public catalogue instead of bypassing
+  the new shell guard; exact API-read accounting remains asserted.
+- Five architecture corpus controls and all documentation guards pass; 2,190
+  relative fragment links resolve and both delivery-log indexes are current.
+- Initial full-suite refusals identify stale projection, catalogue and anonymous
+  shell expectations; they are updated to the new closed contracts. Fixture
+  declaration files and the changed native instrumentation anchor are aligned.
+
+Step 4 awaits its two fresh independent review pairs. Real warm-provider/API,
+native HTTPS browser/history, stopped-Keycloak demo and final-source hosted
+qualification remain Step 5. The four BFF catalogue rules remain Registered.
 
 
 ## Status archive

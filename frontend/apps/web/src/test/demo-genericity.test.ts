@@ -514,6 +514,7 @@ describe('P02d-7 exact demo identity boundary', () => {
         'src/server/ingress.ts',
         'src/server/public-admission-runtime.ts',
         'src/server/auth/account-client.ts',
+        'src/server/auth/configuration.ts',
         'src/server/auth/http-protocol.ts',
         'src/server/auth/provider-core.ts',
         'src/server/auth/request-runtime.ts',

@@ -4,6 +4,7 @@ import { createServer } from 'node:https';
 import { fileURLToPath } from 'node:url';
 
 import { delegateDevelopmentHmr } from './development-hmr.mjs';
+import { bffConfiguration } from '../.server/auth/configuration.js';
 import {
   admitIncomingRequest,
   loadLocalEnvironment,
@@ -24,10 +25,36 @@ try {
   const { default: next } = await import('next');
   const values = loadLocalEnvironment(root, process.env);
   const configuration = publicServerConfiguration(values, root);
-  const admission = installPublicAdmissionRuntime();
+  const dev = process.argv.includes('--dev');
+  const bff = bffConfiguration(root, {
+    ...process.env,
+    NODE_ENV: dev ? 'development' : 'production',
+  });
+  const admission = installPublicAdmissionRuntime(bff.enabled);
+  let bffRequests;
+  let bffSessions;
+  if (bff.enabled) {
+    const [
+      { createTenantProvider },
+      { createAccountSiteCaller },
+      { installBffSessionRuntime },
+      { installBffRequestRuntime },
+    ] = await Promise.all([
+      import('../.server/auth/provider-core.js'),
+      import('../.server/auth/account-client.js'),
+      import('../.server/auth/session-runtime.js'),
+      import('../.server/auth/request-runtime.js'),
+    ]);
+    const dependencies = {
+      provider: createTenantProvider(bff, globalThis.fetch),
+      account: createAccountSiteCaller(configuration, globalThis.fetch),
+      diagnostic: (reason) => console.warn('BFF session refused', { reason }),
+    };
+    bffRequests = installBffRequestRuntime();
+    bffSessions = installBffSessionRuntime(dependencies);
+  }
   // Next reads the same values; root/projection conflicts were refused before prepare.
   for (const key of PUBLIC_ENV_KEYS) process.env[key] = values[key];
-  const dev = process.argv.includes('--dev');
   // Next attaches its automatic upgrade handler to this documented httpServer
   // option. The sink never listens: only the native TLS admission may emit to it.
   const upgradeSink = createUpgradeSink();
@@ -47,12 +74,19 @@ try {
       minVersion: 'TLSv1.2',
     },
     (request, response) => {
-      if (!admitIncomingRequest(request, configuration.secret)) return refuseIngress(response);
+      if (!admitIncomingRequest(request, configuration.secret, bff.enabled))
+        return refuseIngress(response);
       const binding = verifyProvenance(request.headers[INGRESS_HEADER], configuration.secret);
       if (!binding) return refuseIngress(response);
       // No request, credential or provider-error values enter launcher diagnostics.
       Promise.resolve()
-        .then(() => admission.run(binding, request, response, () => handle(request, response)))
+        .then(() =>
+          admission.run(binding, request, response, () =>
+            bffRequests
+              ? bffRequests.run(binding, request, response, () => handle(request, response))
+              : handle(request, response),
+          ),
+        )
         .catch(() => {
           if (!response.headersSent) {
             response.writeHead(503, { 'cache-control': 'no-store' });
@@ -70,6 +104,8 @@ try {
   server.on('connect', (_request, socket) => socket.destroy());
   server.on('error', () => {
     admission.shutdown();
+    bffRequests?.stop();
+    void bffSessions?.stop();
     console.error('Public HTTPS listener failed');
     process.exit(1);
   });
@@ -78,6 +114,8 @@ try {
     if (stopping) return;
     stopping = true;
     admission.shutdown();
+    bffRequests?.stop();
+    const sessionsStopped = bffSessions?.stop();
     // Node excludes upgraded sockets from closeAllConnections; Next's custom
     // server also leaves development handles alive after app.close().
     for (const socket of upgradeSockets) socket.destroy();
@@ -92,7 +130,7 @@ try {
     );
     server.closeAllConnections();
     upgradeSink.close();
-    const results = await Promise.allSettled([closed, app.close()]);
+    const results = await Promise.allSettled([closed, app.close(), sessionsStopped]);
     clearTimeout(deadline);
     const failed = results.some((result) => result.status === 'rejected');
     if (failed) console.error('Public server shutdown failed');

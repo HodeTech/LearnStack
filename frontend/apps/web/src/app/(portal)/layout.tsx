@@ -5,5 +5,5 @@ type PortalLayoutProps = {
 };
 
 export default function PortalLayout({ children }: PortalLayoutProps) {
-  return <main className="min-h-screen bg-white">{children}</main>;
+  return <main className="min-h-screen">{children}</main>;
 }

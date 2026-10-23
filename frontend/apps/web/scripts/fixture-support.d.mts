@@ -14,6 +14,7 @@ export function fixtureEnvironment(options: {
   nodeEnv?: string;
   nodePath?: string;
   privateValues?: Record<string, string>;
+  bffValues?: Record<string, string>;
   debug?: string;
 }): NodeJS.ProcessEnv;
 export function createFixtureOwner(options?: { exit?: (code: number) => void }): {

@@ -121,6 +121,9 @@ describe('fixture positive environment', () => {
       DEBUG: 'next:*',
       NEXT_PUBLIC_SECRET: 'unsafe',
       LEARNSTACK_PUBLIC_HOP_SECRET: 'inherited',
+      LEARNSTACK_BFF_ENABLED: 'true',
+      LEARNSTACK_BFF_ISSUER: 'https://unowned.example/realms/learnstack',
+      KEYCLOAK_WEB_CLIENT_SECRET: 'private-inherited',
     }))
       vi.stubEnv(key, value);
     const env = fixtureEnvironment({ root, nodePath: '/explicit/modules' });
@@ -165,6 +168,24 @@ describe('fixture positive environment', () => {
     expect(() =>
       fixtureEnvironment({ root, privateValues: { NEXT_PUBLIC_SECRET: 'unsafe' } }),
     ).toThrow('Unsupported fixture environment');
+  });
+  it('enables BFF only with a complete explicitly supplied proof group', () => {
+    const bffValues = {
+      LEARNSTACK_BFF_ENABLED: 'true',
+      LEARNSTACK_BFF_ISSUER: 'https://identity.example/realms/learnstack',
+      KEYCLOAK_WEB_CLIENT_SECRET: 'owned-private',
+    };
+    expect(fixtureEnvironment({ root, bffValues })).toMatchObject(bffValues);
+    for (const key of Object.keys(bffValues)) {
+      const missing = { ...bffValues };
+      Reflect.deleteProperty(missing, key);
+      expect(() => fixtureEnvironment({ root, bffValues: missing })).toThrow(
+        'Incomplete fixture BFF',
+      );
+    }
+    expect(() =>
+      fixtureEnvironment({ root, bffValues: { ...bffValues, NODE_OPTIONS: 'unsafe' } }),
+    ).toThrow('Incomplete fixture BFF');
   });
 });
 

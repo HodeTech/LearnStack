@@ -1,4 +1,6 @@
 import type { LoginTransaction, ProviderCredentials, ProviderIdentity } from './provider.js';
+import type { SessionProjection } from './session-projection.js';
+export type { SessionProjection } from './session-projection.js';
 
 /** Native-only capability. Application/UI callers receive projections, never this port. */
 export type SessionProvider = {
@@ -33,12 +35,6 @@ export type AccountWitness = Readonly<{
 }>;
 export type AccountBinding = Readonly<{ host: string; source: string; traceparent?: string }>;
 export type SessionActivity = 'passive' | 'read' | 'extend';
-export type SessionProjection = Readonly<{
-  state: 'authenticated';
-  displayName: string;
-  expiresAt: number;
-  csrfToken: string;
-}>;
 export type LoginStart = Readonly<{
   state: string;
   proof: string;

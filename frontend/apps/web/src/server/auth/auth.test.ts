@@ -37,6 +37,7 @@ describe('read-only app-local auth()', () => {
       state: 'authenticated' as const,
       displayName: 'School',
       expiresAt: Date.now() + 60_000,
+      limitedByAbsolute: false,
       csrfToken: 'A'.repeat(43),
     };
     await runtime.run(binding, request, response, async () => {

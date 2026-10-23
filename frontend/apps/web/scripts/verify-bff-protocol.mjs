@@ -2,7 +2,15 @@
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:http';
 import { request } from 'node:https';
 import { tmpdir } from 'node:os';
@@ -27,6 +35,7 @@ const deadline = setTimeout(() => {
   void owner.cancel();
 }, 120_000);
 deadline.unref();
+const uiMode = process.argv[2] === '--ui';
 let stage = 'setup';
 function file(path, value) {
   mkdirSync(join(path, '..'), { recursive: true });
@@ -102,7 +111,8 @@ const jar = (response) =>
 try {
   assert.ok(
     process.argv.length === 2 ||
-      (process.argv.length === 3 && process.argv[2] === '--without-native-activity'),
+      (process.argv.length === 3 &&
+        ['--without-native-activity', '--ui'].includes(process.argv[2])),
     'closed proof mode',
   );
   mkdirSync(join(app, 'src/server/auth'), { recursive: true });
@@ -116,10 +126,32 @@ try {
     'public-admission-runtime.ts',
   ])
     cpSync(join(source, 'src/server', name), join(app, 'src/server', name));
-  cpSync(join(source, 'src/server/auth'), join(app, 'src/server/auth'), {
-    recursive: true,
-    filter: (path) => !path.endsWith('.test.ts'),
-  });
+  // This minimal app qualifies the protocol, not the separate product UI.
+  for (const name of [
+    'account-client',
+    'auth',
+    'configuration',
+    'cookies',
+    'http-admission',
+    'http-input',
+    'http-paths',
+    'http-protocol',
+    'provider',
+    'provider-core',
+    'provider-error',
+    'provider-transport',
+    'request-owner',
+    'request-runtime',
+    'session-contract',
+    'session-projection',
+    'session-owner',
+    'session-runtime',
+    'session-store',
+  ])
+    cpSync(
+      join(source, 'src/server/auth', name + '.ts'),
+      join(app, 'src/server/auth', name + '.ts'),
+    );
   if (process.argv[2] === '--without-native-activity') {
     const path = join(app, 'src/server/auth/http-admission.ts');
     file(
@@ -165,16 +197,18 @@ try {
     '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n',
   );
   let nextConfiguration = readFileSync(join(source, 'next.config.ts'), 'utf8');
-  nextConfiguration = replace(
-    nextConfiguration,
-    "import createNextIntlPlugin from 'next-intl/plugin';",
-    '',
-  );
-  nextConfiguration = replace(
-    nextConfiguration,
-    "export default createNextIntlPlugin('./src/i18n/request.ts')(nextConfig);",
-    'export default nextConfig;',
-  );
+  if (!uiMode)
+    nextConfiguration = replace(
+      nextConfiguration,
+      "import createNextIntlPlugin from 'next-intl/plugin';",
+      '',
+    );
+  if (!uiMode)
+    nextConfiguration = replace(
+      nextConfiguration,
+      "export default createNextIntlPlugin('./src/i18n/request.ts')(nextConfig);",
+      'export default nextConfig;',
+    );
   nextConfiguration = replace(
     nextConfiguration,
     'serverComponentsHmrCache: false',
@@ -216,39 +250,33 @@ export async function middleware(request: NextRequest) {
 }
 export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$).*)'] };`,
   );
+  if (uiMode) {
+    rmSync(join(app, 'src/app/studio'), { recursive: true });
+    rmSync(join(app, 'src/app/page.tsx'));
+    cpSync(join(source, 'src'), join(app, 'src'), {
+      recursive: true,
+      filter: (path) => !/(?:\.(?:test|spec)\.tsx?$|[/]test(?:[/]|$))/.test(path),
+    });
+    for (const name of ['tailwind.config.ts', 'postcss.config.cjs'])
+      cpSync(join(source, name), join(app, name));
+  }
   let launcher = readFileSync(join(source, 'scripts/public-server.mjs'), 'utf8');
   launcher = replace(
     launcher,
-    "import { installPublicAdmissionRuntime } from '../.server/public-admission-runtime.js';",
-    `import { installPublicAdmissionRuntime } from '../.server/public-admission-runtime.js';
-import { installBffSessionRuntime } from '../.server/auth/session-runtime.js';
-import { installBffRequestRuntime } from '../.server/auth/request-runtime.js';
-import { randomBytes } from 'node:crypto';`,
+    "import { bffConfiguration } from '../.server/auth/configuration.js';",
+    "import { bffConfiguration } from '../.server/auth/configuration.js';\nimport { randomBytes } from 'node:crypto';",
   );
   launcher = replace(
     launcher,
-    '  const admission = installPublicAdmissionRuntime();',
-    `  const admission = installPublicAdmissionRuntime(true);
-  const bffRequests = installBffRequestRuntime();
-  let now = 0; let refreshes = 0; let accounts = 0;
-  process.on('message', value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; process.send?.({ kind: 'snapshot', now, refreshes, accounts }); } });
-  const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: 'https://identity.example.test/realms/learnstack', subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
-  const bffSessions = installBffSessionRuntime({ provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: 'https://identity.example.test/authorize' }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => 'https://identity.example.test/logout' }, account: async () => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: 'Institution' }); }, clock: { monotonic: () => now, utc: () => 1800000000000 + now } });`,
-  );
-  launcher = replace(
-    launcher,
-    'if (!admitIncomingRequest(request, configuration.secret)) return refuseIngress(response);',
-    'if (!admitIncomingRequest(request, configuration.secret, true)) return refuseIngress(response);',
-  );
-  launcher = replace(
-    launcher,
-    '.then(() => admission.run(binding, request, response, () => handle(request, response)))',
-    '.then(() => admission.run(binding, request, response, () => bffRequests.run(binding, request, response, () => handle(request, response))))',
-  );
-  launcher = replace(
-    launcher,
-    '    admission.shutdown();\n    // Node',
-    '    admission.shutdown();\n    bffRequests.stop(); await bffSessions.stop();\n    // Node',
+    `    const dependencies = {
+      provider: createTenantProvider(bff, globalThis.fetch),
+      account: createAccountSiteCaller(configuration, globalThis.fetch),
+      diagnostic: (reason) => console.warn('BFF session refused', { reason }),
+    };`,
+    `    let now = 0; let refreshes = 0; let accounts = 0;
+    process.on('message', value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; process.send?.({ kind: 'snapshot', now, refreshes, accounts }); } });
+    const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: 'https://identity.example.test/realms/learnstack', subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
+    const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: 'https://identity.example.test/authorize' }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => 'https://identity.example.test/logout' }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: binding.host === 'other.example.test:3000' ? 'Diğer kurum' : 'Institution' }); }, clock: { monotonic: () => now, utc: () => 1800000000000 + now } };`,
   );
   file(join(app, 'scripts/public-server.mjs'), launcher);
   execFileSync(
@@ -276,12 +304,32 @@ import { randomBytes } from 'node:crypto';`,
     createServer((request, response) => {
       assert.equal(request.url, '/api/v1/public/site');
       assert.equal(request.headers.authorization, undefined);
+      if (
+        !['institution.example.test:3000', 'other.example.test:3000'].includes(
+          request.headers['x-learnstack-host'],
+        )
+      ) {
+        response.writeHead(404, { 'content-type': 'application/problem+json' });
+        response.end(
+          JSON.stringify({
+            status: 404,
+            code: 'not_found',
+            messageKey: 'lockey_not_found',
+            correlationId: '00000000-0000-4000-8000-000000000001',
+            type: 'https://fixture.invalid/not-found',
+            title: 'Not found',
+            instance: '/api/v1/public/site',
+          }),
+        );
+        return;
+      }
+      const second = request.headers['x-learnstack-host'] === 'other.example.test:3000';
       response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       response.end(
         JSON.stringify({
-          displayName: 'Institution',
-          enabledLocales: ['en'],
-          defaultLocale: 'en',
+          displayName: second ? 'Diğer kurum' : 'Institution',
+          enabledLocales: second ? ['tr'] : ['en'],
+          defaultLocale: second ? 'tr' : 'en',
           theme: null,
           showPlatformAttribution: true,
         }),
@@ -291,6 +339,11 @@ import { randomBytes } from 'node:crypto';`,
   await new Promise((resolve) => backend.listen(0, '127.0.0.1', resolve));
   const env = fixtureEnvironment({
     root,
+    bffValues: {
+      LEARNSTACK_BFF_ENABLED: 'true',
+      LEARNSTACK_BFF_ISSUER: 'https://identity.example.test/realms/learnstack',
+      KEYCLOAK_WEB_CLIENT_SECRET: marker,
+    },
     privateValues: {
       LEARNSTACK_PUBLIC_API_ORIGIN: 'http://127.0.0.1:' + backend.address().port,
       LEARNSTACK_PUBLIC_HOP_SECRET: secret,
@@ -304,7 +357,7 @@ import { randomBytes } from 'node:crypto';`,
   if (buildResult.code !== 0) {
     const diagnostics = build.scanner.tail
       .split('\n')
-      .filter((line) => /Type error:|Module not found:|Cannot find module|Error:/.test(line))
+      .filter((line) => /error|warning|cannot|failed/i.test(line))
       .join('\n')
       .replaceAll(secret, '[private]')
       .replaceAll(marker, '[private]');
@@ -328,6 +381,35 @@ import { randomBytes } from 'node:crypto';`,
     assert.equal(server.process.exitCode, null, 'native listener alive');
     assert.ok(Date.now() < until, 'listener startup deadline');
     await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  if (uiMode) {
+    stage = 'ui-signin';
+    for (const [host, label] of [
+      ['institution.example.test:3000', 'Continue to sign in'],
+      ['other.example.test:3000', 'Giriş yapmaya devam et'],
+    ]) {
+      const page = await get('/api/auth/signin?returnTo=%2Fstudio', undefined, {
+        headers: { host, Accept: 'text/html' },
+      });
+      stage = host.startsWith('other.') ? 'ui-signin-tr-status' : 'ui-signin-en-status';
+      if (page.status !== 200) process.stderr.write(JSON.stringify({ status: page.status }) + '\n');
+      assert.equal(page.status, 200);
+      stage = host.startsWith('other.') ? 'ui-signin-tr-render' : 'ui-signin-en-render';
+      assert.ok(page.body.includes(label));
+      assert.ok(page.body.includes('name="csrfToken"'));
+      assert.equal(page.body.includes(marker), false);
+      assert.equal(page.headers['cache-control'], 'no-store');
+      const head = await get('/api/auth/signin', undefined, { method: 'HEAD', headers: { host } });
+      stage = 'ui-signin-head';
+      assert.equal(head.status, 200);
+      assert.equal(head.body, '');
+    }
+    stage = 'ui-unknown-host';
+    const unknown = await get('/api/auth/signin', undefined, {
+      headers: { host: 'unknown.example.test:3000' },
+    });
+    assert.equal(unknown.status, 404);
+    assert.equal(unknown.headers['set-cookie'], undefined);
   }
   stage = 'csrf';
   const csrf = await get('/api/auth/csrf');
@@ -380,7 +462,11 @@ import { randomBytes } from 'node:crypto';`,
   stage = 'rsc';
   const document = await get('/studio', active);
   assert.equal(document.status, 200);
-  assert.match(document.body, /<h1>authenticated<\/h1>/);
+  if (uiMode) {
+    assert.match(document.body, /<h1>Studio<\/h1>/);
+    assert.ok(document.body.includes('Account access'));
+    assert.ok(document.body.includes('bff-history'));
+  } else assert.match(document.body, /<h1>authenticated<\/h1>/);
   assert.equal(document.body.includes(marker), false);
   const before = await advance(901000);
   const prior = JSON.parse((await get('/api/auth/session', active)).body);
@@ -415,6 +501,58 @@ import { randomBytes } from 'node:crypto';`,
   const passive = await advance(0);
   assert.equal(passive.accounts, after.accounts);
   assert.equal(passive.refreshes, after.refreshes);
+  if (uiMode) {
+    stage = 'ui-host-fence';
+    const crossHost = await get('/portal', active, {
+      headers: { host: 'other.example.test:3000' },
+    });
+    assert.equal(crossHost.status, 303);
+    assert.ok(
+      crossHost.headers.location.startsWith('https://other.example.test:3000/api/auth/signin'),
+    );
+    const csrfB = await get('/api/auth/csrf', undefined, {
+      headers: { host: 'other.example.test:3000' },
+    });
+    const startB = await get('/api/auth/signin/keycloak', jar(csrfB), {
+      method: 'POST',
+      headers: {
+        host: 'other.example.test:3000',
+        origin: 'https://other.example.test:3000',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: 'csrfToken=' + JSON.parse(csrfB.body).csrfToken + '&returnTo=%2Fportal',
+    });
+    assert.equal(startB.status, 303);
+    const stateB = startB.headers['set-cookie']
+      .find((value) => value.startsWith('__Host-ls-login-'))
+      .slice('__Host-ls-login-'.length)
+      .split('=')[0];
+    const callbackB = await get(
+      '/api/auth/callback/keycloak?state=' + stateB + '&code=owned',
+      jar(startB),
+      { headers: { host: 'other.example.test:3000' } },
+    );
+    assert.equal(callbackB.status, 303);
+    const portal = await get('/portal', jar(callbackB), {
+      headers: { host: 'other.example.test:3000' },
+    });
+    assert.equal(portal.status, 200);
+    assert.match(portal.body, /<html lang="tr"/);
+    assert.ok(portal.body.includes('Portalınız'));
+    assert.ok(portal.body.includes('Diğer kurum'));
+    assert.equal(portal.body.includes(marker), false);
+    stage = 'ui-extension';
+    const extended = await get('/api/auth/extend', active, {
+      method: 'POST',
+      headers: {
+        origin: 'https://institution.example.test:3000',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: 'csrfToken=' + projection.csrfToken,
+    });
+    assert.equal(extended.status, 200);
+    assert.ok(JSON.parse(extended.body).expiresAt > projection.expiresAt);
+  }
   stage = 'logout';
   const logout = await get('/api/auth/signout', active, {
     method: 'POST',
@@ -427,7 +565,10 @@ import { randomBytes } from 'node:crypto';`,
   assert.equal(logout.status, 303);
   stage = 'revocation';
   const refused = await get('/studio', active);
-  assert.match(refused.body, /<h1>anonymous<\/h1>/);
+  if (uiMode) {
+    assert.equal(refused.status, 303);
+    assert.ok(refused.headers.location.includes('/api/auth/signin'));
+  } else assert.match(refused.body, /<h1>anonymous<\/h1>/);
   stage = 'cleanup';
   await owner.dispose();
   assert.equal(
@@ -436,7 +577,9 @@ import { randomBytes } from 'node:crypto';`,
     'private output scanner',
   );
   clearTimeout(deadline);
-  process.stdout.write('BFF native Next protocol: passed\n');
+  process.stdout.write(
+    uiMode ? 'BFF production UI: passed\n' : 'BFF native Next protocol: passed\n',
+  );
 } catch {
   try {
     await owner.dispose();

@@ -20,6 +20,38 @@ don't collide at `/`:
 | `(portal)/portal/`                    | `/portal`                    | Learner + instructor portal                      | 07                       |
 | `api/`                                | `/api/*`                     | Thin BFF route handlers (`/api/healthz` shipped) | 02a+                     |
 
+## Optional tenant sign-in
+
+[ADR-0070](../../../docs/decisions/0070-owned-tenant-bff-sessions.md) selects a
+native openid-client session owner. Set `LEARNSTACK_BFF_ENABLED=true`, a canonical
+`LEARNSTACK_BFF_ISSUER` in `/realms/learnstack`, and the existing confidential
+`KEYCLOAK_WEB_CLIENT_SECRET`. Root `.env`, optional web `.env.local` and process
+values must agree. Enabled mode requires regular, single-link, owner-private
+source files (`chmod 600`); startup never repairs permissions or rotates secrets.
+`make public-web` permits a loopback HTTP development issuer. Production web
+requires HTTPS and normal certificate verification. Both modes discover the
+provider lazily, without a startup network dependency.
+
+Absent/false opt-in keeps the anonymous renderer independent of Keycloak. Auth
+paths then return 404; `/studio` and `/portal` return a localized unavailable
+document with 503. Enabled mode exposes the closed `/api/auth` actions in native
+middleware and requires a session for those two shells. The shells show the
+read-only AccountSite projection, not future authoring or role permissions.
+
+The browser receives only host-only opaque cookies and a safe session projection.
+The warning uses the actual effective expiry; an explicit extension refreshes the
+provider and reports an unchanged deadline honestly. Logout revokes locally first;
+other institution tabs sharing provider SSO may need to sign in again. Ordinary
+document anchors and a pre-navigation history veil require fresh admission when
+returning to a protected document. Step 5's real-provider/browser proof owns the
+qualification boundary; these mechanisms do not claim a universal browser cache
+or assistive-technology result.
+
+Restart signs users out. One native process owns the session store; deploying
+multiple web instances requires the distributed adapter and qualification owned
+by Phase 11. [Security 11](../../../docs/standards/11-security.md#tenant-bff-sessions)
+owns limits, custody and ongoing rules.
+
 P02d-4 delivers the API reads; P02d-5 delivers live bootstrap and membership-first
 entry under [ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md).
 `/` redirects through live default-locale admission; it is not a placeholder page.

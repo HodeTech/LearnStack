@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ADAPTER,
   ACCOUNT_ADAPTER,
+  BFF_BROWSER_ADAPTER,
   SDK_AUTHENTICATED,
   ADMISSION_RUNTIME,
   ADMISSION_FACADE,
@@ -366,6 +367,32 @@ describe('ADR-0053 production public boundaries', () => {
       'http-protocol',
     ])
       expect(bundled).not.toContain('apps/web/src/server/auth/' + name + '.ts');
+  });
+  it('confines browser fetch to the exact same-origin no-store BFF extension action', () => {
+    const source = sources[BFF_BROWSER_ADAPTER]!;
+    expect(source).toContain("fetch('/api/auth/extend'");
+    for (const [from, to] of [
+      ["'/api/auth/extend'", "'/api/v1/account/site'"],
+      ["credentials: 'same-origin'", "credentials: 'include'"],
+      ["redirect: 'error'", "redirect: 'follow'"],
+      ["cache: 'no-store'", "cache: 'force-cache'"],
+      ['headers: {', "headers: { Authorization: 'Bearer private',"],
+    ]) {
+      expect(source).toContain(from);
+      expect(
+        transportFindings(graphWith(BFF_BROWSER_ADAPTER, source.replace(from!, to!))).some(
+          (item) => item.file === BFF_BROWSER_ADAPTER && item.reason.includes('global fetch'),
+        ),
+      ).toBe(true);
+    }
+    expect(
+      transportFindings(
+        graphWith(BFF_BROWSER_ADAPTER, source + '\nfetch("/api/auth/extend");'),
+      ).some((item) => item.file === BFF_BROWSER_ADAPTER && item.reason.includes('global fetch')),
+    ).toBe(true);
+    expect(transportFindings(graphWith(probe, source)).some((item) => item.file === probe)).toBe(
+      true,
+    );
   });
   it('the configured production caller imports the server-only marker', () => {
     expect(hasServerOnlyMarker(production.files.get(ADAPTER)!)).toBe(true);

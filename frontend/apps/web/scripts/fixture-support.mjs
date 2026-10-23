@@ -54,6 +54,7 @@ export function fixtureEnvironment({
   nodeEnv = 'production',
   nodePath,
   privateValues = {},
+  bffValues,
   debug,
 }) {
   const env = {
@@ -73,6 +74,20 @@ export function fixtureEnvironment({
     if (!PRIVATE_KEYS.has(key) || typeof value !== 'string')
       throw new Error('Unsupported fixture environment key or value');
     env[key] = value;
+  }
+  if (bffValues !== undefined) {
+    const expected = [
+      'KEYCLOAK_WEB_CLIENT_SECRET',
+      'LEARNSTACK_BFF_ENABLED',
+      'LEARNSTACK_BFF_ISSUER',
+    ];
+    if (
+      Object.keys(bffValues).sort().join(',') !== expected.join(',') ||
+      bffValues.LEARNSTACK_BFF_ENABLED !== 'true' ||
+      expected.some((key) => typeof bffValues[key] !== 'string' || !bffValues[key])
+    )
+      throw new Error('Incomplete fixture BFF environment');
+    Object.assign(env, bffValues);
   }
   return env;
 }

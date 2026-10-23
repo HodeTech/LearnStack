@@ -33,6 +33,8 @@ account-console. Hub/admin-event policy is unchanged. Local BFF expiry/outage
 logout are not durable provider events; Phase 03 owns authenticated event ingress/
 mirroring and Phase 11 owns production retention/security/capacity qualification.
 This configuration does not activate browser sign-in by itself.
+The native web process requires the separate explicit BFF opt-in documented in
+[web setup](../../frontend/apps/web/README.md#optional-tenant-sign-in).
 
 ## Realms and accounts
 
@@ -112,8 +114,8 @@ URLs, logs or public configuration.
 
 `KEYCLOAK_WEB_CLIENT_SECRET` is create-once local state, not a new value on every
 seed. Before the first Keycloak import, set it in the selected private file.
-Use the same value for Compose, reconciliation and the later BFF. The API,
-public renderer and application Seeder never receive it.
+Use the same value for Compose, reconciliation and the optional native BFF owner.
+The API, public rendering contract and application Seeder never receive it.
 
 - `missing_web_secret`: add the key explicitly before starting the stack, matching
   the existing imported client when present. A previously populated file is not

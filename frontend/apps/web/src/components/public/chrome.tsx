@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { SignInLink } from '@/components/auth/signin-link';
 import type { PublicTranslate } from '@/i18n/catalogues';
 import type { TextDirection } from '@/i18n/locale';
 import type { PublicSite } from '@/server/public-entry';
@@ -31,6 +32,7 @@ export function PublicChrome({
         <p className="public-institution">{site.displayName}</p>
         <nav lang={uiLocale} dir={uiDirection} aria-label={t('chrome.catalog')}>
           <a href={catalogPath}>{t('chrome.catalog')}</a>
+          <SignInLink locale={contentLocale} />
         </nav>
       </header>
       <main id="main-content" tabIndex={-1} className="public-main">

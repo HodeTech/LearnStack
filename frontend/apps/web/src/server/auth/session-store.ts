@@ -204,6 +204,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       state: 'authenticated',
       displayName: entry.account.displayName,
       expiresAt: this.#utc() + Math.max(0, this.#effective(entry) - this.#now()),
+      limitedByAbsolute: this.#effective(entry) === entry.absolute,
       csrfToken: entry.csrf,
     });
   }

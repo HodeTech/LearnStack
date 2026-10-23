@@ -5304,14 +5304,18 @@ owns execution, review and manual evidence.
   feature keys are separate from backend `lockey_*` wire keys. Planted per-locale
   and absent-from-all keys, unknown callsites, bad ICU and mismatched arguments
   fail. Public graphs include configuration and JSON catalogue dependencies.
-- **Source:** ADR-0027; Accepted P02d-6 G39.
+  ADR-0070 extends the same catalogue/ICU/callsite checks to the app-local `auth`
+  namespace; only translated labels, never complete catalogues, cross to clients.
+- **Source:** ADR-0027; Accepted P02d-6 G39; ADR-0070.
 - **Type:** frontend catalogue/callsite + production build. **Kind:** structural.
 - **Status:** **Implemented** — `frontend/apps/web/src/i18n/catalogues.test.ts`;
   actual request-configuration callbacks in `frontend/apps/web/src/i18n/request.test.ts`
   and typed translator argument forwarding in
   `frontend/apps/web/src/server/public-ui.test.ts`;
-  `PublicServerRenderingTests` production build, P02d-6.
-- **Phase:** 02d (P02d-6).
+  `PublicServerRenderingTests` production build, P02d-6. The ADR-0070 extension
+  executes `frontend/apps/web/src/i18n/auth-catalogues.test.ts` and the same
+  checked helpers, P02b-7 Step 4.
+- **Phase:** 02d (P02d-6); 02b (P02b-7 extension).
 
 ### `Public_Ui_Locale_Does_Not_Change_Content_Admission`
 

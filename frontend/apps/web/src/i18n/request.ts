@@ -5,6 +5,7 @@ import { getRequestConfig } from 'next-intl/server';
 
 import { assertPublicRequestActive, getPublicRequest } from '@/server/public-request';
 
+import { getAuthCatalogue } from './auth-catalogues';
 import { getPublicCatalogue, publicFormattingOptions } from './catalogues';
 
 export default getRequestConfig(async () => {
@@ -16,7 +17,7 @@ export default getRequestConfig(async () => {
   const catalogue = getPublicCatalogue(contentLocale);
   return {
     locale: catalogue.locale,
-    messages: { public: catalogue.messages },
+    messages: { public: catalogue.messages, auth: getAuthCatalogue(contentLocale).messages },
     ...publicFormattingOptions(contentLocale),
   };
 });

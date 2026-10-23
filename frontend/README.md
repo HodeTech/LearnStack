@@ -38,6 +38,9 @@ Before starting web, follow the root [HTTPS Quickstart](../README.md#quickstart)
 `make public-env` prepares the paired private configuration; hosts and mkcert trust
 remain explicit developer steps. Start `make public-api` in another terminal.
 The native ingress serves the configured tenant hosts over HTTPS on port 3000.
+Optional tenant sign-in and its private opt-in are documented in the
+[web setup](apps/web/README.md#optional-tenant-sign-in). Public-only operation is
+the default; realm configuration alone does not activate a browser session.
 Direct stock `next dev/start` is unsupported. P6 implements localized public
 catalog/course/lesson pages; its [closeout](../docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 records completed reviews and passing manual accessibility. P6 is complete and

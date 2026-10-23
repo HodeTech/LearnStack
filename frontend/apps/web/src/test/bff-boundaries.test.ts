@@ -19,6 +19,7 @@ const projection = () => ({
   state: 'authenticated' as const,
   displayName: 'School',
   expiresAt: Date.now() + 30_000,
+  limitedByAbsolute: false,
   csrfToken: bffOpaque(),
 });
 describe('native request projection boundary', () => {
@@ -153,6 +154,16 @@ describe('native request projection boundary', () => {
       stdout: '',
       stderr: 'BFF native Next protocol failed: rsc\n',
     });
+  }, 160_000);
+  it('the actual production middleware and localized shells use the native BFF without exposing credentials', () => {
+    const script = new URL('../../scripts/verify-bff-protocol.mjs', import.meta.url);
+    expect(
+      execFileSync(process.execPath, [script.pathname, '--ui'], {
+        encoding: 'utf8',
+        timeout: 150_000,
+        maxBuffer: 65536,
+      }),
+    ).toBe('BFF production UI: passed\n');
   }, 160_000);
   it('auth() is a passive server-only projection lookup and has no credential/provider/idle/cookie writer', () => {
     const source = readFileSync(new URL('../server/auth/auth.ts', import.meta.url), 'utf8');

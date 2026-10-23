@@ -159,33 +159,34 @@ accepted HTTPS port and local path select the destination.
 
 ### Step 5: Authentication + permission gating
 
-Authentication below is the Phase 02b target, not current scaffold behavior.
-Today's exact `/studio` and `/portal` roots pass only after public host bootstrap;
-no sign-in/session helper is implemented. Phase 02b must explicitly admit its
-login/callback namespace before adding authenticated routes.
+P02b-7 implements the optional native BFF under
+[ADR-0070](../../../docs/decisions/0070-owned-tenant-bff-sessions.md).
+Host bootstrap precedes cookie/provider work. Disabled mode refuses auth paths
+with 404 and the exact `/studio` and `/portal` shells with 503. Enabled mode
+redirects anonymous shell requests to `/api/auth/signin` with a closed local
+return destination. Add no generic proxy or new auth action.
 
-For those future `(studio)` and `(portal)` routes:
-
-- Unauthenticated requests redirect through the accepted BFF/Keycloak sign-in flow.
-- A page-level permission check uses the future `auth()` helper:
+The app-local `auth()` is a passive safe projection lookup in the admitted native
+request; it does not parse cookies, refresh or mutate idle state. Layout and page
+consumers still check their own admission after awaits. The shell implementation
+in `components/auth/shell.tsx` owns the current example:
 
 ```tsx
-import { auth } from "@learnstack/auth/server"; // illustrative: no such package exists yet; Phase 02b's session work owns the real helper
+import { auth } from "@/server/auth/auth";
 import { redirect } from "next/navigation";
 
-export default async function UsersPage() {
+export default async function AccountPage() {
   const session = await auth();
-  if (!session) redirect("/login");
-  if (!session.permissions.includes("identity.user.read")) {
-    redirect("/dashboard");   // or render a 403 UI
-  }
-  // ...
+  if (!session) redirect("/api/auth/signin");
+  return <p>{session.displayName}</p>;
 }
 ```
 
-`auth()` reads from the HttpOnly cookie session set by the BFF; never touch tokens
-in a Client Component. The frontend permission check is **mirror-only** — the API
-is authoritative.
+Never touch tokens in a Client Component. The projection has no permissions or
+roles. Phase 03 owns permission-based screens and their mirror-only UI checks;
+the API remains authoritative. Current shells grant no authoring capability.
+Use full document anchors, no-store responses and the protected history guard;
+do not introduce prefetch/Router Cache reuse for protected navigation.
 
 ### Step 6: Feature gating (entitlement-aware UI)
 

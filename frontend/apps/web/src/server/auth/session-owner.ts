@@ -49,3 +49,11 @@ export function bffSessionOwner(): BffSessionHolder['store'] {
 export function bffSessionProtocol(): BffSessionHolder['http'] {
   return holder().http;
 }
+
+/** Native installation is the mode authority; no request/header or bundled fallback enables it. */
+export function bffSessionEnabled(): boolean {
+  if (!Object.getOwnPropertyDescriptor(globalThis, Symbol.for('learnstack.bff-sessions.v1')))
+    return false;
+  holder();
+  return true;
+}

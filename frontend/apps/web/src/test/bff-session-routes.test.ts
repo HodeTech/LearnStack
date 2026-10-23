@@ -52,6 +52,7 @@ describe('closed BFF routes with the actual owner', () => {
       'csrfToken',
       'displayName',
       'expiresAt',
+      'limitedByAbsolute',
       'state',
     ]);
     expect(JSON.stringify(projection)).not.toContain('private-');

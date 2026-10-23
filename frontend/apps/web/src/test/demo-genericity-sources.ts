@@ -235,6 +235,7 @@ export function productionDemoSources(
     const config = JSON.parse(serverConfig);
     const expected = [
       'src/server/auth/account-client.ts',
+      'src/server/auth/configuration.ts',
       'src/server/auth/http-protocol.ts',
       'src/server/auth/provider-core.ts',
       'src/server/auth/request-runtime.ts',

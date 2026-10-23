@@ -10,7 +10,7 @@ import type { BffPageRenderer } from './http-protocol';
 import { bffRequestOwner } from './request-owner';
 import { bffSessionProtocol } from './session-owner';
 
-/** Inactive until Step 4 wiring. Host admission must already be published by the real bootstrap. */
+/** Host admission must already be published by the real bootstrap. */
 export async function admitBffHttp(
   request: NextRequest,
   context: IngressContext,

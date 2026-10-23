@@ -30,8 +30,10 @@ to a `mailto:` on Self-Hosted). All of this lives in
 
 ## When not to use
 
-- Authorisation (permission checks). Those use `auth().permissions.includes(...)`,
-  not feature flags.
+- Authentication or authorization. The current app-local
+  `@/server/auth/auth` helper returns only a safe session projection, with no
+  permissions/roles. Phase 03 owns permission-aware UI, backed by API enforcement;
+  a feature flag never grants a permission.
 - Greying-out a feature instead of hiding. Three UI patterns the project picked:
   **hide** for missing features, **visualise** for limits, **block-then-link** for
   exceeded hard limits.
@@ -47,6 +49,13 @@ to a `mailto:` on Self-Hosted). All of this lives in
 | Behaviour on missing | Yes | Hide (default) for FeatureKey; `current/limit` visualisation for LimitKey. |
 
 ## Workflow
+
+The hook/package examples below describe the Phase 06 entitlement-aware UI
+target, not exports in the current SDK. P02b-7 supplies session UI only; do not
+invent entitlement hooks, a permissions array or SSE transport while adding a
+session-protected page. Follow
+[add-frontend-route](../add-frontend-route/SKILL.md#step-5-authentication--permission-gating)
+for the implemented authentication boundary.
 
 ### Step 1: Feature gating with `useFeatureFlag`
 

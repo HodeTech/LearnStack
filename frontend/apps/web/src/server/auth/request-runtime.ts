@@ -40,6 +40,7 @@ function snapshot(session: SessionProjection | null): SessionProjection | null {
     typeof session.displayName !== 'string' ||
     session.displayName.length > 1024 ||
     !Number.isFinite(session.expiresAt) ||
+    typeof session.limitedByAbsolute !== 'boolean' ||
     !isBffOpaque(session.csrfToken)
   )
     return unavailable();
@@ -47,6 +48,7 @@ function snapshot(session: SessionProjection | null): SessionProjection | null {
     state: 'authenticated',
     displayName: session.displayName,
     expiresAt: session.expiresAt,
+    limitedByAbsolute: session.limitedByAbsolute,
     csrfToken: session.csrfToken,
   });
 }

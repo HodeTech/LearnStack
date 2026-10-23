@@ -20,6 +20,7 @@ export type SourceGraph = {
 };
 
 export const ACCOUNT_ADAPTER = 'apps/web/src/server/auth/account-client.ts';
+export const BFF_BROWSER_ADAPTER = 'apps/web/src/client/bff-session.ts';
 export const ADAPTER = 'apps/web/src/server/configured-public-client.ts';
 export const INGRESS = 'apps/web/src/server/ingress.ts';
 export const MIDDLEWARE = 'apps/web/src/middleware.ts';
@@ -557,7 +558,11 @@ export function transportFindings(graph: SourceGraph): Finding[] {
   for (const [name, file] of graph.files) {
     if (name === ADAPTER) continue;
     walk(file, (node) => {
-      if (ts.isCallExpression(node) && globalFetch(node.expression, graph))
+      if (
+        ts.isCallExpression(node) &&
+        globalFetch(node.expression, graph) &&
+        !(name === BFF_BROWSER_ADAPTER && fixedBffExtension(node, file))
+      )
         findings.push(
           finding(node, 'Fix: call the configured public SDK adapter instead of global fetch.'),
         );
@@ -609,6 +614,61 @@ export function transportFindings(graph: SourceGraph): Finding[] {
     });
   }
   return findings;
+}
+
+/** One fixed same-origin browser action, not an arbitrary fetch exception. */
+function fixedBffExtension(node: ts.CallExpression, file: ts.SourceFile): boolean {
+  if (node.arguments.length !== 2) return false;
+  const [path, options] = node.arguments;
+  if (
+    !path ||
+    !ts.isStringLiteral(path) ||
+    path.text !== '/api/auth/extend' ||
+    !options ||
+    !ts.isObjectLiteralExpression(options)
+  )
+    return false;
+  const fields = new Map<string, ts.Expression>();
+  for (const field of options.properties) {
+    if (
+      !ts.isPropertyAssignment(field) ||
+      !ts.isIdentifier(field.name) ||
+      fields.has(field.name.text)
+    )
+      return false;
+    fields.set(field.name.text, field.initializer);
+  }
+  if (
+    [...fields.keys()].sort().join(',') !== 'body,cache,credentials,headers,method,redirect,signal'
+  )
+    return false;
+  for (const [key, expected] of Object.entries({
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    redirect: 'error',
+  })) {
+    const field = fields.get(key);
+    if (!field || !ts.isStringLiteral(field) || field.text !== expected) return false;
+  }
+  const headers = fields.get('headers');
+  if (!headers || !ts.isObjectLiteralExpression(headers) || headers.properties.length !== 1)
+    return false;
+  const header = headers.properties[0];
+  if (
+    !header ||
+    !ts.isPropertyAssignment(header) ||
+    !ts.isStringLiteral(header.name) ||
+    header.name.text !== 'content-type' ||
+    !ts.isStringLiteral(header.initializer) ||
+    header.initializer.text !== 'application/x-www-form-urlencoded;charset=UTF-8'
+  )
+    return false;
+  const expression = (name: string) => fields.get(name)?.getText(file).replace(/[\s_]/g, '');
+  return (
+    expression('body') === 'newURLSearchParams({csrfToken}).toString()' &&
+    expression('signal') === 'AbortSignal.timeout(10000)'
+  );
 }
 
 function processObject(

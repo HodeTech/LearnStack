@@ -326,8 +326,8 @@ function instrumentCopy() {
   );
   replaceOnce(
     launcher,
-    '  const admission = installPublicAdmissionRuntime();',
-    `  const admission = installPublicAdmissionRuntime();
+    '  const admission = installPublicAdmissionRuntime(bff.enabled);',
+    `  const admission = installPublicAdmissionRuntime(bff.enabled);
   const completions = createNativeCompletionObserver();
   const snapshotIds = new WeakMap();
   let snapshotsSeen = 0;
@@ -381,13 +381,21 @@ function instrumentCopy() {
   );
   replaceOnce(
     launcher,
-    '.then(() => admission.run(binding, request, response, () => handle(request, response)))',
+    `.then(() =>
+          admission.run(binding, request, response, () =>
+            bffRequests
+              ? bffRequests.run(binding, request, response, () => handle(request, response))
+              : handle(request, response),
+          ),
+        )`,
     `.then(() => fixture.mode === 'missing'
           ? handle(request, response)
           : admission.run(fixture.mode === 'mismatch' ? { ...binding, target: '/mismatch' } : binding,
               request, response, () => {
                 completions.track(response);
-                return handle(request, response);
+                return bffRequests
+                  ? bffRequests.run(binding, request, response, () => handle(request, response))
+                  : handle(request, response);
               }))`,
   );
   replaceOnce(
@@ -461,9 +469,9 @@ export async function LateAdmissionProbe() {
     '{children}</body>',
     '{children}<Suspense fallback={null}><LateAdmissionProbe /></Suspense></body>',
   );
-  const studio = join(app, 'src/app/(studio)/studio');
+  const catalog = join(app, 'src/app/(public)/[locale]/courses');
   writeFileSync(
-    join(studio, 'admission-navigation.tsx'),
+    join(catalog, 'admission-navigation.tsx'),
     `'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -475,11 +483,16 @@ export default function AdmissionNavigation({ target }: { target: string }) {
 }
 `,
   );
-  writeFileSync(
-    join(studio, 'page.tsx'),
-    `import AdmissionNavigation from './admission-navigation';
-export default function AdmissionPage() { return <main><h1>Admission fixture</h1><AdmissionNavigation target=${JSON.stringify('/' + configuration.locale + '/courses/' + configuration.courseSlug)} /></main>; }
-`,
+  const catalogPage = join(catalog, 'page.tsx');
+  replaceOnce(
+    catalogPage,
+    "import { notFound } from 'next/navigation';",
+    "import { notFound } from 'next/navigation';\nimport AdmissionNavigation from './admission-navigation';",
+  );
+  replaceOnce(
+    catalogPage,
+    'return <PublicCatalog resource={resource} ui={ui} />;',
+    `return <><PublicCatalog resource={resource} ui={ui} /><AdmissionNavigation target=${JSON.stringify('/' + configuration.locale + '/courses/' + configuration.courseSlug)} /></>;`,
   );
 }
 
@@ -610,7 +623,7 @@ async function lifetimes(native) {
   const scaffoldResponses = await Promise.all(pendingScaffolds.map((request) => request.result));
   scaffoldResponses.forEach((response, index) => {
     safe(response);
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 503);
     const tenant = scaffolds[index].tenant;
     const other = configuration.tenants.find((row) => row.host !== tenant.host);
     const dom = new JSDOM(response.body);
@@ -618,9 +631,12 @@ async function lifetimes(native) {
       const styles = [...dom.window.document.querySelectorAll('style')].map(
         (style) => style.textContent,
       );
-      assert.ok(styles.includes(themeCss(tenant)), 'Scaffold renders its own tenant palette');
+      assert.ok(
+        styles.some((style) => style.includes(themeCss(tenant))),
+        'Unavailable shell renders its own tenant palette',
+      );
       assert.equal(
-        styles.includes(themeCss(other)),
+        styles.some((style) => style.includes(themeCss(other))),
         false,
         'Scaffold excludes the other tenant palette',
       );
@@ -632,7 +648,11 @@ async function lifetimes(native) {
   const scaffoldAfter = await settled(native);
   empty(scaffoldAfter);
   assert.equal(scaffoldAfter.immutable, true);
-  assert.equal(scaffoldAfter.snapshotsSeen - scaffoldBefore.snapshotsSeen, 4);
+  assert.equal(
+    scaffoldAfter.snapshotsSeen - scaffoldBefore.snapshotsSeen,
+    0,
+    'Disabled shells never dispatch RSC consumers',
+  );
   await checkpoint('done-scaffold-overlap');
   stage = 'keep-alive';
   const agent = new Agent({ keepAlive: true, maxSockets: 1 });
@@ -660,7 +680,7 @@ async function lifetimes(native) {
   await checkpoint('done-head');
   stage = 'late HEAD';
   await control(native, 'mode', 'late');
-  const late = await call('/studio', { method: 'HEAD' });
+  const late = await call(catalog, { method: 'HEAD' });
   assert.equal(late.status, 200);
   assert.equal(late.body, '');
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -793,7 +813,7 @@ try {
         root,
         certificate,
         origin: 'https://' + configuration.tenants[0].host + ':3000',
-        initialPath: '/studio',
+        initialPath: '/' + configuration.locale + '/courses',
         target: '/' + configuration.locale + '/courses/' + configuration.courseSlug,
         status,
         secrets: [configuration.secret, configuration.privateMarker],
