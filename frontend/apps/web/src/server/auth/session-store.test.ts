@@ -104,9 +104,14 @@ function fixture() {
   async function start(extra: Partial<Parameters<typeof store.start>[0]> = {}) {
     return store.start({ host, source, returnPath: '/studio', ...extra });
   }
-  async function complete(login: Awaited<ReturnType<typeof start>>, atHost = host) {
+  async function complete(
+    login: Awaited<ReturnType<typeof start>>,
+    atHost = host,
+    callbackSource = source,
+  ) {
     return store.complete({
       host: atHost,
+      source: callbackSource,
       browser: login.browser,
       state: login.state,
       proof: login.proof,
@@ -212,6 +217,7 @@ describe('native BFF ownership and bounded projection', () => {
       const login = await f.start();
       const input = {
         host,
+        source,
         browser: login.browser,
         state: login.state,
         proof: login.proof,
@@ -755,5 +761,45 @@ describe('refusal and expiry boundaries', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('current callback visitor provenance', () => {
+  it('uses the callback IP for AccountSite while retaining original pending-source credit', async () => {
+    const f = fixture();
+    const login = await f.start();
+    for (let i = 0; i < 15; ++i) await f.start();
+    const callbackSource = '203.0.113.2';
+    const gate = f.blockRedeem();
+    const completing = f.complete(login, host, callbackSource);
+    await flush();
+    await expect(f.start()).rejects.toMatchObject({ reason: 'source_capacity' });
+    await expect(f.start({ source: callbackSource })).resolves.toHaveProperty('state');
+    gate.resolve();
+    await completing;
+    expect(f.account).toHaveBeenCalledTimes(1);
+    expect(f.account.mock.calls[0]![1]).toEqual({ host, source: callbackSource });
+  });
+
+  it('refuses a malformed callback source before consuming a valid transaction', async () => {
+    const f = fixture();
+    const login = await f.start();
+    for (const invalid of ['::ffff:203.0.113.1', '', undefined, null])
+      await expect(
+        f.store.complete({
+          host,
+          source: invalid as string,
+          browser: login.browser,
+          state: login.state,
+          proof: login.proof,
+          responseUrl: 'https://' + host + '/api/auth/callback/keycloak',
+        }),
+      ).rejects.toMatchObject({
+        reason: 'configuration',
+        clearTransaction: null,
+      });
+    expect(f.provider.redeem).not.toHaveBeenCalled();
+    await expect(f.complete(login)).resolves.toHaveProperty('handle');
+    expect(f.provider.redeem).toHaveBeenCalledTimes(1);
   });
 });

@@ -101,6 +101,7 @@ export interface BffSessionStore {
   complete(
     input: Readonly<{
       host: string;
+      source: string;
       browser: string;
       state: string;
       proof: string;

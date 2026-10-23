@@ -99,13 +99,15 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   #groupKey(host: string, browser: string) {
     return JSON.stringify([host, browser]);
   }
-  #checkAddress(host: string, source?: string) {
-    if (
-      normalizeHost(host) !== host ||
-      (source !== undefined && canonicalAddress(source) !== source)
-    )
+  #checkAddress(host: string) {
+    if (typeof host !== 'string' || normalizeHost(host) !== host)
       throw new BffSessionError('configuration');
     if (this.#stopped) throw new BffSessionError('stopped');
+  }
+  #checkSource(host: string, source: string) {
+    this.#checkAddress(host);
+    if (typeof source !== 'string' || canonicalAddress(source) !== source)
+      throw new BffSessionError('configuration');
   }
   #effective(entry: Owner) {
     return Math.min(
@@ -280,7 +282,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   }
 
   async start(input: Parameters<BffSessionStore['start']>[0]): Promise<LoginStart> {
-    this.#checkAddress(input.host, input.source);
+    this.#checkSource(input.host, input.source);
     if (
       !['/', '/studio', '/portal'].includes(input.returnPath) ||
       (input.browser !== undefined && !isBffOpaque(input.browser))
@@ -364,7 +366,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   }
 
   async complete(input: Parameters<BffSessionStore['complete']>[0]): Promise<LoginCompletion> {
-    this.#checkAddress(input.host);
+    this.#checkSource(input.host, input.source);
     const entry = isBffOpaque(input.state) ? this.#states.get(input.state) : undefined;
     if (
       !entry ||
@@ -390,7 +392,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         this.#assert(entry, 'exchange');
         const account = await this.#dependencies.account(
           credentials.accessToken,
-          { host: input.host, source: entry.source },
+          { host: input.host, source: input.source },
           entry.controller.signal,
         );
         this.#assert(entry, 'exchange');
@@ -475,7 +477,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     activity: SessionActivity,
     signal?: AbortSignal,
   ): Promise<SessionProjection> {
-    this.#checkAddress(binding.host, source);
+    this.#checkSource(binding.host, source);
     const entry = this.#find(binding);
     if (!entry) throw new BffSessionError('revoked');
     if (signal?.aborted) throw new BffSessionError('cancelled');
