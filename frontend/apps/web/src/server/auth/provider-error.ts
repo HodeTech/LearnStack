@@ -1,5 +1,3 @@
-import 'server-only';
-
 export type ProviderFailure =
   | 'configuration'
   | 'cancelled'

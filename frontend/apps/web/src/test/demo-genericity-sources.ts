@@ -232,7 +232,11 @@ export function productionDemoSources(
   const serverConfig = all.get('frontend/apps/web/tsconfig.server.json');
   if (serverConfig) {
     const config = JSON.parse(serverConfig);
-    const expected = ['src/server/ingress.ts', 'src/server/public-admission-runtime.ts'];
+    const expected = [
+      'src/server/auth/session-runtime.ts',
+      'src/server/ingress.ts',
+      'src/server/public-admission-runtime.ts',
+    ];
     if (
       config.compilerOptions?.rootDir !== 'src/server' ||
       config.compilerOptions?.outDir !== '.server' ||
@@ -241,7 +245,7 @@ export function productionDemoSources(
       refused('tsconfig.server.json');
     for (const input of expected)
       generated.set(
-        `frontend/apps/web/.server/${posix.basename(input, '.ts')}.js`,
+        `frontend/apps/web/.server/${posix.relative('src/server', input).replace(/\.ts$/, '.js')}`,
         `frontend/apps/web/${input}`,
       );
   }

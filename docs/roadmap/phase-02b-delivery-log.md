@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 686 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 731 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -207,6 +207,7 @@ each packet decided and delivered, as
   - [P02b-7 Step 1 — inactive RP foundation and provider events (2026-10-23)](#p02b-7-step-1--inactive-rp-foundation-and-provider-events-2026-10-23) — 48 lines
   - [P02b-7 Step 1 review round 1 and corrections (2026-10-23)](#p02b-7-step-1-review-round-1-and-corrections-2026-10-23) — 31 lines
   - [P02b-7 Step 1 review round 2 and closeout (2026-10-23)](#p02b-7-step-1-review-round-2-and-closeout-2026-10-23) — 35 lines
+  - [P02b-7 Step 2 — native session ownership implementation (2026-10-23)](#p02b-7-step-2--native-session-ownership-implementation-2026-10-23) — 45 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18393,6 +18394,51 @@ No repeated broad execution, native route activation or hosted qualification is
 claimed. Both required independent review rounds and their verified corrections
 are complete. **Step 1 is locally complete; Step 2 begins automatically** under
 the accepted five-step package. Production BFF paths remain closed.
+
+
+### P02b-7 Step 2 — native session ownership implementation (2026-10-23)
+
+**Implementation submitted for review; not step closeout.** Step 1 closes at
+`fd708462`. The native `BffSessionStore` port/default and immutable process holder
+now exist; response/cookie grammar, request projection and activation remain
+with Steps 3–4. Production entry points still install no BFF runtime or exemption.
+
+- `InMemoryBffSessionStore` privately owns credentials, transactions, browser
+  groups/epochs, subject credits and actual operations. Server methods return
+  closed display/deadline/CSRF projections or response-owner opaque proofs;
+  they expose no credential-returning capability. The typed AccountSite witness
+  must match protected actor/tenant, any present organization claim and prior
+  resolved scope. Subject remains independently validated opaque identity.
+- Global 1,024 / pending 128 / source 16 / subject eight bounds include unsettled
+  owners. A same-browser replacement transfers its existing subject credit only
+  after actual old I/O settles; its pending owner holds that credit meanwhile.
+  Failed validation/capacity leaves the prior primary intact. Logout-return
+  credits survive later sign-ins and refresh cancellation until their own return/
+  expiry and settlement. No other browser is evicted.
+- Single-use transaction proof/state, independent host/browser bindings and
+  browser elections fence competing callbacks. A missing primary cookie creates
+  an independent browser group rather than authorizing eviction. Older logout
+  returns cannot revoke a newer primary. Actual HTTP cookie writes remain Step 3.
+- Monotonic idle/absolute/provider deadlines, on-demand/forced single-flight
+  refresh, stable protected claims/resolved scope, conservative merged credential
+  bounds and independent waiter cancellation are covered. `peek` is passive;
+  qualifying reads use the API witness. Stop closes publication/admission, aborts
+  owned I/O, joins actual promises and stops the thirty-second full sweep.
+- A compiled native child proves one frozen global holder across independently
+  loaded module copies, no provider call at construction, no fallback/reinstall,
+  separation from the public admission holder, and joined shutdown. The pure
+  provider error value no longer carries a Next-only import sentinel; credential
+  modules/facades and transitive client fences remain private.
+- The exact native-source census gains only this compiled entry and preserves
+  nested generated paths. Planted unknown entries still refuse, and its real
+  source plus transitive helper remain in demo-genericity coverage.
+
+Validation: 51 unit ownership controls and four native composition controls pass;
+frontend lint/typecheck and the complete guarded workspace pass **1,939 cases**
+in two packages with zero skips/todos. Native compilation runs with ordinary
+Node, without a global React/server condition. No actual browser/provider-session
+or hosted qualification is claimed by these unit/native proofs. Two fresh
+independent review rounds still precede Step 2 closeout.
 
 
 ## Status archive
