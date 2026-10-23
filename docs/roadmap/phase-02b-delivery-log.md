@@ -196,11 +196,12 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 471 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 506 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
-  - [P02b-7 revised decision package (2026-10-23)](#p02b-7-revised-decision-package-2026-10-23) — 195 lines
+  - [P02b-7 revised decision package (2026-10-23)](#p02b-7-revised-decision-package-2026-10-23) — 203 lines
+  - [P02b-7 revised proposal review round 1 (2026-10-23)](#p02b-7-revised-proposal-review-round-1-2026-10-23) — 27 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18020,6 +18021,9 @@ expiry/provider outage does not magically create a provider event.
   of another device. A successful validated same-browser replacement transfers
   its own old credit only after old owned I/O settles. Full finite reclaim runs
   before a global refusal. These are selected limits, not load measurements.
+  Logout-return transactions keep their minimal subject key and credit until
+  return consumption/expiry and actual owned-operation settlement; repeated
+  login/logout cannot evade the eight-owner cap.
 - Browser epochs and per-transaction cookie binding prevent late publication.
   Delayed already-sent cookie responses can still force reauthentication; no
   uninterrupted-cookie delivery guarantee is made.
@@ -18104,7 +18108,8 @@ new permission, but an actual new authority decision returns for approval.
    verified same-browser replacement, effective deadlines, full reclamation,
    one refresh owner and revocation/stop joining. Exercise source 16 versus
    global 128, subject eight versus total 1,024, existing-service continuation,
-   failed replacement, held old I/O, competing tabs, late callbacks/cookies,
+   failed replacement, held old I/O, repeated logout without return, competing
+   tabs, late callbacks/cookies,
    waiter cancellation, on-demand refresh, extension and shutdown. Prove no
    expired settled entries cause a capacity refusal after the full pass.
 3. **Closed HTTP protocol and authenticated SDK.** Implement exact ingress,
@@ -18150,13 +18155,17 @@ The full three-process real-browser OIDC journey remains Phase 06, distinct
 from this real-provider HTTP chain and narrow browser cookie proof.
 
 At least one clean reachable positive precedes every planted negative: missing/
-wrong state, verifier, nonce or browser binding; signature removal; wrong API
-identity; stale epochs; shared-IP saturation; ninth subject session; failed/
+wrong state, verifier, nonce or browser binding; signature removal; changed
+refresh subject versus original identity; protected ID actor/scope disagreement
+with AccountSite (which has no subject field); stale epochs; shared-IP
+saturation; ninth subject owner including logout-return transactions; failed/
 held replacement; settled expiry across all registry positions; extension with
 fresh access; expired-access recovery; disabled/missing opt-in; provider event
 storage disabled or refresh types omitted; wrong retention; event-config loss
 of listeners/custom selection; readback drift and zero-write rerun. No artificial
 cookie-chunk exercise is required for a fixed-size opaque format.
+Late logout returns consume only their dedicated proof cookie, never a newer
+session/browser binding; sign-out clears session/sign-in cookies separately.
 
 At acceptance, append dated ADR-0035/0053/0054 disclosures and the P02b-6 event
 allowance; reconcile G13/phase Auth.js and chunking text, Standards 06/07/10/11/
@@ -18173,6 +18182,33 @@ complete discovery and source-bound assignment with zero skips; measured setup/
 proof/cleanup fit remains a qualification gate, not an acceptance assertion.
 Run `make docs-index`; packet/gate status remains only in the phase Status/
 register and dated evidence remains in this log.
+
+### P02b-7 revised proposal review round 1 (2026-10-23)
+
+Two fresh independent source reviews inspect `325558e5`. GPT-6-astra high covers
+protocol, custody, admission and browser races; GPT-6.1-sol high covers source
+claims, library/provider behavior, governance carriers and proof ownership.
+The evidence review approves; the security review requests one lifecycle fix
+and one contract clarification. Neither runs a provider/browser/build or writes
+repository files.
+
+- Logout-return entries now explicitly retain their subject key and credit
+  through return consumption/expiry and actual work settlement. They count in
+  the eight-owner limit; repeated sign-in/logout without return gets a planted
+  negative. Existing bootstrap limits affect throughput, not this accounting
+  rule; no measured one-IP global-denial claim is made.
+- AccountSite has actor/tenant/organization but no issuer/subject fields.
+  Protected ID-token actor/scope claims match that projection; independently
+  validated ID-token issuer/subject must retain the original session pair on
+  refresh. No `sub == actorId` or nonexistent response-field check is promised.
+- The primary pass separates logout-proof cookies from cleared session/sign-in
+  cookies. A late return consumes only its own proof, never a newer session or
+  browser binding. Provider credentials are still discarded after URL creation.
+
+The first pass reproduces 2,163 fragment links, roadmap structure, both generated
+indexes and Proposed lifecycle parsing. Corrections require the same offline
+checks and a second fresh pair against the resulting committed source. Runtime
+qualification and maintainer acceptance remain pending.
 
 ## Status archive
 

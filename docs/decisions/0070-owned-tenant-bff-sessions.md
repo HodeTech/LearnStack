@@ -92,10 +92,14 @@ bounded `customFetch` seam. Configure no DPoP or automatic grant retry.
 
 The API remains the access-token authority. Before publishing a new session or
 refresh revision, use that exact access token for the closed AccountSite read
-and require a matching actor/tenant/organization projection. Check the validated
-ID-token subject/identity against that projection; refresh cannot reassign the
-original subject, actor or scope. An ID-token claim decode is not access-token
-validation. Self-registration alone cannot create the required actor profile.
+and match the validated ID token's protected `user_id`, `tenant_id` and optional
+`organization_id` to its actor/tenant/organization projection. AccountSite has no
+issuer/subject fields; `sub` is not an actor UUID. Validate issuer/subject in the
+ID token independently and preserve that original pair across refresh. The
+provider's token response associates the two tokens; AccountSite witnesses the
+access token's actor/scope, not its subject. Refresh cannot reassign the original
+subject, actor or scope. An ID-token decode is not access-token validation.
+Self-registration alone cannot create the required actor profile.
 
 All discovery, token and JWKS traffic uses private issuer configuration, fixed
 endpoint purposes, no redirects and one operation-wide finite deadline through
@@ -153,10 +157,11 @@ proofs. No new backend schema, database grant or Hub surface is introduced.
   capacity refusal is 503. Neither creates a reservation or begins provider I/O.
   Sixteen allows concurrent NAT users, but one source cannot fill all 128 slots.
   Eight distributed sources can still do so; this is not DDoS or tenant fairness.
-- Retain at most eight established/closing sessions per validated `(issuer, sub)`
-  across hosts. Additional independent sessions are refused after identity
-  validation, before publication, with a closed 429. Do not evict another device
-  or perform provider logout as capacity cleanup. A ninth grant may already have
+- Retain at most eight established/closing sessions **including logout-return
+  transactions** per validated `(issuer, sub)` across hosts. Additional
+  independent sessions are refused after identity validation, before publication,
+  with a closed 429. Do not evict another device or perform provider logout as
+  capacity cleanup. A ninth grant may already have
   been issued; no remote rollback or cancellation of sibling SSO is promised.
 - A successful login replaces only its bound browser group's current local
   session. Failed validation leaves it intact. Close its publication gate and
@@ -166,7 +171,10 @@ proofs. No new backend schema, database grant or Hub surface is introduced.
   authentication; replacement is not a capacity bypass.
 - A logout converts its existing entry into a five-minute return transaction,
   consuming no sign-in slot. Once its redirect is built, discard provider tokens;
-  retain only the host/browser-bound return proof and necessary in-flight owner.
+  retain only the host/browser-bound return proof, minimal subject-accounting key
+  and necessary in-flight owner. Keep its subject credit until return consumption
+  or expiry **and** actual operation settlement. Repeated login/logout without
+  following the provider return cannot bypass the eight-owner subject limit.
 - Sweep all at most 1,024 entries every 30 seconds and run one complete expired-
   state pass before refusing global capacity. This is a finite scalar-state scan,
   with no provider/database I/O. Do not leave settled expiry waiting eight minutes
@@ -263,10 +271,13 @@ Only the verified native host/HTTPS port builds return/callback URLs; trust no
   sibling tenant origins. Cookie presence alone never proves CSRF.
 
 Logout revokes locally and closes the browser epoch first, then clears the
-current host's auth cookies and performs RP-initiated end-session with the stored
-ID-token hint and registered same-host root return. Bind its returned state to a
-single-use host/browser proof. The provider-directed ID-token-hint Location is
-the narrow token-in-URL exception: use no-referrer and never retain that raw URL.
+current session/sign-in cookies and performs RP-initiated end-session with the
+stored ID-token hint and registered same-host root return. Issue a separate
+short-lived host-only HttpOnly logout-proof cookie, bound to that validated
+browser group and single-use returned state. Its return clears only that proof,
+never a newer session or browser binding. The provider-directed ID-token-hint
+Location is the narrow token-in-URL exception: use no-referrer and never retain
+that raw URL.
 Access/refresh credentials enter no Location, body, Flight, session JSON or
 script-readable cookie. Return-state correlation is not an independent proof
 that every provider session was terminated; real-provider tests check logout.
@@ -399,9 +410,10 @@ Do not silently increase budgets, add persistence or waive a missing proof.
 
 - Restart/failover signs sessions out; multiple web processes are unsupported.
   Memory compromise exposes credentials; JS strings offer no secure erasure.
-- NAT users share 16 pending slots, a subject shares eight sessions across hosts,
-  and distributed sources/accounts can still fill global capacity. No admission
-  throughput, distributed fairness or live-session eviction is promised.
+- NAT users share 16 pending slots, a subject shares eight session/logout-return
+  owners across hosts, and distributed sources/accounts can still fill global
+  capacity. No admission throughput, distributed fairness or live-session
+  eviction is promised.
 - Late cookie responses and transient refresh failure can require sign-in again.
   Logout may leave the browser at the provider; shared SSO couples later refresh.
 - Provider event storage adds personal-data/volume cost and a seven-day retention
@@ -436,6 +448,9 @@ Require reachable positives and planted negatives for signature/state/nonce/
 verifier/issuer/profile validation, raw diagnostics, singleton duplication,
 input/CSRF bypass, pending-source/subject capacity, replacement, browser epochs,
 late responses, expiry/on-demand refresh/extension, full reclaim and shutdown.
+Include repeated sign-in/logout without provider return, subject credit held
+through unsettled work, changed refresh subject and independent actor/scope
+mismatch. A late logout return cannot clear a newer session's cookies.
 Test independent per-transaction cookie deletion and fixed small session-cookie
 rejection; no artificial chunking proof substitutes for this format.
 Warm real BFF login/AccountSite/logout/event evidence and both-host real browser
