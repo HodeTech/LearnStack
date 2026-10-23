@@ -50,9 +50,20 @@ The warning uses the actual effective expiry; an explicit extension refreshes th
 provider and reports an unchanged deadline honestly. Logout revokes locally first;
 other institution tabs sharing provider SSO may need to sign in again. Ordinary
 document anchors and a pre-navigation history veil require fresh admission when
-returning to a protected document. Step 5's real-provider/browser proof owns the
-qualification boundary; these mechanisms do not claim a universal browser cache
-or assistive-technology result.
+returning to a protected document. `TenantBffSessionTests` owns the real warm
+Keycloak/native BFF/application-role API journey and the separate actual HTTPS
+browser cookie/history proof. The browser case uses fake grants/API, observes
+natural persisted restores separately and kills a copied history-reload removal
+with an explicit persisted-event control. It does not claim a full browser OIDC
+journey, a universal browser cache or a new assistive-technology result.
+
+The guarded frontend test entry compiles current native web and authenticated SDK
+sources first. Docker execution uses the same explicit preparation, then builds
+the copied current native and Next sources in its owned temporary directory.
+Fixture IPC carries private configuration and responses only between owning test
+processes; retained results contain closed outcomes, counts and timings. No
+application test route, provider transport override or system trust installation
+is added.
 
 Restart signs users out. One native process owns the session store; deploying
 multiple web instances requires the distributed adapter and qualification owned

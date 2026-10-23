@@ -140,6 +140,13 @@
       "sourceSha": null,
       "runId": null,
       "note": "Complete final refresh-presence-guard local journey Fact, 1/1 Passed and zero skips. Commit is not embedded in TRX. Separate seven-file source hash manifest SHA256 92cde32454dfb23f0421ce4e2d92ffe3c054281138cfe2d8a2ebe8c734960da3. Actual TestMethod row is 40205.7204 ms; local scale 2.271245, ceil/min1. Advisory, not a hosted wall bound or final-source CI qualification."
+    },
+    "local-bff-lifecycle-20261024": {
+      "kind": "local_trx",
+      "artifactSha256": "e7e98d28870397f11c8e0962dafc0c7fa2473cd9f25d9113098ba292e1df7d78",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Passing Step 5 local BFF lifecycle/browser/startup method durations. Local uncommitted source is not embedded in TRX. Advisory body sums exclude shared collection startup; hosted fit remains unqualified."
     }
   },
   "weights": [
@@ -8161,6 +8168,24 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Enabled_native_startup_and_shutdown_make_no_provider_or_API_connection",
+      "milliseconds": 13387,
+      "source": "local-bff-lifecycle-20261024"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control",
+      "milliseconds": 32476,
+      "source": "local-bff-lifecycle-20261024"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Reconciled_warm_realm_serves_both_native_hosts_with_real_refresh_logout_and_persisted_events",
+      "milliseconds": 85062,
+      "source": "local-bff-lifecycle-20261024"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.A_genuine_Hub_issuer_token_is_rejected_without_changing_the_operator_or_Hub_client",
       "milliseconds": 3665,
       "source": "p02b6-local-api"
@@ -8544,7 +8569,9 @@
     "LearnStack.Tests.Integration.RateLimitForwardedForTests",
     "LearnStack.Tests.Integration.RateLimitingHttpTests",
     "LearnStack.Tests.Integration.SmokeTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmEventTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests",

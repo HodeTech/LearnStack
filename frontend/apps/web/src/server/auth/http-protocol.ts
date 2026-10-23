@@ -130,6 +130,10 @@ export function createBffHttpProtocol(store: BffSessionStore) {
           );
           if (render && path.endsWith('/signin')) {
             response.headers.set('content-type', 'text/html; charset=utf-8');
+            // Fetch serializes navigation POST Origin as null under no-referrer.
+            // This credential-free form needs its exact same-origin CSRF proof;
+            // provider redirects, callbacks and logout keep no-referrer.
+            response.headers.set('referrer-policy', 'same-origin');
             return new Response(render({ kind: 'signin', csrfToken, returnPath: destination }), {
               status: response.status,
               headers: response.headers,

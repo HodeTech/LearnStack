@@ -708,6 +708,9 @@ for the native controls and their delivery/review boundary.
 - BFF sign-in POST requires exact Origin and a random host-only double-submit
   proof; authenticated sign-out/extension requires exact Origin and a random
   constant-time checked session-bound token. Apply admission before allocation.
+- Sign-in HTML uses `same-origin` referrer policy so native forms retain that
+  Origin proof. Provider redirects and the ID-token-hint logout exception retain
+  `no-referrer`. Missing or `null` Origin remains a refusal.
 - The cross-origin provider callback instead requires its single-use state,
   nonce, PKCE verifier and host/browser/epoch-bound transaction cookie.
 - Auth cookie families and decoded forms each have a 16 KiB ceiling. Native

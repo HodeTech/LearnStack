@@ -22,6 +22,14 @@ unit/actual-native route ownership and planted negatives, real warm Keycloak →
 BFF → app-role AccountSite lifecycle/event evidence, and a separate native HTTPS
 browser proof of both hosts' cookie storage/send/logout/history. Realm issuance
 alone proves no BFF session; Phase 06 retains the full browser OIDC journey.
+`TenancyIdentity/TenantBffSessionTests.cs` owns the real chain and invokes
+`verify-bff-session.mjs` through a bounded private pipe. Its separate stock-browser
+case invokes `verify-bff-browser.mjs` against native HTTPS with fake grants/API;
+natural BFCache observations and the explicit persisted-event counter remain
+distinct. Every fixture compiles the copied current native/Next sources, joins
+owned processes/listeners and exports no raw tokens, cookies, callback/logout
+URLs, provider text or HTML. Ordinary CI compiles native web/authenticated SDK
+entries before test discovery/execution within its existing whole-job budget.
 
 ## Test Pyramid
 

@@ -25,11 +25,17 @@ afterEach(() => {
 describe('fixture private-output scanner', () => {
   const secret = 'private-fixture-credential';
   const envelope = 'v1.' + 'A'.repeat(12000) + '.' + 'B'.repeat(43);
+  const credential = [
+    Buffer.from('{"alg":"RS256","typ":"JWT"}').toString('base64url'),
+    'B'.repeat(12000),
+    'C'.repeat(128),
+  ].join('.');
 
   it.each([
     ['secret', secret],
     ['carrier', 'X-LeArNsTaCk-Hop-Secret'],
     ['envelope', envelope],
+    ['credential', credential],
   ])('remembers an early %s after bounded output rolls over', (_name, privateValue) => {
     const scanner = createPrivateScanner([secret]);
     scanner.push(privateValue);
@@ -44,6 +50,7 @@ describe('fixture private-output scanner', () => {
     ['secret', secret],
     ['carrier', 'x-learnstack-host'],
     ['envelope', envelope],
+    ['credential', credential],
   ])('detects a %s split at supported boundaries', (_name, privateValue) => {
     // Envelope controls cover the beginning, large payload and MAC boundary;
     // short secrets/carriers cover every split.

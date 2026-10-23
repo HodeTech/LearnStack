@@ -187,6 +187,13 @@ def workflow_topology(documents, plan):
         require(len(names) == len(set(names)) and all(names.count(name) == 1
                 for name in (BUILD_STEP, EXECUTE_STEP, UPLOAD_STEP)), 'execution_gates_missing')
         if scope == 'ordinary':
+            compile_name = 'Compile native web and authenticated SDK fixture entries'
+            compile_steps = [step for step in steps if step.get('name') == compile_name]
+            require(len(compile_steps) == 1
+                    and compile_steps[0].get('run') == 'pnpm --filter @learnstack/web build:ingress'
+                    and compile_steps[0].get('working-directory') == 'frontend'
+                    and 'if' not in compile_steps[0]
+                    and names.index(compile_name) < names.index(EXECUTE_STEP), 'fixture_compile_gate_invalid')
             prepare_name = 'Prepare pinned provider fixture images within the whole-job budget'
             prepare = [step for step in steps if step.get('name') == prepare_name]
             require(len(prepare) == 1 and prepare[0].get('run') == 'python3 scripts/ci-test-shards.py prepare-fixtures'

@@ -5,6 +5,10 @@ import { stopTestChild } from './stop-test-child.mjs';
 
 const OUTPUT_BOUND = 65536;
 const PRIVATE_TOKEN = /(?<![A-Za-z0-9_.-])v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_.=-])/;
+// The pinned provider's compact signed JSON tokens, with bounded segments and
+// a literal JSON-header prefix so long clean output does not cause a quadratic scan.
+const CREDENTIAL_TOKEN =
+  /eyJ[A-Za-z0-9_-]{16,4096}\.[A-Za-z0-9_-]{20,32768}\.[A-Za-z0-9_-]{20,8192}/;
 const PRIVATE_KEYS = new Set([
   'LEARNSTACK_PUBLIC_API_ORIGIN',
   'LEARNSTACK_PUBLIC_HOP_SECRET',
@@ -23,6 +27,7 @@ export function createPrivateScanner(secrets = []) {
   let leaked = false;
   const contains = (value) =>
     /x-learnstack-/i.test(value) ||
+    CREDENTIAL_TOKEN.test(value) ||
     PRIVATE_TOKEN.test(value) ||
     secrets.some((secret) => value.includes(secret));
   return {
@@ -33,6 +38,7 @@ export function createPrivateScanner(secrets = []) {
       // MAC or add forbidden padding. Exact secrets/carriers need no boundary.
       leaked ||=
         /x-learnstack-/i.test(combined) ||
+        CREDENTIAL_TOKEN.test(combined) ||
         secrets.some((secret) => combined.includes(secret)) ||
         PRIVATE_TOKEN.test(combined + '_');
       tail = combined.slice(-OUTPUT_BOUND);

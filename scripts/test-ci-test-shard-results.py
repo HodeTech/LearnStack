@@ -395,6 +395,12 @@ class AggregateControls(unittest.TestCase):
                 if step.get('name') == RESULTS.UPLOAD_STEP).update(uses='actions/upload-artifact@' + 'f' * 40)),
             ('fixture_image_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
                 if step.get('run') == 'python3 scripts/ci-test-shards.py prepare-fixtures').update({'if': 'success()'})),
+            ('fixture_compile_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
+                if step.get('name') == 'Compile native web and authenticated SDK fixture entries').update({'if': 'false'})),
+            ('fixture_compile_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
+                if step.get('name') == 'Compile native web and authenticated SDK fixture entries').update(run='true')),
+            ('fixture_compile_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
+                if step.get('name') == 'Compile native web and authenticated SDK fixture entries').update({'working-directory': '.'})),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend'].update({'if': 'success()'})),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend-integration'].update(needs=['backend-native'])),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend'].update({'timeout-minutes': 6})),

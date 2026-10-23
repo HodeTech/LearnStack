@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,009 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,107 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -216,6 +216,8 @@ each packet decided and delivered, as
   - [P02b-7 Step 4 — optional activation and session UI (2026-10-23)](#p02b-7-step-4--optional-activation-and-session-ui-2026-10-23) — 64 lines
   - [P02b-7 Step 4 review round 1 (2026-10-23)](#p02b-7-step-4-review-round-1-2026-10-23) — 44 lines
   - [P02b-7 Step 4 review round 2 and closeout (2026-10-23)](#p02b-7-step-4-review-round-2-and-closeout-2026-10-23) — 26 lines
+  - [P02b-7 Step 5 — real lifecycle proof in progress (2026-10-24)](#p02b-7-step-5--real-lifecycle-proof-in-progress-2026-10-24) — 61 lines
+  - [P02b-7 Step 5 — implementation and local qualification (2026-10-24)](#p02b-7-step-5--implementation-and-local-qualification-2026-10-24) — 37 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18726,6 +18728,104 @@ automatically.** Its real warm-provider/app-role API, native HTTPS browser and
 history, stopped-Keycloak demo, discovery/budget and exact-source hosted proofs
 remain mandatory. None is inferred from fake grants, DOM unit tests or source
 review; the four broad BFF catalogue obligations remain Registered.
+
+### P02b-7 Step 5 — real lifecycle proof in progress (2026-10-24)
+
+Step 4 closes at `a48011cb`; Step 5 now connects the existing production RP,
+native launcher and AccountSite caller to a reconciled historical provider and
+real Kestrel/application-role database. A separate stock-browser fixture owns
+the two retained HTTPS seed hosts. It does not claim a full browser OIDC journey.
+The four catalogue obligations remain Registered pending complete proof.
+
+The shared owned Next fixture compiles the copied current native sources rather
+than symlinking stale workstation output. The guarded frontend test entry and
+ordinary CI preparation explicitly compile native web/authenticated SDK entries.
+Existing protocol positives still pass after extraction. No execution job,
+required context, shard range or whole-job ceiling changes.
+
+Initial real-chain readiness failures expose fixture issues, not successful
+product qualification. The first closed input guard omitted the real `tr-TR`
+seed locale; refusal also left stdin held, so the parent waited for its deadline.
+Input-failure cleanup now closes that stream, and private IPC explicitly uses
+flushed UTF-8 without a BOM and finite progress/error tokens. A small no-provider
+startup control then exposes its noncanonical trailing-slash API origin; its
+input is corrected to the existing production origin contract. An independent
+real-mode startup/cleanup pipe control passes without provider/API access.
+The real chain subsequently reaches actual sign-in, refresh, provider logout,
+invalid-grant revocation and compressed provider-maximum checks. Fixture
+assertions are corrected to read the projection's fractional-millisecond number
+and include the ordinary protected read's independent AccountSite witness;
+neither changes the product lifetime or weakens the witness guard. The corrected real-chain case passes in 81.524 seconds, with zero skips: English
+and Turkish native lifecycles take 29.202/28.759 seconds, seven authenticated API
+witnesses each, provider startup 17.040 seconds and joined cleanup 0.736 seconds.
+Both owned containers and the network are independently absent. The passing
+receipt proves actual provider refresh, maximum, logout/error/events and the
+zero-write warm rerun; it is separate from browser storage/history evidence.
+
+The actual browser discovers a product issue: `no-referrer` on the sign-in HTML
+serializes the native navigation POST's Origin as `null`. Only that HTML response
+now uses `same-origin`; token-bearing provider redirects remain `no-referrer`,
+and null/missing/cross-origin admission negatives still refuse. The
+[Fetch Origin algorithm](https://fetch.spec.whatwg.org/#append-a-request-origin-header)
+is the source of this distinction. The header regression and private-output
+scanner controls pass (38 cases).
+
+Stock Chromium `156.0.8078.48` passes both HTTPS hosts' native sign-in,
+secure/HttpOnly/Lax/host-only opaque cookie storage, script inaccessibility,
+cross-host transaction refusal, keyboard skip-link, extension, logout deletion
+and actual back-navigation admission. No natural persisted restore occurs in
+this run. An explicit persisted-event control separately reaches the restoration
+branch; removing only the copied history reload kills the counter there.
+A real owned HTTPS logout stub replaces an invalid Playwright redirect-target
+interception assumption. Fake grants/API remain explicit; this is not the real
+provider HTTP proof or the Phase 06 full browser OIDC journey.
+
+All failed provider runs join and independently verify absence of their two
+owned containers and network. No raw input, token, cookie or exception payload is
+retained in results. The complete guarded frontend run passes 2,089 cases in two packages with zero
+skips/todos. Lint and typecheck pass. Offline CI controls pass 67 assignment,
+26 aggregate and 63 execution-owner cases, including new native/SDK compilation
+gate mutants. The actual source fixture census includes the event and BFF test
+classes; shard counts, required names, whole-job ceilings and authority remain
+unchanged. Final runtime counts, two review rounds, demo and hosted qualification
+will be appended after they actually complete.
+
+### P02b-7 Step 5 — implementation and local qualification (2026-10-24)
+
+The final local source passes all three `TenantBffSessionTests` cases with zero
+skips: real warm lifecycle 85.062 seconds, actual browser positive/counter pair
+32.476 seconds and enabled no-network startup/stop 13.387 seconds. Each grant
+and successful refresh independently increments the real authenticated API
+witness before publication, in addition to the seven-per-host complete journey
+count. English/Turkish lifecycles take 29.839/28.876 seconds; provider startup is
+19.040 seconds, joined provider cleanup 2.124 seconds. The two containers and
+network are independently absent. Stock Chromium `156.0.8078.48` observes zero
+natural persisted restores; the explicit restoration counter is killed at
+`persisted_event`, never reported as a natural BFCache result.
+
+The passing local TRX has SHA-256
+`e7e98d28870397f11c8e0962dafc0c7fa2473cd9f25d9113098ba292e1df7d78`.
+Its three method durations enter the source-controlled plan as advisory local
+body costs. The receipt embeds no immutable source identity; `sourceSha` stays
+null, and collection startup/hosted wall fit are not inferred from method sums.
+The complete source fixture census also includes the Step 1 event test class.
+
+Fresh complete VSTest discovery finds 5,927 cases: 3,351 non-Docker and 2,576
+Docker, with the latter exactly 31 native plus 2,545 ordinary. Both complete
+A/B assignments are disjoint unions, fit the existing selector bounds and
+actually differ across architecture, ordinary and shared-fixture composition.
+This is local discovery/assignment evidence, not hosted timing qualification.
+
+The guarded frontend run passes 2,089 cases in two packages with zero skips/todos;
+lint/typecheck pass. The complete Release solution builds with zero warnings and
+errors. Seven corpus/status/Docker-trait controls pass with zero skips.
+Offline assignment/aggregate/execution controls pass 67/26/63 cases;
+source topology refuses skipped or changed native/SDK fixture compilation.
+
+The four broad BFF obligations remain Registered until all their proof owners
+ship. Two fresh independent review rounds, the fresh stopped-provider public
+demo, final catalogue promotion and exact-source hosted A/B qualification remain
+open. No PR-ready or packet-complete status is claimed by this local checkpoint.
 
 ## Status archive
 

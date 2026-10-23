@@ -11,7 +11,7 @@
     "start": "pnpm build:ingress && node scripts/public-server.mjs",
     "lint": "pnpm build:ingress && node scripts/lint-web.mjs",
     "typecheck": "pnpm --filter @learnstack/sdk build:native && tsc --noEmit",
-    "test": "vitest run",
+    "test": "pnpm build:ingress && vitest run",
     "lint:staged": "pnpm build:ingress && node scripts/lint-web.mjs --fix"
   },
   "dependencies": {

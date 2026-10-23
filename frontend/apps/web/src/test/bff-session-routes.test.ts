@@ -21,6 +21,13 @@ const jar = (response: Response) =>
     .join('; ');
 
 describe('closed BFF routes with the actual owner', () => {
+  it('keeps native form Origin usable while provider-directed redirects remain no-referrer', async () => {
+    const f = fixture();
+    const document = await f.http.handle(bffRequest('/api/auth/signin'), () => '<form></form>');
+    expect(document!.headers.get('referrer-policy')).toBe('same-origin');
+    const csrf = await f.http.handle(bffRequest('/api/auth/csrf'));
+    expect(csrf!.headers.get('referrer-policy')).toBe('no-referrer');
+  });
   it('presession CSRF → redirect → bound callback → safe session, then local-first logout and own return', async () => {
     const f = fixture();
     const csrf = await f.http.handle(bffRequest('/api/auth/csrf'));
@@ -33,6 +40,7 @@ describe('closed BFF routes with the actual owner', () => {
       }),
     );
     expect(start!.status).toBe(303);
+    expect(start!.headers.get('referrer-policy')).toBe('no-referrer');
     expect(f.store.counts().pending).toBe(1);
     const cookies = jar(start!);
     const entries = bffCookies(cookies);
@@ -65,6 +73,7 @@ describe('closed BFF routes with the actual owner', () => {
       }),
     );
     expect(logout!.status).toBe(303);
+    expect(logout!.headers.get('referrer-policy')).toBe('no-referrer');
     expect(logout!.headers.get('location')).toBe('https://identity.example.test/logout');
     expect((await f.http.handle(bffRequest('/api/auth/session', { cookie: active })))!.status).toBe(
       200,
