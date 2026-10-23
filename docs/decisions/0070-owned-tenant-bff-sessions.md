@@ -107,6 +107,11 @@ closed diagnostics; debug and raw exception/metadata logging stay disabled.
   existing sessions continue. Failed/abandoned login releases its reservation;
   replay cannot create another session. Expiry never frees an in-flight owner's
   slot before its work actually settles.
+- A logout reuses its existing session entry as a five-minute return transaction;
+  it allocates no new entry and does not spend the 128 pending-sign-in allowance.
+  That entry grants no authenticated access after local revocation. Logout can
+  therefore proceed while sign-in admission is full. Failed/expired returns
+  release only their settled entry; an absent session needs no logout entry.
 - These are fixed initial single-process budgets, not measured throughput or
   fair-share guarantees. A maximum 32 KiB serialized credential bundle per entry
   bounds retained serialized credentials to 32 MiB; JS objects, protocol buffers
@@ -195,8 +200,11 @@ HTML, Flight, session JSON or script-readable cookie. Use `no-referrer` and do
 not retain the raw logout URL in logs or receipts.
 
 Local invalidation succeeds even if Keycloak is unavailable; do not claim remote
-SSO termination without its completion. Render a bounded local signed-out
-failure/recovery state rather than a redirect retry loop. Provider logout ends
+SSO termination without its completion. Failures before navigation render a
+bounded local signed-out recovery state. After the browser leaves LearnStack,
+an outage can end on a browser/provider error page; automatic return cannot be
+guaranteed. Revisiting LearnStack remains locally signed out. No redirect retry
+loop is introduced. Provider logout ends
 the current Keycloak SSO session: another host sharing it can lose refresh
 authority although its cookie is host-only. Independent provider sessions are
 not deliberately revoked. Already issued API JWTs retain ADR-0064's expiry.
@@ -255,6 +263,7 @@ Accepted bodies or metadata. Reconcile Standards 07/11/18/21, Architecture 13/14
 the phase's G13 and session plan, the glossary and development instructions.
 Replace Architecture 14's explicit `Domain=` advice; distinguish shared SSO from
 independent provider sessions and implicit session checks from CSRF enforcement.
+Phase 03 distinguishes provider grant ownership from BFF credential custody;
 Phase 11 receives the named distributed-store trigger. Historical delivery
 records remain intact. Proposed text changes no active rule before acceptance.
 
@@ -294,7 +303,8 @@ semantics. Do not silently add persistence, increase limits or bypass a proof.
 - Global capacity can deny unrelated tenants new sessions/sign-ins. There is no
   tenant reservation, actor fairness or admission-throughput entitlement.
 - A transient refresh failure can require sign-in again. Local logout cannot
-  guarantee remote SSO logout during an outage; shared SSO couples later refresh.
+  guarantee remote SSO logout or browser return during an outage; shared SSO
+  couples later refresh.
 - There is no durable application session audit trail. An ID-token logout hint
   reaches the trusted provider through the browser, and requires URL redaction.
 - The project owns a native singleton, expiry/sweep lifecycle and protocol
@@ -323,13 +333,16 @@ Register these canonical obligations at acceptance, with real future owners and
 | `Bff_Credentials_And_Projections_Are_Confined` | Structural/production canary: `src/test/bff-boundaries.test.ts`, existing public-boundary controls |
 | `Bff_Session_Refresh_And_Revocation_Have_One_Owner` | Unit + actual route behavior: `src/server/auth/session-store.test.ts`, `src/test/bff-session-routes.test.ts` |
 | `Bff_Auth_Admission_And_Csrf_Are_Closed` | Native/route behavior: `src/test/bff-auth-admission.test.ts`, `src/test/bff-session-routes.test.ts` |
-| `Bff_Host_Cookies_And_History_Are_Isolated` | Native HTTPS managed browser: `scripts/verify-bff-session.mjs`, its wrapper/control tests |
+| `Bff_Host_Cookies_And_History_Are_Isolated` | Native HTTPS browser: `scripts/verify-bff-session.mjs`, its wrapper/control tests; real BFF/warm-provider HTTP proof in backend Integration `TenancyIdentity/TenantBffSessionTests.cs` |
 
 Require positive controls and planted violations for custody, raw logger output,
 singleton duplication, missing provenance, provider/return URL substitution,
 state/verifier/nonce removal, CSRF bypass, expiry, capacity, refresh duplication,
 late publication, cookie growth/shrink/clear and history restoration. Preserve
 real AccountSite scope proofs, public API-call counts and stopped-Keycloak demo.
+The warm-provider proof signs a seed user into the actual BFF, consumes its
+session for AccountSite and verifies real provider logout; unrelated backend
+token issuance plus a stub BFF exchange cannot substitute for this chain.
 Required checks retain complete discovery, no skips and finite whole-job budgets;
 measure the added browser/provider costs before claiming hosted qualification.
 

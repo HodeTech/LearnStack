@@ -195,8 +195,9 @@ each packet decided and delivered, as
     - [P02b-6 aggregate producer-state refusal attribution (2026-10-22)](#p02b-6-aggregate-producer-state-refusal-attribution-2026-10-22) — 73 lines
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 186 lines
-  - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 184 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 239 lines
+  - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 202 lines
+  - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -17731,10 +17732,12 @@ set, delivery sequence and proof map. Approval accepts all of the following:
 - Thirty-minute idle/eight-hour absolute lifetime, sixty-second refresh lead,
   accessible idle warning/extension, and earlier provider expiry. Asset, prefetch
   and passive status traffic do not keep a session alive.
-- At most 1,024 total owner entries, with at most 128 pending login/logout
-  transactions and a five-minute pending lifetime. Closing/in-flight owners
-  retain their slots. Full capacity refuses new admission with 503; unrelated
-  tenants can be affected. These are initial resource budgets, not measured fit.
+- At most 1,024 total owner entries, with at most 128 pending sign-ins and a
+  five-minute pending lifetime. Logout reuses its existing entry as a bounded
+  return transaction, without spending a sign-in reservation or allocating
+  another slot. Closing/in-flight owners retain their slots. Full capacity
+  refuses new admission with 503; unrelated tenants can be affected. These are
+  initial resource budgets, not measured fit.
 - One refresh owner/version, revocation before logout I/O and no late-result
   resurrection. An uncertain/failed refresh ends the local session without
   grant replay; short provider faults can require a new sign-in.
@@ -17822,16 +17825,21 @@ next step automatically. New authority decisions return to the maintainer.
    refresh, CSRF classes, logout return, pure authenticated SDK wrapper/parser
    and app-local configured AccountSite caller. Prove real pinned-Next behavior,
    immutable per-request projection and missing/forged provenance refusals.
-   Activation remains closed until the complete path and guards ship together.
+   Production route registration and native exemptions stay closed; test-owned
+   wiring exercises the full path before the complete guards ship together.
 4. **Atomic activation and usable signed-in surface.** Wire the complete optional
    BFF configuration group, known-host sign-in/recovery, Studio/Portal guards,
    AccountSite views, logout and localized timeout warning/extension. Retain
    accessible keyboard/focus/error behavior, no-store/history revalidation and
    the public graph/caller/IdP-down boundary. Update the two skills' examples.
 5. **Production proof and closeout.** Exercise route-level actual Auth.js/stub
-   issuer and separate real-provider/API compatibility; run managed Chromium
-   against both retained HTTPS hosts to prove cookie storage/send/isolation and
-   logout/back behavior. Preserve the nine-page stopped-Keycloak public demo.
+   issuer and a real BFF/warm-Keycloak/API chain: a seed user completes code
+   exchange through the actual BFF, its cookie authorizes AccountSite on each
+   host, and provider logout is verified. An HTTP harness suffices for this
+   provider chain; independent token issuance tests cannot replace it. Run the
+   owned browser against both retained HTTPS hosts to prove cookie storage/send/
+   isolation and logout/back behavior. Preserve the nine-page stopped-Keycloak
+   public demo.
    Complete catalogue controls, docs, exact CI discovery/assignment and measured
    budget fit. Record actual source-bound checks/reviews before preparing the PR;
    approval or local tests do not certify hosted CI or authorize merge.
@@ -17851,20 +17859,66 @@ correct-Origin/missing-token POST, capacity and HMR duplicate ownership. Each
 has a reachable positive control. Actual Auth.js cookie chunker grow/shrink/
 clear controls complement naturally small opaque production cookies.
 
+`TenancyIdentity/TenantBffSessionTests.cs` owns the real BFF/warm-provider chain
+in backend Integration, with the Docker trait and real app-role API/database
+boundary. It reuses the existing production-rendering fixture's Node/tooling
+and owned browser/process lifecycle. The ordinary jobs already provision those
+tools; no new execution VM or required-check name is proposed. Register its
+complete discovered population and measure actual setup/proof/cleanup before
+claiming fit within the existing budgets. Browser process/version evidence is
+retained; the separate public Lighthouse proof keeps its pinned browser policy.
+
 Real TLS browser evidence uses the supported native launcher and both actual
 seed hostnames; developer hosts/trust setup remains manual. An isolated CI
 fixture may provide its owned hostname resolution/CA to its managed browser;
 it does not modify workstation hosts or install machine trust. Record this as
-stub-provider cookie proof, not a full three-process real-Keycloak browser flow.
+stub-provider cookie proof, distinct from the real-provider HTTP chain and not
+a full three-process real-Keycloak browser flow.
 That full journey remains Phase 06. Backend provider/API tests still use the
 real pinned realm; a stub never replaces those proofs.
 
 Acceptance updates G13 and the phase's custody/HTTP plan, appends named ADR
 disclosures and reconciles Standards 07/11/18/21, Architecture 13/14/31, glossary
-session terms, Phase 11's store trigger, environment/setup guidance and the
+session terms, Phase 03's custody/permission boundary, Phase 11's store trigger,
+environment/setup guidance and the
 catalogue registry. Runtime slices update actual owners and test counts with
 their first consumers. Update packet status only in the phase Status block;
 dated records stay here and `make docs-index` regenerates this log's index.
+
+### P02b-7 proposal review round 1 (2026-10-23)
+
+Two initial read-only audits inspect the inherited contracts and frontend
+feasibility before proposal authoring (`gpt-6-astra`, high contract/security;
+`gpt-6.1-sol`, high source/evidence). They identify the Open session gate,
+GET/HEAD-only ingress, missing authenticated transport, cookie/Domain/CSRF
+carrier contradictions and provider-SSO logout scope. The proposal explicitly
+answers these instead of treating existing Auth.js illustrations as runtime.
+
+A different fresh pair reviews proposal commit `baeb32fa`
+(`gpt-6-astra`, high security/correctness; `gpt-6.1-sol`, high evidence/governance).
+Both request changes. Verified findings and their dispositions:
+
+- A provider-directed logout redirect cannot guarantee local recovery after
+  navigation. The ADR now distinguishes pre-navigation recovery and later local
+  visits from browser/provider error pages; local revocation remains immediate.
+- The shared pending-login/logout cap conflicted with guaranteed logout at full
+  sign-in admission. Logout now reuses its existing owner entry; only pending
+  sign-ins spend the 128 allowance, within the unchanged total 1,024 bound.
+- Separate stub-BFF and real-token tests do not prove the required warm-realm
+  BFF sign-in. Step 5 now names an actual BFF/warm-Keycloak/AccountSite HTTP
+  chain and provider logout, with a Docker Integration owner. Browser cookie
+  proof remains separate from the full Phase 06 browser OIDC journey.
+- Phase 03's refresh-storage wording also needs an acceptance-time custody
+  correction; it is now named in the carrier map. Proposed glossary terms make
+  no runtime or approval claim.
+
+The evidence reviewer independently verifies the package versions/licences,
+Next/React peers and tagged Auth.js response/logger seams. Both preserve the
+source-inspection versus runtime-proof boundary. No reviewer edits source or
+runs a provider/build/browser. Whole-tree document guards, seven ADR parser
+controls, relative-path checks and diff hygiene pass before the first draft
+commit. A second different review pair inspects the corrected proposal before
+maintainer approval is requested.
 
 ## Status archive
 
