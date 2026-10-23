@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 755 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 774 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -209,6 +209,7 @@ each packet decided and delivered, as
   - [P02b-7 Step 1 review round 2 and closeout (2026-10-23)](#p02b-7-step-1-review-round-2-and-closeout-2026-10-23) — 35 lines
   - [P02b-7 Step 2 — native session ownership implementation (2026-10-23)](#p02b-7-step-2--native-session-ownership-implementation-2026-10-23) — 45 lines
   - [P02b-7 Step 2 review round 1 and visitor correction (2026-10-23)](#p02b-7-step-2-review-round-1-and-visitor-correction-2026-10-23) — 24 lines
+  - [P02b-7 Step 2 review round 2 and closeout (2026-10-23)](#p02b-7-step-2-review-round-2-and-closeout-2026-10-23) — 19 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18464,6 +18465,25 @@ one composition case runs an actual separately compiled native child; three
 inspect passive facade/descriptor/source behavior under Node Vitest. No actual
 Next request integration, production activation or provider/browser journey is
 claimed yet. The second fresh independent review pair still precedes closeout.
+
+
+### P02b-7 Step 2 review round 2 and closeout (2026-10-23)
+
+Two new independent source-only reviewers inspect `47ffca71`: GPT-6-astra
+xhigh covers lifecycle/security concurrency; GPT-6.1-sol high covers proofs,
+confinement and corpus. Both approve without an actionable finding. They confirm
+current callback-source validation and original pending-source accounting,
+held-work credit ownership, replacement validation before revocation, epoch
+fences, one refresh owner, stable identity/scope, independent logout returns and
+joined shutdown. Neither reviewer executes runtime or claims independent passes.
+
+The preceding source's full frontend guard passes 1,941 cases in two packages,
+zero skips/todos, with frontend lint/typecheck/native compilation and document
+guards passing. No code changes follow this round. **Step 2 is locally complete;
+Step 3 begins automatically.** HTTP cookie/CSRF/route and request-projection
+integration, atomic activation, real BFF/provider/browser evidence and exact-source
+hosted qualification keep their accepted later-step owners; none is inferred
+from native unit controls.
 
 
 ## Status archive
