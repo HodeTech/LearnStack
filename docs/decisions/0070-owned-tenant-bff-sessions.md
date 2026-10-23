@@ -92,14 +92,17 @@ bounded `customFetch` seam. Configure no DPoP or automatic grant retry.
 
 The API remains the access-token authority. Before publishing a new session or
 refresh revision, use that exact access token for the closed AccountSite read
-and match the validated ID token's protected `user_id`, `tenant_id` and optional
-`organization_id` to its actor/tenant/organization projection. AccountSite has no
-issuer/subject fields; `sub` is not an actor UUID. Validate issuer/subject in the
-ID token independently and preserve that original pair across refresh. The
-provider's token response associates the two tokens; AccountSite witnesses the
-access token's actor/scope, not its subject. Refresh cannot reassign the original
-subject, actor or scope. An ID-token decode is not access-token validation.
-Self-registration alone cannot create the required actor profile.
+and match the validated ID token's protected `user_id`/`tenant_id` to its actor/
+tenant. Any present `organization_id` must match the API-resolved organization;
+absence does not have to equal a host-resolved organization. Accept resolved
+scope only from that successful API read under the independently verified host;
+the BFF supplies no missing membership/organization authority. Preserve original
+protected claims, including absence, and the original resolved scope on refresh.
+AccountSite has no issuer/subject fields; `sub` is not an actor UUID. Validate
+ID-token issuer/subject independently and preserve that original pair on refresh.
+The provider's token response associates the two tokens; AccountSite witnesses
+access-token actor/scope, not its subject. An ID-token decode is not access-token
+validation. Self-registration alone cannot create the required actor profile.
 
 All discovery, token and JWKS traffic uses private issuer configuration, fixed
 endpoint purposes, no redirects and one operation-wide finite deadline through
@@ -273,9 +276,10 @@ Only the verified native host/HTTPS port builds return/callback URLs; trust no
 Logout revokes locally and closes the browser epoch first, then clears the
 current session/sign-in cookies and performs RP-initiated end-session with the
 stored ID-token hint and registered same-host root return. Issue a separate
-short-lived host-only HttpOnly logout-proof cookie, bound to that validated
-browser group and single-use returned state. Its return clears only that proof,
-never a newer session or browser binding. The provider-directed ID-token-hint
+per-transaction `__Host-` logout-proof cookie with the same security attributes,
+bound to that validated browser group and single-use returned state. Its return
+clears only that proof, never a newer session or browser binding. The
+provider-directed ID-token-hint
 Location is the narrow token-in-URL exception: use no-referrer and never retain
 that raw URL.
 Access/refresh credentials enter no Location, body, Flight, session JSON or

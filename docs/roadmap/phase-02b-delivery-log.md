@@ -196,12 +196,13 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 506 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 539 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
   - [P02b-7 revised decision package (2026-10-23)](#p02b-7-revised-decision-package-2026-10-23) — 203 lines
   - [P02b-7 revised proposal review round 1 (2026-10-23)](#p02b-7-revised-proposal-review-round-1-2026-10-23) — 27 lines
+  - [P02b-7 revised proposal review round 2 and readiness (2026-10-23)](#p02b-7-revised-proposal-review-round-2-and-readiness-2026-10-23) — 33 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18209,6 +18210,40 @@ The first pass reproduces 2,163 fragment links, roadmap structure, both generate
 indexes and Proposed lifecycle parsing. Corrections require the same offline
 checks and a second fresh pair against the resulting committed source. Runtime
 qualification and maintainer acceptance remain pending.
+
+### P02b-7 revised proposal review round 2 and readiness (2026-10-23)
+
+Two different fresh reviewers inspect `ecb34b57`: GPT-6-astra high covers the
+protocol/session contract; GPT-6.1-sol high covers source claims, authority,
+provider events, delivery and proof ownership. Both approve without a remaining
+verified actionable finding. Their source checks confirm the RP dependency
+ranges/signature opt-in and Keycloak's default event selection and explicit
+retention update behavior. They recheck R1's credit/AccountSite corrections,
+separate logout proof, closed activation and real-provider/browser test split.
+
+The primary's final source pass distinguishes a missing organization claim from
+the API's resolved organization: `TenantResolutionAttempt` uses claim or host
+organization and still requires API membership. The protocol reviewer confirms
+the clarification: compare any present protected organization claim, accept
+resolved scope only from AccountSite, and preserve both original claim values
+and resolved scope across refresh. Current row 10 remains DenyAll until Phase
+03; this grants no membership or endpoint. Logout proof uses its own transaction
+cookie with the same host-only security attributes.
+
+Read-only/offline validation at the reviewed source passes 2,164 fragment links,
+roadmap structure, both generated indexes and diff hygiene. The primary also
+checks 672 relative file targets across the five proposal carriers with none
+missing, seven ADR parser controls, Proposed lifecycle and the ADR prose width.
+Final index regeneration and document guards pass with 2,165 resolving fragment
+links, conforming structure and both current indexes; parser controls still pass.
+No runtime/build/provider/browser proof is claimed by these inspections.
+
+The revised ADR/package are ready for renewed maintainer approval. The RP
+library/plain-cookie choice, source/subject admission and development event
+storage/retention are presented together with their costs. G13's session part
+remains Open and dependent implementation remains unstarted until acceptance.
+After approval, the five-step commit/two-review-pair cycle proceeds automatically
+unless a genuinely new decision or blocker requires the maintainer.
 
 ## Status archive
 
