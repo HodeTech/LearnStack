@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,246 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,278 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -222,7 +222,8 @@ each packet decided and delivered, as
   - [P02b-7 Step 5 — stopped-provider public demo (2026-10-24)](#p02b-7-step-5--stopped-provider-public-demo-2026-10-24) — 18 lines
   - [P02b-7 Step 5 — round 1 corrections and qualification (2026-10-24)](#p02b-7-step-5--round-1-corrections-and-qualification-2026-10-24) — 46 lines
   - [P02b-7 Step 5 — independent review round 2 (2026-10-24)](#p02b-7-step-5--independent-review-round-2-2026-10-24) — 24 lines
-  - [P02b-7 Step 5 — round 2 corrections and local closeout (2026-10-24)](#p02b-7-step-5--round-2-corrections-and-local-closeout-2026-10-24) — 35 lines
+  - [P02b-7 Step 5 — round 2 corrections and local closeout (2026-10-24)](#p02b-7-step-5--round-2-corrections-and-local-closeout-2026-10-24) — 36 lines
+  - [P02b-7 hosted frontend ingress correction (2026-10-24)](#p02b-7-hosted-frontend-ingress-correction-2026-10-24) — 31 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18970,6 +18971,38 @@ complete. The earlier exact-source stopped-provider public demo is retained
 separately. Same-source hosted A/B execution remains qualification work before
 packet completion or PR readiness; no failing, missing or skipped execution is
 waived.
+
+
+### P02b-7 hosted frontend ingress correction (2026-10-24)
+
+[PR #36](https://github.com/HodeTech/LearnStack/pull/36) is draft. Its first
+[A attempt](https://github.com/HodeTech/LearnStack/actions/runs/40037549651)
+uses source `fedffbe82d2dcac254d62e05714885df9219ff3f`, whose tree equals
+`b600a0f9` after synchronizing the already-merged main history. Frontend
+lint/typecheck/build and all 2,090 guarded cases pass; its subsequent standalone
+ingress proof fails because its legacy `/studio` and `/portal` rows still expect
+the old 200 placeholder. Actual disabled-BFF 503 behavior matches ADR-0070 and
+the existing activation controls. This is not a successful full qualification.
+
+The correction changes only those two expected statuses and adds no-store,
+30-second retry, no-cookie, no-protected-markup and no-form assertions; GET
+requires an HTML document and HEAD remains bodyless. Exact bootstrap counts,
+unsupported-method refusal, TLS, upgrade and source-isolation controls remain.
+Both round-2 reviewers independently approve this focused source correction.
+A fresh production build, the actual complete native ingress proof and all 19
+failed-fixture cleanup controls pass locally. No automatic flaky retry, product
+behavior change, check removal or timeout enlargement is used.
+
+Separately, screenshot-only instrumentation in a private copy of the existing
+actual HTTPS browser proof captures English/Turkish sign-in and Studio views.
+The normal positive browser checks still pass and root visually inspects all
+four images. These are fake-grant/API UI images, not a new real-provider browser
+journey, natural BFCache result or assistive-technology claim. No private raw
+HTML or credentials enter retained repository documentation.
+
+The remaining first-attempt jobs are allowed to finish for their independent
+failure/timing evidence before a new complete source-bound run. Both final A/B
+assignments and current-head required checks remain qualification gates.
 
 ## Status archive
 
