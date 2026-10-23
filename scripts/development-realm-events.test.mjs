@@ -120,3 +120,37 @@ test('the pinned omitted-zero representation qualifies only a disabled empty sto
   assert.equal(fixture.state.eventsConfig.eventsExpiration, 604800);
   assert.ok(fixture.reads.includes('events?first=0&max=1'));
 });
+
+for (const preparing of [false, true]) {
+  for (const overflow of [false, true]) {
+    test(`${preparing ? 'preparation' : 'ordinary planning'} budgets event expansion at the exact response boundary: overflow=${overflow}`, async () => {
+      const fixture = provider();
+      Object.assign(fixture.state.eventsConfig, { eventsEnabled: false, eventsExpiration: 0, enabledEventTypes: ['LOGIN'] });
+      Object.assign(fixture.state.realm, { eventsEnabled: false, eventsExpiration: 0, enabledEventTypes: ['LOGIN'], padding: '' });
+      if (preparing) fixture.state.profile.attributes = fixture.state.profile.attributes
+        .filter(entry => !['user_id', 'tenant_id', 'organization_id'].includes(entry.name));
+      const events = await planRealmEvents(fixture.admin);
+      const projected = { ...fixture.state.realm, accessTokenLifespan: 900,
+        eventsEnabled: events.body.eventsEnabled, eventsExpiration: events.body.eventsExpiration,
+        enabledEventTypes: events.body.enabledEventTypes };
+      const bytes = value => Buffer.byteLength(JSON.stringify(value));
+      fixture.state.realm.padding = 'x'.repeat(256 * 1024 - bytes(projected) + Number(overflow));
+      assert.ok(bytes(fixture.state.realm) <= 256 * 1024);
+      const attempt = () => preparing
+        ? buildRealmPreparation({ admin: fixture.admin, desired, manifest, webSecret: secret }) : plan(fixture);
+      if (overflow) {
+        await assert.rejects(attempt(), error => error.stage === 'plan' && error.reason === 'body_limit');
+      } else {
+        const result = await attempt();
+        assert.ok(result);
+        if (!preparing) {
+          assert.equal(result.actions.length, 1);
+          for (const action of result.actions) await action.apply();
+          await result.verify();
+          assert.equal(bytes(fixture.state.realm), 256 * 1024);
+        }
+      }
+      if (preparing || overflow) assert.deepEqual(fixture.writes, []);
+    });
+  }
+}

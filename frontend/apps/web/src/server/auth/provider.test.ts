@@ -21,7 +21,7 @@ beforeAll(async () => {
   otherKeys = await generateKeyPair('RS256');
 });
 
-async function fixture() {
+async function fixture(issuer = 'https://identity.example.test/realms/learnstack') {
   const calls: { url: string; method: string; body: URLSearchParams }[] = [];
   let nonce: string | undefined;
   let claims: Record<string, unknown> = {};
@@ -83,7 +83,10 @@ async function fixture() {
       ...tokenPatch,
     });
   });
-  const provider = createTenantProvider({ issuer, clientSecret: privateCanary }, transport);
+  const provider = createTenantProvider(
+    { issuer, clientSecret: privateCanary, allowLoopbackHttp: true },
+    transport,
+  );
   async function login() {
     const start = await provider.begin(callback);
     nonce = start.transaction.nonce;
@@ -151,6 +154,23 @@ describe('inactive tenant RP boundary', () => {
     );
     expect(logout.searchParams.get('id_token_hint')).toBe(result.idToken);
     expect(f.calls).toHaveLength(before);
+  });
+
+  it('retains the qualified loopback allowance for logout and closes malformed return errors', async () => {
+    const f = await fixture('http://127.0.0.1:8099/realms/learnstack');
+    const { result } = await f.login();
+    const calls = f.calls.length;
+    const logout = new URL(
+      f.provider.logoutUrl(result.idToken, 'https://school.example.test/', 'owned-return'),
+    );
+    expect(logout.origin).toBe('http://127.0.0.1:8099');
+    expect(logout.pathname).toBe('/realms/learnstack/protocol/openid-connect/logout');
+    expect(logout.searchParams.get('id_token_hint')).toBe(result.idToken);
+    expect(logout.searchParams.get('state')).toBe('owned-return');
+    expect(f.calls).toHaveLength(calls);
+    expect(() => f.provider.logoutUrl(result.idToken, privateCanary, 'owned-return')).toThrow(
+      BffProviderError,
+    );
   });
 
   for (const [name, patch] of [

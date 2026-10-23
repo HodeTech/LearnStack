@@ -59,8 +59,10 @@ function preflightResponse(value, reserve = 0) {
   if (jsonBytes(value) + reserve > bodyLimit) refuse('plan', 'body_limit');
 }
 
-function validateProjectedResponses({ before, profile, scopes, mappers, clients, assignments, users, desired, manifest, webSecret, identityReserve = new Map() }) {
-  preflightResponse({ ...before.realm, accessTokenLifespan: 900 });
+function validateProjectedResponses({ before, profile, scopes, mappers, clients, assignments, users, desired, manifest, webSecret, events, identityReserve = new Map() }) {
+  preflightResponse({ ...before.realm, accessTokenLifespan: 900,
+    ...Object.fromEntries(['eventsEnabled', 'eventsExpiration', 'enabledEventTypes']
+      .map(key => [key, events.body[key]])) });
   preflightResponse(profile);
   // These UUID placeholders are used only for byte accounting. Provider IDs
   // in the plan/apply/readback state remain exclusively authoritative reads.
@@ -690,7 +692,7 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, event
   if (before.users.length + manifest.users.filter(entry => !before.candidates.has(entry.username)).length
     >= pageSize * pageLimit) refuse('plan', 'unsupported');
   validateProjectedResponses({ before, profile, scopes: expectedScopes, mappers: expectedMappers,
-    clients: expectedClients, assignments: expectedAssignments, users: expectedUsers, desired, manifest, webSecret, identityReserve });
+    clients: expectedClients, assignments: expectedAssignments, users: expectedUsers, desired, manifest, webSecret, events, identityReserve });
 
   if (preparationOnly) return;
 

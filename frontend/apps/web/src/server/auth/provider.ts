@@ -281,12 +281,17 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
     logoutUrl(idToken: string, returnUri: string, state: string) {
       browserReturn(returnUri, '/');
       if (!metadata) throw new BffProviderError('configuration');
-      const config = new oidc.Configuration(metadata, 'learnstack-web');
-      return oidc.buildEndSessionUrl(config, {
-        id_token_hint: idToken,
-        post_logout_redirect_uri: returnUri,
-        state,
-      }).href;
+      try {
+        const config = new oidc.Configuration(metadata, 'learnstack-web');
+        if (insecure) oidc.allowInsecureRequests(config);
+        return oidc.buildEndSessionUrl(config, {
+          id_token_hint: idToken,
+          post_logout_redirect_uri: returnUri,
+          state,
+        }).href;
+      } catch {
+        throw new BffProviderError('response');
+      }
     },
   });
 }

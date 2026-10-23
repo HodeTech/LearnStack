@@ -182,7 +182,11 @@ export function provider() {
     writes.push({ method: 'PUT', path, body: clone(body) });
     const parts = path.split('/').map(decodeURIComponent);
     if (path === '') Object.assign(state.realm, clone(body));
-    else if (path === 'events/config') state.eventsConfig = clone(body);
+    else if (path === 'events/config') {
+      state.eventsConfig = clone(body);
+      for (const key of ['eventsEnabled', 'eventsExpiration', 'enabledEventTypes'])
+        state.realm[key] = clone(body[key]);
+    }
     else if (path === 'users/profile') state.profile = clone(body);
     else if (parts[0] === 'users') {
       const user = state.users.find(entry => entry.id === parts[1]);

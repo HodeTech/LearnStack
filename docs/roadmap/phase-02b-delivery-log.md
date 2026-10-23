@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 620 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 651 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -205,6 +205,7 @@ each packet decided and delivered, as
   - [P02b-7 revised proposal review round 2 and readiness (2026-10-23)](#p02b-7-revised-proposal-review-round-2-and-readiness-2026-10-23) — 34 lines
   - [P02b-7 acceptance and implementation (2026-10-23)](#p02b-7-acceptance-and-implementation-2026-10-23) — 33 lines
   - [P02b-7 Step 1 — inactive RP foundation and provider events (2026-10-23)](#p02b-7-step-1--inactive-rp-foundation-and-provider-events-2026-10-23) — 48 lines
+  - [P02b-7 Step 1 review round 1 and corrections (2026-10-23)](#p02b-7-step-1-review-round-1-and-corrections-2026-10-23) — 31 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18325,6 +18326,37 @@ specific cases require fresh execution after the owner finishes. No source-bound
 hosted qualification or complete Step 1 review is claimed. The two fresh review
 pairs inspect committed code and the acceptance carriers; any pending/failed
 qualification must be resolved before Step 2 starts.
+
+
+### P02b-7 Step 1 review round 1 and corrections (2026-10-23)
+
+Two new read-only reviewers inspect `1d513938`: GPT-6-astra high covers the RP
+protocol/transport and GPT-6.1-sol high covers provider policy, preservation,
+proofs and acceptance carriers. Both request corrections; neither executes
+provider/build/browser work or claims pending runtime evidence passed.
+
+- Qualified loopback HTTP sign-in must also construct its logout URL. The fresh
+  end-session configuration now carries the same explicit allowance; library
+  URL failures cross the closed error boundary. A real signed loopback grant
+  reaches the end-session builder without extra transport and verifies the
+  resulting fixed endpoint and token hint.
+- Realm readback budgeting now includes the three event fields before either
+  metadata preparation or ordinary actions escape. Pinned Keycloak
+  [realm representation](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/models/utils/ModelToRepresentation.java#L463-L470)
+  carries these fields. Four planted controls cover both planning paths at the
+  exact 256 KiB boundary and one byte over, with reachable successful readback.
+  The owned provider model now reflects the fields into the root realm.
+- The accepted ADR-0070 index row is restored to the Active ADRs table.
+
+Validation after corrections: complete realm Node census 371/371 across eight
+files, six executed-gate controls, frontend lint/typecheck and guarded workspace
+1,881/1,881 across two packages, including 29 RP controls. The earlier broad
+historical provider run has 19 passing cases and four old exact-count failures;
+all four corrected cases pass their focused real-provider rerun (zero skips).
+The extra authorized event-policy PUT is explicitly counted, not hidden by a
+relaxed bound. Fresh architecture/event checks and a second new review pair
+still precede Step 1 closeout. No production activation or hosted evidence is
+claimed.
 
 
 ## Status archive
