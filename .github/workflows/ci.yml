@@ -714,18 +714,10 @@ jobs:
         working-directory: frontend
         run: |
           pnpm install --frozen-lockfile
-          # Let APT leave a stalled mirror before it spends the browser budget.
-          # Only this exclusive, temporary fragment is changed; retain sources,
-          # package verification and Playwright's complete dependency installer.
-          test "$(uname -m)" = x86_64
-          browser_apt_config=$(sudo -n mktemp /etc/apt/apt.conf.d/zzzz-learnstack-browser-XXXXXX)
-          [[ "$browser_apt_config" =~ ^/etc/apt/apt[.]conf[.]d/zzzz-learnstack-browser-[[:alnum:]]{6}$ ]]
-          trap 'sudo -n rm -- "$browser_apt_config"' EXIT
-          printf '%s\n' 'Acquire::Retries "1";' 'Acquire::http::Timeout "15";' 'Acquire::https::Timeout "15";' \
-            | sudo -n tee "$browser_apt_config" > /dev/null
-          browser_apt_effective=$(sudo -n apt-config shell RETRIES Acquire::Retries HTTP_TIMEOUT Acquire::http::Timeout HTTPS_TIMEOUT Acquire::https::Timeout)
-          test "$browser_apt_effective" = "$(printf '%s\n' "RETRIES='1'" "HTTP_TIMEOUT='15'" "HTTPS_TIMEOUT='15'")"
-          pnpm exec playwright install --with-deps chromium
+          # The hosted image already carries every Chromium shared library.
+          # --with-deps only added CJK/Thai/X fonts through the runner's APT
+          # mirror, whose slow downloads repeatedly exhausted this budget.
+          pnpm exec playwright install chromium
 
       - name: Prepare sandbox-enabled managed Chromium
         timeout-minutes: 1

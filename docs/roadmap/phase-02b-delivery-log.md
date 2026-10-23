@@ -156,7 +156,7 @@ each packet decided and delivered, as
     - [ADR-0066 acceptance and implementation (2026-10-20)](#adr-0066-acceptance-and-implementation-2026-10-20) — 135 lines
   - [P02b-5 systematic proof and document corrections (2026-10-20)](#p02b-5-systematic-proof-and-document-corrections-2026-10-20) — 399 lines
   - [P02b-5 merge and closeout (2026-10-20)](#p02b-5-merge-and-closeout-2026-10-20) — 100 lines
-- [P02b-6 — Realm and seed](#p02b-6--realm-and-seed) — 5,117 lines
+- [P02b-6 — Realm and seed](#p02b-6--realm-and-seed) — 5,162 lines
   - [P02b-6 decision package (2026-10-20)](#p02b-6-decision-package-2026-10-20) — 446 lines
   - [P02b-6 Step 1 — executable realm and identity declaration (2026-10-21)](#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21) — 97 lines
   - [P02b-6 Step 2 — owned warm-realm reconciliation (2026-10-21)](#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21) — 553 lines
@@ -166,7 +166,7 @@ each packet decided and delivered, as
     - [Shared implementation and pre-review verification (2026-10-21)](#shared-implementation-and-pre-review-verification-2026-10-21) — 216 lines
     - [Account-console self-service capability — proposal (2026-10-21)](#account-console-self-service-capability--proposal-2026-10-21) — 148 lines
   - [P02b-6 Step 3 — shared seed/demo lifecycle (2026-10-21)](#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21) — 176 lines
-  - [P02b-6 Step 4 — real identity qualification and closeout (2026-10-21)](#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21) — 3,843 lines
+  - [P02b-6 Step 4 — real identity qualification and closeout (2026-10-21)](#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21) — 3,888 lines
     - [P02b-6 PR review corrections (2026-10-21)](#p02b-6-pr-review-corrections-2026-10-21) — 22 lines
     - [P02b-6 systematic corrections and hosted qualification (2026-10-21)](#p02b-6-systematic-corrections-and-hosted-qualification-2026-10-21) — 473 lines
     - [Further setup and proof corrections — 2026-10-21](#further-setup-and-proof-corrections--2026-10-21) — 75 lines
@@ -194,6 +194,7 @@ each packet decided and delivered, as
     - [P02b-6 Outbox startup ownership and isolated diagnostics (2026-10-22)](#p02b-6-outbox-startup-ownership-and-isolated-diagnostics-2026-10-22) — 59 lines
     - [P02b-6 aggregate producer-state refusal attribution (2026-10-22)](#p02b-6-aggregate-producer-state-refusal-attribution-2026-10-22) — 73 lines
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
+    - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -17631,6 +17632,51 @@ Both verify unchanged final artifact/provenance/union requirements, five-minute
 ceiling and upload reserve; no broader runtime/provider execution occurs.
 Both review rounds are complete. New final-source full A/B and independent
 artifact/public/identity validation remain required before the draft is ready.
+
+#### P02b-6 hosted browser dependency removal (2026-10-23)
+
+[Run 39805658821](https://github.com/HodeTech/LearnStack/actions/runs/39805658821)
+at `dada277b` produced three attempts:
+
+- **Attempt 1 (A)** fails only `public demo + lighthouse`. The five-minute
+  `Install pinned browser tools` step times out while Playwright's `--with-deps`
+  installer downloads fonts from the runner's APT mirror at minutes per package.
+  The 15-second acquire timeouts do not end a slow transfer that is still moving.
+- **Attempt 2 (B)** completes all 27 jobs.
+- **Attempt 3 (A)** fails only `backend ordinary-8`, and both required aggregates
+  fail as its consequence.
+  `Native_fixture_start_waits_for_previous_actual_cleanup_before_one_same_generation_hint`
+  is cancelled after 31.38 seconds at `BackgroundJobPositiveSdkTests.NativeHandoff.cs:112`,
+  while it waits for the provider constructor after the single same-generation
+  fixture hint. The same case passed in attempt 1 in 3.47 seconds.
+
+The hang has the same signature as the earlier unexplained constructor-stop
+cancellation. The case added by the fixture-hint correction shows it too, so that
+correction neither explains nor removes it. About 150 local repetitions all pass,
+60 of them under CPU saturation with `DOTNET_PROCESSOR_COUNT=4`. Its cause remains
+unknown, and this entry changes nothing about it.
+
+The step now installs only Playwright's pinned Chromium build. In attempt 1 the
+dependency installer added nine font packages (CJK, Thai, Unifont and X fonts)
+and upgraded eight packages that were already installed. Every shared library
+Chromium needs was already present on the hosted image. No public-demo check
+depends on system fonts: Lighthouse's `font-display-insight` audits web fonts.
+The temporary APT fragment, its readback and the architecture check are removed
+with the installer. Local developer instructions keep `--with-deps`.
+
+`public-demo-ci.test.ts` executes the actual step against command stubs:
+
+- A successful run records exactly the two pnpm calls.
+- Any `sudo` or APT invocation fails the step.
+- Both failure exits are preserved.
+
+Against the previous workflow, the success case and the browser-failure case
+fail. All 17 cases pass, and web lint and typecheck pass.
+
+On 2026-10-23 the maintainer decided that PR #35 qualifies with one complete
+green assignment. [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md)
+requires both variants only for plan, algorithm or fixture-lifetime changes.
+This decision replaces the final-source A/B requirement stated in the entries above.
 
 ## Status archive
 
