@@ -179,6 +179,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     void work.then(settled, settled);
     return work;
   }
+  #exclusive<T>(entry: Owner, signal: AbortSignal | undefined, action: () => Promise<T>) {
+    const abort = () => this.#close(entry);
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+    return this.#tracked(entry, action).finally(() => signal?.removeEventListener('abort', abort));
+  }
   #reason(error: unknown): SessionFailure {
     return error instanceof BffSessionError || error instanceof BffProviderError
       ? error.reason
@@ -283,6 +289,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
 
   async start(input: Parameters<BffSessionStore['start']>[0]): Promise<LoginStart> {
     this.#checkSource(input.host, input.source);
+    if (input.signal?.aborted) throw new BffSessionError('cancelled');
     if (
       !['/', '/studio', '/portal'].includes(input.returnPath) ||
       (input.browser !== undefined && !isBffOpaque(input.browser))
@@ -336,7 +343,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     };
     group.members.add(entry);
     this.#owners.set(entry.id, entry);
-    return this.#tracked(entry, async () => {
+    return this.#exclusive(entry, input.signal, async () => {
       try {
         this.#assert(entry, 'starting');
         const start = await this.#dependencies.provider.begin(
@@ -357,7 +364,11 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           redirectUrl: start.redirectUrl,
         });
       } catch (error) {
-        const reason = this.#reason(error);
+        const reason = this.#stopped
+          ? 'stopped'
+          : input.signal?.aborted
+            ? 'cancelled'
+            : this.#reason(error);
         this.#close(entry);
         this.#diagnostic(reason);
         throw new BffSessionError(reason);
@@ -379,7 +390,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     // Single-use before exchange; an unrelated/invalid proof never consumes it.
     entry.phase = 'exchange';
     this.#states.delete(input.state);
-    return this.#tracked(entry, async () => {
+    return this.#exclusive(entry, input.signal, async () => {
       try {
         this.#assert(entry, 'exchange');
         const credentials = this.#bundle(
@@ -392,7 +403,11 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         this.#assert(entry, 'exchange');
         const account = await this.#dependencies.account(
           credentials.accessToken,
-          { host: input.host, source: input.source },
+          {
+            host: input.host,
+            source: input.source,
+            ...(input.traceparent ? { traceparent: input.traceparent } : {}),
+          },
           entry.controller.signal,
         );
         this.#assert(entry, 'exchange');
@@ -443,7 +458,11 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           session: this.#project(entry),
         });
       } catch (error) {
-        const reason = this.#reason(error);
+        const reason = this.#stopped
+          ? 'stopped'
+          : input.signal?.aborted
+            ? 'cancelled'
+            : this.#reason(error);
         this.#close(entry);
         this.#diagnostic(reason);
         throw new BffSessionError(reason, input.state);
@@ -504,7 +523,11 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           this.#assert(entry, 'active');
           const witnessed = await this.#dependencies.account(
             next.accessToken,
-            { host: binding.host, source },
+            {
+              host: binding.host,
+              source,
+              ...(binding.traceparent ? { traceparent: binding.traceparent } : {}),
+            },
             entry.controller.signal,
           );
           this.#assert(entry, 'active');
@@ -539,7 +562,11 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         this.#assert(entry, 'active');
         const account = await this.#dependencies.account(
           credentials.accessToken,
-          { host: binding.host, source },
+          {
+            host: binding.host,
+            source,
+            ...(binding.traceparent ? { traceparent: binding.traceparent } : {}),
+          },
           entry.controller.signal,
         );
         this.#assert(entry, 'active');

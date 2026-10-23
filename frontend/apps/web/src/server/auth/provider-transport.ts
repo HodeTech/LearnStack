@@ -1,5 +1,3 @@
-import 'server-only';
-
 import { BffProviderError } from './provider-error.js';
 
 export const PROVIDER_DEADLINE_MS = 10_000;

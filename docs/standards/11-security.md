@@ -700,6 +700,10 @@ for the native controls and their delivery/review boundary.
   constant-time checked session-bound token. Apply admission before allocation.
 - The cross-origin provider callback instead requires its single-use state,
   nonce, PKCE verifier and host/browser/epoch-bound transaction cookie.
+- Auth cookie families and decoded forms each have a 16 KiB ceiling. Native
+  auth POST admission requires a bounded Content-Length and no transfer encoding
+  before Next can clone a body; the form parser independently bounds actual bytes,
+  UTF-8, declared scalar fields and duplicates.
 - Only the exact auth POST set is open. SameSite and implicit framework checks
   authorize neither sibling origins nor Server Actions.
 - Webhook endpoints verify signatures, not CSRF tokens.

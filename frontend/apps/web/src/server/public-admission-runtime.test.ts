@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -302,7 +302,13 @@ describe('native public admission lifetime and concurrent ownership', () => {
       writeFileSync(join(root, 'package.json'), '{"type":"module"}');
       // Compile only the three native sources, independently of build:ingress or
       // an existing .server directory. The child owns its explicit GC capability.
-      for (const name of ['public-admission-runtime', 'public-api-limits', 'ingress']) {
+      mkdirSync(join(root, 'auth'));
+      for (const name of [
+        'public-admission-runtime',
+        'public-api-limits',
+        'ingress',
+        'auth/http-paths',
+      ]) {
         const source = readFileSync(new URL(`./${name}.ts`, import.meta.url), 'utf8');
         const output = ts.transpileModule(source, {
           compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },

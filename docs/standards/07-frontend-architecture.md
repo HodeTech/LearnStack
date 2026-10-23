@@ -206,7 +206,10 @@ server caller in `apps/web/src/server/configured-public-client.ts`.
   Production served/snapshot equality and required frontend regeneration/drift
   checks are part of P02d-4; generator output remains outside formatter rewriting.
 - The root exports generated types and the exact authenticated path/operation
-  contract, with no authenticated transport. `/server` supplies four thin public GET
+  contract. `/authenticated-server` supplies only the injected, no-store
+  `getAccountSite` GET; its native configured caller owns credentials and the
+  independently verified host/current visitor. It exposes no credential/header/host
+  selector to UI consumers. `/server` supplies four thin public GET
   wrappers using generated operation types and an injected Fetch-compatible
   transport that resolves relative URLs; no global-fetch default.
 - The unused client factory/export is removed. No tenant-ID option, authority-header

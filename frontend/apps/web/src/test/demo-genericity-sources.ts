@@ -8,6 +8,7 @@ import ts from 'typescript';
 // Shared runtime helpers are not exemptions, even if tests also import them.
 const exemptEntries = new Set([
   'frontend/apps/web/scripts/verify-ingress.mjs',
+  'frontend/apps/web/scripts/verify-bff-protocol.mjs',
   'frontend/apps/web/scripts/verify-ingress-cleanup.mjs',
   'frontend/apps/web/scripts/verify-ingress-controls.mjs',
   'frontend/apps/web/scripts/verify-public-admission.mjs',
@@ -233,6 +234,10 @@ export function productionDemoSources(
   if (serverConfig) {
     const config = JSON.parse(serverConfig);
     const expected = [
+      'src/server/auth/account-client.ts',
+      'src/server/auth/http-protocol.ts',
+      'src/server/auth/provider-core.ts',
+      'src/server/auth/request-runtime.ts',
       'src/server/auth/session-runtime.ts',
       'src/server/ingress.ts',
       'src/server/public-admission-runtime.ts',
@@ -247,6 +252,21 @@ export function productionDemoSources(
       generated.set(
         `frontend/apps/web/.server/${posix.relative('src/server', input).replace(/\.ts$/, '.js')}`,
         `frontend/apps/web/${input}`,
+      );
+  }
+  const sdkConfig = all.get('frontend/packages/sdk/tsconfig.native.json');
+  if (sdkConfig) {
+    const config = JSON.parse(sdkConfig);
+    if (
+      config.compilerOptions?.rootDir !== 'src' ||
+      config.compilerOptions?.outDir !== 'dist' ||
+      JSON.stringify(config.include) !== JSON.stringify(['src/authenticated-server.ts'])
+    )
+      refused('tsconfig.native.json');
+    for (const extension of ['js', 'd.ts'])
+      generated.set(
+        'frontend/packages/sdk/dist/authenticated-server.' + extension,
+        'frontend/packages/sdk/src/authenticated-server.ts',
       );
   }
   const candidates = (base: string) => [

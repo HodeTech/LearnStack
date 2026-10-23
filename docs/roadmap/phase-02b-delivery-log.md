@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 774 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 820 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -210,6 +210,7 @@ each packet decided and delivered, as
   - [P02b-7 Step 2 — native session ownership implementation (2026-10-23)](#p02b-7-step-2--native-session-ownership-implementation-2026-10-23) — 45 lines
   - [P02b-7 Step 2 review round 1 and visitor correction (2026-10-23)](#p02b-7-step-2-review-round-1-and-visitor-correction-2026-10-23) — 24 lines
   - [P02b-7 Step 2 review round 2 and closeout (2026-10-23)](#p02b-7-step-2-review-round-2-and-closeout-2026-10-23) — 19 lines
+  - [P02b-7 Step 3 — closed HTTP and request projection (2026-10-23)](#p02b-7-step-3--closed-http-and-request-projection-2026-10-23) — 46 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18484,6 +18485,52 @@ Step 3 begins automatically.** HTTP cookie/CSRF/route and request-projection
 integration, atomic activation, real BFF/provider/browser evidence and exact-source
 hosted qualification keep their accepted later-step owners; none is inferred
 from native unit controls.
+
+
+### P02b-7 Step 3 — closed HTTP and request projection (2026-10-23)
+
+The third implementation slice supplies the exact auth method/path matrix,
+Origin plus presession/session CSRF, state-named transaction and independent
+logout proof cookies, bounded scalar forms/cookie families and closed responses.
+Native POST exemptions remain disabled by default and the production launcher
+and middleware do not install or call the BFF yet. Only the three exact POST
+paths can use the explicit test-owned opt-in. Native admission rejects oversized,
+unknown-length or transfer-encoded bodies before Next can clone them; the form
+reader independently checks actual bytes, UTF-8, field names and duplicates.
+
+A separate native request holder publishes one immutable safe projection after
+live-host bootstrap and response-owned admission. App-local `auth()` reads it
+without refresh, idle mutation or cookie writes. Actual response finish/close,
+request abort and stop revoke request authority. Exclusive sign-in/callback work
+follows request cancellation while keeping unsettled work owned; cancellation of
+a shared-refresh waiter still leaves its owner running. AccountSite receives the
+current callback/read visitor and trace rather than retained initial attribution.
+
+The SDK gains one injected `getAccountSite` capability under its separate
+`authenticated-server` entry. A narrow native build makes that same typed parser
+available to the native caller. The configured caller alone attaches the stored
+access token and verified host/current visitor, applies existing API budgets and
+projects only its closed witness. Public wrappers retain their original contract.
+Source controls model the exact generated SDK/native entries, confine the two
+hop setters and continue forbidding global fetch in the authenticated adapter.
+Shared native/Next modules use NodeNext specifiers with explicit Next resolution.
+
+Frontend lint/typecheck and native compilation pass. The full guarded frontend
+run passes **2,034 cases in two packages**, zero skips/todos. Tests cover native
+HTTP opt-in/refusals, the actual pinned Next request/response bridge, safe RSC
+reads, callback cancellation and cookie/CSRF/refresh/logout negatives. One owned
+production Next copy runs real native HTTPS, middleware and RSC bundles through
+sign-in/callback/session/logout, confirming cross-bundle lifetime/projection and
+multiple cookie delivery. Its grant and AccountSite capabilities are explicit
+fakes: it is not real Keycloak/API or browser proof. Actual Next qualification
+also requires absolute local redirect URLs; only the verified host and three
+closed return paths form them. Existing native GC proof retains its original
+collection assertions with the new shared path-policy dependency copied too.
+
+Both independent review rounds still precede this step's closeout. Atomic
+production activation/localized UI remain Step 4; real provider/app-role API,
+browser and exact-source hosted qualification remain Step 5. The four BFF
+catalogue obligations remain Registered until their complete controls ship.
 
 
 ## Status archive

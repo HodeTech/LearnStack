@@ -1,8 +1,13 @@
+import { createBffHttpProtocol } from './http-protocol.js';
 import type { BffSessionStore, SessionDependencies } from './session-contract.js';
 import { InMemoryBffSessionStore } from './session-store.js';
 
 export const BFF_RUNTIME_KEY = 'learnstack.bff-sessions.v1';
-export type BffSessionHolder = Readonly<{ version: 1; store: BffSessionStore }>;
+export type BffSessionHolder = Readonly<{
+  version: 1;
+  store: BffSessionStore;
+  http: ReturnType<typeof createBffHttpProtocol>;
+}>;
 
 /** Called once by the native launcher. Bundled consumers never construct a fallback. */
 export function installBffSessionRuntime(dependencies: SessionDependencies) {
@@ -19,7 +24,11 @@ export function installBffSessionRuntime(dependencies: SessionDependencies) {
     consumeLogout: owner.consumeLogout.bind(owner),
     stop: owner.stop.bind(owner),
   });
-  const holder: BffSessionHolder = Object.freeze({ version: 1, store });
+  const holder: BffSessionHolder = Object.freeze({
+    version: 1,
+    store,
+    http: createBffHttpProtocol(store),
+  });
   Object.defineProperty(globalThis, key, {
     value: holder,
     enumerable: false,

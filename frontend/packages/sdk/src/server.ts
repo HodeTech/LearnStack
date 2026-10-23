@@ -1,7 +1,8 @@
+import type { ApiResult } from './api-result';
 import type { AUTHENTICATED_GET_CONTRACTS, GetContractOwnership } from './authenticated-contract';
 import type { operations, paths } from './generated/schema';
 import { appError, isSuccess, parseProblem } from './response-policy';
-import type { ApiProblem, AppError, PublicGetOperation, PublicSuccess } from './response-policy';
+import type { PublicGetOperation, PublicSuccess } from './response-policy';
 
 export type { ApiProblem, AppError } from './response-policy';
 
@@ -17,26 +18,7 @@ export class PublicRequestRefusalError extends Error {
   }
 }
 
-export type ApiResult<T> =
-  | { readonly kind: 'success'; readonly status: 200; readonly data: T }
-  | {
-      readonly kind: 'api-error';
-      readonly status: number;
-      readonly error: AppError;
-      readonly problem: ApiProblem;
-    }
-  | {
-      readonly kind: 'invalid-response';
-      readonly reason:
-        | 'malformed-json'
-        | 'invalid-problem'
-        | 'invalid-success'
-        | 'unexpected-status';
-    }
-  | { readonly kind: 'transport-error' }
-  /** Local SDK/transport construction or validation refusal; not an HTTP 400. */
-  | { readonly kind: 'invalid-request' }
-  | { readonly kind: 'cancelled' };
+export type { ApiResult } from './api-result';
 
 type Query<T extends PublicGetOperation> = operations[T]['parameters']['query'];
 type Path<T extends PublicGetOperation> = operations[T]['parameters']['path'];

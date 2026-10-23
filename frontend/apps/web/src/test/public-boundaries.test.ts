@@ -11,6 +11,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ADAPTER,
+  ACCOUNT_ADAPTER,
+  SDK_AUTHENTICATED,
   ADMISSION_RUNTIME,
   ADMISSION_FACADE,
   admissionBoundaryFindings,
@@ -224,7 +226,11 @@ describe('ADR-0053 production public boundaries', () => {
       for (const [key, value] of Object.entries(entry.exports as Record<string, string>)) {
         const specifier = entry.name + (key === '.' ? '' : key.slice(1));
         expect(production.resolveModule(specifier, MIDDLEWARE)).toBe(
-          directory + '/' + value.slice(2),
+          directory +
+            '/' +
+            (directory === 'packages/sdk' && key === './authenticated-server'
+              ? 'src/authenticated-server.ts'
+              : value.slice(2)),
         );
       }
   });
@@ -316,7 +322,7 @@ describe('ADR-0053 production public boundaries', () => {
       'Fix: retain the dynamic/no-store public layout and request-local public data.',
     );
   });
-  it('global fetch and all three hop-header setters have exactly one production adapter', () => {
+  it('global fetch remains public-only; hop setters stay in the two exact SDK adapters', () => {
     clean(transportFindings(production), 'Fix: use the configured public adapter.');
     // Allowed code must contain actual transport/setters: renaming it removes the exception.
     const renamed = Object.fromEntries(
@@ -325,6 +331,41 @@ describe('ADR-0053 production public boundaries', () => {
     expect(
       transportFindings(buildSourceGraph(renamed)).filter((item) => item.file === probe),
     ).toHaveLength(4);
+  });
+  it('confines authenticated hop setters without granting global fetch or a client SDK escape', () => {
+    const renamed = Object.fromEntries(
+      Object.entries(sources).map(([name, source]) => [
+        name === ACCOUNT_ADAPTER ? probe : name,
+        source,
+      ]),
+    );
+    expect(
+      transportFindings(buildSourceGraph(renamed)).filter((item) => item.file === probe),
+    ).toHaveLength(3);
+    expect(
+      transportFindings(
+        graphWith(
+          ACCOUNT_ADAPTER,
+          sources[ACCOUNT_ADAPTER]! + '\nfetch("https://unowned.invalid");',
+        ),
+      ).some((item) => item.file === ACCOUNT_ADAPTER && item.reason.includes('global fetch')),
+    ).toBe(true);
+    const client = graphWith(
+      probe,
+      '\'use client\'; import { createAuthenticatedServerSdk } from "@learnstack/sdk/authenticated-server"; export const unsafe = createAuthenticatedServerSdk;',
+    );
+    expect(clientBoundaryFindings(client).some((item) => item.file === probe)).toBe(true);
+    expect(privateServerFiles(production)).toContain(SDK_AUTHENTICATED);
+    // Native implementation modules must not become bundled middleware/RSC dependencies.
+    const bundled = reachable(production, renderRoots);
+    for (const name of [
+      'session-runtime',
+      'session-store',
+      'provider-core',
+      'request-runtime',
+      'http-protocol',
+    ])
+      expect(bundled).not.toContain('apps/web/src/server/auth/' + name + '.ts');
   });
   it('the configured production caller imports the server-only marker', () => {
     expect(hasServerOnlyMarker(production.files.get(ADAPTER)!)).toBe(true);

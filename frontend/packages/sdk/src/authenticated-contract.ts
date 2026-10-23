@@ -1,4 +1,4 @@
-import type { components, operations } from './generated/schema';
+import type { components, operations } from './generated/schema.js';
 
 /** P02b-7 owns session-based transport for this separate authenticated contract. */
 export const AUTHENTICATED_GET_CONTRACTS = Object.freeze({

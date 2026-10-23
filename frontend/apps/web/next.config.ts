@@ -9,6 +9,14 @@ const nextConfig: NextConfig = {
   skipMiddlewareUrlNormalize: true,
   skipTrailingSlashRedirect: true,
   experimental: { serverComponentsHmrCache: false },
+  webpack(configuration) {
+    // Shared native/Next modules use NodeNext .js specifiers for emitted files.
+    configuration.resolve.extensionAlias = {
+      ...configuration.resolve.extensionAlias,
+      '.js': ['.ts', '.tsx', '.js'],
+    };
+    return configuration;
+  },
 };
 
 export default createNextIntlPlugin('./src/i18n/request.ts')(nextConfig);

@@ -19,14 +19,19 @@ export type SessionProvider = {
   logoutUrl: (idToken: string, returnUri: string, state: string) => string;
 };
 
-export type SessionBinding = Readonly<{ host: string; browser: string; handle: string }>;
+export type SessionBinding = Readonly<{
+  host: string;
+  browser: string;
+  handle: string;
+  traceparent?: string;
+}>;
 export type AccountWitness = Readonly<{
   actorId: string;
   tenantId: string;
   organizationId: string | null;
   displayName: string;
 }>;
-export type AccountBinding = Readonly<{ host: string; source: string }>;
+export type AccountBinding = Readonly<{ host: string; source: string; traceparent?: string }>;
 export type SessionActivity = 'passive' | 'read' | 'extend';
 export type SessionProjection = Readonly<{
   state: 'authenticated';
@@ -95,6 +100,7 @@ export interface BffSessionStore {
       source: string;
       browser?: string;
       handle?: string;
+      signal?: AbortSignal;
       returnPath: '/' | '/studio' | '/portal';
     }>,
   ): Promise<LoginStart>;
@@ -102,10 +108,12 @@ export interface BffSessionStore {
     input: Readonly<{
       host: string;
       source: string;
+      traceparent?: string;
       browser: string;
       state: string;
       proof: string;
       responseUrl: string;
+      signal?: AbortSignal;
     }>,
   ): Promise<LoginCompletion>;
   peek(binding: SessionBinding): SessionProjection | null;

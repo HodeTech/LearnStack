@@ -19,6 +19,7 @@ export type SourceGraph = {
   readonly resolveModule: (specifier: string, from: string) => string | undefined;
 };
 
+export const ACCOUNT_ADAPTER = 'apps/web/src/server/auth/account-client.ts';
 export const ADAPTER = 'apps/web/src/server/configured-public-client.ts';
 export const INGRESS = 'apps/web/src/server/ingress.ts';
 export const MIDDLEWARE = 'apps/web/src/middleware.ts';
@@ -27,6 +28,7 @@ export const I18N_REQUEST = 'apps/web/src/i18n/request.ts';
 export const REQUEST_MEMO = 'apps/web/src/server/request-memo.ts';
 export const ADMISSION_RUNTIME = 'apps/web/src/server/public-admission-runtime.ts';
 export const ADMISSION_FACADE = 'apps/web/src/server/public-admission.ts';
+export const SDK_AUTHENTICATED = 'packages/sdk/src/authenticated-server.ts';
 export const SDK_SERVER = 'packages/sdk/src/server.ts';
 
 /** Native ownership is not a cache exception in the bundled rendering graph. */
@@ -329,7 +331,13 @@ export function resolutionCensusFindings(
         return (
           !subpath ||
           subpath.includes('*') ||
-          (value !== `./src/${subpath}.ts` && value !== `./src/${subpath}.tsx`)
+          (value !== `./src/${subpath}.ts` &&
+            value !== `./src/${subpath}.tsx` &&
+            !(
+              directory === 'packages/sdk' &&
+              subpath === 'authenticated-server' &&
+              value === './dist/authenticated-server.js'
+            ))
         );
       }) ||
       (entry.main !== undefined && entry.main !== (exports as Record<string, unknown>)['.'])
@@ -588,13 +596,13 @@ export function transportFindings(graph: SourceGraph): Finding[] {
           for (const pair of pairs.elements)
             if (ts.isArrayLiteralExpression(pair)) {
               const header = constantString(pair.elements[0], graph.checker);
-              if (header && HOP_HEADERS.has(header.toLowerCase()))
+              if (name !== ACCOUNT_ADAPTER && header && HOP_HEADERS.has(header.toLowerCase()))
                 findings.push(
                   finding(pair, 'Fix: construct API-hop headers only in the configured adapter.'),
                 );
             }
       }
-      if (key && HOP_HEADERS.has(key.toLowerCase()))
+      if (name !== ACCOUNT_ADAPTER && key && HOP_HEADERS.has(key.toLowerCase()))
         findings.push(
           finding(node, 'Fix: construct API-hop headers only in the configured adapter.'),
         );
@@ -652,6 +660,7 @@ export function privateServerFiles(graph: SourceGraph): string[] {
         name.includes('/src/server/') ||
         (name.startsWith('apps/web/src/i18n/messages/') && name.endsWith('.json')) ||
         name === SDK_SERVER ||
+        name === SDK_AUTHENTICATED ||
         hasServerOnlyMarker(file)
       )
         return true;

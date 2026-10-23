@@ -3,7 +3,7 @@ import 'server-only';
 import type { BffSessionHolder } from './session-runtime.js';
 
 /** Passive cross-bundle lookup; a build or request never creates a second owner. */
-export function bffSessionOwner(): BffSessionHolder['store'] {
+function holder(): BffSessionHolder {
   const descriptor = Object.getOwnPropertyDescriptor(
     globalThis,
     Symbol.for('learnstack.bff-sessions.v1'),
@@ -32,5 +32,20 @@ export function bffSessionOwner(): BffSessionHolder['store'] {
     )
   )
     throw new Error('BFF session owner unavailable');
-  return (holder as BffSessionHolder).store;
+  const http = (holder as BffSessionHolder).http;
+  if (
+    !http ||
+    !Object.isFrozen(http) ||
+    typeof http.handle !== 'function' ||
+    typeof http.project !== 'function'
+  )
+    throw new Error('BFF session owner unavailable');
+  return holder as BffSessionHolder;
+}
+
+export function bffSessionOwner(): BffSessionHolder['store'] {
+  return holder().store;
+}
+export function bffSessionProtocol(): BffSessionHolder['http'] {
+  return holder().http;
 }
