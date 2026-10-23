@@ -158,5 +158,5 @@ A new root is Active at its single save and advances generation once. A preserve
 concept has no entity change or generation bump, but its initialization attempt
 remains classified. The transport skips construction for a durable inbox duplicate,
 so that duplicate adds no business audit. Completed Seeder acts skip the command
-before invocation. The [Step 5 record](../../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+before invocation. The [Step 5 record](../../roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 owns validation and review status.

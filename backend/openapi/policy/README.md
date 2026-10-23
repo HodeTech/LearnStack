@@ -1,7 +1,7 @@
 # OpenAPI compatibility controls
 
 [ADR-0024](../../../docs/decisions/0024-api-versioning-policy.md) owns the policy.
-[P02d-4 G31](../../../docs/roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
+[P02d-4 G31](../../../docs/roadmap/phase-02d-delivery-log.md#openapi-sdk-and-required-check-plan)
 owns pins, severity overrides, artifact contents and required-check rollout.
 
 `fixtures/base.json` and `fixtures/cases.json` cover each representable policy row

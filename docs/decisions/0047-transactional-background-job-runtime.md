@@ -9,7 +9,7 @@ Accepted — 2026-10-15.
 **Maintainer acceptance — 2026-10-15.** The maintainer approves H1 (stock Hangfire
 plus an authoritative LearnStack job record), this detailed contract, its bounded
 supersessions/additive seams and the expanded nine-step
-[P02b-4 decision package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
+[P02b-4 decision package](../roadmap/phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15).
 Acceptance and the dated disclosures are committed before runtime code, package
 changes, migrations or grants. Implementation and production job proofs remain
 pending; acceptance claims neither delivery nor enforcement.
@@ -722,7 +722,7 @@ closeout.
 
 ## Implementation Notes
 
-The [decision package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
+The [decision package](../roadmap/phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15)
 owns nine implementation steps, option bounds, validation and carrier ownership.
 Acceptance/dated Amendments are committed before runtime. Canonical SQL/grants,
 metrics and catalogue rows land with implementation, not fictional passing status.
@@ -869,7 +869,7 @@ This new normative qualification has explicit maintainer acceptance on
 2026-10-16; it is not an ADR-0041 fact correction or an implicit reading of the
 earlier promise. This record's original Status, Date, Deciders, Decision and
 earlier amendment remain intact. ADR-0058 receives only an additive ownership
-amendment. The [Step 4 acceptance record](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+amendment. The [Step 4 acceptance record](../roadmap/phase-02b-delivery-log.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 owns carrier inventory and implementation timing. Acceptance authorizes the
 adapted Step 4; actual worker/PostgreSQL, surface-parity, startup/resource,
 multi-pool and exit qualification remain mandatory before activation. No runtime
@@ -930,7 +930,7 @@ through the prepared domain finalizer and atomic business/terminal MUST audit;
 Transient names this taxonomy, not resumability. Generic runtime validation does
 not certify the adapter's external causal truth.
 
-The [P02b-4 acceptance record](../roadmap/phase-02b-events-auth.md#adr-0061-acceptance-and-step-7-contract-2026-10-17)
+The [P02b-4 acceptance record](../roadmap/phase-02b-delivery-log.md#adr-0061-acceptance-and-step-7-contract-2026-10-17)
 owns acceptance and carrier synchronization. Step 7 implements and qualifies the
 report/storage/control/finalizer contract before external activation; Step 9 owns
 full enforcement and regression. The seven affected existing catalogue rules

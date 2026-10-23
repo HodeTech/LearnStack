@@ -190,7 +190,7 @@ Integration setup took 2:13, leaving only 15:17 under the old proposed deadline.
 
 Three older green Docker test steps took 12:20, 12:52 and 16:52 before this native
 workload. They warn against the old reserve; they do not measure current source.
-The owning [CI follow-up](../roadmap/phase-02b-events-auth.md#hosted-ci-qualification-follow-up-2026-10-18)
+The owning [CI follow-up](../roadmap/phase-02b-delivery-log.md#hosted-ci-qualification-follow-up-2026-10-18)
 records the fresh read-only baseline and local corrections separately. Neither
 establishes fit for an unimplemented split or a qualified native workload.
 
@@ -320,7 +320,7 @@ contexts and strict mode remain unchanged. This is bounded supersession plus
 additive CI authority, not an ADR-0041 factual correction or record retirement.
 
 Acceptance precedes dependent implementation. The three-step
-[delivery record](../roadmap/phase-02b-events-auth.md#adr-0063-acceptance-and-implementation-2026-10-18)
+[delivery record](../roadmap/phase-02b-delivery-log.md#adr-0063-acceptance-and-implementation-2026-10-18)
 owns progress and actual final-source qualification; the ordinary membership-I/O
 fault remains independent corrective work under this record. This amendment
 rewrites none of the Accepted body, date or acceptance metadata above.
@@ -328,7 +328,7 @@ rewrites none of the Accepted body, date or acceptance metadata above.
 ## References
 
 - [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md#diagnostics-dumps-and-durable-consequences).
-- [P02b-4 CI follow-up](../roadmap/phase-02b-events-auth.md#hosted-ci-qualification-follow-up-2026-10-18).
+- [P02b-4 CI follow-up](../roadmap/phase-02b-delivery-log.md#hosted-ci-qualification-follow-up-2026-10-18).
 - [Documentation governance](../standards/13-documentation.md#correcting-and-amending-adrs).
 - [Infrastructure](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire),
   [Testing](../standards/06-testing.md),

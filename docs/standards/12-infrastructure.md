@@ -91,12 +91,12 @@ otel-collector          # Phase 11 (Production hardening — observability stack
 
 P02d-5 delivers G33's loopback API/native TLS web ingress and paired private local
 configuration under [ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
-Follow the [local setup](../roadmap/phase-02d-walking-skeleton.md#local-setup-and-ingress-details)
+Follow the [local setup](../roadmap/phase-02d-delivery-log.md#local-setup-and-ingress-details)
 for explicit hosts and certificate trust preparation; neither is installed by scripts.
 P02d-7 delivers G45's `make demo` lifecycle, browser/TLS evidence and G44's
 Lighthouse harness/assertions under
 [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
-The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+The [Step 4 record](../roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 owns enforcement and phase-exit verification. APISIX remains Phase 11.
 
 ### Healthchecks and the readiness gate
@@ -258,7 +258,7 @@ See [10-observability.md](10-observability.md).
   import/reconciliation source; P02b-7's BFF is its later runtime consumer.
   Never pass it or Keycloak admin credentials to the API, public renderer or
   .NET Seeder. Existing confidential secrets are verified, never silently
-  rotated. The [accepted package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+  rotated. The [accepted package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
   owns bounded tooling, selected-target validation and the no-credential-output
   contract; the [realm guide](../../infra/keycloak/README.md) owns local setup.
 - **Development-only defaults in `infra/compose/*.yml` are not committed secrets.** A

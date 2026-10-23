@@ -131,7 +131,7 @@ Internet
   cardinality cap. This accounting does not bound total incoming
   network/refusal cost. [Security Standards](../standards/11-security.md#rate-limiting)
   own lifecycle, replay and Retry-After obligations; the
-  [remediation plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+  [remediation plan](../roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
   owns implementation evidence.
 
   What is required, and where it lives: **resource fairness is

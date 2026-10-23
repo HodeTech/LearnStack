@@ -335,7 +335,7 @@ owners in the same change; served/snapshot OpenAPI and the generated SDK disclos
 the capacity hint and sticky cleanup-fault cause. No policy in this ADR changes.
 Its Accepted body, date and deciders remain intact.
 
-The [implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+The [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns exact local results, two fresh implementation review rounds and final-source
 hosted qualification. Local controls do not establish production sizing, latency,
 mapped readiness or an exercised Phase 11 runbook.
@@ -344,10 +344,10 @@ mapped readiness or an exercised Phase 11 runbook.
 
 The “pending implementation obligations” introduction in Tests and proofs is
 an acceptance-time snapshot. Amendment 1 and the
-[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+[implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 record the delivered owners and actual results; the checklist is retained as
 the original proof requirement, not current pending status. The
-[systematic correction record](../roadmap/phase-02b-events-auth.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
+[systematic correction record](../roadmap/phase-02b-delivery-log.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
 owns subsequent verification. No historical receipt qualifies later source.
 
 The 4224 ceiling is 4096 retained plus the single retirement owner, which has

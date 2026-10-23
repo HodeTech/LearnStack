@@ -447,7 +447,7 @@ boundary before its first consumer; do not infer authorization from this phase.
 
 ## Implementation Notes
 
-The [P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
+The [P02b-5 package](../roadmap/phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19)
 owns steps, per-step reviews and current implementation status. Acceptance
 records dated disclosures in ADR-0036, ADR-0040 and ADR-0052, plus row-10 errata,
 and reconciles Standards 11's PublicSurface-only wording. It registers catalogue
@@ -558,9 +558,9 @@ all exported channels; ordinary HTTP traces/logs stay observable. Phase 11 owns
 qualified finite dependency aliases before their first consumer and measured
 production audit capacity. Original Accepted body/metadata remain verbatim;
 this is not an ADR-0041 false-when-written correction. The prior
-[Step 5 closeout](../roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+[Step 5 closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
 remains historical; the
-[2026-10-20 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+[2026-10-20 remediation record](../roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20)
 owns subsequent implementation, proofs and current PR-head qualification.
 
 ### Amendment 2 — explicit subject registry bound and attribution (2026-10-20)
@@ -582,7 +582,7 @@ erratum/amendment, the [decision index](README.md), Standards
 [33](../architecture/33-cross-cutting-concerns.md), the
 [glossary](../glossary.md), [CLAUDE.md](../../CLAUDE.md), the
 [roadmap index](../roadmap/README.md), [Phase 11](../roadmap/phase-11-production-hardening.md)
-and the [acceptance/delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
+and the [acceptance/delivery record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20).
 Catalogue Asserts and runtime/test owners gain their new obligations together
 with actual implementation; acceptance alone is not proof of delivery.
 
@@ -596,5 +596,5 @@ amendment. No new read-mode authorization follows from the summary label.
 
 This clarification preserves the original Status, Decision, date, deciders and
 rationale. The [decision index](README.md) links this clarification; the
-[systematic correction record](../roadmap/phase-02b-events-auth.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
+[systematic correction record](../roadmap/phase-02b-delivery-log.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
 owns the associated mutable-carrier reconciliation. No decision changes.

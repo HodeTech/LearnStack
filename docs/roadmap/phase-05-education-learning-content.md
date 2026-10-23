@@ -66,7 +66,7 @@ browser/Lighthouse proof. The [Phase 02d delivery record](phase-02d-walking-skel
 owns current implementation, CI enforcement and phase-exit evidence.
 
 Phase 05 does not re-create these. Phase 02d's
-[delivery status](phase-02d-walking-skeleton.md#delivery-record-p02d-1) distinguishes
+[delivery status](phase-02d-delivery-log.md#delivery-record-p02d-1) distinguishes
 accepted design from shipped implementation. This phase's decision pass designs the
 move from independent lessons referencing courses to course versions and modules,
 and from translated inline bodies to lesson items. It must preserve course and
@@ -85,7 +85,7 @@ Each change follows [Database Standards § Migrations](../standards/05-database.
 | `[TenantOwned]` markers, EF query filters, RLS policies | The same layers on every new table, with no exception |
 
 **Accepted renderer inheritance — 2026-10-09; implemented by P02d-6.**
-The [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+The [P02d-6 package](phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09)
 fixes exact-locale content, both opaque pagination surfaces, inert plain-text
 presentation and distinct restricted/empty/unavailable states. Its local 307→404
 status-route chain changes the browser URL; known content-call failures use

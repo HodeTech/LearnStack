@@ -173,7 +173,7 @@ an existing user process. P6 adds separate production product modes for foundati
 pagination, presentation, concurrent isolation and freshness/failure states. Those
 HTTP/HTML/RSC proofs do not claim browser or screen-reader execution; P6's manual
 accessibility closeout is recorded with its tested scope in the
-[packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10).
+[packet closeout](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10).
 New UI changes require their own applicable manual checks; P7 supplies the narrow
 seeded browser demo described below.
 
@@ -188,7 +188,7 @@ to its certificate's public-key fingerprint; it does not use a personal profile.
 Browser observations cover a refused Flight followed by stock Next's fresh document
 navigation and separately counted API calls. HMR controls cover source recompilation
 and a fresh live site snapshot in the same development process. The
-[Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+[Step 3 record](../../../docs/roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns actual execution, completed reviews and verified fixes. This probe remains
 separate from P7's browser demo/Lighthouse and Phase 06's full Playwright Test/axe.
 
@@ -221,6 +221,25 @@ It runs nine linked product pages and 27 cold Lighthouse audits over one unchang
 API/build/database, with real admission pacing and certificate-specific trust.
 Missing browser installation fails the proof rather than skipping it.
 
+The hosted workflow bounds APT mirror acquisition with one retry and 15-second
+HTTP/HTTPS timeouts in an exclusively created temporary configuration fragment.
+It checks the effective settings as root without evaluation, then removes only
+that fragment on shell exit. Sources, package verification, the complete
+Playwright dependency set and the five-minute installation limit stay intact.
+This is hosted setup handling, not a workstation prerequisite or a guarantee of
+total setup duration. The actual workflow-shell controls live in
+`frontend/apps/web/src/test/public-demo-ci.test.ts`.
+
+The workflow's outer setup/proof allowance ends at minute 17 from its first
+step, reserving three minutes within the same 20-minute job ceiling. The native
+proof and cleanup retain their separate 12-minute and 30-second caps. Sandbox
+cleanup and workflow-receipt commands receive TERM after 15 seconds and KILL
+after five more; artifact upload retains its one-minute step limit. The nominal
+35 + 20 + 20 + 60-second tail leaves 45 seconds for runner/post overhead, not a
+worst-case scheduling guarantee. A forced stop or unconfirmed cleanup fails.
+This job restores the existing NuGet cache without a save post-hook; cache
+misses still use ordinary dependency restoration.
+
 On GitHub-hosted Linux runners, run `node scripts/ci-public-chromium.mjs prepare`
 after installation and before the lifecycle, then run
 `node scripts/ci-public-chromium.mjs cleanup` in an always-running cleanup step.
@@ -242,7 +261,7 @@ screenshots. Proof and owned cleanup must both pass. Archive only this sanitized
 artifact directory; private configuration, certificates, keys, profiles and raw
 process logs are excluded. Existing artifacts must be moved aside before another
 run so stale evidence cannot pass. The
-[P7 delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+[P7 delivery record](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
 owns local proof/review evidence; the packet's Step 4 record and
 [branch protection](../../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
 own real CI receipts and required-check activation. Local success alone does not
@@ -365,7 +384,7 @@ record and CONTRIBUTING; do not infer them from a local audit.
   applicable `jsx-a11y` rules and localized page-semantics checks, plus manual
   keyboard, focus, reflow, contrast and screen-reader evidence. Acceptance does
   not claim those controls pass; implementation records their actual results in
-  [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
+  [Phase 02d](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-accepted-answers).
 
 ## Common pitfalls
 
@@ -386,6 +405,6 @@ record and CONTRIBUTING; do not infer them from a local audit.
   standard does not prove implementation. Accepted P02d-6/G43 requires earlier
   failing lint/semantics controls and actual manual assistive-technology evidence;
   DOM assertions cannot substitute for a screen reader. Delivery is recorded in
-  [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
+  [Phase 02d](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-accepted-answers).
 - **CI-only failures.** Usually a race or timing assumption. Use `--blame-hang`
   + `--blame-crash` locally.

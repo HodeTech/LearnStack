@@ -27,6 +27,8 @@ class SnapshotControls(unittest.TestCase):
         self.root_patch = patch.object(ci, 'ROOT', self.root)
         self.root_patch.start()
         self.git('init', '-q')
+        # Finish fixture-owned maintenance before TemporaryDirectory removes it.
+        self.git('config', 'maintenance.autoDetach', 'false')
         self.git('config', 'user.name', 'Compatibility test')
         self.git('config', 'user.email', 'test@example.invalid')
         (self.root / 'fixture.txt').write_text('Synthetic git data, not a project checkout.\n')
@@ -121,6 +123,37 @@ class SnapshotControls(unittest.TestCase):
         with patch.object(ci, 'bootstrap') as bootstrap, self.assertRaisesRegex(ValueError, 'Head snapshot'):
             self.run_ci(previous, deleted)
         bootstrap.assert_not_called()
+
+    def test_fixture_maintenance_finishes_before_the_commit_returns(self):
+        with tempfile.TemporaryDirectory(prefix='learnstack-openapi-maintenance-') as temporary:
+            evidence = Path(temporary)
+            configuration = evidence / 'gitconfig'
+            configuration.write_text(
+                '[maintenance]\n autoDetach = true\n strategy = gc\n'
+                '[maintenance "commit-graph"]\n enabled = true\n auto = -1\n'
+                '[maintenance "gc"]\n enabled = false\n'
+                '[gc]\n autoDetach = true\n'
+                '[commit]\n gpgSign = false\n')
+            trace = evidence / 'trace.jsonl'
+            environment = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+            environment.update(GIT_CONFIG_GLOBAL=str(configuration), GIT_CONFIG_NOSYSTEM='1',
+                GIT_TRACE2_EVENT=str(trace))
+            with patch.dict(os.environ, environment, clear=True):
+                self.git('-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-qm', 'Maintenance control')
+            events = [json.loads(line) for line in trace.read_text().splitlines()]
+            starts = [event for event in events if event.get('event') == 'start']
+            parent = starts[0]['sid']
+            maintenance = next(event for event in starts if 'maintenance' in event['argv'])
+            graphs = {event['sid'] for event in starts if 'commit-graph' in event['argv']}
+            self.assertEqual(1, len(graphs), 'Force real maintenance, not an idle no-op')
+            parent_exit = next(index for index, event in enumerate(events)
+                if event.get('event') == 'exit' and event['sid'] == parent)
+            graph_exit = next(index for index, event in enumerate(events)
+                if event.get('event') == 'exit' and event['sid'] in graphs)
+            self.assertLess(graph_exit, parent_exit, 'Actual maintenance must finish before commit returns')
+            self.assertEqual(0, events[graph_exit]['code'], 'The forced graph write must succeed')
+            self.assertIn('--no-detach', maintenance['argv'])
+            self.assertTrue((self.root / '.git/objects/info/commit-graphs/commit-graph-chain').is_file())
 
     def test_missing_verified_ref_is_not_bootstrap(self):
         head = self.save(CURRENT)

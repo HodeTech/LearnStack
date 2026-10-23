@@ -38,13 +38,13 @@ behaviors share that immutable snapshot. The retained-subject bound, retirement
 ownership and closed refusal/fault signals derive from
 [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md), Accepted —
 2026-10-20. Implementation and local runtime/exported proofs are delivered; the
-[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+[implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns independent reviews and final-source CI qualification.
 The bound grants no throughput entitlement.
 Bounded authenticated assertion recording derives from
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
 implementation and local proofs are delivered in the
-[remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20). Its tenant-only audit budget is separate from the
+[remediation record](../roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20). Its tenant-only audit budget is separate from the
 subject request registry and adds no tenant-registry admission cap.
 
 Producer announcement and common execution ownership derive from
@@ -167,7 +167,7 @@ readable definitions, credentials and unrelated state remain preserved. This is
 account-preserving reconciliation with named assignment deletion, not general
 delete authority. All three correction steps complete local implementation and
 both independent review rounds. The
-[qualification record](../roadmap/phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
+[qualification record](../roadmap/phase-02b-delivery-log.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
 owns actual historical lifecycle, usable credential/MFA, signed API and stored
 self-service proof, together with exact hosted assignments and evidence limits.
 Acceptance or a partial experiment alone does not establish qualification.
@@ -176,7 +176,7 @@ Acceptance or a partial experiment alone does not establish qualification.
 the issuance-lifetime rule decided by
 [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md), retaining
 the earlier approval in the
-[P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20):
+[P02b-6 package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20):
 the tenant development realm uses a configured 900-second access-token lifespan.
 [`learnstack.json`](../../infra/keycloak/realms/learnstack.json) owns the executable
 value; the development reconciler enforces it with no conflicting override on
@@ -184,7 +184,7 @@ either named client. P02b-6 Steps 1–3 supply the fresh-import definition and
 bounded reconciliation through both seed/demo entries; their delivery records
 own actual local qualification. Step 4 delivers complete real-token/API proof
 after both independent reviews; its
-[record](../roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+[record](../roadmap/phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns local proof/review closure and source-bound qualification receipts. The
 required CI checks qualify their exact source and assignment. ADR-0064's one-hour
 API acceptance ceiling and 30-second skew remain separate from issuance.
@@ -320,7 +320,7 @@ ADR-0046 accepts this P02b-2 boundary. Step 1 implements source/role guards;
 both review rounds are complete. Step 3 implements mandatory worker startup
 resolution and connectivity checks; both independent review rounds are complete.
 Step 4 credential/publication enforcement and local closeout are complete; all
-four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. The named keyed, lazy
 dispatcher source belongs only to the API host. Configuration validates the exact
 username without connecting or
@@ -389,7 +389,7 @@ Begin cleans up the partial transaction and marks rollback-only before rethrowin
 Mode resets per transaction; poisoning remains sticky for the unit's lifetime.
 
 The authenticated-query extension is implemented by
-[P02b-5 Step 2](../roadmap/phase-02b-events-auth.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19);
+[P02b-5 Step 2](../roadmap/phase-02b-delivery-log.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19);
 Step 4 owns HTTP activation. Selection is by exact request type, never a
 query-name suffix, public marker or general authenticated
 read category. It reuses the existing physical owner and tenant announcement;
@@ -617,7 +617,7 @@ and redirect/query rules. These are the ongoing security obligations:
   dynamic/no-store. The injected SDK owns no host, secret or global fetch default.
 
 P02d-5 delivers this boundary and ADR-0054's accounting, native admission and
-URL controls. The [remediation record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+URL controls. The [remediation record](../roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
 owns execution, independent reviews and PR closeout evidence.
 Every native HTTP path, including matcher exemptions, admits GET/HEAD only;
 production upgrades close and development retains only validated GET HMR. See

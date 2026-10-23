@@ -15,7 +15,7 @@ Public UI localization derives from [ADR-0027](../decisions/0027-frontend-i18n.m
 single-bootstrap ownership derives from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md);
 page composition follows the
-[Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
+[Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
 tenant-facing `apps/web` application in *this* repository. See
@@ -103,7 +103,7 @@ flowchart TD
 - The approved bootstrap creates no edge tenant registry or resolver endpoint.
 - ADR-0053 accepts native ingress provenance, Node middleware bootstrap and the
   server-only configured caller in P02d-5. The
-  [accepted entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix)
+  [accepted entry matrix](../roadmap/phase-02d-delivery-log.md#public-entry-matrix)
   owns membership-first redirects. Anonymous entry neither sets nor uses cookies.
   P02d-5 Steps 1–3 deliver native ingress, visitor budgets, Node bootstrap/entry
   and the configured caller; Step 4 implements frontend fences and real-API
@@ -115,7 +115,7 @@ flowchart TD
 
 **ADR-0054 native/URL controls complete — 2026-10-09; both reviews passed.**
 Remediation Step 2 implements these controls. Concrete execution and review
-evidence belongs to the [delivery record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-2--native-ingress-and-url-boundary).
+evidence belongs to the [delivery record](../roadmap/phase-02d-delivery-log.md#remediation-step-2--native-ingress-and-url-boundary).
 
 - Admit GET/HEAD on every HTTP path reaching the native listener callback before
   Next dispatch, including matcher-exempt health/assets and exact scaffolds.
@@ -133,7 +133,7 @@ evidence belongs to the [delivery record](../roadmap/phase-02d-walking-skeleton.
 - Redirects retain inert query values, duplicates and ordering; equivalent percent
   encoding is allowed. Only the verified live host, accepted HTTPS port and local
   path select the destination. Membership-first precedence and redirect statuses
-  remain those of the [entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix).
+  remain those of the [entry matrix](../roadmap/phase-02d-delivery-log.md#public-entry-matrix).
 
 ## Request-Local Bootstrap Admission
 
@@ -159,7 +159,7 @@ one for a completed fixed status/scaffold document and three for a followed
 missing-detail chain. HEAD/RSC/prefetch and Flight fallback require separately
 proven counts. Metadata/layout/page/UI reuse adds no bootstrap. Visitor/peer limits
 remain API-call budgets. The
-[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+[Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns passing production replacement proof, completed reviews and verified fixes;
 the five new catalogue rules are Implemented.
 [Standards 09](09-error-handling.md#public-page-status-and-recovery) owns refusal
@@ -230,7 +230,7 @@ explains the import guard. Vitest aliases the marker only in server tests. The
 P5 production fixture proves a real client import fails with the marker diagnostic
 before rebuilding a clean server route against the real API.
 
-The [accepted contract/CI plan](../roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
+The [accepted contract/CI plan](../roadmap/phase-02d-delivery-log.md#openapi-sdk-and-required-check-plan)
 owns the source, pin, diff policy, bootstrap exception and required-check rollout.
 
 ## Auth
@@ -283,7 +283,7 @@ Disable local Server Component HMR caching. P02d-6 Step 1 implements document
 loaders, chrome, state views and atomic theme injection. Step 2 adds catalog/course
 views; Step 3 adds ordered lesson views. Step 4 adds concurrent host/locale, theme,
 freshness and failure-state product proofs. The
-[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+[delivery record](../roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 owns verification, completed reviews and passing manual accessibility evidence.
 P5 delivers the dynamic layout, transport and source/runtime proofs. Test-owned
 production routes exercise the real API. P6 product modes copy the actual public

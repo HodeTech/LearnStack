@@ -261,7 +261,7 @@ test-frontend: ## Guarded workspace Vitest run (nonempty, zero skips/todos).
 
 # ─── Lint / format ────────────────────────────────────────────────────────
 .PHONY: lint
-lint: lint-backend lint-frontend ## Run linters (backend dotnet-format check + frontend ESLint).
+lint: lint-backend lint-frontend lint-docs ## Run linters (backend dotnet-format check + frontend ESLint + documentation guards).
 
 .PHONY: lint-backend
 lint-backend: ## `dotnet format` verify (no changes — fails on diff).
@@ -270,6 +270,16 @@ lint-backend: ## `dotnet format` verify (no changes — fails on diff).
 .PHONY: lint-frontend
 lint-frontend: ## `pnpm -r lint` (Next/ESLint).
 	(cd frontend && pnpm -r lint)
+
+.PHONY: lint-docs
+lint-docs: ## Whole-tree Markdown fragment audit, roadmap structure and current delivery log indexes (ADR-0069).
+	python3 scripts/markdown-fragment-audit.py
+	python3 scripts/roadmap-structure.py
+	python3 scripts/delivery-log-index.py
+
+.PHONY: docs-index
+docs-index: ## Regenerate the index that opens each delivery log (ADR-0069).
+	python3 scripts/delivery-log-index.py --write
 
 .PHONY: format
 format: ## Apply formatters in place (backend dotnet-format + frontend prettier).

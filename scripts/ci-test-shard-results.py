@@ -29,6 +29,9 @@ MAX_ARCHIVE = 64 * 1024 * 1024
 MAX_EXPANDED = 128 * 1024 * 1024
 AGGREGATE_SECONDS = 5 * 60
 UPLOAD_SECONDS = 60
+METADATA_SECONDS = 30
+METADATA_OBSERVATIONS = 16
+METADATA_PACING_SECONDS = 2
 REQUIRED = {
     'backend': 'backend (build + unit + arch + contract)',
     'backend-integration': 'backend integration (Testcontainers)',
@@ -329,7 +332,17 @@ def verify_run(run, context):
             or not pulls and fork), 'run_pull_identity_mismatch')
 
 
-def verify_jobs(jobs, context, plan, scope):
+class PendingProducerMetadata(Exception):
+    def __init__(self, owner, gate):
+        self.owner, self.gate = owner, gate
+
+
+def pending_state(value):
+    return (value.get('status') in ('queued', 'in_progress')
+            and 'conclusion' in value and value['conclusion'] is None)
+
+
+def verify_jobs(jobs, context, plan, scope, *, allow_pending=False):
     owners = ['base'] + ['architecture-' + str(i) for i in range(plan['counts']['architecture'])]
     if scope == 'integration':
         owners = ['base', 'native'] + ['ordinary-' + str(i) for i in range(plan['counts']['ordinary'])]
@@ -349,19 +362,82 @@ def verify_jobs(jobs, context, plan, scope):
         require(job['name'] not in by_name, 'job_api_duplicate_producer')
         by_name[job['name']] = job
     require(names <= set(by_name), 'current_attempt_producer_missing')
-    result = {}
+    result, pending = {}, None
     for owner in owners:
         job = by_name[producer_name(owner)]
-        require(job.get('status') == 'completed' and job.get('conclusion') == 'success', 'producer_not_successful')
-        start, end = timestamp(job.get('started_at')), timestamp(job.get('completed_at'))
-        require(0 < end - start <= 20 * 60, 'producer_ceiling_exceeded')
+        completed = job.get('status') == 'completed' and job.get('conclusion') == 'success'
+        waiting = allow_pending and pending_state(job)
+        if not completed and not waiting:
+            status, conclusion = job.get('status'), job.get('conclusion')
+            print(json.dumps({'protocol': 1, 'diagnostic': 'producer_state_refusal', 'owner': owner,
+                'status': status if status in ('queued', 'in_progress', 'completed') else 'other',
+                'conclusion': conclusion if conclusion in ('success', 'failure', 'neutral', 'cancelled',
+                    'skipped', 'timed_out', 'action_required', 'startup_failure', 'stale') else 'other'},
+                sort_keys=True), file=sys.stderr)
+        require(completed or waiting, 'producer_not_successful')
+        created = timestamp(job.get('created_at'))
+        if completed:
+            start, end = timestamp(job.get('started_at')), timestamp(job.get('completed_at'))
+            require(created <= start, 'api_timestamp_invalid')
+            require(0 < end - start <= 20 * 60, 'producer_ceiling_exceeded')
+        else:
+            require('completed_at' in job and job['completed_at'] is None
+                    and 'started_at' in job, 'api_timestamp_invalid')
+            if job['status'] == 'in_progress':
+                require(created <= timestamp(job['started_at']), 'api_timestamp_invalid')
+            else:
+                require(job['started_at'] is None, 'api_timestamp_invalid')
+            pending = pending or (owner, 'job')
         steps = job.get('steps', [])
+        require(isinstance(steps, list) and all(isinstance(step, dict) for step in steps),
+                'producer_gate_not_successful')
         for name in (BUILD_STEP, EXECUTE_STEP, UPLOAD_STEP):
             matches = [step for step in steps if step.get('name') == name]
-            require(len(matches) == 1 and matches[0].get('status') == 'completed'
-                    and matches[0].get('conclusion') == 'success', 'producer_gate_not_successful')
+            successful = (len(matches) == 1 and matches[0].get('status') == 'completed'
+                          and matches[0].get('conclusion') == 'success')
+            waiting = allow_pending and len(matches) == 1 and pending_state(matches[0])
+            gate = {BUILD_STEP: 'build', EXECUTE_STEP: 'execute', UPLOAD_STEP: 'upload'}[name]
+            if not successful and not waiting:
+                # Retain only finite gate/state words, never arbitrary API text.
+                step = matches[0] if len(matches) == 1 else {}
+                status, conclusion = step.get('status'), step.get('conclusion')
+                print(json.dumps({'protocol': 1, 'diagnostic': 'producer_gate_refusal',
+                    'owner': owner, 'gate': gate,
+                    'matches': 'one' if len(matches) == 1 else 'missing' if not matches else 'multiple',
+                    'status': status if status in ('queued', 'in_progress', 'completed') else 'other',
+                    'conclusion': conclusion if conclusion in ('success', 'failure', 'neutral', 'cancelled',
+                        'skipped', 'timed_out', 'action_required', 'startup_failure', 'stale') else 'other'},
+                    sort_keys=True), file=sys.stderr)
+            require(successful or waiting, 'producer_gate_not_successful')
+            if waiting:
+                pending = pending or (owner, gate)
         result[owner] = job
+    if pending:
+        # Scan the complete snapshot before waiting: an earlier pending owner
+        # must never hide another owner's terminal failure or malformed gate.
+        raise PendingProducerMetadata(*pending)
     return result
+
+
+def acquire_jobs(deadline, context, plan, scope):
+    # A separate read owner narrows every paginated request to one fixed
+    # acquisition window. Artifact work retains the original aggregate deadline.
+    api = Api(min(deadline, time.monotonic() + METADATA_SECONDS))
+    for observation in range(1, METADATA_OBSERVATIONS + 1):
+        require(time.monotonic() < api.deadline, 'producer_metadata_deadline_exhausted')
+        try:
+            result = verify_jobs(api.jobs(context), context, plan, scope, allow_pending=True)
+        except PendingProducerMetadata as pending:
+            print(json.dumps({'protocol': 1, 'diagnostic': 'producer_metadata_pending',
+                'observation': observation, 'owner': pending.owner, 'gate': pending.gate},
+                sort_keys=True), file=sys.stderr)
+            require(observation < METADATA_OBSERVATIONS
+                    and time.monotonic() + METADATA_PACING_SECONDS < api.deadline,
+                    'producer_metadata_deadline_exhausted')
+            time.sleep(METADATA_PACING_SECONDS)
+        else:
+            require(time.monotonic() < api.deadline, 'producer_metadata_deadline_exhausted')
+            return result
 
 
 def verify_artifact(metadata, context, owner, job):
@@ -562,7 +638,7 @@ def aggregate(scope):
     api = Api(deadline)
     run = api.fetch('actions/runs/' + context['runId'] + '/attempts/' + context['runAttempt'])
     verify_run(run, context)
-    jobs = verify_jobs(api.jobs(context), context, plan, scope)
+    jobs = acquire_jobs(deadline, context, plan, scope)
     output = ROOT / 'artifacts' / ('ci-aggregate-' + scope)
     output.mkdir(parents=True, exist_ok=False)
     retained = {}

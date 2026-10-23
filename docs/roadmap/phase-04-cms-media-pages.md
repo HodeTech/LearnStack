@@ -38,11 +38,11 @@ consumer: exact `next-intl` 4.14.9, server-first request configuration and app-l
 foundation and adds CMS/Studio message coverage; it does not reselect the library
 or own its initial installation. Tenant-authored content localization remains
 this phase's responsibility. The
-[P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+[P02d-6 package](phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09)
 records accepted page/status behavior; its
-[Step 1 delivery record](phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+[Step 1 delivery record](phase-02d-delivery-log.md#p02d-6-step-1-localization-and-document-foundation)
 owns foundation verification. Steps 2–4 deliver actual content pages and product
-proofs; the [packet closeout](phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+proofs; the [packet closeout](phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10)
 records passing manual accessibility smoke.
 
 ## Scope
@@ -113,7 +113,7 @@ Also in scope:
 - Whether a customization change owes an integration event, per
   [the Customization spec § Integration-event catalogue](../modules/customization/README.md#integration-event-catalogue).
 
-### Content-type quota accounting — accepted (2026-10-19)
+### Content-type quota accounting
 
 **Accepted — 2026-10-19, @cemil.** The maintainer approved the accounting below
 before implementation. The existing registration command did not enforce
@@ -231,7 +231,7 @@ one thing a per-table constraint cannot do.
   never resolved by picking a winner at render time.
 
 > **Education mapping decided.** Course and Lesson translation rows reserve their
-> slugs at insertion. [G11](phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
+> slugs at insertion. [G11](phase-02d-delivery-log.md#p02d-2-accepted-answers)
 > names the reporting commands and error mapping below; this phase names its CMS
 > writer before implementation.
 
@@ -478,7 +478,7 @@ describes.
   attempts all three and the
   database rejects each, connected as `learnstack_app`. The reporting command returns
   `Result.Fail(business_rule_violation, …)` with the disclosure rules above. For courses,
-  the accepted [G11 answer](phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
+  the accepted [G11 answer](phase-02d-delivery-log.md#p02d-2-accepted-answers)
   selects `AddCourseTranslationCommand` (and `AddLessonTranslationCommand` for
   lessons), mapping named localized-slug constraints to `business_rule_violation`
   on insertion. Verify those command-level refusals after P02d-2 implementation;

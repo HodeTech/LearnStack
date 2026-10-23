@@ -17,7 +17,7 @@ P02b-3 Step 5 activates the two create-only provisioning defaults and verifies
 built-in seed rows by semantic identity. The
 [Customization module spec](../modules/customization/README.md#integration-event-catalogue)
 owns the shipped initializer/registration serialization and preservation contract;
-the [packet record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+the [packet record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 owns current verification and review status. Earlier seed receipts remain as-of
 history; authored definitions and content pins retain exact identity checks.
 
@@ -234,7 +234,7 @@ output_format: { type: "string", enum: ["a1","a2","b1","b2","c1","c2"] }
 ### Example B — Yoga studio platform
 
 > **Broader target example, not the P02d-2 seed.** The
-> [accepted inventory](../roadmap/phase-02d-walking-skeleton.md#seed-inventory-and-ownership)
+> [accepted inventory](../roadmap/phase-02d-delivery-log.md#seed-inventory-and-ownership)
 > selects `asana-pose` with plain-string `pose`/`instruction`, `default-card` and
 > `yoga-difficulty`. The integer, enum and video example below requires later renderer
 > coverage; it does not expand ADR-0051's text-card subset.
@@ -611,10 +611,10 @@ failures are not cache misses. TTLs reclaim stranded keys; fresh generation prob
 provide invalidation across independent L1 instances without events or L2.
 
 The module spec owns result/missing-member semantics and measured read budgets.
-[P02d-3's decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+[P02d-3's decision package](../roadmap/phase-02d-delivery-log.md#p02d-3-decision-package-2026-10-02)
 records proof obligations. Family-wide volume includes retained revisions; measure
 rows/bytes and query plans as recorded in the
-[delivery measurements](../roadmap/phase-02d-walking-skeleton.md#step-3-generation-cache-and-read-safety),
+[delivery measurements](../roadmap/phase-02d-delivery-log.md#step-3-generation-cache-and-read-safety),
 and reassess before Phase 04's larger workload.
 The `TenantPageBlock` family remains
 [Phase 04](../roadmap/phase-04-cms-media-pages.md) work.
@@ -663,7 +663,7 @@ Structural limits are checked at write time and return Problem Details naming th
 limit that was exceeded. They are deliberately generous — they exist to stop
 pathological documents, not to constrain reasonable authoring. Content-type
 registration also enforces the plan's count under the
-[accepted quota accounting](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19)
+[accepted quota accounting](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting)
 with a tenant-wide transaction lock around usage and insertion. Entitlement
 resolution remains authoritative: the default NullEntitlementProvider grants
 unlimited usage under

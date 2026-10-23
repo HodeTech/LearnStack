@@ -135,7 +135,7 @@ entry before rebuilding downstream request headers. The caller verifies the
 envelope again. G35 and G36 are recorded in
 [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 Don't read `host` directly inside a page. The
-[public entry matrix](../../../docs/roadmap/phase-02d-walking-skeleton.md#public-entry-matrix)
+[public entry matrix](../../../docs/roadmap/phase-02d-delivery-log.md#public-entry-matrix)
 is authoritative: bootstrap the live host before locale/redirect decisions;
 enabled-locale membership precedes `courses` shorthand and exact `/studio` or
 `/portal` scaffold handling. Disabled/malformed/unknown prefixes fail closed;
@@ -148,7 +148,7 @@ through bootstrap and the configured caller; Phase 11 owns participation/samplin
 requires native GET/HEAD admission on every HTTP callback path, including
 middleware-exempt health/assets/scaffolds, with masked no-store refusal of other
 methods and bodyless HEAD. Production upgrades close; development retains only
-validated GET HMR. The [remediation record](../../../docs/roadmap/phase-02d-walking-skeleton.md#remediation-step-2--native-ingress-and-url-boundary)
+validated GET HMR. The [remediation record](../../../docs/roadmap/phase-02d-delivery-log.md#remediation-step-2--native-ingress-and-url-boundary)
 owns validation and both independent review rounds. Do not add
 Server Actions/write routes or WebSocket consumers without an explicit owning
 Phase 02b/Phase 06
@@ -238,9 +238,9 @@ locale, document language and actual resolved-label language.
 
 The guarded frontend suite supplies ICU, argument and callsite checks. No
 `lint:i18n` command or screenshot/axe tooling exists. The
-[Step 1 delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+[Step 1 delivery record](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-1-localization-and-document-foundation)
 owns foundation validation; the
-[packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+[packet closeout](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10)
 records the delivered product proof and scoped manual accessibility checks.
 
 ### Step 8: Public-site SSR caching
@@ -296,7 +296,7 @@ document, one per fixed status/scaffold document and three per followed missing
 document. Metadata/layout/page/UI share the admitted snapshot without another
 bootstrap or cross-request cache. HEAD/RSC/prefetch and Flight fallback require
 separately proven counts. The
-[Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+[Step 3 record](../../../docs/roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 records passing production replacement proofs, completed reviews and verified fixes.
 
 ### Step 10: Tests
@@ -319,7 +319,7 @@ records passing production replacement proofs, completed reviews and verified fi
   catalog/course/lesson routes under
   [ADR-0056](../../../docs/decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
   Preserve its production-page admission, hard budgets and owned cleanup. The
-  [P7 Step 4 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+  [P7 Step 4 record](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
   owns completed G44/G45 enforcement; Phase 06 still owns broader Playwright/axe
   coverage.
 

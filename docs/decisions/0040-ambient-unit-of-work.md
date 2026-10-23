@@ -679,7 +679,7 @@ physical read-only frames, same/mixed-mode joins, partial-setup cleanup, poisoni
 and reset behavior. Both independent review rounds and focused fix verification
 passed. [ADR-0052 Amendment 1](0052-anonymous-public-read-boundary.md#amendment-1--p02d-4-foundation-delivery-2026-10-03)
 records foundation delivery; the
-[Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
+[Step 1 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-1-authority-and-read-only-foundation)
 owns real app-role EF/SQL write refusal, writable controls and lifecycle evidence.
 The original Amendment 8 status remains historical.
 
@@ -742,7 +742,7 @@ implements/proves these additive seams; public host eligibility is unchanged.
 
 **Status: Accepted.** The maintainer accepts
 [ADR-0064](0064-tenant-api-authentication-boundary.md) and the
-[P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19).
+[P02b-5 package](../roadmap/phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19).
 Its [exact relationship to Accepted decisions](0064-tenant-api-authentication-boundary.md#exact-relationship-to-accepted-decisions)
 extends Amendment 8's public-only mode-ordering scope to exactly the authenticated,
 non-`[PublicSurface]` `GetAccountSiteQuery`. This is a bounded normative extension

@@ -170,32 +170,86 @@ public sealed partial class BackgroundJobPositiveSdkTests
     }
 
     private static async Task EnsureNativeSdkStartAsync(BackgroundJobRuntime runtime, PrivilegedDataSource source,
-        BackgroundJobId job, Task started, CancellationToken cancellationToken)
+        BackgroundJobId job, Task started, CancellationToken cancellationToken, Func<Task>? afterObservation = null)
     {
-        // Execution/cleanup subjects do not measure the bridge's repair grace.
-        // A native hint can skip the ACK-locked row, including recovery. Observe
-        // entry or its committed handoff before sending one real external hint.
+        // These isolated execution/cleanup fixtures do not measure the bridge's
+        // repair grace. Handoff ACK and native Succeeded alone do not prove the
+        // preceding hint's private work has actually released its ownership.
+        long? generation = null;
+        string? previous = null;
+        object? capturedGeneration = null;
         while (!started.IsCompleted)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            long? generation;
+            long current;
+            bool eligible;
+            string vendor;
             await using (var connection = await source.OpenConnectionAsync(cancellationToken))
             await using (var command = new NpgsqlCommand("""
-                SELECT wake_generation FROM background_jobs WHERE id=@id AND vendor_job_id IS NOT NULL
+                SELECT wake_generation, vendor_job_id,
+                    ownership_token IS NULL AND processed_at IS NULL AND dead_lettered_at IS NULL
+                    AND terminal_reason IS NULL AND original_due_at <= clock_timestamp()
+                    AND ((phase IN ('pending','finalize_pending') AND available_after <= clock_timestamp())
+                        OR (phase='reconciling' AND probe_after IS NOT NULL AND probe_after <= clock_timestamp()))
+                FROM background_jobs WHERE id=@id AND vendor_job_id IS NOT NULL
                 """, connection) { CommandTimeout = 5 })
             {
                 command.Parameters.AddWithValue("id", job.Value);
-                generation = await command.ExecuteScalarAsync(cancellationToken) as long?;
+                await using var row = await command.ExecuteReaderAsync(cancellationToken);
+                if (!await row.ReadAsync(cancellationToken))
+                {
+                    await Task.Delay(25, cancellationToken);
+                    continue;
+                }
+                current = row.GetInt64(0);
+                vendor = row.GetString(1);
+                eligible = row.GetBoolean(2);
             }
-            cancellationToken.ThrowIfCancellationRequested();
-            if (started.IsCompleted) return;
-            if (generation is { } current)
+            generation ??= current;
+            current.Should().Be(generation.Value, "fixture hints cannot reset the durable generation");
+            previous ??= vendor;
+            var state = await NativeSdkVendorStateAsync(source, previous, cancellationToken);
+            state.Should().NotBe("Failed").And.NotBe("Deleted", "fixture startup never retries failed native work");
+            var pool = NativeSdkExternalPool(runtime);
+            HangfirePoolOwnerSnapshot snapshot;
+            object? currentGeneration;
+            lock (NativeSdkField(pool, "_sync"))
             {
-                _ = NativeSdkWakeup(runtime, job, current);
-                return;
+                snapshot = pool.Snapshot;
+                currentGeneration = pool.GetType().GetField("_generation",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(pool);
             }
-            await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
+            if (snapshot.State != HangfirePoolOwnerState.Running || snapshot.Work is null || currentGeneration is null)
+            {
+                await Task.Delay(25, cancellationToken);
+                continue;
+            }
+            capturedGeneration ??= currentGeneration;
+            ReferenceEquals(capturedGeneration, currentGeneration).Should().BeTrue();
+            if (state == "Succeeded" && snapshot.State == HangfirePoolOwnerState.Running
+                && snapshot.Work is { Running: 0, Retained: 0, Closed: false }
+                && ((BackgroundJobControl)NativeSdkField(runtime, "_jobs")).CanRoute(job) && eligible)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (started.IsCompleted) return;
+                _ = NativeSdkWakeup(runtime, job, current);
+                if (afterObservation is not null) await afterObservation();
+                return; // One fixture hint, only after the preceding native operation actually released its ownership.
+            }
+            if (afterObservation is not null)
+            {
+                await afterObservation();
+                afterObservation = null;
+            }
+            await Task.Delay(25, cancellationToken);
         }
+    }
+
+    private static HangfirePoolOwner NativeSdkExternalPool(BackgroundJobRuntime runtime)
+    {
+        lock (NativeSdkField(runtime, "_sync"))
+            return ((IEnumerable<HangfirePoolOwner>)NativeSdkField(runtime, "_pools"))
+                .Single(pool => pool.Snapshot.Pool == "external");
     }
 
     private static string NativeSdkWakeup(BackgroundJobRuntime runtime, BackgroundJobId job, long generation)
@@ -214,11 +268,11 @@ public sealed partial class BackgroundJobPositiveSdkTests
         finally { CultureInfo.CurrentCulture = culture; CultureInfo.CurrentUICulture = uiCulture; }
     }
 
-    private static async Task<string?> NativeSdkVendorStateAsync(PrivilegedDataSource source, string vendor)
+    private static async Task<string?> NativeSdkVendorStateAsync(PrivilegedDataSource source, string vendor, CancellationToken cancellationToken = default)
     {
-        await using var connection = await source.OpenConnectionAsync();
+        await using var connection = await source.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand("SELECT statename FROM public.job WHERE id=@id", connection) { CommandTimeout = 5 };
         command.Parameters.AddWithValue("id", long.Parse(vendor, CultureInfo.InvariantCulture));
-        return await command.ExecuteScalarAsync() as string;
+        return await command.ExecuteScalarAsync(cancellationToken) as string;
     }
 }

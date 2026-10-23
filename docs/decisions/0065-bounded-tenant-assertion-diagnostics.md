@@ -255,9 +255,9 @@ complete acceptance-carrier register is:
   [Phase 02b record](../roadmap/phase-02b-events-auth.md).
 
 The prior
-[Step 5 closeout](../roadmap/phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
+[Step 5 closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
 remains historical. The
-[2026-10-20 remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+[2026-10-20 remediation record](../roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20)
 owns this correction's implementation, review and current PR-head CI receipts.
 Acceptance alone does not mark any new proof Implemented.
 
@@ -301,7 +301,7 @@ used as evidence for the independent target-tenant audit limit.
   [Audit Coverage](../standards/18-audit-coverage.md),
   [Architecture test catalogue](../standards/21-architecture-tests-catalogue.md),
   [Tenancy audit matrix](../modules/tenancy/audit.md),
-  [P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19).
+  [P02b-5 package](../roadmap/phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19).
 
 ## Amendments
 
@@ -324,7 +324,7 @@ unprojected positives and production negatives under both `always_on` and
 insufficient evidence. [Observability Standards](../standards/10-observability.md)
 and the [catalogue](../standards/21-architecture-tests-catalogue.md) carry the
 same proof boundary. Source-bound review and hosted qualification belong to the
-[second remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20).
+[second remediation record](../roadmap/phase-02b-delivery-log.md#p02b-5-second-external-review-follow-up-2026-10-20).
 The original Accepted body, decision, date and deciders remain intact.
 
 ### Amendment 2 — subject registry source attribution (2026-10-20)
@@ -346,7 +346,7 @@ erratum/amendment, the [decision index](README.md), Standards
 [33](../architecture/33-cross-cutting-concerns.md), the
 [glossary](../glossary.md), [CLAUDE.md](../../CLAUDE.md), the
 [roadmap index](../roadmap/README.md), [Phase 11](../roadmap/phase-11-production-hardening.md)
-and the [acceptance/delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20).
+and the [acceptance/delivery record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20).
 The catalogue and actual runtime/test owners are updated with the implementation;
 this acceptance is not a claim that those controls already run.
 
@@ -355,7 +355,7 @@ this acceptance is not a claim that those controls already run.
 The Status and acceptance-time notes describe the state before dependent
 implementation. The singleton allowance, scoped recorder, closed suppression
 signal and outbound projection are implemented; the
-[remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+[remediation record](../roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20)
 and subsequent correction records own executed results and source-bound CI.
 Acceptance is not itself a test receipt. Original Accepted text, decision,
 metadata and evidence-loss trade-offs remain intact.

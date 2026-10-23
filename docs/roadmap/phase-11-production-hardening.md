@@ -360,7 +360,7 @@ not a request to add an unused module, adapter or port.
   new decision explicitly changes it.
 - **Subject capacity.** [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
   is Accepted — 2026-10-20. Implementation and local runtime/exported proofs are
-  delivered; the [implementation record](phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+  delivered; the [implementation record](phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
   owns independent reviews and final-source CI qualification.
   Its 4096 retained keys are shared across tenants, so occupied
   live slots can refuse other valid subjects. Quota/capacity use 429 with

@@ -114,7 +114,7 @@ fatal-process policy is added. The exact lifecycle and HTTP contract live in the
 ADR; [Observability Standards](../standards/10-observability.md#tenant-authentication-diagnostics)
 owns the identity-free signals. Acceptance is 2026-10-20; implementation and
 local runtime/exported proofs are delivered. The
-[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+[implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns independent reviews and final-source CI qualification.
 
 ADR-0065 also ratifies process-wide native outbound metric projection: HTTP keeps
@@ -126,7 +126,7 @@ proofs. Phase 11 qualifies finite dependency attribution before its first consum
 
 P02d-4's [accepted boundary](../decisions/0052-anonymous-public-read-boundary.md)
 adds factory host-ceiling admission and read-only transaction intent.
-[Step 1](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
+[Step 1](../roadmap/phase-02d-delivery-log.md#p02d-4-step-1-authority-and-read-only-foundation)
 delivers these foundations and app-role write-refusal proofs. Step 2 adds the site
 endpoint and structural dispatch/Off/persistence controls; Education eligibility
 and contract proof remain Steps 3–4. The eight-stage order, normal writer

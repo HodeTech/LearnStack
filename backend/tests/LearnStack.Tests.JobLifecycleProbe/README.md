@@ -37,7 +37,7 @@ base/Architecture have no Docker or collector authority. Rerun all jobs when
 retrying; previous-attempt siblings cannot supply current proof.
 Their offline controls run in `meta`; actual
 hosted qualification is recorded in the
-[CI implementation record](../../../docs/roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18).
+[CI implementation record](../../../docs/roadmap/phase-02b-delivery-log.md#adr-0062-acceptance-and-ci-implementation-2026-10-18).
 This does not change the fixture's independent collector/resource checks or
 authorize host changes on local, shared, self-hosted or production machines.
 

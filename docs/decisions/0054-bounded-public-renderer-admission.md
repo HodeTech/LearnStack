@@ -213,7 +213,7 @@ reuse and P6 prefetch/page choices are not delivered by accepting this ADR.
 
 ## Implementation Notes
 
-P02d-5's [remediation plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+P02d-5's [remediation plan](../roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
 owns implementation and review steps. Acceptance appends dated bounded
 supersession/navigation to ADR-0053 for accounting, web method/upgrade admission
 and redirect-query wording, preserving its original body and delivery history.
@@ -224,7 +224,7 @@ Host normalization, trusted-input resolution and assertion-only tenant authority
 remain unchanged.
 Update ongoing Standards 04/07/11, Architecture 14/25, phase/route guidance and
 catalogue entries with their concrete enforcing tests. Existing
-[G34/G36 acceptance](../roadmap/phase-02d-walking-skeleton.md#p02d-5-accepted-answers)
+[G34/G36 acceptance](../roadmap/phase-02d-delivery-log.md#p02d-5-accepted-answers)
 is historical; record this replacement explicitly rather than reopening it silently.
 
 In [TrustedVisitorHttpTests](../../backend/tests/LearnStack.Tests.Integration/Database/TrustedVisitorHttpTests.cs),
@@ -275,7 +275,7 @@ owned visitor limiters, request-result snapshots, bounded idle sweeping and join
 DI teardown. Native method/upgrade and URL controls remain pending Step 2. The
 original acceptance status records the state when accepted; implementation does
 not rewrite it. Concrete execution and review evidence lives in the
-[Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-1--coordinated-anonymous-admission)
+[Step 1 delivery record](../roadmap/phase-02d-delivery-log.md#remediation-step-1--coordinated-anonymous-admission)
 and ongoing [catalogue entry](../standards/21-architecture-tests-catalogue.md#anonymous_requests_are_rate_limited_per_peer).
 
 ### Amendment 2 — Native and URL implementation (2026-10-09)
@@ -283,7 +283,7 @@ and ongoing [catalogue entry](../standards/21-architecture-tests-catalogue.md#an
 **Delivery note; independent reviews pending.** Remediation Step 2 implements the
 native method/upgrade and URL portions of this decision. Current enforcement and
 concrete execution/review evidence live in [Frontend Standards](../standards/07-frontend-architecture.md#native-admission-and-url-identity)
-and the [Step 2 record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-2--native-ingress-and-url-boundary).
+and the [Step 2 record](../roadmap/phase-02d-delivery-log.md#remediation-step-2--native-ingress-and-url-boundary).
 Step 1's accounting implementation has completed both independent review rounds.
 The accepted decision and prior delivery notes remain unchanged; fixture/tooling
 remediation and final PR closeout remain Steps 3–5.
@@ -294,7 +294,7 @@ remediation and final PR closeout remain Steps 3–5.
 owned fixture lifecycle and falsifiable containment controls. The decision and
 prior delivery notes remain unchanged. Ongoing rules live in [Testing Standards](../standards/06-testing.md#public-renderer-fixture-ownership),
 concrete enforcing tests in the [catalogue](../standards/21-architecture-tests-catalogue.md#p02d-5-public-server-rendering-controls),
-and execution/review evidence in the [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-3--fixture-reliability-and-containment).
+and execution/review evidence in the [Step 3 record](../roadmap/phase-02d-delivery-log.md#remediation-step-3--fixture-reliability-and-containment).
 Source/tooling remediation and final PR closeout remain Steps 4–5.
 
 ### Amendment 4 — Source and tooling proof implementation (2026-10-09)
@@ -304,7 +304,7 @@ bounded source-analysis, runner, lint and CI evidence corrections without changi
 this decision. Current rules live in [Frontend Coding Standards](../standards/03-frontend-coding.md#current-toolchain-and-lint-subjects)
 and [Frontend Architecture Standards](../standards/07-frontend-architecture.md#public-source-fence-scope).
 The [catalogue](../standards/21-architecture-tests-catalogue.md#p02d-5-public-server-rendering-controls)
-names enforcing controls; the [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-4--source-runner-and-tooling-proof)
+names enforcing controls; the [Step 4 record](../roadmap/phase-02d-delivery-log.md#remediation-step-4--source-runner-and-tooling-proof)
 owns execution/review evidence. Final corpus/CI/PR closeout remains Step 5.
 
 ### Amendment 5 — Remediation delivery navigation (2026-10-09)
@@ -312,15 +312,15 @@ owns execution/review evidence. Final corpus/CI/PR closeout remains Step 5.
 **Delivery note.** All four runtime/proof remediation steps are delivered after
 both independent review rounds and verified corrections. The original acceptance
 and earlier delivery notes remain historical. Current implementation, validation,
-reviews and unmerged PR readiness live in the [five-step remediation record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09),
-including its [corpus/PR closeout](../roadmap/phase-02d-walking-skeleton.md#remediation-step-5--corpus-and-pr-closeout).
+reviews and unmerged PR readiness live in the [five-step remediation record](../roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09),
+including its [corpus/PR closeout](../roadmap/phase-02d-delivery-log.md#remediation-step-5--corpus-and-pr-closeout).
 This adds delivery navigation, not a new decision or a claim that PR #26 is merged.
 
 ### Amendment 6 — Merge closeout (2026-10-09)
 
 All five remediation steps are complete and merged through
 [PR #26](https://github.com/HodeTech/LearnStack/pull/26). The
-[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+[merge closeout](../roadmap/phase-02d-delivery-log.md#p02d-5-merge-and-closeout-2026-10-09)
 owns the final head, merge verification and CI evidence. The accepted decision,
 metadata and earlier delivery notes remain unchanged. This note records delivery
 only; P02d-6/7 and Phase 11 retain their named work.
@@ -331,7 +331,7 @@ only; P02d-6/7 and Phase 11 retain their named work.
 The current verified runtime pin is Next 15.5.27 with matching eslint-config-next.
 The signed raw target, full-URL RSC projection and equivalent redirect-query
 contract are unchanged. The unused image optimizer is disabled. P02d-6's
-[remediation record](../roadmap/phase-02d-walking-skeleton.md#remediation-group-3--approved-security-maintenance)
+[remediation record](../roadmap/phase-02d-delivery-log.md#remediation-group-3--approved-security-maintenance)
 owns the replacement native/production proofs and dependency triage; historical
 15.5.18 observations remain unchanged.
 
@@ -342,7 +342,7 @@ The maintainer accepted
 bootstrap reuse left undelivered in this record's Context. Middleware performs one
 live site read and owns bootstrap refusal responses; RSC consumes the immutable
 same-request snapshot. Implementation and production proofs remain pending under
-the [three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10).
+the [three-step plan](../roadmap/phase-02d-delivery-log.md#adr-0055-acceptance-and-implementation-plan-2026-10-10).
 
 ADR-0055 qualifies only the renderer forwarding boundary of
 [Anonymous accounting](#anonymous-accounting)'s instruction to use the selected
@@ -360,7 +360,7 @@ ADR-0055's single-bootstrap reuse and bounded renderer Retry-After qualification
 are implemented. Real wire proofs cover supported 404/429/503, eligible zero/sixty
 boundaries, omitted invalid values and bodyless HEAD. API accounting, original API
 metadata and numeric budgets remain unchanged. The
-[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+[Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns execution and independent review status. This delivery note preserves the
 original acceptance metadata, body and all earlier amendments.
 

@@ -13,17 +13,17 @@ description: >
 
 ## Purpose and current scope
 
-The [P02d-2 accepted package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+The [P02d-2 accepted package](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-2-decision-package-2026-10-02)
 records the decisions. Step 4 delivers the complete inventory and contextual
 verification; both implementation review rounds and final verification passed.
 P02d-2 is merged, and P02d-4 supplies public API reads. The accepted
-[P02b-3 package](../../../docs/roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13)
+[P02b-3 package](../../../docs/roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13)
 adds shared create-only defaults and the semantic built-in handoff; its
-[Step 5 record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+[Step 5 record](../../../docs/roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 owns current validation/review status. Server ingress/transport
 belongs to P02d-5; P02d-6 pages and P02d-7's shared foreground/CI demo are delivered.
 Step 3 supplies the narrow browser/Lighthouse proof; its
-[delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+[delivery record](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
 owns local execution and reviews. The packet's Step 4 record owns real CI receipts
 and activation. Do not claim a rendered demo from seed alone.
 
@@ -100,7 +100,7 @@ Fixed tenant, organization, host and authored curriculum IDs are preserved.
 P02b-3 discovers built-ins by semantic key/version and verifies their complete
 Active shape while retaining the stored ID; new built-ins mint owner UUIDv7 IDs.
 English's host remains tenant-wide; Yoga's host maps to Studio One. The exact
-[accepted inventory](../../../docs/roadmap/phase-02d-walking-skeleton.md#seed-inventory-and-ownership)
+[accepted inventory](../../../docs/roadmap/phase-02d-delivery-log.md#seed-inventory-and-ownership)
 and `SeedData` own the choices; this skill does not keep a second literal list.
 
 The inventory includes enabled/default locales, unchanged Active `card`/`plain`,
@@ -189,7 +189,7 @@ demo-literal source fence across backend/frontend/scripts, dirty/clean controls 
 the backend production-project Seeder-reference ban. The bounded schema-replacement
 companion checks data-driven behavior. These controls do not prove the absence of every
 possible computed-identity branch; the
-[Step 2 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-2--genericity-and-exit-foundations-2026-10-11)
+[Step 2 record](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-2--genericity-and-exit-foundations-2026-10-11)
 owns their delivered scope and review evidence.
 
 ### 6. Reach the hosts
@@ -244,9 +244,9 @@ phase's platform-feature decision; it cannot be hidden inside seed orchestration
 P02b-6 Step 1 declares development authentication personas in `SeedData.IdentityUsers`
 and exposes credential-free `--identity-manifest`; that mode opens no data source.
 Fresh Keycloak accounts come from the checked realm import. The accepted
-[P02b-6 package](../../../docs/roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
+[P02b-6 package](../../../docs/roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
 owns the separate development reconciler, awaited by both combined seed/demo
 entries after application seed convergence. Its
-[Step 4 record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
+[Step 4 record](../../../docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns real account/API qualification and the completed independent reviews.
 Direct .NET seeding creates no provider account or application membership.

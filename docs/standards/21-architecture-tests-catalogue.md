@@ -16,14 +16,14 @@
 [ADR-0046 Durable Event Delivery and Recovery](../decisions/0046-durable-event-delivery-and-recovery.md)
 (P02b-2 transition, terminal-witness and hosted runtime proofs implemented;
 all four steps completed both independent review rounds; packet complete and merged;
-the [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+the [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status; P02b-3 Steps 1–6 implement consumer runtime, defaults and
 production-census enforcement; its
-[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+[Step 6 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 owns validation, review and PR closeout status),
 [ADR-0047 Transactional Background Job Runtime](../decisions/0047-transactional-background-job-runtime.md)
 (Accepted 2026-10-15; P02b-4 obligations implemented and locally qualified;
-the [Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+the [Step 9 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 owns review, packet and exact PR-head CI/job-budget status),
 [ADR-0058 Bounded Stock Hangfire Maintenance](../decisions/0058-bounded-stock-hangfire-maintenance.md)
 (Accepted 2026-10-16; maintenance extensions and runtime proofs implemented),
@@ -40,16 +40,16 @@ owns review, packet and exact PR-head CI/job-budget status),
 final-source hosted qualification),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
 (Accepted 2026-10-19; P02b-5 obligations implemented and merged through PR #33;
-the [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+the [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
 owns final-source hosted qualification),
 [ADR-0065 Bounded Tenant Assertion Diagnostics](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
 (Accepted 2026-10-20; extends existing obligations below; audit-budget and
 telemetry controls implemented; the
-[P02b-5 merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+[P02b-5 merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
 owns current qualification status),
 [ADR-0066 Bounded Tenant Subject Admission](../decisions/0066-bounded-tenant-subject-admission.md)
 (Accepted 2026-10-20; extends the existing subject-admission obligation;
-the [delivery record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+the [delivery record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns source-bound validation, reviews and hosted qualification),
 [ADR-0067 Development Tenant Access-Token Issuance](../decisions/0067-development-tenant-access-token-issuance.md)
 (Accepted 2026-10-21; formalizes the existing issuance obligation's authority
@@ -155,11 +155,11 @@ P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–8, with further
 source-boundary, observation and production-manifest companions in Step 9.
 Its nineteen packet obligations are implemented with actual canonical owners and
 complementary structural, native-runtime and PostgreSQL controls. The
-[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+[Step 9 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 distinguishes local enforcement qualification from pending review/packet/CI closeout.
 P02b-5 adds the authenticated route/helper census and closed claim/role authority
 controls; its seven obligations have actual local owners. Its Step 5 and
-[review remediation](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20)
+[review remediation](../roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20)
 records distinguish prior hosted qualification from the current correction head.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
@@ -706,15 +706,15 @@ otherwise).
   The guard reads identity literals from the authoritative `SeedData` declaration,
   not a second hard-coded list. Its source reader must observe the declared values
   and fail on an incomplete or unreadable declaration rather than report clean.
-- **Source:** [Phase 02d G20](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers).
+- **Source:** [Phase 02d G20](../roadmap/phase-02d-delivery-log.md#p02d-2-accepted-answers).
 - **Scope:** P02d-2 accepted G20(a)'s source;
-  [P02d-5](../roadmap/phase-02d-walking-skeleton.md#p02d-5-accepted-answers)
+  [P02d-5](../roadmap/phase-02d-delivery-log.md#p02d-5-accepted-answers)
   accepted bounded seed/development/test exemptions, and
-  [P02d-6](../roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers)
+  [P02d-6](../roadmap/phase-02d-delivery-log.md#p02d-6-accepted-answers)
   accepted production frontend TS/JS and JSON subjects, including renderer and
   message values. Matching/built-in detail, the Seeder-reference fence and
   behavioral ownership are in the
-  [P7 package](../roadmap/phase-02d-walking-skeleton.md#p02d-7-genericity-enforcement),
+  [P7 package](../roadmap/phase-02d-delivery-log.md#p02d-7-genericity-enforcement),
   approved on 2026-10-11; Step 2 implements the exact-literal/reference fences.
   ADR-0056's separate
   browser/Lighthouse measurement decision and its implemented controls complement
@@ -1925,7 +1925,7 @@ diagnostic above row security, not the boundary, as its own note says.
   and concrete cleanup-owner censuses in
   [BackgroundJobRuntimeCompositionBoundaryTests](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobRuntimeCompositionBoundaryTests.cs)
   and [PrivilegedDispatchCleanupBoundaryTests](../../backend/tests/LearnStack.Tests.Architecture/PrivilegedDispatchCleanupBoundaryTests.cs).
-  The [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+  The [Step 4 continuation](../roadmap/phase-02b-delivery-log.md#source-lifetime-and-facade-continuation-2026-10-16)
   owns current qualification/review status. Existing dispatcher enforcement stays
   Implemented; full Step 4 review gates remain open.
 
@@ -2313,7 +2313,7 @@ because the filters hold, and removing both turns all five red.
   scan also refuses direct EF mutation/SaveChanges/set-based SQL and ad hoc
   `NpgsqlCommand` construction; its planted companion distinguishes these from
   immutable data construction, composition and request dispatch.
-- **Source:** [Phase 02d G15](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
+- **Source:** [Phase 02d G15](../roadmap/phase-02d-delivery-log.md#p02d-2-accepted-answers)
   and [Security Standards § The out-of-band setters](11-security.md#the-out-of-band-setters).
 - **Type:** xUnit + source/IL scans with companions that plant caller and persistence
   violations and verify permitted request dispatch/context composition.
@@ -3529,7 +3529,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   seventh time. Every transition checks identity, token and database-time expiry.
   Terminal requests never reenter normal publication, including after audit refusal.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
-  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+  [P02b-2 proof obligations](../roadmap/phase-02b-delivery-log.md#decisive-proof-obligations).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** structural + behavioural.
@@ -3547,7 +3547,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   never publish. Unknown COMMIT reconciles durable state before retry and cannot
   duplicate the terminal audit. Exact real-role grants allow only the declared writes.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
-  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+  [P02b-2 proof obligations](../roadmap/phase-02b-delivery-log.md#decisive-proof-obligations).
 - **Type:** integration tests (Testcontainers), including physical COMMIT-response
   loss and real-role grant controls.
   **Kind:** behavioural.
@@ -3570,7 +3570,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   organization, event and transaction against that witness and roll back both writes;
   matching organization-scoped identity succeeds.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
-  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+  [P02b-2 proof obligations](../roadmap/phase-02b-delivery-log.md#decisive-proof-obligations).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** structural + behavioural.
@@ -3587,7 +3587,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   admission, microsecond timestamp comparison and full row/envelope agreement have
   positive and negative controls.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
-  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+  [P02b-2 proof obligations](../roadmap/phase-02b-delivery-log.md#decisive-proof-obligations).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** structural + startup + behavioural.
@@ -3606,7 +3606,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   publish/mark path. P02b-3 Step 5 activates both real production subscriptions;
   Pending-manifest fixtures retain the policy proof.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
-  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+  [P02b-2 proof obligations](../roadmap/phase-02b-delivery-log.md#decisive-proof-obligations).
 - **Type:** integration tests (Testcontainers) and unit tests of production
   composition and manifest refusal.
   **Kind:** startup + behavioural.
@@ -3636,7 +3636,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   DI health must follow Healthy → Unhealthy → Healthy on its singleton observation,
   refusing a same-type detached factory.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
-  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+  [P02b-2 proof obligations](../roadmap/phase-02b-delivery-log.md#decisive-proof-obligations).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** structural + behavioural.
@@ -3659,7 +3659,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   Identical duplicates are idempotent, conflicting copies are refused and
   partial/uncertain acceptance retries safely without spending subscriber budgets.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
-  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+  and the [P02b-3 package](../roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13).
 - **Type:** real PostgreSQL/app-role integration and construction controls.
   **Kind:** behavioural.
 - **Status:** **Implemented** (`DurableEventAcceptanceTests`, `InboxGuardTests`,
@@ -3676,7 +3676,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   COMMIT recovers from atomic inbox/ledger state. Replay resets one terminal
   ledger pair only, never its completed inbox or a healthy sibling.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
-  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+  and the [P02b-3 package](../roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13).
 - **Type:** real PostgreSQL worker/owner integration, controlled cancellation,
   lost-COMMIT and state-transition mutants. **Kind:** behavioural.
 - **Status:** **Implemented** (`DeliveryDispatchStoreTests`, `DeliveryProcessorTests`,
@@ -3710,7 +3710,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   diagnostics/finite labels, exact snapshot cadence and prior-snapshot retention
   preserve truthful registered health; gauge callbacks execute no SQL.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#diagnostics-and-execution-bounds)
-  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+  and the [P02b-3 package](../roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13).
 - **Type:** production registration/observation/call-path census with planted
   dirty/clean controls, unit probes and real worker integration.
   **Kind:** structural + behavioural.
@@ -3730,7 +3730,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   serialization makes competing registration and initialization converge without
   overwrite, republish or resurrection; each effect has independent inbox state.
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
-  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+  and the [P02b-3 package](../roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13).
 - **Type:** actual consumer integration, lifecycle/race/atomic-audit controls.
   **Kind:** behavioural.
 - **Status:** **Implemented** — `CustomizationDefaultInitializationTests`,
@@ -3746,7 +3746,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   reruns are neutral, conflicting lifecycle/shape refuses without overwrite, and
   fresh seeding/delivery races converge in both winning orders.
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
-  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+  and the [P02b-3 package](../roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13).
 - **Type:** actual Seeder/module/worker integration with warm-ID and race controls.
   **Kind:** behavioural.
 - **Status:** **Implemented** — `SeederTests`,
@@ -3854,7 +3854,7 @@ implements it.
 
 | Test | Rule | Kind | Owning phase | Named in |
 |---|---|---|---|---|
-| `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. A superset of [`Adapters_Wrap_Provider_Exceptions`](#adapters_wrap_provider_exceptions), which already holds the exception types of the SDKs it lists — the one slice of this rule that runs today | structural | [Phase 03](../roadmap/phase-03-identity-admin.md#goal), at the first runtime identity-provider adapter's actual SDK introduction; re-verify before its first writer. Direct-HTTP tooling does not qualify; it then binds per provider as each SDK adapter lands | [Tenant Isolation](../architecture/09-tenant-isolation.md); [P02b-6 accepted handoff](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20) |
+| `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. A superset of [`Adapters_Wrap_Provider_Exceptions`](#adapters_wrap_provider_exceptions), which already holds the exception types of the SDKs it lists — the one slice of this rule that runs today | structural | [Phase 03](../roadmap/phase-03-identity-admin.md#goal), at the first runtime identity-provider adapter's actual SDK introduction; re-verify before its first writer. Direct-HTTP tooling does not qualify; it then binds per provider as each SDK adapter lands | [Tenant Isolation](../architecture/09-tenant-isolation.md); [P02b-6 accepted handoff](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20) |
 | `LicenseKey_Payload_MatchesSchema` | `entitlement-v1.schema.json` is pinned by a snapshot test run in **both** repositories against the same checked-in schema | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with the schema | [Hybrid License Model](../architecture/26-hybrid-license-model.md); [ADR-0021](../decisions/0021-feature-based-entitlement.md), as `EntitlementProjection_Shape_IsStable` — see § Canonical names |
 | `Entitlement_Read_Path_Falls_Through_To_Durable_Row` | With L1 and L2 flushed and the Hub unreachable, the tenant resolves from `platform_entitlement_cache` and no exception escapes the flag read | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with `HubEntitlementProvider` | [Hybrid License Model](../architecture/26-hybrid-license-model.md) |
 | `CustomDomain_TenantId_NeverReadFrom_RequestBody` | Custom-domain submission derives the tenant from the authenticated session, never from the body or the query | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), Hub side, per [ADR-0022](../decisions/0022-custom-domain-tls.md) | ADR-0022; [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
@@ -4527,7 +4527,7 @@ structural test proves — and what it does not.
   [ADR-0068](../decisions/0068-development-warm-realm-qualification.md)
   (historical warm qualification);
   [Security 11](11-security.md#authentication);
-  [accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
+  [accepted P02b-6 package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20).
 - **Type:** xUnit Integration with Docker, real Keycloak code exchange, API
   HTTP and `learnstack_app` database controls. **Kind:** behavioural.
 - **Test owner:** `TenantRealmIssuanceTests`, `TenantRealmProfileProtectionTests`
@@ -4546,7 +4546,7 @@ structural test proves — and what it does not.
   measures both new scope refusals and the retained offline session/credential;
   no universal role-loss or immediate-revocation guarantee is inferred.
   [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its
-  [three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
+  [three-step record](../roadmap/phase-02b-delivery-log.md#adr-0068-acceptance-and-implementation-2026-10-22)
   own actual receipts, completed correction reviews and source-bound hosted proof.
   Existing Implemented status and rule counts remain unchanged.
 - **Phase:** P02b-6 Steps 1/4.
@@ -4576,7 +4576,7 @@ structural test proves — and what it does not.
 - **Source:** ADR-0004; ADR-0064;
   [ADR-0068](../decisions/0068-development-warm-realm-qualification.md);
   [Security 11](11-security.md#authentication);
-  [accepted P02b-6 package](../roadmap/phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20).
+  [accepted P02b-6 package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20).
 - **Type:** xUnit Integration with Docker and actual warm Keycloak Admin REST;
   offline Node tooling transport/process/CLI controls in meta.
   **Kind:** behavioural.
@@ -4611,7 +4611,7 @@ structural test proves — and what it does not.
   A hidden fresh-plan conflict may leave preparation metadata, but no ordinary
   mutation; the earlier zero-write scope remains historical implemented coverage.
   [ADR-0068](../decisions/0068-development-warm-realm-qualification.md) and its
-  [three-step record](../roadmap/phase-02b-events-auth.md#adr-0068-acceptance-and-implementation-2026-10-22)
+  [three-step record](../roadmap/phase-02b-delivery-log.md#adr-0068-acceptance-and-implementation-2026-10-22)
   own actual receipts, completed correction reviews and source-bound hosted proof.
   Existing Implemented status and rule counts remain unchanged.
 - **Phase:** P02b-6 Steps 2–4.
@@ -5079,7 +5079,7 @@ structural test proves — and what it does not.
 
 These names are registered against
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) and the
-[accepted P02d-4 package](../roadmap/phase-02d-walking-skeleton.md#p02d-4-accepted-answers).
+[accepted P02d-4 package](../roadmap/phase-02d-delivery-log.md#p02d-4-accepted-answers).
 Every structural mechanism requires a clean control and planted offenders for its
 claimed paths. Individual Status rows distinguish registration from passing tests. Runtime proofs are independent
 of structural detection.
@@ -5276,7 +5276,7 @@ rules below are commitments before the first implementation; none is a passing
 test claim at acceptance. Existing P5 source/runtime controls remain mandatory,
 and P6 product proofs supplement the isolated synthetic transport fixture.
 P02d-6 implements the five rules below and completes its manual smoke on
-2026-10-10; the [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+2026-10-10; the [packet closeout](../roadmap/phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10)
 owns execution, review and manual evidence.
 
 ### `Ui_Catalogues_Cover_Public_Call_Sites`
@@ -5366,7 +5366,7 @@ owns execution, review and manual evidence.
 replacement proofs and planted controls pass for the five rules below. All three
 steps completed both independent review rounds and focused fix verification.
 Existing P5/P6 controls remain mandatory. The
-[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+[Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns actual execution, completed reviews and verified fixes. Six existing
 production modes pass with revised call accounting. The additional production Fact is
 `Native_admission_preserves_wire_failures_request_lifetimes_and_browser_fallback` in
@@ -5497,10 +5497,13 @@ mutants, TLS refusals and a real Lighthouse timeout also run in the full proof.
 `src/test/demo-source.test.ts` uses disposable Git repositories for clean/mutated
 source checkpoints; `src/test/public-demo-diagnostics.test.ts` covers closed
 failure attribution with real children and provider canaries.
-`src/test/public-demo-ci.test.ts` executes the actual workflow deadline shell;
+`src/test/public-demo-ci.test.ts` executes the actual workflow deadline and
+browser-installation shells, including effective APT acquire settings and
+invocation-owned fragment cleanup on success and failure, plus bounded tail
+commands that preserve ordinary and forced-timeout failure statuses;
 `scripts/ci-public-chromium.test.mjs` tests owned Linux sandbox preparation and
 cleanup before the job runs the real managed-browser launch smoke.
-The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+The [Step 4 record](../roadmap/phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 owns exact CI and protection receipts. These are Node behavioral rules, not
 C# architecture-test methods or a full WCAG/production-performance claim.
 
@@ -5561,7 +5564,7 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 ## P02b-4 background-job obligations
 
 Source: [Accepted ADR-0047](../decisions/0047-transactional-background-job-runtime.md#architecture-tests)
-and the [nine-step package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
+and the [nine-step package](../roadmap/phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15).
 [Accepted ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md#architecture-tests)
 extends the existing bootstrap and independent-capacity assertions below.
 [Accepted ADR-0059](../decisions/0059-owned-hangfire-server-generations.md#architecture-tests)
@@ -5571,12 +5574,12 @@ qualification to the existing bootstrap, credential and capacity obligations.
 adds the exceptional fatal-boundary assignments below.
 [Accepted ADR-0061](../decisions/0061-known-external-job-failure-policy.md#architecture-tests)
 extends seven existing assertions for completed external-failure policy.
-[Step 7 qualification and both full reviews](../roadmap/phase-02b-events-auth.md#p02b-4-step-7--external-stages-and-recovery-2026-10-17)
+[Step 7 qualification and both full reviews](../roadmap/phase-02b-delivery-log.md#p02b-4-step-7--external-stages-and-recovery-2026-10-17)
 are complete. Step 9 implements and locally qualifies all nineteen complete
 assertions below; each Implemented status names its actual canonical owner.
 Acceptance alone promotes no rule, and a partial foundation does not enforce a
 complete assertion. The
-[Step 9 record](../roadmap/phase-02b-events-auth.md#canonical-enforcement-reconciliation)
+[Step 9 record](../roadmap/phase-02b-delivery-log.md#canonical-enforcement-reconciliation)
 distinguishes executed local qualification from packet/review and exact PR-head
 CI/job-budget closure.
 Production business/recurrence registries remain empty; real framework subjects
@@ -5898,6 +5901,9 @@ and fixture definitions make the implemented controls non-vacuous.
   qualify final-source independence and finite execution/meta/aggregate budgets;
   advisory duration estimates never establish membership or fit. Native and
   non-Docker authorities remain separated.
+  Pending-only API acquisition validates each fresh complete snapshot under
+  one finite deadline; it never combines responses or retries terminal,
+  malformed, missing, duplicate or identity-invalid evidence.
 - **Source:** [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md).
 - **Type:** actual Python plan/owner subprocess controls and workflow/API/hosted
   result proofs. **Kind:** structural + behavioural.

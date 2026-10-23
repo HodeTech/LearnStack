@@ -430,8 +430,10 @@ except launcher.Refusal as failure:
                             and row['outcome'] == 'Failed' for row in rows))
         expected = {path.name for path in (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database').glob(
             'BackgroundJobRuntimeFacadeTests*.cs')} | {
-                'BackgroundJobPositiveSdkTests.CausalRestart.cs',
+                'OutboxProcessorTests.cs', 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
+                'BackgroundJobPositiveSdkTests.NativeWait.cs', 'BackgroundJobPositiveSdkTests.NativeHistory.cs',
+                'BackgroundJobPositiveSdkTests.NativeHandoff.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
                 'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
@@ -775,6 +777,139 @@ except launcher.Refusal as failure:
         self.assertEqual('Failed', self.owner.trx_cases(trx, sanitize=True)[0]['outcome'])
         self.assertEqual([], ET.parse(trx).findall('.//t:Output', self.owner.NS))
         self.refuses('results_incomplete', self.owner.validate_results, output, cases[:1])
+
+    def test_outbox_startup_details_keep_observed_timeout_separate_from_actual_completion(self):
+        for name in self.owner.OUTBOX_STARTUP_FAILURE_CASES:
+            case = self.case(1, name)
+            for outcome, state, actual, complete in (
+                    ('refused', 'faulted', 'refused', 'faulted'),
+                    ('timeout', 'pending', 'refused', 'faulted'),
+                    ('timeout', 'succeeded', 'succeeded', 'succeeded'),
+                    ('cancelled', 'cancelled', 'cancelled', 'cancelled')):
+                raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text':
+                    'Outbox startup result;outcome=' + outcome + ';startup=' + state + '.\n'
+                    'Outbox startup completion;outcome=' + actual + ';startup=' + complete + '.'}]}
+                self.assertEqual({'stage': 'outbox_startup', 'result': {'outcome': outcome, 'startup': state},
+                    'completion': {'outcome': actual, 'startup': complete}},
+                    self.owner.closed_failure_details(case, raw))
+
+    def test_outbox_startup_details_refuse_wrong_cases_private_ambiguous_or_unjoined_facts(self):
+        name = next(iter(self.owner.OUTBOX_STARTUP_FAILURE_CASES))
+        case = self.case(1, name)
+        sentence = ('Outbox startup result;outcome=timeout;startup=pending.\n'
+                    'Outbox startup completion;outcome=refused;startup=faulted.')
+        for text in (sentence + '\n' + sentence, sentence.replace('outcome=timeout', 'outcome=PRIVATE-CANARY'),
+                     sentence.replace('startup=pending', 'startup=PRIVATE-CANARY'),
+                     sentence.replace('startup=faulted', 'startup=pending'),
+                     sentence.replace('outcome=refused', 'outcome=succeeded'),
+                     sentence.replace('startup=pending', 'startup=cancelled'),
+                     sentence.replace('result;outcome=timeout;startup=pending', 'result;outcome=succeeded;startup=pending'),
+                     sentence.replace('result;', 'result;\x00'), sentence + ' PRIVATE-CANARY',
+                     'x' * 65536 + sentence, sentence.split('\n')[0]):
+            self.assertIsNone(self.owner.closed_failure_details(case,
+                {'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]}))
+        for messages in (None, [], ['PRIVATE-CANARY'], [{'Category': 'Error', 'Text': sentence}],
+                         [{'Category': 'StdOutMsgs', 'Text': sentence, 'Private': 'canary'}]):
+            self.assertIsNone(self.owner.closed_failure_details(case, {'Messages': messages}))
+        for changed in ({**case, 'assembly': 'learnstack.tests.unit'}, {**case, 'name': name + 'Other'}):
+            self.assertIsNone(self.owner.closed_failure_details(changed,
+                {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence}]}))
+
+    def test_outbox_startup_protocol_keeps_finite_failure_details_and_sanitized_results(self):
+        case = self.case(1, next(iter(self.owner.OUTBOX_STARTUP_FAILURE_CASES)))
+        for outcome in (1, 2):
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('outbox-' + str(outcome) + '.diag'), 'LearnStack.Tests.Integration', [case], stream)
+            item = self.execution_result(case, outcome)
+            item['ErrorStackTrace'] = '/private/PRIVATE-CANARY/OutboxProcessorTests.cs:line 207'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text':
+                'Outbox startup result;outcome=timeout;startup=pending.\n'
+                'Outbox startup completion;outcome=refused;startup=faulted.\nPRIVATE-CANARY'}]
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual(bool(progress.failure_locations), outcome == 2)
+            if outcome == 2:
+                self.assertEqual([{'source': 'outbox_processor', 'line': 207}], progress.failure_locations[0]['locations'])
+                self.assertEqual('outbox_startup', progress.failure_locations[0]['details']['stage'])
+            exported = stream.getvalue() + json.dumps(progress.failure_locations)
+            self.assertNotIn('PRIVATE-CANARY', exported)
+            self.assertNotIn('/private/', exported)
+            self.assertNotIn('Outbox startup result;', exported)
+
+    @staticmethod
+    def native_wait_sentence(kind='failure', **changes):
+        values = dict(boundary='constructor', constructor='pending', invocation='not_issued',
+                      wrapper='not_issued', actual='not_issued', runtime='running', completion='pending',
+                      control='succeeded', pools='pending,pending,pending', shared='pending',
+                      bridgeLoop='pending', bridgeStop='not_issued')
+        values.update(changes)
+        return 'Native wait ' + kind + ';' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    def test_native_wait_details_preserve_first_boundary_and_separate_real_cleanup_observations(self):
+        parse = self.owner.closed_failure_details
+        for name in self.owner.NATIVE_WAIT_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            failure = self.native_wait_sentence()
+            cleanup = self.native_wait_sentence('cleanup', boundary='cleanup_stop', runtime='stopping',
+                pools='succeeded,pending,succeeded', control='succeeded')
+            raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + failure + '\n' + cleanup}]}
+            result = parse(case, raw)
+            self.assertEqual('constructor', result['failure']['boundary'])
+            self.assertEqual('cleanup_stop', result['cleanup']['boundary'])
+            self.assertEqual(['succeeded', 'pending', 'succeeded'], result['cleanup']['pools'])
+            self.assertEqual('native_wait', result['stage'])
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
+            self.assertIsNone(parse({**case, 'assembly': 'unregistered'}, raw))
+            self.assertIsNone(parse({**case, 'name': 'other'}, raw))
+            for boundary in ('start', 'handoff', 'capture', 'cancel', 'return', 'wrapper', 'held',
+                             'cleanup_request', 'cleanup_stop', 'cleanup_completion'):
+                self.assertEqual(boundary, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.native_wait_sentence(boundary=boundary)}]})['failure']['boundary'])
+
+    def test_native_wait_details_accept_unavailable_projection_without_inventing_join_facts(self):
+        case = {**self.case(1), 'name': sorted(self.owner.NATIVE_WAIT_FAILURE_CASES)[0]}
+        parse = self.owner.closed_failure_details
+        raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text':
+            'Native wait failure;boundary=cleanup_stop;snapshot=unavailable.\n'
+            'Native wait cleanup;boundary=cleanup_stop;snapshot=unavailable.'}]}
+        result = parse(case, raw)
+        self.assertEqual({'boundary': 'cleanup_stop', 'snapshot': 'unavailable'}, result['failure'])
+        self.assertEqual(result['failure'], result['cleanup'])
+
+    def test_native_wait_details_refuse_ambiguous_private_or_inconsistent_observations(self):
+        case = {**self.case(1), 'name': sorted(self.owner.NATIVE_WAIT_FAILURE_CASES)[0]}
+        parse = self.owner.closed_failure_details
+        sentence = self.native_wait_sentence()
+        stdout = lambda text: {'Category': 'StdOutMsgs', 'Text': text}
+        for messages in ([stdout(sentence * 2)], [{'Category': 'StdErrMsgs', 'Text': sentence}],
+                         [stdout(sentence + '\n' + self.native_wait_sentence('cleanup', boundary='constructor'))],
+                         [stdout(self.native_wait_sentence('cleanup', boundary='cleanup_stop'))],
+                         [stdout('X' * 65536 + sentence)], [stdout(sentence.replace(';wrapper=', ';unlisted='))]):
+            self.assertIsNone(parse(case, {'Messages': messages}))
+        for field, value in (('boundary', 'unlisted'), ('constructor', 'PRIVATE-CANARY'),
+                             ('runtime', 'host.example'), ('wrapper', 'ready'), ('control', 'TRUE'),
+                             ('actual', 'succeeded'), ('pools', ','.join(['pending'] * 9)),
+                             ('pools', 'not_issued,pending')):
+            self.assertIsNone(parse(case, {'Messages': [stdout(self.native_wait_sentence(**{field: value}))]}))
+
+    def test_native_wait_protocol_exports_only_closed_details_and_truthful_failed_outcome(self):
+        case = {**self.case(1), 'name': sorted(self.owner.NATIVE_WAIT_FAILURE_CASES)[0]}
+        stream = io.StringIO()
+        progress = self.progress(self.root / 'native-wait.diag', 'LearnStack.Tests.Integration', [case], stream)
+        item = self.execution_result(case); item['Outcome'] = 2
+        item['ErrorMessage'] = 'System.OperationCanceledException : PRIVATE-CANARY'
+        item['ErrorStackTrace'] = '/private/path/BackgroundJobPositiveSdkTests.NativeWait.cs:line 98'
+        item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.native_wait_sentence(boundary='cleanup_stop')}]
+        with contextlib.redirect_stdout(io.StringIO()):
+            progress.results({'NewTestResults': [item]})
+        result = progress.failure_locations[0]
+        self.assertEqual([{'source': 'positive_sdk_native_wait', 'line': 98}], result['locations'])
+        self.assertEqual('cleanup_stop', result['details']['failure']['boundary'])
+        self.assertEqual('cancellation', result['exceptionKind'])
+        self.assertEqual('Failed', json.loads(stream.getvalue())['outcome'])
+        for text in ('PRIVATE-CANARY', '/private/', 'Native wait failure;'):
+            self.assertNotIn(text, json.dumps(result))
+        progress.close()
 
     @staticmethod
     def settlement_sentence(**changes):

@@ -670,10 +670,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      # Start before checkout. Reserve four minutes for the shared 30-second
-      # teardown, owned sandbox-policy cleanup and bounded receipt/artifact steps.
+      # Start before checkout. Reserve three minutes: 35s owner stop grace,
+      # 20s sandbox cleanup, 20s receipt, 60s upload and 45s runner/post margin.
       - name: Reserve demo cleanup and artifact time
-        run: echo "PUBLIC_DEMO_DEADLINE=$(( $(date +%s) + 16 * 60 ))" >> "$GITHUB_ENV"
+        run: echo "PUBLIC_DEMO_DEADLINE=$(( $(date +%s) + 17 * 60 ))" >> "$GITHUB_ENV"
 
       - name: Checkout
         timeout-minutes: 2
@@ -702,7 +702,7 @@ jobs:
 
       - name: Cache NuGet packages
         timeout-minutes: 1
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
@@ -714,7 +714,10 @@ jobs:
         working-directory: frontend
         run: |
           pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
+          # The hosted image already carries every Chromium shared library.
+          # --with-deps only added CJK/Thai/X fonts through the runner's APT
+          # mirror, whose slow downloads repeatedly exhausted this budget.
+          pnpm exec playwright install chromium
 
       - name: Prepare sandbox-enabled managed Chromium
         timeout-minutes: 1
@@ -741,7 +744,7 @@ jobs:
       - name: Remove only the owned Chromium sandbox profile
         if: always()
         timeout-minutes: 1
-        run: node scripts/ci-public-chromium.mjs cleanup
+        run: timeout --signal=TERM --kill-after=5s 15s node scripts/ci-public-chromium.mjs cleanup
 
       - name: Record bounded workflow outcome
         if: always()
@@ -752,7 +755,7 @@ jobs:
           SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          python3 - <<'PY'
+          timeout --signal=TERM --kill-after=5s 15s python3 - <<'PY'
           import json, os
           from pathlib import Path
           output = Path('artifacts/public-demo-ci')
@@ -880,12 +883,12 @@ jobs:
         # Template values from `github.event.*` are passed through `env:` so
         # they expand into shell variables AT THE SHELL'S quoting boundary,
         # never as raw substitution inside the `run:` block. This is the
-        # GHA-documented script-injection defense — even though `base.ref`
-        # and `before` are not user-controlled here, defense-in-depth keeps
+        # GHA-documented script-injection defense — even though the event commit
+        # IDs are not user-controlled here, defense-in-depth keeps
         # the pattern consistent across every step that consumes context.
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           # Walk every relative-path link in the changed Markdown files of
@@ -897,8 +900,9 @@ jobs:
           #   [x](docs/foo.md)   — bare repo-relative (CLAUDE.md convention)
           # Anchors (#frag) are stripped before the file-existence check.
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-              base="origin/${PR_BASE_REF}"
-              git fetch --no-tags --depth=1 origin "${PR_BASE_REF}"
+              # A rerun keeps its original event even after a squash merge.
+              # Compare that immutable base, not the base branch's later tip.
+              base="${PR_BASE_SHA}"
           else
               base="${PUSH_BEFORE_SHA}"
           fi
@@ -914,7 +918,8 @@ jobs:
               base=""
           fi
           if [[ -n "$base" ]]; then
-              changed=$(git diff --name-only "$base"...HEAD -- '*.md')
+              # Link existence compares snapshots; it needs no merge base.
+              changed=$(git diff --name-only "$base" HEAD -- '*.md')
           else
               changed=$(git ls-files -- '*.md')
           fi
@@ -954,8 +959,11 @@ jobs:
                   # `NNNN-related.md` placeholders and ADR-0041's erratum shape.
                   # Working around it in the documents made both templates worse
                   # at being templates, which is the sign the check was the thing
-                  # that was wrong.
+                  # that was wrong. Code spans are stripped for the same reason:
+                  # `[x](y)` between backticks is sample text too (ADR-0069 names
+                  # the link shapes its fragment audit reads that way).
               done < <(awk '/^[[:space:]]*```/ { fence = !fence; next } !fence' "$f" \
+                  | sed -E 's/`[^`]*`//g' \
                   | grep -oE '\]\(([^)#][^)]*)\)' \
                   | sed -E 's/^\]\((.+)\)$/\1/')
           done <<< "$changed"
@@ -963,6 +971,37 @@ jobs:
               echo "::error::$broken broken relative link(s) in changed Markdown."
               exit 1
           fi
+
+      - name: Markdown link audit regression controls
+        timeout-minutes: 1
+        run: python3 scripts/test-markdown-link-audit.py
+
+      - name: Markdown fragment audit (whole tree)
+        # ADR-0069: the step above strips `#fragment` and reads changed files only, so a
+        # renamed or moved heading broke every link into it silently. This resolves
+        # every fragment link in the tree, since an edit in one file breaks links in
+        # files the change never touched.
+        timeout-minutes: 1
+        run: python3 scripts/markdown-fragment-audit.py
+
+      - name: Roadmap structure (plan, delivery log, status carriers)
+        # ADR-0069: a phase document holds the plan, its delivery log the dated
+        # records, and packet status lives once.
+        timeout-minutes: 1
+        run: python3 scripts/roadmap-structure.py
+
+      - name: Delivery log indexes are current
+        # ADR-0069, 2026-10-23: each delivery log opens with an index generated from
+        # its headings; a stale or hand-edited one fails here. Fix: `make docs-index`.
+        timeout-minutes: 1
+        run: python3 scripts/delivery-log-index.py
+
+      - name: Documentation guard controls
+        timeout-minutes: 1
+        run: |
+          python3 scripts/test-markdown-fragment-audit.py
+          python3 scripts/test-roadmap-structure.py
+          python3 scripts/test-delivery-log-index.py
 
       - name: ADR lifecycle parser controls
         run: python3 scripts/test-adr-status.py

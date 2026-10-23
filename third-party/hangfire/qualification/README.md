@@ -32,5 +32,5 @@ its process/container also provide a finite experiment teardown boundary. These
 experiments do not claim forced cancellation of managed production work.
 
 Measurements and findings belong to the
-[Step 2 reassessment](../../../docs/roadmap/phase-02b-events-auth.md#step-2-maintenance-reassessment).
+[Step 2 reassessment](../../../docs/roadmap/phase-02b-delivery-log.md#step-2-maintenance-reassessment).
 Mandatory production-path controls remain in the ADR and canonical test catalogue.

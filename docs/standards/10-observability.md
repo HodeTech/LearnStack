@@ -9,7 +9,7 @@ Delivery/recovery additions derive from
 Accepted job-lifecycle observation derives from
 [ADR-0059](../decisions/0059-owned-hangfire-server-generations.md).
 P02b-4 is implemented and merged; its
-[merge closeout](../roadmap/phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
+[merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
 owns final qualification. Phase 11 owns production activation.
 Tenant-authentication diagnostics derive from
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md);
@@ -17,12 +17,12 @@ P02b-5 Steps 1 and 3 implement the components; Step 4 activates the HTTP boundar
 Bounded assertion diagnostics and process-wide outbound metric projection derive
 from [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
 audit-budget implementation and local proofs are delivered in the
-[remediation record](../roadmap/phase-02b-events-auth.md#p02b-5-external-review-remediation-2026-10-20).
+[remediation record](../roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20).
 Acceptance was committed before that implementation; production sizing remains open.
 Subject-admission refusal and cleanup-fault signals derive from
 [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md), Accepted —
 2026-10-20. Their implementation and local exported proofs are delivered; the
-[implementation record](../roadmap/phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
+[implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns independent reviews and final-source CI qualification.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
@@ -276,7 +276,7 @@ The actual singleton-budget suppression path is also exported through the root's
 `LearnStack.Api` meter subscription. Its test waits for the correlated Warning
 while the logger owner is alive: a metrics flush is not a log-delivery receipt.
 The ordinary-destination controls are implemented; the
-[P02b-5 merge closeout](../roadmap/phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
+[P02b-5 merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
 owns their current qualification status.
 
 Step 3 implements recorder/claimless/quota diagnostics; Steps 4–5 qualify the
@@ -438,13 +438,13 @@ backend treat business rejections as system failures.
 
 Outbox metrics above are implemented in P02b-2 Step 3 under ADR-0046;
 both independent review rounds are complete. The subscriber/inbox inventory is
-accepted by the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13);
+accepted by the [P02b-3 package](../roadmap/phase-02b-delivery-log.md#p02b-3-decision-package-2026-10-13);
 Step 4 implements it with real worker, finite-label and memory-only observation
 proofs. P02b-4 Step 9 implements the five observable and three stage families above under
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md#lifecycle-and-observation).
 Stage, tracing, lease-loss and control-path instrumentation are implemented with
 source-specific qualification; the
-[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+[Step 9 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 owns those receipts and full-regression, review, packet-closeout and remaining
 PR/CI qualification status.
 `event_type` comes only from the finite declared registry plus fixed
@@ -467,7 +467,7 @@ Heartbeat advances after actual bounded loop work, including empty polls.
 Gauges read immutable memory snapshots and perform no SQL. Refresh follows
 completed iterations, targets 5 s idle and becomes stale at the approved 45 s
 health bound. Failure retains the prior snapshot and reports unhealthy. The
-[P02b-2 bounds](../roadmap/phase-02b-events-auth.md#runtime-bounds-and-observation)
+[P02b-2 bounds](../roadmap/phase-02b-delivery-log.md#runtime-bounds-and-observation)
 own deadlines and task limits. Dispatcher-owned logs/spans use validated
 correlation and bounded outcomes, without exception text/stacks, payload, raw
 stored type or connection data. P02b-3 Steps 3–4 minimize transport-owned
@@ -649,7 +649,7 @@ Interception or elapsed caller waiting cannot restore health, and a missing serv
 row proves neither business completion nor external quiescence. Closed vendor
 callbacks record fixed memory state only; provider exceptions, SQL and tenant/job/
 actor/trace/parameter values stay out. The
-[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+[Step 9 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 owns delivered instruments and censuses; the
 [phase status](../roadmap/phase-02b-events-auth.md) owns current qualification.
 Phase 11 retains readiness routing, alert thresholds and process supervision.

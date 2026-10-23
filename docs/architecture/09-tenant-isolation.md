@@ -54,7 +54,7 @@ eligibility and contract proofs;
 | EF Core | Global query filter `e.TenantId == currentTenantId` | Global query filter `e.OrganizationId == null OR e.OrganizationId == currentOrgId` |
 | PostgreSQL | The tenant term of the single policy: `tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid` | The organization term `AND`-ed into that **same** policy, plus the restrictive `UPDATE` / `DELETE` write guards. Canonical SQL in [Database Standards](../standards/05-database.md) |
 | Identity | Single-realm `learnstack` with `tenant_id` JWT claim (default per [ADR-0004](../decisions/0004-authentication-strategy.md); realm-per-tenant is an opt-in for enterprise isolation only) | `organization_id` JWT claim populated from active org membership |
-| Cache | The caller composes `{tenant_id}:{module}:{logical-name}` with `CacheKey.ForTenant`; every `ICacheService` implementation validates the key and prefixes nothing | `{tenant_id}:{org_id}:{module}:{logical-name}` with `CacheKey.ForOrganization`, for a value scoped to one organization. Settings reads are uncached in P02d-2/3 under [Accepted G23](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02); no settings cache key is active |
+| Cache | The caller composes `{tenant_id}:{module}:{logical-name}` with `CacheKey.ForTenant`; every `ICacheService` implementation validates the key and prefixes nothing | `{tenant_id}:{org_id}:{module}:{logical-name}` with `CacheKey.ForOrganization`, for a value scoped to one organization. Settings reads are uncached in P02d-2/3 under [Accepted G23](../roadmap/phase-02d-delivery-log.md#p02d-3-decision-package-2026-10-02); no settings cache key is active |
 | Files (SeaweedFS) | Object key prefix `tenants/{tenant_id}/...` | `tenants/{tenant_id}/organizations/{org_id}/...` for org-scoped assets |
 | Search | `tenant_id` as a mandatory filter composed **inside** `ITenantSearch` — callers pass criteria, never filter strings. Until Meilisearch's demand gate fires ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)), search runs on PostgreSQL full-text over tenant-owned tables and inherits Row Level Security; the engine-enforced per-request tenant token arrives with the Meilisearch adapter in [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | `organization_id = X OR organization_id IS NULL` clause when org context |
 | Jobs (ADR-0047) | Trusted submission stamps the authoritative row; `JobExecutor` restores its validated `TenantId` | The row carries nullable `OrganizationId`; opaque Hangfire hints supply no scope |
@@ -176,7 +176,7 @@ and owner-only completion. P02b-2 Step 3 implements confined hosted dispatch;
 both independent review rounds are complete. P02b-3 Steps 1–5 supply durable
 acceptance, shared tenant/org-protected delivery storage, app-role business scopes,
 independent scheduling and both real defaults. Its
-[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+[Step 6 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 owns current validation and review status. The scheduler cannot read payload or
 inbox columns; business execution retains the ordinary tenant/org RLS boundary.
 

@@ -24,9 +24,9 @@ Manage user-facing translations in `apps/web` consistently per
 > [ADR-0027](../../../docs/decisions/0027-frontend-i18n.md) selects exact
 > `next-intl` 4.14.9 and the catalogue home below. Step 1 installs the runtime,
 > complete English/Turkish catalogues and guarded ICU/callsite checks. Its
-> [delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+> [delivery record](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-step-1-localization-and-document-foundation)
 > owns foundation validation; the
-> [packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+> [packet closeout](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10)
 > records the scoped product and manual accessibility evidence. No
 > `pnpm lint:i18n`, `no-literal-strings`, `_deprecated.json`, screenshot or
 > `axe-core` task exists today; do not claim those checks run.

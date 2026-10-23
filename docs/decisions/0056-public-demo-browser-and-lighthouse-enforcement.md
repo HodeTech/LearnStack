@@ -55,7 +55,7 @@ runs these checks without changing the production anonymous admission budgets.
 
 The maintainer accepted this enforcement decision on 2026-10-11. It
 implements P02d-7's remaining G33/G38/G44 evidence; the
-[phase package](../roadmap/phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
+[phase package](../roadmap/phase-02d-delivery-log.md#p02d-7-decision-package-2026-10-10)
 owns G20, G45, implementation steps and phase exit. The maintainer approved that
 package's lifecycle and bounded seventh-check activation on 2026-10-11; this
 revised ADR is accepted on the same date. G45 names the approved `make demo`
@@ -318,7 +318,7 @@ owned cleanup. Per-URL timing medians remain advisory.
 The first real [PR run](https://github.com/HodeTech/LearnStack/actions/runs/38106505383)
 passes all seven jobs. Its complete sanitized artifacts and the subsequent
 authorized seventh-context activation/full protection read-back are verified in
-the [CI and exit closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11).
+the [CI and exit closeout](../roadmap/phase-02d-delivery-log.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11).
 PR #28 remains subject to maintainer review and merge. This is delivery navigation;
 the acceptance metadata, decision and feasibility obligations remain unchanged.
 Existing P6 human/VoiceOver evidence and Phase 06/11 scope retain their limits.
@@ -327,14 +327,14 @@ Existing P6 human/VoiceOver evidence and Phase 06/11 scope retain their limits.
 
 The original no-implementation sentence describes acceptance-time state.
 Amendment 1 describes later delivery and the first real run used for activation.
-The [reviewed-head verification](../roadmap/phase-02d-walking-skeleton.md#reviewed-implementation-head-verification-2026-10-11)
+The [reviewed-head verification](../roadmap/phase-02d-delivery-log.md#reviewed-implementation-head-verification-2026-10-11)
 separately records source `d47ef17` and its downloaded successful CI artifacts.
 Subsequent heads remain subject to all seven required checks. This clarification
 changes no decision, tool version, budget or original acceptance metadata.
 
 ## References
 
-- [P02d-7 package](../roadmap/phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10).
+- [P02d-7 package](../roadmap/phase-02d-delivery-log.md#p02d-7-decision-package-2026-10-10).
 - [Performance Standards](../standards/15-performance.md).
 - [Testing Standards](../standards/06-testing.md#end-to-end-tests).
 - [Accessibility Standards](../standards/16-accessibility.md#tooling).

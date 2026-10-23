@@ -18,7 +18,7 @@ Accepted — maintainer approval recorded 2026-10-03. Implementation is pending.
 **Date:** 2026-10-03
 **Deciders:** @cemil
 
-The [P02d-4 approval package](../roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+The [P02d-4 approval package](../roadmap/phase-02d-delivery-log.md#p02d-4-decision-package-2026-10-03)
 records the accepted public contracts, implementation steps and dated
 clarifications appended to ADR-0036 and ADR-0040. Implementation has not started.
 
@@ -238,7 +238,7 @@ refusals have independent writable controls.
 Institution public endpoints, lifecycle/eligibility readers, HTTP controls and
 OpenAPI/SDK/CI proofs remain with Steps 2–4. The original Status and Architecture
 Tests sections record the acceptance baseline; the catalogue and
-[P02d-4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
+[P02d-4 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-1-authority-and-read-only-foundation)
 own current implementation and review evidence.
 
 ## Amendment 2 — P02d-4 site bootstrap delivery (2026-10-03)
@@ -252,7 +252,7 @@ have planted positive and negative cases. PostgreSQL-backed HTTP cases exercise
 lifecycle withdrawal, locale emptiness/invalidity, whole-theme/null and effective
 attribution. Education reads and full OpenAPI/SDK/CI proof remain Steps 3–4.
 
-The [packet delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-2-public-site-bootstrap)
+The [packet delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-2-public-site-bootstrap)
 owns validation and both review rounds; it does not mark the whole packet complete.
 
 ## Amendment 3 — P02d-4 Education read delivery (2026-10-04)
@@ -268,7 +268,7 @@ locale and bounded scoped seek cursors precede data selection.
 The no-schema-evaluation guard has a non-empty production handler census and
 planted transitive controls. Real PostgreSQL/HTTP cases and actual consumer
 EXPLAIN plans are recorded in the
-[Step 3 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads).
+[Step 3 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-3-public-education-reads).
 Both independent review rounds are pending at this implementation boundary.
 Full served/snapshot OpenAPI, SDK and required CI proof remain Step 4.
 
@@ -277,7 +277,7 @@ Full served/snapshot OpenAPI, SDK and required CI proof remain Step 4.
 This delivery note changes no decision. Both independent Step 3 review rounds
 are complete. The verified Unicode cursor defect is fixed with bounded refusal
 and real HTTP controls; no verified finding remains after fresh Round 2 review.
-The [Step 3 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads)
+The [Step 3 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-3-public-education-reads)
 owns review and verification evidence. Contract/SDK/CI delivery remains Step 4.
 
 ## Amendment 5 — contract, SDK and CI implementation (2026-10-04)
@@ -290,7 +290,7 @@ drift. Always-running OpenAPI CI uses the pinned compatibility policy, mutation
 fixtures and explicit companions for open-enum tool gaps; current response enums
 remain closed. Verified operation-free base composition is the only bootstrap.
 
-The [Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+The [Step 4 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
 owns actual verification, the two independent review rounds and the approved live
 sixth-check rollout. Reviews and settings activation remain pending at this
 implementation boundary. P02d-5/6 remain the server consumer/browser owners.
@@ -304,7 +304,7 @@ references; additional CLI controls prove the previously missed changes fail.
 Problem Details parameter schema and SDK parsing match the existing string-valued
 localized-message carrier. Invalid local path encoding returns a bounded result,
 and caller cancellation retains precedence. The
-[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+[Step 4 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
 owns reproduction and regression evidence. Fresh Round 2 and the approved live
 sixth-check registration remain pending at this fix boundary.
 
@@ -316,7 +316,7 @@ content-form parameter/header schemas. Per-occurrence materialization, immutable
 analysis and tool-supported policy projections close those gaps while preserving
 nonbreaking controls. Exact dot segments remain inside the SDK refusal boundary;
 extra-operation contract mutants supply the promised regression proof. The
-[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+[Step 4 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
 owns the verified findings and fix evidence. Fresh focused review and live sixth
 required-check activation remain pending at this fix boundary.
 
@@ -327,7 +327,7 @@ fixes and identifies an incompatible refusal of a recursive open-enum addition.
 Private effective recursive schema copies now keep cycle edges inside the
 normalized policy graph, preserving closed consumers and stable identity across
 documentation changes. Six added CLI controls complement the earlier matrix.
-The [Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+The [Step 4 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
 owns proof and final review evidence. Live sixth-check activation is still pending.
 
 ## Amendment 9 — inline recursive comparison fix (2026-10-04)
@@ -336,7 +336,7 @@ This delivery note changes no decision. Final focused review identifies recursiv
 normalization using an unstable traversal identity outside Schema components.
 Stable declaration origins now cover inline schemas and schemas inside Response
 components, with unchanged/open-addition CLI controls for both placements. The
-[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+[Step 4 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
 owns reproduction and fresh verification. Live sixth-check activation is pending.
 
 ## Amendment 10 — implementation and review closeout (2026-10-04)
@@ -344,7 +344,7 @@ owns reproduction and fresh verification. Live sixth-check activation is pending
 This delivery note changes no decision. All four P02d-4 implementation steps and
 their two independent review rounds are complete. Fresh focused verification of
 the final compatibility fixes approves, with no verified finding remaining. The
-[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+[Step 4 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
 owns the complete regression and final control counts. Actual PR CI and live
 sixth required-check registration remain the final rollout proof; this note does
 not claim merge or browser delivery. P02d-5/6 remain the server/page owners.
@@ -355,7 +355,7 @@ This delivery note changes no decision. All six real PR CI jobs pass. After the
 successful `openapi diff` job, its approved sixth required GitHub Actions context
 is activated; full API read-back proves strict checking and every other live
 protection setting preserved. The
-[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+[Step 4 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
 owns the exact head, run, artifacts and activation proof. P02d-4 implementation,
 review loops and rollout are complete in
 [PR #25](https://github.com/HodeTech/LearnStack/pull/25), awaiting maintainer
@@ -372,7 +372,7 @@ contract/SDK/CI delivery, reviews and required-check activation.
 [ADR-0036 Amendment 9](0036-tenant-resolution-trusted-inputs.md#2026-10-05--amendment-9-public-host-provenance-delivery)
 and ADR-0050/0051 Amendment 3 record their delivered P02d-4 parts without
 rewriting acceptance history. The
-[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+[Step 4 delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
 owns current verification. PR #25 awaits maintainer review/merge; server/page
 consumers remain P02d-5/6.
 
@@ -384,7 +384,7 @@ the Education module spec and the P02d-4 delivery record.
 This delivery note changes no decision. The maintainer merged
 [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08. All four
 P02d-4 steps, their two-round reviews and the approved required-check rollout
-are complete. The [merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
+are complete. The [merge closeout](../roadmap/phase-02d-delivery-log.md#p02d-4-merge-and-closeout-2026-10-08)
 owns the final head, merge/tree proof and verification evidence. The original
 Status, Date, Deciders and previous delivery notes remain unchanged as history.
 P02d-5/6 retain server/page delivery; Phase 02d remains in progress.
@@ -409,7 +409,7 @@ P02b-4 implements/proves this bounded extension; no new public runtime is claime
 
 **Status: Accepted.** The maintainer accepts
 [ADR-0064](0064-tenant-api-authentication-boundary.md) and the
-[P02b-5 package](../roadmap/phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19).
+[P02b-5 package](../roadmap/phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19).
 Its [exact relationship to Accepted decisions](0064-tenant-api-authentication-boundary.md#exact-relationship-to-accepted-decisions)
 extends this ADR's Decision/Context authorization of mode-before-announcement
 ordering to exactly the authenticated, non-`[PublicSurface]`

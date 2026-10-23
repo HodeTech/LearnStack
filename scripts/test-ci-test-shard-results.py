@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Planted controls against the real workflow/API/archive/aggregate owner."""
 import copy
+from contextlib import contextmanager
 import hashlib
 import io
 import json
@@ -62,6 +63,173 @@ class AggregateControls(unittest.TestCase):
         if scope == 'integration':
             owners = ['base', 'native'] + ['ordinary-' + str(i) for i in range(self.plan['counts']['ordinary'])]
         return [self.job(owner, n + 1, context) for n, owner in enumerate(owners)]
+
+    @contextmanager
+    def acquisition(self, snapshots, *, scope='backend', deadline=1000, request_seconds=0):
+        state = {'now': 0, 'reads': 0, 'sleeps': [], 'deadlines': []}
+        class FixtureApi:
+            def __init__(self, deadline):
+                self.deadline = deadline
+                state['deadlines'].append(deadline)
+            def jobs(self, context):
+                state['reads'] += 1
+                state['now'] += request_seconds
+                RESULTS.require(state['now'] < self.deadline, 'aggregate_deadline_exhausted')
+                value = snapshots[min(state['reads'] - 1, len(snapshots) - 1)]
+                if isinstance(value, Exception):
+                    raise value
+                return copy.deepcopy(value)
+        def sleep(seconds):
+            state['sleeps'].append(seconds)
+            state['now'] += seconds
+        output = io.StringIO()
+        with mock.patch.object(RESULTS, 'Api', FixtureApi), \
+                mock.patch.object(RESULTS.time, 'monotonic', side_effect=lambda: state['now']), \
+                mock.patch.object(RESULTS.time, 'sleep', side_effect=sleep), \
+                mock.patch('sys.stderr', output):
+            yield state, output, lambda: RESULTS.acquire_jobs(deadline, self.context(), self.plan, scope)
+
+    def pending_job(self, jobs, index=0, status='in_progress'):
+        jobs[index].update(status=status, conclusion=None, completed_at=None)
+        if status == 'queued':
+            jobs[index]['started_at'] = None
+        return jobs
+
+    def test_metadata_acquisition_waits_only_for_explicit_pending_producers_or_gates(self):
+        for scope in ('backend', 'integration'):
+            clean = self.jobs(scope)
+            for index in range(len(clean)):
+                for gate in ('job', 0, 1, 2):
+                    for status in ('queued', 'in_progress'):
+                        with self.subTest(scope=scope, owner=index, gate=gate, status=status):
+                            pending = copy.deepcopy(clean)
+                            if gate == 'job':
+                                self.pending_job(pending, index, status)
+                            else:
+                                pending[index]['steps'][gate].update(status=status, conclusion=None)
+                            with self.acquisition([pending, clean], scope=scope) as (state, output, acquire):
+                                result = acquire()
+                                self.assertEqual(len(clean), len(result))
+                                self.assertEqual(2, state['reads'])
+                                self.assertEqual([2], state['sleeps'])
+                                self.assertEqual([30], state['deadlines'])
+                                diagnostic = json.loads(output.getvalue())
+                                self.assertEqual({'protocol', 'diagnostic', 'observation', 'owner', 'gate'}, set(diagnostic))
+                                self.assertEqual('producer_metadata_pending', diagnostic['diagnostic'])
+                                self.assertEqual(RESULTS.producer_name(diagnostic['owner']), clean[index]['name'])
+                                self.assertEqual(['build', 'execute', 'upload'][gate] if gate != 'job' else 'job', diagnostic['gate'])
+                                self.assertLess(len(output.getvalue()), 256)
+        with self.acquisition([self.jobs('backend')]) as (state, output, acquire):
+            self.assertTrue(acquire())
+            self.assertEqual(1, state['reads'])
+            self.assertEqual([], state['sleeps'])
+            self.assertEqual('', output.getvalue())
+
+    def test_pending_metadata_never_hides_terminal_malformed_or_identity_failures(self):
+        clean = self.jobs('backend')
+        for mutation, reason in (
+            (lambda rows: rows[-1].update(conclusion='failure'), 'producer_not_successful'),
+            (lambda rows: rows[-1]['steps'][-1].update(conclusion='failure'), 'producer_gate_not_successful'),
+            (lambda rows: rows[-1].update(run_attempt=2), 'job_api_identity_mismatch'),
+            (lambda rows: rows[-1].update(head_sha='c' * 40), 'job_api_identity_mismatch'),
+            (lambda rows: rows.append(copy.deepcopy(rows[-1])), 'job_api_identity_mismatch'),
+            (lambda rows: rows.append({**copy.deepcopy(rows[-1]), 'id': 999}), 'job_api_duplicate_producer'),
+            (lambda rows: rows.pop(), 'current_attempt_producer_missing'),
+            (lambda rows: rows[-1].update(steps=None), 'producer_gate_not_successful'),
+            (lambda rows: rows[-1].update(steps=['PRIVATE-CANARY']), 'producer_gate_not_successful'),
+            (lambda rows: rows[-1]['steps'].pop(), 'producer_gate_not_successful'),
+            (lambda rows: rows[-1]['steps'].append(copy.deepcopy(rows[-1]['steps'][0])), 'producer_gate_not_successful'),
+            (lambda rows: rows[-1].update(completed_at='2026-10-19T00:21:02Z'), 'producer_ceiling_exceeded'),
+            (lambda rows: rows[0]['steps'][-1].update(conclusion='cancelled'), 'producer_gate_not_successful'),
+            (lambda rows: rows[0]['steps'].pop(), 'producer_gate_not_successful'),
+            (lambda rows: (rows[-1]['steps'][0].update(status='in_progress', conclusion=None),
+                           rows[-1]['steps'][-1].update(conclusion='failure')), 'producer_gate_not_successful'),
+            (lambda rows: rows[0].update(completed_at=clean[0]['completed_at']), 'api_timestamp_invalid'),
+        ):
+            rows = self.pending_job(copy.deepcopy(clean))
+            mutation(rows)
+            with self.acquisition([rows, clean]) as (state, output, acquire):
+                self.refuses(reason, acquire)
+                self.assertEqual(1, state['reads'])
+                self.assertEqual([], state['sleeps'])
+                self.assertNotIn('PRIVATE-CANARY', output.getvalue())
+        for gate in ('job', 0, 1, 2):
+            for status, conclusion in (
+                ('completed', None), ('in_progress', 'success'), ('queued', 'failure'),
+                ('in_progress', 'PRIVATE-CANARY'), ('in_progress', {}), ('unknown', None),
+            ):
+                rows = copy.deepcopy(clean)
+                value = rows[-1] if gate == 'job' else rows[-1]['steps'][gate]
+                value.update(status=status, conclusion=conclusion)
+                with self.acquisition([rows, clean]) as (state, output, acquire):
+                    self.refuses('producer_not_successful' if gate == 'job' else 'producer_gate_not_successful', acquire)
+                    self.assertEqual(1, state['reads'])
+                    self.assertEqual([], state['sleeps'])
+                    self.assertNotIn('PRIVATE-CANARY', output.getvalue())
+            rows = copy.deepcopy(clean)
+            value = rows[-1] if gate == 'job' else rows[-1]['steps'][gate]
+            value.update(status='in_progress'); value.pop('conclusion')
+            with self.acquisition([rows, clean]) as (state, _, acquire):
+                self.refuses('producer_not_successful' if gate == 'job' else 'producer_gate_not_successful', acquire)
+                self.assertEqual(1, state['reads'])
+                self.assertEqual([], state['sleeps'])
+
+    def test_metadata_acquisition_discards_snapshots_and_never_retries_a_terminal_or_api_failure(self):
+        clean = self.jobs('backend')
+        first = self.pending_job(copy.deepcopy(clean))
+        second = self.pending_job(copy.deepcopy(clean), -1)
+        with self.acquisition([first, second]) as (state, _, acquire):
+            self.refuses('producer_metadata_deadline_exhausted', acquire)
+            self.assertGreater(state['reads'], 2)
+            self.assertLessEqual(state['reads'], 16)
+            self.assertLess(state['now'], 30)
+        failed = copy.deepcopy(clean); failed[-1]['conclusion'] = 'failure'
+        with self.acquisition([first, failed, clean]) as (state, _, acquire):
+            self.refuses('producer_not_successful', acquire)
+            self.assertEqual(2, state['reads'])
+            self.assertEqual([2], state['sleeps'])
+        for reason in ('actions_api_unavailable', 'jobs_api_population_changed', 'jobs_api_shape_invalid'):
+            with self.acquisition([RESULTS.Refusal(reason), clean]) as (state, _, acquire):
+                self.refuses(reason, acquire)
+                self.assertEqual(1, state['reads'])
+                self.assertEqual([], state['sleeps'])
+
+    def test_pending_metadata_never_hides_invalid_creation_timestamps(self):
+        clean = self.jobs('backend')
+        for status in ('queued', 'in_progress', 'completed'):
+            for created in (None, 'PRIVATE-CANARY', '2099-01-01T00:00:00Z'):
+                if status == 'queued' and created == '2099-01-01T00:00:00Z':
+                    continue  # No started timestamp exists to compare yet.
+                rows = self.pending_job(copy.deepcopy(clean))
+                if status != 'completed':
+                    self.pending_job(rows, -1, status)
+                if created is None:
+                    rows[-1].pop('created_at')
+                else:
+                    rows[-1]['created_at'] = created
+                with self.subTest(status=status, created=created), \
+                        self.acquisition([rows, clean]) as (state, output, acquire):
+                    self.refuses('api_timestamp_invalid', acquire)
+                    self.assertEqual(1, state['reads'])
+                    self.assertEqual([], state['sleeps'])
+                    self.assertNotIn('PRIVATE-CANARY', output.getvalue())
+
+    def test_metadata_acquisition_charges_requests_and_pacing_to_one_bounded_deadline(self):
+        pending = self.pending_job(self.jobs('backend'))
+        for deadline, request_seconds in ((1000, 0), (5, 1), (1, 2)):
+            with self.acquisition([pending], deadline=deadline, request_seconds=request_seconds) as (state, _, acquire):
+                self.refuses('aggregate_deadline_exhausted' if request_seconds > deadline
+                             else 'producer_metadata_deadline_exhausted', acquire)
+                self.assertEqual([min(30, deadline)], state['deadlines'])
+                self.assertLessEqual(state['reads'], 16)
+                self.assertTrue(all(value == 2 for value in state['sleeps']))
+                if request_seconds <= deadline:
+                    self.assertLess(state['now'], min(30, deadline))
+        with self.acquisition([pending]) as (state, _, acquire), \
+                mock.patch.object(RESULTS.time, 'sleep'):
+            self.refuses('producer_metadata_deadline_exhausted', acquire)
+            self.assertEqual(16, state['reads'])
+
 
     def metadata(self, owner='base', context=None):
         context = context or self.context()
@@ -256,6 +424,66 @@ class AggregateControls(unittest.TestCase):
         self.refuses('producer_gate_not_successful', RESULTS.verify_jobs, dirty, context, self.plan, 'backend')
         dirty = copy.deepcopy(clean); other = copy.deepcopy(dirty[0]); other['id'] = 100; dirty.append(other)
         self.refuses('job_api_duplicate_producer', RESULTS.verify_jobs, dirty, context, self.plan, 'backend')
+
+    def test_producer_refusal_retains_only_closed_owner_and_state_diagnostics(self):
+        context = self.context()
+        values = [('queued', None), ('in_progress', None), ('completed', None),
+                  ('completed', 'failure'), ('completed', 'skipped'),
+                  ('PRIVATE-STATE-CANARY', {'PRIVATE-CANARY': 'value'})]
+        for scope in ('backend', 'integration'):
+            clean = self.jobs(scope, context)
+            for position in range(len(clean)):
+                owner = clean[position]['name'].removeprefix('backend ')
+                owner = {'base tests and gates': 'base', 'native crash proof': 'native'}.get(owner, owner)
+                for status, conclusion in values:
+                    with self.subTest(scope=scope, owner=owner, status=status, conclusion=conclusion):
+                        jobs = copy.deepcopy(clean)
+                        jobs[position].update(status=status, conclusion=conclusion)
+                        output = io.StringIO()
+                        with mock.patch.object(RESULTS.sys, 'stderr', output):
+                            self.refuses('producer_not_successful', RESULTS.verify_jobs, jobs, context, self.plan, scope)
+                        self.assertEqual({'protocol': 1, 'diagnostic': 'producer_state_refusal', 'owner': owner,
+                            'status': status if status in ('queued', 'in_progress', 'completed') else 'other',
+                            'conclusion': conclusion if conclusion in ('failure', 'skipped') else 'other'},
+                            json.loads(output.getvalue()))
+                        self.assertNotIn('PRIVATE', output.getvalue())
+                        self.assertLess(len(output.getvalue()), 256)
+
+    def test_gate_refusal_retains_only_closed_owner_gate_and_state_diagnostics(self):
+        context = self.context()
+        for index, gate in enumerate(('build', 'execute', 'upload')):
+            for mutation in ('missing', 'duplicate', 'queued', 'in_progress', 'failed', 'skipped', 'canary'):
+                with self.subTest(gate=gate, mutation=mutation):
+                    jobs = self.jobs('backend', context)
+                    # The final Architecture producer proves this is the actual failed owner.
+                    owner = 'architecture-' + str(self.plan['counts']['architecture'] - 1)
+                    steps = jobs[-1]['steps']
+                    if mutation == 'missing':
+                        steps.pop(index)
+                    elif mutation == 'duplicate':
+                        steps.append(copy.deepcopy(steps[index]))
+                    elif mutation in ('queued', 'in_progress'):
+                        steps[index].update(status=mutation, conclusion=None)
+                    elif mutation == 'canary':
+                        steps[index].update(status='PRIVATE-STATUS-CANARY', conclusion={'PRIVATE-CANARY': 'value'})
+                    else:
+                        steps[index]['conclusion'] = 'failure' if mutation == 'failed' else 'skipped'
+                    output = io.StringIO()
+                    with mock.patch.object(RESULTS.sys, 'stderr', output):
+                        self.refuses('producer_gate_not_successful', RESULTS.verify_jobs,
+                            jobs, context, self.plan, 'backend')
+                    diagnostic = json.loads(output.getvalue())
+                    self.assertEqual({'protocol': 1, 'diagnostic': 'producer_gate_refusal', 'owner': owner,
+                        'gate': gate, 'matches': {'missing': 'missing', 'duplicate': 'multiple'}.get(mutation, 'one'),
+                        'status': mutation if mutation in ('queued', 'in_progress') else
+                            'completed' if mutation in ('failed', 'skipped') else 'other',
+                        'conclusion': 'failure' if mutation == 'failed' else 'skipped' if mutation == 'skipped' else 'other'},
+                        diagnostic)
+                    self.assertNotIn('PRIVATE', output.getvalue())
+        output = io.StringIO()
+        with mock.patch.object(RESULTS.sys, 'stderr', output):
+            self.assertTrue(RESULTS.verify_jobs(self.jobs('backend', context), context, self.plan, 'backend'))
+        self.assertEqual('', output.getvalue())
 
     def test_run_head_and_actual_merge_checkout_are_distinct_and_related(self):
         context = self.context()
@@ -504,12 +732,20 @@ class AggregateControls(unittest.TestCase):
                 metadata[RESULTS.artifact_name(context, owner)] = entry
             source = root / '.github/workflows'; source.mkdir(parents=True)
             (source / 'ci.yml').write_bytes((ROOT / '.github/workflows/ci.yml').read_bytes())
-            jobs = self.jobs('backend'); calls = []
+            jobs = self.jobs('backend'); calls, deadlines, job_reads = [], [], []
+            pending_job = self.pending_job
             class FixtureApi(RESULTS.Api):
-                def __init__(self, deadline): self.deadline = deadline
+                def __init__(self, deadline):
+                    self.deadline = deadline
+                    deadlines.append(deadline)
                 def fetch(self, suffix, *, binary=False):
                     calls.append(suffix)
-                    if '/jobs?' in suffix: return {'total_count': len(jobs), 'jobs': jobs}
+                    if '/jobs?' in suffix:
+                        job_reads.append(suffix)
+                        rows = copy.deepcopy(jobs)
+                        if len(job_reads) == 1:
+                            pending_job(rows)
+                        return {'total_count': len(rows), 'jobs': rows}
                     if '/artifacts?' in suffix: return metadata[suffix.split('&name=', 1)[1]]
                     if suffix.endswith('/zip'): return archives[int(suffix.split('/')[-2])]
                     return {'id': 123, 'run_attempt': 1, 'head_sha': context['headSha'],
@@ -519,8 +755,15 @@ class AggregateControls(unittest.TestCase):
             with mock.patch.object(RESULTS, 'ROOT', root), mock.patch.object(RESULTS, 'Api', FixtureApi), \
                     mock.patch.object(RESULTS.OWNER, 'shard_context', return_value=context), \
                     mock.patch.dict(os.environ, {'LEARNSTACK_CI_STARTED_AT': str(int(time.time()))}), \
+                    mock.patch.object(RESULTS.time, 'sleep') as sleep, \
                     mock.patch('sys.stdout', io.StringIO()):
                 self.assertEqual(0, RESULTS.aggregate('backend'))
+                sleep.assert_called_once_with(2)
+                self.assertEqual(2, len(job_reads))
+                self.assertEqual(2, len(deadlines))
+                self.assertLessEqual(deadlines[1], deadlines[0])
+                self.assertLessEqual(deadlines[1] - time.monotonic(), 30)
+                self.assertLessEqual(deadlines[0] - time.monotonic(), 240)
                 receipt = RESULTS.read_json(root / 'artifacts/ci-aggregate-backend/aggregate.json')
                 self.assertEqual(set(paths), set(receipt['producers']))
                 self.assertEqual(len(paths), len([call for call in calls if call.endswith('/zip')]))

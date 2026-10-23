@@ -58,7 +58,7 @@ CREATE TABLE tenant_locales (
 ```
 
 No public no-row fallback is implemented. The
-[accepted P02d-2 G13 answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
+[accepted P02d-2 G13 answer](../roadmap/phase-02d-delivery-log.md#p02d-2-accepted-answers)
 admits no content locale when rows are absent and refuses disabled membership.
 This replaces the earlier unimplemented platform-`en` proposal. Writer enforcement
 is delivered in P02d-2. P02d-4's accepted public contract returns site `404` for an
@@ -213,7 +213,7 @@ Pattern B is cheaper for short fields where joining a translation table is overk
 
 **G24 Accepted — 2026-10-02.** This section owns display fallback under
 [ADR-0008](../decisions/0008-localization-schema.md); the standard links here.
-[P02d-3's decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+[P02d-3's decision package](../roadmap/phase-02d-delivery-log.md#p02d-3-decision-package-2026-10-02)
 records acceptance. Step 1 implements locale-carrying resolution; both review
 rounds passed. P02d-4 Step 3 supplies public response fields; P02d-6 delivers
 language attributes.
@@ -342,10 +342,10 @@ proves RTL content with English fallback UI, without altering seed inventory or
 claiming an Arabic catalogue. Pattern A content never gains cross-locale fallback.
 Step 1 implements the pinned dependency/plugin, catalogues, request runtime and
 key/ICU/callsite controls. The
-[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+[delivery record](../roadmap/phase-02d-delivery-log.md#p02d-6-step-1-localization-and-document-foundation)
 owns foundation verification and review evidence. Step 2 adds catalog/course
 consumers; Step 3 adds ordered lesson labels and metadata. The
-[Step 4 closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+[Step 4 closeout](../roadmap/phase-02d-delivery-log.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 records product proof and scoped manual accessibility evidence. Phase 04 inherits
 the foundation for CMS/Studio; Phase 06
 owns the full Studio/portal consumers.

@@ -1,7 +1,7 @@
 # 13 — Documentation Standards
 
 **Status:** Active
-**Derives from:** [ADR 0007 — Documentation Language and Conventions](../decisions/0007-documentation-language-and-conventions.md).
+**Derives from:** [ADR 0007 — Documentation Language and Conventions](../decisions/0007-documentation-language-and-conventions.md), [ADR 0069 — Phase Documents and Delivery Logs](../decisions/0069-phase-documents-and-delivery-logs.md).
 
 How LearnStack writes, organizes, and maintains documentation.
 
@@ -19,6 +19,7 @@ docs/
   decisions/      NNNN-topic.md ADRs
     _redirects/   redirect stubs for superseded ADRs
   roadmap/        phase-NN-topic.md   (with phase-NNa / phase-NNb splits for parallel tracks)
+                  phase-NN-delivery-log.md   a phase's dated packet records (ADR-0069)
   standards/      NN-topic.md   engineering rules
   runbooks/       *.md           operations procedures (Phase 11+)
   modules/        <module>/     per-module specs (one directory per module, created with its first spec)
@@ -76,7 +77,8 @@ The following are kept current and treated as code:
 | ADR (`decisions/`) | A one-time decision with status, context, decision, consequences | Immutable after acceptance, except for dated Amendments and the bounded corrections in § Correcting and Amending ADRs |
 | Standard (`standards/`) | Ongoing engineering rules | Editable as the team learns |
 | Runbook (`runbooks/`) | Operational procedures | Editable; review quarterly |
-| Roadmap (`roadmap/`) | Phased plan | Editable per phase; a shipped packet's delivery record is not rewritten |
+| Roadmap (`roadmap/`) | Phased plan: the six sections and a bounded Status block, no records ([Roadmap § Phase Structure](../roadmap/README.md#phase-structure)) | Editable per phase |
+| Delivery log (`roadmap/phase-NN-delivery-log.md`) | A phase's dated decision packages, step records, reviews, corrections and closeouts, one section per packet | Append-only; a shipped packet's delivery record is not rewritten; an Accepted decision package is normative; its opening index is generated (`make docs-index`), never edited by hand |
 
 A delivery record that cites something false — an amendment withdrawn before merge, a test
 since renamed — gets a dated correction inline beside the false text, in the shape of an
@@ -262,6 +264,7 @@ An Accepted ADR sometimes carries a statement that was **false when it entered t
 | New feature key or limit key | [21-feature-flags.md](../architecture/21-feature-flags.md) catalog + matching `FeatureKeys` / `LimitKeys` entry |
 | New Hub endpoint | New ADR (the surface is a cross-repository contract; see [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)) + [24-learnstack-hub.md](../architecture/24-learnstack-hub.md) |
 | Standards rule change | The standard itself + an ADR if non-trivial |
+| Packet decision pass, step, review, correction or closeout | A dated entry in the phase's delivery log + the packet's row in the phase document's Status block — never a narrative in `CLAUDE.md`, the repository README or the roadmap index ([ADR-0069](../decisions/0069-phase-documents-and-delivery-logs.md)) |
 
 ## Documentation Reviews
 

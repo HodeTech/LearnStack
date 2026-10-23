@@ -12,10 +12,10 @@ and [Amendment 2](#amendment-2--producer-enforcement-and-local-closeout-2026-10-
 The Status above records acceptance-time state; Amendment 2 records local producer
 closeout with PR-head CI and merge pending.
 Current CI/review/merge navigation (2026-10-12): the
-[PR handoff](../roadmap/phase-02b-events-auth.md#p02b-2-pr-handoff-2026-10-12)
+[PR handoff](../roadmap/phase-02b-delivery-log.md#p02b-2-pr-handoff-2026-10-12)
 links the live PR; the delivery notes retain their as-of status.
 
-The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
+The [P02b-2 decision package](../roadmap/phase-02b-delivery-log.md#p02b-2-decision-package-2026-10-12)
 owns implementation sequencing and numerical runtime bounds. This reserved record
 decides producer dispatch and the coupled P02b-3 subscriber state machine before
 either is implemented. Acceptance does not claim delivery.
@@ -447,10 +447,10 @@ confined composition, fenced claims/recovery/transitions with row-bound atomic
 terminal MUST audit, and the mandatory API-host processor with bounded
 publication ownership, observation and unmapped health. All three steps completed
 both independent review rounds. The
-[Step 3 delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
+[Step 3 delivery record](../roadmap/phase-02b-delivery-log.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
 owns validation, reviewed corrections and the runtime proof scope.
 
-[Step 4 enforcement and closeout](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+[Step 4 enforcement and closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
 implements the full production censuses and planted controls; the focused 21-case
 census/publication run passes with zero skips and the remaining role/health
 catalogue rules are Implemented. Final regression, independent reviews and
@@ -468,7 +468,7 @@ runtime proof without claiming durable consumer delivery.
 
 P02b-2 producer runtime and enforcement are locally complete. All four
 implementation steps completed both independent review rounds. The
-[Step 4 delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+[Step 4 delivery record](../roadmap/phase-02b-delivery-log.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
 records nonempty production credential/publication and observation censuses,
 planted controls, review findings and verified corrections. Test-only round-2
 fixes at `606362b` pin exact source-reader method signatures, the actual
@@ -504,7 +504,7 @@ audit classification and the one-root constructor-port rule. Planted missing,
 dirty and clean controls exercise these bounded checks; real PostgreSQL tests
 own ordering, isolation and atomicity. They do not claim arbitrary reflection or
 SQL transaction dataflow analysis. The
-[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+[Step 6 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 owns validation, independent reviews and PR/CI status. Earlier delivery notes
 retain their dated state. No exactly-once publication, cross-process ordering,
 operator replay route, purge, broker adapter or mapped readiness is delivered.

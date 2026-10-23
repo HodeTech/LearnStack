@@ -7,7 +7,7 @@ Accepted — 2026-10-08. The maintainer approved this ADR and the P02d-5 package
 **Date:** 2026-10-08
 **Deciders:** @cemil
 
-The [P02d-5 decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08)
+The [P02d-5 decision package](../roadmap/phase-02d-delivery-log.md#p02d-5-decision-package-2026-10-08)
 contains the exact defaults, entry matrix, delivery steps and proof obligations.
 At acceptance, implementation has not started. The bounded replacements below
 apply; all other Accepted contracts remain authoritative.
@@ -210,7 +210,7 @@ not an automatic side effect of repository commands.
 
 ## Implementation Notes
 
-The [packet plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-implementation-plan)
+The [packet plan](../roadmap/phase-02d-delivery-log.md#p02d-5-implementation-plan)
 owns defaults, carrier updates, review rounds and scope by step. Acceptance updates
 ongoing standards and appends ADR-0036 navigation before code. Delivery notes record
 implementation separately; acceptance is not runtime evidence.
@@ -239,7 +239,7 @@ The root private environment source, optional matching web projection and paired
 loopback API launcher are delivered. The native launcher provides readiness;
 stock Next with forged provenance is refused by the middleware foundation.
 
-The [Step 1 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-1--native-ingress-and-local-topology)
+The [Step 1 record](../roadmap/phase-02d-delivery-log.md#p02d-5-step-1--native-ingress-and-local-topology)
 owns validation and review evidence. Step 2 still owns visitor budgets; Step 3
 owns configured API transport/bootstrap/entry; Step 4 owns mechanical fences and
 complete production integration. TLS socket/production-launch controls are not a
@@ -255,7 +255,7 @@ sanitation also removes Next's routing, resumption and revalidation controls.
 Next's documented `httpServer` option points at a non-listening upgrade sink:
 only admitted native TLS upgrades reach it, including development HMR.
 
-The [Step 1 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-1--native-ingress-and-local-topology)
+The [Step 1 record](../roadmap/phase-02d-delivery-log.md#p02d-5-step-1--native-ingress-and-local-topology)
 owns production/socket, mutation and cleanup evidence. Steps 2–4 retain their
 scopes; this note changes no Accepted decision or browser-readiness claim.
 
@@ -267,7 +267,7 @@ traffic, and chained 600/physical-peer plus 60/visitor-IP fixed-window budgets.
 The peer ceiling runs first; invalid trusted metadata spends fallback quota and
 receives masked `404` before host classification. Untrusted metadata is ignored.
 
-The [Step 2 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-2--api-visitor-admission-and-budgets)
+The [Step 2 record](../roadmap/phase-02d-delivery-log.md#p02d-5-step-2--api-visitor-admission-and-budgets)
 owns validation and review evidence. Empty-hop startup, API tenant authority,
 rotation-list support and existing public response contracts remain unchanged.
 Configured frontend transport and full renderer proofs still belong to Steps 3–4.
@@ -281,7 +281,7 @@ before live bootstrap, applies membership-first locale entry, preserves inert ra
 query bytes and rebuilds downstream request headers. The public layout is dynamic
 and no-store. Neither bootstrap nor SDK responses enter a shared renderer cache.
 
-The [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-3--configured-caller-and-public-entry)
+The [Step 3 record](../roadmap/phase-02d-delivery-log.md#p02d-5-step-3--configured-caller-and-public-entry)
 owns validation and reviews. Step 4 still owns complete production-build integration
 and mechanical frontend fences; P6 owns public page composition. This delivery
 note changes no Accepted decision or browser-readiness claim.
@@ -300,7 +300,7 @@ Component import fails the build, stock-Next forgeries cannot bootstrap, and pri
 values stay out of responses, client assets and logs. Bootstrap/rendering share a
 request-local trace even when incoming trace context is absent or invalid.
 
-The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-4--frontend-fences-and-production-integration)
+The [Step 4 record](../roadmap/phase-02d-delivery-log.md#p02d-5-step-4--frontend-fences-and-production-integration)
 owns validation and independent reviews. Test-owned routes are not P6 product
 pages or P7 browser/Lighthouse delivery. The original Accepted body is unchanged.
 
@@ -311,7 +311,7 @@ fixes. The final source controls follow bounded static declaration and ESM value
 origins, preserving explicit export precedence and request-local React caching.
 Owned fixture cleanup proves process-group absence even when a leader exits first.
 
-The [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-packet-closeout-2026-10-09)
+The [packet closeout](../roadmap/phase-02d-delivery-log.md#p02d-5-packet-closeout-2026-10-09)
 owns test counts, scope and handoff. P02d-5 is implementation-complete and unmerged;
 maintainer PR review remains. P02d-6 owns product page composition and its decision
 pass; P02d-7 owns the browser demo and Lighthouse. No Accepted decision, original
@@ -338,7 +338,7 @@ redirect-query encoding promise:
 
 The original Accepted body, metadata and Amendments 1–6 remain historical. All
 other contracts remain authoritative; no API tenant authority, public wire contract
-or local topology changes. The [remediation record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+or local topology changes. The [remediation record](../roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
 owns current status. Acceptance delivers no runtime correction or new test/CI
 result; each implementation step still owes validation and two independent reviews.
 
@@ -346,7 +346,7 @@ result; each implementation step still owes validation and two independent revie
 
 P02d-5 and its ADR-0054 remediation are complete and merged through
 [PR #26](https://github.com/HodeTech/LearnStack/pull/26). The
-[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+[merge closeout](../roadmap/phase-02d-delivery-log.md#p02d-5-merge-and-closeout-2026-10-09)
 owns the final head, merge verification and CI evidence. Original acceptance
 metadata and prior amendments remain historical. This delivery note changes no
 decision; P02d-6 product pages and P02d-7 browser/demo/Lighthouse remain separate.
@@ -367,7 +367,7 @@ numeric quotas and content-error/missing-detail status policies are unchanged.
 This is bounded supersession navigation. The original body, metadata and earlier
 delivery notes remain historical. Acceptance delivers no implementation or
 passing production proof; the
-[three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
+[three-step plan](../roadmap/phase-02d-delivery-log.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
 owns execution and review evidence.
 
 ### Amendment 10 — Single-bootstrap production delivery (2026-10-10)
@@ -377,7 +377,7 @@ are implemented. Actual production Next/API/PostgreSQL proofs preserve ingress,
 isolation, content states and the two/one/three-call contract; the additional
 fixture covers exact bootstrap refusals, concurrent snapshots, native lifetime,
 stock browser fallback and fresh development admission. The
-[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+[Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns execution and independent review status. This delivery note leaves the
 original acceptance metadata, body and earlier amendments unchanged; it adds no
 P7 browser-demo, full accessibility or production deployment claim.

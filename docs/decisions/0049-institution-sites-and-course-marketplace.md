@@ -27,7 +27,7 @@ not approval of unseen access or commerce contracts. This ADR remains Proposed.
   create a launch dependency.
 - LearnStack serves institutions that teach live. Buying content access, a cohort
   place, a session reservation or a consumable pack creates different obligations.
-- [P02d-1](../roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
+- [P02d-1](../roadmap/phase-02d-delivery-log.md#merge-and-closeout-2026-09-14)
   shipped tenant-owned courses and lessons with isolation. Their first application
   writers and seed are delivered in P02d-2;
   [ADR-0050](0050-publication-and-course-content-access.md)
@@ -105,12 +105,12 @@ keeps those choices separate.
 
 ### Publication, discovery and access
 
-[G3's publication answer](../roadmap/phase-02d-walking-skeleton.md#p02d-1-accepted-answers)
+[G3's publication answer](../roadmap/phase-02d-delivery-log.md#p02d-1-accepted-answers)
 closed on 2026-09-14 through ADR-0048. Hybrid direction endorsement alone did not
 reopen that public-only implication. The maintainer subsequently approved
 [ADR-0050](0050-publication-and-course-content-access.md) and the exact P02d-2 package
 on 2026-10-02; the
-[dated G3 supersession](../roadmap/phase-02d-walking-skeleton.md#g3-supersession-2026-10-02)
+[dated G3 supersession](../roadmap/phase-02d-delivery-log.md#g3-supersession-2026-10-02)
 preserves the original question, accepted answer and delivery history. ADR-0050
 owns independent publication, persisted policy, restricted backfill and denial
 before anonymous lesson exposure. This marketplace proposal itself supersedes no ADR.

@@ -45,151 +45,13 @@ not deferred to the showcase phase.
 - [Phase 01: Repository, Tooling, and Local Infrastructure](phase-01-repository-tooling.md) — **complete**
 - [Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets](phase-02a-kernel-tenancy.md) — **complete** (packets 0–3, 3b and 4–10 shipped)
 - [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md) —
-  **complete and merged — 2026-10-11**.
-  P02d-1 and P02d-2 complete and merged; the
-  [P02d-2 closeout](phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
-  records final verification. P02d-3 read internals are implemented; the
-  [decision package](phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
-  is Accepted — 2026-10-02; Step 1 is implemented; both review rounds passed.
-  Step 2 implements batched definition reads; both review rounds passed.
-  Step 3 adds generation caching and scope-safe bypass; both review rounds passed.
-  P02d-3 is complete and merged through
-  [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
-  [merge closeout](phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
-  records final verification. P02d-4's
-  [public-read decision package](phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
-  is Accepted — 2026-10-03; all four implementation steps and their review loops
-  are complete. All six real required CI jobs pass and live sixth-check activation
-  is verified. P02d-4 is complete and merged through
-  [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08; its
-  [merge closeout](phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
-  records final verification. P02d-5's decision package and ADR-0053 are Accepted
-  — 2026-10-08. All four steps and both fresh review rounds per step are complete.
-  The [remediation and closeout record](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-  owns delivery and review evidence. P02d-5 is complete and merged through
-  [PR #26](https://github.com/HodeTech/LearnStack/pull/26) on 2026-10-09; its
-  [merge closeout](phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
-  records final verification.
-  P02d-6's ADR-0027 and decision package are Accepted — 2026-10-09. Its localized
-  catalog/course/lesson pages and product proofs are implemented; the
-  [closeout record](phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-  records completed reviews and scoped browser/VoiceOver observations.
-  The original implementation is complete. ADR-0055 remediation delivers
-  single-bootstrap admission and passing production replacement proofs. All three
-  steps completed both independent review rounds;
-  the [Step 3 record](phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-  owns completed Step 3 reviews, verified fixes and delivery evidence. P02d-6 is
-  complete and merged through [PR #27](https://github.com/HodeTech/LearnStack/pull/27)
-  on 2026-10-10; its
-  [merge closeout](phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
-  records final verification. P02d-7's demo, Lighthouse and phase-exit
-  [decision package](phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
-  and ADR-0056 were approved on 2026-10-11. All four steps completed both independent
-  review rounds. The shared demo, genericity fences and seeded browser/Lighthouse
-  proof pass real CI; the seventh required context is active. The
-  [Step 4 record](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
-  owns CI enforcement, reviews and the positive phase-exit verdict.
-  [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; its
-  [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
-  owns final verification and the completed phase exit.
-  The [individual exit evidence](phase-02d-exit-evidence.md) maps each exit
-  criterion to its actual proof and completed disposition.
+  **complete and merged — 2026-10-11** through PR #28. Its Status block links each
+  packet's merge closeout; the [individual exit evidence](phase-02d-exit-evidence.md)
+  maps each exit criterion to its proof.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
-  — **P02b-0 through P02b-5 complete; P02b-1–5 merged through PRs #29–33**.
-  P02b-6 implementation is complete locally; the correction records below own
-  validation and independent reviews.
-  [PR #34](https://github.com/HodeTech/LearnStack/pull/34) records current-head
-  hosted qualification and maintainer review. Merge remains separate;
-  P02b-7–8 are pending. Its
-  [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
-  verifies the inherited baseline; Accepted ADR-0057 and the
-  [producer package](phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
-  authorize the implemented lifecycle, enqueue and provisioning publisher. The
-  [P02b-1 merge closeout](phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12)
-  records final CI verification and the completed delivery/review history.
-  P02b-2 delivers hosted dispatch, fenced recovery, atomic terminal audit,
-  confined credentials and observation/enforcement under Accepted ADR-0046.
-  All four steps and correction bundles completed both independent review rounds;
-  its [merge closeout](phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
-  owns final verification. P02b-3 Steps 1–5 implement durable acceptance, shared
-  inbox/ledger, independent subscriber retries, both real default subscriptions
-  and semantic Seeder handoff. Its
-  [Step 6 record](phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-  records completed enforcement/regression and both review rounds for all six
-  steps. The
-  [external follow-up](phase-02b-events-auth.md#p02b-3-external-review-follow-up-2026-10-15)
-  adds verified corrections and two further independent review rounds; the
-  [second follow-up](phase-02b-events-auth.md#p02b-3-second-external-review-follow-up-2026-10-15)
-  records subsequent runtime/proof corrections and their completed reviews.
-  P02b-3 is complete and merged through PR #31 on 2026-10-15; its
-  [merge closeout](phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
-  owns final verification.
-  P02b-4 is complete and merged through PR #32 on 2026-10-19. Its
-  [merge closeout](phase-02b-events-auth.md#p02b-4-merge-and-closeout-2026-10-19)
-  records all nine runtime steps, three CI steps, completed independent reviews
-  and both complete final-source hosted assignments. Production business and
-  recurrence definitions remain empty. P02b-5's
-  [decision package](phase-02b-events-auth.md#p02b-5-decision-package-2026-10-19)
-  and ADR-0064/0065/0066 are Accepted; five implementation steps, each with two
-  fresh independent review rounds, are authorized. Step 1 completes the isolated
-  token foundation after both independent reviews; its
-  [record](phase-02b-events-auth.md#p02b-5-step-1--token-foundation-2026-10-19)
-  owns the verified metric-privacy correction. Step 2 completes the real read-only
-  subject after both independent review rounds; its
-  [record](phase-02b-events-auth.md#p02b-5-step-2--real-read-only-application-subject-2026-10-19)
-  owns validation. Step 3 completes attributed reconciliation and subject
-  admission after both independent reviews; its
-  [record](phase-02b-events-auth.md#p02b-5-step-3--attributed-reconciliation-and-subject-admission-2026-10-19)
-  owns verified corrections. Step 4 installs the complete HTTP boundary and typed
-  contract; its [record](phase-02b-events-auth.md#p02b-5-step-4--atomic-http-activation-and-contracts-2026-10-19)
-  owns validation and both completed reviews. Step 5 completes the authority
-  census, carrier reconciliation and both review rounds; its
-  [local closeout](phase-02b-events-auth.md#p02b-5-step-5--local-implementation-and-review-closeout-2026-10-19)
-  retains its source-bound pre-merge scope. **P02b-5 is complete and merged**
-  through [PR #33](https://github.com/HodeTech/LearnStack/pull/33) on 2026-10-20.
-  Its [merge closeout](phase-02b-events-auth.md#p02b-5-merge-and-closeout-2026-10-20)
-  owns final-source CI, unchanged-plan A/B qualification and identical merge
-  trees. P02b-6's realm/TTL
-  [decision pass](phase-02b-events-auth.md#p02b-6-decision-package-2026-10-20)
-  is Accepted — 2026-10-21, including its four implementation steps. G12's
-  realm/reconciliation/callback choices and G13's issuance-TTL part are Accepted;
-  the dedicated issuance follow-up
-  [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) is
-  Accepted — 2026-10-21 after separate maintainer approval, with no runtime or
-  G13 session-policy change.
-  The [additional correction record](phase-02b-events-auth.md#p02b-6-additional-verification-and-correction-pass-2026-10-22)
-  owns current findings; [ADR-0068](../decisions/0068-development-warm-realm-qualification.md)
-  is Accepted — 2026-10-22 after verified review corrections under conditional
-  maintainer authority. Its [first correction step](phase-02b-events-auth.md#adr-0068-step-1--qualified-stock-assignment-implementation-2026-10-22)
-  completes both review rounds locally. Its
-  [second correction step](phase-02b-events-auth.md#adr-0068-step-2--owned-visibility-preparation-2026-10-22)
-  completes owned preparation and fresh planning after both independent review
-  rounds. Its [third correction step](phase-02b-events-auth.md#adr-0068-step-3--complete-historical-path-qualification-2026-10-22)
-  completes local historical entry, credential/MFA, signed API and self-service
-  proof after both review rounds, and owns source-bound hosted qualification.
-  Step 1 is complete locally after both review rounds; its
-  [record](phase-02b-events-auth.md#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21)
-  owns fresh-provider qualification and implementation reviews. Step 2 is
-  complete locally after both review rounds and fresh fix reviews; its [record](phase-02b-events-auth.md#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21)
-  owns the Accepted server-information response allowance and actual correction
-  qualification. Step 3 is complete locally after both review rounds and fresh
-  corrections; its
-  [record](phase-02b-events-auth.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21)
-  owns actual seed/demo and cancellation evidence. Step 4's
-  [record](phase-02b-events-auth.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-  owns completed local provider/API proofs, both independent review rounds and
-  source-bound correction/CI receipts. The correction record above owns exact
-  hosted assignments and evidence limits; merge remains separate. All four steps
-  are complete locally;
-  G13's session part stays Open.
-  The [second external-review follow-up](phase-02b-events-auth.md#p02b-5-second-external-review-follow-up-2026-10-20)
-  retains its source-bound corrections. [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md)
-  is Accepted — 2026-10-20; its subject-cap, cleanup and refusal refinements are
-  implemented with local runtime/exported proofs. Its
-  [implementation record](phase-02b-events-auth.md#adr-0066-acceptance-and-implementation-2026-10-20)
-  retains source-bound validation and independent reviews; the merge closeout
-  above owns final-source qualification.
-  BFF sessions and phase-exit enforcement remain P02b-7–8.
+  — **in progress**: P02b-0–5 complete and merged through PRs #29–#33; P02b-6's
+  implementation merged through PR #34; P02b-7–8 pending. Its Status block owns
+  packet state.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)
@@ -293,7 +155,7 @@ retrofit**, and **thin where it is not**:
   including `Core_Modules_HaveNo_DomainSpecific_Names`, which keeps every name the
   platform ships free of the forbidden domain terms. That rule reads names and strips
   literals. P02d-7's
-  [G20 controls](phase-02d-walking-skeleton.md#p02d-7-genericity-enforcement)
+  [G20 controls](phase-02d-delivery-log.md#p02d-7-genericity-enforcement)
   add typed exact identity matching across nonempty backend/frontend/JSON subjects,
   compiled/restore-resolved Seeder-reference bans and planted dirty/clean controls.
   The production schema-replacement proof complements that source fence;
@@ -336,9 +198,37 @@ Three exceptions, all deliberate:
   convention and carries `## Technical Notes` instead. Its annotation block records
   this; it is not a gap to fill.
 
-Phases in progress additionally carry a dated `> **Status**` block at the top, listing
-packets and their state. A **packet** is an independently reviewable, independently
-mergeable slice with its own pull request; see [Glossary](../glossary.md).
+A phase with packets additionally carries a dated `> **Status**` block above `## Goal`,
+in progress and after completion: the phase's state and one packet table whose rows
+link each packet's records. A **packet** is an independently reviewable,
+independently mergeable slice with its own pull request; see [Glossary](../glossary.md).
+
+**Plan and record live in separate files**
+([ADR-0069](../decisions/0069-phase-documents-and-delivery-logs.md)):
+
+- The **phase document** is the plan. Further plan sections may sit between
+  `## Goal` and `## Phase Exit Decision`; nothing follows `## Phase Exit Decision`. It
+  holds no records: no heading carries a date, a packet identifier (`P02b-4`) or the
+  words *delivery record*, *review round*, *closeout*, *decision package* or *decision
+  pass*. Its Status block stays within 40 non-blank lines and the whole file within
+  2,000 lines.
+- The **delivery log**, `phase-<id>-delivery-log.md`, is the phase's dated record:
+  one `##` section per packet (`P02b-4 — Background jobs`), plus `Phase entry`,
+  `Cross-packet records` and `Status archive` where needed, each entry a dated `###`
+  heading. It is append-only; a shipped packet's entries are not rewritten. It opens
+  with an index generated from its headings — `make docs-index` writes it, CI refuses
+  a stale one — so a reader opens the index and then only the entry it needs.
+- An optional **exit evidence index**, `phase-<id>-exit-evidence.md`, maps each exit
+  criterion to its proof at phase exit, as
+  [Phase 02d's](phase-02d-exit-evidence.md) does.
+- **Status lives once.** Packet state lives in the Status block and gate state in the
+  decision register. § Phases above gives each phase at most six lines and links no
+  delivery log; `CLAUDE.md` and the repository README link none at all.
+
+[Phase 02a](phase-02a-kernel-tenancy.md) keeps its frozen single-file shape, with its
+delivery records after its exit decision. `scripts/roadmap-structure.py` and
+`scripts/markdown-fragment-audit.py` hold every other phase to these rules in CI and in
+`make lint-docs`.
 
 The roadmap deliberately carries **no effort estimates, owners, or timeboxes**. It is a
 dependency and scope plan; sequencing decisions belong here, capacity decisions do not.
@@ -376,9 +266,12 @@ Each open question is a **gate**, answered at its last responsible moment:
 - **Acceptance is explicit.** Preserve each original gate question and record
   `Accepted — YYYY-MM-DD` with a link to its answer and accepted vehicle, including
   phase-doc, standard and catalogue answers. For a split gate, name exactly the part
-  closed and the parts still open. Each packet's status and delivery record list its
-  closed parts. A Proposed record closes nothing. This notation applies roadmap-wide,
-  accepted in [P02d-1's decision pass](phase-02d-walking-skeleton.md#p02d-1-accepted-answers)
+  closed and the parts still open. Each packet's Status row and its decision package
+  in the [delivery log](#phase-structure) list its closed parts. A gate whose vehicle is
+  the phase document is answered in that dated decision package: once Accepted, it is
+  normative exactly as the phase document's own text would be, and the register links
+  it. A Proposed record closes nothing. This notation applies roadmap-wide,
+  accepted in [P02d-1's decision pass](phase-02d-delivery-log.md#p02d-1-accepted-answers)
   on 2026-09-14.
 - **A register pre-assigns nothing that moves.** An amendment takes the next free number
   on the day it is written. A phase that waits behind another re-verifies its register

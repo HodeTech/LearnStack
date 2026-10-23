@@ -52,7 +52,7 @@ independent review rounds before advancing.
    remains serial. Architecture explicitly caps parallel threads at two. More collection
    concurrency does not isolate process-global hooks or repair order dependence. The
    shared-hook/filter-restoration constraint is recorded in the [hosted
-   follow-up](../roadmap/phase-02b-events-auth.md#hosted-ci-qualification-follow-up-2026-10-18).
+   follow-up](../roadmap/phase-02b-delivery-log.md#hosted-ci-qualification-follow-up-2026-10-18).
 4. **Several isolated test processes per VM** (credible alternative, not selected for
    this rollout). Reuse checkout/build and isolate static state in distinct testhosts.
    This needs one owner for all children and Docker lifecycle, private result paths,
@@ -462,7 +462,7 @@ final-source meta passes with the new controls.
 - [Infrastructure Standards](../standards/20-infrastructure-stack.md).
 - [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md).
 - [Documentation Standards](../standards/13-documentation.md).
-- [P02b-4 hosted follow-up](../roadmap/phase-02b-events-auth.md#hosted-ci-qualification-follow-up-2026-10-18).
+- [P02b-4 hosted follow-up](../roadmap/phase-02b-delivery-log.md#hosted-ci-qualification-follow-up-2026-10-18).
 - [Native probe instructions](../../backend/tests/LearnStack.Tests.JobLifecycleProbe/README.md).
 - [VSTest 17.12 filter contract](https://github.com/microsoft/vstest/blob/v17.12.0/docs/filter.md).
 - [xUnit adapter identity producer](https://github.com/xunit/visualstudio.xunit/blob/2.8.2/src/xunit.runner.visualstudio/Sinks/VsDiscoverySink.cs#L71-L85).

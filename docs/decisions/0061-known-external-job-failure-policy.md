@@ -368,7 +368,7 @@ path without claiming that uncommitted facts survive process death.
 
 - [Decision index](README.md) and [Background Jobs glossary](../glossary.md#background-jobs).
 - [ADR-0040](0040-ambient-unit-of-work.md), [ADR-0044](0044-audit-write-path.md) and [Documentation Standards](../standards/13-documentation.md).
-- [P02b-4 proposal and acceptance gate](../roadmap/phase-02b-events-auth.md#p02b-4-external-completed-failure-proposal-2026-10-16).
+- [P02b-4 proposal and acceptance gate](../roadmap/phase-02b-delivery-log.md#p02b-4-external-completed-failure-proposal-2026-10-16).
 - [ADR-0047](0047-transactional-background-job-runtime.md), [ADR-0058](0058-bounded-stock-hangfire-maintenance.md), [ADR-0059](0059-owned-hangfire-server-generations.md), [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md).
 - [Database Standards](../standards/05-database.md#background-jobs), [Error Handling](../standards/09-error-handling.md#background-jobs), [Infrastructure Stack](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire).
 - [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md#p02b-4-background-job-obligations), [Audit Coverage](../standards/18-audit-coverage.md), [Events and Outbox](../architecture/15-event-and-outbox.md).

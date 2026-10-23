@@ -3,9 +3,9 @@
 **Reconciliation complete — 2026-10-11.** All four P7 steps completed both
 independent review rounds. The real PR check receipts, verified artifacts,
 seventh-check activation and positive exit verdict are recorded in the
-[CI and exit closeout](phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11).
+[CI and exit closeout](phase-02d-delivery-log.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11).
 This document is an evidence index, not a new architecture decision. PR #28 is
-merged; the [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+merged; the [merge closeout](phase-02d-delivery-log.md#p02d-7-merge-and-closeout-2026-10-11)
 owns final verification and the completed phase exit.
 
 The rows enumerate all 36 [deliverables](phase-02d-walking-skeleton.md#deliverables),
@@ -34,7 +34,7 @@ identified separately where needed. P1–P6 refer to the merged packet records i
 [Phase 02d](phase-02d-walking-skeleton.md); Step 1–3 refer to P7's records.
 [Run 38127402847](https://github.com/HodeTech/LearnStack/actions/runs/38127402847)
 supplies final B/I/F/O/J for source `8d9d219`, tested merge `2d8ff6b`; the
-[merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+[merge closeout](phase-02d-delivery-log.md#p02d-7-merge-and-closeout-2026-10-11)
 records full identities and verified artifacts. Earlier runs retain their dated
 counts and seventh-check activation history. The squash merge has the same tree
 as the final PR source; its post-merge run is identified separately.
@@ -53,7 +53,7 @@ causal focused proof; the final CI lifecycle must include it.
 
 H retains PR #27's original manual attribution: commit `180dde0`, macOS 27.0.1,
 Brave 154.1.96.61, both seeded hosts and EN/TR routes. The
-[P6 closeout](phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+[P6 closeout](phase-02d-delivery-log.md#p02d-6-packet-closeout-2026-10-10)
 records keyboard/focus, 320 CSS-pixel reflow and long-string observations,
 calculated contrast, and the maintainer's VoiceOver catalog → course → lesson,
 missing-page and invalid-link recovery smoke. Seeded contrast ratios were
@@ -209,7 +209,7 @@ by listing its phase here.
 
 **Reconciled — 2026-10-12.** X04 follows the Accepted P02b-1 production
 contract and current Tenancy catalogue. P7's dated handoff remains preserved
-with its [reconciliation](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11).
+with its [reconciliation](phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11).
 
 | ID | Exclusion locator | Named owner | Evidence and boundary |
 |---|---|---|---|
@@ -267,7 +267,7 @@ with its [reconciliation](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforc
 | E08 | Zero 02d Registered/Awaiting catalogue rows and standard/index alignment | Four P7 promotions with actual behavioral owners and hard CI, computed counts and Standard_Status_Headers_Match_The_Index exact-head receipt. |
 | E09 | Delivery record names moved P02b-0 premises | /api/v1 contract, *.learnstack.local native HTTPS/manual trust, visitor+peer quotas, seed default-org/tenant scopes, uncached settings with the dated future-invalidation reconciliation, single bootstrap; do not Accept auth/BFF future gates. |
 
-The [Step 4 preservation and P02b-0 handoff](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+The [Step 4 preservation and P02b-0 handoff](phase-02d-delivery-log.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 names the retained Education data, live API/host/trust/limiter/bootstrap premises
 and the reconciled uncached-settings boundary. Phase 05 migrates the existing
 records; it does not treat reseeding as migration. Course Marketplace ADR-0049

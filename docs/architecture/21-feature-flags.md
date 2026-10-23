@@ -345,7 +345,7 @@ Each `LimitKey` in the catalog declares a `LimitEnforcement` (`Soft` | `Hard`):
   `POST /api/v1/usage/report`. Example: `ClassroomMinutesPerMonth`.
 
 Packet 9 shipped the descriptor and the read. The first hard authoring gate is
-the [approved content-type quota](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19):
+the [approved content-type quota](../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting):
 it returns `403 limit_exceeded` through the standard Result/Problem Details mapping.
 The soft-limit reporting path remains
 [Phase 02c](../roadmap/phase-02c-hub-foundation.md) work, the first phase in which

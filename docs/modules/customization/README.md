@@ -181,7 +181,7 @@ an Active winner from another revision is never retired or adopted by authored s
 Built-ins use the separate semantic initialization path described below.
 
 Ordinary content-type registration enforces the
-[accepted authoring quota](../../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting--accepted-2026-10-19).
+[accepted authoring quota](../../roadmap/phase-04-cms-media-pages.md#content-type-quota-accounting).
 Custom-key writers acquire a tenant-wide transaction advisory lock before their
 concept lock, then count usage and insert inside the same ambient transaction.
 The standard `limit_exceeded` refusal names the limit key and allowance, maps to
@@ -191,7 +191,7 @@ classification. This changes accounting, not deletion or restoration authority.
 ### Primary integration-event flow: provisioning defaults
 
 **Implemented by P02b-3 Step 5; complete and merged through PR #31.** The
-[merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+[merge closeout](../../roadmap/phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final verification; step-level validation/reviews are recorded below.
 [ADR-0057](../../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
 authorizes independent `card@1` content-type and `plain@1` taxonomy initialization
@@ -232,7 +232,7 @@ scopes bypass their cache. The writer reader remains uncached.
 owns family keys, ambient snapshot loading, dirty-scope bypass, fault/cancellation
 behavior and freshness. The two families include eligible retained revisions and
 immutable bands; the writer's exact-purpose reader below stays uncached.
-[P02d-3's accepted package](../../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+[P02d-3's accepted package](../../roadmap/phase-02d-delivery-log.md#p02d-3-decision-package-2026-10-02)
 owns implementation steps and proof obligations. P02d-4's accepted Education
 consumer uses exact pins and ordered allowlisted string fields, with whole-content
 unavailable outcomes. Internal field requiredness comes from schema.required;
@@ -328,7 +328,7 @@ classified nested command, refusing a failed result rather than completing inbox
 
 Seeder discovers built-ins by key/version and verifies their exact Active shape,
 retaining warm/generated IDs. Authored curriculum identities/pins stay exact.
-The [Step 5 record](../../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+The [Step 5 record](../../roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 owns initialization, race and Seeder validation/review status.
 
 No other module reacts to a customization change through events today. Public
@@ -354,7 +354,7 @@ In [audit.md](audit.md), the file
 | Path | Budget | Why this number |
 |---|---|---|
 | Resolve batched definitions (warm) | **< 1 ms** for in-memory resolution, excluding SQL probe | One fresh generation SELECT; no definition query. End-to-end timing measured separately in P02d-3 |
-| Resolve batched definitions (cold/partial/fault) | **< 20 ms** production p95 target, not proven by the local sample | At most two SELECTs: probe plus coherent generation/rows snapshot; [seeded measurements](../../roadmap/phase-02d-walking-skeleton.md#step-3-generation-cache-and-read-safety) report rows/bytes and query plans, not production p95 |
+| Resolve batched definitions (cold/partial/fault) | **< 20 ms** production p95 target, not proven by the local sample | At most two SELECTs: probe plus coherent generation/rows snapshot; [seeded measurements](../../roadmap/phase-02d-delivery-log.md#step-3-generation-cache-and-read-safety) report rows/bytes and query plans, not production p95 |
 | Admit a tenant-authored schema (four gates) | **< 50 ms** p95 | Interactive, on save, and rare |
 | Validate one instance at the § 8.4 caps | **742 ms, 1.6 GB** | Measured worst case, not a budget — see below |
 | Publish a successor (2 reads, 2 updates, 1 upsert) | **< 100 ms** p95 | Interactive but rare |
