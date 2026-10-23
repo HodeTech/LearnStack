@@ -196,13 +196,14 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 539 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 572 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
-  - [P02b-7 revised decision package (2026-10-23)](#p02b-7-revised-decision-package-2026-10-23) — 203 lines
+  - [P02b-7 revised decision package (2026-10-23)](#p02b-7-revised-decision-package-2026-10-23) — 202 lines
   - [P02b-7 revised proposal review round 1 (2026-10-23)](#p02b-7-revised-proposal-review-round-1-2026-10-23) — 27 lines
-  - [P02b-7 revised proposal review round 2 and readiness (2026-10-23)](#p02b-7-revised-proposal-review-round-2-and-readiness-2026-10-23) — 33 lines
+  - [P02b-7 revised proposal review round 2 and readiness (2026-10-23)](#p02b-7-revised-proposal-review-round-2-and-readiness-2026-10-23) — 34 lines
+  - [P02b-7 acceptance and implementation (2026-10-23)](#p02b-7-acceptance-and-implementation-2026-10-23) — 33 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -17983,11 +17984,10 @@ here means proposal coherence, not maintainer acceptance or implementation.
 
 ### P02b-7 revised decision package (2026-10-23)
 
-**Status: Proposed — renewed maintainer approval pending.** The initial
-proposal was not accepted. This revision responds to the maintainer's source
-review, replaces its current proposal assumptions and retains the original
-proposal/review records above. G13's session part stays Open; no dependent
-runtime, realm-event configuration or Accepted ADR is changed by drafting it.
+**Status: Accepted — 2026-10-23.** The maintainer approved ADR-0070 and this
+revised five-step package after both new review rounds. The initial proposal was
+not accepted; its records remain historical. The acceptance entry below records
+the source and bounded carrier changes. No runtime qualification is inferred.
 [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) owns the revised
 contract; this entry owns exact delivery/proof placement.
 
@@ -18244,6 +18244,39 @@ storage/retention are presented together with their costs. G13's session part
 remains Open and dependent implementation remains unstarted until acceptance.
 After approval, the five-step commit/two-review-pair cycle proceeds automatically
 unless a genuinely new decision or blocker requires the maintainer.
+
+### P02b-7 acceptance and implementation (2026-10-23)
+
+The maintainer explicitly approved the revised ADR and five-step plan at
+`d3033f30`: “Revize ADR ve planı onaylıyorum; uygula”. G13's session part is now
+Accepted. This is separate from the earlier unaccepted Auth.js proposal and its
+historical reviews. Work stays on `development`; no push, PR or merge is implied.
+
+- ADR-0070 is Accepted, with native openid-client custody, opaque cookies,
+  effective lifetime, source/subject/global admission and qualified development
+  provider-event storage/retention. Its acceptance-time source has no runtime.
+- Dated ADR-0035/0053/0054 disclosures record the additive store/caller and exact
+  POST extension. Original Accepted bodies and metadata remain unchanged.
+- **P02b-6 allowance extension:** The shared development reconciler may now read
+  and update only the ADR-0070-qualified tenant user-event configuration. It
+  unions effective existing selection, preserves listeners/admin policy and
+  qualified retention, checks conflicts before any preparation/ordinary write,
+  verifies separately and requires a completed zero-write rerun. All other
+  account/credential/role/client/profile/SSO/Hub preservation limits remain.
+  Existing preparation/uncertain-progress rules still apply. No web runtime
+  obtains Admin credentials or generic realm mutation authority.
+- Mutable standards, architecture, glossary and G13/phase plans reconcile the
+  selected authority; four catalogue obligations register with named owners.
+  Existing Implemented counts remain unchanged. Actual setup/env/skill and
+  per-rule implementation updates accompany their owning delivery steps.
+
+The five revised steps above are authorized in order. Step 1 starts with the
+inactive RP foundation and fresh/warm provider-event policy; Step 2 owns the
+native store; Step 3 owns closed routes/caller; Step 4 activates all guards/UI
+atomically; Step 5 supplies actual lifecycle/browser and final-source CI proof.
+Each step commits, passes two fresh independent review pairs and commits verified
+fixes before the next. The primary alone runs serialized provider/browser/build
+work. A new authority decision requires approval; routine implementation does not.
 
 ## Status archive
 

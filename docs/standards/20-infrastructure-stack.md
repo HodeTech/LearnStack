@@ -1,6 +1,8 @@
 # 20 — Infrastructure Stack Standards
 
 **Status:** Active
+Tenant BFF additions derive from
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
 **Derives from:** [ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
@@ -49,6 +51,12 @@ contract surface, the entitlement projection, and the deployment-mode-aware comp
 root. The broader operational rules (containers, CI/CD, DB ops, observability) live in
 [12-infrastructure.md](12-infrastructure.md); the two standards are complementary, not
 overlapping.
+
+The tenant BFF uses app-local `BffSessionStore` with `InMemoryBffSessionStore`
+(P02b-7) under [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
+Phase 11 owns a distributed adapter before multiple native web processes must
+serve one session; atomic refresh/revocation/interruption proofs gate that swap.
+This credential owner is separate from `ICacheService` and the public request holder.
 
 ## Demand-Gated Building Blocks
 

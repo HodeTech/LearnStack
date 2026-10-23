@@ -8,6 +8,8 @@ model, and session-variable placement**),
 (Amendment 1: `learnstack-hub` realm),
 [ADR-0067 Development Tenant Access-Token Issuance](../decisions/0067-development-tenant-access-token-issuance.md)
 (the configured development issuance lifespan and provider timestamp semantics),
+[ADR-0070 Owned Tenant BFF Sessions](../decisions/0070-owned-tenant-bff-sessions.md)
+(native custody, browser transactions and development provider event storage),
 [ADR-0068 Development Warm-Realm Qualification](../decisions/0068-development-warm-realm-qualification.md)
 (the bounded preparation and stock-console assignment authority),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
@@ -148,8 +150,8 @@ LearnStack runs **two Keycloak realms** per
 General rules:
 
 - OIDC. No handwritten password code; no handwritten token rotation.
-- Refresh tokens stored as `HttpOnly`, `Secure`, `SameSite=Lax` cookies; never
-  accessible to JS.
+- Refresh/access/ID tokens stay in the native BFF session owner. Browser cookies
+  contain only opaque handles/proofs under the tenant BFF rules below.
 - Access tokens short-lived (≤ 1 hour) and refreshed silently by the BFF.
 - MFA enrollment supported for tenant-admin roles; required for platform-admin **and**
   for every Hub operator account.
@@ -188,8 +190,7 @@ after both independent reviews; its
 owns local proof/review closure and source-bound qualification receipts. The
 required CI checks qualify their exact source and assignment. ADR-0064's one-hour
 API acceptance ceiling and 30-second skew remain separate from issuance.
-P02b-7 owns BFF idle/absolute lifetimes and refresh custody; that part of G13
-remains Open.
+ADR-0070 owns BFF custody/lifetimes; P02b-7 delivers that Accepted contract.
 
 The pinned provider also copies the access-token expiration into generated ID
 tokens, including shorter session-clamped issuance. ID tokens remain identity
@@ -205,6 +206,44 @@ API's existing skew; an indeterminate clock/window fails qualification. Preserve
 session-clamping coverage for shorter late-session issuance and independent
 mutants with wrong expiration or configuration. Existing tokens retain their API
 acceptance bound; a shorter issuance setting does not revoke them immediately.
+
+### Tenant BFF sessions
+
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md), Accepted 2026-10-23,
+selects openid-client and native single-process custody behind `BffSessionStore`.
+P02b-7's five-step package owns implementation; acceptance alone enables no route.
+Use 256-bit random opaque `__Host-` session cookies: HttpOnly, Secure,
+SameSite=Lax, Path=/, no Domain. Credentials and raw profiles enter no browser
+projection. Verified host, browser binding, epoch and server state are required.
+
+- Idle is 30 minutes, absolute eight hours; effective expiry also respects the
+  provider refresh deadline. Response owners refresh expired/near-expiry access,
+  touch qualifying activity and publish one revision. `auth()` is read-only.
+  Explicit extension refreshes the provider; a timestamp alone does not extend it.
+- Retain 1,024 total owners, including unsettled work; 128 pending for five minutes,
+  16 pending per verified visitor IP, eight session/logout-return owners per
+  validated issuer/subject. Same-browser replacement settles old work first.
+  No live other-device eviction or capacity bypass; source/subject refusal is
+  429 and global capacity refusal is 503. Full expiry scans precede global refusal.
+- Revocation/epochs fence late callbacks and refresh. Unknown/mismatched state
+  changes no cookies; verified failure clears only its own transaction cookie.
+  Logout revokes locally first, discards tokens after URL construction and keeps
+  only its bounded return proof/accounting. Late cookie delivery can force sign-in.
+- Explicit BFF opt-in validates issuer/secret together. Disabled mode keeps public
+  requests independent of Keycloak; auth paths are 404 and protected shells 503.
+  Restart signs sessions out. Multiple web processes require Phase 11's distributed
+  adapter and actual refresh/revocation/interruption qualification first.
+
+Tenant **development** provider events use explicit LOGIN/LOGIN_ERROR,
+LOGOUT/LOGOUT_ERROR, CODE_TO_TOKEN/CODE_TO_TOKEN_ERROR and
+REFRESH_TOKEN/REFRESH_TOKEN_ERROR storage. Merge the existing effective selection;
+preserve listeners/admin policy. Fresh/default-empty retention is seven days.
+Warm adoption requires bounded empty-history proof; preserve finite retention
+of at least seven days, refusing shorter/indefinite/ambiguous custom policy before
+any write. Separate readback and zero-write rerun are mandatory. Provider records
+contain personal data, stay out of raw artifacts and are not an atomic BFF ledger.
+[Audit 18](18-audit-coverage.md#operation-types) owns that narrow audit boundary;
+Phase 11 owns production retention/capacity/security qualification.
 
 ## Ingress / Gateway (APISIX)
 
@@ -656,8 +695,13 @@ for the native controls and their delivery/review boundary.
 ## CSRF
 
 - Cookie sessions use `SameSite=Lax`.
-- Server Actions verify the Auth.js session implicitly.
-- Mutating fetches from JS include a CSRF token bound to the session.
+- BFF sign-in POST requires exact Origin and a random host-only double-submit
+  proof; authenticated sign-out/extension requires exact Origin and a random
+  constant-time checked session-bound token. Apply admission before allocation.
+- The cross-origin provider callback instead requires its single-use state,
+  nonce, PKCE verifier and host/browser/epoch-bound transaction cookie.
+- Only the exact auth POST set is open. SameSite and implicit framework checks
+  authorize neither sibling origins nor Server Actions.
 - Webhook endpoints verify signatures, not CSRF tokens.
 
 ## CORS

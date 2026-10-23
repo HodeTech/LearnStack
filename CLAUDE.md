@@ -47,9 +47,9 @@ database. In [Phase 02b](docs/roadmap/phase-02b-events-auth.md), P02b-0 through
 P02b-5 are complete and P02b-1–5 merged through PRs #29–#33 — transactional event
 production, durable dispatch, subscriber delivery, background jobs and tenant API
 authentication — and P02b-6's realm and identity implementation is merged through
-PR #34. The phase document records its correction closeout. P02b-7 (BFF
-session) and P02b-8 (exit enforcement) are pending, and G13's session part stays
-Open, so browser sign-in is not implemented. Phase 06 retains the full
+PR #34. The phase document records its correction closeout and owns the delivery
+state of P02b-7 (BFF session) and P02b-8 (exit enforcement). Browser sign-in is not
+implemented yet. Phase 06 retains the full
 renderer/Studio expansion.
 
 **Status lives in one place.** Each phase document's Status block owns packet

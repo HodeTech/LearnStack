@@ -43,6 +43,14 @@ Two consequences follow, and both are stated plainly rather than implied:
 
 ### Demand-gated building blocks
 
+**Distributed BFF sessions** — trigger: multiple native web processes must serve
+one browser session. P02b-7's app-local `BffSessionStore` uses the volatile
+`InMemoryBffSessionStore` under
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) and ADR-0035's dated
+additive inventory. This phase supplies/qualifies the distributed adapter,
+credential security/retention, atomic refresh/revocation/interruption and
+production provider-event storage/capacity. Sticky routing is not continuity.
+
 Most items below have a port in `LearnStack.SharedKernel` and a default implementation
 from [Phase 02a Packet 5](phase-02a-kernel-tenancy.md), with a trigger condition recorded
 in [ADR-0035 § The gated set](../decisions/0035-demand-gated-infrastructure.md), which is

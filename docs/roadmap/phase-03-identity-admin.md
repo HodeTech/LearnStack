@@ -258,6 +258,14 @@ what may be written into it invites exactly the leak this phase closes.
 
 ### Authentication Integration
 
+P02b-7 implements [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
+Before immediate account-disable/sign-out-everywhere is promised, this phase
+owns authenticated OIDC back-channel logout ingress, signature/audience/time/
+replay validation and provider-session indexing into `BffSessionStore`.
+It also owns authenticated provider event ingress/mirroring through the existing
+identity-event/audit path. Earlier development provider storage is not a durable
+LearnStack session ledger; local-only expiry/outage acts retain that limitation.
+
 Keycloak owns credentials, password reset, email verification, and MFA. This phase
 wires LearnStack into that flow:
 

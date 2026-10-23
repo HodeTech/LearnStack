@@ -36,8 +36,9 @@ proofs after both independent review rounds and verified corrections; its
 [record](../roadmap/phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns local implementation, review closure and source-bound qualification receipts.
 The correction record below owns exact hosted assignments; merge is separate.
-G13's BFF session part
-stays Open for P02b-7. The
+G13's BFF session part is Accepted under
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md); P02b-7 delivers its
+native owner, opaque cookies and provider-event persistence. The
 [development realm guide](../../infra/keycloak/README.md) owns exact callbacks,
 private sources and current upgrade status.
 
@@ -146,7 +147,7 @@ sequenceDiagram
     Web->>Browser: redirect to KC /auth (PKCE)
     Browser->>KC: login form
     KC->>Browser: redirect with code
-    Browser->>BFF: GET /api/auth/callback?code=...
+    Browser->>BFF: GET /api/auth/callback/keycloak?code=...
     BFF->>KC: POST /token (exchange)
     KC-->>BFF: access_token + refresh_token + id_token
     BFF->>BFF: set HttpOnly cookie 'session'
@@ -251,9 +252,16 @@ LearnStack reads the `amr` claim to know whether MFA was used; sensitive operati
 
 ## Logout
 
-- Browser logout clears the session cookie and calls Keycloak's end-session endpoint with the `id_token_hint`.
-- Keycloak revokes the refresh token and clears its SSO session.
-- Other LearnStack sessions for the same user are not affected unless the user explicitly signs out everywhere.
+- [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) revokes locally and
+  fences the browser epoch before provider navigation. A separate short-lived
+  return proof survives clearing session/sign-in cookies; tokens are discarded
+  after constructing the registered end-session redirect.
+- Real-provider proof must show the targeted SSO session ended. Shared SSO can
+  invalidate another host's later refresh; independent provider sessions are not
+  intentionally revoked. Already issued API JWTs keep their acceptance bound.
+- Local logout succeeds even during provider outage. After navigating away,
+  automatic return is not guaranteed. Phase 03 owns authenticated back-channel
+  logout before immediate disablement/sign-out-everywhere is promised.
 
 ## Audit
 

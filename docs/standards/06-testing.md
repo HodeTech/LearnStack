@@ -1,6 +1,8 @@
 # 06 — Testing Standards
 
 **Status:** Active
+Tenant BFF additions derive from
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
 **Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md). Public-renderer
@@ -14,6 +16,12 @@ UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.
 and the [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
 
 Test pyramid, conventions, and what every change must cover.
+
+Tenant BFF proofs follow [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md):
+unit/actual-native route ownership and planted negatives, real warm Keycloak →
+BFF → app-role AccountSite lifecycle/event evidence, and a separate native HTTPS
+browser proof of both hosts' cookie storage/send/logout/history. Realm issuance
+alone proves no BFF session; Phase 06 retains the full browser OIDC journey.
 
 ## Test Pyramid
 

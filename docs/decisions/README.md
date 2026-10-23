@@ -112,12 +112,13 @@ owns outstanding hosted CI/PR qualification. Phase 11 owns production qualificat
 | 0068 | [Development Warm-Realm Qualification](0068-development-warm-realm-qualification.md) | Accepted 2026-10-22 under conditional maintainer authority after verified review corrections: identity-independent prechecks, one bounded profile preparation and three qualified stock-console assignment detachments. Implementation and automatic-path qualification remain pending; the [acceptance record](../roadmap/phase-02b-delivery-log.md#adr-0068-acceptance-and-implementation-2026-10-22) owns the three-step plan and proof status. |
 | 0069 | [Phase Documents and Delivery Logs](0069-phase-documents-and-delivery-logs.md) | Accepted 2026-10-22 after one review round: each phase keeps its plan in the phase document and its dated packet records in a sibling append-only delivery log whose Accepted decision packages stay normative; packet status lives once, in the phase document's bounded Status block; a whole-tree Markdown fragment audit and a roadmap structure guard enforce both, with Phase 02a, Phase 01 and ten Phase 02d entries declared as legacy shapes. |
 
+| 0070 | [Owned Tenant BFF Sessions](0070-owned-tenant-bff-sessions.md) | Accepted 2026-10-23: openid-client, bounded native credential custody and host-only opaque cookies; qualified development provider events. Dated ADR-0035/0053/0054 disclosures preserve earlier bodies. The [acceptance record](../roadmap/phase-02b-delivery-log.md#p02b-7-acceptance-and-implementation-2026-10-23) owns authorized implementation and proof status. |
+
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0070 | [Owned Tenant BFF Sessions](0070-owned-tenant-bff-sessions.md) | Revised proposal: openid-client, native credential custody, source/subject admission and durable development provider events; no runtime activation | P02b-7, before G13 session acceptance and dependent code |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

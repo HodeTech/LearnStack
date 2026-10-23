@@ -321,10 +321,11 @@ turn a generated GET into a public wrapper or widen native public admission.
 
 Auth is delegated to the identity provider (Keycloak/Authentik, see [Identity and Authentication](13-identity-and-auth.md)). The frontend uses OIDC Authorization Code with PKCE.
 
-- Session is held in HTTP-only cookies set by the BFF after callback.
+- [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) selects native server
+  custody with host-only opaque cookies; P02b-7 delivers the Accepted contract.
 - Refresh is handled silently by the BFF; the frontend never sees the refresh token.
 - Studio and Portal segments require an authenticated session at the edge; unauthenticated requests redirect to the identity provider.
-- Public segment is anonymous-by-default; authenticated users get personalised hero blocks etc.
+- Public remains anonymous-by-default; P02b-7 adds no personalized content.
 
 ## Page-Block Resolver
 
@@ -418,8 +419,8 @@ actions**. The tenant-facing surface in `apps/web` is read-only:
   operator action.
 
 Full flow: [27-custom-domain-tls.md](27-custom-domain-tls.md). Auth-cookie scoping for
-custom domains uses SameSite-Lax with explicit `Domain=` per active host; no cookies
-shared across tenants.
+custom domains uses Secure/HttpOnly/SameSite-Lax `__Host-` cookies, Path=/ and
+**no Domain**, under ADR-0070. No cookie or forwarded header selects a tenant.
 
 ## Live Classroom Integration
 
@@ -500,7 +501,7 @@ mechanical.
   quota on each request. Measure that cost; only request-local reuse is allowed
   under [the public rendering policy](../standards/07-frontend-architecture.md#public-site-renderer).
 - **Cookie domain scoping** — tenants on custom domains complicate auth cookies. Use
-  SameSite-Lax + explicit `Domain=` per host; do not share auth cookies across tenants.
+  host-only `__Host-` cookies with no Domain; do not share auth cookies across tenants.
   Domain registration and TLS flow:
   [27-custom-domain-tls.md](27-custom-domain-tls.md).
 - **Brand-token contrast failures** — refuse saving a failing palette and explain

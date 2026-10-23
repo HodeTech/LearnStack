@@ -2,8 +2,8 @@
 
 ## Status
 
-Proposed — revised after maintainer review; approval pending. No dependent
-runtime is implemented.
+Accepted — 2026-10-23, after separate maintainer approval of the revised record
+and five-step package. No dependent runtime exists at acceptance.
 
 **Date:** 2026-10-23
 **Deciders:** @cemil
@@ -12,7 +12,7 @@ This record answers G13's session part for
 [Phase 02b](../roadmap/phase-02b-events-auth.md#the-decision-register).
 The [revised package](../roadmap/phase-02b-delivery-log.md#p02b-7-revised-decision-package-2026-10-23)
 owns its five implementation steps. Earlier draft reviews remain historical
-source inspections, not acceptance of this revision.
+source inspections; the dated acceptance record captures maintainer approval.
 
 ## Decision Drivers
 
@@ -367,7 +367,7 @@ ADR-0055's request holder never becomes the session store. ADR-0004's prohibitio
 on .NET session storage is unchanged. The new development event fields extend
 P02b-6's owned reconciliation allowance; all other preservation limits remain.
 
-At acceptance, append dated disclosures to ADR-0035/0053/0054 and the Accepted
+Acceptance appends dated disclosures to ADR-0035/0053/0054 and the Accepted
 P02b-6 package. ADR-0035's additive inventory amendment names `BffSessionStore`,
 `InMemoryBffSessionStore`, Phase 11 and its multi-web-process trigger; it adds no
 exception to the four-part rule. Do not rewrite Accepted bodies/metadata.
@@ -375,7 +375,7 @@ Reconcile Standards 06/07/10/11/18/20/21; Architecture 13/14/**25/31**; Phase 03
 G13 and the phase session plan; glossary BFF/session terms; realm/setup guidance
 and both route/feature-gate skills. Architecture 25's auto-scaled SaaS topology
 is a target requiring the distributed adapter, not current session support.
-Proposed text changes no active rule or runtime before approval.
+Acceptance establishes authority, not runtime qualification.
 
 ## Context
 

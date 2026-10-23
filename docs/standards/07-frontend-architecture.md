@@ -1,6 +1,8 @@
 # 07 — Frontend Architecture Standards
 
 **Status:** Active
+Tenant BFF additions derive from
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
 **Derives from:** [ADR-0009 Frontend Single App First](../decisions/0009-frontend-single-app-first.md),
 [ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
 (Amendment 1: `learnstack-hub` realm for the separate operator portal),
@@ -235,10 +237,15 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
 
 ## Auth
 
-- Auth.js for session management.
+- Tenant BFF session ownership derives from
+  [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md); implementation is
+  delivered by P02b-7. Use the pinned openid-client RP and native session owner.
 - OIDC provider: Keycloak.
-- Sessions in `HttpOnly`, `Secure`, `SameSite=Lax` cookies.
-- Server Components and Server Actions read the session via `auth()`; never read tokens in Client Components.
+- Credentials stay in the server owner; the browser carries only host-bound
+  opaque cookies. [Security 11](11-security.md#tenant-bff-sessions) owns the rules.
+- Server Components use the app-local read-only `auth()` projection. Response
+  owners perform refresh/idle/cookie updates before streaming. Never expose
+  credentials to Client Components; no Server Action is admitted by P02b-7.
 
 ## Routing
 
@@ -408,7 +415,8 @@ P02d-6 admission must complete before the initial shell flushes, per
 
 - Strict CSP with nonces.
 - No `dangerouslySetInnerHTML` outside a sanitization wrapper.
-- Form CSRF: Server Actions verify the Auth.js session; explicit CSRF tokens for non-Action mutating routes.
+- Auth form CSRF follows [Security 11](11-security.md#csrf); neither a cookie nor
+  implicit framework/Server Action behavior substitutes for the explicit checks.
 - Outbound URLs validated against an allow-list before rendering.
 
 ## Tooling

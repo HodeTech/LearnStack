@@ -1,6 +1,8 @@
 # 18 — Audit Coverage Standards
 
 **Status:** Active
+Tenant BFF additions derive from
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
 **Derives from:** [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
 (supersedes [ADR-0016](../decisions/0016-audit-log-subsystem.md), which remains the
 subsystem's context),
@@ -52,6 +54,17 @@ document is the rule that prevents the audit story from drifting.
   Modules never call `IAuditStore` directly.
 
 ## Operation Types
+
+**Tenant BFF exception — ADR-0070, Accepted 2026-10-23.** Provider authentication
+events are stored by the tenant development Keycloak realm under
+[Security 11](11-security.md#tenant-bff-sessions), not written through a new
+LearnStack session-audit API. Local expiry, unreceived refresh and local logout
+during provider outage have only closed lifecycle diagnostics until Phase 03's
+authenticated identity-event ingress/mirror. This explicitly scopes the generic
+login/token-revocation examples below; no durable local BFF ledger or atomic
+provider/BFF commit is promised. Existing LearnStack MUST operations, baseline
+coverage and tenant override limits remain unchanged. Seven-day development
+provider retention is not the application's security-event retention.
 
 This standard uses **OperationType** to mean *what kind of operation produced the
 audit row* — distinct from `OperationClass` in [ADR-0016](../decisions/0016-audit-log-subsystem.md),

@@ -1,6 +1,8 @@
 # 21 — Architecture Tests + Analyzers Catalogue
 
 **Status:** Active
+Tenant BFF additions derive from
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
 **Derives from:** [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 (ships the first batch of catalogue entries),
 [ADR-0054 Bounded Public Renderer Admission](../decisions/0054-bounded-public-renderer-admission.md)
@@ -4551,6 +4553,14 @@ structural test proves — and what it does not.
   Existing Implemented status and rule counts remain unchanged.
 - **Phase:** P02b-6 Steps 1/4.
 
+- **ADR-0070 Accepted extension — 2026-10-23, pending implementation:** Actual
+  fresh/warm development provider-event storage covers the named login/logout/
+  code/refresh success/error set. Effective prior selection, listeners/admin
+  policy and qualified retention are preserved; conflicts refuse before any
+  preparation/ordinary write, with separate readback and zero-write rerun.
+  Existing Implemented subjects/counts remain unchanged. P02b-7 Steps 1/5 own
+  the additional Node/fresh-warm provider controls and real BFF evidence.
+
 #### `Development_Realm_Reconciliation_Preserves_Accounts`
 
 - **Asserts:** the actual shared development reconciler converges fresh and
@@ -4615,6 +4625,14 @@ structural test proves — and what it does not.
   own actual receipts, completed correction reviews and source-bound hosted proof.
   Existing Implemented status and rule counts remain unchanged.
 - **Phase:** P02b-6 Steps 2–4.
+
+- **ADR-0070 Accepted extension — 2026-10-23, pending implementation:** Actual
+  fresh/warm development provider-event storage covers the named login/logout/
+  code/refresh success/error set. Effective prior selection, listeners/admin
+  policy and qualified retention are preserved; conflicts refuse before any
+  preparation/ordinary write, with separate readback and zero-write rerun.
+  Existing Implemented subjects/counts remain unchanged. P02b-7 Steps 1/5 own
+  the additional Node/fresh-warm provider controls and real BFF evidence.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`
 
@@ -5560,6 +5578,68 @@ C# architecture-test methods or a full WCAG/production-performance claim.
   **Kind:** behavioural.
 - **Status:** **Implemented** — named Node proof and planted controls above.
 - **Phase:** 02d (P02d-7 Steps 1, 3 and 4).
+
+
+## P02b-7 tenant BFF obligations
+
+The maintainer accepted [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)
+and the five-step package on 2026-10-23. These four new obligations remain
+Registered until their controls ship. Existing public/realm rules stay Implemented;
+acceptance changes no implemented-rule count.
+
+#### `Bff_Credentials_And_Projections_Are_Confined`
+
+- **Asserts:** only the native owner/RP adapter holds credentials; public wrappers,
+  browser bodies/Flight/session projections, diagnostics and non-web environment
+  projections contain none. Exact AccountSite validates actor/scope independently.
+- **Source:** ADR-0070; Security 11 § Tenant BFF sessions.
+- **Type:** frontend source/production canaries. **Kind:** structural.
+- **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and existing
+  public boundary controls.
+- **Status:** **Registered.**
+- **Phase:** P02b-7 Steps 1/3–5.
+
+#### `Bff_Session_Refresh_And_Revocation_Have_One_Owner`
+
+- **Asserts:** one shared native store owns global/source/subject credits,
+  transactions/epochs, single-flight refresh, effective expiry, true extension,
+  replacement/revocation and actual settlement. Expiry/stop/late work never
+  resurrect a session or release an unsettled owner's credit. Logout-return
+  owners retain subject credit; full expired-state scans reclaim settled slots.
+- **Source:** ADR-0070; Security 11 § Tenant BFF sessions.
+- **Type:** unit and actual response-owning routes. **Kind:** behavioural.
+- **Test owner:** `frontend/apps/web/src/server/auth/session-store.test.ts` and
+  `frontend/apps/web/src/test/bff-session-routes.test.ts`.
+- **Status:** **Registered.**
+- **Phase:** P02b-7 Steps 2–5.
+
+#### `Bff_Auth_Admission_And_Csrf_Are_Closed`
+
+- **Asserts:** only the approved method/path/field set reaches fixed-provider
+  dispatch after native provenance, bounded input and the appropriate Origin/
+  transaction/session-CSRF proof. Unknown hosts/state and disabled mode allocate
+  no session/provider work. Read-only RSC, HEAD, assets/prefetch/passive reads
+  perform no idle/refresh/cookie writes. Independent negatives reach real guards.
+- **Source:** ADR-0070; ADR-0054 dated auth extension; Security 11 § CSRF.
+- **Type:** native listener and actual Next route controls. **Kind:** behavioural.
+- **Test owner:** `frontend/apps/web/src/test/bff-auth-admission.test.ts` and
+  `frontend/apps/web/src/test/bff-session-routes.test.ts`.
+- **Status:** **Registered.**
+- **Phase:** P02b-7 Steps 3–5.
+
+#### `Bff_Host_Cookies_And_History_Are_Isolated`
+
+- **Asserts:** both retained HTTPS seed hosts actually store/send their own
+  opaque cookies and cannot reuse another host's session/transaction; logout and
+  browser history do not restore protected display. A separate real warm
+  provider/BFF/API chain proves sign-in/AccountSite/refresh/extension/logout and
+  stored provider events. Stopped-provider public rendering remains independent.
+- **Source:** ADR-0070; Security 11 § Tenant BFF sessions.
+- **Type:** native HTTPS browser and Docker integration. **Kind:** behavioural.
+- **Test owner:** `frontend/apps/web/scripts/verify-bff-session.mjs` and backend
+  `TenancyIdentity/TenantBffSessionTests.cs` using the app-role API/database.
+- **Status:** **Registered.**
+- **Phase:** P02b-7 Step 5; Phase 06 retains full browser OIDC end-to-end expansion.
 
 ## P02b-4 background-job obligations
 
