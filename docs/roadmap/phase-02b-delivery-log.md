@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 983 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,009 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -215,6 +215,7 @@ each packet decided and delivered, as
   - [P02b-7 Step 3 review round 2 and closeout (2026-10-23)](#p02b-7-step-3-review-round-2-and-closeout-2026-10-23) — 20 lines
   - [P02b-7 Step 4 — optional activation and session UI (2026-10-23)](#p02b-7-step-4--optional-activation-and-session-ui-2026-10-23) — 64 lines
   - [P02b-7 Step 4 review round 1 (2026-10-23)](#p02b-7-step-4-review-round-1-2026-10-23) — 44 lines
+  - [P02b-7 Step 4 review round 2 and closeout (2026-10-23)](#p02b-7-step-4-review-round-2-and-closeout-2026-10-23) — 26 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18699,6 +18700,32 @@ PostgreSQL/app-role renderer case passes again, one case, zero skips, 45 seconds
 reported test duration. Second-round closeout follows below. The four broader
 BFF rules remain Registered; real provider/API/browser and hosted proof remain
 Step 5.
+
+### P02b-7 Step 4 review round 2 and closeout (2026-10-23)
+
+A different fresh source-only pair reviews complete Step 4 through `2cf2a25b`:
+`gpt-6-astra` at xhigh for security/lifecycle and `gpt-6.1-sol` at xhigh for
+UI/evidence/corpus. The security reviewer approves without verified findings,
+independently tracing the pinned reporter's accepted-duration bound and native
+import order. The UI reviewer confirms the first-round fixes and identifies one
+Major keyboard-recovery gap: unchanged/newly maximum extension removes the
+focused button without announcing or focusing its replacement; automatic expiry
+also removes focused descendants without recovering focus.
+
+Recovery notices now have status semantics. Only a transition to ended/recovery
+state moves focus, and only if focus remains in the session container or has
+fallen to the body; an external active control and the ordinary warning retain
+focus. Nine component controls pass, including focused unchanged/maximum/expiry
+and external-focus controls for both expiry and unchanged response. Focused lint
+passes. The same UI reviewer performs source-only focused confirmation and
+approves the fix, with no remaining actionable issue.
+
+Together with first-round complete validation above, **Steps 1–4 are locally
+implemented and both independent review rounds are complete. Step 5 begins
+automatically.** Its real warm-provider/app-role API, native HTTPS browser and
+history, stopped-Keycloak demo, discovery/budget and exact-source hosted proofs
+remain mandatory. None is inferred from fake grants, DOM unit tests or source
+review; the four broad BFF catalogue obligations remain Registered.
 
 ## Status archive
 

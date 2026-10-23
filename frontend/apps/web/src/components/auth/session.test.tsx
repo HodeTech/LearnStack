@@ -42,6 +42,7 @@ describe('session warning, truthful extension and safe expiry', () => {
       vi.advanceTimersByTime(120_000);
     });
     expect(screen.queryByText('Admitted account view')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('alert'));
     expect(screen.getByRole('link', { name: en.session.reauthenticate })).toHaveAttribute(
       'href',
       '/api/auth/signin',
@@ -76,13 +77,54 @@ describe('session warning, truthful extension and safe expiry', () => {
     const value = initial();
     vi.mocked(extendBffSession).mockResolvedValue(value);
     view(value);
+    screen.getByRole('button').focus();
     await act(async () => {
       fireEvent.click(screen.getByRole('button'));
     });
     expect(screen.getByText(en.session.unchanged)).toBeInTheDocument();
     expect(screen.queryByText(en.session.extended)).toBeNull();
     expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent(en.session.unchanged);
+    expect(document.activeElement).toBe(screen.getByRole('status'));
   });
+  it('announces and focuses the maximum notice when a completed extension removes its button', async () => {
+    const value = initial();
+    vi.mocked(extendBffSession).mockResolvedValue({
+      ...value,
+      expiresAt: value.expiresAt + 60_000,
+      limitedByAbsolute: true,
+    });
+    view(value);
+    screen.getByRole('button').focus();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button'));
+    });
+    expect(screen.getByRole('status')).toHaveTextContent(en.session.maximum);
+    expect(document.activeElement).toBe(screen.getByRole('status'));
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+  it.each(['expiry', 'unchanged'] as const)(
+    'does not steal external focus on %s recovery',
+    async (kind) => {
+      vi.useFakeTimers();
+      const value = initial();
+      vi.mocked(extendBffSession).mockResolvedValue(value);
+      render(<button type="button">Outside session</button>);
+      view(value);
+      const outside = screen.getByRole('button', { name: 'Outside session' });
+      outside.focus();
+      if (kind === 'expiry')
+        act(() => {
+          vi.advanceTimersByTime(151_000);
+        });
+      else
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: en.session.extend }));
+        });
+      expect(screen.getByRole(kind === 'expiry' ? 'alert' : 'status')).toBeInTheDocument();
+      expect(document.activeElement).toBe(outside);
+    },
+  );
   it('offers reauthentication rather than extension at the known absolute maximum', () => {
     view({ ...initial(), limitedByAbsolute: true });
     expect(screen.getByText(en.session.maximum)).toBeInTheDocument();

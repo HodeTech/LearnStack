@@ -24,7 +24,7 @@
 > | P02b-4 | Background jobs | ✅ complete and merged — PR #32, 2026-10-19; [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) |
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
-> | P02b-7 | BFF session | Implementation in progress — G13 session Accepted; [acceptance and five-step plan](phase-02b-delivery-log.md#p02b-7-acceptance-and-implementation-2026-10-23), [Steps 1–3 locally complete](phase-02b-delivery-log.md#p02b-7-step-3-review-round-2-and-closeout-2026-10-23); Step 4 underway |
+> | P02b-7 | BFF session | Implementation in progress — G13 session Accepted; [acceptance and five-step plan](phase-02b-delivery-log.md#p02b-7-acceptance-and-implementation-2026-10-23), [Steps 1–4 locally complete](phase-02b-delivery-log.md#p02b-7-step-4-review-round-2-and-closeout-2026-10-23); Step 5 underway |
 > | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
 
 ## Goal

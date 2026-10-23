@@ -39,7 +39,13 @@ export function SessionControls({
   const inFlight = useRef(false);
   const alive = useRef(true);
   const generation = useRef(0);
+  const container = useRef<HTMLDivElement>(null);
   const alert = useRef<HTMLParagraphElement>(null);
+  const status = useRef<HTMLParagraphElement>(null);
+  const expired = now >= session.expiresAt;
+  const ended = expired || outcome === 'failed';
+  const recovery = session.limitedByAbsolute || outcome === 'unchanged';
+  const previousView = useRef({ ended, recovery });
   useEffect(() => {
     ++generation.current;
     setSession(initial);
@@ -55,9 +61,16 @@ export function SessionControls({
     };
   }, []);
   useEffect(() => {
-    if (outcome === 'failed') alert.current?.focus();
-  }, [outcome]);
-  const expired = now >= session.expiresAt;
+    const changed =
+      (ended && !previousView.current.ended) || (recovery && !previousView.current.recovery);
+    previousView.current = { ended, recovery };
+    if (!changed) return;
+    // A removed focused descendant falls back to body. Recover that focus, but
+    // never interrupt a user who moved to another part of the document.
+    const focused = document.activeElement;
+    if (focused !== document.body && !container.current?.contains(focused)) return;
+    (ended ? alert.current : status.current)?.focus();
+  }, [ended, recovery]);
   const warning = session.expiresAt - now <= 120_000;
   async function extend() {
     if (inFlight.current) return;
@@ -79,7 +92,7 @@ export function SessionControls({
     }
   }
   return (
-    <div data-bff-protected="true">
+    <div data-bff-protected="true" ref={container}>
       <div aria-live="polite" aria-atomic="true">
         {warning && <p>{labels.warning}</p>}
         {outcome === 'extended' && <p>{labels.extended}</p>}
@@ -94,14 +107,14 @@ export function SessionControls({
           }).format(session.expiresAt)}
         </time>
       </p>
-      {expired || outcome === 'failed' ? (
+      {ended ? (
         <p role="alert" tabIndex={-1} ref={alert}>
           {labels.failed} <a href="/api/auth/signin">{labels.reauthenticate}</a>
         </p>
       ) : (
         <>
-          {session.limitedByAbsolute || outcome === 'unchanged' ? (
-            <p>
+          {recovery ? (
+            <p role="status" aria-atomic="true" tabIndex={-1} ref={status}>
               {session.limitedByAbsolute ? labels.maximum : labels.unchanged}{' '}
               <a href="/api/auth/signin">{labels.reauthenticate}</a>
             </p>
