@@ -442,7 +442,7 @@ test('an exact 512 KiB version document reaches planning only after the complete
   await assert.rejects(f.invoke(), refusal('plan', 'status'));
   assert.equal(f.paths.length, 4);
   assert.deepEqual(f.paths[2], ['GET', '/admin/serverinfo']);
-  assert.deepEqual(f.paths[3], ['GET', '/admin/realms/learnstack/users/profile']);
+  assert.deepEqual(f.paths[3], ['GET', '/admin/realms/learnstack/events/config']);
 });
 
 
@@ -611,9 +611,10 @@ test('hidden identity preparation is one fixed write, independently verified bef
   assert.deepEqual(recording.requests.filter(request => request.method && !request.form)
     .map(request => [request.stage, request.method, request.path]),
   [['prepare', 'PUT', '/admin/realms/learnstack/users/profile']]);
-  assert.deepEqual(recording.requests.slice(preparation + 1, preparation + 3)
+  assert.deepEqual(recording.requests.slice(preparation + 1, preparation + 4)
     .map(request => [request.stage, request.path]), [
     ['prepare', '/admin/realms/learnstack/users/profile'],
+    ['plan', '/admin/realms/learnstack/events/config'],
     ['plan', '/admin/realms/learnstack/'],
   ]);
   assert.deepEqual(fixture.state.profile.attributes.slice(0, before.profile.attributes.length), before.profile.attributes);

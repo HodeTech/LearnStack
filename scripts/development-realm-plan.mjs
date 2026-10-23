@@ -3,6 +3,7 @@ import { refuse } from './development-realm-errors.mjs';
 import { identityClaims, mergeOwnedMappers, validateEffectiveMappers } from './development-realm-mappers.mjs';
 import { readRealmGroups, readUserGroupIds } from './development-realm-groups.mjs';
 import { exactCreatedAccountAccess, planAccountSelfService } from './development-realm-account.mjs';
+import { planRealmEvents, requiredDevelopmentEvents, developmentEventRetentionSeconds } from './development-realm-events.mjs';
 
 const managedScope = 'learnstack-tenant-api';
 const namedClients = ['learnstack-web', 'learnstack-api'];
@@ -211,6 +212,9 @@ function identityAttributes(user, declaration, stage) {
 
 function validateInputs(desired, manifest, webSecret) {
   if (!object(desired) || desired.realm !== 'learnstack' || desired.accessTokenLifespan !== 900
+    || desired.eventsEnabled !== true || desired.eventsExpiration !== developmentEventRetentionSeconds
+    || !Array.isArray(desired.enabledEventTypes)
+    || !requiredDevelopmentEvents.every(type => desired.enabledEventTypes.includes(type))
     || !Array.isArray(desired.users) || desired.users.length !== 4
     || !object(manifest) || !Array.isArray(manifest.users) || manifest.users.length !== 4
     || typeof webSecret !== 'string' || !webSecret) refuse('plan', 'unsupported');
@@ -430,8 +434,9 @@ function exactCreatedAccess(roles, credentials, roleId, account) {
 /** A complete read-only preflight. No ordinary mutation escapes before identity qualification. */
 export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
   validateInputs(desired, manifest, webSecret);
+  const events = await planRealmEvents(admin);
   const before = await snapshot(admin, desired, manifest, 'plan');
-  return assemblePlan({ admin, desired, manifest, webSecret, before });
+  return assemblePlan({ admin, desired, manifest, webSecret, before, events });
 }
 
 // Only this internal path defers checks needing newly visible protected values.
@@ -439,6 +444,7 @@ export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
 // never escape: the caller receives only a profile and its exact verification.
 export async function buildRealmPreparation({ admin, desired, manifest, webSecret }) {
   validateInputs(desired, manifest, webSecret);
+  const events = await planRealmEvents(admin);
   const current = requireObject(await admin.get('users/profile'), 'prepare');
   const attributes = unique(array(current.attributes, 'prepare'), 'name', 'prepare');
   if (current.groups !== undefined) unique(array(current.groups, 'prepare'), 'name', 'prepare');
@@ -460,13 +466,13 @@ export async function buildRealmPreparation({ admin, desired, manifest, webSecre
   preflightBody(expected);
   preflightResponse(expected);
   const before = await snapshot(admin, desired, manifest, 'plan', { preparationProfile: current, preparing: true });
-  await assemblePlan({ admin, desired, manifest, webSecret, before, preparationOnly: true });
+  await assemblePlan({ admin, desired, manifest, webSecret, before, events, preparationOnly: true });
   return Object.freeze({ profile: copy(expected), verify: actual => {
     if (!equal(actual, expected)) refuse('prepare', 'readback_conflict');
   } });
 }
 
-async function assemblePlan({ admin, desired, manifest, webSecret, before, preparationOnly = false }) {
+async function assemblePlan({ admin, desired, manifest, webSecret, before, events, preparationOnly = false }) {
   const actions = [];
   const add = (label, apply, body) => {
     preflightBody(body);
@@ -533,6 +539,7 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, prepa
   const profile = mergedProfile(before.profile, desired);
   if (!equal(profile, before.profile)) add('update_profile', () => admin.put('users/profile', copy(profile)), profile);
   if (before.realm.accessTokenLifespan !== 900) add('update_lifespan', () => admin.put('', { accessTokenLifespan: 900 }), { accessTokenLifespan: 900 });
+  if (events.changed) add('update_events', () => admin.put('events/config', copy(events.body)), events.body);
   const expectedClients = new Map();
   const expectedAssignments = new Map();
   for (const name of namedClients) {
@@ -688,12 +695,14 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, prepa
   if (preparationOnly) return;
 
   return { actions, verify: async () => {
+    await events.verify();
     const after = await snapshot(admin, desired, manifest, 'readback');
     await account.verify(after.candidates);
     const afterGroups = await readRealmGroups(admin, after.users, 'readback');
     const check = condition => { if (!condition) refuse('readback', 'readback_conflict'); };
     check(after.realm.accessTokenLifespan === 900
-      && equal(omit(after.realm, ['accessTokenLifespan']), omit(before.realm, ['accessTokenLifespan'])));
+      && equal(omit(after.realm, ['accessTokenLifespan', 'eventsEnabled', 'eventsExpiration', 'enabledEventTypes']),
+        omit(before.realm, ['accessTokenLifespan', 'eventsEnabled', 'eventsExpiration', 'enabledEventTypes'])));
     check(equal(after.profile, profile));
     check(equal(afterGroups.groups, beforeGroups.groups));
     for (const [userId, assigned] of beforeGroups.memberships)

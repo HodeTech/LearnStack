@@ -19,6 +19,7 @@
     "@learnstack/ui": "workspace:*",
     "next": "15.5.27",
     "next-intl": "4.14.9",
+    "openid-client": "6.8.8",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "server-only": "0.0.1"
@@ -35,6 +36,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.16.0",
     "eslint-config-next": "15.5.27",
+    "jose": "6.2.13",
     "jsdom": "^26.1.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",

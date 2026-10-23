@@ -12,6 +12,28 @@ retains the earlier approval and owns safe warm-realm convergence.
 Authentication grants no application membership or permission; Phase 03 owns
 those records.
 
+## Development authentication events
+
+[ADR-0070](../../docs/decisions/0070-owned-tenant-bff-sessions.md) authorizes
+development tenant-realm user-event storage. The export retains the pinned
+default-saved selection and adds refresh success/error events. The reconciler
+unions the current effective selection with the eight required login/logout/
+code/refresh success/error types, preserving listeners and admin-event policy.
+
+Fresh/default-empty retention is seven days. A warm disabled/default-zero store
+(the pinned API omits zero expiration) needs a bounded empty-history read first.
+Existing finite retention of at least seven days is preserved. Shorter,
+indefinite or ambiguous custom policy refuses with `plan/event_policy_conflict`
+before even profile preparation. Resolve policy explicitly; never delete history
+to bypass the guard. Separate readback and a zero-write rerun qualify convergence.
+
+Stored events contain personal identity/address details and stay in the provider
+database, not raw CI artifacts. This affects all tenant-realm users, including
+account-console. Hub/admin-event policy is unchanged. Local BFF expiry/outage
+logout are not durable provider events; Phase 03 owns authenticated event ingress/
+mirroring and Phase 11 owns production retention/security/capacity qualification.
+This configuration does not activate browser sign-in by itself.
+
 ## Realms and accounts
 
 | Realm | Population | Clients |

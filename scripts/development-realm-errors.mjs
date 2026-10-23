@@ -6,7 +6,7 @@ const reasons = new Set([
   'configuration', 'identity_conflict', 'mapper_conflict', 'secret_conflict',
   'unsupported', 'response', 'status', 'redirect', 'deadline', 'cancelled',
   'transport', 'lock_busy', 'body_limit', 'readback_conflict', 'cleanup',
-  'missing_web_secret', 'private_file',
+  'missing_web_secret', 'private_file', 'event_policy_conflict',
 ]);
 
 /** Neither upstream objects nor arbitrary caller text can become a diagnostic. */
@@ -39,6 +39,8 @@ export function realmFailureNotice(error) {
     message += '\nrealm: add KEYCLOAK_WEB_CLIENT_SECRET explicitly to the selected private file; see infra/keycloak/README.md';
   else if (error.reason === 'secret_conflict')
     message += '\nrealm: retain the confidential client secret in the selected private file; see infra/keycloak/README.md#secret-continuity-and-recovery';
+  else if (error.reason === 'event_policy_conflict')
+    message += '\nrealm: resolve the existing event retention policy explicitly without deleting history; see infra/keycloak/README.md#development-authentication-events';
   else if (error.reason === 'lock_busy')
     message += '\nrealm: verify the previous owner has stopped before removing its private lock; see infra/keycloak/README.md#lock-recovery';
   if (error.preparationDispatched === true)

@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 572 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 620 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -204,6 +204,7 @@ each packet decided and delivered, as
   - [P02b-7 revised proposal review round 1 (2026-10-23)](#p02b-7-revised-proposal-review-round-1-2026-10-23) — 27 lines
   - [P02b-7 revised proposal review round 2 and readiness (2026-10-23)](#p02b-7-revised-proposal-review-round-2-and-readiness-2026-10-23) — 34 lines
   - [P02b-7 acceptance and implementation (2026-10-23)](#p02b-7-acceptance-and-implementation-2026-10-23) — 33 lines
+  - [P02b-7 Step 1 — inactive RP foundation and provider events (2026-10-23)](#p02b-7-step-1--inactive-rp-foundation-and-provider-events-2026-10-23) — 48 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18277,6 +18278,54 @@ atomically; Step 5 supplies actual lifecycle/browser and final-source CI proof.
 Each step commits, passes two fresh independent review pairs and commits verified
 fixes before the next. The primary alone runs serialized provider/browser/build
 work. A new authority decision requires approval; routine implementation does not.
+
+### P02b-7 Step 1 — inactive RP foundation and provider events (2026-10-23)
+
+**Implementation/review in progress; not step closeout.** The acceptance commit
+`eb911862` precedes code. This step adds the inactive server-only RP adapter and
+qualified development user-event configuration without native route exemptions,
+production registration or environment-secret projection.
+
+- `openid-client` 6.8.8 resolves exactly one oauth4webapi 3.8.8 and jose 6.2.13.
+  Explicit signature-enabled code/refresh processing uses mandatory injected
+  fixed-purpose transport, one ten-second operation deadline through decoded
+  body consumption, 256 KiB response and 32 KiB credential limits. No global
+  fetch fallback/public-caller exemption or raw provider error is introduced.
+- Callback state/nonce/S256, signed issuer/audience/lifetime and protected
+  identity are checked; refresh cannot change identity. Effective refresh time
+  is conservative; initial custody requires a refresh token. This grants no API
+  authority: AccountSite validation remains the later publication requirement.
+- Fresh export preserves all 95 pinned default-saved types and adds refresh
+  success/error storage. Warm qualification unions the effective prior selection,
+  preserves listener/admin policy and qualified retention, and checks before
+  metadata preparation. One bounded history row disproves safe empty adoption.
+  Independent readback and completed zero-write rerun remain mandatory.
+- The first real warm-provider run exposes the pinned omitted-zero expiration
+  representation. `ModelToRepresentation.toEventsConfigReprensetation` omits zero;
+  the adapter now recognizes that exact default and still refuses enabled
+  indefinite policy or any nonempty prior history. Actual fresh/warm tests pass
+  after correction. This is an implementation correction, not an ADR policy change.
+- Historical success/resume assertions now count the one separately authorized
+  event-policy PUT; they keep credential/role/profile/scope/Hub preservation and
+  explicit zero-write controls. Older delivery receipts retain their old counts.
+
+Targeted validation completed: 27 pinned-library signed-grant controls; the
+complete realm Node census (367 passing cases in eight files, zero skips/todos),
+six executed-gate controls, frontend lint/typecheck and the complete guarded
+frontend run (1,879 cases in two packages). Five targeted export/real-provider
+cases pass, including actual stored LOGIN/CODE_TO_TOKEN/REFRESH_TOKEN/
+REFRESH_TOKEN_ERROR and warm empty adoption/nonempty refusal. Acceptance-time
+CorpusConsistencyTests pass 5/5.
+
+A further actual HTTP incomplete-body cancellation control has been added and
+requires its executing frontend rerun. The broad real historical reconciliation
+regression is still running; its loaded old numeric preparation assertions expose
+the expected +1 event-policy write and have been corrected in source. Those
+specific cases require fresh execution after the owner finishes. No source-bound
+hosted qualification or complete Step 1 review is claimed. The two fresh review
+pairs inspect committed code and the acceptance carriers; any pending/failed
+qualification must be resolved before Step 2 starts.
+
 
 ## Status archive
 

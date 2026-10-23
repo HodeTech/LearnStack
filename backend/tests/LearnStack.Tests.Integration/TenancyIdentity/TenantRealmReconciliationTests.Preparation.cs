@@ -13,7 +13,7 @@ public sealed partial class TenantRealmReconciliationTests
     private static readonly string[] ProtectedPreparationNames = ["user_id", "tenant_id", "organization_id"];
 
     [Fact]
-    public Task Historical_stock_upgrade_automatically_prepares_once_then_converges_with_seventeen_writes() =>
+    public Task Historical_stock_upgrade_prepares_once_and_counts_the_named_event_policy_write() =>
         WithHistoricalPreparationAsync(async (fixture, admin) =>
         {
             var profileBefore = await admin.GetAsync("users/profile");
@@ -38,7 +38,7 @@ public sealed partial class TenantRealmReconciliationTests
             var first = await KeycloakReconciliationDriver.RunAsync(fixture);
             first.Success.Should().BeTrue("the automatic historical path reports {0}/{1}", first.Stage, first.Reason);
             first.PreparationDispatched.Should().BeTrue();
-            first.Mutations.Should().Be(17, "one metadata preparation precedes sixteen ordinary stock-upgrade writes");
+            first.Mutations.Should().Be(18, "one preparation, sixteen prior stock-upgrade writes and one ADR-0070 event-policy PUT");
             AssertPreparationProfile(expectedProfile, await admin.GetAsync("users/profile"));
             foreach (var identity in SeedData.IdentityUsers) await AssertStoredIdentityAsync(admin, identity);
             foreach (var (username, original) in originalUsers)
@@ -141,7 +141,7 @@ public sealed partial class TenantRealmReconciliationTests
 
             var resumed = await KeycloakReconciliationDriver.RunAsync(fixture);
             resumed.Success.Should().BeTrue("an explicit fresh invocation reports {0}/{1}", resumed.Stage, resumed.Reason);
-            resumed.Mutations.Should().Be(16, "the durable preparation is reused without a second metadata preparation");
+            resumed.Mutations.Should().Be(17, "the durable preparation is reused; sixteen prior stock writes and one event-policy PUT remain");
             resumed.PreparationDispatched.Should().BeFalse();
             var completed = await KeycloakReconciliationDriver.RunAsync(fixture);
             completed.Success.Should().BeTrue();
@@ -177,7 +177,7 @@ public sealed partial class TenantRealmReconciliationTests
             var resumed = await KeycloakReconciliationDriver.RunAsync(fixture);
             resumed.Success.Should().BeTrue("the separate ordinary plan reports {0}/{1}", resumed.Stage, resumed.Reason);
             resumed.PreparationDispatched.Should().BeFalse();
-            resumed.Mutations.Should().Be(17, "sixteen stock-upgrade writes plus the separate approved profile-normalization PUT");
+            resumed.Mutations.Should().Be(18, "sixteen prior stock writes, separate profile normalization and one event-policy PUT");
             var expectedFinal = expectedPreparation.DeepClone();
             var definitions = expectedFinal["attributes"]!.AsArray();
             var index = definitions.IndexOf(definitions.Single(value => value!["name"]!.GetValue<string>() == "user_id"));

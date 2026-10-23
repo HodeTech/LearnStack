@@ -169,7 +169,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
             var first = await KeycloakReconciliationDriver.RunAsync(fixture);
             first.Success.Should().BeTrue("closed ordinary reconciliation outcome: {0}/{1} after {2} writes",
                 first.Stage, first.Reason, first.Mutations);
-            first.Mutations.Should().Be(16, "thirteen ordinary approved mutations plus exactly three console assignment DELETEs");
+            first.Mutations.Should().Be(17, "thirteen prior approved mutations, three console assignment DELETEs and one ADR-0070 event-policy PUT");
             var after = await CaptureAsync(admin, historicalAssignments: false);
             Names(after[consolePath + "/default-client-scopes"]).Should().Equal(DefaultScopes.Where(value => value != "roles"));
             Names(after[consolePath + "/optional-client-scopes"]).Should().Equal(OptionalScopes.Where(value => value is not ("microprofile-jwt" or "offline_access")));
@@ -233,7 +233,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
             var rerun = await KeycloakReconciliationDriver.RunAsync(fixture);
             rerun.Success.Should().BeTrue("closed rerun outcome: {0}/{1}", rerun.Stage, rerun.Reason);
             rerun.Mutations.Should().Be(0);
-            output.WriteLine("Historical ordinary stock path: 16 mutations, then zero; retained five default/three optional edges; elapsed={0:F3}s.", watch.Elapsed.TotalSeconds);
+            output.WriteLine("Historical ordinary stock path: 17 mutations including event policy, then zero; retained five default/three optional edges; elapsed={0:F3}s.", watch.Elapsed.TotalSeconds);
         }
         finally
         {
