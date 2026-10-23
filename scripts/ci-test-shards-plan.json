@@ -154,6 +154,13 @@
       "sourceSha": null,
       "runId": null,
       "note": "Passing Step 5 R1 native/browser/early-disposal/nonzero-stop controls. Local source not embedded in TRX; advisory method body costs exclude collection startup and do not establish hosted wall fit."
+    },
+    "local-bff-lifecycle-r2-20261024": {
+      "kind": "local_trx",
+      "artifactSha256": "eb29f34d707a87e2ddcdc9c0c269cd011c983cce4a79d8592ffaf9c95aa2ccf0",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Passing Step 5 R2 six-case real BFF/browser and acquisition EOF/shutdown controls. Local source not embedded in TRX. Advisory method body costs exclude shared fixture startup; hosted fit remains unqualified."
     }
   },
   "weights": [
@@ -8176,32 +8183,38 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Early_parent_disposal_joins_and_removes_its_private_native_tree",
-      "milliseconds": 7903,
-      "source": "local-bff-lifecycle-r1-20261024"
+      "milliseconds": 7368,
+      "source": "local-bff-lifecycle-r2-20261024"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Enabled_native_startup_and_shutdown_make_no_provider_or_API_connection",
-      "milliseconds": 7219,
-      "source": "local-bff-lifecycle-r1-20261024"
+      "milliseconds": 6595,
+      "source": "local-bff-lifecycle-r2-20261024"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control",
-      "milliseconds": 33541,
-      "source": "local-bff-lifecycle-r1-20261024"
+      "milliseconds": 32915,
+      "source": "local-bff-lifecycle-r2-20261024"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Nonzero_native_shutdown_is_rejected_instead_of_publishing_success",
-      "milliseconds": 7465,
-      "source": "local-bff-lifecycle-r1-20261024"
+      "milliseconds": 6539,
+      "source": "local-bff-lifecycle-r2-20261024"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Parent_EOF_during_held_build_joins_acquisition_and_removes_its_private_tree",
+      "milliseconds": 972,
+      "source": "local-bff-lifecycle-r2-20261024"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Reconciled_warm_realm_serves_both_native_hosts_with_real_refresh_logout_and_persisted_events",
-      "milliseconds": 90731,
-      "source": "local-bff-lifecycle-r1-20261024"
+      "milliseconds": 79261,
+      "source": "local-bff-lifecycle-r2-20261024"
     },
     {
       "assembly": "learnstack.tests.integration",

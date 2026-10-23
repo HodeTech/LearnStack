@@ -10,27 +10,60 @@ import { createFixtureOwner, createPrivateScanner } from './fixture-support.mjs'
 import { stopTestChild } from './stop-test-child.mjs';
 
 const owner = createFixtureOwner();
-owner.install();
+owner.install({ control: process.stdin, event: 'end' });
 const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-bff-session-')));
 const deadline = setTimeout(() => {
   void owner.cancel();
 }, 240_000);
 deadline.unref();
 let stage = 'input';
-async function* lines() {
+function lines() {
   let buffered = '';
+  const queued = [];
+  let ended = false;
+  let failure;
+  let wake;
+  const changed = () => wake?.();
   process.stdin.setEncoding('utf8');
-  for await (const chunk of process.stdin) {
-    buffered += chunk;
-    assert.ok(Buffer.byteLength(buffered) <= 65536, 'bounded private input');
-    while (buffered.includes('\n')) {
-      const end = buffered.indexOf('\n');
-      const value = buffered.slice(0, end);
-      buffered = buffered.slice(end + 1);
-      yield JSON.parse(value);
+  // Flow independently of the command iterator: compile/build/request awaits
+  // must never postpone the parent's EOF lifetime signal.
+  process.stdin.on('data', (chunk) => {
+    try {
+      buffered += chunk;
+      assert.ok(Buffer.byteLength(buffered) <= 65536, 'bounded private input');
+      while (buffered.includes('\n')) {
+        const end = buffered.indexOf('\n');
+        queued.push(JSON.parse(buffered.slice(0, end)));
+        buffered = buffered.slice(end + 1);
+        assert.ok(queued.length <= 2, 'one private command at a time');
+      }
+    } catch {
+      failure = new Error('Invalid bounded private input');
+      void owner.cancel();
     }
-  }
-  assert.equal(buffered, '');
+    changed();
+  });
+  process.stdin.once('end', () => {
+    ended = true;
+    if (buffered) failure = new Error('Incomplete private input');
+    changed();
+  });
+  process.stdin.once('error', () => {
+    failure = new Error('Private input failed');
+    changed();
+    void owner.cancel();
+  });
+  return (async function* () {
+    while (true) {
+      if (failure) throw failure;
+      if (queued.length) yield queued.shift();
+      else if (ended) return;
+      else
+        await new Promise((resolve) => {
+          wake = resolve;
+        });
+    }
+  })();
 }
 const send = (value) =>
   new Promise((resolve, reject) => {
@@ -40,7 +73,10 @@ const send = (value) =>
   });
 try {
   const shutdownCounter = process.argv[2] === '--without-successful-native-stop';
-  assert.ok(process.argv.length === 2 || (process.argv.length === 3 && shutdownCounter));
+  const heldBuild = process.argv[2] === '--hold-build';
+  assert.ok(
+    process.argv.length === 2 || (process.argv.length === 3 && (shutdownCounter || heldBuild)),
+  );
   const input = lines();
   const { value: config } = await input.next();
   assert.ok(config && config.protocol === 1 && config.mode === 'real');
@@ -108,10 +144,14 @@ try {
     uiMode: true,
     sites: config.sites,
     external: config,
-    mutation: shutdownCounter ? 'shutdown' : undefined,
+    mutation: shutdownCounter ? 'shutdown' : heldBuild ? 'held-build' : undefined,
     mark: (value) => {
       stage = value;
-      void send({ protocol: 1, phase: 'progress', stage: value }).catch(() => owner.cancel());
+      void send({
+        protocol: 1,
+        phase: value === 'held-build' ? 'held-build' : 'progress',
+        stage: value,
+      }).catch(() => owner.cancel());
     },
   });
   await send({ protocol: 1, phase: 'ready' });

@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,186 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,246 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -220,7 +220,9 @@ each packet decided and delivered, as
   - [P02b-7 Step 5 — implementation and local qualification (2026-10-24)](#p02b-7-step-5--implementation-and-local-qualification-2026-10-24) — 37 lines
   - [P02b-7 Step 5 — independent review round 1 (2026-10-24)](#p02b-7-step-5--independent-review-round-1-2026-10-24) — 16 lines
   - [P02b-7 Step 5 — stopped-provider public demo (2026-10-24)](#p02b-7-step-5--stopped-provider-public-demo-2026-10-24) — 18 lines
-  - [P02b-7 Step 5 — round 1 corrections and qualification (2026-10-24)](#p02b-7-step-5--round-1-corrections-and-qualification-2026-10-24) — 45 lines
+  - [P02b-7 Step 5 — round 1 corrections and qualification (2026-10-24)](#p02b-7-step-5--round-1-corrections-and-qualification-2026-10-24) — 46 lines
+  - [P02b-7 Step 5 — independent review round 2 (2026-10-24)](#p02b-7-step-5--independent-review-round-2-2026-10-24) — 24 lines
+  - [P02b-7 Step 5 — round 2 corrections and local closeout (2026-10-24)](#p02b-7-step-5--round-2-corrections-and-local-closeout-2026-10-24) — 35 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18908,6 +18910,66 @@ with current owners and counters updated together. Assignment (67), aggregate
 (26) and execution (63) offline controls pass; all 2,197 Markdown fragment links
 resolve and roadmap/index guards pass. Fresh round 2 and exact-source hosted A/B
 remain required before PR readiness.
+
+
+### P02b-7 Step 5 — independent review round 2 (2026-10-24)
+
+A different fresh source-only pair inspects `a48011cb..83858d12`:
+GPT-6-astra/xhigh covers lifecycle/security and GPT-6.1-sol/xhigh covers proof,
+browser, CI and corpus integrity. Both request corrections. Neither executes
+runtime work. Root verifies the two actionable findings in current source:
+
+- The session fixture's async input iterator stops consuming while awaiting
+  compile/build. Parent EOF can therefore remain unobserved until acquisition
+  finishes. Post-ready early disposal does not prove this earlier path.
+- The extracted production protocol/UI proof still accepts cleanup without
+  checking native zero exit and unforced settlement. Development checks exit
+  but also needs to reject force escalation.
+
+Corrections keep a bounded private frame pump flowing independently throughout
+acquisition and install EOF as an owner lifetime signal. A held owned build
+child is exposed only through a closed fixture mode, so a new parent-disposal
+control can stop before native readiness and independently observe the exact
+private tree disappear. All protocol/UI modes now require unforced settlement,
+zero exit and no signal; a copied exit-1 counter must fail at `native-stop`.
+Actual execution and both reviewers' focused confirmations remain pending in
+this review entry. No approval is inferred from the earlier five passing cases.
+
+
+### P02b-7 Step 5 — round 2 corrections and local closeout (2026-10-24)
+
+Both fresh round-2 reviewers independently confirm the focused source fixes
+without a remaining actionable defect. They inspect the active bounded input
+pump/EOF lifetime channel, owned held-build acknowledgement and exact directory
+absence control, and the protocol/UI/development zero-exit/unforced requirement
+with its copied shutdown mutant. Their confirmations are source reviews, not
+independent runtime execution.
+
+Root re-executes all six actual BFF Docker cases, with zero failures or skips:
+held-build parent EOF 0.971 seconds, post-ready early disposal 7.367 seconds,
+nonzero native-stop counter 6.539 seconds, normal no-network startup/stop 6.595
+seconds, stock HTTPS browser positive/history counter 32.914 seconds and actual
+warm Keycloak/native BFF/application-role API 79.261 seconds. The passing TRX
+SHA-256 is
+`eb29f34d707a87e2ddcdc9c0c269cd011c983cce4a79d8592ffaf9c95aa2ccf0`.
+The separate advisory plan source retains that receipt; no immutable-source or
+hosted timing claim is inferred from a local TRX. The complete guarded frontend
+passes 2,090 cases in two packages with zero skips/todos, including the exact
+protocol exit-1 counter rejected only at `native-stop`. Release compilation under
+CI warning policy has zero warnings and errors. The architecture description
+also names the actual local sign-in form before explicit provider navigation;
+the realm guide removes the obsolete future-BFF consumer wording.
+
+Frontend lint/typecheck pass. Fresh actual discovery contains 5,930 rows:
+3,351 non-Docker and 2,579 Docker (31 native plus 2,548 ordinary). The A/B
+assignments are genuinely different, complete and disjoint; every generated
+filter remains within its bound. Local assignment is not hosted timing proof.
+
+All five implementation steps and both fresh review rounds per step are locally
+complete. The earlier exact-source stopped-provider public demo is retained
+separately. Same-source hosted A/B execution remains qualification work before
+packet completion or PR readiness; no failing, missing or skipped execution is
+waived.
 
 ## Status archive
 

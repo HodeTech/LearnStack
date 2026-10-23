@@ -324,7 +324,10 @@ Auth is delegated to the identity provider (Keycloak/Authentik, see [Identity an
 - [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) selects native server
   custody with host-only opaque cookies; P02b-7 delivers the Accepted contract.
 - Refresh is handled silently by the BFF; the frontend never sees the refresh token.
-- Studio and Portal segments require an authenticated session at the edge; unauthenticated requests redirect to the identity provider.
+- Studio and Portal require native session admission before rendering. Enabled
+  mode redirects an anonymous visitor to the local sign-in form; only its
+  CSRF-protected POST starts provider navigation. Disabled mode returns the
+  bounded sign-in-unavailable state, without provider traffic.
 - Public remains anonymous-by-default; P02b-7 adds no personalized content.
 
 ## Page-Block Resolver

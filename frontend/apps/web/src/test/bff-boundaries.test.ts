@@ -155,6 +155,26 @@ describe('native request projection boundary', () => {
       stderr: 'BFF native Next protocol failed: rsc\n',
     });
   }, 160_000);
+  it('the same actual Next proof rejects a nonzero native stop instead of publishing success', () => {
+    const script = new URL('../../scripts/verify-bff-protocol.mjs', import.meta.url);
+    let failure: unknown;
+    try {
+      execFileSync(process.execPath, [script.pathname, '--without-successful-native-stop'], {
+        encoding: 'utf8',
+        timeout: 150_000,
+        maxBuffer: 65536,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toMatchObject({
+      status: 1,
+      signal: null,
+      stdout: '',
+      stderr: 'BFF native Next protocol failed: native-stop\n',
+    });
+  }, 160_000);
   it('the actual production middleware and localized shells use the native BFF without exposing credentials', () => {
     const script = new URL('../../scripts/verify-bff-protocol.mjs', import.meta.url);
     expect(

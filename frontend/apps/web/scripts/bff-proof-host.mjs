@@ -375,7 +375,13 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
   );
   assert.equal((await native.completed).code, 0, 'owned current-source native compilation');
   mark('build');
-  const build = child([join(source, 'node_modules/next/dist/bin/next'), 'build'], env);
+  const build = child(
+    mutation === 'held-build'
+      ? ['-e', 'setInterval(() => {}, 1000)']
+      : [join(source, 'node_modules/next/dist/bin/next'), 'build'],
+    env,
+  );
+  if (mutation === 'held-build') mark('held-build'); // The owned child exists before the parent may close input.
   const buildResult = await build.completed;
   if (buildResult.code !== 0 && !external) {
     const diagnostics = build.scanner.tail

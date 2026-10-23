@@ -24,5 +24,5 @@ export function createFixtureOwner(options?: { exit?: (code: number) => void }):
   assertActive(): void;
   dispose(): Promise<void>;
   cancel(): Promise<void>;
-  install(options?: { control?: EventEmitter; event?: 'close' | 'disconnect' }): void;
+  install(options?: { control?: EventEmitter; event?: 'close' | 'disconnect' | 'end' }): void;
 };

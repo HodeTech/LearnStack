@@ -27,9 +27,13 @@ try {
   assert.ok(
     process.argv.length === 2 ||
       (process.argv.length === 3 &&
-        ['--without-native-activity', '--ui', '--dev', '--without-native-diagnostics'].includes(
-          process.argv[2],
-        )),
+        [
+          '--without-native-activity',
+          '--ui',
+          '--dev',
+          '--without-native-diagnostics',
+          '--without-successful-native-stop',
+        ].includes(process.argv[2])),
     'closed proof mode',
   );
   const { app, server, advance, get, scanners } = await startBffProof({
@@ -45,7 +49,9 @@ try {
         ? 'activity'
         : process.argv[2] === '--without-native-diagnostics'
           ? 'diagnostics'
-          : undefined,
+          : process.argv[2] === '--without-successful-native-stop'
+            ? 'shutdown'
+            : undefined,
     mark: (value) => {
       stage = value;
     },
@@ -257,8 +263,9 @@ try {
     assert.equal(failedCallback.status, 400);
     assert.equal(failedCallback.body.includes(errorCanary), false);
     await advance(0); // Flush the pinned real reporter; no raw artifact leaves this owned root.
-    await stopTestChild(server.process);
+    const settlement = await stopTestChild(server.process);
     const stopped = await server.completed;
+    assert.equal(settlement.forced, false);
     assert.equal(stopped.code, 0, 'development owner exits naturally before artifact inspection');
     assert.equal(stopped.signal, null);
     stage = 'dev-diagnostics';
@@ -279,6 +286,12 @@ try {
       );
     }
   }
+  stage = 'native-stop';
+  const settlement = await stopTestChild(server.process);
+  const stopped = await server.completed;
+  assert.equal(settlement.forced, false);
+  assert.equal(stopped.code, 0);
+  assert.equal(stopped.signal, null);
   stage = 'cleanup';
   await owner.dispose();
   assert.equal(

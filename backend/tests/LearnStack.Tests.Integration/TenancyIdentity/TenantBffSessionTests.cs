@@ -28,6 +28,19 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutputHelper output)
 {
     [Fact]
+    public async Task Parent_EOF_during_held_build_joins_acquisition_and_removes_its_private_tree()
+    {
+        await using var unavailable = new UnavailableTenantIssuer();
+        using var authority = new KeycloakTls();
+        await using var native = await BffNativeDriver.StartAsync(RepositoryRoot(), NoNetworkConfiguration(unavailable, authority), heldBuild: true);
+        var root = native.TemporaryRoot;
+        Directory.EnumerateFileSystemEntries(root).Should().NotBeEmpty("the owned build is held before native readiness");
+        await native.DisposeAsync();
+        Directory.Exists(root).Should().BeFalse("EOF must cancel acquisition without waiting for the suspended command iterator");
+        unavailable.Connections.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Early_parent_disposal_joins_and_removes_its_private_native_tree()
     {
         await using var unavailable = new UnavailableTenantIssuer();

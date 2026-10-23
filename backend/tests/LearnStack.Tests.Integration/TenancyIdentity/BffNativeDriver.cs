@@ -19,7 +19,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     private bool _complete;
     private int _expectedExit;
 
-    private BffNativeDriver(string root, bool browser = false, bool counter = false)
+    private BffNativeDriver(string root, bool browser = false, bool counter = false, bool heldBuild = false)
     {
         var start = new ProcessStartInfo("node")
         {
@@ -32,6 +32,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         };
         start.ArgumentList.Add(Path.Combine(root, "frontend/apps/web/scripts/" + (browser ? "verify-bff-browser.mjs" : "verify-bff-session.mjs")));
         if (counter) start.ArgumentList.Add(browser ? "--without-history" : "--without-successful-native-stop");
+        if (heldBuild) start.ArgumentList.Add("--hold-build");
         start.Environment.Clear();
         start.Environment["PATH"] = Environment.GetEnvironmentVariable("PATH");
         start.Environment["NODE_TLS_REJECT_UNAUTHORIZED"] = "1";
@@ -53,13 +54,13 @@ internal sealed class BffNativeDriver : IAsyncDisposable
 
     internal string TemporaryRoot => _temporaryRoot;
 
-    internal static async Task<BffNativeDriver> StartAsync(string root, object configuration, bool shutdownCounter = false)
+    internal static async Task<BffNativeDriver> StartAsync(string root, object configuration, bool shutdownCounter = false, bool heldBuild = false)
     {
-        var driver = new BffNativeDriver(root, counter: shutdownCounter);
+        var driver = new BffNativeDriver(root, counter: shutdownCounter, heldBuild: heldBuild);
         try
         {
             await driver.WriteAsync(configuration);
-            await driver.ReadAsync("ready");
+            await driver.ReadAsync(heldBuild ? "held-build" : "ready");
             return driver;
         }
         catch
@@ -152,7 +153,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
                 using var parsed = JsonDocument.Parse(line);
                 if (parsed.RootElement.GetProperty("protocol").GetInt32() != 1) throw new InvalidOperationException();
                 var actual = parsed.RootElement.GetProperty("phase").GetString();
-                if (phase == "ready" && actual == "progress")
+                if (phase is "ready" or "held-build" && actual == "progress")
                 {
                     var value = parsed.RootElement.GetProperty("stage").GetString();
                     if (value is not ("compile" or "build" or "start")) throw new InvalidOperationException();

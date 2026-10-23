@@ -75,8 +75,8 @@ against it, including the host's default organization where applicable.
   `KEYCLOAK_WEB_CLIENT_SECRET`; newly scaffolded private files inherit that example.
   File permissions do not make a published value confidential. Compose passes it
   only to Keycloak; the import resolves its environment placeholder. The development
-  reconciler and the later P02b-7 BFF are its other consumers. The API, public
-  renderer and .NET Seeder never receive this secret.
+  reconciler and the explicitly enabled native BFF are its other consumers.
+  The API, public renderer and .NET Seeder never receive this secret.
 - Older private `.env` files must add that key explicitly, matching an already
   imported confidential client's secret. Convergence verifies that existing
   secret; a mismatch requires operator correction rather than automatic rotation.
