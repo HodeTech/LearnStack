@@ -156,7 +156,7 @@ each packet decided and delivered, as
     - [ADR-0066 acceptance and implementation (2026-10-20)](#adr-0066-acceptance-and-implementation-2026-10-20) — 135 lines
   - [P02b-5 systematic proof and document corrections (2026-10-20)](#p02b-5-systematic-proof-and-document-corrections-2026-10-20) — 399 lines
   - [P02b-5 merge and closeout (2026-10-20)](#p02b-5-merge-and-closeout-2026-10-20) — 100 lines
-- [P02b-6 — Realm and seed](#p02b-6--realm-and-seed) — 5,162 lines
+- [P02b-6 — Realm and seed](#p02b-6--realm-and-seed) — 5,181 lines
   - [P02b-6 decision package (2026-10-20)](#p02b-6-decision-package-2026-10-20) — 446 lines
   - [P02b-6 Step 1 — executable realm and identity declaration (2026-10-21)](#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21) — 97 lines
   - [P02b-6 Step 2 — owned warm-realm reconciliation (2026-10-21)](#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21) — 553 lines
@@ -195,9 +195,11 @@ each packet decided and delivered, as
     - [P02b-6 aggregate producer-state refusal attribution (2026-10-22)](#p02b-6-aggregate-producer-state-refusal-attribution-2026-10-22) — 73 lines
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 239 lines
-  - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 202 lines
+  - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 270 lines
+  - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 208 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
+  - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 25 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -17681,6 +17683,25 @@ green assignment. [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.m
 requires both variants only for plan, algorithm or fixture-lifetime changes.
 This decision replaces the final-source A/B requirement stated in the entries above.
 
+### P02b-6 correction merge and closeout (2026-10-23)
+
+Read-only GitHub verification confirms [PR #35](https://github.com/HodeTech/LearnStack/pull/35)
+merged at `2026-10-23T14:55:58Z`, merge commit
+`935d8da66878286d6a1695f3d41d985ebce4e791`. Its source is
+`395d078cd07af6619ed3b8237a368e0589c10dfc`.
+[Run 39964808314](https://github.com/HodeTech/LearnStack/actions/runs/39964808314),
+attempt 1, reports completed/success for that exact source, with all 27 CI jobs
+and all seven required contexts successful. External review-bot status is not
+included in that CI count. This verification reads run/check metadata; it does
+not download or independently revalidate every test artifact.
+
+The preceding record owns the maintainer's one-green-assignment qualification
+decision. Earlier failed attempts and the unresolved historical constructor
+cancellation retain their recorded evidence limits; a green source does not
+prove a historical cause. PR #34's implementation and this merged correction
+close P02b-6. The newly requested P02b-7 opens its own decision pass below;
+no session implementation or G13 acceptance is inferred from either merge.
+
 ## P02b-7 — BFF session
 
 ### P02b-7 decision package (2026-10-23)
@@ -17702,9 +17723,9 @@ generic authenticated API proxy. Public sites retain their credential-free
 transport, live host admission and stopped-Keycloak rendering proof.
 
 The document/source pass inspects `395d078c`. PR #34's merged implementation
-is the starting point; PR #35's post-merge CI corrections retain their own
-qualification records. This new packet neither certifies that correction nor
-changes an unexplained background-job test. Its eventual PR/CI evidence must
+is the starting point; PR #35 is now merged, as independently checked in the
+[correction closeout](#p02b-6-correction-merge-and-closeout-2026-10-23).
+This new packet changes no unexplained background-job test. Its PR/CI evidence must
 identify its actual final source rather than borrow earlier receipts.
 
 #### Reviewed documents and verified dispositions
@@ -17792,13 +17813,19 @@ one ten-second total deadline including body reads and a 256 KiB decoded body
 ceiling; retained credentials still obey the smaller bundle limit. No automatic
 token-request retry is introduced.
 
-New BFF private configuration is explicit and optional as one complete group:
-issuer, existing web-client secret and a separate generated session encryption
-secret. It never aliases the public hop secret. Public-only launch stays valid
-with the group absent; a partial/conflicting group refuses startup. Existing
-private files are not silently repaired or overwritten. Neither startup mode
-contacts Keycloak. Only BFF-enabled runtime receives its client/session secret;
-API, data Seeder, browser, public-only proof and receipts do not.
+`LEARNSTACK_BFF_ENABLED` is absent/false for a public-only launch. That mode
+projects no BFF secrets and makes no provider call; the web-client secret
+already used by realm tooling does not count as a partial BFF configuration.
+Explicit true requires one complete, agreeing private group: issuer, existing
+web-client secret and a separate freshly generated session encryption secret.
+The session key never aliases the public hop/client secret. Partial/conflicting
+enabled configuration refuses startup. Setup documents explicit enablement;
+existing private files are not silently repaired or overwritten. Neither mode
+contacts Keycloak at startup. Only BFF-enabled runtime receives client/session
+secrets; API, data Seeder, browser, public-only CI proof and receipts do not.
+When disabled, auth endpoints are masked 404 and Studio/Portal return a bounded
+503 sign-in-unavailable state without AccountSite access. Public pages remain
+unchanged; no protected shell is rendered as an anonymous fallback.
 
 #### Five implementation steps after acceptance
 
@@ -17919,6 +17946,31 @@ runs a provider/build/browser. Whole-tree document guards, seven ADR parser
 controls, relative-path checks and diff hygiene pass before the first draft
 commit. A second different review pair inspects the corrected proposal before
 maintainer approval is requested.
+
+### P02b-7 proposal review round 2 (2026-10-23)
+
+A different fresh pair (`gpt-6-astra`, high security/correctness;
+`gpt-6.1-sol`, high evidence/governance) reviews the complete proposal through
+`30933cbb`, not only the first findings. Both approve its design/evidence
+boundary, with no verified Blocker or Major. The security reviewer requests
+one wording correction: provider-free cookie-less requests must mean ordinary
+public traffic, since the explicitly admitted sign-in/callback must contact the
+issuer. The ADR now names that exception.
+
+Root self-review also catches an optional-configuration ambiguity: the existing
+realm-tooling web secret cannot make a public-only launch partially configured.
+An explicit `LEARNSTACK_BFF_ENABLED` opt-in now distinguishes the modes; both
+reviewers inspect and approve that clarification. Disabled auth paths and
+protected-shell unavailability are explicit, without anonymous protected views.
+
+The evidence reviewer independently verifies npm pins/peers/licences, tagged
+library behavior, actual ordinary-job Node/pnpm/browser prerequisites and the
+real warm-BFF/provider test owner. It passes the whole-tree document guards and
+seven parser controls and verifies the committed generated index, while noting
+it must be regenerated after the clarification. The security reviewer checks
+the native/callback/safe-projection seams, expiry/refresh/revocation, CSRF and
+resource ownership. Neither runs runtime/provider/build/browser work. Approval
+here means proposal coherence, not maintainer acceptance or implementation.
 
 ## Status archive
 

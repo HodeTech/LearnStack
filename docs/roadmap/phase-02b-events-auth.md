@@ -1,10 +1,11 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-> **Status (2026-10-22).** Phase 02b is **in progress**. P02b-0 through P02b-5 are
+> **Status (2026-10-23).** Phase 02b is **in progress**. P02b-0 through P02b-5 are
 > complete, and P02b-1–5 are merged through PRs #29–#33. P02b-6's implementation is
 > merged through [PR #34](https://github.com/HodeTech/LearnStack/pull/34); its
-> post-merge CI corrections continue on `development`, and their records own the
-> remaining qualification. P02b-7 and P02b-8 are pending; G13's session part, G16
+> post-merge CI corrections are merged through
+> [PR #35](https://github.com/HodeTech/LearnStack/pull/35). P02b-7's decision pass
+> is in progress and P02b-8 is pending; G13's session part, G16
 > and G18's erasure inventory stay Open.
 >
 > This document is the plan. Every dated decision package, step record, review
@@ -22,7 +23,7 @@
 > | P02b-3 | Consumer | ✅ complete and merged — PR #31, 2026-10-15; [merge closeout](phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15) |
 > | P02b-4 | Background jobs | ✅ complete and merged — PR #32, 2026-10-19; [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) |
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
-> | P02b-6 | Realm and seed | Implementation merged — PR #34, 2026-10-22; post-merge CI corrections in progress; [records](phase-02b-delivery-log.md#p02b-6--realm-and-seed) |
+> | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
 > | P02b-7 | BFF session | Decision pass in progress — G13 session Open; [Proposed package](phase-02b-delivery-log.md#p02b-7-decision-package-2026-10-23) and ADR-0070 await approval |
 > | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
 

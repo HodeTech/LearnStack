@@ -76,8 +76,9 @@ All provider traffic uses private, validated issuer configuration, fixed OIDC
 endpoint purposes, bounded decoded bodies and finite deadlines. Refuse redirects,
 unexpected endpoint origins, malformed responses and token/profile mismatches.
 Loopback HTTP is development-only. Request hosts, JWT URLs, forwarded headers
-and provider error text cannot select an endpoint. Startup and a request without
-session cookies contact no provider. Override every Auth.js logger method with
+and provider error text cannot select an endpoint. Startup and ordinary public
+requests without session cookies contact no provider; approved sign-in/callback
+transactions are the explicit exception. Override every Auth.js logger method with
 closed diagnostics; debug and raw exception/metadata logging stay disabled.
 
 ### Custody, topology and resource ownership
