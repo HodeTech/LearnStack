@@ -4,6 +4,9 @@ import createNextIntlPlugin from 'next-intl/plugin';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Callback/logout queries must never enter automatic request/fetch logs.
+  // The native launcher separately closes the pinned development trace sink.
+  logging: false,
   images: { unoptimized: true },
   transpilePackages: ['@learnstack/ui', '@learnstack/sdk'],
   skipMiddlewareUrlNormalize: true,

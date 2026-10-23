@@ -3,6 +3,7 @@ import Script from 'next/script';
 import type { ReactNode } from 'react';
 
 import { BFF_HISTORY_SOURCE } from '@/components/auth/history';
+import { AuthSkipLink } from '@/components/auth/skip-link';
 import { PublicTheme } from '@/components/public/theme';
 import { textDirection } from '@/i18n/locale';
 import { bffSessionEnabled } from '@/server/auth/session-owner';
@@ -24,17 +25,21 @@ export default async function RootLayout({ children }: RootLayoutProps) {
   const { request, kind } = await requirePublicResource();
   assertPublicRequestActive(request);
   const locale = request.locale ?? 'en';
+  const protectedShell = kind === 'scaffold' && bffSessionEnabled();
   return (
     <html lang={locale} dir={textDirection(locale)}>
       <head>
         <PublicTheme theme={request.site.theme} />
-        {kind === 'scaffold' && bffSessionEnabled() && (
+        {protectedShell && (
           <Script id="bff-history" strategy="beforeInteractive">
             {BFF_HISTORY_SOURCE}
           </Script>
         )}
       </head>
-      <body className="bg-ls-bg text-ls-fg font-sans antialiased">{children}</body>
+      <body className="bg-ls-bg text-ls-fg font-sans antialiased">
+        {protectedShell && <AuthSkipLink locale={locale} />}
+        {children}
+      </body>
     </html>
   );
 }

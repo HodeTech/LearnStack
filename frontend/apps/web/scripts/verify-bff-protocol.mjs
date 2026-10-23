@@ -22,6 +22,7 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import { stopTestChild } from './stop-test-child.mjs';
 
 const source = fileURLToPath(new URL('../', import.meta.url));
 const owner = createFixtureOwner();
@@ -30,12 +31,16 @@ const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-bff-protocol-'
 const app = join(root, 'frontend/apps/web');
 const secret = randomBytes(32).toString('base64url');
 const marker = randomBytes(32).toString('base64url');
+const callbackCode = randomBytes(32).toString('base64url');
+const errorCanary = randomBytes(32).toString('base64url');
+const privateValues = [secret, marker, callbackCode, errorCanary];
 const scanners = [];
 const deadline = setTimeout(() => {
   void owner.cancel();
 }, 120_000);
 deadline.unref();
-const uiMode = process.argv[2] === '--ui';
+const devMode = ['--dev', '--without-native-diagnostics'].includes(process.argv[2]);
+const uiMode = devMode || process.argv[2] === '--ui';
 let stage = 'setup';
 function file(path, value) {
   mkdirSync(join(path, '..'), { recursive: true });
@@ -54,7 +59,7 @@ function child(args, env, ipc = false) {
       stdio: ['ignore', 'pipe', 'pipe', ...(ipc ? ['ipc'] : [])],
     }),
   );
-  const scanner = createPrivateScanner([secret, marker]);
+  const scanner = createPrivateScanner(privateValues);
   scanners.push(scanner);
   for (const stream of [process.stdout, process.stderr]) {
     stream.on('data', (chunk) => scanner.push(chunk));
@@ -112,7 +117,9 @@ try {
   assert.ok(
     process.argv.length === 2 ||
       (process.argv.length === 3 &&
-        ['--without-native-activity', '--ui'].includes(process.argv[2])),
+        ['--without-native-activity', '--ui', '--dev', '--without-native-diagnostics'].includes(
+          process.argv[2],
+        )),
     'closed proof mode',
   );
   mkdirSync(join(app, 'src/server/auth'), { recursive: true });
@@ -261,6 +268,12 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       cpSync(join(source, name), join(app, name));
   }
   let launcher = readFileSync(join(source, 'scripts/public-server.mjs'), 'utf8');
+  if (process.argv[2] === '--without-native-diagnostics')
+    launcher = replace(
+      launcher,
+      "  process.env.NEXT_TRACE_SPAN_THRESHOLD_MS = '9007199254740991';",
+      '',
+    );
   launcher = replace(
     launcher,
     "import { bffConfiguration } from '../.server/auth/configuration.js';",
@@ -274,7 +287,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       diagnostic: (reason) => console.warn('BFF session refused', { reason }),
     };`,
     `    let now = 0; let refreshes = 0; let accounts = 0;
-    process.on('message', value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; process.send?.({ kind: 'snapshot', now, refreshes, accounts }); } });
+    process.on('message', async value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; await (await import('next/dist/trace/index.js')).flushAllTraces(); process.send?.({ kind: 'snapshot', now, refreshes, accounts }); } });
     const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: 'https://identity.example.test/realms/learnstack', subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
     const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: 'https://identity.example.test/authorize' }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => 'https://identity.example.test/logout' }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: binding.host === 'other.example.test:3000' ? 'Diğer kurum' : 'Institution' }); }, clock: { monotonic: () => now, utc: () => 1800000000000 + now } };`,
   );
@@ -364,8 +377,15 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     process.stderr.write(diagnostics.slice(0, 2000) + '\n');
   }
   assert.equal(buildResult.code, 0, 'owned Next build');
+  const buildTrace = devMode ? readFileSync(join(app, '.next/trace'), 'utf8') : '';
+  if (devMode)
+    assert.ok(buildTrace.length > 0, 'separate build leaves a nonempty real collector control');
   stage = 'start';
-  const server = child(['scripts/public-server.mjs'], env, true);
+  const server = child(
+    ['scripts/public-server.mjs', ...(devMode ? ['--dev'] : [])],
+    devMode ? { ...env, NODE_ENV: 'development' } : env,
+    true,
+  );
   const advance = (milliseconds) =>
     new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('owned IPC deadline')), 5000);
@@ -430,9 +450,10 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     value.startsWith('__Host-ls-login-'),
   );
   const state = transaction.slice('__Host-ls-login-'.length).split('=')[0];
+  privateValues.push(state);
   stage = 'callback';
   const callback = await get(
-    '/api/auth/callback/keycloak?state=' + state + '&code=owned',
+    '/api/auth/callback/keycloak?state=' + state + '&code=' + callbackCode,
     jar(signIn),
   );
   if (callback.status !== 303) {
@@ -569,6 +590,47 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     assert.equal(refused.status, 303);
     assert.ok(refused.headers.location.includes('/api/auth/signin'));
   } else assert.match(refused.body, /<h1>anonymous<\/h1>/);
+  if (devMode) {
+    stage = 'dev-logout-return';
+    const logoutState = logout.headers['set-cookie']
+      .find((value) => value.startsWith('__Host-ls-logout-'))
+      .slice('__Host-ls-logout-'.length)
+      .split('=')[0];
+    privateValues.push(logoutState);
+    const returned = await get('/?state=' + logoutState, active + '; ' + jar(logout));
+    assert.equal(returned.status, 303);
+    const failedCallback = await get(
+      '/api/auth/callback/keycloak?state=' +
+        randomBytes(32).toString('base64url') +
+        '&error=access_denied&error_description=' +
+        errorCanary,
+      active,
+    );
+    assert.equal(failedCallback.status, 400);
+    assert.equal(failedCallback.body.includes(errorCanary), false);
+    await advance(0); // Flush the pinned real reporter; no raw artifact leaves this owned root.
+    await stopTestChild(server.process);
+    const stopped = await server.completed;
+    assert.equal(stopped.code, 0, 'development owner exits naturally before artifact inspection');
+    assert.equal(stopped.signal, null);
+    stage = 'dev-diagnostics';
+    let trace = '';
+    try {
+      trace = readFileSync(join(app, '.next/trace'), 'utf8');
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+    for (const canary of [callbackCode, errorCanary, state, logoutState]) {
+      stage = 'dev-trace';
+      assert.equal(trace.includes(canary), false, 'no auth URL value in persisted trace');
+      stage = 'dev-console';
+      assert.equal(
+        scanners.some((scanner) => scanner.tail.includes(canary)),
+        false,
+        'no auth URL value in console output',
+      );
+    }
+  }
   stage = 'cleanup';
   await owner.dispose();
   assert.equal(
@@ -578,7 +640,11 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
   );
   clearTimeout(deadline);
   process.stdout.write(
-    uiMode ? 'BFF production UI: passed\n' : 'BFF native Next protocol: passed\n',
+    devMode
+      ? 'BFF development diagnostics: passed\n'
+      : uiMode
+        ? 'BFF production UI: passed\n'
+        : 'BFF native Next protocol: passed\n',
   );
 } catch {
   try {

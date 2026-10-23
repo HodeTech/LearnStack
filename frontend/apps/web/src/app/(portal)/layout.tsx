@@ -5,5 +5,9 @@ type PortalLayoutProps = {
 };
 
 export default function PortalLayout({ children }: PortalLayoutProps) {
-  return <main className="min-h-screen">{children}</main>;
+  return (
+    <main id="main-content" tabIndex={-1} className="min-h-screen">
+      {children}
+    </main>
+  );
 }

@@ -32,6 +32,13 @@ source files (`chmod 600`); startup never repairs permissions or rotates secrets
 requires HTTPS and normal certificate verification. Both modes discover the
 provider lazily, without a startup network dependency.
 
+The native process suppresses Next's automatic request/fetch logs and development
+performance trace events before importing the framework. This covers public
+requests too: raw callback/logout query values must not enter `.next/trace` or
+console output. The separately invoked production build keeps its build traces;
+API/business telemetry is unchanged. Requalify the pinned threshold seam and its
+real development canary/counter-control whenever Next changes.
+
 Absent/false opt-in keeps the anonymous renderer independent of Keycloak. Auth
 paths then return 404; `/studio` and `/portal` return a localized unavailable
 document with 503. Enabled mode exposes the closed `/api/auth` actions in native

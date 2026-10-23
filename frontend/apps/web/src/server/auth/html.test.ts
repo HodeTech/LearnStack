@@ -23,6 +23,11 @@ describe('bounded localized BFF documents', () => {
         'text/html',
       );
       expect(document.documentElement.lang).toBe(locale);
+      expect(document.body.firstElementChild?.getAttribute('href')).toBe('#main-content');
+      expect(document.querySelector('#main-content')?.getAttribute('tabindex')).toBe('-1');
+      expect(document.body.firstElementChild?.textContent).toMatch(
+        locale === 'en' ? /Skip/ : /İçeriğe/,
+      );
       expect(document.querySelector('form')?.getAttribute('action')).toBe(
         '/api/auth/signin/keycloak',
       );

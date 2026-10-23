@@ -237,6 +237,12 @@ projection. Verified host, browser binding, epoch and server state are required.
   requests independent of Keycloak; auth paths are 404 and protected shells 503.
   Restart signs sessions out. Multiple web processes require Phase 11's distributed
   adapter and actual refresh/revocation/interruption qualification first.
+- Before importing Next, the native process closes its raw development URL trace
+  sink; Next configuration also disables automatic request/fetch logging. This
+  suppresses framework performance events for public development requests too,
+  while preserving separate build traces and API/business telemetry. A real
+  enabled-development callback/logout canary scans console and trace artifacts;
+  removing the trace guard must fail even with console logging disabled.
 
 Tenant **development** provider events use explicit LOGIN/LOGIN_ERROR,
 LOGOUT/LOGOUT_ERROR, CODE_TO_TOKEN/CODE_TO_TOKEN_ERROR and

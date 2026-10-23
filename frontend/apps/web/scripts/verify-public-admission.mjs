@@ -466,8 +466,8 @@ export async function LateAdmissionProbe() {
   );
   replaceOnce(
     layout,
-    '{children}</body>',
-    '{children}<Suspense fallback={null}><LateAdmissionProbe /></Suspense></body>',
+    '{children}',
+    '{children}<Suspense fallback={null}><LateAdmissionProbe /></Suspense>',
   );
   const catalog = join(app, 'src/app/(public)/[locale]/courses');
   writeFileSync(

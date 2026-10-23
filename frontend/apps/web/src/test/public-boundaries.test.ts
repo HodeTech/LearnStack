@@ -296,7 +296,7 @@ describe('ADR-0053 production public boundaries', () => {
       );
       expect(clientBoundaryFindings(graph).some((item) => item.file === probe)).toBe(true);
     }
-  });
+  }, 20_000); // Rebuilds the complete TypeScript graph for every planted installer variant.
   it('Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport', () => {
     const missingMarker: Finding[] = hasServerOnlyMarker(production.files.get(ADAPTER)!)
       ? []

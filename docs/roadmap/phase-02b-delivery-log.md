@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 939 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 983 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -214,6 +214,7 @@ each packet decided and delivered, as
   - [P02b-7 Step 3 review round 1 (2026-10-23)](#p02b-7-step-3-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 Step 3 review round 2 and closeout (2026-10-23)](#p02b-7-step-3-review-round-2-and-closeout-2026-10-23) — 20 lines
   - [P02b-7 Step 4 — optional activation and session UI (2026-10-23)](#p02b-7-step-4--optional-activation-and-session-ui-2026-10-23) — 64 lines
+  - [P02b-7 Step 4 review round 1 (2026-10-23)](#p02b-7-step-4-review-round-1-2026-10-23) — 44 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -18654,6 +18655,50 @@ Step 4 awaits its two fresh independent review pairs. Real warm-provider/API,
 native HTTPS browser/history, stopped-Keycloak demo and final-source hosted
 qualification remain Step 5. The four BFF catalogue rules remain Registered.
 
+
+### P02b-7 Step 4 review round 1 (2026-10-23)
+
+Two fresh source-only reviewers inspect implementation `09b3aa62`:
+`gpt-6-astra` at xhigh for security/lifecycle and `gpt-6.1-sol` at xhigh for
+UI/proof/corpus. Both identify the same development diagnostics Blocker; the UI
+reviewer also identifies the missing skip link. Neither runs a provider, browser,
+build or test; root owns all runtime confirmation.
+
+- Pinned Next's development request handler records the raw URL even when
+  middleware owns the response. Its independent reporter persists callback
+  code/state and logout state in `.next/trace`; disabling console logging alone
+  is insufficient. The native launcher now suppresses performance spans before
+  importing Next, using a threshold above every duration the pinned tracer can
+  accept. Next automatic request/fetch logging is also disabled. This loses
+  public development performance events too; separate build traces and API
+  telemetry remain. Security 11 and web setup disclose the cost.
+- An actual enabled development copy completes sign-in, protected rendering,
+  logout return and a refused provider-error callback. Private random canaries
+  are scanned in stdout/stderr and the persisted trace after the actual native
+  child exits successfully. Removing only native trace suppression leaves
+  console logging disabled but fails specifically at the trace canary, after
+  successful callbacks. Raw trace data and canary values never leave its owned
+  temporary root. This is fake-grant protocol evidence, not provider/browser
+  qualification.
+- Sign-in/recovery documents and enabled protected shells now place a localized
+  skip link before their content, targeting a focusable main element. They reuse
+  the existing public UI translation. DOM assertions cover both languages.
+- The expanded source graph makes the existing multi-mutation ownership test
+  exceed Vitest's implicit five-second limit. Only that finite complete-graph
+  control receives twenty seconds; all planted variants remain. The Turkish
+  skip-text assertion is corrected for its actual dotted capital letter.
+- A complete rerun also exposes CPU contention in three unchanged lint controls
+  when Vitest starts file workers by machine CPU count alongside native Next
+  builds. Web file concurrency is now four; those controls keep their existing
+  timeouts and all discovered cases still run under the same package deadline.
+
+Root validation: **2,083 frontend cases pass in two packages, zero skips/todos**;
+the web population completes in 61 seconds with four workers. Lint, typecheck,
+native compilation and all document guards pass (2,191 fragment links). The real
+PostgreSQL/app-role renderer case passes again, one case, zero skips, 45 seconds
+reported test duration. Second-round closeout follows below. The four broader
+BFF rules remain Registered; real provider/API/browser and hosted proof remain
+Step 5.
 
 ## Status archive
 

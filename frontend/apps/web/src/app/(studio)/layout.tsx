@@ -5,5 +5,9 @@ type StudioLayoutProps = {
 };
 
 export default function StudioLayout({ children }: StudioLayoutProps) {
-  return <main className="min-h-screen">{children}</main>;
+  return (
+    <main id="main-content" tabIndex={-1} className="min-h-screen">
+      {children}
+    </main>
+  );
 }

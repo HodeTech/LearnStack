@@ -22,6 +22,11 @@ try {
   // A nonempty exclusion survives debug initialization and prevents later dotenv
   // loading from restoring diagnostics. Apply it before importing any Next code.
   process.env.DEBUG = '-*';
+  // Pinned Next records raw development request URLs in .next/trace even for
+  // middleware responses. Every accepted span duration is <= MAX_SAFE_INTEGER
+  // microseconds; this millisecond threshold suppresses that reporter before
+  // Next loads. The separately invoked build keeps its non-request traces.
+  process.env.NEXT_TRACE_SPAN_THRESHOLD_MS = '9007199254740991';
   const { default: next } = await import('next');
   const values = loadLocalEnvironment(root, process.env);
   const configuration = publicServerConfiguration(values, root);
