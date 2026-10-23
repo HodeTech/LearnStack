@@ -23,7 +23,7 @@
 > | P02b-4 | Background jobs | ✅ complete and merged — PR #32, 2026-10-19; [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) |
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | Implementation merged — PR #34, 2026-10-22; post-merge CI corrections in progress; [records](phase-02b-delivery-log.md#p02b-6--realm-and-seed) |
-> | P02b-7 | BFF session | Pending — G13's session part and P02b-6 |
+> | P02b-7 | BFF session | Decision pass in progress — G13 session Open; [Proposed package](phase-02b-delivery-log.md#p02b-7-decision-package-2026-10-23) and ADR-0070 await approval |
 > | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
 
 ## Goal

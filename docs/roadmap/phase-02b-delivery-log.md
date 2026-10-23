@@ -195,6 +195,8 @@ each packet decided and delivered, as
     - [P02b-6 aggregate producer-state refusal attribution (2026-10-22)](#p02b-6-aggregate-producer-state-refusal-attribution-2026-10-22) — 73 lines
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 186 lines
+  - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 184 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -17677,6 +17679,192 @@ On 2026-10-23 the maintainer decided that PR #35 qualifies with one complete
 green assignment. [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md)
 requires both variants only for plan, algorithm or fixture-lifetime changes.
 This decision replaces the final-source A/B requirement stated in the entries above.
+
+## P02b-7 — BFF session
+
+### P02b-7 decision package (2026-10-23)
+
+**Status: Proposed — maintainer approval pending.** The user requested this
+packet on `development`, with document review before implementation and a
+commit plus two fresh independent review rounds for every step. G13's session
+part remains Open. [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)
+proposes the server-side custody and exact admission authority; no dependent
+runtime or Accepted ADR body is changed by this proposal.
+
+#### Problem and inherited boundary
+
+P02b-6 issues the strict API profile and reserves two exact callback URLs, but
+the browser cannot sign in. P02b-7 connects that provider to one safe browser
+session, the existing AccountSite read and guarded Studio/Portal shells. It
+does not add Phase 03 permissions, membership, account administration or a
+generic authenticated API proxy. Public sites retain their credential-free
+transport, live host admission and stopped-Keycloak rendering proof.
+
+The document/source pass inspects `395d078c`. PR #34's merged implementation
+is the starting point; PR #35's post-merge CI corrections retain their own
+qualification records. This new packet neither certifies that correction nor
+changes an unexplained background-job test. Its eventual PR/CI evidence must
+identify its actual final source rather than borrow earlier receipts.
+
+#### Reviewed documents and verified dispositions
+
+| Surface | Finding at the inspected source | Required action |
+|---|---|---|
+| Phase 02b G12/G13, session scope and completion criteria; P02b-5/6 Accepted packages | Client, callback, token profile and host authority are settled; session custody/lifetimes/state machine are not | Preserve settled decisions; accept ADR-0070 and this sequence before dependent code. |
+| ADR-0004/0036/0064/0067/0068 | Provider, matrix, public ceiling, exact AccountSite read, development issuance and safe reconciliation remain authoritative | No password/permission/membership/provider-role change; no production token or realm policy rewrite. |
+| ADR-0053/0054/0055 | Public caller excludes credentials; listener permits only GET/HEAD; native request holder owns only request/public state | Add a separate authenticated caller and session holder; disclose exact auth POST admission in ADR-0054 and additive caller seam in ADR-0053 at acceptance. |
+| Security 11; Frontend 07; Architecture 13/14 | Cookie-held refresh prose, explicit `Domain=` advice, implicit Server Action CSRF and independent-logout claims conflict with the complete session contract | Reconcile to server custody, no Domain, three CSRF classes, response ownership and shared-provider-SSO limits under ADR-0070. |
+| Audit 18; Architecture 13/31; Phase 03 | Generic login/revocation examples and provider-owned events need an explicit BFF disposition | Record the proposed provider-owned/diagnostic-only boundary and its durable-evidence loss; do not borrow AccountSite Off or invent an audit-write API. |
+| Frontend 03/07/08/16; Architecture 14; skills for routes/feature gates | Server-only SDK use, localization, timeout warning and future `auth()` examples must agree with real helpers | Implement localized sign-in/error/timeout controls and update both skill illustrations with the shipped safe projection. |
+| Standards 06/10/13/14/17/18/20/21; Phase 02d/03/06/11; glossary | Existing test, ingress, observability, record and demand-gating owners apply | Register actual proof owners, bounded diagnostics and the distributed-store trigger; keep full browser OIDC journey in Phase 06. |
+| `apps/web` package and official tagged library sources | Next 15.5.27/React 19; Auth.js absent. Beta.32 is compatible; RSC auth discards Set-Cookie; no automatic refresh owner | Explicitly approve the beta pin; prove supported hooks and response-owned state transitions before activation. |
+| Native ingress, middleware, root/i18n layouts, public source graph, SDK, launcher environment | POST and auth paths are refused; Cookie/Origin are dropped downstream; layouts require public admission; AccountSite transport absent | Change exact branches and graph ownership together, with real pinned-Next negative/positive controls. Do not exempt whole middleware or leak secrets into the public-only launch. |
+
+#### Decisions presented together
+
+ADR-0070 owns the state machine and costs; this package owns its closed route
+set, delivery sequence and proof map. Approval accepts all of the following:
+
+- Process-local credential custody, an encrypted opaque host-only cookie and
+  restart sign-out. No distributed/durable continuity or application identity
+  persistence is claimed. The future named store adapter is a Phase 11 trigger.
+- Thirty-minute idle/eight-hour absolute lifetime, sixty-second refresh lead,
+  accessible idle warning/extension, and earlier provider expiry. Asset, prefetch
+  and passive status traffic do not keep a session alive.
+- At most 1,024 total owner entries, with at most 128 pending login/logout
+  transactions and a five-minute pending lifetime. Closing/in-flight owners
+  retain their slots. Full capacity refuses new admission with 503; unrelated
+  tenants can be affected. These are initial resource budgets, not measured fit.
+- One refresh owner/version, revocation before logout I/O and no late-result
+  resurrection. An uncertain/failed refresh ends the local session without
+  grant replay; short provider faults can require a new sign-in.
+- Keycloak SSO logout with honest failure and cross-host consequences. The
+  provider-directed ID-token-hint redirect is a bounded exception; access and
+  refresh tokens never enter a browser-visible surface.
+- Provider-owned authentication events and closed local lifecycle diagnostics;
+  no durable application session audit trail or new audit API. Existing MUST
+  mutation/rejection coverage stays unchanged.
+- Exact auth-route admission, separate authenticated AccountSite transport,
+  strict same-origin plus the appropriate CSRF proof, and the beta library pin.
+
+The earlier 900s issuance setting and API acceptance/skew are unchanged. No
+session default is inferred from them. No additional decision is intentionally
+left for implementation; a disproved feasibility premise reopens this pass.
+
+#### Proposed exact route and input matrix
+
+Every path first requires verified native provenance and successful live API
+host bootstrap, independently of cookies. Health/assets retain their current
+exemptions and methods. Public/bootstrap API calls carry no browser credential.
+
+| Path | Methods | Required evidence and behavior |
+|---|---|---|
+| `/api/auth/signin` | GET/HEAD | Same-host localized sign-in entry; only return destinations `/`, `/studio`, `/portal`. No submitted provider/absolute URL. |
+| `/api/auth/csrf` | GET/HEAD | Auth.js pre-session CSRF response; host-only cookie, no-store; no provider traffic. |
+| `/api/auth/signin/keycloak` | POST | Exact Origin, Auth.js pre-session CSRF and pending reservation; fixed provider and callback. Bind the reservation to the library-generated state before redirect. |
+| `/api/auth/callback/keycloak` | GET | Matching host, state/nonce/verifier and unexpired single-use reservation, then library-validated exchange; no anonymous fallback for a failed callback. |
+| `/api/auth/session` | GET/HEAD | Explicit minimal projection or unauthenticated state; passive read does not extend idle time. Never expose handle/provider profile/tokens. |
+| `/api/auth/error` | GET/HEAD | Closed localized recovery state; no reflection of provider error text or callback parameters. |
+| `/api/auth/signout` | POST | Exact Origin and session-bound CSRF in addition to the library's applicable check; revoke locally before end-session redirect. GET cannot sign out. |
+| `/api/auth/extend` | POST | Exact Origin and session-bound CSRF; touch only an active, unexpired session, never its absolute deadline. |
+| `/` with an owned logout-return transaction | GET | Check returned logout state and clear its cookie before the ordinary same-host root redirect. The registered post-logout URI remains exact `/`; arbitrary query values grant nothing. |
+| `/studio`, `/portal` | GET/HEAD | Response-owned session admission, then safe RSC projection and exact AccountSite read; otherwise redirect to sign-in. No application writes. |
+
+No catch-all action is admitted merely because Auth.js implements it. Deny
+providers/session-update/sign-out GET, other providers/methods, unsupported
+Server Actions and alternate callback paths. HEAD never performs code exchange
+or mutates authenticated state. Bound auth form bodies to 16 KiB, accept only
+the declared URL-encoded scalar fields, and reject duplicate security fields.
+Bound the full auth-cookie family to 16 KiB before Next; individual issued
+cookies retain browser-compatible size/chunking. Header and transport limits
+must cover slow/oversized input, not only a stated Content-Length.
+
+Use the native host and HTTPS port for the library request; discard automatic
+environment/forwarded authority. A login transaction uses Auth.js state/PKCE/
+nonce checks, not a replacement protocol. Its native reservation has a shorter
+five-minute authority even if the library's sealed cookie can decode longer.
+Concurrent sign-in tabs use the last transaction-cookie family; failed older
+callbacks cannot clear or replace a newer valid session. Provider requests have
+one ten-second total deadline including body reads and a 256 KiB decoded body
+ceiling; retained credentials still obey the smaller bundle limit. No automatic
+token-request retry is introduced.
+
+New BFF private configuration is explicit and optional as one complete group:
+issuer, existing web-client secret and a separate generated session encryption
+secret. It never aliases the public hop secret. Public-only launch stays valid
+with the group absent; a partial/conflicting group refuses startup. Existing
+private files are not silently repaired or overwritten. Neither startup mode
+contacts Keycloak. Only BFF-enabled runtime receives its client/session secret;
+API, data Seeder, browser, public-only proof and receipts do not.
+
+#### Five implementation steps after acceptance
+
+Every step ends with a clean commit, then a fresh correctness/security reviewer
+and a fresh evidence/corpus reviewer. A second different pair reviews the
+committed result after verified findings are fixed and committed. Reviewers
+start with standards-check and then code-review; the implementation owner
+serializes real runtime/provider/browser work. Material fixes after round two
+receive focused independent confirmation. Routine completion advances to the
+next step automatically. New authority decisions return to the maintainer.
+
+1. **Library and inactive protocol foundation.** Pin dependencies/lockfile,
+   implement bounded provider configuration/transport, complete closed logger
+   overrides and safe Auth.js callbacks. Prove actual library code/state/nonce/
+   PKCE behavior against an owned stub issuer and validate metadata/token/log
+   canaries. No production registration, route or listener exemption activates.
+2. **Native session ownership.** Implement the store port/default/native holder,
+   transaction reservations, monotonic expiry, resource accounting, single-flight
+   refresh and revocation/stop lifecycle. Exercise held I/O, waiter cancellation,
+   refresh/logout/expiry races, restart, capacity and late outcomes. RSC auth
+   remains a safe projection; old cookies never restore absent state.
+3. **Closed HTTP protocol and authenticated transport.** Implement the exact
+   ingress/middleware/route matrix, bounded cookie/form carriers, response-owned
+   refresh, CSRF classes, logout return, pure authenticated SDK wrapper/parser
+   and app-local configured AccountSite caller. Prove real pinned-Next behavior,
+   immutable per-request projection and missing/forged provenance refusals.
+   Activation remains closed until the complete path and guards ship together.
+4. **Atomic activation and usable signed-in surface.** Wire the complete optional
+   BFF configuration group, known-host sign-in/recovery, Studio/Portal guards,
+   AccountSite views, logout and localized timeout warning/extension. Retain
+   accessible keyboard/focus/error behavior, no-store/history revalidation and
+   the public graph/caller/IdP-down boundary. Update the two skills' examples.
+5. **Production proof and closeout.** Exercise route-level actual Auth.js/stub
+   issuer and separate real-provider/API compatibility; run managed Chromium
+   against both retained HTTPS hosts to prove cookie storage/send/isolation and
+   logout/back behavior. Preserve the nine-page stopped-Keycloak public demo.
+   Complete catalogue controls, docs, exact CI discovery/assignment and measured
+   budget fit. Record actual source-bound checks/reviews before preparing the PR;
+   approval or local tests do not certify hosted CI or authorize merge.
+
+#### Proof and carrier map
+
+ADR-0070 names four new canonical obligations and their actual frontend owners.
+Register them and update catalogue count/status controls at acceptance; keep
+each Registered until its implementation and proof ship together. Existing
+public/native/request-holder fences get exact extensions, never broad exclusions.
+
+Required negatives include wrong/missing state/verifier/nonce, duplicate fields,
+unregistered callback, wrong issuer/audience/purpose/actor/scope, query/forwarded
+host substitution, default vendor log output, script/RSC/session credential
+canaries, stale cookies, failed refresh, logout races, cross-demo-Origin POST,
+correct-Origin/missing-token POST, capacity and HMR duplicate ownership. Each
+has a reachable positive control. Actual Auth.js cookie chunker grow/shrink/
+clear controls complement naturally small opaque production cookies.
+
+Real TLS browser evidence uses the supported native launcher and both actual
+seed hostnames; developer hosts/trust setup remains manual. An isolated CI
+fixture may provide its owned hostname resolution/CA to its managed browser;
+it does not modify workstation hosts or install machine trust. Record this as
+stub-provider cookie proof, not a full three-process real-Keycloak browser flow.
+That full journey remains Phase 06. Backend provider/API tests still use the
+real pinned realm; a stub never replaces those proofs.
+
+Acceptance updates G13 and the phase's custody/HTTP plan, appends named ADR
+disclosures and reconciles Standards 07/11/18/21, Architecture 13/14/31, glossary
+session terms, Phase 11's store trigger, environment/setup guidance and the
+catalogue registry. Runtime slices update actual owners and test counts with
+their first consumers. Update packet status only in the phase Status block;
+dated records stay here and `make docs-index` regenerates this log's index.
 
 ## Status archive
 

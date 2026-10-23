@@ -117,6 +117,7 @@ owns outstanding hosted CI/PR qualification. Phase 11 owns production qualificat
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0070 | [Owned Tenant BFF Sessions](0070-owned-tenant-bff-sessions.md) | Proposed native-process credential custody, host-only opaque cookie, refresh/revocation and closed auth ingress; no runtime activation | P02b-7, before G13 session acceptance and dependent code |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains
