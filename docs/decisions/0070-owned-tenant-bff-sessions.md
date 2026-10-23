@@ -2,355 +2,453 @@
 
 ## Status
 
-Proposed — maintainer approval pending; no dependent runtime is implemented.
+Proposed — revised after maintainer review; approval pending. No dependent
+runtime is implemented.
 
 **Date:** 2026-10-23
 **Deciders:** @cemil
 
 This record answers G13's session part for
-[P02b-7](../roadmap/phase-02b-events-auth.md#the-decision-register). Its
-[decision package](../roadmap/phase-02b-delivery-log.md#p02b-7-decision-package-2026-10-23)
-contains the implementation sequence. Acceptance of this proposal, its custody,
-availability and audit costs, and that sequence precedes dependent code.
+[Phase 02b](../roadmap/phase-02b-events-auth.md#the-decision-register).
+The [revised package](../roadmap/phase-02b-delivery-log.md#p02b-7-revised-decision-package-2026-10-23)
+owns its five implementation steps. Earlier draft reviews remain historical
+source inspections, not acceptance of this revision.
 
 ## Decision Drivers
 
-- Concurrent requests must share one refresh result, and logout must prevent a
-  late refresh or an older cookie from restoring a session.
-- Credential-bearing cookies alone cannot provide immediate local revocation;
-  retaining replacement tokens and revocation state already creates a store.
-- The delivered web topology is one native Node process. PostgreSQL identity
-  persistence and distributed cache/session adapters have not shipped.
-- The public sites must still render with Keycloak stopped. Their existing
-  caller must remain credential-free and their bootstrap request-local.
-- The existing listener refuses POST; authentication needs a closed admission
-  extension, not a general write proxy or Server Actions surface.
-- Session lifetime, provider issuance and API token acceptance are different
-  contracts. None can silently inherit another's lifetime or authority.
+- One owner must serialize refresh and prevent expired state, stale cookies or
+  late callbacks from restoring a locally revoked session.
+- Server custody already requires transaction/session state; encrypting an opaque
+  handle adds key management without concealing additional credential data.
+- The delivered web topology is one native Node process. Durable identity and
+  distributed session storage have not shipped.
+- Sign-in capacity needs source/principal limits before the shared global cap;
+  otherwise one caller can deny every tenant new sign-ins.
+- Provider-owned event attribution is insufficient while provider storage is
+  disabled. Local-only diagnostics still cannot be a durable session ledger.
+- Anonymous rendering, API-owned host/claim authority and closed HTTP writes
+  remain independent of the new session and its provider.
 
 ## Considered Options
 
-1. **Native-process credential custody and an encrypted opaque cookie**
-   (chosen). One bounded owner arbitrates refresh, expiry and revocation;
-   restarting that process signs its sessions out.
-2. **Encrypted credential-bearing JWT cookies alone** (rejected). Concurrent
-   stale cookies can repeat refresh and restore signed-out state. Adding a
-   replacement cache and tombstones recreates server-side authority with two
-   competing copies of credentials.
-3. **Durable PostgreSQL sessions now** (viable alternative). Survives restarts
-   and can coordinate instances, but introduces a credential-bearing schema,
-   retention, grants and distributed refresh ownership before the first browser
-   session. No measured restart-continuity requirement justifies that scope now.
-4. **Valkey sessions now** (rejected for this packet). It activates a gated
-   dependency. A distributed adapter requires the same ownership proofs; using a
-   cache interface alone does not implement atomic refresh or revocation.
-5. **One unbounded process-global promise cache** (rejected). It bounds neither
-   session retention nor in-flight ownership and cannot define logout/expiry.
-6. **Replace Auth.js with a custom OIDC protocol** (rejected). Provider protocol,
-   nonce/PKCE checks and cookie cryptography remain library responsibilities.
+1. **openid-client, native credential custody and plain opaque cookies**
+   (chosen). A maintained RP client sequences OIDC checks and token grants;
+   LearnStack owns its bounded browser transactions and session lifecycle.
+2. **Direct oauth4webapi with the same server store and cookies** (viable).
+   Supplies protocol validation, PKCE/state/nonce generation, client authentication
+   and signature verification. This is not custom cryptography. It leaves more
+   grant/response/JWKS sequencing to the application than openid-client.
+3. **Auth.js with opaque JWT cookies and custom ownership** (rejected here).
+   Its provider/framework integration, CSRF and sealed cookies are real benefits.
+   This design nevertheless replaces custody, refresh, expiry, projection,
+   transport, logging, logout and response ownership. No installed integration
+   needs preserving. The v5 beta and maintenance transition add costs without a
+   necessary remaining responsibility. Encrypted credential-bearing cookies
+   alone would also need replacement/revocation state to uphold this contract.
+4. **Better Auth** (viable framework, not selected). It supports stateless and
+   memory modes; a database is not mandatory. Stateless account-data cookies
+   conflict with exclusive server custody. Its stateful User/Account/session
+   machinery and development memory adapter require further adaptation to our
+   bounded refresh/revocation owner. An RP-only client avoids that model now.
+5. **Durable PostgreSQL or Valkey sessions now** (viable alternative). Offers
+   restart/multi-instance continuity, but adds credential persistence, retention
+   and distributed ownership. No measured continuity requirement justifies that
+   scope for the delivered single-process topology. The store port ships now.
+6. **Per-tenant reservations or oldest-session eviction** (not selected).
+   Reservations need a tenant inventory/fair-share policy. Source and subject
+   caps bound the obvious monopolies without displacing another live session.
+   Oldest-session eviction could sign another device out; only an explicitly
+   authenticated same-browser replacement retires its own prior local session.
+7. **OIDC Back-Channel Logout now** (not selected). Useful for prompt remote
+   invalidation, but needs authenticated logout-token ingress, replay handling
+   and provider-to-session indexing. Phase 03 owns it with identity disablement/
+   sign-out-everywhere, before those features promise immediate browser
+   revocation. Until then they are observed on refresh or local expiry.
 
 ## Decision
 
-LearnStack uses Auth.js for tenant OIDC and encrypted cookies, with credentials
-held exclusively by a bounded, authoritative session owner in the native web
-process. A host-bound opaque handle identifies that owner's session. Response
-owners complete refresh and cookie changes before rendering; server components
-consume a safe request projection. This is a single-process session service,
-not durable or distributed identity storage.
+LearnStack uses openid-client for tenant OIDC and one authoritative session
+owner in the native web process. Credentials stay server-side; host-only opaque
+cookies bind the browser to that owner's state. Response-owning middleware and
+routes complete session decisions before rendering, while app-local `auth()`
+reads a safe immutable request projection. The default store is single-process,
+volatile and bounded; the tenant development realm records provider user events.
 
 ### Provider and library boundary
 
-Use confidential `learnstack-web` in the `learnstack` realm, Authorization Code
-with S256, state and nonce. Preserve P02b-6's exact per-host HTTPS callback and
-same-host root post-logout registrations. No password grant, Hub realm, membership
-provisioning, role-derived permission or tenant switching is introduced.
+Pin `openid-client` 6.8.8, with lock-resolved `oauth4webapi` 3.8.8 and `jose`
+6.2.13, all MIT. Prove one resolved copy of each dependency. No Auth.js or Better
+Auth runtime is installed by this choice. Provider protocol and cryptographic
+algorithms remain library-owned; no password authentication or JWT crypto is
+implemented by LearnStack.
 
-Pin `next-auth` 5.0.0-beta.32 and its exact `@auth/core` 0.41.3 dependency;
-direct refresh uses `oauth4webapi` 3.8.8. Their ISC/MIT licences are compatible.
-The beta channel is an explicit maintenance cost; a floating tag is not a pin.
-Use the supported JWT/account/session callbacks, default JWE cryptography and
-provider `customFetch`; do not patch vendor code or implement an ORM adapter
-with pretend durable User/Account records. Qualify these seams before activation.
+Use confidential `learnstack-web` in `learnstack`, S256, state and nonce, with
+P02b-6's exact HTTPS callbacks and same-host root post-logout registrations.
+Require ID tokens, explicit issuer/client/lifetime/nonce validation and
+`enableNonRepudiationChecks` for library signature verification on code and
+refresh ID tokens. Do not assume token-endpoint TLS processing verifies a JWS.
+Use `authorizationCodeGrant`, `refreshTokenGrant`, `buildEndSessionUrl` and the
+bounded `customFetch` seam. Configure no DPoP or automatic grant retry.
 
-All provider traffic uses private, validated issuer configuration, fixed OIDC
-endpoint purposes, bounded decoded bodies and finite deadlines. Refuse redirects,
-unexpected endpoint origins, malformed responses and token/profile mismatches.
-Loopback HTTP is development-only. Request hosts, JWT URLs, forwarded headers
-and provider error text cannot select an endpoint. Startup and ordinary public
-requests without session cookies contact no provider; approved sign-in/callback
-transactions are the explicit exception. Override every Auth.js logger method with
-closed diagnostics; debug and raw exception/metadata logging stay disabled.
+The API remains the access-token authority. Before publishing a new session or
+refresh revision, use that exact access token for the closed AccountSite read
+and require a matching actor/tenant/organization projection. Check the validated
+ID-token subject/identity against that projection; refresh cannot reassign the
+original subject, actor or scope. An ID-token claim decode is not access-token
+validation. Self-registration alone cannot create the required actor profile.
 
-### Custody, topology and resource ownership
+All discovery, token and JWKS traffic uses private issuer configuration, fixed
+endpoint purposes, no redirects and one operation-wide finite deadline through
+body consumption. Reject unexpected origins, malformed/oversized responses and
+profile conflicts. No cookie, claim URL, forwarded authority or error text
+selects an endpoint. Loopback HTTP is development-only. Startup and ordinary
+public requests without session cookies contact no provider; approved sign-in/
+callback transactions are explicit exceptions. Emit closed diagnostics only,
+never library exceptions, token responses or raw request/redirect URLs.
 
-- `BffSessionStore` is an app-local server port. `InMemoryBffSessionStore` is
-  installed once by the native launcher, separately from ADR-0055's request
-  admission holder. Bundled middleware, route handlers and RSC facades resolve
-  that exact instance; HMR never constructs another authority.
-- The owner holds access, refresh and ID tokens and validated identity. The
-  Auth.js encrypted cookie contains only a random 256-bit handle, canonical host
-  binding and format metadata. It contains no provider credential or profile.
-  Lookup checks the independently verified live host, expiry and active state.
-  The API still reconciles host and signed claims; a cookie selects no tenant.
-- Session and transaction cookies are `HttpOnly`, `Secure`, `SameSite=Lax`,
-  `Path=/`, with no `Domain`. Use `__Host-` names. Explicitly project session JSON
-  and RSC/client data: no handle, provider token or raw account/profile crosses
-  that boundary. The session-bound CSRF token is deliberately readable.
-- Support exactly one native process for this adapter. Restart, deployment,
-  failover or a different process loses its sessions. Do not add sticky routing
-  or claim multi-instance continuity. Phase 11 owns a distributed session
-  adapter before more than one web process must serve one session; that trigger
-  requires atomic refresh/revocation and interruption proofs, not `ICacheService`.
-- Retain at most 1,024 owner entries, including closing/in-flight entries; at
-  most 128 can be pending sign-ins. A pending reservation expires after five
-  minutes and is consumed only by its verified login transaction. No live entry
-  is evicted. New admission at capacity returns a closed no-store 503 while
-  existing sessions continue. Failed/abandoned login releases its reservation;
-  replay cannot create another session. Expiry never frees an in-flight owner's
-  slot before its work actually settles.
-- A logout reuses its existing session entry as a five-minute return transaction;
-  it allocates no new entry and does not spend the 128 pending-sign-in allowance.
-  That entry grants no authenticated access after local revocation. Logout can
-  therefore proceed while sign-in admission is full. Failed/expired returns
-  release only their settled entry; an absent session needs no logout entry.
-- These are fixed initial single-process budgets, not measured throughput or
-  fair-share guarantees. A maximum 32 KiB serialized credential bundle per entry
-  bounds retained serialized credentials to 32 MiB; JS objects, protocol buffers
-  and request work add overhead. A 64-entry rotating sweep every 30 seconds
-  reclaims expired settled entries. Admission may inspect at most that batch;
-  it never scans the whole registry or evicts a live entry to make space.
-- Stop closes admission and publication before cancelling owned provider I/O.
-  Join those operations and stop the sweep before reporting clean shutdown.
-  A response timeout or process exit is not a cleanup witness.
+### Activation and custody
 
-### Lifetimes and refresh
+`LEARNSTACK_BFF_ENABLED` absent/false selects public-only operation: no BFF secret
+projection/provider call; auth routes are masked 404 and Studio/Portal return a
+bounded 503 sign-in-unavailable state without protected content. Explicit true
+requires an agreeing private issuer and existing web-client secret. The latter
+already serves realm tooling and alone is not partial BFF configuration.
+There is no new session-encryption key. Existing private files are not silently
+repaired. Neither mode contacts Keycloak at startup.
 
-Use a 30-minute idle limit and eight-hour absolute limit, measured by the owner
-with monotonic elapsed time. Provider refresh expiry, when supplied, can shorten
-both. The 900-second development access/ID expiry is not a session lifetime.
-The cookie cannot extend registry authority, including library decode tolerance.
+`BffSessionStore` is the app-local port; `InMemoryBffSessionStore` is installed
+once by the native launcher, separately from ADR-0055's public request holder.
+Middleware, routes and RSC facades share it across bundles/HMR. It owns credentials,
+validated identity, transaction state, epochs and in-flight work. Browser-group
+indexes exist only while their owner entries exist and cannot form an unbounded
+second registry. Stop closes admission/publication, cancels owned provider I/O,
+joins actual operations and stops maintenance before claiming clean shutdown.
 
-Authenticated document navigation, an authenticated API read or an explicit
-CSRF-protected extension touches idle time. Assets, prefetch, passive session
-status and background warning polls do not. Show an accessible two-minute idle
-warning with an extension action; the absolute limit cannot be extended.
-Provider expiry can end a session earlier and must not be represented as an
-extendable idle timeout.
+The session cookie is one random 256-bit opaque value. A separate random browser
+binding groups that host's login transactions and local session. Neither is a
+tenant selector or permission. Both use `__Host-`, `HttpOnly`, `Secure`,
+`SameSite=Lax`, `Path=/`, and no `Domain`. Server lookup checks the independently
+verified live host, browser binding, current epoch, active state and expiry.
+No credentials, identity/profile or version metadata are stored in these cookies.
+There is no chunked session format: reject duplicate/malformed names/values and
+oversized cookie families instead of reconstructing arbitrary chunks.
 
-Within 60 seconds of access expiry, the owner starts at most one refresh for
-that session version. Concurrent callers join it; cancelling a waiter does not
-cancel the shared owner. Check active state and all expiries again after I/O.
-Validate the returned issuer/subject and protected identity against the original
-session; refresh cannot reassign an actor, tenant or organization. Publish one
-new server revision atomically. Preserve an existing refresh token only when a
-valid provider response legitimately omits its replacement.
+Session JSON/RSC/client data explicitly projects only the required state,
+validated nonsensitive display fields, effective expiry and session-bound CSRF
+value. It exposes no opaque handle, binding, provider token or raw profile.
 
-`invalid_grant` revokes the session. Timeout, network uncertainty, malformed or
-invalid tokens and other refresh failures also end the local session with their
-own closed diagnostic reason: do not automatically replay a possibly consumed
-refresh grant. This deliberately trades reauthentication during provider faults
-for a small, fail-closed protocol. A public page continues anonymously with 200;
-protected pages redirect to sign-in. Neither path retries login automatically.
+Support exactly one native web process. Restart, deployment or failover signs
+its sessions out; sticky routing is not distributed continuity. A distributed
+adapter behind `BffSessionStore` belongs to Phase 11 before multiple web
+processes must serve one session, with atomic refresh/revocation/interruption
+proofs. No new backend schema, database grant or Hub surface is introduced.
 
-Refresh, invalidation and cookie clearing occur in middleware/route handlers
-that own a response, before streaming. App-local `auth()` reads the immutable
-request projection; it performs no refresh, idle update or cookie write. One
-server revision is the logical update, independent of how many ciphertexts or
-cookie chunks Auth.js emits. Reuse the library's chunk cleanup for growth,
-shrink and logout; do not manufacture large production cookies for a test.
+### Admission and reclamation
 
-### Exact HTTP and CSRF surface
+- Retain at most 1,024 owner entries, including closing/in-flight owners; at most
+  128 may be pending sign-ins with a five-minute lifetime. Expiry never frees a
+  slot before its owned work actually settles.
+- Allow at most 16 concurrent pending sign-ins per canonical verified visitor IP,
+  across all hosts. Source-cap refusal is 429 with a bounded retry hint; global
+  capacity refusal is 503. Neither creates a reservation or begins provider I/O.
+  Sixteen allows concurrent NAT users, but one source cannot fill all 128 slots.
+  Eight distributed sources can still do so; this is not DDoS or tenant fairness.
+- Retain at most eight established/closing sessions per validated `(issuer, sub)`
+  across hosts. Additional independent sessions are refused after identity
+  validation, before publication, with a closed 429. Do not evict another device
+  or perform provider logout as capacity cleanup. A ninth grant may already have
+  been issued; no remote rollback or cancellation of sibling SSO is promised.
+- A successful login replaces only its bound browser group's current local
+  session. Failed validation leaves it intact. Close its publication gate and
+  settle owned old I/O before transferring its subject credit/publishing the new
+  session. Retain the pending entry/credit meanwhile. No other host/device is
+  retired by a subject lookup. Global/pending admission is still required before
+  authentication; replacement is not a capacity bypass.
+- A logout converts its existing entry into a five-minute return transaction,
+  consuming no sign-in slot. Once its redirect is built, discard provider tokens;
+  retain only the host/browser-bound return proof and necessary in-flight owner.
+- Sweep all at most 1,024 entries every 30 seconds and run one complete expired-
+  state pass before refusing global capacity. This is a finite scalar-state scan,
+  with no provider/database I/O. Do not leave settled expiry waiting eight minutes
+  for rotation; do not claim microsecond latency or measured throughput.
 
-Native admission keeps GET/HEAD elsewhere and production upgrade closure.
-It admits POST only to the named Auth.js Keycloak sign-in, local sign-out and
-session-extension handlers. No arbitrary auth action, provider, method, API
-proxy target, Server Action or application write becomes reachable.
+These are selected initial budgets, not a throughput entitlement. A maximum
+32 KiB serialized credential bundle per owner bounds retained serialized
+credentials to 32 MiB; JS/request/protocol overhead remains additional. Subject
+caps permit, for example, four device/browser profiles on two hosts; someone
+controlling an account can exhaust that account's allowance. Registration with
+no valid protected actor does not spend an established-session slot.
 
-The decision package enumerates exact GET/POST paths and their owned input
-grammar. Bound auth headers/cookie families and form bodies before Next dispatch;
-reject ambiguous cookie names/chunks, duplicate security fields and unsupported
-content types. No application `Authorization` header is accepted from a browser.
-Middleware preserves only the validated auth-specific carriers in that branch;
-public API requests keep their existing credential-free header set.
+### Browser transactions and response races
 
-- Before a session exists, sign-in POST requires exact same-origin `Origin`
-  plus Auth.js's pre-session CSRF check and the owned login reservation.
-- The provider's GET callback intentionally permits cross-origin navigation;
-  it instead requires the matching state, nonce, verifier, host and unexpired
-  single-use reservation. Failures clear only that transaction's cookies.
-- Authenticated sign-out and extension POST require exact same-origin `Origin`
-  plus a constant-time checked token bound to the current server session.
-  A sibling demo host is cross-origin despite `SameSite=Lax`.
+Use library-generated independent state, nonce and verifier in server transaction
+records. A per-transaction `__Host-` cookie uses the state identifier in its name
+and an independent random secret as its value; the record also binds the host's
+separate browser-group cookie. Bound transaction count by source/global
+admission and the whole incoming auth-cookie family. A callback requires exact
+state and that transaction's browser/host binding; consume it atomically before
+code exchange.
+Missing/mismatched state leaves every existing cookie and unrelated transaction
+untouched. A verified failed transaction may clear only its own cookie.
 
-Do not read `AUTH_URL`, `AUTH_TRUST_HOST`, forwarded authority or a submitted
-absolute `callbackUrl` as trust. Build the library request/configuration from
-verified native provenance after live API host admission. Return destinations
-are same-host allowlisted local Studio/Portal/public paths, never arbitrary URLs.
+A browser group has an owner epoch. The first successfully validated callback
+publishes its new session and invalidates competing transactions from the prior
+epoch; their later callbacks cannot publish or clear the session cookie. Logout
+closes the current session and every earlier pending transaction in that browser
+group before provider work. New explicit sign-in after logout uses a fresh epoch.
+Check the epoch again after every await and before publication. Retain in-flight
+transactions in capacity/index ownership until actual settlement.
+
+No server can retract Set-Cookie already sent. A delayed older response may
+replace/clear the newest browser cookie and require reauthentication. Owner
+epoch/revocation makes the old handle unusable; do not promise uninterrupted
+newest-cookie availability or treat a browser response as server authority.
+No failed callback deletes a primary session cookie.
+
+### Effective lifetime, activity and refresh
+
+The BFF idle limit is 30 minutes and absolute limit eight hours, using monotonic
+elapsed time. Effective expiry is the minimum of last qualifying activity plus
+idle limit, original absolute deadline and the current provider refresh deadline.
+Derive the latter conservatively from the validated response's finite positive
+`refresh_expires_in` and the request's measured start/elapsed time; refuse an
+unknown/unbounded value in this development profile. Do not confuse it with the
+900-second access/ID expiry or extend it on a local timestamp alone.
+
+Qualifying document GET navigation, non-prefetch RSC navigation (`RSC: 1`) and
+an authenticated API read update idle state in their response owner after
+successful admission. Assets, HEAD, prefetch and passive session/status polls do
+not refresh or touch idle time. These are protocol classifications, not proof
+of physical user activity. App-local `auth()` performs none of those writes.
+
+On a qualifying request, refresh once if access is expired **or** at most 60
+seconds from expiry, while the effective session deadline is still live.
+An expired access token alone never forces re-login. Concurrent callers join one
+owner for that revision; cancelling a waiter does not cancel it. Recheck epoch,
+revocation and all deadlines after I/O and publish one revision atomically.
+Preserve an existing refresh token only when a valid response omits replacement.
+
+Show a two-minute warning against effective expiry. A CSRF-protected extension
+must join/start a refresh even if access is still fresh, so Keycloak idle and
+credentials advance with BFF idle atomically. Return the actual resulting
+expiry; the original absolute deadline cannot move, and an absolute/provider
+maximum must not be presented as extendable. Prove this with the real provider.
+
+`invalid_grant`, malformed/invalid responses, timeout, network uncertainty and
+other refresh failures revoke locally with distinct closed reasons; never replay
+a possibly consumed grant automatically. Public rendering continues anonymously
+with 200; protected pages require sign-in. Provider faults can therefore demand
+reauthentication. Idle updates, refresh, invalidation and cookie changes belong
+to response-owning middleware/routes before streaming. RSC consumes only the
+immutable safe projection. A logical revision is server state, not cookie count.
+
+### Closed HTTP, CSRF and logout
+
+Retain GET/HEAD admission elsewhere and production upgrade closure. Admit POST
+only to exact Keycloak sign-in, local sign-out and session-extension routes.
+No generic proxy, arbitrary provider/action, Server Action or application write
+is opened. The package owns the exact route/field matrix and bounded input.
 Unknown hosts refuse before cookie allocation, discovery or token exchange.
+Only the verified native host/HTTPS port builds return/callback URLs; trust no
+`AUTH_URL`, forwarding header or submitted absolute `callbackUrl`.
 
-### Logout and history
+- Pre-session sign-in POST: exact Origin plus a random host-only double-submit
+  CSRF proof. Its cookie is HttpOnly; the same-origin form receives the matching
+  token. It grants no session authority. Apply pending-source admission before
+  reservation/provider work; a CSRF token is not a quota identity.
+- Provider GET callback: cross-origin navigation is intentional; require the
+  state/nonce/S256 transaction and browser binding instead of an Origin match.
+- Authenticated sign-out/extension POST: exact Origin and a constant-time checked
+  random token bound to the current server session. SameSite does not separate
+  sibling tenant origins. Cookie presence alone never proves CSRF.
 
-Local logout closes the session's publication gate before provider work and
-clears every session/transaction-cookie chunk. An older response or late refresh
-cannot reopen the absent/revoked entry. Then perform RP-initiated Keycloak
-end-session at the validated endpoint with the ID-token hint and exact registered
-same-host root return URI. Bind the return to a bounded logout transaction.
-An ID-token hint in that provider-directed redirect is the narrow exception to
-token-free browser URLs; access/refresh credentials never enter a Location,
-HTML, Flight, session JSON or script-readable cookie. Use `no-referrer` and do
-not retain the raw logout URL in logs or receipts.
+Logout revokes locally and closes the browser epoch first, then clears the
+current host's auth cookies and performs RP-initiated end-session with the stored
+ID-token hint and registered same-host root return. Bind its returned state to a
+single-use host/browser proof. The provider-directed ID-token-hint Location is
+the narrow token-in-URL exception: use no-referrer and never retain that raw URL.
+Access/refresh credentials enter no Location, body, Flight, session JSON or
+script-readable cookie. Return-state correlation is not an independent proof
+that every provider session was terminated; real-provider tests check logout.
 
-Local invalidation succeeds even if Keycloak is unavailable; do not claim remote
-SSO termination without its completion. Failures before navigation render a
-bounded local signed-out recovery state. After the browser leaves LearnStack,
-an outage can end on a browser/provider error page; automatic return cannot be
-guaranteed. Revisiting LearnStack remains locally signed out. No redirect retry
-loop is introduced. Provider logout ends
-the current Keycloak SSO session: another host sharing it can lose refresh
-authority although its cookie is host-only. Independent provider sessions are
-not deliberately revoked. Already issued API JWTs retain ADR-0064's expiry.
+Local revocation is independent of Keycloak availability. Before navigation,
+failures can render local recovery. After leaving LearnStack the browser may
+remain on a provider/error page; automatic return is not guaranteed. Revisiting
+LearnStack remains locally signed out. Shared Keycloak SSO can cause another
+host's later refresh to fail; independent provider sessions are not intentionally
+revoked. Already issued API JWTs retain ADR-0064's expiry. No immediate remote
+admin-disable/sign-out-everywhere guarantee exists before Phase 03's backchannel.
 
-Authenticated documents/session responses are no-store. On browser history or
-page restoration revalidate before displaying protected content; use an actual
-browser back-navigation control. No-store alone proves no browser behavior.
+Authenticated responses are no-store. Real browser history/page-restoration
+proof must revalidate before protected display; headers alone establish no
+browser behavior.
 
-### Read and audit boundary
+### Reads and durable event ownership
 
-Use a separate server-only authenticated SDK adapter for exact AccountSite,
-attaching the registry's bearer to the existing trusted host/visitor hop. No
-token/host/header option enters UI or pure SDK consumers. Keep public wrappers
-credential-free. Guard Studio and Portal before rendering; the first page
-displays only the existing nonsensitive AccountSite projection, not role-based
-admin capability. No additional backend endpoint or permission is authorized.
+The authenticated server SDK remains exact AccountSite with the owner's bearer
+and trusted host/visitor hop. No raw token/host/header option enters UI or pure
+SDK consumers. Public wrappers remain credential-free. Studio/Portal initially
+display only that nonsensitive projection, with no role-based administration,
+new permission, membership or backend endpoint.
 
-Provider authentication events remain Keycloak-owned. Local BFF establishment,
-refresh and invalidation emit closed lifecycle diagnostics, not invented
-application audit rows or AccountSite's `Off` registration. This proposal
-explicitly scopes Standards 18's generic login/token-revocation example to
-provider ownership for this browser protocol; existing LearnStack MUST events
-and their durability remain unchanged. No durable LearnStack session trail is
-promised. Phase 03's authenticated identity-event ingress/mirror remains its
-named owner; this packet adds no unauthenticated audit-write API.
+Enable Keycloak user-event storage in the **tenant development realm**, fresh
+and warm, for LOGIN, LOGIN_ERROR, LOGOUT, LOGOUT_ERROR, CODE_TO_TOKEN,
+CODE_TO_TOKEN_ERROR, REFRESH_TOKEN and REFRESH_TOKEN_ERROR. Add them to the
+existing effective selection, retaining default-saved and custom prior events,
+listeners, admin-event policy and unrelated realm fields. Refresh events are
+not saved by default; `eventsEnabled` alone is insufficient.
+
+Fresh/default-empty realms use 604800 seconds (seven days) retention. Adopt that
+value on a warm disabled/default-zero store only after a bounded read proves
+there are no stored events. Preserve an existing finite retention of at least
+seven days; refuse shorter, indefinite or ambiguous customized retention before
+any write rather than erase history or silently change its policy. Send explicit
+enablement, retention and merged types through the fixed events-config endpoint;
+verify separately and require a zero-write completed rerun. Do not replay realm
+imports, alter credentials/roles/SSO timeouts or modify `learnstack-hub`.
+
+Seven days is a development review window, not Standards 18's application-audit
+retention or a row/disk capacity bound. Provider expiry is asynchronous. Stored
+provider events include identity/address details; they remain in the owned
+provider database, never raw CI artifacts. Phase 11 owns production provisioning,
+retention/security/capacity qualification.
+
+Provider events do not witness local expiry, an unreceived token request or
+local logout during provider outage. Those BFF acts have only closed lifecycle
+diagnostics until Phase 03's authenticated identity-event ingress/mirror. This
+is an explicit narrow Standards 18 ownership exception, **not** AccountSite Off
+or permission to skip existing LearnStack MUST events. There is no durable
+application session ledger and no new audit-write API. Storage failure is a
+provider availability issue; do not claim provider events commit atomically with
+a BFF state change.
 
 ### Relationship and acceptance carriers
 
-From Security 11 § Authentication:
+From Standards 07 § Auth:
+
+> Auth.js for session management.
+
+Replace that framework choice with the selected RP library/native session owner.
+Reconcile the related Phase 02b Auth.js/chunking illustrations and skill examples;
+retain an app-local read-only `auth()` facade. From Security 11 § Authentication:
 
 > Refresh tokens stored as `HttpOnly`, `Secure`, `SameSite=Lax` cookies; never
 > accessible to JS.
 
-Replace credential custody with server-only custody and the secure opaque
-cookie described here. The corresponding Phase 02b custody prose links this
-decision. This does not change ADR-0067 issuance or ADR-0064 API acceptance.
-
+Replace cookie-held credentials with exclusive server custody and opaque cookies.
+ADR-0064 API acceptance, ADR-0067 issuance and Keycloak authentication stay intact.
 From ADR-0054 § Native method and upgrade admission:
 
 > Apply GET/HEAD admission to every HTTP path reaching the native listener callback,
 > before Next dispatch and independently of middleware matcher exemptions.
 
-The exact authentication POST set is its bounded extension; all other methods,
-public paths, asset/health exemptions and upgrade controls remain unchanged.
-From ADR-0053 § Configured caller and rendering:
+Add only the exact auth POST set. From ADR-0053 § Configured caller and rendering:
 
-> No Authorization, cookies, tenant/organization assertion or locale header is forwarded.
+> No Authorization, cookies, tenant/organization assertion or locale header is
+> forwarded.
 
-That public caller remains unchanged. A separately confined authenticated caller
-adds only the owner's bearer for AccountSite; this is an additive seam, not a
-replacement of public anonymity. ADR-0055's public request holder never becomes
-the session store. ADR-0004's prohibition on .NET session storage is unchanged.
+Keep that public caller unchanged; add the separately confined AccountSite seam.
+ADR-0055's request holder never becomes the session store. ADR-0004's prohibition
+on .NET session storage is unchanged. The new development event fields extend
+P02b-6's owned reconciliation allowance; all other preservation limits remain.
 
-Acceptance appends dated disclosures to ADR-0053/0054 without rewriting their
-Accepted bodies or metadata. Reconcile Standards 07/11/18/21, Architecture 13/14,
-the phase's G13 and session plan, the glossary and development instructions.
-Replace Architecture 14's explicit `Domain=` advice; distinguish shared SSO from
-independent provider sessions and implicit session checks from CSRF enforcement.
-Phase 03 distinguishes provider grant ownership from BFF credential custody;
-Phase 11 receives the named distributed-store trigger. Historical delivery
-records remain intact. Proposed text changes no active rule before acceptance.
+At acceptance, append dated disclosures to ADR-0035/0053/0054 and the Accepted
+P02b-6 package. ADR-0035's additive inventory amendment names `BffSessionStore`,
+`InMemoryBffSessionStore`, Phase 11 and its multi-web-process trigger; it adds no
+exception to the four-part rule. Do not rewrite Accepted bodies/metadata.
+Reconcile Standards 06/07/10/11/18/20/21; Architecture 13/14/**25/31**; Phase 03/11;
+G13 and the phase session plan; glossary BFF/session terms; realm/setup guidance
+and both route/feature-gate skills. Architecture 25's auto-scaled SaaS topology
+is a target requiring the distributed adapter, not current session support.
+Proposed text changes no active rule or runtime before approval.
 
 ## Context
 
-At `395d078c`, Next 15.5.27/React 19 and the native HTTPS launcher are installed;
-Auth.js is absent. Studio/Portal are unguarded shells. Middleware discards Cookie
-and Origin while forwarding public requests, and all matching paths run through
-public entry. The SDK has AccountSite types but no authenticated transport.
-P02b-6 reserves callbacks and proves real issuance; it does not implement a BFF.
+At `74740158`, no BFF/Auth.js runtime exists. Next is 15.5.27 with React 19;
+native ingress rejects POST, middleware strips Cookie/Origin and the SDK has
+AccountSite types without authenticated transport. The realm lacks event-store
+configuration and the reconciler owns only realm access-token lifespan.
+P02b-6's callbacks and real-token proofs do not establish browser sessions.
 
-Tagged Auth.js sources show that RSC `auth()` discards generated Set-Cookie,
-JWT session reads re-encode cookies, the session callback is client-visible, and
-default logging includes provider failures. Its documented refresh recipe has
-no built-in serialization. A precise response owner and safe projection are
-therefore required, not optional optimizations. Source inspection establishes
-feasibility only; pinned-Next runtime proof remains mandatory before activation.
+The initial draft selected Auth.js; maintainer review prompted a fresh official
+source comparison. The September 2025 Better Auth and Auth.js announcements
+promise security/urgent maintenance and recommend Better Auth for new projects.
+Auth.js's security policy describes current-latest support, while Next v5 remains
+a beta channel. This is not a claim of abandonment or proof that beta.32 lacks
+patches. Its framework conveniences are unnecessary for this selected custody
+model. openid-client is an actively maintained RP layer over oauth4webapi;
+its APIs still require explicit signature checks and our owned session protocol.
 
-Reopen this choice for required restart continuity, multi-process session
-serving, measured capacity/fairness or reauthentication costs, a library seam
-that cannot uphold these invariants, or changed provider logout/rotation
-semantics. Do not silently add persistence, increase limits or bypass a proof.
+Source inspection supports feasibility, not runtime qualification. Reopen for
+required restart/multi-process continuity, measured admission/fairness/retention
+or refresh costs, a failed library/native seam, or changed provider semantics.
+Do not silently increase budgets, add persistence or waive a missing proof.
 
 ## Consequences
 
 ### Positive
 
-- One authority fences concurrent refresh, stale cookies and logout races.
-- Provider credentials never live in a browser session cookie or public SDK.
-- Anonymous rendering retains its independent provider-down behavior.
+- One authority fences refresh, replay, expiry and local revocation without
+  credential-bearing/encrypted session cookies or a parallel framework model.
+- Source/subject limits prevent the simplest single-caller capacity monopoly;
+  full finite expiry scans reclaim settled capacity before refusal.
+- Warm and fresh development providers retain observable authentication events;
+  anonymous rendering and API host/claim authority remain independent.
 
 ### Negative
 
-- Deployments/restarts sign users out; concurrent web instances are unsupported
-  by this adapter. Memory compromise still exposes credentials; JavaScript
-  strings provide no secure-erasure guarantee.
-- Global capacity can deny unrelated tenants new sessions/sign-ins. There is no
-  tenant reservation, actor fairness or admission-throughput entitlement.
-- A transient refresh failure can require sign-in again. Local logout cannot
-  guarantee remote SSO logout or browser return during an outage; shared SSO
-  couples later refresh.
-- There is no durable application session audit trail. An ID-token logout hint
-  reaches the trusted provider through the browser, and requires URL redaction.
-- The project owns a native singleton, expiry/sweep lifecycle and protocol
-  adapter atop a beta library. Future distributed custody needs separate proof.
+- Restart/failover signs sessions out; multiple web processes are unsupported.
+  Memory compromise exposes credentials; JS strings offer no secure erasure.
+- NAT users share 16 pending slots, a subject shares eight sessions across hosts,
+  and distributed sources/accounts can still fill global capacity. No admission
+  throughput, distributed fairness or live-session eviction is promised.
+- Late cookie responses and transient refresh failure can require sign-in again.
+  Logout may leave the browser at the provider; shared SSO couples later refresh.
+- Provider event storage adds personal-data/volume cost and a seven-day retention
+  policy. Customized warm retention can require explicit operator resolution.
+  No durable local BFF ledger, atomic audit or prompt remote-disable guarantee
+  is provided; ID-token logout hints need browser/URL containment.
+- LearnStack owns browser CSRF/binding, transaction consumption, expiry and
+  shutdown around the RP client. Correctness needs real negative/race controls.
 
 ### Neutral
 
-- No database role, schema/grant, Hub contract, application identity domain,
-  membership, permission or production realm change.
-- Cookie transport expiry and library chunking do not define session authority.
-  Real-provider token tests and stub-provider route/browser proofs stay distinct.
+- No business identity schema, grants, Hub contract, membership or permission.
+  Only named development event configuration changes; production provisioning
+  and the full real-browser OIDC journey retain their named phases.
 
 ## Implementation Notes
 
-The five-step package owns exact paths, test subjects and commits. First prove
-the selected library hooks without activating HTTP authentication. Activation
-waits for complete custody, CSRF, refresh, logout and read/guard implementations.
-Every step has a commit and two fresh independent review rounds; verified
-material corrections receive focused reinspection before proceeding.
+The revised package owns five steps, exact route grammar and proof placement.
+It registers four new obligations at acceptance, with actual test owners and
+`Registered` status until controls ship. No catalogue rule is claimed Implemented
+by proposal acceptance. Existing issuance/reconciliation obligations gain the
+provider-event preservation/retention controls with their first implementation.
 
-Register these canonical obligations at acceptance, with real future owners and
-`Registered` status until their controls ship:
-
-| Obligation | Level and owner in `frontend/apps/web` |
+| Obligation | Level and owner |
 |---|---|
-| `Bff_Credentials_And_Projections_Are_Confined` | Structural/production canary: `src/test/bff-boundaries.test.ts`, existing public-boundary controls |
-| `Bff_Session_Refresh_And_Revocation_Have_One_Owner` | Unit + actual route behavior: `src/server/auth/session-store.test.ts`, `src/test/bff-session-routes.test.ts` |
+| `Bff_Credentials_And_Projections_Are_Confined` | Frontend structural/production canary: `src/test/bff-boundaries.test.ts`, existing public fences |
+| `Bff_Session_Refresh_And_Revocation_Have_One_Owner` | Unit/actual routes: `src/server/auth/session-store.test.ts`, `src/test/bff-session-routes.test.ts` |
 | `Bff_Auth_Admission_And_Csrf_Are_Closed` | Native/route behavior: `src/test/bff-auth-admission.test.ts`, `src/test/bff-session-routes.test.ts` |
-| `Bff_Host_Cookies_And_History_Are_Isolated` | Native HTTPS browser: `scripts/verify-bff-session.mjs`, its wrapper/control tests; real BFF/warm-provider HTTP proof in backend Integration `TenancyIdentity/TenantBffSessionTests.cs` |
+| `Bff_Host_Cookies_And_History_Are_Isolated` | Native HTTPS browser: `scripts/verify-bff-session.mjs`; real warm BFF/provider chain: backend Integration `TenancyIdentity/TenantBffSessionTests.cs` |
 
-Require positive controls and planted violations for custody, raw logger output,
-singleton duplication, missing provenance, provider/return URL substitution,
-state/verifier/nonce removal, CSRF bypass, expiry, capacity, refresh duplication,
-late publication, cookie growth/shrink/clear and history restoration. Preserve
-real AccountSite scope proofs, public API-call counts and stopped-Keycloak demo.
-The warm-provider proof signs a seed user into the actual BFF, consumes its
-session for AccountSite and verifies real provider logout; unrelated backend
-token issuance plus a stub BFF exchange cannot substitute for this chain.
-Required checks retain complete discovery, no skips and finite whole-job budgets;
-measure the added browser/provider costs before claiming hosted qualification.
+Require reachable positives and planted negatives for signature/state/nonce/
+verifier/issuer/profile validation, raw diagnostics, singleton duplication,
+input/CSRF bypass, pending-source/subject capacity, replacement, browser epochs,
+late responses, expiry/on-demand refresh/extension, full reclaim and shutdown.
+Test independent per-transaction cookie deletion and fixed small session-cookie
+rejection; no artificial chunking proof substitutes for this format.
+Warm real BFF login/AccountSite/logout/event evidence and both-host real browser
+storage/send/history proof remain mandatory, alongside public call counts and
+stopped-Keycloak rendering. CI retains complete discovery, no skips and existing
+whole-job ceilings; new fixture cost requires measured qualification.
 
 ## References
 
 - [Phase 02b](../roadmap/phase-02b-events-auth.md), [Security 11](../standards/11-security.md#authentication), [Frontend 07](../standards/07-frontend-architecture.md#auth), [Audit 18](../standards/18-audit-coverage.md#operation-types), [Catalogue 21](../standards/21-architecture-tests-catalogue.md).
-- [ADR-0004](0004-authentication-strategy.md), [ADR-0036](0036-tenant-resolution-trusted-inputs.md), [ADR-0053](0053-trusted-public-server-rendering.md), [ADR-0054](0054-bounded-public-renderer-admission.md), [ADR-0055](0055-public-renderer-bootstrap-failures.md), [ADR-0064](0064-tenant-api-authentication-boundary.md), [ADR-0067](0067-development-tenant-access-token-issuance.md).
-- [Auth.js beta.32 server session and response handling](https://github.com/nextauthjs/next-auth/blob/next-auth%405.0.0-beta.32/packages/next-auth/src/lib/index.ts#L62-L96).
-- [Core 0.41.3 session/cookie response owner](https://github.com/nextauthjs/next-auth/blob/%40auth/core%400.41.3/packages/core/src/lib/actions/session.ts#L38-L92), [callback](https://github.com/nextauthjs/next-auth/blob/%40auth/core%400.41.3/packages/core/src/lib/actions/callback/index.ts#L140-L171), [checks](https://github.com/nextauthjs/next-auth/blob/%40auth/core%400.41.3/packages/core/src/lib/actions/callback/oauth/checks.ts), [logger](https://github.com/nextauthjs/next-auth/blob/%40auth/core%400.41.3/packages/core/src/lib/utils/logger.ts).
-- [Auth.js refresh limitations](https://authjs.dev/guides/refresh-token-rotation), [OIDC RP-Initiated Logout](https://openid.net/specs/openid-connect-rpinitiated-1_0.html), [Keycloak 26.6.2 logout implementation](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/endpoints/LogoutEndpoint.java).
+- [ADR-0004](0004-authentication-strategy.md), [ADR-0035](0035-demand-gated-infrastructure.md#the-gated-set), [ADR-0036](0036-tenant-resolution-trusted-inputs.md), [ADR-0037](0037-idempotency-key-contract.md), [ADR-0053](0053-trusted-public-server-rendering.md), [ADR-0054](0054-bounded-public-renderer-admission.md), [ADR-0055](0055-public-renderer-bootstrap-failures.md), [ADR-0064](0064-tenant-api-authentication-boundary.md), [ADR-0067](0067-development-tenant-access-token-issuance.md).
+- [Architecture 25](../architecture/25-deployment-models.md#supported-today-versus-prepared-seam), [Architecture 31](../architecture/31-audit-subsystem.md), [Phase 03](../roadmap/phase-03-identity-admin.md), [Phase 11](../roadmap/phase-11-production-hardening.md).
+- [openid-client 6.8.8](https://github.com/panva/openid-client/tree/v6.8.8), [code grant](https://github.com/panva/openid-client/blob/v6.8.8/docs/functions/authorizationCodeGrant.md), [signature checks](https://github.com/panva/openid-client/blob/v6.8.8/docs/functions/enableNonRepudiationChecks.md), [oauth4webapi 3.8.8](https://github.com/panva/oauth4webapi/tree/v3.8.8).
+- [Better Auth announcement](https://better-auth.com/blog/authjs-joins-better-auth), [Auth.js team announcement](https://github.com/nextauthjs/next-auth/discussions/13252), [Auth.js security policy](https://authjs.dev/security), [Better Auth 1.7.12 memory adapter](https://github.com/better-auth/better-auth/blob/v1.7.12/packages/memory-adapter/src/memory-adapter.ts).
+- [Keycloak 26.6.2 event types](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/events/EventType.java), [event persistence](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/events/EventBuilder.java), [realm event update](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/managers/RealmManager.java), [token/refresh timing](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java).
+- [OIDC RP-Initiated Logout](https://openid.net/specs/openid-connect-rpinitiated-1_0.html), [OIDC Back-Channel Logout](https://openid.net/specs/openid-connect-backchannel-1_0.html).

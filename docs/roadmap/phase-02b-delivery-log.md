@@ -196,10 +196,11 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 270 lines
-  - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 208 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 471 lines
+  - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
-  - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 25 lines
+  - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
+  - [P02b-7 revised decision package (2026-10-23)](#p02b-7-revised-decision-package-2026-10-23) — 195 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -17706,6 +17707,11 @@ no session implementation or G13 acceptance is inferred from either merge.
 
 ### P02b-7 decision package (2026-10-23)
 
+**Historical first proposal.** This unaccepted draft and its reviews below are
+retained for chronology. The
+[revised proposal](#p02b-7-revised-decision-package-2026-10-23) replaces its
+library/cookie/admission/event-policy assumptions before acceptance.
+
 **Status: Proposed — maintainer approval pending.** The user requested this
 packet on `development`, with document review before implementation and a
 commit plus two fresh independent review rounds for every step. G13's session
@@ -17971,6 +17977,202 @@ it must be regenerated after the clarification. The security reviewer checks
 the native/callback/safe-projection seams, expiry/refresh/revocation, CSRF and
 resource ownership. Neither runs runtime/provider/build/browser work. Approval
 here means proposal coherence, not maintainer acceptance or implementation.
+
+
+### P02b-7 revised decision package (2026-10-23)
+
+**Status: Proposed — renewed maintainer approval pending.** The initial
+proposal was not accepted. This revision responds to the maintainer's source
+review, replaces its current proposal assumptions and retains the original
+proposal/review records above. G13's session part stays Open; no dependent
+runtime, realm-event configuration or Accepted ADR is changed by drafting it.
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) owns the revised
+contract; this entry owns exact delivery/proof placement.
+
+#### Verified findings and dispositions
+
+| Review topic | Verified source/effect | Revision |
+|---|---|---|
+| Durable authentication evidence | Realm has no events settings; pinned provider defaults do not persist refresh events | Step 1 enables named development user events and qualified seven-day retention; Step 5 reads actual login/logout/refresh-error evidence. Explicit local-only evidence gaps remain. |
+| Cheap pending/active saturation | 128 anonymous pending entries lack source caps; 1,024 entries lack subject/replacement policy | Add 16 pending per verified visitor IP and eight established/closing per issuer/subject across hosts, plus same-browser replacement. Preserve residual distributed/NAT/self-denial costs. |
+| Library alternative and maintenance | Auth.js v5 is beta; official 2025 transition recommends Better Auth for new work; direct oauth4webapi is not custom crypto | Select openid-client 6.8.8 with a plain opaque cookie; fairly compare direct oauth4webapi and Better Auth, and explicitly replace Standards 07's Auth.js rule at acceptance. |
+| Extension/provider idle | Realm idle is 1,800 seconds; a local touch does not renew provider idle | Warning uses effective minimum deadline; extension forces/joins real refresh and publishes actual renewed expiry. |
+| Reclamation latency | A 64-entry batch every 30 seconds revisits 1,024 entries in eight minutes | Full finite scalar-state sweep and one full expiry pass before global-capacity refusal; retain in-flight ownership. |
+| Carrier inventory | ADR-0035 lacks the distinct store; Architecture 25 targets auto-scaling; glossary describes tenant/org header proxying | Add the gated inventory amendment and Architecture 25/31/Phase 03/11 carriers. Correct the stale generic BFF definition using existing trusted-host/API authority. |
+| Callback cookie race | Fixed Auth.js transaction names can clear a newer tab's cookie | Use independent per-transaction cookies plus server browser epochs; mismatched state changes no cookies; failed callbacks never clear a primary session cookie. |
+| Activation/refresh ownership | Opt-in was package-only; expired-access refresh and idle-touch owner were underspecified | ADR now names explicit opt-in/disabled behavior, on-demand refresh after access expiry and response-owned idle updates. |
+| Other notes | Backchannel owner, logout-token retention, RSC activity and dependency deduplication were incomplete | Name Phase 03's backchannel trigger; discard tokens after logout-URL construction; classify non-prefetch RSC; require one resolved dependency copy. |
+
+The audit/storage finding is accepted, not dismissed as a terminology issue.
+Provider event history is still not an atomic durable BFF ledger. This remains
+an explicit scoped Standards 18 decision requiring maintainer approval; local
+expiry/provider outage does not magically create a provider event.
+
+#### Revised decisions presented together
+
+- Active RP library (`openid-client`) and plain random opaque cookies; no Auth.js
+  runtime, session-encryption key, credential-bearing cookie or user/account ORM.
+  OIDC/JOSE verification remains library-owned, explicitly signature-enabled.
+- Native single-process authority, existing 30-minute/eight-hour limits,
+  effective provider deadline, on-demand/early refresh and real extension.
+  Restart signs sessions out; uncertainty ends the local session without replay.
+- Global 1,024/pending 128 budgets plus source 16 and subject eight; no eviction
+  of another device. A successful validated same-browser replacement transfers
+  its own old credit only after old owned I/O settles. Full finite reclaim runs
+  before a global refusal. These are selected limits, not load measurements.
+- Browser epochs and per-transaction cookie binding prevent late publication.
+  Delayed already-sent cookie responses can still force reauthentication; no
+  uninterrupted-cookie delivery guarantee is made.
+- Tenant development user-event persistence, with seven-day default retention
+  and explicit preservation/refusal of customized warm policy. This affects all
+  users of that realm, including account-console; Hub/admin-event policy is not
+  changed. Stored personal data and asynchronous retention have real costs.
+- The prior local-logout, shared-SSO, provider navigation/outage and ID-token-hint
+  limitations remain. Immediate remote admin-disable/backchannel handling is
+  Phase 03 before its sign-out-everywhere contract, not an unowned omission.
+
+G12's callback/client topology, ADR-0067 issuance, ADR-0064 API profile/read
+ceiling and the credential-free public caller remain unchanged. The accepted
+P02b-6 field/preservation allowance receives a dated event-policy extension at
+acceptance; no source-role, credential or SSO-timeout adjustment is authorized.
+
+#### Exact route and input matrix
+
+Every auth/page path first verifies native provenance and live API host
+bootstrap. The public bootstrap carries no browser credential. Keep existing
+health/assets admission, default GET/HEAD and production upgrade closure.
+
+| Path | Methods | Admission and response ownership |
+|---|---|---|
+| `/api/auth/signin` | GET/HEAD | Localized sign-in form with host-only random pre-session CSRF proof; return path only `/`, `/studio` or `/portal`. No password form or issuer call. |
+| `/api/auth/csrf` | GET/HEAD | Same-origin pre-session CSRF response, no-store, no provider or native reservation. |
+| `/api/auth/signin/keycloak` | POST | Exact Origin and double-submit CSRF; source/global reservation, then fixed-provider authorization request. Store library-generated state/nonce/verifier and independent browser/transaction binding. |
+| `/api/auth/callback/keycloak` | GET | Exact state, transaction cookie, host/browser epoch and single-use reservation; library code/nonce/PKCE/signature validation followed by actual-token AccountSite validation before publication. |
+| `/api/auth/session` | GET/HEAD | Minimal active/anonymous projection and effective expiry; passive read makes no refresh/idle update or provider call. No handles/profile/tokens. |
+| `/api/auth/error` | GET/HEAD | Closed localized recovery; no reflection of provider error text/query values. |
+| `/api/auth/signout` | POST | Exact Origin and current-session CSRF; close browser epoch/revoke first, reuse owner entry for logout proof, build end-session URL, then discard credentials. |
+| `/api/auth/extend` | POST | Exact Origin and current-session CSRF; force/join refresh even for fresh access, then publish actual effective expiry; absolute deadline never moves. |
+| `/` with owned logout-return proof | GET | Host/browser-bound returned state; consume/clear only that return proof, then ordinary same-host root redirect. Correlation alone is not remote-termination proof. |
+| `/studio`, `/portal` | GET/HEAD | Response-owned session admission, then safe RSC projection/AccountSite. Missing/ended session redirects to sign-in; disabled BFF returns bounded 503. No authoring capability. |
+
+No generic catch-all auth action, session update, arbitrary provider/target,
+sign-out GET or Server Action is admitted. HEAD is bodyless and never exchanges
+a code, refreshes or updates authenticated idle state. Auth form bodies are at
+most 16 KiB, URL-encoded declared scalar fields only; duplicate security fields,
+unsupported media types and slow/oversized input refuse before dispatch.
+Reject browser Authorization and ambiguous/oversized cookies. The whole auth
+cookie family is bounded at 16 KiB, including browser/session/pre-CSRF and
+per-transaction names; reject foreign/duplicate format rather than arbitrary
+chunk reconstruction. The session itself is fixed-size, not chunked.
+
+Provider operations have a ten-second total deadline through discovery/token/
+JWKS/body work and a 256 KiB decoded body ceiling. AccountSite uses its separate
+existing finite API caller budget. Unknown/unbounded provider refresh lifetime,
+invalid signatures or wrong protected identity never fall back to anonymous
+callback success. A normal public response after later session invalidation can
+remain anonymous 200, as required.
+
+`LEARNSTACK_BFF_ENABLED` absent/false selects public-only operation. True requires
+`LEARNSTACK_BFF_ISSUER` and the existing `KEYCLOAK_WEB_CLIENT_SECRET`, with source
+agreement. No session-encryption key is needed. Ignore automatic Auth.js-style
+URL/trust configuration and all forwarded authority. Only the BFF-enabled web
+receives this group; API/data Seeder/public-only CI receive no BFF client secret.
+Existing private values are not overwritten. Startup makes no provider call.
+
+#### Five revised implementation steps after acceptance
+
+Each step is committed, followed by a fresh independent correctness/security
+and evidence/corpus pair, verified fixes/commit, then a different fresh pair.
+Material fixes after the second round receive focused confirmation before the
+next step. The primary agent owns serialized runtime/provider/browser work;
+reviewers inspect source/offline evidence. Routine progress continues without
+new permission, but an actual new authority decision returns for approval.
+
+1. **Inactive RP foundation and provider-event policy.** Pin the RP library and
+   exact resolved dependencies, implement bounded lazy configuration/transport,
+   explicit signature-enabled grant validation and closed diagnostics. Extend
+   fresh export and the shared warm reconciler only for the qualified event
+   policy: effective selection union, retention qualification, preserving
+   listeners/admin events/unrelated realm state, explicit bounded readback and
+   zero-write rerun. Retention conflicts refuse before preparation/ordinary
+   writes. Retain the current 5s/120s tooling waits and response budgets; no Admin
+   credentials enter web runtime. Test actual library grants against an owned
+   stub and actual fresh/warm provider event persistence independently. Keep
+   native exemptions/routes/configuration inactive in production.
+2. **Native session/transaction ownership.** Implement one store/holder with
+   global/source/subject accounting, browser epochs, transaction cookies,
+   verified same-browser replacement, effective deadlines, full reclamation,
+   one refresh owner and revocation/stop joining. Exercise source 16 versus
+   global 128, subject eight versus total 1,024, existing-service continuation,
+   failed replacement, held old I/O, competing tabs, late callbacks/cookies,
+   waiter cancellation, on-demand refresh, extension and shutdown. Prove no
+   expired settled entries cause a capacity refusal after the full pass.
+3. **Closed HTTP protocol and authenticated SDK.** Implement exact ingress,
+   middleware, route/field/CSRF matrix, small cookie parser, response-owned idle/
+   refresh/projection, logout return and the exact authenticated AccountSite
+   wrapper/configured caller. Test actual pinned Next provenance and lifetime
+   behavior, including no refresh/idle writes in RSC facade or passive/HEAD/
+   prefetch traffic. Test-owned wiring exercises the full path; production route
+   registration/exemptions remain closed until the guards ship together.
+4. **Atomic activation and usable session UI.** Wire explicit optional BFF
+   configuration, localized form/recovery, Studio/Portal guards, AccountSite,
+   same-origin logout and effective-deadline timeout warning/extension. Verify
+   keyboard/focus/error behavior, non-prefetch RSC navigation, no-store/history
+   revalidation and public anonymous/source/call-count isolation. Update both
+   skills to the real app-local `auth()` facade without future permissions.
+5. **Real lifecycle proof and closeout.** Through actual BFF plus a reconciled
+   warm real Keycloak realm, sign a seed user in, consume its cookie for each
+   host's AccountSite and verify provider logout plus persisted provider event
+   types. Verify real extension advances provider idle and respects its maximum.
+   Independent real-token/API controls remain. Run the native HTTPS browser on
+   both retained seed hosts for actual cookie storage/send/isolation, callback
+   binding and logout/back behavior. Preserve the stopped-Keycloak nine-page
+   public demo. Finish catalogue/docs/discovery, measure actual fixture/job
+   budgets, and record exact-source hosted evidence before the PR is ready.
+
+#### Test ownership and acceptance carriers
+
+ADR-0070 names four new Registered obligations with actual frontend owners.
+The existing `Tenant_Realm_Issuance_Matches_The_Api_Profile` and
+`Development_Realm_Reconciliation_Preserves_Accounts` owners gain event-policy
+assertions with their implementation; preserve Implemented status for existing
+subjects and name the extension until its first proof ships. Catalogue count/
+status controls change with registration, never by an unsupported count claim.
+
+`TenancyIdentity/TenantBffSessionTests.cs` owns the real BFF/warm-provider HTTP
+chain under Docker with the real app-role API/database boundary. Provider
+fixtures/export/reconciliation tests own actual event storage and fresh/warm/
+retention preservation. BFF unit/native route tests own source/subject caps,
+effective idle/extension, epoch/replacement and cookie/race negatives. Browser
+proof reuses owned Node/browser lifecycle on the two actual HTTPS hostnames;
+fixture-owned CA/resolution never edits workstation hosts or machine trust.
+The full three-process real-browser OIDC journey remains Phase 06, distinct
+from this real-provider HTTP chain and narrow browser cookie proof.
+
+At least one clean reachable positive precedes every planted negative: missing/
+wrong state, verifier, nonce or browser binding; signature removal; wrong API
+identity; stale epochs; shared-IP saturation; ninth subject session; failed/
+held replacement; settled expiry across all registry positions; extension with
+fresh access; expired-access recovery; disabled/missing opt-in; provider event
+storage disabled or refresh types omitted; wrong retention; event-config loss
+of listeners/custom selection; readback drift and zero-write rerun. No artificial
+cookie-chunk exercise is required for a fixed-size opaque format.
+
+At acceptance, append dated ADR-0035/0053/0054 disclosures and the P02b-6 event
+allowance; reconcile G13/phase Auth.js and chunking text, Standards 06/07/10/11/
+18/20/21, Architecture 13/14/25/31, Phase 03/11, glossary, realm/environment/
+setup guidance and the two skills. The ADR-0035 additive inventory names the
+port/default/Phase 11/multi-process trigger without editing old decision bodies.
+Architecture 25 must distinguish auto-scaled targets from single-process session
+support. Phase 03 explicitly owns signed back-channel token ingress and replay/
+provider-session indexing before immediate disablement/sign-out-everywhere.
+
+No new execution VM/required-check name or timeout enlargement is proposed.
+Ordinary jobs already provide Node/pnpm/browser prerequisites. New tests enter
+complete discovery and source-bound assignment with zero skips; measured setup/
+proof/cleanup fit remains a qualification gate, not an acceptance assertion.
+Run `make docs-index`; packet/gate status remains only in the phase Status/
+register and dated evidence remains in this log.
 
 ## Status archive
 
