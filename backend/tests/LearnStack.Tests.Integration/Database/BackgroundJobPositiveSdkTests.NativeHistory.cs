@@ -170,7 +170,8 @@ public sealed partial class BackgroundJobPositiveSdkTests
     }
 
     private static async Task EnsureNativeSdkStartAsync(BackgroundJobRuntime runtime, PrivilegedDataSource source,
-        BackgroundJobId job, Task started, CancellationToken cancellationToken, Func<Task>? afterObservation = null)
+        BackgroundJobId job, Task started, CancellationToken cancellationToken, Func<Task>? afterObservation = null,
+        Action<NativeSdkHandoffObservation>? observe = null)
     {
         // These isolated execution/cleanup fixtures do not measure the bridge's
         // repair grace. Handoff ACK and native Succeeded alone do not prove the
@@ -184,13 +185,21 @@ public sealed partial class BackgroundJobPositiveSdkTests
             long current;
             bool eligible;
             string vendor;
+            string phase;
+            string owner;
+            string lease;
+            int attempts;
             await using (var connection = await source.OpenConnectionAsync(cancellationToken))
             await using (var command = new NpgsqlCommand("""
                 SELECT wake_generation, vendor_job_id,
                     ownership_token IS NULL AND processed_at IS NULL AND dead_lettered_at IS NULL
                     AND terminal_reason IS NULL AND original_due_at <= clock_timestamp()
                     AND ((phase IN ('pending','finalize_pending') AND available_after <= clock_timestamp())
-                        OR (phase='reconciling' AND probe_after IS NOT NULL AND probe_after <= clock_timestamp()))
+                        OR (phase='reconciling' AND probe_after IS NOT NULL AND probe_after <= clock_timestamp())),
+                    phase, COALESCE(ownership_kind,'none'),
+                    CASE WHEN ownership_until IS NULL THEN 'absent'
+                        WHEN ownership_until > clock_timestamp() THEN 'live' ELSE 'elapsed' END,
+                    normal_attempts
                 FROM background_jobs WHERE id=@id AND vendor_job_id IS NOT NULL
                 """, connection) { CommandTimeout = 5 })
             {
@@ -204,6 +213,22 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 current = row.GetInt64(0);
                 vendor = row.GetString(1);
                 eligible = row.GetBoolean(2);
+                phase = row.GetString(3) switch
+                {
+                    var value when value is "pending" or "preparing" or "prepared" or "executing" or "reconciling"
+                        or "finalize_pending" or "finalizing" or "terminal_pending" or "completed" or "quarantined" => value,
+                    _ => "other"
+                };
+                owner = row.GetString(4) switch
+                {
+                    "none" => "none",
+                    "execution" => "execution",
+                    "recovery" => "recovery",
+                    "routing" => "routing",
+                    _ => "other"
+                };
+                lease = row.GetString(5);
+                attempts = row.GetInt32(6);
             }
             generation ??= current;
             current.Should().Be(generation.Value, "fixture hints cannot reset the durable generation");
@@ -226,13 +251,29 @@ public sealed partial class BackgroundJobPositiveSdkTests
             }
             capturedGeneration ??= currentGeneration;
             ReferenceEquals(capturedGeneration, currentGeneration).Should().BeTrue();
-            if (state == "Succeeded" && snapshot.State == HangfirePoolOwnerState.Running
-                && snapshot.Work is { Running: 0, Retained: 0, Closed: false }
-                && ((BackgroundJobControl)NativeSdkField(runtime, "_jobs")).CanRoute(job) && eligible)
+            var idle = state == "Succeeded" && snapshot.Work is { Running: 0, Retained: 0, Closed: false };
+            // Preserve the existing short-circuit: diagnostics never obtain a
+            // routing capability that this iteration would not already inspect.
+            bool? canRoute = idle ? ((BackgroundJobControl)NativeSdkField(runtime, "_jobs")).CanRoute(job) : null;
+            var observation = new NativeSdkHandoffObservation(state switch
+            {
+                "Succeeded" => "succeeded",
+                "Processing" => "processing",
+                "Enqueued" => "enqueued",
+                "Scheduled" => "scheduled",
+                null => "missing",
+                _ => "other"
+            }, eligible, snapshot.Work.Running, snapshot.Work.Retained, snapshot.Work.Closed,
+                canRoute is null ? "not_checked" : canRoute.Value ? "allowed" : "refused",
+                phase, owner, lease, attempts, HintState: "not_attempted");
+            observe?.Invoke(observation);
+            if (idle && canRoute == true && eligible)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (started.IsCompleted) return;
+                observe?.Invoke(observation with { HintState = "attempted" });
                 _ = NativeSdkWakeup(runtime, job, current);
+                observe?.Invoke(observation with { HintState = "acknowledged" });
                 if (afterObservation is not null) await afterObservation();
                 return; // One fixture hint, only after the preceding native operation actually released its ownership.
             }
@@ -244,6 +285,9 @@ public sealed partial class BackgroundJobPositiveSdkTests
             await Task.Delay(25, cancellationToken);
         }
     }
+
+    private sealed record NativeSdkHandoffObservation(string NativeState, bool Eligible, int Running,
+        int Retained, bool Closed, string Route, string Phase, string Owner, string Lease, int Attempts, string HintState);
 
     private static HangfirePoolOwner NativeSdkExternalPool(BackgroundJobRuntime runtime)
     {

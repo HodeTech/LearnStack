@@ -404,7 +404,7 @@ def closed_native_wait_details(raw):
     if sum(len(item['Text']) for item in messages) > 65536:
         return None
     stages = {'start', 'handoff', 'constructor', 'capture', 'cancel', 'return', 'wrapper', 'held',
-              'cleanup_request', 'cleanup_stop', 'cleanup_completion', 'cleanup_complete'}
+              'cleanup_request', 'cleanup_stop', 'cleanup_completion', 'cleanup_timers', 'cleanup_complete'}
     tasks = {'not_issued', 'succeeded', 'cancelled', 'faulted', 'pending'}
     fields = ('boundary', 'constructor', 'invocation', 'wrapper', 'actual', 'runtime', 'completion',
               'control', 'pools', 'shared', 'bridgeLoop', 'bridgeStop')
@@ -441,6 +441,37 @@ def closed_native_wait_details(raw):
         if values['boundary'] not in stages or kind == 'cleanup' and not values['boundary'].startswith('cleanup_'):
             return None
         result[kind] = values
+    marker = 'Native handoff;'
+    count = sum(item['Text'].count(marker) for item in messages)
+    if count:
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        if count != 1 or len(lines) != 1:
+            return None
+        fields = ('native', 'eligible', 'running', 'retained', 'closed', 'route', 'phase',
+                  'owner', 'lease', 'attempts', 'hint')
+        match = re.fullmatch(re.escape(marker) + ';'.join(name + r'=([a-z_0-9]{1,24})' for name in fields)
+                             + r'\.', lines[0])
+        if match is None:
+            return None
+        handoff = dict(zip(fields, match.groups()))
+        allowed = {
+            'native': {'succeeded', 'processing', 'enqueued', 'scheduled', 'missing', 'other'},
+            'eligible': {'yes', 'no'}, 'closed': {'yes', 'no'},
+            'hint': {'not_attempted', 'attempted', 'acknowledged'},
+            'route': {'not_checked', 'allowed', 'refused'},
+            'phase': {'pending', 'preparing', 'prepared', 'executing', 'reconciling', 'finalize_pending',
+                      'finalizing', 'terminal_pending', 'completed', 'quarantined', 'other'},
+            'owner': {'none', 'routing', 'execution', 'recovery', 'other'},
+            'lease': {'absent', 'live', 'elapsed'},
+        }
+        if any(handoff[field] not in values for field, values in allowed.items()):
+            return None
+        for field, maximum in (('running', 64), ('retained', 64), ('attempts', 6)):
+            if not re.fullmatch(r'0|[1-9][0-9]?', handoff[field]) or int(handoff[field]) > maximum:
+                return None
+            handoff[field] = int(handoff[field])
+        result['handoff'] = handoff
     return result
 
 

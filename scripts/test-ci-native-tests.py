@@ -862,7 +862,7 @@ except launcher.Refusal as failure:
             self.assertIsNone(parse({**case, 'assembly': 'unregistered'}, raw))
             self.assertIsNone(parse({**case, 'name': 'other'}, raw))
             for boundary in ('start', 'handoff', 'capture', 'cancel', 'return', 'wrapper', 'held',
-                             'cleanup_request', 'cleanup_stop', 'cleanup_completion'):
+                             'cleanup_request', 'cleanup_stop', 'cleanup_completion', 'cleanup_timers'):
                 self.assertEqual(boundary, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
                     'Text': self.native_wait_sentence(boundary=boundary)}]})['failure']['boundary'])
 
@@ -875,6 +875,52 @@ except launcher.Refusal as failure:
         result = parse(case, raw)
         self.assertEqual({'boundary': 'cleanup_stop', 'snapshot': 'unavailable'}, result['failure'])
         self.assertEqual(result['failure'], result['cleanup'])
+
+    @staticmethod
+    def native_handoff_sentence(**changes):
+        values = dict(native='succeeded', eligible='no', running='0', retained='0', closed='no',
+                      route='allowed', phase='executing', owner='execution', lease='live', attempts='1', hint='not_attempted')
+        values.update(changes)
+        return 'Native handoff;' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    def test_native_wait_retains_only_closed_last_observed_handoff_guards(self):
+        for name in self.owner.NATIVE_WAIT_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n'
+                + self.native_wait_sentence(boundary='handoff') + '\n' + self.native_handoff_sentence()}]}
+            result = self.owner.closed_failure_details(case, raw)
+            self.assertEqual('handoff', result['failure']['boundary'])
+            self.assertEqual({'native': 'succeeded', 'eligible': 'no', 'running': 0, 'retained': 0,
+                'closed': 'no', 'route': 'allowed', 'phase': 'executing', 'owner': 'execution',
+                'lease': 'live', 'attempts': 1, 'hint': 'not_attempted'}, result['handoff'])
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
+            self.assertIsNone(self.owner.closed_failure_details({**case, 'name': 'other'}, raw))
+            for phase in ('pending', 'preparing', 'prepared', 'executing', 'reconciling', 'finalize_pending',
+                          'finalizing', 'terminal_pending', 'completed', 'quarantined'):
+                qualified = {'Messages': [{'Category': 'StdOutMsgs', 'Text': self.native_wait_sentence(boundary='handoff')
+                    + '\n' + self.native_handoff_sentence(phase=phase, owner='routing')}]}
+                self.assertEqual(phase, self.owner.closed_failure_details(case, qualified)['handoff']['phase'])
+                self.assertEqual('routing', self.owner.closed_failure_details(case, qualified)['handoff']['owner'])
+            for hint in ('not_attempted', 'attempted', 'acknowledged'):
+                raw['Messages'][0]['Text'] = self.native_wait_sentence(boundary='handoff') + '\n' + self.native_handoff_sentence(hint=hint)
+                self.assertEqual(hint, self.owner.closed_failure_details(case, raw)['handoff']['hint'])
+
+    def test_native_wait_refuses_private_unbounded_or_ambiguous_handoff_guards(self):
+        case = {**self.case(1), 'name': sorted(self.owner.NATIVE_WAIT_FAILURE_CASES)[0]}
+        prefix = self.native_wait_sentence(boundary='handoff') + '\n'
+        sentence = self.native_handoff_sentence()
+        for value in (sentence + '\n' + sentence, sentence.replace(';route=', ';unlisted='),
+                      sentence + 'PRIVATE-CANARY'):
+            self.assertIsNone(self.owner.closed_failure_details(case,
+                {'Messages': [{'Category': 'StdOutMsgs', 'Text': prefix + value}]}))
+        for field, value in (('native', 'PRIVATE-CANARY'), ('eligible', 'true'), ('running', '65'),
+                             ('retained', '-1'), ('running', '01'), ('closed', '0'), ('route', 'yes'),
+                             ('phase', 'private_path'), ('owner', 'subject_id'), ('lease', 'unknown'),
+                             ('attempts', '7'), ('hint', 'true')):
+            self.assertIsNone(self.owner.closed_failure_details(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': prefix + self.native_handoff_sentence(**{field: value})}]}))
+        self.assertIsNone(self.owner.closed_failure_details(case, {'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': prefix}, {'Category': 'StdErrMsgs', 'Text': sentence}]}))
 
     def test_native_wait_details_refuse_ambiguous_private_or_inconsistent_observations(self):
         case = {**self.case(1), 'name': sorted(self.owner.NATIVE_WAIT_FAILURE_CASES)[0]}
@@ -899,13 +945,15 @@ except launcher.Refusal as failure:
         item = self.execution_result(case); item['Outcome'] = 2
         item['ErrorMessage'] = 'System.OperationCanceledException : PRIVATE-CANARY'
         item['ErrorStackTrace'] = '/private/path/BackgroundJobPositiveSdkTests.NativeWait.cs:line 98'
-        item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.native_wait_sentence(boundary='cleanup_stop')}]
+        item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.native_wait_sentence(boundary='cleanup_stop')
+            + '\n' + self.native_handoff_sentence()}]
         with contextlib.redirect_stdout(io.StringIO()):
             progress.results({'NewTestResults': [item]})
         result = progress.failure_locations[0]
         self.assertEqual([{'source': 'positive_sdk_native_wait', 'line': 98}], result['locations'])
         self.assertEqual('cleanup_stop', result['details']['failure']['boundary'])
         self.assertEqual('cancellation', result['exceptionKind'])
+        self.assertEqual('no', result['details']['handoff']['eligible'])
         self.assertEqual('Failed', json.loads(stream.getvalue())['outcome'])
         for text in ('PRIVATE-CANARY', '/private/', 'Native wait failure;'):
             self.assertNotIn(text, json.dumps(result))

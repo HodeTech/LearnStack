@@ -43,7 +43,7 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
         try
         {
             Directory.CreateDirectory(Path.Combine(temporary, "scripts"));
-            Directory.CreateDirectory(Path.Combine(app, "src/server"));
+            Directory.CreateDirectory(Path.Combine(app, "src/server/auth"));
             Directory.CreateDirectory(Path.Combine(temporary, "user-secrets"));
             Directory.CreateDirectory(Path.Combine(temporary, "owned-profile"));
             File.WriteAllText(Path.Combine(temporary, "package.json"), "{\"type\":\"module\"}");
@@ -62,7 +62,7 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
                 }
                 File.WriteAllText(runtime, source);
             }
-            foreach (var file in new[] { "tsconfig.json", "tsconfig.server.json", "src/server/ingress.ts" })
+            foreach (var file in new[] { "tsconfig.json", "tsconfig.server.json", "src/server/ingress.ts", "src/server/auth/http-paths.ts" })
                 File.Copy(Path.Combine(repository, "frontend/apps/web", file), Path.Combine(app, file));
             Directory.CreateSymbolicLink(Path.Combine(app, "node_modules"), Path.Combine(repository, "frontend/apps/web/node_modules"));
             Directory.CreateSymbolicLink(backend, Path.Combine(repository, "backend"));

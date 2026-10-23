@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,278 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,333 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -224,6 +224,7 @@ each packet decided and delivered, as
   - [P02b-7 Step 5 — independent review round 2 (2026-10-24)](#p02b-7-step-5--independent-review-round-2-2026-10-24) — 24 lines
   - [P02b-7 Step 5 — round 2 corrections and local closeout (2026-10-24)](#p02b-7-step-5--round-2-corrections-and-local-closeout-2026-10-24) — 36 lines
   - [P02b-7 hosted frontend ingress correction (2026-10-24)](#p02b-7-hosted-frontend-ingress-correction-2026-10-24) — 31 lines
+  - [P02b-7 first hosted A — fixture corrections (2026-10-24)](#p02b-7-first-hosted-a--fixture-corrections-2026-10-24) — 55 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19003,6 +19004,62 @@ HTML or credentials enter retained repository documentation.
 The remaining first-attempt jobs are allowed to finish for their independent
 failure/timing evidence before a new complete source-bound run. Both final A/B
 assignments and current-head required checks remain qualification gates.
+
+### P02b-7 first hosted A — fixture corrections (2026-10-24)
+
+The complete [first A attempt](https://github.com/HodeTech/LearnStack/actions/runs/40037549651)
+on source `fedffbe8` finishes with 22 successful and five failed jobs. Its backend
+aggregate passes all 3,351 non-Docker cases; native qualification passes all 31.
+All six new BFF cases pass, including the real warm-provider/app-role API chain
+and separate actual HTTPS browser proof. The integration aggregate correctly
+refuses the failed ordinary producers. These component passes do not qualify the
+whole source. The already-recorded frontend correction is committed as `d3d7c041`.
+
+Three ordinary failures share one copied-fixture omission: the public local
+launcher copies the real ingress module but omits its new direct, pure
+`auth/http-paths.ts` dependency. Copying that leaf into the existing private
+fixture fixes the actual TypeScript compilation; all three real Docker launcher
+cases pass locally, with no product or credential change.
+
+The remaining ordinary failure is the existing native held-constructor
+`host_stop` case. Its closed receipt locates cancellation at `handoff`, before
+constructor entry or invocation capture; cleanup subsequently completes. A local
+execution of the exact same 236 selected cases passes. Neither that pass nor the
+receipt proves the historical hosted cause.
+
+Source analysis identifies a real competing precondition: Prepare/Arm owns the
+row lock, the renewal query skips that row, and the acknowledged empty batch
+requests safe cancellation before constructor entry. The existing
+[held-Prepare renewal proof](../../backend/tests/LearnStack.Tests.Integration/Database/BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs)
+deterministically demonstrates that separate path with real transactions. The
+held-constructor test now reuses its existing real-callback pacing owner to
+establish constructor entry before requesting host stop or expiring the SQL
+lease. Clocks, lease/deadline timers and production behavior stay unchanged. The
+lease-loss variant additionally requires actual renewal refusal, with no elapsed
+lease substituted. Every exit releases holds and joins runtime and actual timers
+within the original shared cleanup budget.
+
+Both round-2 reviewers independently approve the focused corrections after a
+separate source diagnosis. Release compilation has zero warnings/errors. All
+five focused real-worker/renewal cases pass without skips; their TRX SHA-256 is
+`6480ff89659f2e8f234882517a94fe7ee4ca09d5d44d85c3a5598517a1a0c696`.
+The two constructor cases take 2.044/2.158 seconds. This is a fixture-ordering
+correction, not a claim that the old hosted failure was conclusively reproduced.
+
+Failure-only handoff diagnostics retain finite native/durable state, routing,
+lease/attempt and hint-issuance facts. The CI parser admits only the exact two
+registered cases and closed fields; raw messages, identities and credentials
+remain excluded. These observations never supply completion or admission
+capability, and successful aggregate rules remain unchanged. All 65 execution
+protocol controls and 26 aggregate controls pass. They exercise admitted values
+and private/malformed/duplicate counterexamples; no passing-path diagnostic is
+claimed as an observed failure.
+
+Repository overview pointers now describe optional native sign-in and link its
+setup/security rules instead of presenting BFF sessions as future-only work.
+Exact-source complete hosted A/B qualification remains required before PR #36
+leaves draft; no failed-only rerun, timeout increase, skipped case or check waiver
+is used.
 
 ## Status archive
 

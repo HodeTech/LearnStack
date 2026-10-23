@@ -196,8 +196,9 @@ Supply `Authentication:Tenant:Issuer` too: the canonical HTTPS tenant-realm URL,
 with loopback HTTP allowed only in `Development`. The development configuration
 defaults to `http://localhost:8080/realms/learnstack`; issuer configuration is
 validated without contacting Keycloak at startup. Credential-free public reads
-remain available when Keycloak is stopped. P02b-6 owns current realm issuance/
-reconciliation qualification; browser sessions remain P02b-7.
+remain available when Keycloak is stopped. Optional tenant sign-in uses native
+server custody; see the [web setup](frontend/apps/web/README.md#optional-tenant-sign-in).
+The [phase document](docs/roadmap/phase-02b-events-auth.md) owns qualification state.
 
 **Ingress, visitor budgets and public entry.** The web bootstraps the captured
 host through the API, redirects using enabled/default locales and refuses
@@ -235,7 +236,7 @@ three product surfaces. See the
 | Database | PostgreSQL 18 | Migrations, tenant / organization RLS and integration proofs |
 | Frontend | Next.js 15 · React 19 · TypeScript | App/UI scaffolds; generated SDK and injected transport implemented |
 | Observability | OpenTelemetry · Serilog → OTLP | Cross-cutting backend instrumentation implemented |
-| Identity | Keycloak | Tenant API bearer boundary, real issuance and safe development realm reconciliation implemented; browser sessions remain P02b-7 |
+| Identity | Keycloak | Tenant API bearer boundary, real issuance, safe development realm reconciliation and optional native BFF sign-in |
 | Storage and search | SeaweedFS · PostgreSQL full-text search | Selected architecture; feature delivery belongs to Phases 04–05 |
 | Live classroom | LiveKit through a provider adapter | Planned in Phase 08c, starting with Cloud and retaining a self-hosted path |
 
