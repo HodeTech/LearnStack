@@ -1,7 +1,8 @@
 # 10 — Observability Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md) (outbox + tenant-context propagation across async boundaries), [ADR 0032 — Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md) (Sentry / OTel boundary, Serilog wiring, span attribute propagation, deployment-mode branching).
+**Derives from:** [ADR-0070 Owned Tenant BFF Sessions](../decisions/0070-owned-tenant-bff-sessions.md),
+[ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md) (outbox + tenant-context propagation across async boundaries), [ADR 0032 — Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md) (Sentry / OTel boundary, Serilog wiring, span attribute propagation, deployment-mode branching).
 Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 Delivery/recovery additions derive from
@@ -31,6 +32,11 @@ Conceptual deep dive (logging pipeline, tracing pipeline, span enrichment
 seam, correlation across async boundaries) lives in
 [33-cross-cutting-concerns.md](../architecture/33-cross-cutting-concerns.md).
 This standard contains the day-to-day rules.
+
+Tenant BFF diagnostics use only closed lifecycle reasons, with no tokens,
+handles, raw provider errors, profiles or redirect URLs. Metrics carry no host,
+issuer, subject, actor or correlation identity labels. Provider user-event records
+stay in Keycloak, not raw artifacts; local diagnostics are not durable audit.
 
 ## Stack
 

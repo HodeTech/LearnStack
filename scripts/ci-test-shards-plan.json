@@ -140,6 +140,34 @@
       "sourceSha": null,
       "runId": null,
       "note": "Complete final refresh-presence-guard local journey Fact, 1/1 Passed and zero skips. Commit is not embedded in TRX. Separate seven-file source hash manifest SHA256 92cde32454dfb23f0421ce4e2d92ffe3c054281138cfe2d8a2ebe8c734960da3. Actual TestMethod row is 40205.7204 ms; local scale 2.271245, ceil/min1. Advisory, not a hosted wall bound or final-source CI qualification."
+    },
+    "local-bff-lifecycle-20261024": {
+      "kind": "local_trx",
+      "artifactSha256": "e7e98d28870397f11c8e0962dafc0c7fa2473cd9f25d9113098ba292e1df7d78",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Passing Step 5 local BFF lifecycle/browser/startup method durations. Local uncommitted source is not embedded in TRX. Advisory body sums exclude shared collection startup; hosted fit remains unqualified."
+    },
+    "local-bff-lifecycle-r1-20261024": {
+      "kind": "local_trx",
+      "artifactSha256": "a8aed7b2684219ebec622a931c85640c8a59fcfa40407aabe9f0be95a1208fb5",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Passing Step 5 R1 native/browser/early-disposal/nonzero-stop controls. Local source not embedded in TRX; advisory method body costs exclude collection startup and do not establish hosted wall fit."
+    },
+    "local-bff-lifecycle-r2-20261024": {
+      "kind": "local_trx",
+      "artifactSha256": "eb29f34d707a87e2ddcdc9c0c269cd011c983cce4a79d8592ffaf9c95aa2ccf0",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Passing Step 5 R2 six-case real BFF/browser and acquisition EOF/shutdown controls. Local source not embedded in TRX. Advisory method body costs exclude shared fixture startup; hosted fit remains unqualified."
+    },
+    "p02b7-local-causal-retry": {
+      "kind": "local_trx",
+      "artifactSha256": "8f004ff7e3631179620ed3ca5cc8873402520ec147f537cca224eb2a6b3d242d",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Three passing local causal-restart variants, including the additional genuine-handler post-write conflict/retry journey. Exact case durations summed per actual selector and scaled by the existing historical ordinary ratio 2.271245 (ceil ms); advisory only, not a wall bound. Immutable source is not embedded in the local TRX."
     }
   },
   "weights": [
@@ -3380,8 +3408,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.Native_completed_cancellation_survives_restart_and_independent_failure_is_not_reclassified",
-      "milliseconds": 151947,
-      "source": "local-ordinary-scaled"
+      "milliseconds": 235758,
+      "source": "p02b7-local-causal-retry"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -8161,6 +8189,42 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Early_parent_disposal_joins_and_removes_its_private_native_tree",
+      "milliseconds": 7368,
+      "source": "local-bff-lifecycle-r2-20261024"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Enabled_native_startup_and_shutdown_make_no_provider_or_API_connection",
+      "milliseconds": 6595,
+      "source": "local-bff-lifecycle-r2-20261024"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control",
+      "milliseconds": 32915,
+      "source": "local-bff-lifecycle-r2-20261024"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Nonzero_native_shutdown_is_rejected_instead_of_publishing_success",
+      "milliseconds": 6539,
+      "source": "local-bff-lifecycle-r2-20261024"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Parent_EOF_during_held_build_joins_acquisition_and_removes_its_private_tree",
+      "milliseconds": 972,
+      "source": "local-bff-lifecycle-r2-20261024"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Reconciled_warm_realm_serves_both_native_hosts_with_real_refresh_logout_and_persisted_events",
+      "milliseconds": 79261,
+      "source": "local-bff-lifecycle-r2-20261024"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests.A_genuine_Hub_issuer_token_is_rejected_without_changing_the_operator_or_Hub_client",
       "milliseconds": 3665,
       "source": "p02b6-local-api"
@@ -8544,7 +8608,9 @@
     "LearnStack.Tests.Integration.RateLimitForwardedForTests",
     "LearnStack.Tests.Integration.RateLimitingHttpTests",
     "LearnStack.Tests.Integration.SmokeTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmEventTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests",

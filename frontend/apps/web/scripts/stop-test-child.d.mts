@@ -1,3 +1,3 @@
 import type { ChildProcess } from 'node:child_process';
 
-export function stopTestChild(child: ChildProcess): Promise<void>;
+export function stopTestChild(child: ChildProcess): Promise<Readonly<{ forced: boolean }>>;

@@ -7,6 +7,7 @@ These controls do not qualify a hosted systemd/cgroup implementation or CI fit.
 """
 from collections import Counter
 import contextlib
+import errno
 import hashlib
 import importlib.util
 import io
@@ -14,10 +15,12 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
@@ -30,6 +33,7 @@ import json, os, pathlib, signal, sys, time
 base = pathlib.Path(__file__).parent
 config_path = base / 'fixture.json'
 config = json.loads(config_path.read_text())
+os.write(2, config.get('stderr', '').encode())
 name = pathlib.Path(sys.argv[0]).name
 with (base / 'calls.jsonl').open('a') as stream:
     stream.write(json.dumps({'name': name, 'argv': sys.argv[1:],
@@ -207,6 +211,33 @@ class OwnerControls(unittest.TestCase):
                                                           'Stats': {'Passed': len(cases)}}},
             'LastRunTests': {'NewTestResults': [self.execution_result(case) for case in tail]}})
 
+    def selector_fixture(self):
+        spec = importlib.util.spec_from_file_location('ci_workload_fixtures', ROOT / 'scripts/test-ci-test-shards.py')
+        fixtures = importlib.util.module_from_spec(spec); spec.loader.exec_module(fixtures)
+        fixture = fixtures.ShardControls(); fixture.plan = self.owner.shard_owner().load_plan()
+        return fixture
+
+    def run_workload(self, manifest, status, name):
+        private, output = self.root / ('private-' + name), self.root / ('output-' + name)
+        private.mkdir(); output.mkdir(); (output / 'results').mkdir()
+        plan = self.owner.shard_owner().load_plan()
+        expected = self.owner.shard_owner().assign(manifest, plan, '1')['owners']['ordinary-0']
+        def completed(argv, deadline, work, consume, progress):
+            self.trx(private / 'trx', expected, raw_canary=True)
+            progress.line(self.execution_complete(expected, tail=expected).encode())
+            return status
+        with mock.patch.object(self.owner, 'cgroup_path', return_value='/owned/work'), \
+                mock.patch.object(self.owner, 'runtime_toolchain', return_value={}), \
+                mock.patch.object(self.owner, 'discover_selectors', return_value=manifest), \
+                mock.patch.object(self.owner, 'selected_discovery', return_value=expected), \
+                mock.patch.object(self.owner, 'test_projects', return_value=[('fixture', 'LearnStack.Tests.Integration')]), \
+                mock.patch.object(self.owner, 'adapter_evidence', return_value={}), \
+                mock.patch.object(self.owner, 'shard_dotnet', side_effect=completed), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.owner.workload('ordinary-0', {'runAttempt': '1'}, private, output,
+                                time.monotonic() + 3, '/owned/work')
+        return private, output, expected
+
     def trx(self, output, cases, *, outcome='Passed', summary='Completed', raw_canary=False):
         output.mkdir(parents=True, exist_ok=True)
         tag = lambda name: '{' + self.owner.NS['t'] + '}' + name
@@ -273,6 +304,12 @@ class OwnerControls(unittest.TestCase):
                         with self.subTest(mode=mode, services=services):
                             os.environ['LEARNSTACK_NATIVE_JOB_SERVICES'] = services
                             self.assertEqual('42', self.owner.identity(mode)['runId'])
+                    for uid, gid, euid in ((0, 1000, 0), (1000, 0, 1000), (1000, 1000, 0)):
+                        with self.subTest(mode=mode, uid=uid, gid=gid, euid=euid), \
+                                mock.patch.object(self.owner.os, 'getuid', return_value=uid), \
+                                mock.patch.object(self.owner.os, 'getgid', return_value=gid), \
+                                mock.patch.object(self.owner.os, 'geteuid', return_value=euid):
+                            self.refuses('nonroot_required', self.owner.identity, mode)
                     calls_before_dirty = len(self.calls())
                     for services in ('[]', '{"db":{}}', '"foreign"', 'broken', None):
                         with self.subTest(mode=mode, services=services):
@@ -326,8 +363,21 @@ except launcher.Refusal as failure:
         self.assertEqual([], fixture.commands('sudo'))
 
     def test_actual_subprocess_failure_and_timeout_disclose_no_provider_text(self):
-        self.configure(status={'docker': 7}, docker='PRIVATE-CANARY')
-        self.refuses('failed', self.owner.command, [self.owner.DOCKER, 'ps'], time.monotonic() + 2, 'failed')
+        self.configure(status={'docker': 7}, docker='PRIVATE-CANARY', stderr='unauthorized PRIVATE-CANARY')
+        actual_run = subprocess.run
+        with mock.patch.dict(os.environ, {'PRIVATE_CANARY': 'PRIVATE-CANARY', 'DOCKER_CONFIG': 'PRIVATE-CANARY'}), \
+                mock.patch.object(self.owner.subprocess, 'run', wraps=actual_run) as run, \
+                mock.patch.object(self.owner.tempfile, 'TemporaryFile') as spool:
+            self.refuses('failed', self.owner.command, [self.owner.DOCKER, 'ps'], time.monotonic() + 2, 'failed')
+            spool.assert_not_called()
+        self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stderr'])
+        self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stdin'])
+        self.assertEqual(subprocess.PIPE, run.call_args.kwargs['stdout'])
+        expected_environment = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
+            'HOME': os.environ.get('HOME', ''), 'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'}
+        self.assertEqual(expected_environment, run.call_args.kwargs['env'])
+        self.assertFalse(run.call_args.kwargs['check'])
+        self.assertIsNone(self.calls()[-1]['secret'])
         self.configure(status={}, delay=0.3)
         self.refuses('timed', self.owner.command, [self.owner.DOTNET], time.monotonic() + 0.05, 'timed')
         # subprocess.run really reaps its directly timed-out child; fixture's
@@ -335,6 +385,153 @@ except launcher.Refusal as failure:
         for directory in (self.bin / 'proc').iterdir():
             for path in directory.iterdir(): path.unlink()
             directory.rmdir()
+
+        actual_spool, captures = tempfile.TemporaryFile, []
+        def private_spool():
+            captured = actual_spool()
+            details = os.fstat(captured.fileno())
+            self.assertEqual(0o600, details.st_mode & 0o777)
+            self.assertEqual(0, details.st_nlink)
+            self.assertEqual(os.getuid(), details.st_uid)
+            captured.read = mock.Mock(wraps=captured.read)
+            captures.append(captured)
+            return captured
+        labels = {
+            'rate_limit': 'toomanyrequests: You have reached your pull rate limit',
+            'auth': 'unauthorized: authentication required',
+            'manifest': 'manifest unknown',
+            'dns': 'dial tcp: lookup registry: no such host',
+            'timeout': 'net/http: request canceled while waiting: timeout',
+            'tls': 'x509: certificate signed by unknown authority',
+            'unavailable': '503 Service Unavailable',
+            'disk': 'no space left on device',
+            'transport': 'read: connection reset by peer',
+            'other': 'unrecognized diagnostic',
+        }
+        self.assertEqual(set(labels) | {'launch', 'deadline', 'output_bound'}, self.owner.COMMAND_FAILURE_KINDS)
+        console = io.StringIO()
+        with mock.patch.object(self.owner.tempfile, 'TemporaryFile', side_effect=private_spool), \
+                contextlib.redirect_stdout(console), contextlib.redirect_stderr(console):
+            for kind, diagnostic in labels.items():
+                self.configure(status={'docker': 7}, docker='PRIVATE-CANARY',
+                               stderr=diagnostic + ' PRIVATE-CANARY https://private.invalid/token password=private')
+                self.refuses('pull_' + kind, self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             time.monotonic() + 2, 'pull', cap=55, diagnose=True)
+            self.assertEqual('other', self.owner.command_failure_kind(b'\xffPRIVATE-CANARY'))
+            self.configure(status={'docker': 0}, docker='ok', stderr='unauthorized PRIVATE-CANARY')
+            with mock.patch.object(self.owner.time, 'monotonic', return_value=500), \
+                    mock.patch.object(self.owner.subprocess, 'run', wraps=actual_run) as run:
+                self.assertEqual(b'ok', self.owner.command([self.owner.DOCKER, 'pull', 'fixed-image'],
+                                                         610, 'pull', cap=55, diagnose=True))
+            self.assertEqual(([self.owner.DOCKER, 'pull', 'fixed-image'],), run.call_args.args)
+            self.assertEqual(55, run.call_args.kwargs['timeout'])
+            self.assertEqual(expected_environment, run.call_args.kwargs['env'])
+            self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stdin'])
+            self.assertEqual(subprocess.PIPE, run.call_args.kwargs['stdout'])
+            self.assertFalse(run.call_args.kwargs['check'])
+            self.assertIs(captures[-1], run.call_args.kwargs['stderr'])
+            self.assertTrue(captures[-1].closed)
+            self.configure(status={'docker': 7}, docker='PRIVATE-CANARY', stderr='unknown PRIVATE-CANARY')
+            for unknown in ('PRIVATE-CANARY', {'private': 'PRIVATE-CANARY'}, None, 4):
+                with mock.patch.object(self.owner, 'command_failure_kind', return_value=unknown):
+                    self.refuses('pull_other', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                                 time.monotonic() + 2, 'pull', diagnose=True)
+            with mock.patch.object(self.owner, 'MAX_BYTES', 64):
+                for stdout, stderr in (('x' * 65, ''), ('', 'x' * 65)):
+                    self.configure(status={'docker': 0}, docker=stdout, stderr=stderr)
+                    self.refuses('pull_output_bound', self.owner.command,
+                                 [self.owner.DOCKER, 'pull', 'fixed-image'], time.monotonic() + 2, 'pull', diagnose=True)
+            self.refuses('pull_launch', self.owner.command, [str(self.bin / 'missing-command')],
+                         time.monotonic() + 2, 'pull', diagnose=True)
+            with mock.patch.object(self.owner.subprocess, 'run') as run:
+                self.refuses('pull_deadline', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             time.monotonic() - 1, 'pull', diagnose=True)
+                run.assert_not_called()
+            with mock.patch.object(self.owner, 'CANCELLED', True), \
+                    mock.patch.object(self.owner.subprocess, 'run') as run:
+                self.refuses('cancelled', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             time.monotonic() + 2, 'pull', diagnose=True)
+                run.assert_not_called()
+            timeout_child = self.bin / 'timeout-child'
+            pid_path = self.bin / 'timeout-child.pid'
+            timeout_child.write_text('#!' + sys.executable + '\nimport os, pathlib, sys, time\n'
+                + 'pathlib.Path(sys.argv[1]).write_text(str(os.getpid()))\n'
+                + 'print("PRIVATE-CANARY", flush=True)\n'
+                + 'print("PRIVATE-CANARY", file=sys.stderr, flush=True)\ntime.sleep(5)\n')
+            timeout_child.chmod(0o700)
+            self.refuses('pull_timeout', self.owner.command, [str(timeout_child), str(pid_path)],
+                         time.monotonic() + 2, 'pull', cap=0.5, diagnose=True)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(int(pid_path.read_text()), 0)
+        self.assertEqual('', console.getvalue())
+        self.assertTrue(all(captured.closed for captured in captures))
+
+        class CloseFailure:
+            def __init__(self, captured): self.captured = captured
+            def __getattr__(self, name): return getattr(self.captured, name)
+            def close(self):
+                self.captured.close()
+                raise OSError(errno.ENOSPC, 'PRIVATE-CANARY https://private.invalid/credential')
+        with mock.patch.object(self.owner.tempfile, 'TemporaryFile', side_effect=lambda: CloseFailure(private_spool())):
+            self.configure(status={'docker': 7}, docker='PRIVATE-CANARY', stderr='unauthorized PRIVATE-CANARY')
+            self.refuses('pull_auth', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                         time.monotonic() + 2, 'pull', diagnose=True)
+            self.refuses('pull_launch', self.owner.command, [str(self.bin / 'missing-command')],
+                         time.monotonic() + 2, 'pull', diagnose=True)
+            self.configure(status={'docker': 0}, docker='ok', stderr='')
+            self.refuses('pull_disk', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                         time.monotonic() + 2, 'pull', diagnose=True)
+            with mock.patch.object(self.owner.subprocess, 'run', side_effect=subprocess.TimeoutExpired(
+                    'PRIVATE-CANARY', 55, output=b'PRIVATE-CANARY')):
+                self.refuses('pull_timeout', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             time.monotonic() + 2, 'pull', diagnose=True)
+        self.assertTrue(all(captured.closed for captured in captures))
+        for global_deadline, after_spool in ((610, 556), (510, 511)):
+            clock = {'now': 500}
+            def delayed_spool():
+                captured = private_spool()
+                clock['now'] = after_spool
+                return captured
+            with mock.patch.object(self.owner.time, 'monotonic', side_effect=lambda: clock['now']), \
+                    mock.patch.object(self.owner.tempfile, 'TemporaryFile', side_effect=delayed_spool), \
+                    mock.patch.object(self.owner.subprocess, 'run') as run:
+                self.refuses('pull_deadline', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             global_deadline, 'pull', cap=55, diagnose=True)
+                run.assert_not_called()
+                self.assertTrue(captures[-1].closed)
+        for captured in captures:
+            self.assertLessEqual(captured.read.call_count, 1)
+            for call in captured.read.call_args_list:
+                self.assertIn(call.args, ((65,), (self.owner.MAX_BYTES + 1,)))
+        for error, kind in ((errno.ENOSPC, 'disk'), (errno.EIO, 'unavailable')):
+            with mock.patch.object(self.owner.tempfile, 'TemporaryFile',
+                    side_effect=OSError(error, 'PRIVATE-CANARY')):
+                self.refuses('pull_' + kind, self.owner.command,
+                             [self.owner.DOCKER, 'pull', 'fixed-image'], time.monotonic() + 2, 'pull', diagnose=True)
+
+    def test_private_diagnostic_spool_refuses_each_unsafe_stat_before_launch_and_closes(self):
+        original = tempfile.TemporaryFile
+        for field, value in (('st_mode', stat.S_IFDIR | 0o600), ('st_mode', stat.S_IFREG | 0o640),
+                             ('st_nlink', 1), ('st_uid', os.getuid() + 1)):
+            with self.subTest(field=field, value=value), original() as spool:
+                details = dict(st_mode=stat.S_IFREG | 0o600, st_nlink=0, st_uid=os.getuid())
+                details[field] = value
+                with mock.patch.object(self.owner.tempfile, 'TemporaryFile', return_value=spool), \
+                        mock.patch.object(self.owner.os, 'fstat', return_value=types.SimpleNamespace(**details)), \
+                        mock.patch.object(self.owner.subprocess, 'run') as run:
+                    self.refuses('pull_launch', self.owner.command,
+                                 [self.owner.DOCKER, 'pull', 'fixed-image'], time.monotonic() + 2, 'pull', diagnose=True)
+                    run.assert_not_called()
+                    self.assertTrue(spool.closed)
+
+    def test_docker_socket_access_failure_is_not_registry_authentication(self):
+        for diagnostic in (
+                b'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock',
+                b'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?'):
+            self.assertEqual('unavailable', self.owner.command_failure_kind(diagnostic))
+        for diagnostic in (b'pull access denied for private/image, repository does not exist or may require docker login',
+                           b'permission denied: registry policy', b'unauthorized: authentication required'):
+            self.assertEqual('auth', self.owner.command_failure_kind(diagnostic))
 
     def test_real_subprocess_and_setsid_keep_observed_membership_and_completed_duration(self):
         case = self.case(1)
@@ -431,18 +628,22 @@ except launcher.Refusal as failure:
         expected = {path.name for path in (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database').glob(
             'BackgroundJobRuntimeFacadeTests*.cs')} | {
                 'OutboxProcessorTests.cs', 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
+                'BackgroundJobPositiveSdkTests.CausalRestartObservations.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
                 'BackgroundJobPositiveSdkTests.NativeWait.cs', 'BackgroundJobPositiveSdkTests.NativeHistory.cs',
                 'BackgroundJobPositiveSdkTests.NativeHandoff.cs',
+                'BackgroundJobPositiveSdkTests.NativeRecovery.cs',
+                'BackgroundJobPositiveSdkTests.SourceContention.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
                 'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
                 'BackgroundJobRecurrenceStoreTests.Runtime.cs',
-                'TenantRealmApiTests.WarmQualification.cs'}
+                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs'}
         self.assertEqual(expected, set(self.owner.FAILURE_SOURCES))
         self.assertEqual(len(expected), len(set(self.owner.FAILURE_SOURCES.values())))
         for filename, code in self.owner.FAILURE_SOURCES.items():
-            directory = 'TenancyIdentity' if filename == 'TenantRealmApiTests.WarmQualification.cs' else 'Database'
+            directory = 'TenancyIdentity' if filename in {
+                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs'} else 'Database'
             self.assertTrue((ROOT / 'backend/tests/LearnStack.Tests.Integration' / directory / filename).is_file())
             progress.failure_locations.clear()
             item = self.execution_result(cases[0]); item['Outcome'] = 2
@@ -506,6 +707,16 @@ except launcher.Refusal as failure:
         for detail in self.owner.PUBLIC_FAILURE_DETAILS:
             text = 'Public admission fixture failed during browser 429 ' + detail + '.'
             self.assertEqual({'stage': 'browser 429', 'detail': detail}, parse(case, {'ErrorMessage': text}))
+        for stage in ('browser 429', 'browser 503'):
+            for kind in self.owner.PUBLIC_DEVTOOLS_KINDS:
+                text = 'Public admission fixture failed during ' + stage + ' browser-devtools ' + kind + '.'
+                self.assertEqual({'stage': stage, 'detail': 'browser-devtools', 'kind': kind},
+                                 parse(case, {'ErrorMessage': text}))
+        for suffix in ('browser 429 browser-devtools PRIVATE-CANARY',
+                       'browser 429 browser-launch deadline-missing',
+                       'production build browser-devtools deadline-missing',
+                       'browser 429 browser-devtools deadline-missing PRIVATE-CANARY'):
+            self.assertIsNone(parse(case, {'ErrorMessage': 'Public admission fixture failed during ' + suffix + '.'}))
         for text in (None, {}, 'Public admission fixture failed during PRIVATE-CANARY.',
                      'Public admission fixture failed during browser 429 PRIVATE-CANARY.',
                      'x' * 65536 + 'Public admission fixture failed during production build.'):
@@ -837,6 +1048,347 @@ except launcher.Refusal as failure:
             self.assertNotIn('Outbox startup result;', exported)
 
     @staticmethod
+    def source_contention_sentence(kind='failure', **changes):
+        values = dict(boundary='reconcile_wait', reconcile='pending', transactional='pending',
+                      provider='not_issued', auxiliary='not_issued', pressure='0', runtime='running',
+                      completion='pending', executions='0', retained='0', renewalRefused='0', leaseElapsed='0')
+        values.update(changes)
+        return 'Source contention ' + kind + ';' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    def test_source_contention_preserves_first_boundary_and_separate_cleanup_without_private_payloads(self):
+        case = {**self.case(1), 'name': self.owner.SOURCE_CONTENTION_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n'
+            + self.source_contention_sentence(renewalRefused='1') + '\n'
+            + self.source_contention_sentence('cleanup', boundary='cleanup_complete', runtime='stopped',
+                completion='succeeded', reconcile='succeeded')}]}
+        result = parse(case, raw)
+        self.assertEqual('source_contention', result['stage'])
+        self.assertEqual('reconcile_wait', result['failure']['boundary'])
+        self.assertEqual(1, result['failure']['renewalRefused'])
+        self.assertEqual('cleanup_complete', result['cleanup']['boundary'])
+        self.assertEqual('succeeded', result['cleanup']['completion'])
+        self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
+        self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+        self.assertIsNone(parse({**case, 'name': case['name'] + '_other'}, raw))
+        for boundary in self.owner.SOURCE_CONTENTION_BOUNDARIES:
+            with self.subTest(boundary=boundary):
+                value = parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.source_contention_sentence(boundary=boundary)}]})
+                self.assertEqual(boundary, value['failure']['boundary'])
+        for field in ('executions', 'retained', 'renewalRefused', 'leaseElapsed'):
+            for value in ('unavailable', 'out_of_range', '0', '64'):
+                actual = parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.source_contention_sentence(**{field: value})}]})['failure'][field]
+                self.assertEqual(int(value) if value.isdigit() else value, actual)
+        unavailable = parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text':
+            'Source contention failure;boundary=cleanup_stop;snapshot=unavailable.'}]})
+        self.assertEqual({'boundary': 'cleanup_stop', 'snapshot': 'unavailable'}, unavailable['failure'])
+
+    def test_source_contention_refuses_ambiguous_private_and_unbounded_observations(self):
+        case = {**self.case(1), 'name': self.owner.SOURCE_CONTENTION_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        sentence = self.source_contention_sentence()
+        for category, text in [('StdErrMsgs', sentence), ('StdOutMsgs', sentence + '\n' + sentence),
+                ('StdOutMsgs', sentence + 'PRIVATE-CANARY'), ('StdOutMsgs', sentence.replace(';pressure=0;', ';pressure=31;')),
+                ('StdOutMsgs', sentence + '\n' + self.source_contention_sentence('cleanup', boundary='pressure')),
+                ('StdOutMsgs', self.source_contention_sentence('cleanup', boundary='cleanup_stop')),
+                ('StdOutMsgs', 'X' * 65537 + sentence)]:
+            with self.subTest(category=category, text=text[:60]):
+                self.assertIsNone(parse(case, {'Messages': [{'Category': category, 'Text': text}]}))
+        for field, value in [('boundary', 'PRIVATE-CANARY'), ('runtime', 'private'), ('reconcile', 'private'),
+                ('transactional', 'ready'), ('provider', 'done'), ('auxiliary', 'complete'),
+                ('completion', 'unavailable'), ('pressure', '-1'), ('pressure', '01'),
+                ('pressure', 'out_of_range'), ('executions', '65'), ('retained', '1000000000'),
+                ('renewalRefused', '65'), ('leaseElapsed', 'url=https://private/')]:
+            with self.subTest(field=field, value=value):
+                self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.source_contention_sentence(**{field: value})}]}))
+        self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence, 'private': 'canary'}]}))
+
+    def test_source_contention_failure_export_is_case_bound_and_failure_only(self):
+        case = {**self.case(1), 'name': self.owner.SOURCE_CONTENTION_FAILURE_CASE}
+        for outcome in (1, 2):
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('source-contention-' + str(outcome) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            item = self.execution_result(case, outcome)
+            item['ErrorMessage'] = 'System.OperationCanceledException : PRIVATE-CANARY'
+            item['ErrorStackTrace'] = '/private/path/BackgroundJobPositiveSdkTests.SourceContention.cs:line 123'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.source_contention_sentence()}]
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual(outcome == 2, bool(progress.failure_locations))
+            if outcome == 2:
+                diagnostic = progress.failure_locations[0]
+                self.assertEqual('source_contention', diagnostic['details']['stage'])
+                self.assertEqual('cancellation', diagnostic['exceptionKind'])
+                self.assertEqual([{'source': 'positive_sdk_source_contention', 'line': 123}], diagnostic['locations'])
+            exported = stream.getvalue() + json.dumps(progress.failure_locations)
+            self.assertNotIn('PRIVATE-CANARY', exported)
+            self.assertNotIn('/private/', exported)
+            self.assertNotIn('Source contention failure;', exported)
+
+    def test_bff_browser_details_preserve_only_existing_closed_reasons_and_journey(self):
+        case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        source = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/BffNativeDriver.cs').read_text()
+        stages = source.split('private static readonly string[] ErrorStages = ', 1)[1].split('private readonly Process', 1)[0]
+        initial, suffix = stages.split('.Concat', 1)
+        expected = set(re.findall(r'"([^"]+)"', initial))
+        expected |= {prefix + code for prefix in ('browser-callback-', 'browser-authorize-', 'browser-logout-status-')
+                     for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')}
+        self.assertEqual(expected, self.owner.BFF_BROWSER_FAILURE_STAGES)
+        self.assertIn('privacy', self.owner.BFF_BROWSER_FAILURE_STAGES)
+        for reason in self.owner.BFF_BROWSER_FAILURE_REASONS:
+            message = 'System.InvalidOperationException : BFF native fixture did not reach the closed browser_result/' + reason + ' phase.'
+            self.assertEqual({'stage': 'bff_browser', 'reason': reason}, parse(case, {'ErrorMessage': message}))
+        for message, reason in self.owner.BFF_BROWSER_FIXED_FAILURES.items():
+            self.assertIn(message, source)
+            self.assertEqual(reason, parse(case, {'ErrorMessage': message})['reason'])
+        for journey in ('positive', 'counter'):
+            raw = {'ErrorMessage': 'PRIVATE-CANARY', 'Messages': [{'Category': 'StdOutMsgs', 'Text':
+                'BFF browser failure;journey=' + journey + '.\nBFF browser cleanup;journey=' + journey + ';state=failed.'}]}
+            self.assertEqual({'stage': 'bff_browser', 'journey': journey, 'secondaryCleanup': 'failed', 'reason': 'other'}, parse(case, raw))
+            self.assertIsNone(parse({**case, 'name': case['name'] + '_other'}, raw))
+            self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+
+    def test_bff_browser_details_refuse_private_malformed_duplicate_and_wrong_channel_data(self):
+        case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        message = 'BFF native fixture did not reach the closed browser_result/browser-launch phase.'
+        for invalid in (None, {}, message + 'PRIVATE-CANARY', message + '\n' + message,
+                message.replace('browser-launch', 'private-canary'), 'X' * 65537 + message):
+            self.assertIsNone(parse(case, {'ErrorMessage': invalid}))
+        marker = 'BFF browser failure;journey=positive.'
+        for channel, text in [('StdErrMsgs', marker), ('StdOutMsgs', marker + '\n' + marker),
+                ('StdOutMsgs', marker + 'PRIVATE-CANARY'), ('StdOutMsgs', marker.replace('positive', 'private')),
+                ('StdOutMsgs', 'BFF browser cleanup;journey=positive;state=failed.'),
+                ('StdOutMsgs', marker + '\nBFF browser cleanup;journey=counter;state=failed.'),
+                ('StdOutMsgs', 'X' * 65537 + marker)]:
+            self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [{'Category': channel, 'Text': text}]}))
+        self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': marker, 'private': 'canary'}]}))
+
+    def test_bff_browser_failure_export_is_case_bound_failure_only_and_contains_no_raw_text(self):
+        case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        for reason in ('browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
+                       'browser-devtools-unreadable', 'browser-devtools-missing', 'browser-devtools-empty',
+                       'browser-devtools-malformed', 'browser-not-live', 'browser-connect', 'browser-context'):
+            for suffix in ('', '_cleanup_failed'):
+                raw = {'ErrorMessage': 'BFF native fixture did not reach the closed browser_result/' + reason + suffix + ' phase.'}
+                self.assertEqual(reason + suffix, self.owner.closed_failure_details(case, raw)['reason'])
+                self.assertIsNone(self.owner.closed_failure_details(case,
+                    {'ErrorMessage': raw['ErrorMessage'].replace(reason, reason + '-PRIVATE-CANARY')}))
+        for outcome in (1, 2):
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('bff-browser-' + str(outcome) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            item = self.execution_result(case, outcome)
+            item['ErrorMessage'] = 'System.InvalidOperationException : BFF native fixture did not reach the closed browser_result/browser-launch phase.'
+            item['ErrorStackTrace'] = '/private/PRIVATE-CANARY/BffNativeDriver.cs:line 123'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\nBFF browser failure;journey=positive.'}]
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual(bool(progress.failure_locations), outcome == 2)
+            if outcome == 2:
+                self.assertEqual({'stage': 'bff_browser', 'journey': 'positive', 'reason': 'browser-launch'}, progress.failure_locations[0]['details'])
+                self.assertEqual([{'source': 'bff_native_driver', 'line': 123}], progress.failure_locations[0]['locations'])
+            exported = stream.getvalue() + json.dumps(progress.failure_locations)
+            for private in ('PRIVATE-CANARY', '/private/', 'BFF native fixture', 'BFF browser failure;'):
+                self.assertNotIn(private, exported)
+
+    @staticmethod
+    def causal_restart_sentence(kind='failure', **changes):
+        values = dict(boundary='assert_facts', runtime='running', executions='0', renewalRefused='1', leaseElapsed='0',
+                      row='observed', normal='1', finalize='2', ledger='3', release='1', audits='1', incomplete='no',
+                      outcome='cancelled', policy='transient_not_repeatable', reason='external_retry_forbidden',
+                      nulls='0', calls='0', forced='0')
+        values.update(changes)
+        return 'Causal restart ' + kind + ';' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    @staticmethod
+    def native_recovery_sentence(record_kind='failure', **changes):
+        values = dict(boundary='renewal_wait', kind='timeout', actual='pending', timerChanges='0',
+                      baselineChanges='1', renewals='0', renewalLosses='0', elapsedLosses='0',
+                      runClosed='false', tokenCancelled='false', dropped='1', clean='false')
+        values.update(changes)
+        return 'Native recovery ' + record_kind + ';' + ';'.join(
+            key + '=' + value for key, value in values.items()) + '.'
+
+    def test_causal_restart_details_preserve_real_row_counts_and_first_boundary_separately_from_cleanup(self):
+        parse = self.owner.closed_failure_details
+        for name in self.owner.CAUSAL_RESTART_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n'
+                + self.causal_restart_sentence() + '\n' + self.causal_restart_sentence('cleanup',
+                    boundary='restart_cleanup_complete', runtime='stopped')}]}
+            result = parse(case, raw)
+            self.assertEqual('causal_restart', result['stage'])
+            self.assertEqual(2, result['failure']['finalize'])
+            self.assertEqual(3, result['failure']['ledger'])
+            self.assertEqual('assert_facts', result['failure']['boundary'])
+            self.assertEqual('restart_cleanup_complete', result['cleanup']['boundary'])
+            timers = parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': self.causal_restart_sentence(boundary='original_cleanup_timers')}]})
+            self.assertEqual('original_cleanup_timers', timers['failure']['boundary'])
+            absent_probe = parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': self.causal_restart_sentence(boundary='provider_accept', calls='unavailable', forced='0')}]})
+            self.assertEqual('unavailable', absent_probe['failure']['calls'])
+            self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': self.causal_restart_sentence(boundary='restart_cleanup_timers')}]}))
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
+            self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+            self.assertIsNone(parse({**case, 'name': name + '_other'}, raw))
+            for boundary in self.owner.CAUSAL_RESTART_BOUNDARIES:
+                self.assertEqual(boundary, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.causal_restart_sentence(boundary=boundary)}]})['failure']['boundary'])
+            forced = parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': self.causal_restart_sentence(calls='2', forced='1')}]})
+            self.assertEqual(bool(forced), name.endswith('(independentFailure: False, lieOnlyOnReconcile: False)'))
+        case = {**self.case(1), 'name': sorted(self.owner.CAUSAL_RESTART_FAILURE_CASES)[0]}
+        unavailable = parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text':
+            'Causal restart failure;boundary=read_facts;snapshot=unavailable.'}]})
+        self.assertEqual({'boundary': 'read_facts', 'snapshot': 'unavailable'}, unavailable['failure'])
+        missing = dict(row='unobserved', **{name:'unavailable' for name in
+            ('normal', 'finalize', 'ledger', 'release', 'audits', 'incomplete', 'outcome', 'policy', 'reason', 'nulls')})
+        self.assertEqual('unobserved', parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+            'Text': self.causal_restart_sentence(**missing)}]})['failure']['row'])
+        self.assertEqual(511, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+            'Text': self.causal_restart_sentence(nulls='511')} ]})['failure']['nulls'])
+        expected_method = ('LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+            'Actual_native_recovery_owner_renews_past_old_deadlines_without_admission_or_another_Execute')
+        self.assertEqual({expected_method + '(loseAcquisitionAck: False)',
+                          expected_method + '(loseAcquisitionAck: True)'}, self.owner.NATIVE_RECOVERY_FAILURE_CASES)
+        self.assertEqual({'rooted', 'construction', 'identity', 'renewal_wait', 'database_renewal',
+            'old_lease', 'provider_before', 'reconcile', 'row_facts', 'cleanup_actual', 'cleanup_work',
+            'cleanup_control', 'post_cleanup'}, self.owner.NATIVE_RECOVERY_BOUNDARIES)
+        self.assertEqual('Native recovery failure;boundary=renewal_wait;kind=timeout;actual=pending;'
+            'timerChanges=0;baselineChanges=1;renewals=0;renewalLosses=0;elapsedLosses=0;runClosed=false;'
+            'tokenCancelled=false;dropped=1;clean=false.', self.native_recovery_sentence())
+        for name in self.owner.NATIVE_RECOVERY_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n'
+                + self.native_recovery_sentence() + '\n'
+                + self.native_recovery_sentence('cleanup', boundary='post_cleanup', actual='succeeded',
+                    timerChanges='10000', baselineChanges='unavailable', renewals='out_of_range',
+                    runClosed='true', tokenCancelled='true', clean='true')}]}
+            result = parse(case, raw)
+            self.assertEqual('native_recovery', result['stage'])
+            self.assertEqual({'boundary': 'renewal_wait', 'kind': 'timeout', 'actual': 'pending',
+                'timerChanges': 0, 'baselineChanges': 1, 'renewals': 0, 'renewalLosses': 0,
+                'elapsedLosses': 0, 'runClosed': False, 'tokenCancelled': False,
+                'dropped': 1, 'clean': False}, result['failure'])
+            self.assertEqual(10000, result['cleanup']['timerChanges'])
+            self.assertEqual('unavailable', result['cleanup']['baselineChanges'])
+            self.assertEqual('out_of_range', result['cleanup']['renewals'])
+            self.assertIs(result['cleanup']['clean'], True)
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
+            self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+            self.assertIsNone(parse({**case, 'name': name + '_other'}, raw))
+            for field, allowed in {'boundary': self.owner.NATIVE_RECOVERY_BOUNDARIES,
+                    'kind': ('timeout', 'cancellation', 'assertion', 'invalid_state', 'other'),
+                    'actual': ('not_issued', 'pending', 'succeeded', 'faulted', 'canceled')}.items():
+                for value in allowed:
+                    self.assertEqual(value, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                        'Text': self.native_recovery_sentence(**{field: value})}]})['failure'][field])
+
+    def test_causal_restart_details_reject_private_ambiguous_wrong_channel_and_out_of_bound_values(self):
+        case = {**self.case(1), 'name': sorted(self.owner.CAUSAL_RESTART_FAILURE_CASES)[0]}
+        parse = self.owner.closed_failure_details
+        sentence = self.causal_restart_sentence()
+        for category, text in [('StdErrMsgs', sentence), ('StdOutMsgs', sentence + '\n' + sentence),
+                ('StdOutMsgs', sentence + 'PRIVATE-CANARY'), ('StdOutMsgs', 'X' * 65537 + sentence),
+                ('StdOutMsgs', self.causal_restart_sentence('cleanup', boundary='restart_cleanup_complete')),
+                ('StdOutMsgs', sentence + '\n' + self.causal_restart_sentence('cleanup', boundary='assert_facts'))]:
+            self.assertIsNone(parse(case, {'Messages': [{'Category': category, 'Text': text}]}))
+        for name, value in [('boundary', 'private'), ('runtime', 'ready'), ('row', 'missing'),
+                ('row', 'unobserved'), ('normal', '7'), ('finalize', '7'), ('finalize', '01'), ('ledger', '13'),
+                ('release', '65'), ('audits', '65'), ('incomplete', 'true'), ('outcome', 'PRIVATE-CANARY'),
+                ('policy', 'https://private/'), ('reason', 'credentials'), ('nulls', '512'),
+                ('calls', '7'), ('forced', '2'), ('forced', 'unavailable'), ('executions', '65'),
+                ('normal', 'unavailable'), ('renewalRefused', '-1')]:
+            with self.subTest(name=name,value=value):
+                self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.causal_restart_sentence(**{name:value})}]}))
+        case = {**self.case(1), 'name': sorted(self.owner.NATIVE_RECOVERY_FAILURE_CASES)[0]}
+        sentence = self.native_recovery_sentence()
+        cleanup = self.native_recovery_sentence('cleanup', boundary='cleanup_actual')
+        for category, text in [('StdErrMsgs', sentence), ('StdOutMsgs', sentence + '\n' + sentence),
+                ('StdOutMsgs', sentence + '\n' + cleanup + '\n' + cleanup),
+                ('StdOutMsgs', sentence + 'PRIVATE-CANARY'), ('StdOutMsgs', 'X' * 65537 + sentence),
+                ('StdOutMsgs', cleanup), ('StdOutMsgs', sentence.replace(';kind=timeout', '')),
+                ('StdOutMsgs', sentence.replace(';actual=pending', ';actual=pending;private=canary'))]:
+            self.assertIsNone(parse(case, {'Messages': [{'Category': category, 'Text': text}]}))
+        changes = [('boundary', 'private'), ('kind', 'System.TimeoutException'), ('kind', 'https://private/'),
+                   ('actual', 'complete'), ('runClosed', 'True'), ('tokenCancelled', 'unavailable'),
+                   ('clean', '1')]
+        changes += [(name, value) for name in ('timerChanges', 'baselineChanges', 'renewals',
+                    'renewalLosses', 'elapsedLosses', 'dropped')
+                    for value in ('10001', '-1', '01', '1.0', 'PRIVATE-CANARY')]
+        for name, value in changes:
+            with self.subTest(native_recovery=name, value=value):
+                self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.native_recovery_sentence(**{name: value})}]}))
+        for messages in ([], [{'Category': 'StdOutMsgs', 'Text': sentence}] * 33,
+                [{'Category': 'StdOutMsgs', 'Text': sentence, 'private': 'canary'}],
+                [{'Category': 'x' * 33, 'Text': sentence}]):
+            self.assertIsNone(parse(case, {'Messages': messages}))
+
+    def test_causal_restart_failure_export_is_exact_case_bound_failure_only_and_drops_raw_messages(self):
+        case = {**self.case(1), 'name': sorted(self.owner.CAUSAL_RESTART_FAILURE_CASES)[0]}
+        for outcome in (1, 2):
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('causal-restart-' + str(outcome) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            item = self.execution_result(case, outcome)
+            item['ErrorMessage'] = 'PRIVATE-CANARY'
+            item['ErrorStackTrace'] = '/private/path/BackgroundJobPositiveSdkTests.CausalRestartObservations.cs:line 123'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.causal_restart_sentence()}]
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual(outcome == 2, bool(progress.failure_locations))
+            if outcome == 2:
+                diagnostic = progress.failure_locations[0]
+                self.assertEqual('causal_restart', diagnostic['details']['stage'])
+                self.assertEqual([{'source': 'positive_sdk_causal_observation', 'line': 123}], diagnostic['locations'])
+            exported = stream.getvalue() + json.dumps(progress.failure_locations)
+            for private in ('PRIVATE-CANARY', '/private/', 'Causal restart failure;'):
+                self.assertNotIn(private, exported)
+        for name in self.owner.NATIVE_RECOVERY_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            for outcome in (1, 2):
+                stream = io.StringIO()
+                progress = self.progress(self.root / ('native-recovery-' + str(outcome) + '-'
+                    + str(name.endswith('True)')) + '.diag'), 'LearnStack.Tests.Integration', [case], stream)
+                item = self.execution_result(case, outcome)
+                item['ErrorMessage'] = 'System.TimeoutException : PRIVATE-CANARY'
+                item['ErrorStackTrace'] = '/private/path/BackgroundJobPositiveSdkTests.NativeRecovery.cs:line 123'
+                item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.native_recovery_sentence()}]
+                with contextlib.redirect_stdout(io.StringIO()):
+                    progress.results({'NewTestResults': [item]})
+                self.assertEqual(outcome == 2, bool(progress.failure_locations))
+                if outcome == 2:
+                    diagnostic = progress.failure_locations[0]
+                    self.assertEqual('native_recovery', diagnostic['details']['stage'])
+                    self.assertEqual('timeout', diagnostic['exceptionKind'])
+                    self.assertEqual([{'source': 'positive_sdk_native_recovery', 'line': 123}], diagnostic['locations'])
+                exported = stream.getvalue() + json.dumps(progress.failure_locations)
+                for private in ('PRIVATE-CANARY', '/private/', 'Native recovery failure;'):
+                    self.assertNotIn(private, exported)
+        for foreign in ({'assembly': 'other'}, {'name': sorted(self.owner.NATIVE_RECOVERY_FAILURE_CASES)[0] + '_other'}):
+            case = {**self.case(1), 'name': sorted(self.owner.NATIVE_RECOVERY_FAILURE_CASES)[0], **foreign}
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('native-foreign-' + next(iter(foreign)) + '.diag'),
+                                     case['assembly'], [case], stream)
+            item = self.execution_result(case, 2)
+            item['TestCase']['Source'] = '/private/' + case['assembly'] + '.dll'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.native_recovery_sentence()}]
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertNotIn('details', progress.failure_locations[0])
+
+    @staticmethod
     def native_wait_sentence(kind='failure', **changes):
         values = dict(boundary='constructor', constructor='pending', invocation='not_issued',
                       wrapper='not_issued', actual='not_issued', runtime='running', completion='pending',
@@ -862,7 +1414,7 @@ except launcher.Refusal as failure:
             self.assertIsNone(parse({**case, 'assembly': 'unregistered'}, raw))
             self.assertIsNone(parse({**case, 'name': 'other'}, raw))
             for boundary in ('start', 'handoff', 'capture', 'cancel', 'return', 'wrapper', 'held',
-                             'cleanup_request', 'cleanup_stop', 'cleanup_completion'):
+                             'cleanup_request', 'cleanup_stop', 'cleanup_completion', 'cleanup_timers'):
                 self.assertEqual(boundary, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
                     'Text': self.native_wait_sentence(boundary=boundary)}]})['failure']['boundary'])
 
@@ -875,6 +1427,52 @@ except launcher.Refusal as failure:
         result = parse(case, raw)
         self.assertEqual({'boundary': 'cleanup_stop', 'snapshot': 'unavailable'}, result['failure'])
         self.assertEqual(result['failure'], result['cleanup'])
+
+    @staticmethod
+    def native_handoff_sentence(**changes):
+        values = dict(native='succeeded', eligible='no', running='0', retained='0', closed='no',
+                      route='allowed', phase='executing', owner='execution', lease='live', attempts='1', hint='not_attempted')
+        values.update(changes)
+        return 'Native handoff;' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    def test_native_wait_retains_only_closed_last_observed_handoff_guards(self):
+        for name in self.owner.NATIVE_WAIT_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n'
+                + self.native_wait_sentence(boundary='handoff') + '\n' + self.native_handoff_sentence()}]}
+            result = self.owner.closed_failure_details(case, raw)
+            self.assertEqual('handoff', result['failure']['boundary'])
+            self.assertEqual({'native': 'succeeded', 'eligible': 'no', 'running': 0, 'retained': 0,
+                'closed': 'no', 'route': 'allowed', 'phase': 'executing', 'owner': 'execution',
+                'lease': 'live', 'attempts': 1, 'hint': 'not_attempted'}, result['handoff'])
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
+            self.assertIsNone(self.owner.closed_failure_details({**case, 'name': 'other'}, raw))
+            for phase in ('pending', 'preparing', 'prepared', 'executing', 'reconciling', 'finalize_pending',
+                          'finalizing', 'terminal_pending', 'completed', 'quarantined'):
+                qualified = {'Messages': [{'Category': 'StdOutMsgs', 'Text': self.native_wait_sentence(boundary='handoff')
+                    + '\n' + self.native_handoff_sentence(phase=phase, owner='routing')}]}
+                self.assertEqual(phase, self.owner.closed_failure_details(case, qualified)['handoff']['phase'])
+                self.assertEqual('routing', self.owner.closed_failure_details(case, qualified)['handoff']['owner'])
+            for hint in ('not_attempted', 'attempted', 'acknowledged'):
+                raw['Messages'][0]['Text'] = self.native_wait_sentence(boundary='handoff') + '\n' + self.native_handoff_sentence(hint=hint)
+                self.assertEqual(hint, self.owner.closed_failure_details(case, raw)['handoff']['hint'])
+
+    def test_native_wait_refuses_private_unbounded_or_ambiguous_handoff_guards(self):
+        case = {**self.case(1), 'name': sorted(self.owner.NATIVE_WAIT_FAILURE_CASES)[0]}
+        prefix = self.native_wait_sentence(boundary='handoff') + '\n'
+        sentence = self.native_handoff_sentence()
+        for value in (sentence + '\n' + sentence, sentence.replace(';route=', ';unlisted='),
+                      sentence + 'PRIVATE-CANARY'):
+            self.assertIsNone(self.owner.closed_failure_details(case,
+                {'Messages': [{'Category': 'StdOutMsgs', 'Text': prefix + value}]}))
+        for field, value in (('native', 'PRIVATE-CANARY'), ('eligible', 'true'), ('running', '65'),
+                             ('retained', '-1'), ('running', '01'), ('closed', '0'), ('route', 'yes'),
+                             ('phase', 'private_path'), ('owner', 'subject_id'), ('lease', 'unknown'),
+                             ('attempts', '7'), ('hint', 'true')):
+            self.assertIsNone(self.owner.closed_failure_details(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': prefix + self.native_handoff_sentence(**{field: value})}]}))
+        self.assertIsNone(self.owner.closed_failure_details(case, {'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': prefix}, {'Category': 'StdErrMsgs', 'Text': sentence}]}))
 
     def test_native_wait_details_refuse_ambiguous_private_or_inconsistent_observations(self):
         case = {**self.case(1), 'name': sorted(self.owner.NATIVE_WAIT_FAILURE_CASES)[0]}
@@ -899,13 +1497,15 @@ except launcher.Refusal as failure:
         item = self.execution_result(case); item['Outcome'] = 2
         item['ErrorMessage'] = 'System.OperationCanceledException : PRIVATE-CANARY'
         item['ErrorStackTrace'] = '/private/path/BackgroundJobPositiveSdkTests.NativeWait.cs:line 98'
-        item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.native_wait_sentence(boundary='cleanup_stop')}]
+        item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.native_wait_sentence(boundary='cleanup_stop')
+            + '\n' + self.native_handoff_sentence()}]
         with contextlib.redirect_stdout(io.StringIO()):
             progress.results({'NewTestResults': [item]})
         result = progress.failure_locations[0]
         self.assertEqual([{'source': 'positive_sdk_native_wait', 'line': 98}], result['locations'])
         self.assertEqual('cleanup_stop', result['details']['failure']['boundary'])
         self.assertEqual('cancellation', result['exceptionKind'])
+        self.assertEqual('no', result['details']['handoff']['eligible'])
         self.assertEqual('Failed', json.loads(stream.getvalue())['outcome'])
         for text in ('PRIVATE-CANARY', '/private/', 'Native wait failure;'):
             self.assertNotIn(text, json.dumps(result))
@@ -1284,6 +1884,162 @@ except launcher.Refusal as failure:
         with contextlib.redirect_stdout(io.StringIO()):
             self.refuses('execution_incomplete', incomplete.line,
                          self.execution_complete(cases[:1], tail=cases[:1]).encode())
+
+    def test_complete_passed_population_does_not_override_execution_abort_cancel_or_error(self):
+        cases = self.population()['ordinary']
+        for field, value in (('IsCanceled', True), ('IsAborted', True), ('Error', {'Message': 'PRIVATE-CANARY'})):
+            with self.subTest(field=field):
+                progress = self.progress(self.root / (field + '.diag'),
+                                         'LearnStack.Tests.Integration', cases, io.StringIO())
+                message = json.loads(self.execution_complete(cases, tail=cases).split(
+                    self.owner.ExecutionProgress.marker.decode(), 1)[1])
+                message['Payload']['TestRunCompleteArgs'][field] = value
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.refuses('execution_incomplete', progress.line,
+                                 (self.owner.ExecutionProgress.marker.decode() + json.dumps(message)).encode())
+                self.assertEqual(progress.expected, progress.seen)
+                self.assertFalse(progress.completed)
+
+    def test_successful_causal_observations_retain_only_exact_case_bound_closed_counts(self):
+        counts = ('Causal restart counts;reconciles=1;finalize=1;ledger=2;forced=no;'
+                  'leaseElapsed=0;renewalRefused=0.')
+        forced = counts.replace('finalize=1;ledger=2;forced=no', 'finalize=2;ledger=3;forced=yes')
+        for index, name in enumerate(sorted(self.owner.CAUSAL_RESTART_FAILURE_CASES)):
+            case = {**self.case(index + 1), 'name': name}
+            forced_case = name.endswith('(independentFailure: False, lieOnlyOnReconcile: False)')
+            text = counts + ('\n' + forced if forced_case else '')
+            raw = self.execution_result(case)
+            raw['Messages'] = [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + text}]
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('success-counts-' + str(index) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [raw]})
+            self.assertEqual([], progress.failure_locations)
+            self.assertEqual(1, len(progress.success_observations))
+            observed = progress.success_observations[0]
+            self.assertEqual(case['id'], observed['id'])
+            self.assertEqual('causal_restart_counts', observed['details']['stage'])
+            self.assertEqual([False, True] if forced_case else [False],
+                             [run['forced'] for run in observed['details']['runs']])
+            exported = stream.getvalue() + json.dumps(progress.success_observations)
+            for private in ('PRIVATE-CANARY', 'Causal restart counts;', 'ErrorMessage', 'Messages'):
+                self.assertNotIn(private, exported)
+            self.assertEqual({'assembly', 'id', 'name', 'outcome', 'duration'}, set(json.loads(stream.getvalue())))
+            for category, dirty in (
+                    ('StdErrMsgs', text), ('StdOutMsgs', text + '\n' + counts),
+                    ('StdOutMsgs', text + 'PRIVATE-CANARY'), ('StdOutMsgs', text.replace('ledger=2', 'ledger=13')),
+                    ('StdOutMsgs', text.replace('reconciles=1', 'reconciles=01')),
+                    ('StdOutMsgs', text.replace('renewalRefused=0', 'renewalRefused=10001'))):
+                self.assertIsNone(self.owner.closed_causal_restart_counts(case,
+                    {'Messages': [{'Category': category, 'Text': dirty}]}))
+            self.assertIsNone(self.owner.closed_causal_restart_counts({**case, 'assembly': 'foreign'}, raw))
+
+    def test_recurrence_runtime_failure_keeps_only_exact_case_bound_closed_observations(self):
+        prefix = ('LearnStack.Tests.Integration.Database.BackgroundJobRecurrenceStoreTests.'
+                  'Actual_runtime_fans_out_to_both_scopes_and_duplicate_native_ticks_create_no_extra_children')
+        cases = {prefix + '(organization: True)', prefix + '(organization: False)'}
+        self.assertEqual(cases, self.owner.RECURRENCE_RUNTIME_FAILURE_CASES)
+        sentence = ('Recurrence runtime failure;boundary=children;runtime=Running;completed=1;'
+                    'executed=1;occurrences=1;recipients=2;fanouts=1;applications=0;retainedApplications=0;'
+                    'bridgeOutstanding=0;bridgeRetained=0;bridgeFailed=0;executions=0;renewalRefused=0;leaseElapsed=0.')
+        for name in cases:
+            case = {**self.case(1), 'name': name}
+            raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + sentence}]}
+            actual = self.owner.closed_failure_details(case, raw)
+            self.assertEqual('recurrence_runtime', actual['stage'])
+            self.assertEqual('children', actual['boundary'])
+            self.assertEqual(1, actual['completed'])
+            self.assertEqual(2, actual['recipients'])
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(actual))
+            result = self.execution_result(case)
+            result['Outcome'] = 2
+            result['Messages'] = raw['Messages']
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('recurrence-' + str(len(name)) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [result]})
+            self.assertEqual(actual, progress.failure_locations[0]['details'])
+            self.assertEqual({'Failed': 1}, dict(progress.outcomes))
+            self.assertEqual([], progress.success_observations)
+            self.assertNotIn('PRIVATE-CANARY', stream.getvalue() + json.dumps(progress.failure_locations))
+            progress.close()
+            for old, new in (('children', 'private'), ('Running', 'Unknown'), ('completed=1', 'completed=01'),
+                             ('executed=1', 'executed=-1'), ('recipients=2', 'recipients=10001')):
+                self.assertIsNone(self.owner.closed_failure_details(case,
+                    {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence.replace(old, new)}]}))
+            for category, dirty in (('StdErrMsgs', sentence), ('StdOutMsgs', sentence + '\n' + sentence),
+                                    ('StdOutMsgs', sentence + 'PRIVATE-CANARY')):
+                self.assertIsNone(self.owner.closed_failure_details(case,
+                    {'Messages': [{'Category': category, 'Text': dirty}]}))
+            self.assertIsNone(self.owner.closed_failure_details({**case, 'assembly': 'foreign'}, raw))
+            self.assertIsNone(self.owner.closed_failure_details({**case, 'name': name + '-foreign'}, raw))
+            unavailable = self.owner.closed_failure_details(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': sentence.replace('completed=1', 'completed=unavailable')}]})
+            self.assertIsNone(unavailable['completed'])
+
+    def test_native_handoff_first_failure_retains_only_closed_task_boundary_and_lease_facts(self):
+        case = {**self.case(1), 'name': self.owner.NATIVE_HANDOFF_FAILURE_CASE}
+        sentence = ('Native handoff failure;boundary=cleanup_enter;kind=cancellation;pulse=pending;'
+                    'helper=not_issued;pacing=pending;cleanup=pending;joined=pending;constructor=pending;'
+                    'executions=1;renewalRefused=0;leaseElapsed=0.')
+        raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + sentence}]}
+        actual = self.owner.closed_failure_details(case, raw)
+        self.assertEqual('native_handoff', actual['stage'])
+        self.assertEqual('cleanup_enter', actual['boundary'])
+        self.assertEqual(1, actual['executions'])
+        self.assertNotIn('PRIVATE-CANARY', json.dumps(actual))
+        for old, new in (('cleanup_enter', 'private'), ('kind=cancellation', 'kind=private'),
+                         ('helper=not_issued', 'helper=complete'), ('executions=1', 'executions=10001'),
+                         ('renewalRefused=0', 'renewalRefused=01')):
+            self.assertIsNone(self.owner.closed_failure_details(case,
+                {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence.replace(old, new)}]}))
+        for category, dirty in (('StdErrMsgs', sentence), ('StdOutMsgs', sentence + '\n' + sentence),
+                                ('StdOutMsgs', sentence + 'PRIVATE-CANARY')):
+            self.assertIsNone(self.owner.closed_failure_details(case, {'Messages': [{'Category': category, 'Text': dirty}]}))
+        self.assertIsNone(self.owner.closed_failure_details({**case, 'assembly': 'foreign'}, raw))
+
+    def test_nonzero_test_exit_refuses_even_with_all_passed_complete_protocol_and_trx(self):
+        manifest = self.selector_fixture().manifest()
+        private, output, expected = self.run_workload(manifest, 0, 'zero-exit')
+        self.assertEqual(len(expected), self.owner.validate_results(output, expected))
+        self.assertTrue(self.owner.read_json(private / 'workload.json')['success'])
+        self.refuses('tests_failed', self.run_workload, manifest, 7, 'nonzero-exit')
+        refused_output = self.root / 'output-nonzero-exit'
+        self.assertEqual(len(expected), self.owner.validate_results(refused_output, expected))
+        self.assertFalse((self.root / 'private-nonzero-exit/workload.json').exists())
+
+    def test_workload_rejects_assignments_that_only_renumber_bins(self):
+        self.refuses('assignment_not_distinct', self.run_workload,
+                     self.selector_fixture().renumber_only_manifest(), 0, 'renumber-only')
+
+    def test_missing_or_invalid_execution_and_trx_durations_are_not_completion_evidence(self):
+        case = self.case(1)
+        stream = io.StringIO()
+        clean = self.progress(self.root / 'duration-clean.diag', 'LearnStack.Tests.Integration', [case], stream)
+        with contextlib.redirect_stdout(io.StringIO()):
+            clean.results({'NewTestResults': [self.execution_result(case)]})
+        self.assertEqual('00:00:00.0010000', json.loads(stream.getvalue())['duration'])
+        for index, duration in enumerate((None, '', '-00:00:01', 'PRIVATE-CANARY', 1)):
+            result = self.execution_result(case)
+            if duration is None:
+                result.pop('Duration')
+            else:
+                result['Duration'] = duration
+            progress = self.progress(self.root / f'duration-{index}.diag',
+                                     'LearnStack.Tests.Integration', [case], io.StringIO())
+            self.refuses('execution_duration_invalid', progress.results, {'NewTestResults': [result]})
+            path = self.trx(self.root / f'trx-duration-{index}', [case], raw_canary=True)
+            root = ET.parse(path)
+            row = root.find('t:Results/t:UnitTestResult', self.owner.NS)
+            if duration is None:
+                row.attrib.pop('duration')
+            else:
+                row.set('duration', str(duration))
+            root.write(path, encoding='utf-8')
+            self.refuses('trx_duration_invalid', self.owner.trx_cases, path, sanitize=True)
+            self.assertIn(b'PRIVATE-CANARY', path.read_bytes())
 
     def test_rotated_execution_preserves_old_tail_partial_line_and_exact_case_ids(self):
         cases = self.population()['ordinary']

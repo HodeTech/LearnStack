@@ -49,6 +49,8 @@ public sealed partial class TenantRealmExportTests
 
     private static readonly string[] ReservedClaims =
         ["iss", "sub", "aud", "azp", "typ", "scope", "iat", "exp", "nbf"];
+    private static readonly string[] RequiredDevelopmentEvents =
+        ["LOGIN", "LOGIN_ERROR", "LOGOUT", "LOGOUT_ERROR", "CODE_TO_TOKEN", "CODE_TO_TOKEN_ERROR", "REFRESH_TOKEN", "REFRESH_TOKEN_ERROR"];
     private static readonly string[] StockAccountRoles =
         ["view-profile", "manage-account", "manage-account-links", "view-applications", "view-consent", "manage-consent", "delete-account", "view-groups"];
     private static readonly string[] StockDefaultAccountRoles = ["view-profile", "manage-account"];
@@ -88,6 +90,10 @@ public sealed partial class TenantRealmExportTests
         var original = ReadRealm();
         var mutations = new List<(string Name, Action<JsonObject> Apply)>
         {
+            ("disabled event storage", realm => realm["eventsEnabled"] = false),
+            ("short event retention", realm => realm["eventsExpiration"] = 60),
+            ("indefinite event retention", realm => realm["eventsExpiration"] = 0),
+            ("missing refresh error storage", realm => realm["enabledEventTypes"] = new JsonArray("LOGIN", "LOGOUT")),
             ("wrong realm TTL", realm => realm["accessTokenLifespan"] = 1800),
             ("unmanaged profile enabled", realm => SetProfilePolicy(realm, "ENABLED")),
             ("malformed profile configuration", realm => ProfileValue(realm)[0] = "{"),
@@ -188,6 +194,14 @@ public sealed partial class TenantRealmExportTests
         {
             Require(Text(realm["realm"]) == "learnstack", "tenant realm");
             Require(realm["accessTokenLifespan"]?.GetValue<int>() == 900, "realm lifespan");
+            Require(realm["eventsEnabled"]?.GetValue<bool>() == true, "development user-event storage");
+            Require(realm["eventsExpiration"]?.GetValue<int>() == 604800, "seven-day development retention");
+            var eventTypes = Strings(realm["enabledEventTypes"]);
+            Require(RequiredDevelopmentEvents.All(value => eventTypes.Contains(value, StringComparer.Ordinal)),
+                "explicit required authentication events including default-unsaved refresh");
+            Require(eventTypes.Distinct(StringComparer.Ordinal).Count() == eventTypes.Length, "unique saved event types");
+            Require(DefaultSavedEvents.All(value => eventTypes.Contains(value, StringComparer.Ordinal)),
+                "complete pinned default-saved event selection");
             ValidateAccountDeclaration(realm, Require);
             var scopeNames = Scopes(realm).Select(scope => Text(scope?["name"])).ToArray();
             Require(scopeNames.Distinct(StringComparer.Ordinal).Count() == scopeNames.Length, "unique scope names");
@@ -433,15 +447,18 @@ public sealed partial class TenantRealmExportTests
         ProfileValue(realm)[0] = profile.ToJsonString();
     }
 
-    private static JsonObject ReadRealm()
+    private static JsonObject ReadRealm() => JsonNode.Parse(File.ReadAllText(RepositoryFile(
+        Path.Combine("infra", "keycloak", "realms", "learnstack.json"))))!.AsObject();
+
+    private static string RepositoryFile(string relative)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            var path = Path.Combine(directory.FullName, "infra", "keycloak", "realms", "learnstack.json");
-            if (File.Exists(path)) return JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+            var path = Path.Combine(directory.FullName, relative);
+            if (File.Exists(path)) return path;
             directory = directory.Parent;
         }
-        throw new InvalidOperationException("Repository realm export is missing.");
+        throw new InvalidOperationException("Repository proof input is missing.");
     }
 }

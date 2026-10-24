@@ -4,6 +4,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
 import { resolve } from 'node:path';
 
+import { AUTH_INPUT_LIMIT, bffPostTarget } from './auth/http-paths.js';
+
 export const INGRESS_HEADER = 'x-learnstack-ingress-provenance';
 export const PUBLIC_HTTPS_PORT = 3000;
 export const MAX_TARGET_BYTES = 8192;
@@ -173,7 +175,7 @@ export function verifyProvenance(
 }
 
 /**
- * Next 15.5.27 normalizes `.rsc` on the full URL before parsing, then deletes
+ * Next 15.5.28 normalizes `.rsc` on the full URL before parsing, then deletes
  * `_rsc`, serializing URLSearchParams even when absent. Retain the signed raw
  * target for route identity and inert query data; this grants no suffix aliases.
  */
@@ -198,7 +200,11 @@ function privateInboundHeader(name: string): boolean {
 }
 
 /** Called before Next, including upgrades. Never signs a forwarded peer. */
-export function admitIncomingRequest(request: IncomingMessage, secret: string): boolean {
+export function admitIncomingRequest(
+  request: IncomingMessage,
+  secret: string,
+  bffEnabled = false,
+): boolean {
   const hosts: string[] = [];
   for (let i = 0; i < request.rawHeaders.length; i += 2) {
     if (request.rawHeaders[i]?.toLowerCase() === 'host')
@@ -208,8 +214,25 @@ export function admitIncomingRequest(request: IncomingMessage, secret: string): 
   const peer = canonicalAddress(request.socket.remoteAddress ?? '');
   const method = request.method ?? '';
   const target = request.url ?? '';
-  if (!host || !peer || (method !== 'GET' && method !== 'HEAD') || !validTarget(target))
+  if (
+    !host ||
+    !peer ||
+    (method !== 'GET' && method !== 'HEAD' && !(bffEnabled && bffPostTarget(method, target))) ||
+    !validTarget(target)
+  )
     return false;
+  if (bffPostTarget(method, target)) {
+    // Next may clone/buffer a middleware body before its route parser runs. Only
+    // known-length bounded forms reach it; chunked/ambiguous bodies stay outside.
+    const length = request.headers['content-length'];
+    if (
+      request.headers['transfer-encoding'] !== undefined ||
+      typeof length !== 'string' ||
+      !/^[0-9]+$/.test(length) ||
+      Number(length) > AUTH_INPUT_LIMIT
+    )
+      return false;
+  }
   for (const name of Object.keys(request.headers)) {
     if (privateInboundHeader(name)) delete request.headers[name];
   }

@@ -110,6 +110,7 @@ async function ownedEntryFixture(t, scenario) {
     await mkdir(join(root, directory), { recursive: true });
   for (const name of ['compose', 'demo-process', 'demo-database', 'reconcile-development-realm',
     'development-realm-owner', 'development-realm-errors', 'development-realm-core', 'development-realm-plan',
+    'development-realm-events',
     'development-realm-account', 'development-realm-mappers', 'development-realm-groups', 'development-realm-test-fixture',
     'development-realm-stock-console', 'development-realm-stock-console-test-fixture'])
     await copyFile(new URL(`./${name}.mjs`, import.meta.url), join(root, `scripts/${name}.mjs`));

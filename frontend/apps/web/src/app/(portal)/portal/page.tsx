@@ -1,12 +1,6 @@
-export const metadata = { robots: { index: false, follow: false } };
+import { AccountShell, accountShellMetadata } from '@/components/auth/shell';
 
+export const generateMetadata = () => accountShellMetadata('portal');
 export default function PortalHomePage() {
-  return (
-    <section className="mx-auto max-w-5xl px-6 py-12">
-      <h1 className="text-3xl font-semibold">Portal</h1>
-      <p className="mt-2 text-ls-muted">
-        Learner and instructor portal shell. Real screens land in Phase 07.
-      </p>
-    </section>
-  );
+  return <AccountShell kind="portal" />;
 }

@@ -26,6 +26,72 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
         _client = KeycloakHttp.Create(baseAddress, rootCertificate, new CookieContainer());
     }
 
+    // Completes the RP-owned authorization URL without replacing its state,
+    // nonce, challenge or verifier, and never redeems its code in this helper.
+    internal async Task<Uri> CompleteBffLoginAsync(Uri authorization, string username, string password)
+    {
+        if (!SameOrigin(authorization, _baseAddress)
+            || authorization.AbsolutePath != "/realms/learnstack/protocol/openid-connect/auth")
+            throw new InvalidOperationException("BFF fixture authorization is outside the owned provider.");
+        var query = QueryHelpers.ParseQuery(authorization.Query);
+        var callbackText = query.GetValueOrDefault("redirect_uri").ToString();
+        if (!Uri.TryCreate(callbackText, UriKind.Absolute, out var callback)
+            || callback.Scheme != "https" || callback.Port != 3000
+            || !LearnStack.Tools.Seeder.SeedData.All.Any(tenant => tenant.Host == callback.Host)
+            || callback.AbsolutePath != "/api/auth/callback/keycloak" || callback.Query.Length != 0
+            || callback.Fragment.Length != 0 || callback.UserInfo.Length != 0
+            || query.GetValueOrDefault("client_id") != "learnstack-web"
+            || query.GetValueOrDefault("code_challenge_method") != "S256"
+            || query.Any(pair => pair.Value.Count != 1))
+            throw new InvalidOperationException("BFF fixture authorization does not use the delivered callback/S256 contract.");
+        using var page = await KeycloakHttp.SendAsync(_client, HttpMethod.Get, authorization.AbsoluteUri);
+        if (page.StatusCode != HttpStatusCode.OK)
+            throw new InvalidOperationException("BFF fixture expected a fresh provider login form.");
+        var action = LoginAction(await KeycloakHttp.ReadBodyAsync(page));
+        using var submitted = await KeycloakHttp.SendAsync(_client, HttpMethod.Post, action,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["username"] = username,
+                ["password"] = password,
+                ["credentialId"] = "",
+            }));
+        var location = submitted.Headers.Location;
+        if (submitted.StatusCode is not (HttpStatusCode.Found or HttpStatusCode.SeeOther)
+            || location is null || !location.IsAbsoluteUri
+            || location.GetLeftPart(UriPartial.Path) != callback.GetLeftPart(UriPartial.Path))
+            throw new InvalidOperationException("BFF fixture provider login did not reach its owned callback.");
+        var returned = QueryHelpers.ParseQuery(location.Query);
+        if (returned.GetValueOrDefault("state") != query.GetValueOrDefault("state")
+            || returned.GetValueOrDefault("code").Count != 1 || returned.ContainsKey("error")
+            || location.Fragment.Length != 0 || location.UserInfo.Length != 0
+            || returned.Any(pair => pair.Value.Count != 1))
+            throw new InvalidOperationException("BFF fixture provider callback lacks its original state or code.");
+        return location;
+    }
+
+    internal async Task<Uri> CompleteBffLogoutAsync(Uri logout)
+    {
+        if (!SameOrigin(logout, _baseAddress)
+            || logout.AbsolutePath != "/realms/learnstack/protocol/openid-connect/logout")
+            throw new InvalidOperationException("BFF fixture logout is outside the owned provider.");
+        var query = QueryHelpers.ParseQuery(logout.Query);
+        if (!Uri.TryCreate(query.GetValueOrDefault("post_logout_redirect_uri"), UriKind.Absolute, out var target)
+            || target.Scheme != "https" || target.Port != 3000 || target.AbsolutePath != "/"
+            || target.Query.Length != 0 || target.Fragment.Length != 0 || target.UserInfo.Length != 0
+            || query.Any(pair => pair.Value.Count != 1)
+            || !LearnStack.Tools.Seeder.SeedData.All.Any(tenant => tenant.Host == target.Host))
+            throw new InvalidOperationException("BFF fixture logout return is outside the delivered hosts.");
+        using var response = await KeycloakHttp.SendAsync(_client, HttpMethod.Get, logout.AbsoluteUri);
+        var location = response.Headers.Location;
+        if (response.StatusCode is not (HttpStatusCode.Found or HttpStatusCode.SeeOther)
+            || location is null || !location.IsAbsoluteUri
+            || location.GetLeftPart(UriPartial.Path) != target.GetLeftPart(UriPartial.Path)
+            || location.Fragment.Length != 0 || location.UserInfo.Length != 0
+            || QueryHelpers.ParseQuery(location.Query).GetValueOrDefault("state") != query.GetValueOrDefault("state"))
+            throw new InvalidOperationException("BFF fixture provider logout did not return its owned state.");
+        return location;
+    }
+
     internal async Task<KeycloakAuthorization> AuthorizeAsync(string username, string password, string redirectUri,
         KeycloakPkce pkce = KeycloakPkce.S256, string clientId = "learnstack-web", string scope = "openid profile email",
         Func<Task<string>>? otpCode = null)

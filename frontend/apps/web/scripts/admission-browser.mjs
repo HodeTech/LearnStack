@@ -25,10 +25,30 @@ const browserPhases = new Set([
   'browser-shutdown',
 ]);
 const sanitizedFailures = new WeakSet();
+const devToolsFailures = new WeakMap();
+const devToolsKinds = new Set([
+  'owner-inactive',
+  'port-unreadable',
+  'deadline-missing',
+  'deadline-empty',
+  'deadline-malformed',
+]);
 
 /** Only closed phase names may cross the private fixture's diagnostic boundary. */
 export function browserFailureDetail(error) {
-  return browserPhases.has(error?.admissionStage) ? ' ' + error.admissionStage : '';
+  if (!sanitizedFailures.has(error) || !browserPhases.has(error?.admissionStage)) return '';
+  const kind =
+    error.admissionStage === 'browser-devtools' ? devToolsFailures.get(error) : undefined;
+  return ' ' + error.admissionStage + (devToolsKinds.has(kind) ? ' ' + kind : '');
+}
+
+function devToolsFailure(kind) {
+  assert.ok(devToolsKinds.has(kind), 'Browser readiness diagnostic is registered');
+  const failure = new Error('Public admission browser proof failed');
+  failure.admissionStage = 'browser-devtools';
+  sanitizedFailures.add(failure);
+  devToolsFailures.set(failure, kind);
+  return failure;
 }
 
 /** Never propagate raw browser errors, URLs, output or private fixture values. */
@@ -109,17 +129,59 @@ async function until(predicate, message, timeout = 20_000) {
   throw new Error(message);
 }
 
-/** Keep browser death distinct from a live browser's debugging readiness deadline. */
-export function waitForBrowserDevTools({ assertActive, isLive, readPort }) {
-  return atBrowserPhase('browser-devtools', () =>
-    until(async () => {
-      assertActive();
+/** One read avoids a check/read race; neither bytes nor filesystem errors escape. */
+export function readBrowserDevToolsPort(path) {
+  let value;
+  try {
+    value = readFileSync(path, 'utf8');
+  } catch (error) {
+    return { kind: error?.code === 'ENOENT' ? 'missing' : 'unreadable' };
+  }
+  const first = value.split('\n', 1)[0];
+  if (first.trim() === '') return { kind: 'empty' };
+  if (!/^[1-9][0-9]{0,4}$/.test(first) || Number(first) > 65535) return { kind: 'malformed' };
+  return { kind: 'ready', port: Number(first) };
+}
+
+/** Keep browser death and closed readiness observations distinct, with no extra wait. */
+export function waitForBrowserDevTools({ assertActive, isLive, readPort, timeout = 20_000 }) {
+  return atBrowserPhase('browser-devtools', async () => {
+    assert.ok(Number.isSafeInteger(timeout) && timeout > 0 && timeout <= 20_000);
+    const deadline = Date.now() + timeout;
+    let last = 'missing';
+    const active = async () => {
+      try {
+        assertActive();
+      } catch {
+        throw devToolsFailure('owner-inactive');
+      }
       await atBrowserPhase('browser-launch', () => {
         assert.equal(isLive(), true, 'The owned browser remains live');
       });
-      return readPort();
-    }, 'Owned browser debugging deadline'),
-  );
+    };
+    while (Date.now() < deadline) {
+      await active();
+      let observation;
+      try {
+        observation = readPort();
+      } catch {
+        throw devToolsFailure('port-unreadable');
+      }
+      if (
+        observation?.kind === 'ready' &&
+        Number.isInteger(observation.port) &&
+        observation.port > 0 &&
+        observation.port < 65536
+      )
+        return observation.port;
+      if (!['missing', 'empty', 'malformed'].includes(observation?.kind))
+        throw devToolsFailure('port-unreadable');
+      last = observation.kind;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    await active();
+    throw devToolsFailure('deadline-' + last);
+  });
 }
 
 /** Empty target lists may precede the page; all discovery shares the original 5 s. */
@@ -262,11 +324,7 @@ async function runBrowserFallback(
   const port = await waitForBrowserDevTools({
     assertActive: () => owner.assertActive(),
     isLive: () => !failed && child.exitCode === null && child.signalCode === null,
-    readPort: () => {
-      if (!existsSync(portFile)) return null;
-      const value = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
-      return Number.isInteger(value) && value > 0 && value < 65536 ? value : null;
-    },
+    readPort: () => readBrowserDevToolsPort(portFile),
   });
   phase.value = 'browser-discovery';
   const endpoint = await waitForBrowserPage({

@@ -1,7 +1,8 @@
 # 07 — Frontend Architecture Standards
 
 **Status:** Active
-**Derives from:** [ADR-0009 Frontend Single App First](../decisions/0009-frontend-single-app-first.md),
+**Derives from:** [ADR-0070 Owned Tenant BFF Sessions](../decisions/0070-owned-tenant-bff-sessions.md),
+[ADR-0009 Frontend Single App First](../decisions/0009-frontend-single-app-first.md),
 [ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
 (Amendment 1: `learnstack-hub` realm for the separate operator portal),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md) (the operator portal
@@ -36,13 +37,16 @@ frontend/
       src/
         app/
           (public)/            # tenant public site
-            [...slug]/
+            [locale]/courses/[slug]/lessons/[lessonSlug]/
+            [locale]/status/not-found/
             layout.tsx
           (studio)/            # admin studio
+            studio/            # account scaffold only
             layout.tsx
           (portal)/            # learner + instructor
+            portal/            # account scaffold only
             layout.tsx
-          api/                 # thin BFF route handlers
+          api/healthz/         # infrastructure GET; auth is native-owned
           layout.tsx           # root layout
         middleware.ts          # ingress verification and live locale/path admission
         components/
@@ -51,14 +55,16 @@ frontend/
           request.ts
           messages/
             en/public.json
+            en/auth.json
             tr/public.json
-        lib/
+            tr/auth.json
+        server/auth/           # native BFF owner and fixed RP protocol
+        client/bff-session.ts  # closed safe session projection/extension
 
   packages/
     ui/                        # design system primitives (extracted only when duplication is real)
     sdk/                       # generated API client + types
     config/                    # eslint, tsconfig, tailwind shared configs
-    auth/                      # OIDC client config + BFF helpers
 ```
 
 The operator portal `operator-portal` is a **separate Next.js application in the
@@ -75,7 +81,9 @@ Migration to multiple apps within this repo (e.g. extracting `(studio)` into
 
 - **Server Components (RSC)** are the default for every page and component.
 - Add `"use client"` only for interactivity, hooks, browser APIs, third-party client-only libraries.
-- RSCs fetch through the SDK directly; they access server env vars and cookies.
+- RSCs use the admitted request-local loaders and passive safe session lookup.
+  Private transport configuration, credential cookies and bearer attachment
+  remain in the native response owner and configured callers.
 - Pass typed primitives across the RSC → Client boundary; never pass class instances or closures.
 
 ## Tenant Resolution
@@ -117,10 +125,12 @@ flowchart TD
 Remediation Step 2 implements these controls. Concrete execution and review
 evidence belongs to the [delivery record](../roadmap/phase-02d-delivery-log.md#remediation-step-2--native-ingress-and-url-boundary).
 
-- Admit GET/HEAD on every HTTP path reaching the native listener callback before
+- Admit GET/HEAD on HTTP paths reaching the native listener callback before
   Next dispatch, including matcher-exempt health/assets and exact scaffolds.
-  Other methods receive masked `404`, `Cache-Control: no-store`, without bootstrap
-  or Next method conversion. HEAD is bodyless; Node owns malformed protocol input.
+  ADR-0070 additionally admits POST only on `/api/auth/signin/keycloak`,
+  `/api/auth/signout` and `/api/auth/extend`, with their closed proof/body
+  rules. All other methods receive masked no-store 404 without bootstrap or
+  Next method conversion. HEAD is bodyless; Node owns malformed protocol input.
 - Close every production WebSocket upgrade. Development admits only the validated
   GET HMR upgrade path and closes failed/unhandled delegation. Health/asset
   exemptions grant no method, provenance or tenant authority.
@@ -128,7 +138,7 @@ evidence belongs to the [delivery record](../roadmap/phase-02d-delivery-log.md#r
   admission decision in their owning Phase 02b BFF/auth or Phase 06 admin work.
   Disable `poweredByHeader` independently, including framework fallback responses.
 - Signed raw targets select route/locale identity. Match observed middleware URLs
-  only against pinned Next 15.5.27's explicit full-URL RSC/`_rsc` projection; do
+  only against pinned Next 15.5.28's explicit full-URL RSC/`_rsc` projection; do
   not introduce suffix aliases or select another lesson after normalization.
 - Redirects retain inert query values, duplicates and ordering; equivalent percent
   encoding is allowed. Only the verified live host, accepted HTTPS port and local
@@ -204,7 +214,10 @@ server caller in `apps/web/src/server/configured-public-client.ts`.
   Production served/snapshot equality and required frontend regeneration/drift
   checks are part of P02d-4; generator output remains outside formatter rewriting.
 - The root exports generated types and the exact authenticated path/operation
-  contract, with no authenticated transport. `/server` supplies four thin public GET
+  contract. `/authenticated-server` supplies only the injected, no-store
+  `getAccountSite` GET; its native configured caller owns credentials and the
+  independently verified host/current visitor. It exposes no credential/header/host
+  selector to UI consumers. `/server` supplies four thin public GET
   wrappers using generated operation types and an injected Fetch-compatible
   transport that resolves relative URLs; no global-fetch default.
 - The unused client factory/export is removed. No tenant-ID option, authority-header
@@ -235,10 +248,15 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
 
 ## Auth
 
-- Auth.js for session management.
+- Tenant BFF session ownership derives from
+  [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md); implementation is
+  delivered by P02b-7. Use the pinned openid-client RP and native session owner.
 - OIDC provider: Keycloak.
-- Sessions in `HttpOnly`, `Secure`, `SameSite=Lax` cookies.
-- Server Components and Server Actions read the session via `auth()`; never read tokens in Client Components.
+- Credentials stay in the server owner; the browser carries only host-bound
+  opaque cookies. [Security 11](11-security.md#tenant-bff-sessions) owns the rules.
+- Server Components use the app-local read-only `auth()` projection. Response
+  owners perform refresh/idle/cookie updates before streaming. Never expose
+  credentials to Client Components; no Server Action is admitted by P02b-7.
 
 ## Routing
 
@@ -319,7 +337,7 @@ collections, class-static and global writes. It is bounded source analysis,
 not an interpreter for reflection, arbitrary evaluation or external packages.
 Declaration-level `import type` and
 `export type` edges are erased. Inline type-only specifiers remain conservative
-source edges: TypeScript verbatim emission retains them; pinned Next 15.5.27 SWC
+source edges: TypeScript verbatim emission retains them; pinned Next 15.5.28 SWC
 erases them. Separate real compiler controls establish that distinction.
 An empty production Client Component census is source information; the configured
 production-build canary supplies independent asset containment evidence.
@@ -408,7 +426,8 @@ P02d-6 admission must complete before the initial shell flushes, per
 
 - Strict CSP with nonces.
 - No `dangerouslySetInnerHTML` outside a sanitization wrapper.
-- Form CSRF: Server Actions verify the Auth.js session; explicit CSRF tokens for non-Action mutating routes.
+- Auth form CSRF follows [Security 11](11-security.md#csrf); neither a cookie nor
+  implicit framework/Server Action behavior substitutes for the explicit checks.
 - Outbound URLs validated against an allow-list before rendering.
 
 ## Tooling

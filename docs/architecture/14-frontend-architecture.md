@@ -69,36 +69,26 @@ frontend/
     web/                                  # the only tenant-facing Next.js app
       src/
         app/
-          (public)/
-            [tenant-by-host]/             # virtual segment, resolved in middleware
-            page.tsx
+          (public)/[locale]/
             courses/
-            blog/
-          (studio)/
-            login/
-            dashboard/
-            content/
-            pages/
-            courses/
-            media/
-          (portal)/
-            my-courses/
-            lesson/[id]/
-            sessions/
-          api/                            # only thin BFF proxies, see "Data Fetching"
+              [slug]/lessons/[lessonSlug]/
+            status/not-found/
+          (studio)/studio/                # guarded account scaffold
+          (portal)/portal/                # guarded account scaffold
+          api/healthz/                    # infrastructure GET only
         components/
           public/                         # P6 public views and states
           blocks/                         # built-in primitive page blocks
           ui/                             # design-system primitives
-        lib/
-          api/
-          auth/
-          tenant/
+        server/auth/                      # native BFF owner and fixed protocol
+        client/bff-session.ts             # safe projection/extension only
         i18n/                             # ADR-0027 foundation implemented in P6 Step 1
           request.ts
           messages/
             en/public.json
+            en/auth.json
             tr/public.json
+            tr/auth.json
         middleware.ts                     # ingress verification + locale entry
         extensions/                       # client-side block resolver, see Page Builder
   packages/
@@ -114,7 +104,9 @@ frontend/
 > P02d-5/G36 delivers Node middleware in
 > `apps/web/src/middleware.ts`. The ownership and accepted entry rule are recorded in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The tree above is the earlier target layout, not a shipped-directory census.
+> The tree shows the current route groups. Content/media authoring, dashboards
+> and enrolled-learner screens are Phase 06/07 targets. BFF auth paths are served
+> by the native response owner under ADR-0070, not general `app/api` proxies.
 
 The operator portal (`operator-portal`) is a **separate Next.js application in the
 separate `learnstack-hub` repository**; nothing about it lives under this `frontend/`
@@ -303,28 +295,34 @@ merge of tenant + optional org) more cheaply.
 Two paths:
 
 - **Server-side** — React Server Components and route handlers call the .NET API directly using the typed SDK in `packages/sdk`. The SDK is generated from the backend's OpenAPI document; [Standards 07 § SDK](../standards/07-frontend-architecture.md) owns when and how.
-- **Client-side target** — P02b-7 supplies the thin authenticated BFF/session
-  transport. It keeps tokens outside browser JavaScript; any tenant header can
-  only assert independently resolved scope under ADR-0036. It never selects it.
-  Public SDK requests remain credential-free. The BFF wraps no business logic.
+- **Authenticated boundary** — P02b-7 supplies native credential custody and
+  exact AccountSite transport under ADR-0070. Browser code receives a safe
+  session projection and the closed extension action, never a generic API proxy,
+  bearer token or tenant/organization selector. The native caller attaches its
+  bearer and trusted host hop; the injected SDK owns neither. Public SDK
+  requests remain credential-free. Phase 06 owns wider authenticated consumers.
 
 The SDK is the only sanctioned way to call the API. Hand-rolled `fetch('/api/v1/...')` calls are blocked by lint — `no-restricted-globals`, because `fetch` is a global and an import rule could never have caught a single call.
 
 ## Authentication on the Frontend
 
-P02b-5 delivers the API boundary and a separate typed AccountSite SDK contract,
-without authenticated transport or a login UI. P02b-6 reconciles actual realm
-issuance; P02b-7 owns the BFF/session flow below. Phase 06 expands the complete
+P02b-5 delivers the API boundary and separate typed AccountSite SDK contract.
+P02b-6 reconciles actual realm issuance; P02b-7 delivers the native BFF/session
+flow below. Phase 06 expands the complete
 browser journey and Studio/Portal experience. The
 [API contract](../decisions/0064-tenant-api-authentication-boundary.md) does not
 turn a generated GET into a public wrapper or widen native public admission.
 
 Auth is delegated to the identity provider (Keycloak/Authentik, see [Identity and Authentication](13-identity-and-auth.md)). The frontend uses OIDC Authorization Code with PKCE.
 
-- Session is held in HTTP-only cookies set by the BFF after callback.
+- [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) selects native server
+  custody with host-only opaque cookies; P02b-7 delivers the Accepted contract.
 - Refresh is handled silently by the BFF; the frontend never sees the refresh token.
-- Studio and Portal segments require an authenticated session at the edge; unauthenticated requests redirect to the identity provider.
-- Public segment is anonymous-by-default; authenticated users get personalised hero blocks etc.
+- Studio and Portal require native session admission before rendering. Enabled
+  mode redirects an anonymous visitor to the local sign-in form; only its
+  CSRF-protected POST starts provider navigation. Disabled mode returns the
+  bounded sign-in-unavailable state, without provider traffic.
+- Public remains anonymous-by-default; P02b-7 adds no personalized content.
 
 ## Page-Block Resolver
 
@@ -418,8 +416,8 @@ actions**. The tenant-facing surface in `apps/web` is read-only:
   operator action.
 
 Full flow: [27-custom-domain-tls.md](27-custom-domain-tls.md). Auth-cookie scoping for
-custom domains uses SameSite-Lax with explicit `Domain=` per active host; no cookies
-shared across tenants.
+custom domains uses Secure/HttpOnly/SameSite-Lax `__Host-` cookies, Path=/ and
+**no Domain**, under ADR-0070. No cookie or forwarded header selects a tenant.
 
 ## Live Classroom Integration
 
@@ -500,7 +498,7 @@ mechanical.
   quota on each request. Measure that cost; only request-local reuse is allowed
   under [the public rendering policy](../standards/07-frontend-architecture.md#public-site-renderer).
 - **Cookie domain scoping** — tenants on custom domains complicate auth cookies. Use
-  SameSite-Lax + explicit `Domain=` per host; do not share auth cookies across tenants.
+  host-only `__Host-` cookies with no Domain; do not share auth cookies across tenants.
   Domain registration and TLS flow:
   [27-custom-domain-tls.md](27-custom-domain-tls.md).
 - **Brand-token contrast failures** — refuse saving a failing palette and explain

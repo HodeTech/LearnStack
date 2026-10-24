@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import tempfile
@@ -328,6 +329,25 @@ class AggregateControls(unittest.TestCase):
                     self.assertEqual('A' if attempt == '1' else 'B', result['variant'])
                     self.assertTrue(RESULTS.verify_jobs(self.jobs(scope, self.context(attempt)), self.context(attempt), self.plan, scope))
 
+    def test_aggregate_refuses_complete_receipts_whose_assignments_only_renumber_bins(self):
+        manifest = self.fixture.renumber_only_manifest()
+        for scope in ('backend', 'integration'):
+            with self.subTest(scope=scope), tempfile.TemporaryDirectory() as temporary:
+                paths = self.outputs(temporary, scope, manifest=manifest)
+                self.refuses('assignment_not_distinct', RESULTS.validate_outputs,
+                             paths, self.context(), self.plan, scope)
+
+    def test_prepared_images_match_the_actual_provider_and_database_fixture_sources(self):
+        provider = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/KeycloakFixture.cs').read_text()
+        database = (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database/PostgresFixture.cs').read_text()
+        provider_images = re.findall(r'\bconst string Image = "([^"\n]+)";', provider)
+        database_images = re.findall(r'new PostgreSqlBuilder\("([^"\n]+)"\)', database)
+        provider_databases = re.findall(r'new PostgreSqlBuilder\("([^"\n]+)"\)', provider)
+        self.assertEqual(1, len(provider_images))
+        self.assertEqual(1, len(database_images))
+        self.assertEqual(database_images, provider_databases)
+        self.assertEqual(tuple(provider_images + database_images), RESULTS.FIXTURE_IMAGES)
+
     def test_fixture_image_preparation_uses_fixed_images_and_preserves_cleanup_reserve(self):
         environment = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
                        'GITHUB_JOB': 'backend-integration-tests', 'LEARNSTACK_CI_STARTED_AT': '1000'}
@@ -336,13 +356,49 @@ class AggregateControls(unittest.TestCase):
                 mock.patch.object(RESULTS.time, 'time', return_value=1700), \
                 mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
                 mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
-                mock.patch.object(RESULTS.OWNER, 'command', return_value=b'') as command, \
+                mock.patch.object(RESULTS.OWNER, 'command', return_value=b'PRIVATE-CANARY') as command, \
                 mock.patch('sys.stdout', output):
             self.assertEqual(0, RESULTS.prepare_fixture_images())
+        self.assertEqual(('quay.io/keycloak/keycloak:26.6.2', 'postgres:18.4-alpine'), RESULTS.FIXTURE_IMAGES)
         self.assertEqual([mock.call(['/usr/bin/docker', 'pull', image], 610,
-                                    'fixture_image_pull_failed', cap=55) for image in RESULTS.FIXTURE_IMAGES],
+                                    'fixture_image_pull_failed_' + component, cap=55, diagnose=True)
+                          for component, image in zip(('keycloak', 'postgres'), RESULTS.FIXTURE_IMAGES)],
                          command.call_args_list)
         self.assertEqual(list(RESULTS.FIXTURE_IMAGES), [row['image'] for row in json.loads(output.getvalue())['images']])
+        self.assertNotIn('PRIVATE-CANARY', output.getvalue())
+        for index, component in enumerate(('keycloak', 'postgres')):
+            output = io.StringIO()
+            reason = 'fixture_image_pull_failed_' + component + '_rate_limit'
+            with mock.patch.dict(os.environ, environment, clear=True), \
+                    mock.patch.object(RESULTS.time, 'time', return_value=1700), \
+                    mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
+                    mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
+                    mock.patch.object(RESULTS.OWNER, 'command',
+                        side_effect=[b'PRIVATE-CANARY'] * index + [RESULTS.OWNER.Refusal(reason)]) as command, \
+                    mock.patch('sys.stdout', output):
+                self.refuses(reason, RESULTS.prepare_fixture_images)
+            self.assertEqual(index + 1, command.call_count, 'No failed pull is retried or followed by another image')
+            self.assertEqual('', output.getvalue())
+        with mock.patch.dict(os.environ, environment, clear=True), \
+                mock.patch.object(RESULTS.time, 'time', return_value=1960), \
+                mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
+                mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
+                mock.patch.object(RESULTS.OWNER, 'command', return_value=b'') as command, \
+                mock.patch('sys.stdout', io.StringIO()):
+            self.assertEqual(0, RESULTS.prepare_fixture_images())
+            self.assertEqual(2, command.call_count)
+            self.assertTrue(all(call.args[1] == 500 + RESULTS.OWNER.JOB_SECONDS
+                - RESULTS.OWNER.RESERVE_SECONDS - 960 for call in command.call_args_list))
+            self.assertTrue(all(call.kwargs == {'cap': 55, 'diagnose': True} for call in command.call_args_list))
+        for images in ((), ('one',), ('one', 'two', 'three')):
+            with mock.patch.dict(os.environ, environment, clear=True), \
+                    mock.patch.object(RESULTS.time, 'time', return_value=1700), \
+                    mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
+                    mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
+                    mock.patch.object(RESULTS, 'FIXTURE_IMAGES', images), \
+                    mock.patch.object(RESULTS.OWNER, 'command') as command:
+                self.refuses('fixture_setup_images_invalid', RESULTS.prepare_fixture_images)
+                command.assert_not_called()
         with mock.patch.dict(os.environ, environment, clear=True), \
                 mock.patch.object(RESULTS.time, 'time', return_value=2000), \
                 mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
@@ -395,6 +451,12 @@ class AggregateControls(unittest.TestCase):
                 if step.get('name') == RESULTS.UPLOAD_STEP).update(uses='actions/upload-artifact@' + 'f' * 40)),
             ('fixture_image_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
                 if step.get('run') == 'python3 scripts/ci-test-shards.py prepare-fixtures').update({'if': 'success()'})),
+            ('fixture_compile_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
+                if step.get('name') == 'Compile native web and authenticated SDK fixture entries').update({'if': 'false'})),
+            ('fixture_compile_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
+                if step.get('name') == 'Compile native web and authenticated SDK fixture entries').update(run='true')),
+            ('fixture_compile_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
+                if step.get('name') == 'Compile native web and authenticated SDK fixture entries').update({'working-directory': '.'})),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend'].update({'if': 'success()'})),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend-integration'].update(needs=['backend-native'])),
             ('aggregate_topology_invalid', lambda jobs: jobs['backend'].update({'timeout-minutes': 6})),
@@ -409,6 +471,13 @@ class AggregateControls(unittest.TestCase):
         self.refuses('required_name_collision', RESULTS.workflow_topology, documents, self.plan)
         documents['.github/workflows/other.yml']['jobs']['copy']['name'] = '${{ matrix.name }}'
         self.refuses('unqualified_job_name', RESULTS.workflow_topology, documents, self.plan)
+
+    def test_root_workflow_permissions_cannot_be_widened(self):
+        for permissions in ({'contents': 'write'}, {'contents': 'read', 'actions': 'read'}, 'read-all', None):
+            with self.subTest(permissions=permissions):
+                documents = copy.deepcopy(self.documents)
+                documents['.github/workflows/ci.yml']['permissions'] = permissions
+                self.refuses('workflow_permissions_invalid', RESULTS.workflow_topology, documents, self.plan)
 
     def test_attempt_api_refuses_stale_missing_skipped_failed_duplicate_or_oversized_jobs(self):
         context = self.context('2'); clean = self.jobs('backend', context)
@@ -658,7 +727,7 @@ class AggregateControls(unittest.TestCase):
                          integration, self.context(), self.plan, 'integration')
 
     def test_actual_trx_and_completed_fields_are_rechecked_even_with_matching_hashes(self):
-        for changed in ('completed', 'trx', 'missing'):
+        for changed in ('completed', 'trx', 'missing', 'missing_duration', 'outside_partition'):
             with tempfile.TemporaryDirectory() as temporary:
                 paths = self.outputs(temporary, 'backend'); base = paths['base']
                 if changed == 'completed':
@@ -667,10 +736,42 @@ class AggregateControls(unittest.TestCase):
                 elif changed == 'trx':
                     path = next((base / 'results').glob('*.trx')); value = path.read_text().replace('outcome="Passed"', 'outcome="NotExecuted"')
                     path.write_text(value); reason = 'trx_counters_invalid'
+                elif changed == 'missing_duration':
+                    path = next((base / 'results').glob('*.trx')); root = ET.parse(path)
+                    root.find('t:Results/t:UnitTestResult', RESULTS.OWNER.NS).attrib.pop('duration')
+                    root.write(path, encoding='utf-8'); reason = 'trx_duration_invalid'
+                elif changed == 'outside_partition':
+                    # Matching hashes, counters and completed evidence cannot
+                    # turn a discovered case owned by another shard into base work.
+                    foreign = self.fixture.manifest()['ordinary'][0]
+                    path = next((base / 'results').glob('*.trx')); root = ET.parse(path)
+                    definition = root.find('t:TestDefinitions/t:UnitTest', RESULTS.OWNER.NS)
+                    definition.set('id', foreign['id']); definition.set('storage', foreign['assembly'] + '.dll')
+                    row = root.find('t:Results/t:UnitTestResult', RESULTS.OWNER.NS)
+                    row.set('testId', foreign['id']); row.set('testName', foreign['name'])
+                    root.write(path, encoding='utf-8')
+                    (base / 'completed-cases.jsonl').write_text(json.dumps({
+                        **{key: foreign[key] for key in ('assembly', 'id', 'name')},
+                        'outcome': 'Passed', 'duration': '00:00:00.001'}) + '\n')
+                    reason = 'trx_case_name_mismatch'
                 else:
                     (base / 'completed-cases.jsonl').write_bytes(b''); reason = 'completed_evidence_incomplete'
                 self.rehash(base)
                 self.refuses(reason, RESULTS.validate_outputs, paths, self.context(), self.plan, 'backend')
+
+    def test_docker_absence_is_required_only_for_actual_docker_owners(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = self.outputs(temporary, 'integration')
+            assignment = PLAN.assign(self.fixture.manifest(), self.plan, '1')
+            for owner in ('base', 'native', 'ordinary-0'):
+                path = paths[owner]; clean = RESULTS.read_json(path / 'result.json')
+                self.assertTrue(RESULTS.verify_receipt(path, self.context(), owner, self.plan, assignment))
+                for absent in ((True, False, 0) if owner == 'base' else (False, None, 1, 'true')):
+                    with self.subTest(owner=owner, absent=absent):
+                        self.write(path, 'result.json', {**clean, 'dockerAbsent': absent})
+                        self.refuses('execution_authority_mismatch', RESULTS.verify_receipt,
+                                     path, self.context(), owner, self.plan, assignment)
+                self.write(path, 'result.json', clean)
 
     def test_native_scope_provisioning_crash_witness_and_no_dump_refusals_remain_mandatory(self):
         with tempfile.TemporaryDirectory() as temporary:

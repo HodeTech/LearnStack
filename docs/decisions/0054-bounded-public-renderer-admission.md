@@ -364,6 +364,23 @@ metadata and numeric budgets remain unchanged. The
 owns execution and independent review status. This delivery note preserves the
 original acceptance metadata, body and all earlier amendments.
 
+### Amendment 10 — Exact tenant BFF POST admission (2026-10-23)
+
+Accepted [ADR-0070](0070-owned-tenant-bff-sessions.md) narrowly extends
+[Native method and upgrade admission](#native-method-and-upgrade-admission):
+
+> Apply GET/HEAD admission to every HTTP path reaching the native listener callback,
+> before Next dispatch and independently of middleware matcher exemptions.
+
+Only POST to `/api/auth/signin/keycloak`, `/api/auth/signout` and
+`/api/auth/extend` may additionally pass the native boundary, with the approved
+host, bounded-input, CSRF and response-owner guards installed atomically.
+Other methods/routes, generic auth actions, Server Actions and production
+upgrades remain closed. Disabled BFF adds no exception. The public credential-
+free flow and visitor/peer accounting are unchanged. P02b-7 owns implementation
+and native proof; acceptance alone activates nothing. Original body/metadata
+and earlier amendments stay historical.
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

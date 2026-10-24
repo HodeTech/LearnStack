@@ -255,8 +255,8 @@ See [10-observability.md](10-observability.md).
   either case; direct `VaultClient` usage is forbidden.
 - Local: `.env` (not committed) — sufficient for `Development` mode.
 - P02b-6's development realm uses `KEYCLOAK_WEB_CLIENT_SECRET` as a private
-  import/reconciliation source; P02b-7's BFF is its later runtime consumer.
-  Never pass it or Keycloak admin credentials to the API, public renderer or
+  import/reconciliation source and the enabled P02b-7 native BFF runtime source.
+  Never pass it or Keycloak admin credentials to the API, public-only process or
   .NET Seeder. Existing confidential secrets are verified, never silently
   rotated. The [accepted package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
   owns bounded tooling, selected-target validation and the no-credential-output

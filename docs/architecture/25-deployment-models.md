@@ -280,6 +280,13 @@ an abstraction.
 
 ### Other config settings switched by mode
 
+- **BFF session store** — [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)
+  selects app-local `BffSessionStore` / `InMemoryBffSessionStore` for P02b-7's
+  one native web process. Restart signs sessions out in every mode. The SaaS
+  auto-scaled topology above is a target, not multi-process session support.
+  Phase 11 supplies a distributed adapter before multiple web processes serve
+  one session, with atomic refresh/revocation/interruption qualification.
+
 - **Hub URL** — target: LearnStack-hosted for SaaS / Dedicated / SelfHostedOnline,
   customer-hosted only where separately arranged, or absent for SelfHostedAirGapped.
   The current default entitlement provider makes no Hub call.

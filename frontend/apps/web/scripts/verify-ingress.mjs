@@ -583,8 +583,8 @@ async function run() {
     ['/favicon.ico/extra', 404, 1],
     ['/nested/favicon.ico', 404, 1],
     ['/en/status/not-found', 404, 1],
-    ['/studio', 200, 1],
-    ['/portal', 200, 1],
+    ['/studio', 503, 1],
+    ['/portal', 503, 1],
   ]) {
     for (const method of ['GET', 'HEAD']) {
       const before = bootstrapCalls;
@@ -601,6 +601,14 @@ async function run() {
         'Exact matcher/bootstrap control failed: ' + path,
       );
       assert.equal(response.headers['x-powered-by'], undefined, 'Framework identified itself');
+      if (status === 503) {
+        assert.equal(response.headers['cache-control'], 'no-store');
+        assert.equal(response.headers['retry-after'], '30');
+        assert.equal(response.headers['set-cookie'], undefined);
+        assert.equal(response.body.includes('data-bff-protected'), false);
+        assert.equal(response.body.includes('<form'), false);
+        if (method === 'GET') assert.ok(response.body.includes('<html'));
+      }
       if (method === 'HEAD') assert.equal(response.body, '', 'HEAD emitted a body: ' + path);
       else if (status === 200)
         assert(response.body.length > 0, 'GET success control must contain a body');
@@ -721,7 +729,7 @@ async function run() {
 
   await stopTestChild(stock);
   await stopTestChild(native);
-  // Next 15.5.27 loads next.config.ts for this custom production server; its
+  // Next 15.5.28 loads next.config.ts for this custom production server; its
   // serialized build config contributes only isExperimentalCompile. Mutate the
   // copied runtime configuration and restart, without touching shared output.
   const configPath = join(app, 'next.config.ts');

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,18 +11,24 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ADAPTER,
+  ACCOUNT_ADAPTER,
+  BFF_BROWSER_ADAPTER,
+  SDK_AUTHENTICATED,
   ADMISSION_RUNTIME,
   ADMISSION_FACADE,
   admissionBoundaryFindings,
   buildSourceGraph,
+  browserStorageFindings,
   cacheFindings,
   clientBoundaryFindings,
+  closedHttpSurfaceFindings,
   hasDirective,
   hasServerOnlyMarker,
   I18N_REQUEST,
   INGRESS,
   MIDDLEWARE,
   navigationFindings,
+  omittedProductionDirectory,
   privateServerFiles,
   publicLayoutPolicyFindings,
   PUBLIC_LAYOUT,
@@ -57,8 +63,8 @@ function productionSources(): SourceCensus {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) {
-        // Runtime/test fixtures never enter the production graph.
-        if (!['test', '__tests__', '__fixtures__', 'fixtures'].includes(entry.name)) visit(path);
+        const name = relative(frontend, path).split('\\').join('/');
+        if (!omittedProductionDirectory(name)) visit(path);
       } else if (
         /\.(?:tsx?|json)$/.test(entry.name) &&
         !/\.(?:test|spec|d)\.(?:tsx?|json)$/.test(entry.name)
@@ -71,6 +77,16 @@ function productionSources(): SourceCensus {
     }
   };
   visit(join(frontend, 'apps/web/src'));
+  // Next also discovers root app/pages and root middleware; none may bypass src's census.
+  for (const directory of ['app', 'pages']) {
+    const path = join(frontend, 'apps/web', directory);
+    if (existsSync(path)) visit(path);
+  }
+  for (const extension of ['ts', 'tsx', 'js', 'jsx', 'mts', 'cts', 'mjs', 'cjs']) {
+    const name = 'apps/web/middleware.' + extension;
+    const path = join(frontend, name);
+    if (existsSync(path)) sources[name] = readFileSync(path, 'utf8');
+  }
   for (const entry of readdirSync(join(frontend, 'packages'), { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name === 'config') continue;
     visit(join(frontend, 'packages', entry.name, 'src'));
@@ -78,6 +94,10 @@ function productionSources(): SourceCensus {
   return sources;
 }
 const sources = productionSources();
+const httpSources = (): SourceCensus => ({
+  ...sources,
+  'apps/web/next.config.ts': readFileSync(join(frontend, 'apps/web/next.config.ts'), 'utf8'),
+});
 const production = buildSourceGraph(sources);
 const publicRoots = [...production.files.keys()].filter((name) => name.includes('/app/(public)/'));
 // Native ingress currently admits these exact scaffold paths alongside product
@@ -145,6 +165,145 @@ function resolutionCensus() {
 
 /** ADR-0053 § Architecture Tests; Standards 07 § SDK / Public Site Renderer. */
 describe('ADR-0053 production public boundaries', () => {
+  it('closes actual matcher, Next routing hooks, framework entry points and Server Actions', () => {
+    const current = httpSources();
+    clean(closedHttpSurfaceFindings(current), 'Fix: retain the approved closed HTTP surface.');
+    const config = 'apps/web/next.config.ts';
+    for (const [file, source] of [
+      [MIDDLEWARE, sources[MIDDLEWARE]!.replace('?!_next/', '?!api/relay/|_next/')],
+      [
+        'apps/web/src/app/api/relay/route.ts',
+        'export function GET() { return new Response("relay"); }',
+      ],
+      [
+        'apps/web/app/api/relay/route.ts',
+        'export function GET() { return new Response("relay"); }',
+      ],
+      ['apps/web/pages/api/relay.ts', 'export default function handler() {}'],
+      ['apps/web/src/pages/api/relay.ts', 'export default function handler() {}'],
+      ['apps/web/middleware.ts', sources[MIDDLEWARE]!],
+      ['apps/web/src/app/extra/page.tsx', 'export default function Page() { return null; }'],
+      ['apps/web/src/app/sitemap.ts', 'export default function sitemap() { return []; }'],
+      [
+        config,
+        current[config]!.replace(
+          'reactStrictMode: true,',
+          'async rewrites() { return []; }, reactStrictMode: true,',
+        ),
+      ],
+      [
+        config,
+        current[config]!.replace('reactStrictMode: true,', '...routing, reactStrictMode: true,'),
+      ],
+      [config, current[config]! + '\nnextConfig.rewrites = async () => [];'],
+      [config, current[config]!.replace("from 'next-intl/plugin'", "from './routing'")],
+      [
+        config,
+        current[config]!.replace('import createNextIntlPlugin', 'import type createNextIntlPlugin'),
+      ],
+      [config, current[config]!.replace('import createNextIntlPlugin', 'import anotherPlugin')],
+      [
+        config,
+        current[config]!.replace(
+          'export default',
+          'Object.assign(nextConfig, { rewrites: async () => [] });\nexport default',
+        ),
+      ],
+      [
+        config,
+        current[config]!.replace(
+          'export default',
+          'const alias = nextConfig; alias.rewrites = async () => [];\nexport default',
+        ),
+      ],
+      [config, current[config]!.replace('(nextConfig);', '({ ...nextConfig, ...routing });')],
+      [MIDDLEWARE, sources[MIDDLEWARE]! + '\nconfig.matcher = ["/studio"];'],
+      [MIDDLEWARE, sources[MIDDLEWARE]! + '\nObject.assign(config, { matcher: ["/studio"] });'],
+      [MIDDLEWARE, sources[MIDDLEWARE]!.replace('export const config', 'const config')],
+      [probe, '"use server"; export async function write() {}'],
+      [probe, 'export async function write() { "use server"; return 1; }'],
+      [
+        'apps/web/src/app/api/healthz/route.ts',
+        current['apps/web/src/app/api/healthz/route.ts']! + '\nexport function POST() {}',
+      ],
+    ])
+      expect(
+        closedHttpSurfaceFindings({ ...current, [file!]: source! }).map((item) => item.file),
+      ).toContain(file);
+    // The matcher exemption and relay handler must both be rejected, even together.
+    const bypass = closedHttpSurfaceFindings({
+      ...current,
+      [MIDDLEWARE]: sources[MIDDLEWARE]!.replace('?!_next/', '?!api/relay/|_next/'),
+      'apps/web/src/app/api/relay/route.ts':
+        'export function GET() { return new Response("relay"); }',
+    });
+    expect(bypass.map((item) => item.file)).toEqual(
+      expect.arrayContaining([MIDDLEWARE, 'apps/web/src/app/api/relay/route.ts']),
+    );
+    clean(
+      closedHttpSurfaceFindings({
+        ...current,
+        [probe]: 'const words = "use server"; export function helper() { return words; }',
+      }),
+      'Ordinary text and helpers do not create actions.',
+    );
+  });
+  it('keeps imported helpers in fixture-named production directories visible', () => {
+    expect(omittedProductionDirectory('apps/web/src/test')).toBe(true);
+    for (const directory of ['fixtures', '__fixtures__', '__tests__', 'test']) {
+      const name = 'apps/web/src/lib/' + directory;
+      expect(omittedProductionDirectory(name)).toBe(false);
+      const helper = name + '/transport.ts';
+      const graph = buildSourceGraph({
+        ...sources,
+        [probe]: `import "@/lib/${directory}/transport";`,
+        [helper]: 'export const transport = fetch;',
+      });
+      expect(reachable(graph, [probe])).toContain(helper);
+      expect(transportFindings(graph).map((item) => item.file)).toContain(helper);
+    }
+  });
+  it('refuses browser storage and cookie access including receiver aliases', () => {
+    clean(browserStorageFindings(production), 'Fix: retain server-side credential custody.');
+    for (const source of [
+      'localStorage.setItem("token", "value");',
+      'window.sessionStorage.getItem("token");',
+      'const storage = globalThis.localStorage; storage.setItem("token", "value");',
+      'document.cookie = "token=value";',
+      'const doc = document; export const cookie = doc["cookie"];',
+    ])
+      expect(browserStorageFindings(buildSourceGraph({ [probe]: source }))).not.toEqual([]);
+    clean(
+      browserStorageFindings(
+        buildSourceGraph({
+          [probe]:
+            'export function read(document: {cookie: string}, localStorage: Map<string, string>) { return document.cookie + localStorage.get("safe"); }',
+        }),
+      ),
+      'Local, explicitly injected data is not browser storage.',
+    );
+  });
+  it('refuses global fetch passed to another function instead of called directly', () => {
+    for (const argument of ['fetch', 'globalThis.fetch', 'window["fetch"]']) {
+      const source = `function dispatch(transport: typeof fetch) { return transport("/path"); } dispatch(${argument});`;
+      expect(transportFindings(buildSourceGraph({ [probe]: source }))).not.toEqual([]);
+    }
+    const alias = 'const transport = globalThis.fetch; dispatch(transport);';
+    expect(
+      transportFindings(buildSourceGraph({ [probe]: alias })).filter((item) =>
+        item.reason.includes('pass global fetch'),
+      ),
+    ).toHaveLength(1);
+    clean(
+      transportFindings(
+        buildSourceGraph({
+          [probe]:
+            'export function install(transport: typeof fetch) { return dispatch(transport); }',
+        }),
+      ),
+      'Passing an explicitly injected transport is allowed.',
+    );
+  });
   it('the production census pins the actual public/private/SDK module graph', () => {
     expect([...production.files.keys()]).toEqual(
       expect.arrayContaining([
@@ -224,7 +383,11 @@ describe('ADR-0053 production public boundaries', () => {
       for (const [key, value] of Object.entries(entry.exports as Record<string, string>)) {
         const specifier = entry.name + (key === '.' ? '' : key.slice(1));
         expect(production.resolveModule(specifier, MIDDLEWARE)).toBe(
-          directory + '/' + value.slice(2),
+          directory +
+            '/' +
+            (directory === 'packages/sdk' && key === './authenticated-server'
+              ? 'src/authenticated-server.ts'
+              : value.slice(2)),
         );
       }
   });
@@ -289,7 +452,7 @@ describe('ADR-0053 production public boundaries', () => {
       );
       expect(clientBoundaryFindings(graph).some((item) => item.file === probe)).toBe(true);
     }
-  });
+  }, 20_000); // Rebuilds the complete TypeScript graph for every planted installer variant.
   it('Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport', () => {
     const missingMarker: Finding[] = hasServerOnlyMarker(production.files.get(ADAPTER)!)
       ? []
@@ -316,7 +479,7 @@ describe('ADR-0053 production public boundaries', () => {
       'Fix: retain the dynamic/no-store public layout and request-local public data.',
     );
   });
-  it('global fetch and all three hop-header setters have exactly one production adapter', () => {
+  it('global fetch remains public-only; hop setters stay in the two exact SDK adapters', () => {
     clean(transportFindings(production), 'Fix: use the configured public adapter.');
     // Allowed code must contain actual transport/setters: renaming it removes the exception.
     const renamed = Object.fromEntries(
@@ -325,6 +488,77 @@ describe('ADR-0053 production public boundaries', () => {
     expect(
       transportFindings(buildSourceGraph(renamed)).filter((item) => item.file === probe),
     ).toHaveLength(4);
+  });
+  it('confines authenticated hop setters without granting global fetch or a client SDK escape', () => {
+    const renamed = Object.fromEntries(
+      Object.entries(sources).map(([name, source]) => [
+        name === ACCOUNT_ADAPTER ? probe : name,
+        source,
+      ]),
+    );
+    expect(
+      transportFindings(buildSourceGraph(renamed)).filter((item) => item.file === probe),
+    ).toHaveLength(3);
+    expect(
+      transportFindings(
+        graphWith(
+          ACCOUNT_ADAPTER,
+          sources[ACCOUNT_ADAPTER]! + '\nfetch("https://unowned.invalid");',
+        ),
+      ).some((item) => item.file === ACCOUNT_ADAPTER && item.reason.includes('global fetch')),
+    ).toBe(true);
+    const client = graphWith(
+      probe,
+      '\'use client\'; import { createAuthenticatedServerSdk } from "@learnstack/sdk/authenticated-server"; export const unsafe = createAuthenticatedServerSdk;',
+    );
+    expect(clientBoundaryFindings(client).some((item) => item.file === probe)).toBe(true);
+    expect(privateServerFiles(production)).toContain(SDK_AUTHENTICATED);
+    // Native implementation modules must not become bundled middleware/RSC dependencies.
+    const bundled = reachable(production, renderRoots);
+    for (const name of [
+      'account-client',
+      'configuration',
+      'session-runtime',
+      'session-store',
+      'provider-core',
+      'provider-transport',
+      'logout-response',
+      'request-runtime',
+      'http-protocol',
+    ]) {
+      expect(bundled).not.toContain('apps/web/src/server/auth/' + name + '.ts');
+      const dirty = graphWith(
+        MIDDLEWARE,
+        sources[MIDDLEWARE]! + `\nimport "@/server/auth/${name}";`,
+      );
+      expect(reachable(dirty, renderRoots)).toContain('apps/web/src/server/auth/' + name + '.ts');
+    }
+  });
+  it('confines browser fetch to the exact same-origin no-store BFF extension action', () => {
+    const source = sources[BFF_BROWSER_ADAPTER]!;
+    expect(source).toContain("fetch('/api/auth/extend'");
+    for (const [from, to] of [
+      ["'/api/auth/extend'", "'/api/v1/account/site'"],
+      ["credentials: 'same-origin'", "credentials: 'include'"],
+      ["redirect: 'error'", "redirect: 'follow'"],
+      ["cache: 'no-store'", "cache: 'force-cache'"],
+      ['headers: {', "headers: { Authorization: 'Bearer private',"],
+    ]) {
+      expect(source).toContain(from);
+      expect(
+        transportFindings(graphWith(BFF_BROWSER_ADAPTER, source.replace(from!, to!))).some(
+          (item) => item.file === BFF_BROWSER_ADAPTER && item.reason.includes('global fetch'),
+        ),
+      ).toBe(true);
+    }
+    expect(
+      transportFindings(
+        graphWith(BFF_BROWSER_ADAPTER, source + '\nfetch("/api/auth/extend");'),
+      ).some((item) => item.file === BFF_BROWSER_ADAPTER && item.reason.includes('global fetch')),
+    ).toBe(true);
+    expect(transportFindings(graphWith(probe, source)).some((item) => item.file === probe)).toBe(
+      true,
+    );
   });
   it('the configured production caller imports the server-only marker', () => {
     expect(hasServerOnlyMarker(production.files.get(ADAPTER)!)).toBe(true);
@@ -526,9 +760,9 @@ describe('server boundary planted controls', () => {
     ['mixed reexport', 'export { type Secret, value } from "private-edge";', true],
     ['side-effect import', 'import "private-edge";', true],
   ] as const)(
-    'pinned Next 15.5.27 production SWC emission: %s',
+    'pinned Next 15.5.28 production SWC emission: %s',
     async (_name, declaration, retained) => {
-      expect((require('next/package.json') as { version: string }).version).toBe('15.5.27');
+      expect((require('next/package.json') as { version: string }).version).toBe('15.5.28');
       const filename = join(frontend, probe);
       const config = ts.readConfigFile(
         join(frontend, 'packages/config/tsconfig/base.json'),

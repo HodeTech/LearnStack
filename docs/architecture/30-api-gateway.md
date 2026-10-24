@@ -449,7 +449,9 @@ owns topology, cold/warm-cache and key-rotation drills, diagnostic/readiness dec
 and operational runbooks before production use. P02b-6 delivers actual realm
 issuance and safe development convergence; its
 [Step 4 record](../roadmap/phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
-owns qualification. Browser-session integration remains P02b-7.
+owns qualification. P02b-7 supplies native browser-session custody under
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md); production gateway and
+proxy activation remain Phase 11's separate qualification.
 
 ## 6. Rate limit policy
 

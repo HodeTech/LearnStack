@@ -458,7 +458,11 @@ describe('Node public middleware', () => {
   it.each(['/studio', '/portal'])(
     'requires live bootstrap even for exact scaffold %s',
     async (target) => {
-      expect((await middleware(incoming(target))).headers.get('x-middleware-next')).toBe('1');
+      const unavailable = await middleware(incoming(target));
+      expect(unavailable.status).toBe(503);
+      expect(unavailable.headers.get('x-middleware-next')).toBeNull();
+      expect(unavailable.headers.get('cache-control')).toBe('no-store');
+      expect(unavailable.headers.getSetCookie()).toEqual([]);
       bootstrap.mockResolvedValueOnce({
         kind: 'api-error',
         status: 404,

@@ -12,6 +12,30 @@ retains the earlier approval and owns safe warm-realm convergence.
 Authentication grants no application membership or permission; Phase 03 owns
 those records.
 
+## Development authentication events
+
+[ADR-0070](../../docs/decisions/0070-owned-tenant-bff-sessions.md) authorizes
+development tenant-realm user-event storage. The export retains the pinned
+default-saved selection and adds refresh success/error events. The reconciler
+unions the current effective selection with the eight required login/logout/
+code/refresh success/error types, preserving listeners and admin-event policy.
+
+Fresh/default-empty retention is seven days. A warm disabled/default-zero store
+(the pinned API omits zero expiration) needs a bounded empty-history read first.
+Existing finite retention of at least seven days is preserved. Shorter,
+indefinite or ambiguous custom policy refuses with `plan/event_policy_conflict`
+before even profile preparation. Resolve policy explicitly; never delete history
+to bypass the guard. Separate readback and a zero-write rerun qualify convergence.
+
+Stored events contain personal identity/address details and stay in the provider
+database, not raw CI artifacts. This affects all tenant-realm users, including
+account-console. Hub/admin-event policy is unchanged. Local BFF expiry/outage
+logout are not durable provider events; Phase 03 owns authenticated event ingress/
+mirroring and Phase 11 owns production retention/security/capacity qualification.
+This configuration does not activate browser sign-in by itself.
+The native web process requires the separate explicit BFF opt-in documented in
+[web setup](../../frontend/apps/web/README.md#optional-tenant-sign-in).
+
 ## Realms and accounts
 
 | Realm | Population | Clients |
@@ -51,8 +75,8 @@ against it, including the host's default organization where applicable.
   `KEYCLOAK_WEB_CLIENT_SECRET`; newly scaffolded private files inherit that example.
   File permissions do not make a published value confidential. Compose passes it
   only to Keycloak; the import resolves its environment placeholder. The development
-  reconciler and the later P02b-7 BFF are its other consumers. The API, public
-  renderer and .NET Seeder never receive this secret.
+  reconciler and the explicitly enabled native BFF are its other consumers.
+  The API, public renderer and .NET Seeder never receive this secret.
 - Older private `.env` files must add that key explicitly, matching an already
   imported confidential client's secret. Convergence verifies that existing
   secret; a mismatch requires operator correction rather than automatic rotation.
@@ -90,8 +114,8 @@ URLs, logs or public configuration.
 
 `KEYCLOAK_WEB_CLIENT_SECRET` is create-once local state, not a new value on every
 seed. Before the first Keycloak import, set it in the selected private file.
-Use the same value for Compose, reconciliation and the later BFF. The API,
-public renderer and application Seeder never receive it.
+Use the same value for Compose, reconciliation and the optional native BFF owner.
+The API, public rendering contract and application Seeder never receive it.
 
 - `missing_web_secret`: add the key explicitly before starting the stack, matching
   the existing imported client when present. A previously populated file is not
@@ -175,8 +199,11 @@ capability. P02b-7 owns server-side BFF token custody; narrowing this already
 approved development capability requires a separate decision.
 The tenant export enables open registration with email as username, password
 reset and remember-me, while email verification is disabled. It declares no
-password policy or event-persistence/listener configuration. These are local
-development settings; production provisioning owns its own hardened configuration.
+password policy. ADR-0070 enables the selected development identity-event types
+and a default seven-day retention while preserving qualified prior policy; this
+is not production event capacity, retention or application-audit durability.
+These are local development settings; production provisioning owns its own
+hardened configuration.
 Production client scope mapping, refresh rotation and MFA enforcement remain
 Phase 11 work; Phase 03 owns tenant identity policy. Tenant MFA stays optional in
 this development export; the operator realm keeps its declared TOTP action.

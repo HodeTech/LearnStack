@@ -10,7 +10,7 @@ users/memberships had not shipped. Public sites used host-based anonymous
 admission without forwarding cookies or credentials.
 [Phase 02b's entry verification](../roadmap/phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12)
 records that baseline. The P02b-5/P02b-6 delivery records below supersede its API
-validation and realm-issuance status. BFF sessions remain P02b-7; Phase 03 owns
+validation and realm-issuance status. P02b-7 delivers BFF sessions; Phase 03 owns
 the application identity domain. Undelivered flows below remain target architecture.
 
 **P02b-5 decision Accepted — 2026-10-19.**
@@ -22,7 +22,8 @@ review rounds are complete and merged through PR #33 on 2026-10-20; the
 [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
 owns delivery, correction reviews and final-source qualification. Authentication
 and authorization registration activate together with the closed surface in Step 4.
-P02b-6 supplies realm reconciliation as recorded below; BFF sessions remain P02b-7.
+P02b-6 supplies realm reconciliation as recorded below; P02b-7 supplies the native
+BFF session boundary described here.
 
 **P02b-6 decision Accepted — 2026-10-21.** The
 [accepted package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
@@ -36,8 +37,9 @@ proofs after both independent review rounds and verified corrections; its
 [record](../roadmap/phase-02b-delivery-log.md#p02b-6-step-4--real-identity-qualification-and-closeout-2026-10-21)
 owns local implementation, review closure and source-bound qualification receipts.
 The correction record below owns exact hosted assignments; merge is separate.
-G13's BFF session part
-stays Open for P02b-7. The
+G13's BFF session part is Accepted under
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md); P02b-7 delivers its
+native owner, opaque cookies and provider-event persistence. The
 [development realm guide](../../infra/keycloak/README.md) owns exact callbacks,
 private sources and current upgrade status.
 
@@ -95,6 +97,7 @@ The cost is one more service to operate. That is acceptable: self-hosted infrast
 |---|---|---|
 | User credentials (password hash, MFA factors) | yes | no |
 | OIDC tokens (issuance, signing keys) | yes | no |
+| BFF access/refresh/ID-token custody | no | native web session owner ([ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)) |
 | Federation with social/SAML/OIDC providers | yes | no |
 | Email verification, password reset emails | yes (or LearnStack via SMTP delegation) | no |
 | Global `User` record (canonical identity, email) | mirrored | source for application data |
@@ -137,29 +140,37 @@ decision before its first consumer.
 ```mermaid
 sequenceDiagram
     participant Browser
-    participant Web as Next.js
-    participant BFF as Next.js BFF
+    participant Web as Native Next.js BFF
     participant KC as Keycloak
     participant API as .NET API
 
     Browser->>Web: GET /studio
-    Web->>Browser: redirect to KC /auth (PKCE)
+    Web-->>Browser: 303 /api/auth/signin?returnTo=/studio
+    Browser->>Web: GET /api/auth/signin?returnTo=/studio
+    Web-->>Browser: Same-origin sign-in form and CSRF proof
+    Browser->>Web: POST /api/auth/signin/keycloak (Origin + CSRF)
+    Web-->>Browser: 303 Keycloak authorization URL (PKCE)
     Browser->>KC: login form
-    KC->>Browser: redirect with code
-    Browser->>BFF: GET /api/auth/callback?code=...
-    BFF->>KC: POST /token (exchange)
-    KC-->>BFF: access_token + refresh_token + id_token
-    BFF->>BFF: set HttpOnly cookie 'session'
-    BFF->>Browser: redirect to /studio/dashboard
-    Browser->>BFF: GET /api/courses
-    BFF->>API: GET /api/v1/account/site (Bearer, verified host)
-    API->>API: validate JWT signature against KC JWKS
-    API-->>BFF: tenant-scoped response
-    BFF-->>Browser: response
+    KC-->>Browser: Redirect with bound code/state/issuer
+    Browser->>Web: GET /api/auth/callback/keycloak
+    Web->>KC: POST /token (code + PKCE verifier)
+    KC-->>Web: access_token + refresh_token + id_token
+    Web->>API: GET /api/v1/account/site (Bearer, verified host)
+    API->>API: Validate JWT and independent host scope
+    API-->>Web: Read-only AccountSite witness
+    Web->>Web: Retain credentials in the session store
+    Web-->>Browser: 303 /studio + host-only opaque cookies
+    Browser->>Web: GET /studio (document navigation)
+    Web->>API: GET /api/v1/account/site (current access token)
+    API-->>Web: Independently validated AccountSite
+    Web-->>Browser: Protected shell and safe session projection
 ```
 
 Key details:
 
+- Anonymous Studio entry uses the local sign-in form before provider navigation.
+  The response owner performs the exact authenticated AccountSite read; there is
+  no general `/api/courses` BFF proxy or `/studio/dashboard` route in this packet.
 - **PKCE only.** No implicit flow, no client secrets in the browser.
 - **Cookies, not localStorage.** Tokens never enter JavaScript; the BFF holds them.
 - **Short access token TTL.** [Security Standards](../standards/11-security.md#authentication)
@@ -168,6 +179,31 @@ Key details:
   P02b-6's realm export/reconciler owns its executable value and enforcement.
   ADR-0064 bounds API acceptance; P02b-7 owns BFF refresh and session lifetimes.
 - **JWKS rotation.** API validates tokens against Keycloak's JWKS endpoint, with key caching and rotation handling built into the .NET OIDC middleware.
+
+### Current BFF support boundary
+
+The qualified BFF environment is one native web process with the private
+loopback listener and pinned tenant development realm. Its session store is
+volatile; restart requires sign-in. An HTTPS issuer accepted by a production
+web build does not establish production identity-event retention, proxy
+provenance or deployment readiness. [Phase 11](../roadmap/phase-11-production-hardening.md)
+owns that qualification and the distributed adapter before multiple web
+processes serve one session.
+
+Source admission counts canonical verified visitor IPs, not people or IPv6
+prefixes. Multiple addresses can consume the global pending allowance; clients
+sharing a reverse proxy's socket peer can share one source allowance. No
+prefix fairness or general proxy deployment is established by the local proof.
+
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md#decision)
+owns the ordinary AccountSite status distinction. API 401 deliberately includes
+undecidable authentication, so an ordinary check retains its live local owner
+without idle touch while withholding authenticated content. This does not make
+the token usable at the API or establish live authority in a passive projection.
+Initial callback and post-refresh publication still require a positive API
+witness; failed refresh validation revokes. True 401 revocation is delayed,
+whereas masked 403/404 still close the owner, including configuration refusals.
+The benefit ends when the existing refresh threshold requires a new grant.
 
 ## Tenant Resolution Across Identity
 
@@ -251,9 +287,16 @@ LearnStack reads the `amr` claim to know whether MFA was used; sensitive operati
 
 ## Logout
 
-- Browser logout clears the session cookie and calls Keycloak's end-session endpoint with the `id_token_hint`.
-- Keycloak revokes the refresh token and clears its SSO session.
-- Other LearnStack sessions for the same user are not affected unless the user explicitly signs out everywhere.
+- [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) revokes locally and
+  fences the browser epoch before provider navigation. A separate short-lived
+  return proof survives clearing session/sign-in cookies; tokens are discarded
+  after constructing the registered end-session redirect.
+- Real-provider proof must show the targeted SSO session ended. Shared SSO can
+  invalidate another host's later refresh; independent provider sessions are not
+  intentionally revoked. Already issued API JWTs keep their acceptance bound.
+- Local logout succeeds even during provider outage. After navigating away,
+  automatic return is not guaranteed. Phase 03 owns authenticated back-channel
+  logout before immediate disablement/sign-out-everywhere is promised.
 
 ## Audit
 
@@ -301,7 +344,8 @@ self-service proof, with source-bound hosted assignments and evidence limits.
 The realm guide owns the exact local procedure and refusal boundaries. G10 is
 Accepted: one token carries at most one active tenant. A user in both tenants
 also needs `Membership`, which [Phase 03](../roadmap/phase-03-identity-admin.md)
-delivers. BFF custody and sessions remain P02b-7.
+delivers. Native BFF custody/session rules derive from ADR-0070; the phase Status
+owns current delivery and qualification.
 
 ## Risks
 

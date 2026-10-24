@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { renderBffDocument } from '@/server/auth/html';
+import { admitBffHttp } from '@/server/auth/http-admission';
+import { bffSessionEnabled } from '@/server/auth/session-owner';
 import { createConfiguredPublicClient, publicTraceparent } from '@/server/configured-public-client';
 import { INGRESS_HEADER, verifyNextProvenance } from '@/server/ingress';
 import { beginPublicAdmission } from '@/server/public-admission';
@@ -92,15 +95,80 @@ export async function middleware(request: NextRequest) {
       }
       return finish(refusal(request.method, 503));
     }
-    const entry = publicEntry(context.target, bootstrap.data);
+    const path = url.pathname;
+    const authPath = path === '/api/auth' || path.startsWith('/api/auth/');
+    // Even authentication actions need the independently resolved live site and
+    // a valid locale catalogue before any cookie, reservation or provider work.
+    const entry = publicEntry(authPath ? '/' : context.target, bootstrap.data);
     if (entry.kind === 'refuse') return finish(refusal(request.method, entry.status));
+    // An enabled locale named studio/portal still takes precedence over the
+    // unlocalized shell, exactly as in public entry admission.
+    const protectedPath = entry.kind === 'continue' && entry.locale === null;
+    const enabled = bffSessionEnabled();
+    const document = (kind: 'unavailable' | 'error' | 'busy', status: number) =>
+      new NextResponse(
+        request.method === 'HEAD' ? null : renderBffDocument(bootstrap.data, { kind }),
+        {
+          status,
+          headers: {
+            'cache-control': 'no-store',
+            'content-type': 'text/html; charset=utf-8',
+            'referrer-policy': 'no-referrer',
+            'x-content-type-options': 'nosniff',
+            'x-frame-options': 'DENY',
+            ...(status === 429 || status === 503 ? { 'retry-after': '30' } : {}),
+          },
+        },
+      );
+    let cookieEdits: readonly string[] = [];
+    const bffResponse = (response: NextResponse) => {
+      for (const cookie of cookieEdits) response.headers.append('set-cookie', cookie);
+      if (enabled) response.headers.set('x-frame-options', 'DENY');
+      return response;
+    };
+    if (!enabled && authPath) return finish(refusal(request.method, 404));
+    if (!enabled && protectedPath) return finish(document('unavailable', 503));
+    if (enabled) {
+      admission.publish(bootstrap.data);
+      const bff = await admitBffHttp(request, context, signal, (page) =>
+        renderBffDocument(bootstrap.data, page),
+      );
+      cookieEdits = bff.cookies;
+      if (bff.response) {
+        if (
+          bff.response.status >= 400 &&
+          bff.response.status !== 404 &&
+          !path.endsWith('/session') &&
+          !path.endsWith('/csrf') &&
+          request.headers.get('accept')?.includes('text/html')
+        ) {
+          const response = document(
+            bff.response.status === 429 ? 'busy' : 'error',
+            bff.response.status,
+          );
+          for (const cookie of bff.response.headers.getSetCookie())
+            response.headers.append('set-cookie', cookie);
+          return bffResponse(response);
+        }
+        return bffResponse(bff.response);
+      }
+      if (protectedPath && bff.unavailable) return bffResponse(document('unavailable', 503));
+      if (protectedPath && !bff.session) {
+        const response = NextResponse.redirect(
+          publicRedirect(context.host, '/api/auth/signin?returnTo=' + encodeURIComponent(path)),
+          303,
+        );
+        response.headers.set('cache-control', 'no-store');
+        return bffResponse(response);
+      }
+    }
     if (entry.kind === 'redirect') {
       const response = NextResponse.redirect(
         publicRedirect(context.host, entry.path),
         entry.status,
       );
       response.headers.set('cache-control', 'no-store');
-      return finish(response);
+      return enabled ? bffResponse(response) : finish(response);
     }
     // Next's pinned adapter hides Flight headers here and restores them after
     // middleware. Rebuild ordinary headers; protocol restoration is proved by
@@ -115,8 +183,8 @@ export async function middleware(request: NextRequest) {
       request: { headers: downstream },
     });
     response.headers.set('cache-control', 'no-store');
-    admission.publish(bootstrap.data);
-    return response;
+    if (!enabled) admission.publish(bootstrap.data);
+    return bffResponse(response);
   } catch {
     try {
       admission?.refuse();

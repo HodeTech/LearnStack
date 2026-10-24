@@ -25,11 +25,17 @@ afterEach(() => {
 describe('fixture private-output scanner', () => {
   const secret = 'private-fixture-credential';
   const envelope = 'v1.' + 'A'.repeat(12000) + '.' + 'B'.repeat(43);
+  const credential = [
+    Buffer.from('{"alg":"RS256","typ":"JWT"}').toString('base64url'),
+    'B'.repeat(12000),
+    'C'.repeat(128),
+  ].join('.');
 
   it.each([
     ['secret', secret],
     ['carrier', 'X-LeArNsTaCk-Hop-Secret'],
     ['envelope', envelope],
+    ['credential', credential],
   ])('remembers an early %s after bounded output rolls over', (_name, privateValue) => {
     const scanner = createPrivateScanner([secret]);
     scanner.push(privateValue);
@@ -44,6 +50,7 @@ describe('fixture private-output scanner', () => {
     ['secret', secret],
     ['carrier', 'x-learnstack-host'],
     ['envelope', envelope],
+    ['credential', credential],
   ])('detects a %s split at supported boundaries', (_name, privateValue) => {
     // Envelope controls cover the beginning, large payload and MAC boundary;
     // short secrets/carriers cover every split.
@@ -121,6 +128,9 @@ describe('fixture positive environment', () => {
       DEBUG: 'next:*',
       NEXT_PUBLIC_SECRET: 'unsafe',
       LEARNSTACK_PUBLIC_HOP_SECRET: 'inherited',
+      LEARNSTACK_BFF_ENABLED: 'true',
+      LEARNSTACK_BFF_ISSUER: 'https://unowned.example/realms/learnstack',
+      KEYCLOAK_WEB_CLIENT_SECRET: 'private-inherited',
     }))
       vi.stubEnv(key, value);
     const env = fixtureEnvironment({ root, nodePath: '/explicit/modules' });
@@ -166,6 +176,24 @@ describe('fixture positive environment', () => {
       fixtureEnvironment({ root, privateValues: { NEXT_PUBLIC_SECRET: 'unsafe' } }),
     ).toThrow('Unsupported fixture environment');
   });
+  it('enables BFF only with a complete explicitly supplied proof group', () => {
+    const bffValues = {
+      LEARNSTACK_BFF_ENABLED: 'true',
+      LEARNSTACK_BFF_ISSUER: 'https://identity.example/realms/learnstack',
+      KEYCLOAK_WEB_CLIENT_SECRET: 'owned-private',
+    };
+    expect(fixtureEnvironment({ root, bffValues })).toMatchObject(bffValues);
+    for (const key of Object.keys(bffValues)) {
+      const missing = { ...bffValues };
+      Reflect.deleteProperty(missing, key);
+      expect(() => fixtureEnvironment({ root, bffValues: missing })).toThrow(
+        'Incomplete fixture BFF',
+      );
+    }
+    expect(() =>
+      fixtureEnvironment({ root, bffValues: { ...bffValues, NODE_OPTIONS: 'unsafe' } }),
+    ).toThrow('Incomplete fixture BFF');
+  });
 });
 
 describe('fixture resource ownership', () => {
@@ -178,8 +206,8 @@ describe('fixture resource ownership', () => {
     let stopped!: () => void;
     vi.mocked(stopTestChild).mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
-          stopped = resolve;
+        new Promise<Readonly<{ forced: boolean }>>((resolve) => {
+          stopped = () => resolve({ forced: false });
         }),
     );
     const cleanup = owner.dispose();
@@ -203,7 +231,7 @@ describe('fixture resource ownership', () => {
     owner.ownChild({} as ChildProcess);
     vi.mocked(stopTestChild)
       .mockRejectedValueOnce(new Error('planted cleanup refusal'))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce({ forced: false });
     const closeAllConnections = vi.fn();
     const close = vi.fn((done: (error?: NodeJS.ErrnoException) => void) => done());
     const server = { closeAllConnections, close } as unknown as Server;
@@ -224,7 +252,7 @@ describe('fixture resource ownership', () => {
     output.on('data', (chunk) => scanner.push(chunk));
     output.on('end', () => scanner.finish());
     owner.ownChild({ stdout: output } as unknown as ChildProcess);
-    vi.mocked(stopTestChild).mockResolvedValue(undefined);
+    vi.mocked(stopTestChild).mockResolvedValue({ forced: false });
     const pending = owner.dispose();
     await Promise.resolve();
     await Promise.resolve();
@@ -256,8 +284,8 @@ describe('fixture resource ownership', () => {
       let stopped!: () => void;
       vi.mocked(stopTestChild).mockImplementation(
         () =>
-          new Promise<void>((resolve) => {
-            stopped = resolve;
+          new Promise<Readonly<{ forced: boolean }>>((resolve) => {
+            stopped = () => resolve({ forced: false });
           }),
       );
       if (trigger === 'close' || trigger === 'disconnect') control.emit(event);

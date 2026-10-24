@@ -51,6 +51,18 @@ class ShardControls(unittest.TestCase):
                 'allTests': base + architecture + native + ordinary, 'nonDocker': base + architecture,
                 'all': native + ordinary, 'native': native, 'ordinary': ordinary}
 
+    def renumber_only_manifest(self):
+        # One method group per bin makes both assignments complete but changes
+        # only bin numbers. The callers must reject this false independence.
+        manifest = self.manifest()
+        manifest['ordinary'] = manifest['ordinary'][:self.plan['counts']['ordinary'] * 2]
+        architecture = [case for case in manifest['nonDocker']
+                        if case['assembly'] == 'learnstack.tests.architecture'][:self.plan['counts']['architecture']]
+        manifest['nonDocker'] = manifest['nonDocker'][:1] + architecture
+        manifest['all'] = manifest['native'] + manifest['ordinary']
+        manifest['allTests'] = manifest['nonDocker'] + manifest['all']
+        return manifest
+
     def refuses(self, reason, function, *args):
         with self.assertRaises(OWNER.Refusal) as caught:
             function(*args)
@@ -231,6 +243,19 @@ public sealed class AliasedCollectionTests { }
             dirty = copy.deepcopy(clean); mutate(dirty)
             self.refuses(reason, OWNER.validate_manifest, dirty)
         self.assertTrue(OWNER.validate_manifest(clean))
+
+    def test_outer_population_union_refuses_self_consistent_inner_omissions(self):
+        for missing_from in ('allTests', 'partitions'):
+            with self.subTest(missing_from=missing_from):
+                manifest = self.manifest()
+                omitted = manifest['ordinary'][-1]
+                for part in (('allTests',) if missing_from == 'allTests' else ('ordinary', 'all')):
+                    manifest[part] = [case for case in manifest[part] if case != omitted]
+                # Native/ordinary are still disjoint and exactly cover all
+                # Docker rows; only the outer allTests equality can refuse.
+                self.assertEqual(OWNER.population(manifest['all']),
+                                 OWNER.population(manifest['native'] + manifest['ordinary']))
+                self.refuses('population_union_invalid', OWNER.validate_manifest, manifest)
 
     def test_display_names_are_neither_identity_nor_method_authority(self):
         manifest = self.manifest()

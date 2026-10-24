@@ -122,8 +122,8 @@ public sealed class PublicAdmissionRenderingTests(PublicReadFixture fixture)
                 }
                 else if (checkpoint == "hmr-after")
                 {
-                    AssertCalls(host, ref position, 2, 2);
-                    fixture.Observation.Reads.Should().Be(hmrReads + 2);
+                    AssertCalls(host, ref position, 4, 2);
+                    fixture.Observation.Reads.Should().Be(hmrReads + 4);
                 }
                 else if (checkpoint == "hmr-restore")
                 {
@@ -210,9 +210,9 @@ public sealed class PublicAdmissionRenderingTests(PublicReadFixture fixture)
                         host.Observation.VerifyGate();
                     }
                     else if (name == "keep-alive") AssertCalls(host, ref position, 4, 2);
-                    else if (name == "late-head" || name == "browser-initial" || name == "entry-refusal")
+                    else if (name == "entry-refusal")
                         AssertCalls(host, ref position, 1, 1);
-                    else if (name is "healthy-wire" or "healthy-lifetime" or "head" or "hmr-before" or "hmr-after")
+                    else if (name is "healthy-wire" or "healthy-lifetime" or "head" or "late-head" or "browser-initial" or "hmr-before" or "hmr-after")
                         AssertCalls(host, ref position, 2, 1);
                     else throw new InvalidOperationException("Unexpected admission proof checkpoint.");
                 }

@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
+import { bffPostTarget } from './auth/http-paths.js';
 import { canonicalAddress, normalizeHost, validTarget } from './ingress.js';
 import type { IngressContext } from './ingress.js';
 import { MAX_PUBLIC_RESPONSE_BYTES } from './public-api-limits.js';
@@ -96,7 +97,7 @@ function snapshot(value: unknown): unknown {
 }
 
 /** Native-only construction. The active set owns shutdown, never request lookup. */
-export function createPublicAdmissionRuntime() {
+export function createPublicAdmissionRuntime(bffEnabled = false) {
   const storage = new AsyncLocalStorage<Store>();
   const active = new Set<Store>();
   let stopped = false;
@@ -182,7 +183,9 @@ export function createPublicAdmissionRuntime() {
         stopped ||
         normalizeHost(binding.host) !== binding.host ||
         canonicalAddress(binding.peer) !== binding.peer ||
-        (binding.method !== 'GET' && binding.method !== 'HEAD') ||
+        (binding.method !== 'GET' &&
+          binding.method !== 'HEAD' &&
+          !(bffEnabled && bffPostTarget(binding.method, binding.target))) ||
         !validTarget(binding.target)
       )
         return invariant();
@@ -236,10 +239,10 @@ export function createPublicAdmissionRuntime() {
 }
 
 /** Install once before Next loads its separately bundled middleware and RSC facades. */
-export function installPublicAdmissionRuntime() {
+export function installPublicAdmissionRuntime(bffEnabled = false) {
   const key = Symbol.for('learnstack.public-admission.v1');
   if (Object.getOwnPropertyDescriptor(globalThis, key)) return invariant();
-  const runtime = createPublicAdmissionRuntime();
+  const runtime = createPublicAdmissionRuntime(bffEnabled);
   Object.defineProperty(globalThis, key, {
     value: runtime.holder,
     enumerable: false,
