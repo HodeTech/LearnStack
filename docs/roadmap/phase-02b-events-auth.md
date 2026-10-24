@@ -6,10 +6,10 @@
 > post-merge CI corrections are merged through
 > [PR #35](https://github.com/HodeTech/LearnStack/pull/35). P02b-7's implementation,
 > both review rounds per step and the original source-bound hosted A/B
-> qualification are complete. External review corrections and their fresh
-> validation are in progress;
-> [PR #36](https://github.com/HodeTech/LearnStack/pull/36) is draft.
-> P02b-8's exit enforcement remains pending.
+> qualification are complete. External review corrections and both fresh review
+> rounds are locally complete. Current-source required checks govern
+> [PR #36](https://github.com/HodeTech/LearnStack/pull/36)'s readiness; maintainer
+> review and merge remain separate. P02b-8's exit enforcement remains pending.
 >
 > This document is the plan. Every dated decision package, step record, review
 > round, correction and merge closeout lives in the [delivery log](phase-02b-delivery-log.md), split out
@@ -27,7 +27,7 @@
 > | P02b-4 | Background jobs | ✅ complete and merged — PR #32, 2026-10-19; [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) |
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
-> | P02b-7 | BFF session | External review corrections and fresh qualification in progress — [PR #36](https://github.com/HodeTech/LearnStack/pull/36) draft; original [five-step and A/B closeout](phase-02b-delivery-log.md#p02b-7-implementation-and-hosted-qualification-closeout-2026-10-24) remains historical evidence |
+> | P02b-7 | BFF session | Implementation and external review corrections complete; [PR #36](https://github.com/HodeTech/LearnStack/pull/36) under review, with current-source checks governing readiness; [correction closeout](phase-02b-delivery-log.md#p02b-7-correction-reviews-and-local-validation-closeout-2026-10-24) |
 > | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
 
 ## Goal

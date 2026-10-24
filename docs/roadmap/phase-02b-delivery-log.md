@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,844 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,860 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -233,6 +233,7 @@ each packet decided and delivered, as
   - [P02b-7 implementation and hosted qualification closeout (2026-10-24)](#p02b-7-implementation-and-hosted-qualification-closeout-2026-10-24) — 72 lines
   - [P02b-7 external review corrections and disposition (2026-10-24)](#p02b-7-external-review-corrections-and-disposition-2026-10-24) — 131 lines
   - [P02b-7 correction reviews and local validation closeout (2026-10-24)](#p02b-7-correction-reviews-and-local-validation-closeout-2026-10-24) — 41 lines
+  - [P02b-7 correction source handoff (2026-10-24)](#p02b-7-correction-source-handoff-2026-10-24) — 16 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19577,6 +19578,22 @@ No service credentials, private review files or foreign worktrees are changed.
 The final working-tree receipts establish local validation, not immutable-source
 hosted qualification. Commit, complete new-source A/B execution and current-head
 required checks precede PR readiness; PR #36 remains draft meanwhile.
+
+
+### P02b-7 correction source handoff (2026-10-24)
+
+Commit `903ed92f` contains the verified runtime/test/document corrections. Both
+fresh review pairs and focused confirmations are complete. This handoff changes
+only delivery documentation; runtime/test sources remain byte-identical to that
+commit. PR #36's Tests section records the new qualification source, hosted run,
+A/B attempts and current required-check result as they complete. Earlier runs
+and locally retained originals are not substituted for those current checks.
+
+The phase Status records implemented/reviewed delivery without copying transient
+CI job state. Required checks and exact-source A/B qualification still govern PR
+readiness; maintainer review and merge are separate. Recording live CI receipts
+in the PR avoids another documentation-only source change after qualification.
+No full provider/browser, production or historical failure-cause claim is added.
 
 
 ## Status archive
