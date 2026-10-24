@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,549 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,572 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -253,6 +253,7 @@ each packet decided and delivered, as
   - [P02b-7 SDK first review and counterfactual qualification (2026-10-24)](#p02b-7-sdk-first-review-and-counterfactual-qualification-2026-10-24) — 24 lines
   - [P02b-7 final correction source handoff (2026-10-24)](#p02b-7-final-correction-source-handoff-2026-10-24) — 36 lines
   - [P02b-7 recurrence qualification failure observation (2026-10-24)](#p02b-7-recurrence-qualification-failure-observation-2026-10-24) — 38 lines
+  - [P02b-7 recurrence observation review closeout (2026-10-24)](#p02b-7-recurrence-observation-review-closeout-2026-10-24) — 23 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20303,6 +20304,29 @@ protocol result through the reader and confirms its outcome remains Failed.
 The source is reopened only for this diagnostic gap. Both fresh review rounds
 and a new complete final-source hosted pair remain required. The failed run is
 retained as evidence rather than overwritten or relabelled as a passing result.
+
+### P02b-7 recurrence observation review closeout (2026-10-24)
+
+Both fresh first-round source reviewers approve `d380aa67`. The second fresh
+round independently confirms the unchanged polling, timeout, cleanup and
+finite export. One reviewer identifies a control gap: iterating the production
+allowlist lets removal of a supported row also remove its test. The correction
+defines the two expected case names independently and asserts exact set equality
+before exercising both. Its focused control passes.
+
+The original failed source's 20 producer packages, aggregates that exist,
+frontend log, demo evidence and tested-source metadata are retained before any
+rerun. An independent inventory finds all 5,931 distinct .NET cases: 5,930 Passed
+and one Failed. The integration aggregate is absent because its producer fails;
+this is not an artifact-path diagnosis. Successful causal-restart observations
+are also present for all three cases, including the actual forced subrun's
+1 reconciliation / 2 finalization attempts / 3 ledger rows. These observations
+do not qualify the failed complete assignment or explain its recurrence timeout.
+
+The correction changes no production behavior, fixture lifetime, plan, test
+population or toolchain. A new final-source pair remains pending. Subsequent
+passing observations may qualify that source; they must not be described as a
+causal repair of the retained unexplained failure.
 
 ## Status archive
 

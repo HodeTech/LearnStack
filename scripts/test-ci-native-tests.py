@@ -1920,10 +1920,14 @@ except launcher.Refusal as failure:
             self.assertIsNone(self.owner.closed_causal_restart_counts({**case, 'assembly': 'foreign'}, raw))
 
     def test_recurrence_runtime_failure_keeps_only_exact_case_bound_closed_observations(self):
+        prefix = ('LearnStack.Tests.Integration.Database.BackgroundJobRecurrenceStoreTests.'
+                  'Actual_runtime_fans_out_to_both_scopes_and_duplicate_native_ticks_create_no_extra_children')
+        cases = {prefix + '(organization: True)', prefix + '(organization: False)'}
+        self.assertEqual(cases, self.owner.RECURRENCE_RUNTIME_FAILURE_CASES)
         sentence = ('Recurrence runtime failure;boundary=children;runtime=Running;completed=1;'
                     'executed=1;occurrences=1;recipients=2;fanouts=1;applications=0;retainedApplications=0;'
                     'bridgeOutstanding=0;bridgeRetained=0;bridgeFailed=0;executions=0;renewalRefused=0;leaseElapsed=0.')
-        for name in self.owner.RECURRENCE_RUNTIME_FAILURE_CASES:
+        for name in cases:
             case = {**self.case(1), 'name': name}
             raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + sentence}]}
             actual = self.owner.closed_failure_details(case, raw)
