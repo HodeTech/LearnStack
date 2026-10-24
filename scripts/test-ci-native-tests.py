@@ -435,6 +435,7 @@ except launcher.Refusal as failure:
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
                 'BackgroundJobPositiveSdkTests.NativeWait.cs', 'BackgroundJobPositiveSdkTests.NativeHistory.cs',
                 'BackgroundJobPositiveSdkTests.NativeHandoff.cs',
+                'BackgroundJobPositiveSdkTests.NativeRecovery.cs',
                 'BackgroundJobPositiveSdkTests.SourceContention.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
@@ -1000,6 +1001,15 @@ except launcher.Refusal as failure:
         values.update(changes)
         return 'Causal restart ' + kind + ';' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
 
+    @staticmethod
+    def native_recovery_sentence(record_kind='failure', **changes):
+        values = dict(boundary='renewal_wait', kind='timeout', actual='pending', timerChanges='0',
+                      baselineChanges='1', renewals='0', renewalLosses='0', elapsedLosses='0',
+                      runClosed='false', tokenCancelled='false', dropped='1', clean='false')
+        values.update(changes)
+        return 'Native recovery ' + record_kind + ';' + ';'.join(
+            key + '=' + value for key, value in values.items()) + '.'
+
     def test_causal_restart_details_preserve_real_row_counts_and_first_boundary_separately_from_cleanup(self):
         parse = self.owner.closed_failure_details
         for name in self.owner.CAUSAL_RESTART_FAILURE_CASES:
@@ -1032,6 +1042,42 @@ except launcher.Refusal as failure:
             'Text': self.causal_restart_sentence(**missing)}]})['failure']['row'])
         self.assertEqual(511, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
             'Text': self.causal_restart_sentence(nulls='511')} ]})['failure']['nulls'])
+        expected_method = ('LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+            'Actual_native_recovery_owner_renews_past_old_deadlines_without_admission_or_another_Execute')
+        self.assertEqual({expected_method + '(loseAcquisitionAck: False)',
+                          expected_method + '(loseAcquisitionAck: True)'}, self.owner.NATIVE_RECOVERY_FAILURE_CASES)
+        self.assertEqual({'rooted', 'construction', 'identity', 'renewal_wait', 'database_renewal',
+            'old_lease', 'provider_before', 'reconcile', 'row_facts', 'cleanup_actual', 'cleanup_work',
+            'cleanup_control', 'post_cleanup'}, self.owner.NATIVE_RECOVERY_BOUNDARIES)
+        self.assertEqual('Native recovery failure;boundary=renewal_wait;kind=timeout;actual=pending;'
+            'timerChanges=0;baselineChanges=1;renewals=0;renewalLosses=0;elapsedLosses=0;runClosed=false;'
+            'tokenCancelled=false;dropped=1;clean=false.', self.native_recovery_sentence())
+        for name in self.owner.NATIVE_RECOVERY_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n'
+                + self.native_recovery_sentence() + '\n'
+                + self.native_recovery_sentence('cleanup', boundary='post_cleanup', actual='succeeded',
+                    timerChanges='10000', baselineChanges='unavailable', renewals='out_of_range',
+                    runClosed='true', tokenCancelled='true', clean='true')}]}
+            result = parse(case, raw)
+            self.assertEqual('native_recovery', result['stage'])
+            self.assertEqual({'boundary': 'renewal_wait', 'kind': 'timeout', 'actual': 'pending',
+                'timerChanges': 0, 'baselineChanges': 1, 'renewals': 0, 'renewalLosses': 0,
+                'elapsedLosses': 0, 'runClosed': False, 'tokenCancelled': False,
+                'dropped': 1, 'clean': False}, result['failure'])
+            self.assertEqual(10000, result['cleanup']['timerChanges'])
+            self.assertEqual('unavailable', result['cleanup']['baselineChanges'])
+            self.assertEqual('out_of_range', result['cleanup']['renewals'])
+            self.assertIs(result['cleanup']['clean'], True)
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
+            self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+            self.assertIsNone(parse({**case, 'name': name + '_other'}, raw))
+            for field, allowed in {'boundary': self.owner.NATIVE_RECOVERY_BOUNDARIES,
+                    'kind': ('timeout', 'cancellation', 'assertion', 'invalid_state', 'other'),
+                    'actual': ('not_issued', 'pending', 'succeeded', 'faulted', 'canceled')}.items():
+                for value in allowed:
+                    self.assertEqual(value, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                        'Text': self.native_recovery_sentence(**{field: value})}]})['failure'][field])
 
     def test_causal_restart_details_reject_private_ambiguous_wrong_channel_and_out_of_bound_values(self):
         case = {**self.case(1), 'name': sorted(self.owner.CAUSAL_RESTART_FAILURE_CASES)[0]}
@@ -1051,6 +1097,29 @@ except launcher.Refusal as failure:
             with self.subTest(name=name,value=value):
                 self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs',
                     'Text': self.causal_restart_sentence(**{name:value})}]}))
+        case = {**self.case(1), 'name': sorted(self.owner.NATIVE_RECOVERY_FAILURE_CASES)[0]}
+        sentence = self.native_recovery_sentence()
+        cleanup = self.native_recovery_sentence('cleanup', boundary='cleanup_actual')
+        for category, text in [('StdErrMsgs', sentence), ('StdOutMsgs', sentence + '\n' + sentence),
+                ('StdOutMsgs', sentence + '\n' + cleanup + '\n' + cleanup),
+                ('StdOutMsgs', sentence + 'PRIVATE-CANARY'), ('StdOutMsgs', 'X' * 65537 + sentence),
+                ('StdOutMsgs', cleanup), ('StdOutMsgs', sentence.replace(';kind=timeout', '')),
+                ('StdOutMsgs', sentence.replace(';actual=pending', ';actual=pending;private=canary'))]:
+            self.assertIsNone(parse(case, {'Messages': [{'Category': category, 'Text': text}]}))
+        changes = [('boundary', 'private'), ('kind', 'System.TimeoutException'), ('kind', 'https://private/'),
+                   ('actual', 'complete'), ('runClosed', 'True'), ('tokenCancelled', 'unavailable'),
+                   ('clean', '1')]
+        changes += [(name, value) for name in ('timerChanges', 'baselineChanges', 'renewals',
+                    'renewalLosses', 'elapsedLosses', 'dropped')
+                    for value in ('10001', '-1', '01', '1.0', 'PRIVATE-CANARY')]
+        for name, value in changes:
+            with self.subTest(native_recovery=name, value=value):
+                self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.native_recovery_sentence(**{name: value})}]}))
+        for messages in ([], [{'Category': 'StdOutMsgs', 'Text': sentence}] * 33,
+                [{'Category': 'StdOutMsgs', 'Text': sentence, 'private': 'canary'}],
+                [{'Category': 'x' * 33, 'Text': sentence}]):
+            self.assertIsNone(parse(case, {'Messages': messages}))
 
     def test_causal_restart_failure_export_is_exact_case_bound_failure_only_and_drops_raw_messages(self):
         case = {**self.case(1), 'name': sorted(self.owner.CAUSAL_RESTART_FAILURE_CASES)[0]}
@@ -1072,6 +1141,38 @@ except launcher.Refusal as failure:
             exported = stream.getvalue() + json.dumps(progress.failure_locations)
             for private in ('PRIVATE-CANARY', '/private/', 'Causal restart failure;'):
                 self.assertNotIn(private, exported)
+        for name in self.owner.NATIVE_RECOVERY_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            for outcome in (1, 2):
+                stream = io.StringIO()
+                progress = self.progress(self.root / ('native-recovery-' + str(outcome) + '-'
+                    + str(name.endswith('True)')) + '.diag'), 'LearnStack.Tests.Integration', [case], stream)
+                item = self.execution_result(case, outcome)
+                item['ErrorMessage'] = 'System.TimeoutException : PRIVATE-CANARY'
+                item['ErrorStackTrace'] = '/private/path/BackgroundJobPositiveSdkTests.NativeRecovery.cs:line 123'
+                item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.native_recovery_sentence()}]
+                with contextlib.redirect_stdout(io.StringIO()):
+                    progress.results({'NewTestResults': [item]})
+                self.assertEqual(outcome == 2, bool(progress.failure_locations))
+                if outcome == 2:
+                    diagnostic = progress.failure_locations[0]
+                    self.assertEqual('native_recovery', diagnostic['details']['stage'])
+                    self.assertEqual('timeout', diagnostic['exceptionKind'])
+                    self.assertEqual([{'source': 'positive_sdk_native_recovery', 'line': 123}], diagnostic['locations'])
+                exported = stream.getvalue() + json.dumps(progress.failure_locations)
+                for private in ('PRIVATE-CANARY', '/private/', 'Native recovery failure;'):
+                    self.assertNotIn(private, exported)
+        for foreign in ({'assembly': 'other'}, {'name': sorted(self.owner.NATIVE_RECOVERY_FAILURE_CASES)[0] + '_other'}):
+            case = {**self.case(1), 'name': sorted(self.owner.NATIVE_RECOVERY_FAILURE_CASES)[0], **foreign}
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('native-foreign-' + next(iter(foreign)) + '.diag'),
+                                     case['assembly'], [case], stream)
+            item = self.execution_result(case, 2)
+            item['TestCase']['Source'] = '/private/' + case['assembly'] + '.dll'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.native_recovery_sentence()}]
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertNotIn('details', progress.failure_locations[0])
 
     @staticmethod
     def native_wait_sentence(kind='failure', **changes):

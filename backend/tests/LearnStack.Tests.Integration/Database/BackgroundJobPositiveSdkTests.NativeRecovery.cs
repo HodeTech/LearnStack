@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Runtime.ExceptionServices;
 using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Messaging;
@@ -61,14 +63,79 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var execution = control.TryBeginRecovery(flow.Receipt.Envelope.JobId, await GenerationAsync(database, flow.Receipt.Envelope.JobId),
             flow.Receipt.Envelope.Queue, work)!;
         work.HoldExecution(execution);
+        var executionToken = execution.Token;
         Task<bool>? actual = null;
         var clean = false;
+        var boundary = "rooted";
+        int? baselineChanges = null;
+        ExceptionDispatchInfo? failure = null;
+        Exception? cleanupFailure = null;
+        string? cleanupBoundary = null;
+        void Observe(string record, string at, Exception error)
+        {
+            static string Count(long? value) => value switch
+            {
+                null => "unavailable",
+                >= 0 and <= 10000 => value.Value.ToString(CultureInfo.InvariantCulture),
+                _ => "out_of_range",
+            };
+            try
+            {
+                int? changes = null;
+                try { changes = time.Timer(execution).Changes; }
+                catch (KeyNotFoundException) { }
+                var snapshot = control.Snapshot;
+                var kind = error switch
+                {
+                    TimeoutException => "timeout",
+                    OperationCanceledException => "cancellation",
+                    Xunit.Sdk.XunitException => "assertion",
+                    InvalidOperationException => "invalid_state",
+                    _ => "other",
+                };
+                var state = actual switch
+                {
+                    null => "not_issued",
+                    { IsCanceled: true } => "canceled",
+                    { IsFaulted: true } => "faulted",
+                    { IsCompletedSuccessfully: true } => "succeeded",
+                    _ => "pending",
+                };
+                output.WriteLine("Native recovery " + record + ";boundary=" + at + ";kind=" + kind
+                    + ";actual=" + state + ";timerChanges=" + Count(changes)
+                    + ";baselineChanges=" + Count(baselineChanges) + ";renewals=" + Count(snapshot.Renewals)
+                    + ";renewalLosses=" + Count(snapshot.LeaseLossRenewalRefused)
+                    + ";elapsedLosses=" + Count(snapshot.LeaseLossElapsed)
+                    + ";runClosed=" + (execution.RunGate.IsClosed ? "true" : "false")
+                    + ";tokenCancelled=" + (executionToken.IsCancellationRequested ? "true" : "false")
+                    + ";dropped=" + Count(proxy.DroppedCommitResponses)
+                    + ";clean=" + (clean ? "true" : "false") + ".");
+            }
+            catch (Exception errorWhileObserving) when (NativeWaitCatchable(errorWhileObserving)) { }
+        }
+        void Preserve(Exception error, string at)
+        {
+            if (failure is not null) return;
+            failure = ExceptionDispatchInfo.Capture(error);
+            Observe("failure", at, error);
+        }
+        async Task CleanupAsync(string at, Func<Task> cleanup)
+        {
+            try { await cleanup(); }
+            catch (Exception error) when (NativeWaitCatchable(error))
+            {
+                if (cleanupFailure is null) { cleanupFailure = error; cleanupBoundary = at; }
+                Preserve(error, at);
+            }
+        }
         try
         {
             control.Snapshot.Executions.Should().Be(1, "the native owner is rooted before any recovery SQL");
             execution.WaitForPublicationAsync().IsCompleted.Should().BeTrue("there is no unfinished admission publication");
             actual = Task.Run(() => control.ExecuteExternalRecoveryAsync(execution));
+            boundary = "construction";
             await construction.Entered.WaitAsync(TimeSpan.FromSeconds(15));
+            boundary = "identity";
             execution.Identity.Should().NotBeNull();
             var identity = execution.Identity!;
             identity.IsRecovery.Should().BeTrue();
@@ -79,33 +146,58 @@ public sealed partial class BackgroundJobPositiveSdkTests
             execution.RunGate.IsClosed.Should().BeFalse();
             proxy.DroppedCommitResponses.Should().Be(loseAcquisitionAck ? 1 : 0);
             var oldLease = identity.OwnershipUntil;
+            baselineChanges = time.Timer(execution).Changes;
+            boundary = "renewal_wait";
             control.Start();
             using var until = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (!until.IsCancellationRequested && (time.Timer(execution).Changes == 0 || control.Snapshot.Renewals == 0))
+            while (!until.IsCancellationRequested && (time.Timer(execution).Changes <= baselineChanges.Value || control.Snapshot.Renewals == 0))
                 await Task.Delay(10);
-            time.Timer(execution).Changes.Should().BeGreaterThan(0);
+            time.Timer(execution).Changes.Should().BeGreaterThan(baselineChanges.Value,
+                "the initial timer setup does not prove a later renewal rearmed it");
+            boundary = "database_renewal";
             (await NativeLeaseAsync(database, identity.JobId)).Should().BeAfter(oldLease);
+            boundary = "old_lease";
             await WaitForDatabaseLeaseAsync(database, oldLease);
             execution.RunGate.IsClosed.Should().BeFalse("actual recovery renewal survives both expired original and acquisition windows");
             execution.Token.IsCancellationRequested.Should().BeFalse();
+            boundary = "provider_before";
             (await provider.CountsAsync(flow.Operation)).Should().Be((1L, 0L, 1L));
             construction.Release();
+            boundary = "reconcile";
             clean = await actual.WaitAsync(TimeSpan.FromSeconds(15));
             clean.Should().BeTrue();
+            boundary = "row_facts";
             (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, identity.JobId))!.Phase.Should().Be("finalize_pending");
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, identity.JobId)).Should().Be(1);
             (await provider.CountsAsync(flow.Operation)).Should().Be((1L, 1L, 1L));
         }
+        catch (Exception error) when (NativeWaitCatchable(error)) { Preserve(error, boundary); }
         finally
         {
-            construction.Release();
-            if (actual is not null) clean = await actual;
-            await work.CompleteAsync(await execution.JoinAsync(clean));
-            generation.CloseStarts();
-            control.RequestStop();
-            await control.Completion.WaitAsync(TimeSpan.FromSeconds(20));
+            await CleanupAsync("cleanup_actual", async () =>
+            {
+                construction.Release();
+                if (actual is not null) clean = await actual;
+            });
+            await CleanupAsync("cleanup_work", async () => await work.CompleteAsync(await execution.JoinAsync(clean)));
+            await CleanupAsync("cleanup_control", async () =>
+            {
+                generation.CloseStarts();
+                control.RequestStop();
+                await control.Completion.WaitAsync(TimeSpan.FromSeconds(20));
+            });
+            if (cleanupFailure is not null) Observe("cleanup", cleanupBoundary!, cleanupFailure);
         }
-        control.Snapshot.Executions.Should().Be(0);
-        await generation.Completion.WaitAsync(TimeSpan.FromSeconds(10));
+        failure?.Throw();
+        try
+        {
+            control.Snapshot.Executions.Should().Be(0);
+            await generation.Completion.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        catch (Exception error) when (NativeWaitCatchable(error))
+        {
+            Observe("failure", "post_cleanup", error);
+            throw;
+        }
     }
 }

@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,878 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,924 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -235,6 +235,7 @@ each packet decided and delivered, as
   - [P02b-7 correction reviews and local validation closeout (2026-10-24)](#p02b-7-correction-reviews-and-local-validation-closeout-2026-10-24) — 41 lines
   - [P02b-7 correction source handoff (2026-10-24)](#p02b-7-correction-source-handoff-2026-10-24) — 16 lines
   - [P02b-7 startup-counter cleanup confirmation (2026-10-24)](#p02b-7-startup-counter-cleanup-confirmation-2026-10-24) — 18 lines
+  - [P02b-7 hosted recovery proof follow-up (2026-10-24)](#p02b-7-hosted-recovery-proof-follow-up-2026-10-24) — 46 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19613,6 +19614,57 @@ on the preceding source is intentionally cancelled for this test-hygiene
 correction and supplies no qualification. It is not a passing rerun or a waived
 failure. No further delivery-only commit is needed for live CI receipts: the
 PR records the final source and its complete new A/B attempts.
+
+
+### P02b-7 hosted recovery proof follow-up (2026-10-24)
+
+Run [40071690886](https://github.com/HodeTech/LearnStack/actions/runs/40071690886)
+on correction source `5e07cce6` completes attempt 1/A with all 27 jobs and seven
+required contexts passing. Its 5,930 .NET cases include 31 native cases; frontend
+passes 2,160 cases and the demo supplies nine pages and 27 Lighthouse pairs.
+Attempt 2/B refuses before native provisioning/test launch because Docker
+image-layer provenance cannot be established. Its other 19 producers pass 5,899
+cases. The refusal proves neither an actual dump nor a specific Docker failure.
+
+The complete attempt 3/A passes native 31/31 and 25 jobs but records one failed
+normal Docker case: the lost-acquisition-acknowledgement variant of
+`Actual_native_recovery_owner_renews_past_old_deadlines_without_admission_or_another_Execute`,
+in 21.443 seconds. Its other variant passes in 20.649 seconds. All original
+producer packages and available aggregate/demo receipts are retained locally;
+independent case accounting gives 5,929 passed and one failed case. The integration
+aggregate correctly rejects that failed producer. Workload/ownership refusal
+fields do not independently establish a resource leak.
+
+Three unchanged-source local repetitions pass all six recovery cases. They do
+not establish the historical cause. Source inspection instead verifies three
+narrow proof/diagnostic gaps, now corrected:
+
+- Capture the initial timer-change count before starting control and require a
+  later change. Initial timer setup alone is not renewal evidence; the real SQL
+  lease, old-window survival and exact provider/attempt assertions remain.
+- Preserve the first catchable body error while attempting actual-operation,
+  work and control cleanup. A later cleanup error stays a separate observation.
+- Add the missing source alias and retain exact failed-case-only closed
+  observations for this pair. Stages, exception categories, task states and bounded memory
+  counters contain no provider text, identifiers, credentials or raw paths.
+  Diagnostics perform no extra SQL or provider call and grant no completion or
+  cleanup authority. Capture the cancellation-token value before private-source
+  disposal so post-cleanup observation does not lose its own record.
+
+The final Release build has zero warnings/errors. All four actual recovery and
+Prepare/renewal controls pass, zero skips, in 41 seconds; five corpus controls
+and the documentation checks pass. Final focused TRX SHA-256:
+`7cd4581ec96fe72a3f1287e5133cb35c53927528ea1a7eecd2b534498ac3396a`.
+
+The first independent source review catches that disposed-source observation
+error; the captured-token correction closes it. Two fresh independent focused
+reviews then approve the C# lifetime/proof and Python containment/control changes.
+The full 75 offline execution controls pass, including exact-case, wrong-channel,
+foreign-assembly, duplicate, bounds, success-path and canary counterexamples.
+Production code, operation/test budgets, shard weights/counts and required checks
+are unchanged. The historical CI cause remains unproven. A new complete
+source-bound pair remains required; live results belong in PR #36 so recording
+those results does not invalidate the source again.
 
 
 ## Status archive

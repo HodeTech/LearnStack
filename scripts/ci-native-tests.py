@@ -91,6 +91,7 @@ FAILURE_SOURCES = {
     'BackgroundJobPositiveSdkTests.NativeWait.cs': 'positive_sdk_native_wait',
     'BackgroundJobPositiveSdkTests.NativeHistory.cs': 'positive_sdk_native_history',
     'BackgroundJobPositiveSdkTests.NativeHandoff.cs': 'positive_sdk_native_handoff',
+    'BackgroundJobPositiveSdkTests.NativeRecovery.cs': 'positive_sdk_native_recovery',
     'BackgroundJobPositiveSdkTests.SourceContention.cs': 'positive_sdk_source_contention',
     'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs': 'positive_sdk_settlement_scheduling',
     'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs': 'positive_sdk_settlement_prepare',
@@ -659,6 +660,64 @@ def closed_causal_restart_details(raw):
     return result
 
 
+NATIVE_RECOVERY_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Actual_native_recovery_owner_renews_past_old_deadlines_without_admission_or_another_Execute'
+    '(loseAcquisitionAck: ' + lost + ')'
+    for lost in ('False', 'True')
+}
+NATIVE_RECOVERY_BOUNDARIES = {
+    'rooted', 'construction', 'identity', 'renewal_wait', 'database_renewal', 'old_lease',
+    'provider_before', 'reconcile', 'row_facts', 'cleanup_actual', 'cleanup_work',
+    'cleanup_control', 'post_cleanup',
+}
+
+
+def closed_native_recovery_details(raw):
+    messages = raw.get('Messages')
+    if (not isinstance(messages, list) or not 1 <= len(messages) <= 32
+            or any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+                or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+                or not isinstance(item['Text'], str) for item in messages)
+            or sum(len(item['Text']) for item in messages) > 65536):
+        return None
+    fields = ('boundary', 'kind', 'actual', 'timerChanges', 'baselineChanges', 'renewals',
+              'renewalLosses', 'elapsedLosses', 'runClosed', 'tokenCancelled', 'dropped', 'clean')
+    enums = {'boundary': NATIVE_RECOVERY_BOUNDARIES,
+             'kind': {'timeout', 'cancellation', 'assertion', 'invalid_state', 'other'},
+             'actual': {'not_issued', 'pending', 'succeeded', 'faulted', 'canceled'}}
+    counts = ('timerChanges', 'baselineChanges', 'renewals', 'renewalLosses', 'elapsedLosses', 'dropped')
+    result = {'stage': 'native_recovery'}
+    for record_kind in ('failure', 'cleanup'):
+        marker = 'Native recovery ' + record_kind + ';'
+        count = sum(item['Text'].count(marker) for item in messages)
+        if record_kind == 'cleanup' and count == 0:
+            continue
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        match = re.fullmatch(re.escape(marker)
+            + ';'.join(name + r'=([a-z_0-9]{1,32})' for name in fields) + r'\.', lines[0]) \
+            if count == 1 and len(lines) == 1 else None
+        if match is None:
+            return None
+        values = dict(zip(fields, match.groups()))
+        if any(values[name] not in allowed for name, allowed in enums.items()):
+            return None
+        for name in counts:
+            value = values[name]
+            if value in ('unavailable', 'out_of_range'):
+                continue
+            if not re.fullmatch(r'0|[1-9][0-9]{0,4}', value) or int(value) > 10000:
+                return None
+            values[name] = int(value)
+        for name in ('runClosed', 'tokenCancelled', 'clean'):
+            if values[name] not in ('true', 'false'):
+                return None
+            values[name] = values[name] == 'true'
+        result[record_kind] = values
+    return result
+
+
 BFF_BROWSER_FAILURE_CASE = ('LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
     'Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control')
 BFF_BROWSER_FAILURE_STAGES = {
@@ -734,6 +793,8 @@ def closed_bff_browser_details(raw):
 
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
+    if case['name'] in NATIVE_RECOVERY_FAILURE_CASES:
+        return closed_native_recovery_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == BFF_BROWSER_FAILURE_CASE:
         return closed_bff_browser_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:
