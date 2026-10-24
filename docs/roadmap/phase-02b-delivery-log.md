@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,925 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,956 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -259,7 +259,8 @@ each packet decided and delivered, as
   - [P02b-7 same-source qualification and causal fixture scheduling (2026-10-24)](#p02b-7-same-source-qualification-and-causal-fixture-scheduling-2026-10-24) — 67 lines
   - [P02b-7 final correction qualification (2026-10-24)](#p02b-7-final-correction-qualification-2026-10-24) — 84 lines
   - [P02b-7 review correction contracts and proof controls (2026-10-24)](#p02b-7-review-correction-contracts-and-proof-controls-2026-10-24) — 116 lines
-  - [P02b-7 correction review round 1 — ownership and proof (2026-10-24)](#p02b-7-correction-review-round-1--ownership-and-proof-2026-10-24) — 26 lines
+  - [P02b-7 correction review round 1 — ownership and proof (2026-10-24)](#p02b-7-correction-review-round-1--ownership-and-proof-2026-10-24) — 27 lines
+  - [P02b-7 correction review round 2 — independent recheck (2026-10-24)](#p02b-7-correction-review-round-2--independent-recheck-2026-10-24) — 30 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20685,6 +20686,37 @@ These are scoped reviewer conclusions, recorded separately from execution
 receipts. There is no first-round fix commit because neither produces a verified
 finding. The next independent round reviews the cumulative correction and this
 receipt; current-source hosted A/B remains pending.
+
+
+
+### P02b-7 correction review round 2 — independent recheck (2026-10-24)
+
+Exact cumulative source: `a2869504..86598f70` (implementation `cac786dd`,
+first-round receipt `86598f70`). Two different fresh agents inspect the complete
+correction read-only. Neither relies on the first verdict or modifies source.
+
+- `/root/pr36_third_r2_runtime`: Approve; no verified Blocker/Major/Minor.
+  Independently traces native authority, HTTP classification/recovery, React
+  clock/focus/retry guards, lifecycle observations, SDK child/group cleanup,
+  shared recurrence options and the provider maximum witness. Five isolated
+  diagnostic-owner controls pass in 2.040 seconds; diff check passes. It does
+  not rerun frontend/browser/provider/.NET services or hosted assignments.
+- `/root/pr36_third_r2_proof_corpus`: Approve; no verified Blocker/Major/Minor.
+  Independently checks contract assertions outside conversion, capability/
+  cancellation/clock/idle witnesses, wire/provenance/HMR/return-path twins,
+  hook/storage/boundary controls, realm desired/readback/replan guards and exact
+  provider union. Checks signed-token exclusion's positive control, real clamp
+  growth and shared repair configuration. Verifies append-only ADRs, explicit
+  acceptance, original G13 leaning and normative links, Status ownership and
+  source-bound evidence limits. Core/events Node controls pass 114/114, zero
+  skips/todos; `make lint-docs` passes 2,253 fragments, structure and both indexes;
+  cumulative diff check passes. Larger runtime/hosted totals are not its own
+  execution or attestation.
+
+No verified finding requires a second-round fix. Implementation and both review
+rounds are locally complete. This final source, including the dated receipts and
+pending Status, now requires complete same-source hosted A/B qualification;
+older passing assignments and local selected checks cannot supply it.
 
 
 ## Status archive
