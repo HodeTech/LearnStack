@@ -48,6 +48,9 @@ public sealed class SensitiveExceptionMessageAnalyzerTests
     [InlineData("public void Run(string accessToken) => throw new Exception($\"Failure: {accessToken}\");")]
     [InlineData("public void Run(string accessToken) => throw new Exception(\"Failure: \" + accessToken);")]
     [InlineData("public void Run(string accessToken) => throw new Exception(accessToken + 42);")]
+    [InlineData("public void Run(string accessToken) => throw new Exception(accessToken, (dynamic)null!);")]
+    [InlineData("public void Run(string accessToken) => throw new Exception((dynamic)accessToken);")]
+    [InlineData("public void Run(dynamic accessToken) => throw new Exception((string)accessToken, (dynamic)null!);")]
     [InlineData("public void Run(string accessToken) => throw new Exception($\"Length: {accessToken.Length}\");")]
     [InlineData("public void Run(string accessToken) => throw new Exception($\"{Format(accessToken)}\");")]
     [InlineData("public void Run() => throw new Exception(ClientSecret);")]
@@ -80,6 +83,7 @@ public sealed class SensitiveExceptionMessageAnalyzerTests
 
     [Theory]
     [InlineData("public void Run(string className) => throw new Exception(className);")]
+    [InlineData("public void Run(string className) => throw new Exception(className, (dynamic)null!);")]
     [InlineData("public void Run(string panel) => throw new Exception($\"{panel}\");")]
     [InlineData("public void Run() => throw new Exception(\"password: secret\");")]
     [InlineData("public void Run() => throw new Exception(Ordinary);")]

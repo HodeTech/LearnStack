@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Linq;
 using LearnStack.SharedKernel.Secrets;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -54,23 +55,28 @@ public sealed class SensitiveExceptionMessageAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeThrow(OperationAnalysisContext context, INamedTypeSymbol exceptionType)
     {
         var thrown = (IThrowOperation)context.Operation;
-        if (Unwrap(thrown.Exception) is not IObjectCreationOperation creation
-            || !IsException(creation.Type, exceptionType))
+        var creation = Unwrap(thrown.Exception);
+        if (creation is null || !IsException(creation.Type, exceptionType))
         {
             return;
         }
 
-        foreach (var argument in creation.Arguments)
+        // An unrelated dynamic argument changes constructor binding, not the
+        // known exception type or its statically known string arguments.
+        var sensitive = creation switch
         {
-            var value = Unwrap(argument.Value);
-            if (value is not null && IsStringValue(argument.Value)
-                && IsSupportedRoot(value)
-                && ContainsSensitiveReference(value))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(Rule, creation.Syntax.GetLocation()));
-                return;
-            }
-        }
+            IObjectCreationOperation regular => regular.Arguments.Any(argument => IsSensitiveArgument(argument.Value)),
+            IDynamicObjectCreationOperation dynamicCreation => dynamicCreation.Arguments.Any(IsSensitiveArgument),
+            _ => false,
+        };
+        if (sensitive) context.ReportDiagnostic(Diagnostic.Create(Rule, creation.Syntax.GetLocation()));
+    }
+
+    private static bool IsSensitiveArgument(IOperation argument)
+    {
+        var value = Unwrap(argument);
+        return value is not null && IsStringValue(argument)
+            && IsSupportedRoot(value) && ContainsSensitiveReference(value);
     }
 
     private static bool IsException(ITypeSymbol? type, INamedTypeSymbol exceptionType)

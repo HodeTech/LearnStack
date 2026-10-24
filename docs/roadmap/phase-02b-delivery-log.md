@@ -266,13 +266,14 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 374 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 400 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
     - [Correction verification (2026-10-25)](#correction-verification-2026-10-25) — 10 lines
   - [P02b-8 acceptance (2026-10-25)](#p02b-8-acceptance-2026-10-25) — 27 lines
   - [P02b-8 Step 1 — Sensitive exception analysis and compiler scope (2026-10-25)](#p02b-8-step-1--sensitive-exception-analysis-and-compiler-scope-2026-10-25) — 43 lines
+  - [P02b-8 Step 1 review round 1 (2026-10-25)](#p02b-8-step-1-review-round-1-2026-10-25) — 26 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21327,6 +21328,32 @@ The diagnostic catalogue row is Implemented; the inventory drift row remains
 Registered for Step 2. Full final-source A/B/Docker/phase-exit qualification is
 Step 4, not inferred from these local results. Both fresh implementation review
 rounds remain pending before Step 2 begins.
+
+### P02b-8 Step 1 review round 1 (2026-10-25)
+
+Two fresh readers review `212ec0f4` against acceptance `4b29ea70`: a
+`gpt-6.1-sol`/xhigh analyzer/security reviewer and a `gpt-6-astra`/high
+wiring/proof reviewer. The latter independently runs the evaluated wiring cases
+(3/3, zero skips); the former compares compiler diagnostics for ordinary and
+dynamically bound exception construction without changing repository files.
+
+Two findings are verified and corrected:
+
+- An unrelated dynamic constructor argument changes the operation to
+  `IDynamicObjectCreationOperation`, bypassing the original static-creation-only
+  guard despite a known Exception type and direct string message. The guard now
+  applies the same accepted argument checks to both forms. Three positive and
+  one ordinary-message negative compiler-clean cases lock the distinction.
+- The old XML-reference parser was called only by its own assertions after the
+  active check moved to evaluated MSBuild. That superseded helper and its
+  self-only assertions are removed; real compiler plants and evaluated metadata
+  dirty controls remain.
+
+After correction, the full `CI=true` Release build has zero warnings/errors;
+all 2,669 Unit cases and ten affected architecture cases pass with zero skips.
+The original HTTP/Contract and production-census results retain their recorded
+scope. No new policy or diagnostic-coverage exclusion is introduced. Fresh
+second-round review remains required before Step 2.
 
 ## Status archive
 
