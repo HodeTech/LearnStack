@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,424 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,451 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -249,6 +249,7 @@ each packet decided and delivered, as
   - [P02b-7 current carrier reconciliation (2026-10-24)](#p02b-7-current-carrier-reconciliation-2026-10-24) — 49 lines
   - [P02b-7 policy, UI and evidence first review (2026-10-24)](#p02b-7-policy-ui-and-evidence-first-review-2026-10-24) — 27 lines
   - [P02b-7 real-provider clock and HTML negative correction (2026-10-24)](#p02b-7-real-provider-clock-and-html-negative-correction-2026-10-24) — 37 lines
+  - [P02b-7 second review and final SDK proof census (2026-10-24)](#p02b-7-second-review-and-final-sdk-proof-census-2026-10-24) — 27 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20173,6 +20174,33 @@ not relabeled a new complete ten-case run. The failed receipts remain retained.
 The first-round CI/provider reviewer independently confirms this focused source
 correction without a remaining finding. Fresh round 2 and full hosted
 qualification remain required.
+
+
+### P02b-7 second review and final SDK proof census (2026-10-24)
+
+Two fresh second-round reviewers inspect the policy/UI/proof and CI/provider/
+governance corrections through `9fb1cf3e`. Both approve without a verified
+actionable finding. Their source reviews cover the independent publication and
+recovery rules, observed child/cookie/privacy controls, real-provider clock/HTML
+corrections, CI ownership/diagnostic separation and future-phase carriers. They
+do not independently claim the execution receipts or a full OIDC browser journey.
+Both review rounds for those correction packages are complete.
+
+The final finding-to-source census separately confirms one still-open SDK proof
+gap: its negative wrapper assertion compares lowercase wrapper names with an
+operation identifier. `authenticated-server.test.ts` now checks the actual
+operation map, wrapper map and public SDK capability. Twenty-one additional
+cases isolate the authenticated wrapper's cancellation, body/error taxonomy,
+valid/invalid Problem Details, Retry-After and unexpected-status boundaries.
+Existing shared public response-policy controls are not duplicated. The ten
+original authenticated cases remain; all 103 SDK cases pass, alongside lint and
+TypeScript. No production SDK or API behavior changes.
+
+The earlier full frontend result remains 2,293 at `4ead28c5`; the new SDK-only
+population is recorded separately, not relabeled as a new full frontend run.
+All 2,616 unit cases and five corpus controls pass with no skip. The SDK-only
+correction is committed for its own two fresh focused review rounds before the
+final implementation source is frozen for complete hosted qualification.
 
 
 ## Status archive
