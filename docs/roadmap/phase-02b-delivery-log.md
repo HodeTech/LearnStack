@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 421 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 451 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -275,6 +275,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 1 — Sensitive exception analysis and compiler scope (2026-10-25)](#p02b-8-step-1--sensitive-exception-analysis-and-compiler-scope-2026-10-25) — 43 lines
   - [P02b-8 Step 1 review round 1 (2026-10-25)](#p02b-8-step-1-review-round-1-2026-10-25) — 26 lines
   - [P02b-8 Step 1 review round 2 and closeout (2026-10-25)](#p02b-8-step-1-review-round-2-and-closeout-2026-10-25) — 21 lines
+  - [P02b-8 Step 2 — Independent asynchronous inventory coverage (2026-10-25)](#p02b-8-step-2--independent-asynchronous-inventory-coverage-2026-10-25) — 30 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21376,6 +21377,36 @@ Step 1 is complete with both fresh review rounds and committed verified fixes.
 The next approved step independently verifies the canonical erasure inventory
 against actual storage and adds its drift controls. No final hosted/Docker/A/B
 or phase-exit result is inferred from this local closeout.
+
+### P02b-8 Step 2 — Independent asynchronous inventory coverage (2026-10-25)
+
+The structural control reads the ordered compiled `PlatformDbContext` and
+`AuditDbContext` migration `UpOperations`, without opening a database or consulting
+a design-time factory or private configuration. Evaluating those operations
+expands the pinned vendor installer resources. A bounded table-declaration reader
+tracks typed and literal SQL CREATE/DROP/RENAME operations and refuses unsupported
+or ambiguous table DDL rather than silently omitting it.
+
+The complete Platform census contains 23 tables: the inventory's ten first-party
+and twelve vendor rows, plus the explicitly documented `idempotency_keys` scope
+exclusion. The vendor rows independently match `HangfireStorageContract.Columns`;
+Audit's migration chain independently establishes `audit_log`. Required provider,
+diagnostic, backup/WAL and volatile BFF entries remain distinct from that SQL
+census. Marked canonical tables prevent incidental nearby prose from satisfying
+a missing row. The existing live PostgreSQL schema census remains independent.
+
+Five new architecture facts cover the clean subject, added/dropped/renamed storage,
+changed vendor contract, each removed or duplicated inventory/exclusion/custody
+row, blank vendor classifications, malformed tables/markers and unsupported DDL.
+All five pass in Release with zero failures/skips, as do the five corpus controls.
+The catalogue now reports 270 methods and 237 Implemented rules, 134 in the
+architecture assembly and 103 elsewhere. Documentation fragment/structure/index
+and whitespace checks pass.
+
+This is structural coverage, not field-level erasure, legal compliance, provider
+schema discovery or a new purge/grant/retention mechanism. Independent review of
+subject locators and existing authority remains part of this step. Both fresh
+implementation review rounds remain pending.
 
 ## Status archive
 

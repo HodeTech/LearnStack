@@ -147,7 +147,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**265 test methods run in
+**270 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -188,7 +188,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**236 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
+**237 rules in this catalogue are Implemented, and 134 of them are in that assembly.**
 The other 103 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -519,8 +519,14 @@ otherwise).
   accepted through [P02b-8](../roadmap/phase-02b-delivery-log.md#p02b-8-decision-package-2026-10-25).
 - **Type:** storage-definition and documentation census with dirty controls.
 - **Kind:** structural.
-- **Status:** **Registered** — P02b-8 Step 2; the accepted inventory exists,
-  implementation-level drift controls remain pending.
+- **Status:** **Implemented** — `AsyncStoreInventoryTests` reads the ordered,
+  compiled Platform/Audit `UpOperations`, including expanded vendor installer SQL;
+  it reconciles the complete Platform table set with the canonical inventory and
+  its explicit request-idempotency exclusion. Vendor rows independently match
+  `HangfireStorageContract.Columns`. Added/dropped/renamed storage, every removed
+  row, duplicate/malformed tables and blank vendor classifications fail the
+  controls. Audit/provider/diagnostic/backup/volatile custody entries are required;
+  the independent live PostgreSQL schema census remains a separate backstop.
 - **Phase:** 02b (P02b-8).
 
 #### `Handlers_Return_Result`

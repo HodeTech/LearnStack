@@ -98,6 +98,7 @@ remain in Database Standards: [Outbox](../standards/05-database.md#outbox),
 [Inbox and delivery ledger](../standards/05-database.md#inbox), and
 [Background jobs](../standards/05-database.md#background-jobs).
 
+<!-- async-store-first-party:start -->
 | Store | Copies and subject linkage | Existing constraint |
 |---|---|---|
 | `outbox_messages` | `actor_user_id`, identifier-only `payload`, tenant/org, partition/causation/event IDs and `correlation_id`; new producer `metadata` is SQL NULL | Platform has SELECT/DELETE, no envelope rewrite grant |
@@ -110,6 +111,16 @@ remain in Database Standards: [Outbox](../standards/05-database.md#outbox),
 | `background_job_recurrences` | Finite definition/revision/manifest/target/schedule/recipient-policy metadata; no user or arbitrary parameters | Infrastructure control; no ordinary app access |
 | `background_job_occurrences` | Manifest/slot identity and frozen tenant/org sweep bounds/checkpoints; no person column or arbitrary payload | Preserve occurrence history and monotonic progress |
 | `background_job_recipients` | Immutable tenant/org route, occurrence/manifest/target and accepted child-job receipt | Recipient is a tenant/org route, not a person; reciprocal job links constrain future purge order |
+<!-- async-store-first-party:end -->
+
+The complete Platform migration census also includes this explicit scope exclusion.
+Exclusion from this asynchronous inventory is not an erasure exemption.
+
+<!-- async-store-exclusions:start -->
+| Excluded table | Scope boundary |
+|---|---|
+| `idempotency_keys` | Request replay storage predates Phase 02b's asynchronous copies |
+<!-- async-store-exclusions:end -->
 
 All twelve guarded Hangfire schema-23 tables are in `public`, in the same database.
 The pinned table/column census is `HangfireStorageContract.Columns`; canonical
@@ -118,6 +129,7 @@ forbid business payloads and credentials. Opaque identifiers remain linkable.
 Vendor maintenance grants are confined transport authority, not a person-erasure
 API or a generic Platform grant.
 
+<!-- async-store-vendor:start -->
 | Vendor table | Copy or control classification |
 |---|---|
 | `schema` | Schema-version bookkeeping; no person content |
@@ -132,9 +144,11 @@ API or a generic Platform grant.
 | `set` | Guarded control/recurrence keys and opaque job references |
 | `jobparameter` | Job-linked guarded parameter name/value metadata |
 | `lock` | Guarded resource, acquisition and update-control metadata |
+<!-- async-store-vendor:end -->
 
 The inventory also covers these distinct copies and custody boundaries:
 
+<!-- async-store-custody:start -->
 | Store or custody boundary | Subject linkage and limit |
 |---|---|
 | Existing `audit_log` | Asynchronous terminal/causal `metadata`, including `causal_actor_user_id`, beside immutable actor/entity/causation identifiers. Redacting human-facing fields leaves references; see [Audit data model](31-audit-subsystem.md#7-data-model) |
@@ -142,6 +156,7 @@ The inventory also covers these distinct copies and custody boundaries:
 | External diagnostics | Log, trace and error archives can retain linkable copies; source-row deletion does not erase them |
 | Database, WAL and backups | Retained copies need backup and post-restore reconciliation; source-row deletion alone does not remove them |
 | Native BFF session custody | `InMemoryBffSessionStore` is volatile process-local custody under ADR-0070, not a durable ledger. Local invalidation does not erase provider events or diagnostic archives |
+<!-- async-store-custody:end -->
 
 ### Erasure authority and first-writer prerequisites
 
