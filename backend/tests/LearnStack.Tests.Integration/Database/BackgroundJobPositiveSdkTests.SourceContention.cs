@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Messaging;
@@ -112,17 +113,29 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var pressure = new List<NpgsqlConnection>();
         SourceContentionOwner? transactionalOwner = null;
         Task? heldProvider = null;
+        ExceptionDispatchInfo? failure = null;
+        var boundary = "start";
+        void PreserveFailure(Exception error)
+        {
+            if (failure is not null) return;
+            failure = ExceptionDispatchInfo.Capture(error);
+            WriteSourceContentionObservation("failure", boundary, reconcile.Entered, entered.Task,
+                heldProvider, pressure.Count, runtime);
+        }
         try
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
             await runtime.StartAsync(startup.Token);
+            boundary = "capacity";
             lifetime.PoolSettings.Should().Be(new BackgroundJobApplicationPoolSettings(true, 32));
             runtime.Snapshot.ApplicationCapacity!.RequiredConnections.Should().Be(32);
             await using (var physical = await source.OpenConnectionAsync(startup.Token))
                 new NpgsqlConnectionStringBuilder(physical.ConnectionString).MaxPoolSize.Should().Be(52);
             // Execute and the provider journal commit are real. The native recovery
             // then enters the SDK's post-call barrier, retaining its actual task.
+            boundary = "reconcile_wait";
             await reconcile.Entered.WaitAsync(startup.Token);
+            boundary = "reconcile_facts";
             var external = SourceContentionExecution(runtime, "external", externalJob);
             external.Identity!.IsRecovery.Should().BeTrue();
             heldProvider = (Task)NativeSdkField(external, "_externalProvider");
@@ -135,6 +148,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
 
             // These are 30 explicit physical pressure borrowers on the SAME app
             // source, not 30 claimed native invocations or maximum-topology proof.
+            boundary = "pressure";
             using var pressureDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             for (var index = 0; index < 30; index++)
             {
@@ -142,13 +156,16 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 pressure.Add(connection);
                 await SchemaQueries.AssertApplicationRoleAsync(connection);
             }
+            boundary = "submit";
             await using (var submission = host.Services.CreateAsyncScope())
                 (await transactional.SendAsync(submission.ServiceProvider)).IsSuccess.Should().BeTrue();
             transactionalJob.Should().NotBeNull();
             var acceptedTransactionalJob = transactionalJob!.Value;
             acceptedTransactionalJob.IsInitialized().Should().BeTrue();
             using var completion = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            boundary = "transaction_wait";
             transactionalOwner = await entered.Task.WaitAsync(completion.Token);
+            boundary = "transaction_facts";
             var actualTransactional = SourceContentionExecution(runtime, "transactional", acceptedTransactionalJob);
             actualTransactional.Identity!.Profile.Should().Be("transactional");
             var admission = (Task<JobStartExecutionResult>)NativeSdkField(actualTransactional, "_admission");
@@ -158,6 +175,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 .Append(transactionalOwner.MainBackend).Append(transactionalOwner.AuxiliaryBackend).ToArray();
             allBackends.Should().HaveCount(32).And.OnlyHaveUniqueItems(
                 "the native root owns the final real main/auxiliary pair in the configured app pool");
+            boundary = "overflow";
             using (var overflowDeadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(150)))
             {
                 Func<Task> overflow = async () =>
@@ -168,9 +186,12 @@ public sealed partial class BackgroundJobPositiveSdkTests
             }
             heldProvider.IsCompleted.Should().BeFalse("the external operation stays held through actual source saturation");
             releaseAuxiliary.TrySetResult();
+            boundary = "transaction_complete";
             while ((await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, acceptedTransactionalJob))!.Phase != "completed")
                 await Task.Delay(20, completion.Token);
+            boundary = "committed";
             await AssertSourceContentionCommittedAsync(database, acceptedTransactionalJob, unrelatedOrganization);
+            boundary = "external_facts";
             heldProvider.IsCompleted.Should().BeFalse(
                 "the unrelated transactional native worker commits before the held external task is released");
             (await provider.CountsAsync(context.OperationId)).Should().Be((1L, 1L, 0L));
@@ -183,22 +204,89 @@ public sealed partial class BackgroundJobPositiveSdkTests
             (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, prepared.Value)).Should().Be(1);
             (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, finalized.Value)).Should().Be(0);
         }
+        catch (Exception error) when (NativeWaitCatchable(error)) { PreserveFailure(error); }
         finally
         {
             releaseAuxiliary.TrySetResult();
-            foreach (var connection in pressure) await connection.DisposeAsync();
-            runtime.RequestStop();
+            boundary = "cleanup_pressure";
+            foreach (var connection in pressure)
+            {
+                try { await connection.DisposeAsync(); }
+                catch (Exception error) when (NativeWaitCatchable(error)) { PreserveFailure(error); }
+            }
+            boundary = "cleanup_request";
+            try { runtime.RequestStop(); }
+            catch (Exception error) when (NativeWaitCatchable(error)) { PreserveFailure(error); }
             reconcile.Release();
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
-            await runtime.StopAsync(cleanup.Token);
-            await runtime.Completion.WaitAsync(cleanup.Token);
+            boundary = "cleanup_stop";
+            try { await runtime.StopAsync(cleanup.Token); }
+            catch (Exception error) when (NativeWaitCatchable(error)) { PreserveFailure(error); }
+            boundary = "cleanup_completion";
+            try { await runtime.Completion.WaitAsync(cleanup.Token); }
+            catch (Exception error) when (NativeWaitCatchable(error)) { PreserveFailure(error); }
+            if (runtime.Completion.IsCompletedSuccessfully) boundary = "cleanup_complete";
+            if (failure is not null)
+                WriteSourceContentionObservation("cleanup", boundary, reconcile.Entered, entered.Task,
+                    heldProvider, pressure.Count, runtime);
         }
+        failure?.Throw();
         heldProvider!.IsCompleted.Should().BeTrue();
         transactionalOwner!.ActualAuxiliary.IsCompletedSuccessfully.Should().BeTrue();
         transactionalOwner.Owner.CleanupConfirmed.Should().BeTrue();
         runtime.Snapshot.CleanupConfirmed.Should().BeTrue();
         runtime.Snapshot.RetainedInvocations.Should().Be(0);
         runtime.Snapshot.Control!.Executions.Should().Be(0);
+    }
+
+    // Failure-only memory projection. No SQL, identity, provider text, retry or
+    // completion capability is introduced, and projection faults preserve the cause.
+    private void WriteSourceContentionObservation(string kind, string boundary, Task reconcile,
+        Task<SourceContentionOwner> entered, Task? provider, int pressure, BackgroundJobRuntime runtime)
+    {
+        static string State(Task? task) => task?.Status switch
+        {
+            null => "not_issued",
+            TaskStatus.RanToCompletion => "succeeded",
+            TaskStatus.Canceled => "cancelled",
+            TaskStatus.Faulted => "faulted",
+            _ => "pending",
+        };
+        static string Count(long? value) => value switch
+        {
+            null => "unavailable",
+            >= 0 and <= 64 => value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            _ => "out_of_range",
+        };
+        try
+        {
+            var snapshot = runtime.Snapshot;
+            var state = snapshot.State switch
+            {
+                BackgroundJobRuntimeState.NotStarted => "not_started",
+                BackgroundJobRuntimeState.Bootstrapping => "bootstrapping",
+                BackgroundJobRuntimeState.Starting => "starting",
+                BackgroundJobRuntimeState.Running => "running",
+                BackgroundJobRuntimeState.Stopping => "stopping",
+                BackgroundJobRuntimeState.Retained => "retained",
+                BackgroundJobRuntimeState.Stopped => "stopped",
+                _ => "unknown",
+            };
+            var auxiliary = entered.IsCompletedSuccessfully ? entered.GetAwaiter().GetResult().ActualAuxiliary : null;
+            output.WriteLine("Source contention " + kind + ";boundary=" + boundary
+                + ";reconcile=" + State(reconcile) + ";transactional=" + State(entered)
+                + ";provider=" + State(provider) + ";auxiliary=" + State(auxiliary)
+                + ";pressure=" + Count(pressure) + ";runtime=" + state
+                + ";completion=" + State(runtime.Completion) + ";executions=" + Count(snapshot.Control?.Executions)
+                + ";retained=" + Count(snapshot.RetainedInvocations)
+                + ";renewalRefused=" + Count(snapshot.Control?.LeaseLossRenewalRefused)
+                + ";leaseElapsed=" + Count(snapshot.Control?.LeaseLossElapsed) + ".");
+        }
+        catch (Exception error) when (NativeWaitCatchable(error))
+        {
+            try { output.WriteLine("Source contention " + kind + ";boundary=" + boundary + ";snapshot=unavailable."); }
+            catch (Exception outputError) when (NativeWaitCatchable(outputError)) { }
+        }
     }
 
     private static BackgroundJobDefinitionRegistry SourceContentionRegistry(BackgroundJobRuntimeFixture transactional)

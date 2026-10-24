@@ -434,6 +434,7 @@ except launcher.Refusal as failure:
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
                 'BackgroundJobPositiveSdkTests.NativeWait.cs', 'BackgroundJobPositiveSdkTests.NativeHistory.cs',
                 'BackgroundJobPositiveSdkTests.NativeHandoff.cs',
+                'BackgroundJobPositiveSdkTests.SourceContention.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
                 'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
@@ -845,6 +846,88 @@ except launcher.Refusal as failure:
             self.assertNotIn('PRIVATE-CANARY', exported)
             self.assertNotIn('/private/', exported)
             self.assertNotIn('Outbox startup result;', exported)
+
+    @staticmethod
+    def source_contention_sentence(kind='failure', **changes):
+        values = dict(boundary='reconcile_wait', reconcile='pending', transactional='pending',
+                      provider='not_issued', auxiliary='not_issued', pressure='0', runtime='running',
+                      completion='pending', executions='0', retained='0', renewalRefused='0', leaseElapsed='0')
+        values.update(changes)
+        return 'Source contention ' + kind + ';' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    def test_source_contention_preserves_first_boundary_and_separate_cleanup_without_private_payloads(self):
+        case = {**self.case(1), 'name': self.owner.SOURCE_CONTENTION_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n'
+            + self.source_contention_sentence(renewalRefused='1') + '\n'
+            + self.source_contention_sentence('cleanup', boundary='cleanup_complete', runtime='stopped',
+                completion='succeeded', reconcile='succeeded')}]}
+        result = parse(case, raw)
+        self.assertEqual('source_contention', result['stage'])
+        self.assertEqual('reconcile_wait', result['failure']['boundary'])
+        self.assertEqual(1, result['failure']['renewalRefused'])
+        self.assertEqual('cleanup_complete', result['cleanup']['boundary'])
+        self.assertEqual('succeeded', result['cleanup']['completion'])
+        self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
+        self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+        self.assertIsNone(parse({**case, 'name': case['name'] + '_other'}, raw))
+        for boundary in self.owner.SOURCE_CONTENTION_BOUNDARIES:
+            with self.subTest(boundary=boundary):
+                value = parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.source_contention_sentence(boundary=boundary)}]})
+                self.assertEqual(boundary, value['failure']['boundary'])
+        for field in ('executions', 'retained', 'renewalRefused', 'leaseElapsed'):
+            for value in ('unavailable', 'out_of_range', '0', '64'):
+                actual = parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.source_contention_sentence(**{field: value})}]})['failure'][field]
+                self.assertEqual(int(value) if value.isdigit() else value, actual)
+        unavailable = parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text':
+            'Source contention failure;boundary=cleanup_stop;snapshot=unavailable.'}]})
+        self.assertEqual({'boundary': 'cleanup_stop', 'snapshot': 'unavailable'}, unavailable['failure'])
+
+    def test_source_contention_refuses_ambiguous_private_and_unbounded_observations(self):
+        case = {**self.case(1), 'name': self.owner.SOURCE_CONTENTION_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        sentence = self.source_contention_sentence()
+        for category, text in [('StdErrMsgs', sentence), ('StdOutMsgs', sentence + '\n' + sentence),
+                ('StdOutMsgs', sentence + 'PRIVATE-CANARY'), ('StdOutMsgs', sentence.replace(';pressure=0;', ';pressure=31;')),
+                ('StdOutMsgs', sentence + '\n' + self.source_contention_sentence('cleanup', boundary='pressure')),
+                ('StdOutMsgs', self.source_contention_sentence('cleanup', boundary='cleanup_stop')),
+                ('StdOutMsgs', 'X' * 65537 + sentence)]:
+            with self.subTest(category=category, text=text[:60]):
+                self.assertIsNone(parse(case, {'Messages': [{'Category': category, 'Text': text}]}))
+        for field, value in [('boundary', 'PRIVATE-CANARY'), ('runtime', 'private'), ('reconcile', 'private'),
+                ('transactional', 'ready'), ('provider', 'done'), ('auxiliary', 'complete'),
+                ('completion', 'unavailable'), ('pressure', '-1'), ('pressure', '01'),
+                ('pressure', 'out_of_range'), ('executions', '65'), ('retained', '1000000000'),
+                ('renewalRefused', '65'), ('leaseElapsed', 'url=https://private/')]:
+            with self.subTest(field=field, value=value):
+                self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.source_contention_sentence(**{field: value})}]}))
+        self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence, 'private': 'canary'}]}))
+
+    def test_source_contention_failure_export_is_case_bound_and_failure_only(self):
+        case = {**self.case(1), 'name': self.owner.SOURCE_CONTENTION_FAILURE_CASE}
+        for outcome in (1, 2):
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('source-contention-' + str(outcome) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            item = self.execution_result(case, outcome)
+            item['ErrorMessage'] = 'System.OperationCanceledException : PRIVATE-CANARY'
+            item['ErrorStackTrace'] = '/private/path/BackgroundJobPositiveSdkTests.SourceContention.cs:line 123'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.source_contention_sentence()}]
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual(outcome == 2, bool(progress.failure_locations))
+            if outcome == 2:
+                diagnostic = progress.failure_locations[0]
+                self.assertEqual('source_contention', diagnostic['details']['stage'])
+                self.assertEqual('cancellation', diagnostic['exceptionKind'])
+                self.assertEqual([{'source': 'positive_sdk_source_contention', 'line': 123}], diagnostic['locations'])
+            exported = stream.getvalue() + json.dumps(progress.failure_locations)
+            self.assertNotIn('PRIVATE-CANARY', exported)
+            self.assertNotIn('/private/', exported)
+            self.assertNotIn('Source contention failure;', exported)
 
     @staticmethod
     def native_wait_sentence(kind='failure', **changes):

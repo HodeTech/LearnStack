@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,423 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,475 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -226,7 +226,8 @@ each packet decided and delivered, as
   - [P02b-7 hosted frontend ingress correction (2026-10-24)](#p02b-7-hosted-frontend-ingress-correction-2026-10-24) — 31 lines
   - [P02b-7 first hosted A — fixture corrections (2026-10-24)](#p02b-7-first-hosted-a--fixture-corrections-2026-10-24) — 56 lines
   - [P02b-7 second hosted A — remaining handoff precondition (2026-10-24)](#p02b-7-second-hosted-a--remaining-handoff-precondition-2026-10-24) — 46 lines
-  - [P02b-7 third hosted A — closed browser-readiness evidence (2026-10-24)](#p02b-7-third-hosted-a--closed-browser-readiness-evidence-2026-10-24) — 43 lines
+  - [P02b-7 third hosted A — closed browser-readiness evidence (2026-10-24)](#p02b-7-third-hosted-a--closed-browser-readiness-evidence-2026-10-24) — 44 lines
+  - [P02b-7 first complete A and failed B — preserve the first cause (2026-10-24)](#p02b-7-first-complete-a-and-failed-b--preserve-the-first-cause-2026-10-24) — 51 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19151,6 +19152,58 @@ boundary death, eventual readiness and forged diagnostics have reachable
 controls. All 65 execution-protocol and 26 aggregate controls pass. Passing local
 observations do not label the old failure harmless or prove its cause. Complete
 same-source hosted A/B qualification remains pending.
+
+
+### P02b-7 first complete A and failed B — preserve the first cause (2026-10-24)
+
+The [run on `c245afcc`](https://github.com/HodeTech/LearnStack/actions/runs/40045256382)
+uses merge checkout `77085cbff7e4782564ef3c33d96df4d089eaf87c`, whose tree equals
+the reviewed source. Attempt 1/A succeeds in all 27 jobs and seven required
+contexts: all 5,930 .NET cases, all 2,097 frontend cases, all six BFF cases and
+31 native cases pass without skips. The stopped-provider public demo passes.
+Attempt 2/B finishes with 25 successful jobs and two failures. Its sole failed
+case is the existing source-floor contention proof; integration aggregation
+correctly refuses the failed ordinary-7 producer. All 5,930 cases finish with
+5,929 passes and one failure. This is not complete same-source A/B qualification.
+
+The failing case takes 41.552 seconds and exports cancellation without a source
+location. Its original explicit cleanup can replace an earlier failure, so the
+receipt cannot establish whether startup, execution or cleanup first failed.
+The unchanged case passes locally in 17.979 seconds. No production defect or
+historical causal interleaving is inferred from either observation.
+
+The test now captures its first catchable body/explicit-cleanup failure, attempts
+every pressure-connection disposal, releases both holds and separately attempts
+stop and actual completion. Failure-only memory snapshots preserve closed
+boundaries, task states, pressure counts, runtime state and finite lease-loss
+counters before and after cleanup. A fixed source alias restores bounded line
+locations. The exact-case parser rejects private, malformed, duplicate and
+wrong-channel data. These observations never supply cleanup or admission
+capability. No pacing, lease clock, startup/execution/cleanup budget, production
+behavior or successful assertion changes.
+
+Both independent round-2 reviewers approve this focused source correction;
+neither claims to have reproduced the hosted cause. Release compilation reports
+zero warnings/errors. Two separate corrected real PostgreSQL/native-worker
+executions pass in 18.024 and 17.895 seconds, zero skipped; their TRX SHA-256s are
+`4dfce5cd0d8914d197f9b7f3154fbe51bc67fe5dc2dc6a91c58817c47902e2cf`
+and `2ee1e199ea9a1786a8a3f3def2c2670913f21448cfa589e652399f924bae16ae`.
+All 68 execution-protocol and 26 aggregate controls pass. Local passes do not
+prove that the historical hosted cancellation is resolved.
+
+Evidence retention has a separate limit: the all-jobs rerun removes earlier
+Actions artifacts. The original A aggregate receipts, workflow metadata and one
+producer package were saved first; all 20 original producer job logs remain
+available and are independently captured. Their actual 5,930 unique case IDs,
+outcomes and durations match the retained complete discovery, with all producer
+ownership/cleanup results successful. Six masked display names are discarded,
+not reconstructed. These derived case records are explicitly job-log recovery,
+not original Actions artifacts. All 20 original B producer packages are now
+retained. Future complete A evidence is downloaded before starting B.
+
+PR #36 stays draft. New complete source-bound A/B execution remains required;
+no failed-only rerun, skip, timeout increase or failing-check waiver is used.
+
 
 ## Status archive
 

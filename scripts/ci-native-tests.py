@@ -88,6 +88,7 @@ FAILURE_SOURCES = {
     'BackgroundJobPositiveSdkTests.NativeWait.cs': 'positive_sdk_native_wait',
     'BackgroundJobPositiveSdkTests.NativeHistory.cs': 'positive_sdk_native_history',
     'BackgroundJobPositiveSdkTests.NativeHandoff.cs': 'positive_sdk_native_handoff',
+    'BackgroundJobPositiveSdkTests.SourceContention.cs': 'positive_sdk_source_contention',
     'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs': 'positive_sdk_settlement_scheduling',
     'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs': 'positive_sdk_settlement_prepare',
     'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs': 'recurrence_native_ownership',
@@ -515,12 +516,77 @@ def closed_outbox_startup_details(raw):
     return result
 
 
+SOURCE_CONTENTION_FAILURE_CASE = (
+    'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Native_transactional_pool_completes_at_the_app_source_floor_while_actual_external_reconcile_is_held'
+)
+SOURCE_CONTENTION_BOUNDARIES = {
+    'start', 'capacity', 'reconcile_wait', 'reconcile_facts', 'pressure', 'submit',
+    'transaction_wait', 'transaction_facts', 'overflow', 'transaction_complete', 'committed', 'external_facts',
+    'cleanup_pressure', 'cleanup_request', 'cleanup_stop', 'cleanup_completion', 'cleanup_complete',
+}
+
+
+def closed_source_contention_details(raw):
+    """Test-owned first failure and later cleanup; neither is completion authority."""
+    messages = raw.get('Messages')
+    if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
+        return None
+    if any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+           or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+           or not isinstance(item['Text'], str) for item in messages):
+        return None
+    if sum(len(item['Text']) for item in messages) > 65536:
+        return None
+    tasks = {'not_issued', 'succeeded', 'cancelled', 'faulted', 'pending'}
+    states = {'not_started', 'bootstrapping', 'starting', 'running', 'stopping', 'retained', 'stopped', 'unknown'}
+    counts = {'pressure': 30, 'executions': 64, 'retained': 64, 'renewalRefused': 64, 'leaseElapsed': 64}
+    fields = ('boundary', 'reconcile', 'transactional', 'provider', 'auxiliary', 'pressure',
+              'runtime', 'completion', 'executions', 'retained', 'renewalRefused', 'leaseElapsed')
+    result = {'stage': 'source_contention'}
+    for kind in ('failure', 'cleanup'):
+        marker = 'Source contention ' + kind + ';'
+        count = sum(item['Text'].count(marker) for item in messages)
+        if count == 0 and kind == 'cleanup':
+            continue
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        if count != 1 or len(lines) != 1:
+            return None
+        unavailable = re.fullmatch(re.escape(marker) + r'boundary=([a-z_]+);snapshot=unavailable\.', lines[0])
+        if unavailable:
+            values = {'boundary': unavailable[1], 'snapshot': 'unavailable'}
+        else:
+            match = re.fullmatch(re.escape(marker) + ';'.join(name + r'=([a-z_0-9]{1,32})' for name in fields)
+                                 + r'\.', lines[0])
+            if not match:
+                return None
+            values = dict(zip(fields, match.groups()))
+            if values['runtime'] not in states or any(values[name] not in tasks for name in
+                    ('reconcile', 'transactional', 'provider', 'auxiliary', 'completion')):
+                return None
+            for name, maximum in counts.items():
+                value = values[name]
+                if value in ('unavailable', 'out_of_range') and name != 'pressure':
+                    continue
+                if not re.fullmatch(r'0|[1-9][0-9]?', value) or int(value) > maximum:
+                    return None
+                values[name] = int(value)
+        if values['boundary'] not in SOURCE_CONTENTION_BOUNDARIES or (
+                kind == 'cleanup' and not values['boundary'].startswith('cleanup_')):
+            return None
+        result[kind] = values
+    return result
+
+
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
     if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:
         return closed_outbox_startup_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in NATIVE_WAIT_FAILURE_CASES:
         return closed_native_wait_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] == SOURCE_CONTENTION_FAILURE_CASE:
+        return closed_source_contention_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == RECURRENCE_NATIVE_FAILURE_CASE:
         return closed_recurrence_native_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in SETTLEMENT_FAILURE_CASES:
