@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 400 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 421 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -274,6 +274,7 @@ each packet decided and delivered, as
   - [P02b-8 acceptance (2026-10-25)](#p02b-8-acceptance-2026-10-25) — 27 lines
   - [P02b-8 Step 1 — Sensitive exception analysis and compiler scope (2026-10-25)](#p02b-8-step-1--sensitive-exception-analysis-and-compiler-scope-2026-10-25) — 43 lines
   - [P02b-8 Step 1 review round 1 (2026-10-25)](#p02b-8-step-1-review-round-1-2026-10-25) — 26 lines
+  - [P02b-8 Step 1 review round 2 and closeout (2026-10-25)](#p02b-8-step-1-review-round-2-and-closeout-2026-10-25) — 21 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21354,6 +21355,27 @@ all 2,669 Unit cases and ten affected architecture cases pass with zero skips.
 The original HTTP/Contract and production-census results retain their recorded
 scope. No new policy or diagnostic-coverage exclusion is introduced. Fresh
 second-round review remains required before Step 2.
+
+### P02b-8 Step 1 review round 2 and closeout (2026-10-25)
+
+Two new reviewers independently inspect `4682e269` against acceptance
+`4b29ea70`: a `gpt-6-astra`/high semantics reviewer and a
+`gpt-6.1-sol`/xhigh proof/wiring reviewer. Both approve with no remaining
+Blocker, Major or Minor finding in their reviewed scope. The dynamic-constructor
+fix and removal of the superseded parser are included, not assumed from the
+first-round receipt.
+
+The semantics reviewer independently runs 113 semantic/token cases, including
+the source-propagation clone. The proof reviewer runs 115 Unit and eight
+architecture cases, including current Debug/Release wiring and corpus counts.
+All pass with zero skips. The second reviewer inspects the disposable real-build
+and source-mutation machinery without claiming an independent rerun of it;
+the root's full build/2,669-Unit and broader local receipts remain separate.
+
+Step 1 is complete with both fresh review rounds and committed verified fixes.
+The next approved step independently verifies the canonical erasure inventory
+against actual storage and adds its drift controls. No final hosted/Docker/A/B
+or phase-exit result is inferred from this local closeout.
 
 ## Status archive
 
