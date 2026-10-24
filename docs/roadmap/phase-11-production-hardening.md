@@ -652,6 +652,10 @@ same `ILiveClassProvider`.
   with the `DeploymentMode` composition root resolving each per mode.
 - Integration suites for `Dedicated`, `SelfHostedOnline` and `SelfHostedAirGapped`, and
   the support claim updated from two modes to five.
+- When multiple native web processes must serve one browser session, a distributed
+  adapter behind `BffSessionStore` with qualified credential custody/retention and
+  atomic refresh, revocation and interruption behavior before that topology is
+  activated. A sticky route does not satisfy this trigger.
 - `audit_log` converted to monthly range partitions — the parent created, the Packet 9
   table attached, indexes and policy recreated on it — with the partition-management and
   retention-purge jobs registered and monitored, and
@@ -706,6 +710,12 @@ same `ILiveClassProvider`.
 - A second application instance can be started without a correctness regression:
   distributed cache, cross-instance invalidation, and outbox dispatch under two
   dispatchers all behave.
+- Before multi-process web sessions are activated, two real web owners exercise
+  the distributed BFF adapter: one refresh revision is published, revocation
+  fences held/late work on either owner, interrupted grants are never blindly
+  replayed, and actual settlement governs cleanup. Restart/failover, credentials
+  and provider-event retention have explicit evidence; sticky routing or the
+  existing volatile store alone cannot establish continuity.
 - An integration event crosses a process boundary through Dapr and is delivered
   **at-least-once** to a subscriber in another process, with tenant context restored on
   the consumer side — and a forced redelivery of the same envelope produces exactly one

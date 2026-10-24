@@ -1,9 +1,8 @@
 # 07 — Frontend Architecture Standards
 
 **Status:** Active
-Tenant BFF additions derive from
-[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
-**Derives from:** [ADR-0009 Frontend Single App First](../decisions/0009-frontend-single-app-first.md),
+**Derives from:** [ADR-0070 Owned Tenant BFF Sessions](../decisions/0070-owned-tenant-bff-sessions.md),
+[ADR-0009 Frontend Single App First](../decisions/0009-frontend-single-app-first.md),
 [ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
 (Amendment 1: `learnstack-hub` realm for the separate operator portal),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md) (the operator portal
@@ -38,13 +37,16 @@ frontend/
       src/
         app/
           (public)/            # tenant public site
-            [...slug]/
+            [locale]/courses/[slug]/lessons/[lessonSlug]/
+            [locale]/status/not-found/
             layout.tsx
           (studio)/            # admin studio
+            studio/            # account scaffold only
             layout.tsx
           (portal)/            # learner + instructor
+            portal/            # account scaffold only
             layout.tsx
-          api/                 # thin BFF route handlers
+          api/healthz/         # infrastructure GET; auth is native-owned
           layout.tsx           # root layout
         middleware.ts          # ingress verification and live locale/path admission
         components/
@@ -53,14 +55,16 @@ frontend/
           request.ts
           messages/
             en/public.json
+            en/auth.json
             tr/public.json
-        lib/
+            tr/auth.json
+        server/auth/           # native BFF owner and fixed RP protocol
+        client/bff-session.ts  # closed safe session projection/extension
 
   packages/
     ui/                        # design system primitives (extracted only when duplication is real)
     sdk/                       # generated API client + types
     config/                    # eslint, tsconfig, tailwind shared configs
-    auth/                      # OIDC client config + BFF helpers
 ```
 
 The operator portal `operator-portal` is a **separate Next.js application in the
@@ -77,7 +81,9 @@ Migration to multiple apps within this repo (e.g. extracting `(studio)` into
 
 - **Server Components (RSC)** are the default for every page and component.
 - Add `"use client"` only for interactivity, hooks, browser APIs, third-party client-only libraries.
-- RSCs fetch through the SDK directly; they access server env vars and cookies.
+- RSCs use the admitted request-local loaders and passive safe session lookup.
+  Private transport configuration, credential cookies and bearer attachment
+  remain in the native response owner and configured callers.
 - Pass typed primitives across the RSC → Client boundary; never pass class instances or closures.
 
 ## Tenant Resolution
@@ -119,10 +125,12 @@ flowchart TD
 Remediation Step 2 implements these controls. Concrete execution and review
 evidence belongs to the [delivery record](../roadmap/phase-02d-delivery-log.md#remediation-step-2--native-ingress-and-url-boundary).
 
-- Admit GET/HEAD on every HTTP path reaching the native listener callback before
+- Admit GET/HEAD on HTTP paths reaching the native listener callback before
   Next dispatch, including matcher-exempt health/assets and exact scaffolds.
-  Other methods receive masked `404`, `Cache-Control: no-store`, without bootstrap
-  or Next method conversion. HEAD is bodyless; Node owns malformed protocol input.
+  ADR-0070 additionally admits POST only on `/api/auth/signin/keycloak`,
+  `/api/auth/signout` and `/api/auth/extend`, with their closed proof/body
+  rules. All other methods receive masked no-store 404 without bootstrap or
+  Next method conversion. HEAD is bodyless; Node owns malformed protocol input.
 - Close every production WebSocket upgrade. Development admits only the validated
   GET HMR upgrade path and closes failed/unhandled delegation. Health/asset
   exemptions grant no method, provenance or tenant authority.

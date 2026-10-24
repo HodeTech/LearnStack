@@ -803,7 +803,7 @@ BFF_BROWSER_FAILURE_CASE = ('LearnStack.Tests.Integration.TenancyIdentity.Tenant
 BFF_BROWSER_FAILURE_STAGES = {
     'input', 'input-issuer', 'input-api', 'input-secrets', 'input-sites', 'setup', 'compile', 'build',
     'start', 'command', 'request', 'request-deadline', 'request-connect', 'request-tls', 'request-socket',
-    'response-json', 'cleanup', 'native-stop',
+    'response-json', 'cleanup', 'privacy', 'native-stop',
     'browser-launch', 'browser-anonymous', 'browser-signin-document', 'browser-submit',
     'browser-origin-null', 'browser-origin-absent', 'browser-origin-other', 'browser-storage',
     'browser-extension', 'browser-logout-submit', 'browser-logout-origin', 'browser-logout-origin-null',

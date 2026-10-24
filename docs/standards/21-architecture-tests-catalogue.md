@@ -1,9 +1,8 @@
 # 21 — Architecture Tests + Analyzers Catalogue
 
 **Status:** Active
-Tenant BFF additions derive from
-[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
-**Derives from:** [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
+**Derives from:** [ADR-0070 Owned Tenant BFF Sessions](../decisions/0070-owned-tenant-bff-sessions.md),
+[ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 (ships the first batch of catalogue entries),
 [ADR-0054 Bounded Public Renderer Admission](../decisions/0054-bounded-public-renderer-admission.md)
 (accepted replacement proofs implemented),
@@ -4554,12 +4553,11 @@ structural test proves — and what it does not.
 - **Phase:** P02b-6 Steps 1/4.
 
 - **ADR-0070 Accepted extension — 2026-10-23, implemented:** Actual
-  fresh/warm development provider-event storage covers the named login/logout/
-  code/refresh success/error set. Effective prior selection, listeners/admin
-  policy and qualified retention are preserved; conflicts refuse before any
-  preparation/ordinary write, with separate readback and zero-write rerun.
-  Existing Implemented subjects/counts remain unchanged. P02b-7 Steps 1/5 own
-  the additional Node/fresh-warm provider controls and real BFF evidence.
+  fresh development issuance includes the exact selected login/logout/code/
+  refresh success/error event set. `TenantRealmExportTests` validates the
+  committed configuration; `TenantBffSessionTests` exercises stored events from
+  actual grants, refresh and logout. The development retention limit is not an
+  application-audit guarantee. Existing Implemented subjects/counts remain.
 
 #### `Development_Realm_Reconciliation_Preserves_Accounts`
 
@@ -4627,12 +4625,12 @@ structural test proves — and what it does not.
 - **Phase:** P02b-6 Steps 2–4.
 
 - **ADR-0070 Accepted extension — 2026-10-23, implemented:** Actual
-  fresh/warm development provider-event storage covers the named login/logout/
-  code/refresh success/error set. Effective prior selection, listeners/admin
-  policy and qualified retention are preserved; conflicts refuse before any
-  preparation/ordinary write, with separate readback and zero-write rerun.
-  Existing Implemented subjects/counts remain unchanged. P02b-7 Steps 1/5 own
-  the additional Node/fresh-warm provider controls and real BFF evidence.
+  warm event reconciliation preserves effective prior selection, listeners/admin
+  policy and qualified retention. `scripts/development-realm-events.test.mjs`
+  independently requires all eight types and refuses missing readback; actual
+  `TenantBffSessionTests` exercises warm convergence and the zero-write rerun.
+  Conflicts refuse before preparation/ordinary mutation. Existing Implemented
+  subjects/counts remain unchanged.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`
 
@@ -5598,8 +5596,10 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
 
 - **Asserts:** only the native owner/RP adapter holds credentials; public wrappers,
   browser bodies/Flight/session projections, diagnostics and non-web environment
-  projections contain none. Exact AccountSite validates actor/scope independently.
-- **Source:** ADR-0070; Security 11 § Tenant BFF sessions.
+  projections contain none. Exact AccountSite validates actor/scope independently;
+  native observation exposes scalar logical occupancy only, never credential
+  values, snapshots or a heap-zeroization claim.
+- **Source:** ADR-0070/0071; Security 11 § Tenant BFF sessions.
 - **Type:** frontend source/production canaries. **Kind:** structural.
 - **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and existing
   public boundary controls.
@@ -5614,10 +5614,15 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   replacement/revocation and actual settlement. Expiry/stop/late work never
   resurrect a session or release an unsettled owner's credit. Logout-return
   owners retain subject credit; full expired-state scans reclaim settled slots.
-- **Source:** ADR-0070; Security 11 § Tenant BFF sessions.
+  Independent clocks/provider windows bind lifetime and activity. Ordinary
+  uncertain 401 retains without idle touch, while callback and failed refreshed
+  package publication still refuse/revoke under ADR-0071.
+- **Source:** ADR-0070/0071; Security 11 § Tenant BFF sessions.
 - **Type:** unit and actual response-owning routes. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/server/auth/session-store.test.ts` and
-  `frontend/apps/web/src/test/bff-session-routes.test.ts`.
+  `frontend/apps/web/src/test/bff-session-routes.test.ts`, with composed caller/
+  middleware controls in `src/server/auth/account-site-policy.test.ts` and real
+  protocol cancellation in `src/server/auth/session-http-lifetime.test.ts`.
 - **Status:** **Implemented** — actual owner/route controls above and
   `TenantBffSessionTests` real refresh/maximum and shutdown/failure controls.
 - **Phase:** P02b-7 Steps 2–5.
@@ -5629,10 +5634,14 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   transaction/session-CSRF proof. Unknown hosts/state and disabled mode allocate
   no session/provider work. Read-only RSC, HEAD, assets/prefetch/passive reads
   perform no idle/refresh/cookie writes. Independent negatives reach real guards.
+  The exact matcher/config/framework entry set, Origin for every POST and raw
+  logout body suppression have independent dirty controls.
 - **Source:** ADR-0070; ADR-0054 dated auth extension; Security 11 § CSRF.
 - **Type:** native listener and actual Next route controls. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/test/bff-auth-admission.test.ts` and
-  `frontend/apps/web/src/test/bff-session-routes.test.ts`.
+  `frontend/apps/web/src/test/bff-session-routes.test.ts`, with source census in
+  `public-boundaries.test.ts` and raw TCP observation in
+  `src/server/auth/logout-response.test.ts`.
 - **Status:** **Implemented** — native input/route controls above and the actual browser
   form/Origin and no-network startup cases in `TenantBffSessionTests`.
 - **Phase:** P02b-7 Steps 3–5.

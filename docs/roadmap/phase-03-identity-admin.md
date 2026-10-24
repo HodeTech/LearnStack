@@ -519,6 +519,9 @@ find the result row already written rather than record a second one.
 - Invitation flow end to end, tenant and organization bound.
 - Identity events wired through the central audit pipeline; Keycloak webhook →
   `IEventBus` → Audit consumer working end to end.
+- Authenticated OIDC back-channel logout ingress and provider-session lookup into
+  `BffSessionStore`, with signature/audience/time/replay validation and fenced
+  local revocation, before immediate disable/sign-out-everywhere is promised.
 - Corrected APISIX route table: explicit priorities on every route, and no Hub HMAC
   reference anywhere in gateway configuration.
 - `LS0001` and `LS0002` escalated to Error.
@@ -554,6 +557,13 @@ find the result row already written rather than record a second one.
   alone cannot make either negative control pass.
 - Invitation flow is covered by integration tests, including email mismatch, revoked,
   expired, and cross-organization cases.
+- Real signed back-channel logout revokes only the intended provider/session
+  owners. Invalid signatures, issuer/audience/time claims and replay are refused;
+  unrelated users/sessions and newer logins outside the validated target remain
+  unaffected. Shared provider SSO is not mistaken for independent host sessions.
+  A held callback/refresh cannot republish after revocation, and unsettled work
+  retains its ownership until actual completion. Provider ingress/mirrored audit
+  evidence is distinguished from local-only session events.
 - MUST-class identity audit entries commit in the same transaction as the write they
   describe, with before / after snapshots where applicable; no Identity-owned `audit_*`
   table exists.

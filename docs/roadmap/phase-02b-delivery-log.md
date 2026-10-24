@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,311 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,360 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -246,6 +246,7 @@ each packet decided and delivered, as
   - [P02b-7 foundation second review closeout (2026-10-24)](#p02b-7-foundation-second-review-closeout-2026-10-24) — 17 lines
   - [P02b-7 recovery UI and proof observation implementation (2026-10-24)](#p02b-7-recovery-ui-and-proof-observation-implementation-2026-10-24) — 39 lines
   - [P02b-7 CI and real-provider proof corrections (2026-10-24)](#p02b-7-ci-and-real-provider-proof-corrections-2026-10-24) — 41 lines
+  - [P02b-7 current carrier reconciliation (2026-10-24)](#p02b-7-current-carrier-reconciliation-2026-10-24) — 49 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20057,6 +20058,55 @@ These totals are not added twice. The integration Release build has zero
 warnings/errors. The actual Keycloak/BFF/native-job journeys remain to execute
 on the final correction source; compilation and offline twins do not replace
 those runs or the fresh independent correction reviews.
+
+
+### P02b-7 current carrier reconciliation (2026-10-24)
+
+Current mutable architecture/standards and route guidance now describe native
+credential custody, exact AccountSite transport and the actual Studio/Portal
+scaffolds rather than a general `app/api` proxy or already-enforced admin role.
+GET/HEAD remains the default with exactly the three existing native auth POST
+exceptions. Standard authority headers are adjacent; current auth catalogues,
+cookie retention bounds, recovery/accessibility limits, private transport,
+return destinations, bearer/source provenance and closed diagnostics are explicit.
+Existing catalogue obligations name their actual control owners without a rule
+count or lifecycle-status promotion.
+
+Phase 03's already assigned back-channel logout and Phase 11's conditional
+distributed-session adapter now have concrete deliverables and completion
+criteria. Phase 06 explicitly owns real-provider Chromium/Firefox/WebKit,
+cold-discovery, cookie/history and manual accessibility journeys. These are
+future delivery obligations, not present evidence. Architecture 25 already
+states the single-process boundary and multi-process trigger and needs no edit.
+Phase 02b qualifies enabled/disabled Studio behavior, native-caller attachment,
+development event retention and shared-capacity/availability risks. The setup
+guide no longer claims development event storage is absent.
+
+The earlier Step 2 event-field citation is historical and is not rewritten.
+Its precise pinned
+[realm-representation locator](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/models/utils/ModelToRepresentation.java#L495-L505)
+shows event enablement, expiration, listeners and selected types. The earlier
+type-count correction remains in its dated follow-up; inserting an inline edit
+would break the append-only record. ADR-0070 already quotes Security 11's former
+credential-cookie baseline in its relationship section and explicitly replaces
+it with opaque-cookie server custody. Its historical considered-options/body
+is not rewritten to restate that comparison. ADR-0053's public-caller forwarding
+prohibition remains the named configured-caller clause; the separate authenticated
+seam is unchanged. No extra policy decision is inferred from those editorial
+suggestions.
+
+The new browser privacy stage is also carried through the C# driver's closed
+reason set and Python sanitizer, with its exact-stage control. This preserves
+privacy diagnosis without exporting raw text or weakening actual cleanup.
+During commit formatting, the hook's temporary stash conflicted only over two
+C# switch-expression layouts. The formatted version was compared with the
+saved source, all other work was restored byte-for-byte, and only this task's
+verified recovery stash was removed after the successful commit. Foreign
+worktrees and older stashes remain untouched.
+
+Documentation fragment/roadmap/index checks pass; the new privacy-stage control
+passes. The correction implementation is committed before the next two fresh
+independent review rounds and final real-dependency/hosted qualification.
 
 
 ## Status archive

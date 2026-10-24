@@ -1139,6 +1139,7 @@ except launcher.Refusal as failure:
         expected |= {prefix + code for prefix in ('browser-callback-', 'browser-authorize-', 'browser-logout-status-')
                      for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')}
         self.assertEqual(expected, self.owner.BFF_BROWSER_FAILURE_STAGES)
+        self.assertIn('privacy', self.owner.BFF_BROWSER_FAILURE_STAGES)
         for reason in self.owner.BFF_BROWSER_FAILURE_REASONS:
             message = 'System.InvalidOperationException : BFF native fixture did not reach the closed browser_result/' + reason + ' phase.'
             self.assertEqual({'stage': 'bff_browser', 'reason': reason}, parse(case, {'ErrorMessage': message}))

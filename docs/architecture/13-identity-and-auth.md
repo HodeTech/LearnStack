@@ -10,7 +10,7 @@ users/memberships had not shipped. Public sites used host-based anonymous
 admission without forwarding cookies or credentials.
 [Phase 02b's entry verification](../roadmap/phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12)
 records that baseline. The P02b-5/P02b-6 delivery records below supersede its API
-validation and realm-issuance status. BFF sessions remain P02b-7; Phase 03 owns
+validation and realm-issuance status. P02b-7 delivers BFF sessions; Phase 03 owns
 the application identity domain. Undelivered flows below remain target architecture.
 
 **P02b-5 decision Accepted — 2026-10-19.**
@@ -22,7 +22,8 @@ review rounds are complete and merged through PR #33 on 2026-10-20; the
 [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
 owns delivery, correction reviews and final-source qualification. Authentication
 and authorization registration activate together with the closed surface in Step 4.
-P02b-6 supplies realm reconciliation as recorded below; BFF sessions remain P02b-7.
+P02b-6 supplies realm reconciliation as recorded below; P02b-7 supplies the native
+BFF session boundary described here.
 
 **P02b-6 decision Accepted — 2026-10-21.** The
 [accepted package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
@@ -343,7 +344,8 @@ self-service proof, with source-bound hosted assignments and evidence limits.
 The realm guide owns the exact local procedure and refusal boundaries. G10 is
 Accepted: one token carries at most one active tenant. A user in both tenants
 also needs `Membership`, which [Phase 03](../roadmap/phase-03-identity-admin.md)
-delivers. BFF custody and sessions remain P02b-7.
+delivers. Native BFF custody/session rules derive from ADR-0070; the phase Status
+owns current delivery and qualification.
 
 ## Risks
 

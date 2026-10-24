@@ -37,7 +37,8 @@ the boundary between customization and capabilities that require platform code.
 
 > **Under active development.** The backend foundation and Education schema are
 > implemented. The first working browser experience is the current milestone;
-> browser sign-in, enrolment, payments and live teaching are still ahead.
+> the optional native BFF supplies guarded sign-in/session scaffolds; enrolment,
+> payments and live teaching are still ahead.
 > See [current status](#where-it-is-today) before trying the local scaffold.
 
 ## What it does
@@ -78,8 +79,8 @@ document's Status block; the [roadmap](docs/roadmap/README.md) lists every phase
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs, the closed tenant bearer/AccountSite boundary and development realm reconciliation | BFF sessions and phase-exit enforcement in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs, the closed tenant bearer/AccountSite boundary and development realm reconciliation | Phase-exit enforcement in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke, generated typed SDK and optional bounded native BFF session scaffolds | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.

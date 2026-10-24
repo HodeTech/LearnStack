@@ -1,9 +1,8 @@
 # 18 — Audit Coverage Standards
 
 **Status:** Active
-Tenant BFF additions derive from
-[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
-**Derives from:** [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
+**Derives from:** [ADR-0070 Owned Tenant BFF Sessions](../decisions/0070-owned-tenant-bff-sessions.md),
+[ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
 (supersedes [ADR-0016](../decisions/0016-audit-log-subsystem.md), which remains the
 subsystem's context),
 [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md),

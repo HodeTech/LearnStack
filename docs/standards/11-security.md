@@ -217,6 +217,11 @@ P02b-7's five-step package owns implementation; acceptance alone enables no rout
 Use 256-bit random opaque `__Host-` session cookies: HttpOnly, Secure,
 SameSite=Lax, Path=/, no Domain. Credentials and raw profiles enter no browser
 projection. Verified host, browser binding, epoch and server state are required.
+The delivered opaque session/browser cookie format uses an eight-hour Max-Age;
+the standalone form-CSRF and login/logout proof cookies use 300 seconds, with
+Max-Age zero for an authorized deletion. These browser retention bounds never
+extend server idle, provider or absolute authority and do not make restart
+survivable. The real cookie controls compare emitted headers, not browser defaults.
 
 - Idle is 30 minutes, absolute eight hours; effective expiry also respects the
   provider refresh deadline. Response owners refresh expired/near-expiry access,
@@ -231,6 +236,9 @@ projection. Verified host, browser binding, epoch and server state are required.
   validated issuer/subject. Same-browser replacement settles old work first.
   No live other-device eviction or capacity bypass; source/subject refusal is
   429 and global capacity refusal is 503. Full expiry scans precede global refusal.
+  AccountSite also remains subject to the API's shared peer/visitor limits under
+  ADR-0064; neither session capacity nor a subject allowance grants independent
+  end-to-end throughput to a host or browser.
 - Revocation/epochs fence late callbacks and refresh. Unknown/mismatched state
   changes no cookies; verified failure clears only its own transaction cookie.
   Logout revokes locally first, discards tokens after URL construction and keeps
@@ -246,6 +254,20 @@ projection. Verified host, browser binding, epoch and server state are required.
   Public pages remain anonymous; unavailable protected checked reads return 503.
   Passive projections describe local state only. Genuine 401 revocation can be
   delayed; retention does not extend the existing refresh threshold or deadline.
+- Return destinations are the closed local set `/`, `/studio` and `/portal`.
+  No browser URL, Host/forwarded header, provider error or callback query chooses
+  the issuer, API origin, provider endpoint or post-logout authority. Fixed
+  discovery/token/JWKS purposes use the private issuer, no redirects, one
+  operation-wide deadline through body consumption and a decoded-byte bound.
+- Only the native AccountSite caller attaches its owned bearer to the fixed
+  authenticated endpoint. The public caller stays credential-free; neither
+  forwards browser Authorization or tenant/organization selectors. Source
+  admission uses the verified socket provenance, not a browser-supplied address.
+  Proxy deployment requires Phase 11's provenance qualification first.
+- BFF diagnostics emit only their closed lifecycle/failure categories. Do not
+  expose raw provider exceptions, responses, URLs, subjects, handles or tokens.
+  A category such as `provider_refused` is an observation, not a causal verdict,
+  proof of settled cleanup or a durable application session-audit record.
 - Explicit BFF opt-in validates issuer/secret together. Disabled mode keeps public
   requests independent of Keycloak; auth paths are 404 and protected shells 503.
   Restart signs sessions out. Multiple web processes require Phase 11's distributed
@@ -681,8 +703,10 @@ and redirect/query rules. These are the ongoing security obligations:
 P02d-5 delivers this boundary and ADR-0054's accounting, native admission and
 URL controls. The [remediation record](../roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
 owns execution, independent reviews and PR closeout evidence.
-Every native HTTP path, including matcher exemptions, admits GET/HEAD only;
-production upgrades close and development retains only validated GET HMR. See
+Native paths, including matcher exemptions, admit GET/HEAD; ADR-0070 adds only
+the three exact proof-bearing POST actions named in Frontend Standards.
+Other methods remain masked. Production upgrades close and development retains
+only validated GET HMR. See
 [Frontend Standards § Native Admission and URL Identity](07-frontend-architecture.md#native-admission-and-url-identity)
 for the native controls and their delivery/review boundary.
 

@@ -243,7 +243,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-4** | Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
 | **P02b-5** | API authentication: closed JWT profile, ordered reconciliation and attributed rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: shared client scope/mappers, protected user-profile UUIDs agreeing with `SeedData`, safe warm reconciliation, narrow account self-service and real Keycloak/API proofs | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
-| **P02b-7** | BFF session: native custody, opaque cookies, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
+| **P02b-7** | BFF session: native custody, opaque cookies, single-flight refresh, CSRF, logout, studio guard and native caller bearer attachment to the injected SDK | G13 Accepted; P02b-6 |
 | **P02b-8** | `LS0002`, the carrier reconciliations this phase owes, the re-verification that the behavioural check is still required under the name it reports, and the exit checks | G16, G18 (the erasure inventory) Accepted |
 
 The events packets precede the identity packets because the Hub's `P02c-3` waits on this
@@ -1205,8 +1205,9 @@ CI and merge verification; its dated local receipts retain their original scope.
   back-navigation does not restore an authenticated view.
 - A cross-origin POST between the two demo hosts is refused, and so is a POST with a
   correct `Origin` and no session-bound token.
-- An unauthenticated request to `(studio)` is redirected to sign-in and `(public)` is
-  not.
+- With BFF explicitly enabled, an unauthenticated exact `/studio` or `/portal`
+  request redirects to sign-in and public pages do not. Disabled mode returns
+  the bounded sign-in-unavailable 503 without provider work.
 - **Both [Phase 02d](phase-02d-walking-skeleton.md) sites still render anonymously with
   Keycloak stopped** — the session is additive to the anonymous path, never in front of
   it.
@@ -1302,6 +1303,17 @@ CI and merge verification; its dated local receipts retain their original scope.
   PostgreSQL, so that is inherited rather than mitigation. What this phase controls is
   that an anonymous page load depends on no identity provider, which the Phase 02d
   regression criterion asserts.
+- **Provider events are mistaken for a durable session ledger.** Selected
+  development events have finite retention and asynchronous expiry, not a row/
+  disk capacity bound or atomic application-audit guarantee. They cannot witness
+  local expiry or logout during a provider outage. Phase 03 owns the authenticated
+  identity-event ingress/mirror; Phase 11 owns production retention and capacity.
+- **A local BFF is mistaken for distributed continuity or outage immunity.**
+  Restart loses sessions and shared global/source/subject caps can refuse new
+  sign-ins across tenants. Refresh/publication still needs positive API/provider
+  authority. ADR-0071 retains an uncertain ordinary 401 only until the existing
+  refresh/deadline rules apply; masked 403/404 can still revoke. Phase 11's
+  distributed adapter/proxy qualification precedes multiple web processes.
 - **Keycloak claims leak into authorization decisions.** Keycloak authenticates;
   LearnStack authorizes. The realm currently ships three tenant-shaped realm roles with
   full scope on both clients, so the mitigation is the realm-role resolution above plus

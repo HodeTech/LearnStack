@@ -7,7 +7,7 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 internal sealed class BffNativeDriver : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    private static readonly string[] ErrorStages = (new[] { "input", "input-issuer", "input-api", "input-secrets", "input-sites", "setup", "compile", "build", "start", "command", "request", "request-deadline", "request-connect", "request-tls", "request-socket", "response-json", "cleanup", "native-stop",
+    private static readonly string[] ErrorStages = (new[] { "input", "input-issuer", "input-api", "input-secrets", "input-sites", "setup", "compile", "build", "start", "command", "request", "request-deadline", "request-connect", "request-tls", "request-socket", "response-json", "cleanup", "privacy", "native-stop",
                      "browser-launch", "browser-anonymous", "browser-signin-document", "browser-submit", "browser-origin-null", "browser-origin-absent", "browser-origin-other", "browser-storage", "browser-extension", "browser-logout-submit", "browser-logout-origin", "browser-logout-origin-null", "browser-logout-origin-other", "browser-logout-response", "browser-logout-location", "browser-logout-navigation", "browser-logout-cookie-header", "browser-logout-cookie", "browser-back-revalidation", "browser-history-setup", "browser-history-revalidation", "browser-headers" }
                  .Concat(new[] { "browser-callback-", "browser-authorize-", "browser-logout-status-" }
                      .SelectMany(prefix => new[] { "0", "200", "303", "400", "403", "404", "429", "503", "other" }.Select(code => prefix + code)))).ToArray();

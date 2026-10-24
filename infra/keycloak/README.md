@@ -199,8 +199,11 @@ capability. P02b-7 owns server-side BFF token custody; narrowing this already
 approved development capability requires a separate decision.
 The tenant export enables open registration with email as username, password
 reset and remember-me, while email verification is disabled. It declares no
-password policy or event-persistence/listener configuration. These are local
-development settings; production provisioning owns its own hardened configuration.
+password policy. ADR-0070 enables the selected development identity-event types
+and a default seven-day retention while preserving qualified prior policy; this
+is not production event capacity, retention or application-audit durability.
+These are local development settings; production provisioning owns its own
+hardened configuration.
 Production client scope mapping, refresh rotation and MFA enforcement remain
 Phase 11 work; Phase 03 owns tenant identity policy. Tenant MFA stays optional in
 this development export; the operator realm keeps its declared TOTP action.

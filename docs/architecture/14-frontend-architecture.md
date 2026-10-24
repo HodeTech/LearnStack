@@ -69,36 +69,26 @@ frontend/
     web/                                  # the only tenant-facing Next.js app
       src/
         app/
-          (public)/
-            [tenant-by-host]/             # virtual segment, resolved in middleware
-            page.tsx
+          (public)/[locale]/
             courses/
-            blog/
-          (studio)/
-            login/
-            dashboard/
-            content/
-            pages/
-            courses/
-            media/
-          (portal)/
-            my-courses/
-            lesson/[id]/
-            sessions/
-          api/                            # only thin BFF proxies, see "Data Fetching"
+              [slug]/lessons/[lessonSlug]/
+            status/not-found/
+          (studio)/studio/                # guarded account scaffold
+          (portal)/portal/                # guarded account scaffold
+          api/healthz/                    # infrastructure GET only
         components/
           public/                         # P6 public views and states
           blocks/                         # built-in primitive page blocks
           ui/                             # design-system primitives
-        lib/
-          api/
-          auth/
-          tenant/
+        server/auth/                      # native BFF owner and fixed protocol
+        client/bff-session.ts             # safe projection/extension only
         i18n/                             # ADR-0027 foundation implemented in P6 Step 1
           request.ts
           messages/
             en/public.json
+            en/auth.json
             tr/public.json
+            tr/auth.json
         middleware.ts                     # ingress verification + locale entry
         extensions/                       # client-side block resolver, see Page Builder
   packages/
@@ -114,7 +104,9 @@ frontend/
 > P02d-5/G36 delivers Node middleware in
 > `apps/web/src/middleware.ts`. The ownership and accepted entry rule are recorded in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The tree above is the earlier target layout, not a shipped-directory census.
+> The tree shows the current route groups. Content/media authoring, dashboards
+> and enrolled-learner screens are Phase 06/07 targets. BFF auth paths are served
+> by the native response owner under ADR-0070, not general `app/api` proxies.
 
 The operator portal (`operator-portal`) is a **separate Next.js application in the
 separate `learnstack-hub` repository**; nothing about it lives under this `frontend/`
@@ -303,18 +295,20 @@ merge of tenant + optional org) more cheaply.
 Two paths:
 
 - **Server-side** — React Server Components and route handlers call the .NET API directly using the typed SDK in `packages/sdk`. The SDK is generated from the backend's OpenAPI document; [Standards 07 § SDK](../standards/07-frontend-architecture.md) owns when and how.
-- **Client-side target** — P02b-7 supplies the thin authenticated BFF/session
-  transport. It keeps tokens outside browser JavaScript; any tenant header can
-  only assert independently resolved scope under ADR-0036. It never selects it.
-  Public SDK requests remain credential-free. The BFF wraps no business logic.
+- **Authenticated boundary** — P02b-7 supplies native credential custody and
+  exact AccountSite transport under ADR-0070. Browser code receives a safe
+  session projection and the closed extension action, never a generic API proxy,
+  bearer token or tenant/organization selector. The native caller attaches its
+  bearer and trusted host hop; the injected SDK owns neither. Public SDK
+  requests remain credential-free. Phase 06 owns wider authenticated consumers.
 
 The SDK is the only sanctioned way to call the API. Hand-rolled `fetch('/api/v1/...')` calls are blocked by lint — `no-restricted-globals`, because `fetch` is a global and an import rule could never have caught a single call.
 
 ## Authentication on the Frontend
 
-P02b-5 delivers the API boundary and a separate typed AccountSite SDK contract,
-without authenticated transport or a login UI. P02b-6 reconciles actual realm
-issuance; P02b-7 owns the BFF/session flow below. Phase 06 expands the complete
+P02b-5 delivers the API boundary and separate typed AccountSite SDK contract.
+P02b-6 reconciles actual realm issuance; P02b-7 delivers the native BFF/session
+flow below. Phase 06 expands the complete
 browser journey and Studio/Portal experience. The
 [API contract](../decisions/0064-tenant-api-authentication-boundary.md) does not
 turn a generated GET into a public wrapper or widen native public admission.
