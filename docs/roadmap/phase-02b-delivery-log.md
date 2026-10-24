@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,572 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,615 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -254,6 +254,7 @@ each packet decided and delivered, as
   - [P02b-7 final correction source handoff (2026-10-24)](#p02b-7-final-correction-source-handoff-2026-10-24) — 36 lines
   - [P02b-7 recurrence qualification failure observation (2026-10-24)](#p02b-7-recurrence-qualification-failure-observation-2026-10-24) — 38 lines
   - [P02b-7 recurrence observation review closeout (2026-10-24)](#p02b-7-recurrence-observation-review-closeout-2026-10-24) — 23 lines
+  - [P02b-7 browser launch qualification observation (2026-10-24)](#p02b-7-browser-launch-qualification-observation-2026-10-24) — 43 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20327,6 +20328,49 @@ The correction changes no production behavior, fixture lifetime, plan, test
 population or toolchain. A new final-source pair remains pending. Subsequent
 passing observations may qualify that source; they must not be described as a
 causal repair of the retained unexplained failure.
+
+### P02b-7 browser launch qualification observation (2026-10-24)
+
+Focused second-round confirmation approves the independent two-case recurrence
+control in `43b12c70`. Its complete hosted run,
+[40098005110 attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/40098005110),
+tests head `43b12c70f5124b217f3003596fa7438100bf5817`, tree
+`fb1d69bdc3482da36ea7f5a2073e714e27fa3e12` and merge checkout
+`7b1db5122d96960dc93625b172897c499ce696ff`. Twenty-five jobs pass; ordinary-9
+and its integration aggregate fail. All 20 original producer packages and the
+other available evidence are retained. This is not a qualified A result.
+
+The failed case is
+`Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control`:
+22.357 seconds, positive journey, `browser-launch_cleanup_failed`, with
+`workloadError=tests_failed` followed by `owned_completion_missing` and forced
+cleanup. The previous run's recurrence cases now pass; the failed browser case
+passed on that previous source. Neither fact proves a transient cause or repair.
+The observed runner image changes from `20261012.334.1` to `20261023.334.3`;
+that observation does not establish causality.
+
+Independent source inspection verifies a diagnostic loss: executable lookup,
+spawn, DevTools readiness, CDP connection and context creation share one stage;
+the outer catch discards the existing readiness helper's branded finite reason.
+The correction separates those stages and maps only actual branded readiness
+failures, including exited child, inactive owner, unreadable port and missing,
+empty or malformed readiness file at the existing deadline. Unbranded/forged
+errors retain the generic closed stage. C# and the sanitized CI reader accept
+the exact finite set and keep cleanup failure separate. No raw browser output,
+address, path or exception message is exported.
+
+No browser flag, HOME/XDG policy, sandbox, executable selection, timeout, retry,
+cleanup authority or production behavior changes. The lost detail is repaired;
+the hosted launch failure's cause remains unproven. Both fresh review rounds
+and a new final-source pair remain required.
+
+The 62 focused frontend controls and web typecheck/lint pass. The actual native
+browser case passes locally with zero skips: stock Chromium `156.0.8078.48`,
+two hosts, positive cookie/isolation/keyboard/extension/logout/back proof and
+the live restoration counter, 26.764 seconds including joined cleanup. Natural
+persisted restores are zero; the counter reaches the explicit persisted event,
+not a claimed natural BFCache restoration. This is controlled-grant/API browser
+proof, not the separate real-provider OIDC/application-role chain.
 
 ## Status archive
 

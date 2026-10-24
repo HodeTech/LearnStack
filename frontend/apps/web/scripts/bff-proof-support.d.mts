@@ -1,3 +1,4 @@
+export function bffDevToolsFailureStage(error: unknown): string;
 export function bffProofCopy(locale: string, key: string): string;
 export function assertBffCookieAttributes(headers: readonly string[] | undefined): void;
 export function assertBffPrivateOutput(scanners: readonly { readonly leaked: boolean }[]): void;

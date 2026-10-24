@@ -1172,6 +1172,14 @@ except launcher.Refusal as failure:
 
     def test_bff_browser_failure_export_is_case_bound_failure_only_and_contains_no_raw_text(self):
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        for reason in ('browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
+                       'browser-devtools-unreadable', 'browser-devtools-missing', 'browser-devtools-empty',
+                       'browser-devtools-malformed', 'browser-exited', 'browser-connect', 'browser-context'):
+            for suffix in ('', '_cleanup_failed'):
+                raw = {'ErrorMessage': 'BFF native fixture did not reach the closed browser_result/' + reason + suffix + ' phase.'}
+                self.assertEqual(reason + suffix, self.owner.closed_failure_details(case, raw)['reason'])
+                self.assertIsNone(self.owner.closed_failure_details(case,
+                    {'ErrorMessage': raw['ErrorMessage'].replace(reason, reason + '-PRIVATE-CANARY')}))
         for outcome in (1, 2):
             stream = io.StringIO()
             progress = self.progress(self.root / ('bff-browser-' + str(outcome) + '.diag'),

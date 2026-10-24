@@ -1,10 +1,12 @@
 // @vitest-environment node
 import { execFileSync } from 'node:child_process';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { waitForBrowserDevTools } from '../../scripts/admission-browser.mjs';
 import {
   assertBffCookieAttributes,
+  bffDevToolsFailureStage,
   bffProofCopy,
   createBffCookieScanner,
   rememberBffCookies,
@@ -14,6 +16,60 @@ import en from '../i18n/messages/en/auth.json';
 import tr from '../i18n/messages/tr/auth.json';
 
 describe('BFF proof observation ownership', () => {
+  it('retains actual branded readiness observations without exporting forged or private error fields', async () => {
+    vi.useFakeTimers();
+    try {
+      for (const kind of ['missing', 'empty', 'malformed'] as const) {
+        const waiting = waitForBrowserDevTools({
+          assertActive() {},
+          isLive: () => true,
+          readPort: () => ({ kind }),
+          timeout: 1,
+        }).catch((error: unknown) => error);
+        await vi.runAllTimersAsync();
+        expect(bffDevToolsFailureStage(await waiting)).toBe('browser-devtools-' + kind);
+      }
+      for (const [options, expected] of [
+        [
+          {
+            assertActive() {
+              throw new Error('PRIVATE-CANARY');
+            },
+          },
+          'browser-devtools-inactive',
+        ],
+        [{ isLive: () => false }, 'browser-exited'],
+        [
+          {
+            readPort() {
+              throw new Error('PRIVATE-CANARY');
+            },
+          },
+          'browser-devtools-unreadable',
+        ],
+      ] as const) {
+        const settings = {
+          assertActive() {},
+          isLive: () => true,
+          readPort: () => ({ kind: 'missing' as const }),
+          timeout: 1,
+        };
+        Object.assign(settings, options);
+        const error = await waitForBrowserDevTools(settings).catch((failure: unknown) => failure);
+        expect(bffDevToolsFailureStage(error)).toBe(expected);
+      }
+      expect(
+        bffDevToolsFailureStage(
+          Object.assign(new Error('PRIVATE-CANARY'), {
+            admissionStage: 'browser-devtools',
+          }),
+        ),
+      ).toBe('browser-devtools');
+      expect(bffDevToolsFailureStage(null)).toBe('browser-devtools');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it.each(['stdout', 'stderr'])(
     'the actual owned-child %s observer catches cookies learned after the child settles',
     (stream) => {

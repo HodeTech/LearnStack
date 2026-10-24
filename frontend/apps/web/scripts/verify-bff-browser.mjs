@@ -14,6 +14,7 @@ import { startBffProof } from './bff-proof-host.mjs';
 import {
   assertBffCookieAttributes,
   assertBffPrivateOutput,
+  bffDevToolsFailureStage,
   bffProofCopy,
   createBffCookieScanner,
   rememberBffCookies,
@@ -177,7 +178,7 @@ try {
     key: readFileSync(join(root, 'key.pem')),
     cert: readFileSync(join(root, 'cert.pem')),
   });
-  stage = 'browser-launch';
+  stage = 'browser-executable';
   const candidates =
     process.platform === 'darwin'
       ? [
@@ -207,6 +208,7 @@ try {
   const profile = join(root, 'chromium-profile');
   mkdirSync(profile, { mode: 0o700 });
   owner.assertActive();
+  stage = 'browser-spawn';
   browserProcess = owner.ownChild(
     spawn(
       executablePath,
@@ -252,6 +254,7 @@ try {
     browserFailed = true;
   });
   const portFile = join(profile, 'DevToolsActivePort');
+  stage = 'browser-devtools';
   const port = await waitForBrowserDevTools({
     assertActive: () => owner.assertActive(),
     isLive: () =>
@@ -259,9 +262,11 @@ try {
     readPort: () => readBrowserDevToolsPort(portFile),
     timeout: 10_000,
   });
+  stage = 'browser-connect';
   browser = await chromium.connectOverCDP('http://127.0.0.1:' + port, { timeout: 10000 });
   version = browser.version();
   assert.match(version, /^\d+(?:\.\d+){1,3}$/);
+  stage = 'browser-context';
   const context = await browser.newContext(); // No ignoreHTTPSErrors or manual production-cookie injection.
   const documents = [];
   const headerChecks = [];
@@ -570,7 +575,8 @@ try {
       naturalRestores,
     }) + '\n',
   );
-} catch {
+} catch (error) {
+  if (stage === 'browser-devtools') stage = bffDevToolsFailureStage(error);
   let expectedCounter = false;
   if (
     counter &&

@@ -1,7 +1,22 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+import { browserFailureDetail } from './admission-browser.mjs';
 import { createPrivateScanner } from './fixture-support.mjs';
+
+/** Preserve only the readiness helper's branded, finite observations. */
+export function bffDevToolsFailureStage(error) {
+  return (
+    new Map([
+      [' browser-launch', 'browser-exited'],
+      [' browser-devtools owner-inactive', 'browser-devtools-inactive'],
+      [' browser-devtools port-unreadable', 'browser-devtools-unreadable'],
+      [' browser-devtools deadline-missing', 'browser-devtools-missing'],
+      [' browser-devtools deadline-empty', 'browser-devtools-empty'],
+      [' browser-devtools deadline-malformed', 'browser-devtools-malformed'],
+    ]).get(browserFailureDetail(error)) ?? 'browser-devtools'
+  );
+}
 
 const catalogues = {
   en: JSON.parse(
