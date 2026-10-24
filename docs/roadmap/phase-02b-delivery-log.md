@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,898 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,925 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -258,7 +258,8 @@ each packet decided and delivered, as
   - [P02b-7 browser observation first review (2026-10-24)](#p02b-7-browser-observation-first-review-2026-10-24) — 17 lines
   - [P02b-7 same-source qualification and causal fixture scheduling (2026-10-24)](#p02b-7-same-source-qualification-and-causal-fixture-scheduling-2026-10-24) — 67 lines
   - [P02b-7 final correction qualification (2026-10-24)](#p02b-7-final-correction-qualification-2026-10-24) — 84 lines
-  - [P02b-7 review correction contracts and proof controls (2026-10-24)](#p02b-7-review-correction-contracts-and-proof-controls-2026-10-24) — 115 lines
+  - [P02b-7 review correction contracts and proof controls (2026-10-24)](#p02b-7-review-correction-contracts-and-proof-controls-2026-10-24) — 116 lines
+  - [P02b-7 correction review round 1 — ownership and proof (2026-10-24)](#p02b-7-correction-review-round-1--ownership-and-proof-2026-10-24) — 26 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20657,6 +20658,33 @@ recurrence rows and five authentication/discovery exclusion cases. Targeted
 private-copy counterfactuals kill 13 provider/store regressions and five realm
 regressions; their clean controls pass. These are selected regressions, not a
 mutation-coverage percentage. Full current-source hosted A/B remains pending.
+
+
+
+### P02b-7 correction review round 1 — ownership and proof (2026-10-24)
+
+Exact source: `a2869504..cac786dd`. Two fresh independent agents review the
+committed delta read-only, with separate ownership/runtime and proof/governance
+assignments. Neither edits source or runs services.
+
+- `/root/pr36_third_r1_ownership`: Approve; no verified actionable finding.
+  Traces canonical ingress, failure/recovery, hydration/focus, lifecycle
+  diagnostics, bounded child ownership, SDK acquisition, actual recurrence
+  configuration and the provider clamp. Independently runs five diagnostic-owner
+  controls in 2.195 seconds, all passing. Frontend/browser/provider integration
+  outcomes are inspected as source, not rerun or independently attested.
+- `/root/pr36_third_r1_proof_docs`: Approve; no verified Blocker/Major/Minor.
+  Traces wire/capability/cancellation/clock/return-path negatives and twins,
+  storage/hook census, realm guards, signed-token exclusion and unchanged durable
+  assertions. Confirms append-only ADR amendments, explicit acceptance sequence
+  and phase/package/catalogue agreement. Independently passes `make lint-docs`
+  (2,252 fragments, structure and both indexes) and `git diff --check`.
+  It does not rerun runtime suites or attest hosted qualification.
+
+These are scoped reviewer conclusions, recorded separately from execution
+receipts. There is no first-round fix commit because neither produces a verified
+finding. The next independent round reviews the cumulative correction and this
+receipt; current-source hosted A/B remains pending.
 
 
 ## Status archive
