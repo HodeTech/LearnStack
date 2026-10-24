@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,999 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 3,023 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -261,7 +261,8 @@ each packet decided and delivered, as
   - [P02b-7 review correction contracts and proof controls (2026-10-24)](#p02b-7-review-correction-contracts-and-proof-controls-2026-10-24) — 116 lines
   - [P02b-7 correction review round 1 — ownership and proof (2026-10-24)](#p02b-7-correction-review-round-1--ownership-and-proof-2026-10-24) — 27 lines
   - [P02b-7 correction review round 2 — independent recheck (2026-10-24)](#p02b-7-correction-review-round-2--independent-recheck-2026-10-24) — 31 lines
-  - [P02b-7 hosted observer argument failure and deterministic control (2026-10-24)](#p02b-7-hosted-observer-argument-failure-and-deterministic-control-2026-10-24) — 42 lines
+  - [P02b-7 hosted observer argument failure and deterministic control (2026-10-24)](#p02b-7-hosted-observer-argument-failure-and-deterministic-control-2026-10-24) — 43 lines
+  - [P02b-7 observer correction review round 1 (2026-10-24)](#p02b-7-observer-correction-review-round-1-2026-10-24) — 23 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20761,6 +20762,30 @@ raising ceilings; the full corrected local frontend run completes its web
 population in 47.18 seconds; the failed hosted web population takes 151.30
 seconds. Its observed failure is exit 9, not a timeout. Neither measurement
 promises future timing fit.
+
+
+
+### P02b-7 observer correction review round 1 (2026-10-24)
+
+Exact source: `806d6ba9..3dedda8d`. Two new read-only agents independently
+approve the narrow argument/canary correction without a verified finding.
+
+- `/root/observer_option_r1_contract` checks the actual owned child/scanner path,
+  independently reproduces Node 22.23.1 exit 9 without the terminator and exact
+  payload/exit 0 with it on both streams, and runs the ten-case file successfully.
+  Confirms production randomness, ownership, privacy, deadlines and population
+  are unchanged. It does not rerun hosted/build/service proofs.
+- `/root/observer_option_r1_evidence` independently reproduces the same argv
+  distinction, passes all ten file cases and documentation gates (2,255 fragments,
+  structure and indexes), and confirms pending source-bound qualification.
+  GitHub job metadata independently confirms the frontend failure during Vitest;
+  its log access does not attest the recorded counts/timing. The original CI
+  input remains unretained. No services or edits are performed.
+
+The root's complete frontend guard also passes 2,376 cases in two packages with
+zero skips/todos after the deterministic fix. Second-round review and current
+source qualification remain pending; neither agent's scope is promoted into a
+new full-runtime or hosted execution claim.
 
 
 ## Status archive
