@@ -1919,6 +1919,46 @@ except launcher.Refusal as failure:
                     {'Messages': [{'Category': category, 'Text': dirty}]}))
             self.assertIsNone(self.owner.closed_causal_restart_counts({**case, 'assembly': 'foreign'}, raw))
 
+    def test_recurrence_runtime_failure_keeps_only_exact_case_bound_closed_observations(self):
+        sentence = ('Recurrence runtime failure;boundary=children;runtime=Running;completed=1;'
+                    'executed=1;occurrences=1;recipients=2;fanouts=1;applications=0;retainedApplications=0;'
+                    'bridgeOutstanding=0;bridgeRetained=0;bridgeFailed=0;executions=0;renewalRefused=0;leaseElapsed=0.')
+        for name in self.owner.RECURRENCE_RUNTIME_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + sentence}]}
+            actual = self.owner.closed_failure_details(case, raw)
+            self.assertEqual('recurrence_runtime', actual['stage'])
+            self.assertEqual('children', actual['boundary'])
+            self.assertEqual(1, actual['completed'])
+            self.assertEqual(2, actual['recipients'])
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(actual))
+            result = self.execution_result(case)
+            result['Outcome'] = 2
+            result['Messages'] = raw['Messages']
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('recurrence-' + str(len(name)) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [result]})
+            self.assertEqual(actual, progress.failure_locations[0]['details'])
+            self.assertEqual({'Failed': 1}, dict(progress.outcomes))
+            self.assertEqual([], progress.success_observations)
+            self.assertNotIn('PRIVATE-CANARY', stream.getvalue() + json.dumps(progress.failure_locations))
+            progress.close()
+            for old, new in (('children', 'private'), ('Running', 'Unknown'), ('completed=1', 'completed=01'),
+                             ('executed=1', 'executed=-1'), ('recipients=2', 'recipients=10001')):
+                self.assertIsNone(self.owner.closed_failure_details(case,
+                    {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence.replace(old, new)}]}))
+            for category, dirty in (('StdErrMsgs', sentence), ('StdOutMsgs', sentence + '\n' + sentence),
+                                    ('StdOutMsgs', sentence + 'PRIVATE-CANARY')):
+                self.assertIsNone(self.owner.closed_failure_details(case,
+                    {'Messages': [{'Category': category, 'Text': dirty}]}))
+            self.assertIsNone(self.owner.closed_failure_details({**case, 'assembly': 'foreign'}, raw))
+            self.assertIsNone(self.owner.closed_failure_details({**case, 'name': name + '-foreign'}, raw))
+            unavailable = self.owner.closed_failure_details(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': sentence.replace('completed=1', 'completed=unavailable')}]})
+            self.assertIsNone(unavailable['completed'])
+
     def test_native_handoff_first_failure_retains_only_closed_task_boundary_and_lease_facts(self):
         case = {**self.case(1), 'name': self.owner.NATIVE_HANDOFF_FAILURE_CASE}
         sentence = ('Native handoff failure;boundary=cleanup_enter;kind=cancellation;pulse=pending;'

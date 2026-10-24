@@ -703,6 +703,52 @@ NATIVE_RECOVERY_FAILURE_CASES = {
     '(loseAcquisitionAck: ' + lost + ')'
     for lost in ('False', 'True')
 }
+RECURRENCE_RUNTIME_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.Database.BackgroundJobRecurrenceStoreTests.'
+    'Actual_runtime_fans_out_to_both_scopes_and_duplicate_native_ticks_create_no_extra_children'
+    '(organization: ' + value + ')' for value in ('True', 'False')
+}
+RECURRENCE_RUNTIME_COUNTS = (
+    'completed', 'executed', 'occurrences', 'recipients', 'fanouts', 'applications',
+    'retainedApplications', 'bridgeOutstanding', 'bridgeRetained', 'bridgeFailed',
+    'executions', 'renewalRefused', 'leaseElapsed',
+)
+
+
+def closed_recurrence_runtime_details(raw):
+    messages = raw.get('Messages')
+    if (not isinstance(messages, list) or not 1 <= len(messages) <= 32
+            or any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+                or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+                or not isinstance(item['Text'], str) for item in messages)
+            or sum(len(item['Text']) for item in messages) > 65536):
+        return None
+    marker = 'Recurrence runtime failure;'
+    lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+             for line in item['Text'].splitlines() if marker in line]
+    if len(lines) != 1 or sum(item['Text'].count(marker) for item in messages) != 1:
+        return None
+    fields = ('boundary', 'runtime', *RECURRENCE_RUNTIME_COUNTS)
+    match = re.fullmatch(re.escape(marker)
+        + ';'.join(name + r'=([A-Za-z_0-9]{1,32})' for name in fields) + r'\.', lines[0])
+    if match is None:
+        return None
+    values = dict(zip(fields, match.groups()))
+    if (values['boundary'] not in ('start', 'children', 'fanout', 'ticks', 'health', 'assertions')
+            or values['runtime'] not in ('NotStarted', 'Bootstrapping', 'Starting', 'Running',
+                                         'Stopping', 'Retained', 'Stopped')):
+        return None
+    for name in RECURRENCE_RUNTIME_COUNTS:
+        value = values[name]
+        if value == 'unavailable':
+            values[name] = None
+        elif re.fullmatch(r'0|[1-9][0-9]{0,4}', value) and int(value) <= 10000:
+            values[name] = int(value)
+        else:
+            return None
+    return {'stage': 'recurrence_runtime', **values}
+
+
 NATIVE_HANDOFF_FAILURE_CASE = ('LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
     'Native_fixture_start_waits_for_previous_actual_cleanup_before_one_same_generation_hint')
 NATIVE_HANDOFF_BOUNDARIES = {
@@ -873,6 +919,8 @@ def closed_bff_browser_details(raw):
 
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
+    if case['name'] in RECURRENCE_RUNTIME_FAILURE_CASES:
+        return closed_recurrence_runtime_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in NATIVE_RECOVERY_FAILURE_CASES:
         return closed_native_recovery_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == NATIVE_HANDOFF_FAILURE_CASE:

@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,511 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,549 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -252,6 +252,7 @@ each packet decided and delivered, as
   - [P02b-7 second review and final SDK proof census (2026-10-24)](#p02b-7-second-review-and-final-sdk-proof-census-2026-10-24) — 27 lines
   - [P02b-7 SDK first review and counterfactual qualification (2026-10-24)](#p02b-7-sdk-first-review-and-counterfactual-qualification-2026-10-24) — 24 lines
   - [P02b-7 final correction source handoff (2026-10-24)](#p02b-7-final-correction-source-handoff-2026-10-24) — 36 lines
+  - [P02b-7 recurrence qualification failure observation (2026-10-24)](#p02b-7-recurrence-qualification-failure-observation-2026-10-24) — 38 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20264,6 +20265,44 @@ toolchains, job ceilings and natural cleanup. Durable final receipts follow in
 the repository under the reviewed documentation-only closeout rule. Current-head
 checks and maintainer review still gate PR #36; no merge is performed here.
 
+
+### P02b-7 recurrence qualification failure observation (2026-10-24)
+
+The first complete correction-source run,
+[40096245413 attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/40096245413),
+tests head `e42cc551a73697f49d22eb415a82d66a172bf0bd` and merge checkout
+`a8cbe0ac3c2ffd1409dcc458b9be7fcc866d7935`. Twenty-five jobs pass; ordinary-0
+and its dependent integration aggregate fail. This is not a qualified A result.
+
+The failed case is the organization variant of
+`Actual_runtime_fans_out_to_both_scopes_and_duplicate_native_ticks_create_no_extra_children`.
+Its first wait for two completed child jobs times out after 31.406 seconds;
+the tenant-wide variant passes in 5.53 seconds. The owner records
+`workloadError=tests_failed`, then `owned_completion_missing` with forced cleanup,
+so this shard supplies no natural ownership/cleanup proof. The retained closed
+location and exception category identify the wait, not its cause. No claim of a
+transient failure, infrastructure cause or corrected runtime mechanism follows.
+
+Independent source inspection finds a separate database per case, SharedSchema
+serialization and an AsyncLocal tenant accessor; it finds no verified production
+defect or conflicting BFF global-filter writer. A recipient's retained lease can
+outlast this test wait, but that remains a possible mechanism, not a diagnosis.
+The unchanged targeted two-case selection passes locally, with no skips. After
+adding the observation below it passes again; neither local pass explains CI.
+
+The correction records the last count from the existing SQL poll and finite
+runtime/recurrence/bridge/execution counters before stop changes the state.
+It adds no database reads, polling, retry, production change, timeout increase,
+plan change or alternative completion authority. Only the exact two cases may
+export these bounded observations through the existing failure-location channel;
+private text, foreign cases/assemblies, duplicate markers, unknown states and
+invalid counts are rejected. Diagnostic failure cannot replace the test fault.
+All 83 native-owner controls pass; the new control also sends an actual failed
+protocol result through the reader and confirms its outcome remains Failed.
+
+The source is reopened only for this diagnostic gap. Both fresh review rounds
+and a new complete final-source hosted pair remain required. The failed run is
+retained as evidence rather than overwritten or relabelled as a passing result.
 
 ## Status archive
 
