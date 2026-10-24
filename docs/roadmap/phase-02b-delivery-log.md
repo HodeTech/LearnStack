@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 3,049 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 3,133 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -263,7 +263,8 @@ each packet decided and delivered, as
   - [P02b-7 correction review round 2 — independent recheck (2026-10-24)](#p02b-7-correction-review-round-2--independent-recheck-2026-10-24) — 31 lines
   - [P02b-7 hosted observer argument failure and deterministic control (2026-10-24)](#p02b-7-hosted-observer-argument-failure-and-deterministic-control-2026-10-24) — 43 lines
   - [P02b-7 observer correction review round 1 (2026-10-24)](#p02b-7-observer-correction-review-round-1-2026-10-24) — 24 lines
-  - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 25 lines
+  - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
+  - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20813,6 +20814,90 @@ zero skips/todos. Implementation and both fresh review rounds for the runtime
 correction and its hosted observer follow-up are complete. The frozen source now
 requires full current-source A/B; no earlier failure, older passing source or
 selected check substitutes for either complete assignment.
+
+
+
+### P02b-7 review correction qualification (2026-10-24)
+
+The runtime/proof correction `cac786dd` and observer argument correction
+`3dedda8d` each complete both fresh independent review rounds recorded above.
+The final qualified implementation/review source is
+`0bde36f00335141a3ec1e21d6c9ca2f30fae8e00`, tree
+`3a0923b8664c64f91ea475db3d9fd18c843e854c`.
+[Run 40120289765](https://github.com/HodeTech/LearnStack/actions/runs/40120289765)
+passes complete attempts 1/A and 2/B, both on the identical merge checkout
+`c0d08887240a94030879541679dc3fbc6a889def` and unchanged base
+`935d8da66878286d6a1695f3d41d985ebce4e791`. Original A packages, job metadata and
+logs are retained before rerunning all jobs for B; B originals are retained
+separately. No mixed or failed-only union supplies this result.
+
+| Observation | A / attempt 1 | B / attempt 2 |
+|---|---|---|
+| Successful jobs / required contexts | 27 / 7 | 27 / 7 |
+| Natural producer ownership/cleanup | 20 / 20 | 20 / 20 |
+| Distinct Passed .NET cases | 5,931 | 5,931 |
+| Non-Docker / Docker | 3,352 / 2,579 | 3,352 / 2,579 |
+| Ordinary / native Docker | 2,548 / 31 | 2,548 / 31 |
+| Frontend cases, zero skips/todos | 2,376 | 2,376 |
+| Web / SDK cases in 71 files | 2,273 / 103 | 2,273 / 103 |
+| BFF / recurrence / causal cases | 6 / 2 / 3 | 6 / 2 / 3 |
+| Maximum producer whole-job seconds | 997 | 900 |
+| Backend / integration aggregate seconds | 15 / 34 | 14 / 35 |
+| Demo navigations / Lighthouse reports | 9 / 27 | 9 / 27 |
+| Natural demo cleanup milliseconds | 12,053 | 10,587 |
+
+Independent verification recomputes actual selection and assignment from full
+current discovery and the committed plan, requires exact method/case ownership,
+checks every retained artifact digest and complete Passed unions, then verifies
+actual natural-cleanup evidence. Execution/aggregate ceilings stay 1,200/300
+seconds. No missing, skipped, censored or forced-cleanup result becomes success.
+
+Actual selector co-membership changes: Architecture moves 220 methods / 371
+cases; ordinary moves 1,074 / 2,256. SharedSchema specifically moves 901 / 1,874,
+using the independently re-derived 77-class set. This is a different process
+composition, not a renumbering or a claim to prove every possible test order.
+The controlled-browser case itself moves from ordinary-9 to ordinary-11.
+
+Both variants capture the same .NET SDK `10.0.402`, console
+`18.7.0-release-26505-111` and console/dependency/adapter hashes. Demo captures
+Node `v22.23.1`, Playwright `1.64.0`, Chromium revision `1248`, Lighthouse
+`13.5.0` and identical configuration digest. The controlled-browser producer's
+separate stock-browser preflight reports `155.0.8059.39` in each variant; this
+observation is separate from the pinned managed demo and a full browser matrix.
+
+The three causal observations pass in each assignment. Unforced runs retain
+1 reconciliation / 1 finalization / 2 ledger rows; the forced subrun retains
+1 / 2 / 3, with no observed elapsed/renewal lease loss. These observations supplement the actual Passed results; held-Prepare and
+dirty-adapter counters remain. They do not replace actual runtime completion
+authority.
+
+- Manifest digest:
+  `0386c8b99e2a94fda613670ec0d347aaf3bd04b6ff8b4f42c193701a682c3a70`.
+- Plan digest:
+  `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b`.
+- A assignment digest:
+  `2efb41bb3b00ec0f994ad7c247594b33abf22a3e63c2b6d3a6c610be2a4917d1`.
+- B assignment digest:
+  `71c91e7aa02ff4f60e21e062ac8d101052bd4bcc30bd70d671182932a9a7f1ce`.
+- Independent complete-pair audit SHA-256:
+  `8e363868ba47a42b37a17034c56a9caf4d9fdd8a3abfd06504c424236600bf6f`.
+- A/B supplemental audit SHA-256:
+  `c17febd814137dfe9f16d73f6d71107ad8ae9e9e2f838107dd0a96ca7d7e06c1` /
+  `0ce804bb5307974104adc951d669c0569ae20703524174dbe517333abe80e417`.
+
+The failed source `806d6ba9` remains failed: 26 jobs and all 5,931 .NET cases
+pass with natural producer cleanup, but the frontend child-observer failure
+prevents qualification. The deterministic argument correction does not recover
+its deliberately unretained cookie. Earlier failures and all stated observer,
+launcher-wiring and browser-scope limits remain historical and explicit.
+
+This closeout changes only the delivery receipt/generated index and phase
+Status. No executable, fixture lifetime, plan, population or toolchain changes.
+Under [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md), this normal
+documentation push still requires one complete current-head assignment before
+PR readiness. The A/B receipt belongs to the implementation source above, not
+that later documentation-only commit. PR #36 remains the maintainer review/merge
+gate; no merge is performed here.
 
 
 ## Status archive
