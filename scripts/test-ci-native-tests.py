@@ -431,6 +431,7 @@ except launcher.Refusal as failure:
         expected = {path.name for path in (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database').glob(
             'BackgroundJobRuntimeFacadeTests*.cs')} | {
                 'OutboxProcessorTests.cs', 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
+                'BackgroundJobPositiveSdkTests.CausalRestartObservations.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
                 'BackgroundJobPositiveSdkTests.NativeWait.cs', 'BackgroundJobPositiveSdkTests.NativeHistory.cs',
                 'BackgroundJobPositiveSdkTests.NativeHandoff.cs',
@@ -928,6 +929,88 @@ except launcher.Refusal as failure:
             self.assertNotIn('PRIVATE-CANARY', exported)
             self.assertNotIn('/private/', exported)
             self.assertNotIn('Source contention failure;', exported)
+
+    @staticmethod
+    def causal_restart_sentence(kind='failure', **changes):
+        values = dict(boundary='assert_facts', runtime='running', executions='0', renewalRefused='1', leaseElapsed='0',
+                      row='observed', normal='1', finalize='2', ledger='3', release='1', audits='1', incomplete='no',
+                      outcome='cancelled', policy='transient_not_repeatable', reason='external_retry_forbidden',
+                      nulls='0', calls='0', forced='0')
+        values.update(changes)
+        return 'Causal restart ' + kind + ';' + ';'.join(key + '=' + value for key, value in values.items()) + '.'
+
+    def test_causal_restart_details_preserve_real_row_counts_and_first_boundary_separately_from_cleanup(self):
+        parse = self.owner.closed_failure_details
+        for name in self.owner.CAUSAL_RESTART_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n'
+                + self.causal_restart_sentence() + '\n' + self.causal_restart_sentence('cleanup',
+                    boundary='restart_cleanup_complete', runtime='stopped')}]}
+            result = parse(case, raw)
+            self.assertEqual('causal_restart', result['stage'])
+            self.assertEqual(2, result['failure']['finalize'])
+            self.assertEqual(3, result['failure']['ledger'])
+            self.assertEqual('assert_facts', result['failure']['boundary'])
+            self.assertEqual('restart_cleanup_complete', result['cleanup']['boundary'])
+            self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
+            self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+            self.assertIsNone(parse({**case, 'name': name + '_other'}, raw))
+            for boundary in self.owner.CAUSAL_RESTART_BOUNDARIES:
+                self.assertEqual(boundary, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.causal_restart_sentence(boundary=boundary)}]})['failure']['boundary'])
+            forced = parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': self.causal_restart_sentence(calls='2', forced='1')}]})
+            self.assertEqual(bool(forced), name.endswith('(independentFailure: False, lieOnlyOnReconcile: False)'))
+        case = {**self.case(1), 'name': sorted(self.owner.CAUSAL_RESTART_FAILURE_CASES)[0]}
+        unavailable = parse(case, {'Messages': [{'Category': 'StdOutMsgs', 'Text':
+            'Causal restart failure;boundary=read_facts;snapshot=unavailable.'}]})
+        self.assertEqual({'boundary': 'read_facts', 'snapshot': 'unavailable'}, unavailable['failure'])
+        missing = dict(row='unobserved', **{name:'unavailable' for name in
+            ('normal', 'finalize', 'ledger', 'release', 'audits', 'incomplete', 'outcome', 'policy', 'reason', 'nulls')})
+        self.assertEqual('unobserved', parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+            'Text': self.causal_restart_sentence(**missing)}]})['failure']['row'])
+        self.assertEqual(511, parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+            'Text': self.causal_restart_sentence(nulls='511')} ]})['failure']['nulls'])
+
+    def test_causal_restart_details_reject_private_ambiguous_wrong_channel_and_out_of_bound_values(self):
+        case = {**self.case(1), 'name': sorted(self.owner.CAUSAL_RESTART_FAILURE_CASES)[0]}
+        parse = self.owner.closed_failure_details
+        sentence = self.causal_restart_sentence()
+        for category, text in [('StdErrMsgs', sentence), ('StdOutMsgs', sentence + '\n' + sentence),
+                ('StdOutMsgs', sentence + 'PRIVATE-CANARY'), ('StdOutMsgs', 'X' * 65537 + sentence),
+                ('StdOutMsgs', self.causal_restart_sentence('cleanup', boundary='restart_cleanup_complete')),
+                ('StdOutMsgs', sentence + '\n' + self.causal_restart_sentence('cleanup', boundary='assert_facts'))]:
+            self.assertIsNone(parse(case, {'Messages': [{'Category': category, 'Text': text}]}))
+        for name, value in [('boundary', 'private'), ('runtime', 'ready'), ('row', 'missing'),
+                ('row', 'unobserved'), ('normal', '7'), ('finalize', '7'), ('finalize', '01'), ('ledger', '13'),
+                ('release', '65'), ('audits', '65'), ('incomplete', 'true'), ('outcome', 'PRIVATE-CANARY'),
+                ('policy', 'https://private/'), ('reason', 'credentials'), ('nulls', '512'),
+                ('calls', '7'), ('forced', '2'), ('forced', 'unavailable'), ('executions', '65'),
+                ('normal', 'unavailable'), ('renewalRefused', '-1')]:
+            with self.subTest(name=name,value=value):
+                self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                    'Text': self.causal_restart_sentence(**{name:value})}]}))
+
+    def test_causal_restart_failure_export_is_exact_case_bound_failure_only_and_drops_raw_messages(self):
+        case = {**self.case(1), 'name': sorted(self.owner.CAUSAL_RESTART_FAILURE_CASES)[0]}
+        for outcome in (1, 2):
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('causal-restart-' + str(outcome) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            item = self.execution_result(case, outcome)
+            item['ErrorMessage'] = 'PRIVATE-CANARY'
+            item['ErrorStackTrace'] = '/private/path/BackgroundJobPositiveSdkTests.CausalRestartObservations.cs:line 123'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': self.causal_restart_sentence()}]
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual(outcome == 2, bool(progress.failure_locations))
+            if outcome == 2:
+                diagnostic = progress.failure_locations[0]
+                self.assertEqual('causal_restart', diagnostic['details']['stage'])
+                self.assertEqual([{'source': 'positive_sdk_causal_observation', 'line': 123}], diagnostic['locations'])
+            exported = stream.getvalue() + json.dumps(progress.failure_locations)
+            for private in ('PRIVATE-CANARY', '/private/', 'Causal restart failure;'):
+                self.assertNotIn(private, exported)
 
     @staticmethod
     def native_wait_sentence(kind='failure', **changes):

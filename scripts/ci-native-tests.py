@@ -84,6 +84,7 @@ FAILURE_SOURCES = {
     'OutboxProcessorTests.cs': 'outbox_processor',
     'TenantRealmApiTests.WarmQualification.cs': 'realm_warm_qualification',
     'BackgroundJobPositiveSdkTests.CausalRestart.cs': 'positive_sdk_causal_restart',
+    'BackgroundJobPositiveSdkTests.CausalRestartObservations.cs': 'positive_sdk_causal_observation',
     'BackgroundJobPositiveSdkTests.NativeSettlement.cs': 'positive_sdk_native_settlement',
     'BackgroundJobPositiveSdkTests.NativeWait.cs': 'positive_sdk_native_wait',
     'BackgroundJobPositiveSdkTests.NativeHistory.cs': 'positive_sdk_native_history',
@@ -579,6 +580,83 @@ def closed_source_contention_details(raw):
     return result
 
 
+CAUSAL_RESTART_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Native_completed_cancellation_survives_restart_and_independent_failure_is_not_reclassified'
+    '(independentFailure: ' + independent + ', lieOnlyOnReconcile: ' + lie + ')'
+    for independent, lie in [('False', 'False'), ('True', 'False'), ('False', 'True')]
+}
+CAUSAL_RESTART_BOUNDARIES = {
+    'original_start', 'provider_accept', 'original_facts', 'independent_completion', 'original_stop',
+    'provider_token', 'provider_completion', 'provider_report', 'original_retention', 'restart_start',
+    'terminal_wait', 'reconcile_facts', 'read_facts', 'transaction_witness', 'assert_facts', 'meaning',
+} | {prefix + '_cleanup_' + stage for prefix in ('original', 'restart')
+     for stage in ('request', 'release', 'stop', 'completion', 'complete')}
+
+
+def closed_causal_restart_details(raw):
+    messages = raw.get('Messages')
+    if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
+        return None
+    if any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+           or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+           or not isinstance(item['Text'], str) for item in messages):
+        return None
+    if sum(len(item['Text']) for item in messages) > 65536:
+        return None
+    states = {'not_started', 'bootstrapping', 'starting', 'running', 'stopping', 'retained', 'stopped', 'unknown'}
+    counts = {'executions': 64, 'renewalRefused': 64, 'leaseElapsed': 64, 'normal': 6, 'finalize': 6,
+              'ledger': 12, 'release': 64, 'audits': 64, 'nulls': 511, 'calls': 6, 'forced': 1}
+    row_fields = {'normal', 'finalize', 'ledger', 'release', 'audits', 'incomplete', 'outcome', 'policy', 'reason', 'nulls'}
+    fields = ('boundary', 'runtime', 'executions', 'renewalRefused', 'leaseElapsed', 'row',
+              'normal', 'finalize', 'ledger', 'release', 'audits', 'incomplete', 'outcome', 'policy',
+              'reason', 'nulls', 'calls', 'forced')
+    enums = {'runtime': states, 'row': {'observed', 'unobserved'}, 'incomplete': {'yes', 'no'},
+             'outcome': {'succeeded', 'failed', 'cancelled', 'other', 'missing'},
+             'policy': {'permanent', 'transient_repeatable', 'transient_not_repeatable', 'other', 'missing'},
+             'reason': {'permanent_failure', 'external_retry_forbidden', 'retry_exhausted',
+                        'finalize_refused', 'finalize_exhausted', 'other', 'missing'}}
+    result = {'stage': 'causal_restart'}
+    for kind in ('failure', 'cleanup'):
+        marker = 'Causal restart ' + kind + ';'
+        count = sum(item['Text'].count(marker) for item in messages)
+        if count == 0 and kind == 'cleanup':
+            continue
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        if count != 1 or len(lines) != 1:
+            return None
+        unavailable = re.fullmatch(re.escape(marker) + r'boundary=([a-z_]+);snapshot=unavailable\.', lines[0])
+        if unavailable:
+            values = {'boundary': unavailable[1], 'snapshot': 'unavailable'}
+        else:
+            match = re.fullmatch(re.escape(marker) + ';'.join(name + r'=([a-z_0-9]{1,32})' for name in fields)
+                                 + r'\.', lines[0])
+            if not match:
+                return None
+            values = dict(zip(fields, match.groups()))
+            for name, allowed in enums.items():
+                if values[name] not in allowed and not (name in row_fields and values[name] == 'unavailable'):
+                    return None
+            for name, maximum in counts.items():
+                value = values[name]
+                if value == 'out_of_range' or value == 'unavailable' and name not in ('calls', 'forced'):
+                    continue
+                if not re.fullmatch(r'0|[1-9][0-9]{0,2}', value) or int(value) > maximum:
+                    return None
+                values[name] = int(value)
+            if values['row'] == 'unobserved':
+                if any(values[name] != 'unavailable' for name in row_fields):
+                    return None
+            elif any(values[name] == 'unavailable' for name in row_fields):
+                return None
+        if values['boundary'] not in CAUSAL_RESTART_BOUNDARIES or (
+                kind == 'cleanup' and '_cleanup_' not in values['boundary']):
+            return None
+        result[kind] = values
+    return result
+
+
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
     if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:
@@ -587,6 +665,14 @@ def closed_failure_details(case, raw):
         return closed_native_wait_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == SOURCE_CONTENTION_FAILURE_CASE:
         return closed_source_contention_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] in CAUSAL_RESTART_FAILURE_CASES:
+        if case['assembly'] != 'learnstack.tests.integration':
+            return None
+        details = closed_causal_restart_details(raw)
+        if details and not case['name'].endswith('(independentFailure: False, lieOnlyOnReconcile: False)'):
+            if any(value.get('forced', 0) != 0 for key, value in details.items() if key in ('failure', 'cleanup')):
+                return None
+        return details
     if case['name'] == RECURRENCE_NATIVE_FAILURE_CASE:
         return closed_recurrence_native_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in SETTLEMENT_FAILURE_CASES:

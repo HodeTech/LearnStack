@@ -161,6 +161,13 @@
       "sourceSha": null,
       "runId": null,
       "note": "Passing Step 5 R2 six-case real BFF/browser and acquisition EOF/shutdown controls. Local source not embedded in TRX. Advisory method body costs exclude shared fixture startup; hosted fit remains unqualified."
+    },
+    "p02b7-local-causal-retry": {
+      "kind": "local_trx",
+      "artifactSha256": "8f004ff7e3631179620ed3ca5cc8873402520ec147f537cca224eb2a6b3d242d",
+      "sourceSha": null,
+      "runId": null,
+      "note": "Three passing local causal-restart variants, including the additional genuine-handler post-write conflict/retry journey. Exact case durations summed per actual selector and scaled by the existing historical ordinary ratio 2.271245 (ceil ms); advisory only, not a wall bound. Immutable source is not embedded in the local TRX."
     }
   },
   "weights": [
@@ -3401,8 +3408,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.Native_completed_cancellation_survives_restart_and_independent_failure_is_not_reclassified",
-      "milliseconds": 151947,
-      "source": "local-ordinary-scaled"
+      "milliseconds": 235758,
+      "source": "p02b7-local-causal-retry"
     },
     {
       "assembly": "learnstack.tests.integration",

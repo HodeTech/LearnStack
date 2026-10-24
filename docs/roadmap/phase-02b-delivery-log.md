@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,475 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,547 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -227,7 +227,8 @@ each packet decided and delivered, as
   - [P02b-7 first hosted A — fixture corrections (2026-10-24)](#p02b-7-first-hosted-a--fixture-corrections-2026-10-24) — 56 lines
   - [P02b-7 second hosted A — remaining handoff precondition (2026-10-24)](#p02b-7-second-hosted-a--remaining-handoff-precondition-2026-10-24) — 46 lines
   - [P02b-7 third hosted A — closed browser-readiness evidence (2026-10-24)](#p02b-7-third-hosted-a--closed-browser-readiness-evidence-2026-10-24) — 44 lines
-  - [P02b-7 first complete A and failed B — preserve the first cause (2026-10-24)](#p02b-7-first-complete-a-and-failed-b--preserve-the-first-cause-2026-10-24) — 51 lines
+  - [P02b-7 first complete A and failed B — preserve the first cause (2026-10-24)](#p02b-7-first-complete-a-and-failed-b--preserve-the-first-cause-2026-10-24) — 52 lines
+  - [P02b-7 hosted causal-restart correction (2026-10-24)](#p02b-7-hosted-causal-restart-correction-2026-10-24) — 71 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19203,6 +19204,78 @@ retained. Future complete A evidence is downloaded before starting B.
 
 PR #36 stays draft. New complete source-bound A/B execution remains required;
 no failed-only rerun, skip, timeout increase or failing-check waiver is used.
+
+
+
+### P02b-7 hosted causal-restart correction (2026-10-24)
+
+The [A run on `f2a3814b`](https://github.com/HodeTech/LearnStack/actions/runs/40049101128)
+finishes with 25 successful jobs and two failures. All 5,930 cases complete:
+5,929 pass and the existing causal-restart cancellation case fails in 52.717
+seconds. Integration aggregation correctly refuses ordinary-4. The preceding
+source-contention case passes in 16.585 seconds and the public-admission browser
+case in 56.026 seconds, with complete ownership/cleanup and no forced cleanup.
+All six BFF cases, 31 native cases, backend aggregation, frontend and public demo
+pass. All 20 original producer packages and workflow metadata are retained; no
+B rerun follows this failed A.
+
+The failed case retains only source locations 199/217/235, without an exception
+kind or row facts. Three unchanged local variants pass in 22.156/22.231/23.436
+seconds. Those observations do not establish the historical failure's exact
+cause. Source analysis does verify an incorrect expectation: Finalize may retry
+under fresh authority, but this causal test requires exactly one finalizer and
+two ledger rows. Successful terminal state and its terminal MUST audit already
+share the actual Finalize transaction; adding a generic audit-dispatch wait
+would not correct that expectation.
+
+A narrow actual counter delegates all work to the genuine registered Finalize
+handler, then raises one concurrency conflict after a successful real nested
+write. Its next admission uses a different actual application source owner.
+With the original assertions unchanged, this counter records two handler calls
+and exactly one forced conflict, then fails with expected 1/found 2. The red TRX
+SHA-256 is
+`88f55b4b8766ec40fdd03b2e9891e10847c3882a5d2939da8da36f30dbd2e98d`.
+The counter claims its one injection after genuine success, preventing a natural
+first-call failure from bypassing the planted conflict.
+
+The corrected assertion requires one immutable normal attempt, 1–6 admitted
+finalizers and exactly one ledger row per admission. The counter additionally
+requires at least two finalizers, exactly one injected conflict and different,
+actually cleaned injected/final source owners. One Execute, zero external
+effects, immutable provider completion/evidence, one reservation release, one
+committed final organization, one terminal audit and the two committed physical
+application transaction roots remain exact. The same positive assertion still
+rejects the deliberately false cancellation report.
+
+The count census also finds that completed Reconcile reads may repeat if the
+private gate closes before Outcome admission; actual cleanup and lease recovery
+then reread the same provider attempt. The test therefore requires at least one
+real read and, for the dirty adapter, at least one mutation bounded by actual
+durable read calls. It invents no six-read ceiling. Execute/effect and committed
+business/audit evidence remain unchanged. Both fresh round-2 reviewers approve
+these focused corrections after independent source diagnosis. This establishes
+legal retry behavior, not the historical hosted interleaving.
+
+Failure-only projections retain finite boundaries, already-read app-role row
+counts, a fixed nine-column null mask, closed state/policy/reason and runtime
+counters. No additional SQL, provider call, identity or raw exception is exported.
+The transaction-witness boundary starts only after row decoding. The first body
+failure survives later explicit cleanup failures; request/release/stop and
+actual completion are attempted under the original cleanup budget.
+
+Five focused real-worker/retry cases pass, zero skipped; TRX SHA-256 is
+`de0f7bdb0eaff3edf7874aedb2222d7bb5b73b71ddff7e8546c925ff95a22bd4`.
+The three causal variants are independently repeated in 22.226/59.409/22.166
+seconds with the final diagnostic attribution; TRX SHA-256 is
+`8f004ff7e3631179620ed3ca5cc8873402520ec147f537cca224eb2a6b3d242d`.
+The final repeat-read assertion reconciliation is source-qualified separately;
+these local TRXs do not embed an immutable source. Final Release compilation has
+zero warnings/errors; all 71 execution, 67 assignment and 26 aggregate controls
+pass. The extra real retry journey increases case cost, so its measured local
+selector sum updates the existing advisory weight with its own retained source.
+No test row, runtime behavior, lease clock, operation budget, job count or ceiling
+changes. Complete source-bound hosted A/B qualification remains required before
+PR #36 leaves draft.
 
 
 ## Status archive
