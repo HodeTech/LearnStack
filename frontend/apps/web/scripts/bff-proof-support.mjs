@@ -8,7 +8,7 @@ import { createPrivateScanner } from './fixture-support.mjs';
 export function bffDevToolsFailureStage(error) {
   return (
     new Map([
-      [' browser-launch', 'browser-exited'],
+      [' browser-launch', 'browser-not-live'],
       [' browser-devtools owner-inactive', 'browser-devtools-inactive'],
       [' browser-devtools port-unreadable', 'browser-devtools-unreadable'],
       [' browser-devtools deadline-missing', 'browser-devtools-missing'],

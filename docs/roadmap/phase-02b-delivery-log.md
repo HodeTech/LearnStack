@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,615 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,632 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -255,6 +255,7 @@ each packet decided and delivered, as
   - [P02b-7 recurrence qualification failure observation (2026-10-24)](#p02b-7-recurrence-qualification-failure-observation-2026-10-24) — 38 lines
   - [P02b-7 recurrence observation review closeout (2026-10-24)](#p02b-7-recurrence-observation-review-closeout-2026-10-24) — 23 lines
   - [P02b-7 browser launch qualification observation (2026-10-24)](#p02b-7-browser-launch-qualification-observation-2026-10-24) — 43 lines
+  - [P02b-7 browser observation first review (2026-10-24)](#p02b-7-browser-observation-first-review-2026-10-24) — 17 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20371,6 +20372,23 @@ the live restoration counter, 26.764 seconds including joined cleanup. Natural
 persisted restores are zero; the counter reaches the explicit persisted event,
 not a claimed natural BFCache restoration. This is controlled-grant/API browser
 proof, not the separate real-provider OIDC/application-role chain.
+
+### P02b-7 browser observation first review (2026-10-24)
+
+Both independent first-round reviewers find the same Minor observation error in
+`dd57d534`: the readiness helper's not-live predicate can mean a failed spawn as
+well as an exited child, so `browser-exited` overstates the fact. The correction
+renames it `browser-not-live` across the producer, C# consumer, sanitized CI reader
+and their independent controls. The observation records no stronger exit fact.
+Both focused CI-reader controls and all ten proof-support cases pass after the
+rename. No other verified finding remains from this round.
+
+The full frontend at `dd57d534` passes 2,315 cases in two packages, zero skips or
+todos: 2,212 web and 103 SDK. All 83 native-owner controls pass. The later rename
+changes only the closed observation label and its consumers/controls; it adds no
+case or runtime authority. The actual local Chromium pass and the hosted failure
+retain the distinct scopes recorded above. Fresh second-round reviews and
+complete hosted qualification remain pending.
 
 ## Status archive
 

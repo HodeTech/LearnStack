@@ -175,7 +175,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
             .Should().Be("browser-launch_cleanup_failed");
         foreach (var stage in new[] { "browser-executable", "browser-spawn", "browser-devtools", "browser-devtools-inactive",
                      "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
-                     "browser-exited", "browser-connect", "browser-context" })
+                     "browser-not-live", "browser-connect", "browser-context" })
         {
             (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\n")).Should().Be(stage);
             (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\nBFF browser cleanup failed.\n"))

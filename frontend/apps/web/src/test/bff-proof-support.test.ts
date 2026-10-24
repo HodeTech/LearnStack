@@ -38,7 +38,7 @@ describe('BFF proof observation ownership', () => {
           },
           'browser-devtools-inactive',
         ],
-        [{ isLive: () => false }, 'browser-exited'],
+        [{ isLive: () => false }, 'browser-not-live'],
         [
           {
             readPort() {

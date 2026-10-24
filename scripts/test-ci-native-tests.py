@@ -1174,7 +1174,7 @@ except launcher.Refusal as failure:
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
         for reason in ('browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
                        'browser-devtools-unreadable', 'browser-devtools-missing', 'browser-devtools-empty',
-                       'browser-devtools-malformed', 'browser-exited', 'browser-connect', 'browser-context'):
+                       'browser-devtools-malformed', 'browser-not-live', 'browser-connect', 'browser-context'):
             for suffix in ('', '_cleanup_failed'):
                 raw = {'ErrorMessage': 'BFF native fixture did not reach the closed browser_result/' + reason + suffix + ' phase.'}
                 self.assertEqual(reason + suffix, self.owner.closed_failure_details(case, raw)['reason'])

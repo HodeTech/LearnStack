@@ -11,7 +11,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
                      "browser-launch", "browser-anonymous", "browser-signin-document", "browser-submit", "browser-origin-null", "browser-origin-absent", "browser-origin-other", "browser-storage", "browser-extension", "browser-logout-submit", "browser-logout-origin", "browser-logout-origin-null", "browser-logout-origin-other", "browser-logout-response", "browser-logout-location", "browser-logout-navigation", "browser-logout-cookie-header", "browser-logout-cookie", "browser-back-revalidation", "browser-history-setup", "browser-history-revalidation", "browser-headers",
                      "browser-executable", "browser-spawn", "browser-devtools", "browser-devtools-inactive",
                      "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
-                     "browser-exited", "browser-connect", "browser-context" }
+                     "browser-not-live", "browser-connect", "browser-context" }
                  .Concat(new[] { "browser-callback-", "browser-authorize-", "browser-logout-status-" }
                      .SelectMany(prefix => new[] { "0", "200", "303", "400", "403", "404", "429", "503", "other" }.Select(code => prefix + code)))).ToArray();
     private readonly Process _child;

@@ -852,7 +852,7 @@ BFF_BROWSER_FAILURE_STAGES = {
     'response-json', 'cleanup', 'privacy', 'native-stop',
     'browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
     'browser-devtools-unreadable', 'browser-devtools-missing', 'browser-devtools-empty', 'browser-devtools-malformed',
-    'browser-exited', 'browser-connect', 'browser-context',
+    'browser-not-live', 'browser-connect', 'browser-context',
     'browser-launch', 'browser-anonymous', 'browser-signin-document', 'browser-submit',
     'browser-origin-null', 'browser-origin-absent', 'browser-origin-other', 'browser-storage',
     'browser-extension', 'browser-logout-submit', 'browser-logout-origin', 'browser-logout-origin-null',
