@@ -58,7 +58,7 @@ them.
 |-----------|----------|
 | **NetArchTest** | Project-graph reference bans, naming conventions on types / namespaces. |
 | **Mono.Cecil (IL scan)** | What a method body does — a constructor called, a member read — which NetArchTest's type-level rules cannot express. It ships with NetArchTest; there is no ArchUnitNET in this repository. |
-| **Roslyn analyzer** | A syntactic pattern the build itself should fail on — `throw new DomainException(...)` outside an invariant guard is `LS0001`. |
+| **Roslyn analyzer** | A compiler diagnostic over source; configured severity controls build failure. `LS0001` flags direct `throw new DomainException(...)`, including invariant guards whose justified local suppressions are checked separately. `LS0002` has its bounded sensitive-name scope in the catalogue. |
 | **Migration scan** | SQL patterns in `.cs` migration files (RLS-enable, policy presence, partition declaration). |
 | **Reflection over conventions** | Marker-attribute presence + matching property / migration shape. |
 | **String / regex scan** | When all else fails — explicit "no file under `Verticals/`", "no `english.*` permission key". |

@@ -13,14 +13,15 @@ domain capability on top of it, not new plumbing.
 
 ### What this phase does not own
 
-Three mechanisms are routinely mis-attributed to this phase. Stated once, here, so no
+These mechanisms are routinely mis-attributed to this phase. Stated once, here, so no
 reader and no later phase has to guess:
 
 | Mechanism | Owning phase | What Phase 08a adds |
 |---|---|---|
-| Outbox — `outbox_messages` table, `OutboxFlushBehavior` | [Phase 02a](phase-02a-kernel-tenancy.md) | Nothing |
+| Outbox table and ambient transaction foundation | [Phase 02a](phase-02a-kernel-tenancy.md) | Nothing |
+| Immediate outbox enqueue, producer guard and transaction-owner completion under ADR-0057 | [Phase 02b](phase-02b-events-auth.md) | Event production through the existing contract |
 | Outbox dispatcher — polling, retry, backoff, dead-letter, inbox guard, `IEventBus` transport | [Phase 02b](phase-02b-events-auth.md) | Event types, topics, and idempotent consumers |
-| Background jobs — typed scheduling, host/storage, restored authority, retry/audit, external/capacity/recurrence foundation under Accepted ADR-0047 (implementation pending) | [Phase 02b](phase-02b-events-auth.md) | Job/provider definitions and declared queue/profile assignments |
+| Background jobs — typed scheduling, host/storage, restored authority, retry/audit, external/capacity/recurrence foundation under Accepted ADR-0047 | [Phase 02b](phase-02b-events-auth.md) | Job/provider definitions and declared queue/profile assignments |
 | Scoring / completion DSL engine — ADR-0025, sandbox, evaluator | [Phase 05](phase-05-education-learning-content.md) | Callers, answer maps, and result-band projection |
 
 Phase 08a writes **no** dispatcher, **no** job host, and **no** expression evaluator. If

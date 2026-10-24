@@ -49,10 +49,11 @@ PostgreSQL schema, EF Core, and migration conventions.
 - One `DbContext` per module (not one global).
 - Schema migrations live with the owning module.
 
-With [P02d-1 complete](../roadmap/phase-02d-delivery-log.md#delivery-record-p02d-1),
-five migration chains exist: Tenancy, Platform, Customization, Audit and
-Education. P02b-3 Step 1 brings their inventory to twenty-three data tables and
-five migration-history tables.
+Five migration chains exist: Tenancy, Platform, Customization, Audit and
+Education. The complete applied-table census, including job and pinned vendor
+storage, is checked independently from `pg_catalog` by
+[`SchemaTableClasses`](../../backend/tests/LearnStack.Tests.Integration/Database/SchemaTableClasses.cs).
+Its reviewed classes cover every data table and the five migration-history tables.
 
 ## Naming
 

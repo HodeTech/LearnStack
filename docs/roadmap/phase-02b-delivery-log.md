@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 537 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 581 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -279,6 +279,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 2 review round 1 (2026-10-25)](#p02b-8-step-2-review-round-1-2026-10-25) — 36 lines
   - [P02b-8 Step 2 review round 2 (2026-10-25)](#p02b-8-step-2-review-round-2-2026-10-25) — 34 lines
   - [P02b-8 Step 2 closeout (2026-10-25)](#p02b-8-step-2-closeout-2026-10-25) — 16 lines
+  - [P02b-8 Step 3 — Delivered carriers and catalogue reconciliation (2026-10-25)](#p02b-8-step-3--delivered-carriers-and-catalogue-reconciliation-2026-10-25) — 44 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21496,6 +21497,50 @@ independent existing live PostgreSQL census/control cases have passed. Step 3
 now reconciles remaining current-tense carriers, inherited catalogue obligations
 and the unchanged documentation-lint handoff. Step 4 retains final-source local
 and complete hosted A/B qualification; none is inferred from this closeout.
+
+### P02b-8 Step 3 — Delivered carriers and catalogue reconciliation (2026-10-25)
+
+The current phase plan now describes the delivered JWT/UUID/matrix/recorder,
+realm reconciliation and bounded read-only surface. Assertion audit is subject
+to ADR-0065 admission; the whole-chain quota control uses a reduced subject
+budget below the unchanged ingress floors, not an end-to-end 600/minute promise.
+Provider events and local BFF diagnostics remain separate from module audit
+registration. Explicitly historical preparation and Accepted/delivered records
+retain their original state.
+
+Architecture 31 preserves immutable actor identity and surviving causal metadata
+without claiming complete anonymisation. Architecture 33, workflow skills and
+source comments describe the actual seven behaviors plus handler, pass-through
+permission shell, shared composition helper, immediate outbox INSERT, owner-side
+domain completion and independent dispatch. Automatic in-tree analyzer wiring
+and Warning posture replace the obsolete NuGet/manual-registration example.
+The platform gate remains deny-all; only its stale fixed explanatory sentence
+changes. Cache invalidation retains its TTL-bound race, without assigning a
+nonexistent post-commit seam to the outbox.
+
+Adjacent database/audit/gateway/phase/contributor carriers now point to actual
+schema classes, shipped job controls and their distinct Phase 03/11 owners.
+Front doors remain phase pointers. Phase 03 inherits XML-documentation target
+existence and changed-prose width CI checks on the unchanged second-write-
+contributor trigger. The read-only live census still finds one writer and the
+same seven strict required contexts; no repository setting is changed.
+
+The complete catalogue audit includes 45 entries whose Phase names 02b and the
+nineteen inherited P02b-4 obligations: all 64 are Implemented, including frontend
+and offline owners and the new analyzer/inventory controls. The provider-SDK
+rule remains Phase 03 backfill at the first actual runtime SDK; direct HTTP
+tooling does not manufacture that subject. Three development realm roles and
+full scope remain real and inert application authority, so neither is removed
+on the strength of a stale review premise. Production job registries remain
+intentionally empty.
+
+Validation: `CI=true` Release solution build has zero warnings/errors; Unit
+2,669/2,669, affected architecture 28/28, Docker-free HTTP 298/298 and Contract
+5/5 pass, zero skips. Frontend typecheck/lint and guarded 2,376 cases pass;
+offline shard/result controls pass 72/72 and 30/30. Documentation fragment,
+structure/index, added-prose width and whitespace checks pass. Full-source
+hosted A/B qualification remains Step 4, and both fresh Step 3 review rounds
+remain pending.
 
 ## Status archive
 

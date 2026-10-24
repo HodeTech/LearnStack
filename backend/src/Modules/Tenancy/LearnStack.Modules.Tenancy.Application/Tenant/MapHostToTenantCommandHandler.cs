@@ -126,18 +126,14 @@ internal sealed class MapHostToTenantCommandHandler(
         // It runs BEFORE the commit, and the guarantee is correspondingly narrower than
         // "the window is closed". TransactionBehavior commits after the handler returns,
         // so a concurrent request arriving between this line and that COMMIT still misses
-        // the uncommitted row and re-caches the miss with a fresh TTL. What this does
-        // guarantee is the case that actually happens: the request AFTER the write, which
-        // is the seeded-host-in-a-browser one.
+        // the uncommitted row and re-caches the miss with a fresh TTL. This invalidation
+        // helps a request after commit when no intervening miss repopulated the cache;
+        // concurrent misses can still keep that 404 until the TTL expires.
         //
-        // Closing the remainder needs a post-commit seam on IUnitOfWork, whose surface
-        // [ADR-0040](../../../../../../docs/decisions/0040-ambient-unit-of-work.md)
-        // governs — so it is an amendment, not an edit, and it is owed by the first
-        // obligation that cannot tolerate the gap. The outbox dispatch in
-        // [Phase 02b](../../../../../../docs/roadmap/phase-02b-events-auth.md) is that
-        // obligation; this call joins it there. Until then the residual window is bounded
-        // by the same TTL it exists to shorten, so the failure mode is the old one for a
-        // few milliseconds rather than a new one.
+        // This is a best-effort shortening of the existing TTL, not post-commit
+        // invalidation. The residual miss can live for that full TTL. The outbox's
+        // immediate transactional INSERT and independent polling dispatcher do not add
+        // a post-commit callback or strengthen this cache guarantee (ADR-0057).
         await resolutionCache.InvalidateAsync(mapping.Host, cancellationToken);
 
         return Result.Ok(new HostMappingDto(

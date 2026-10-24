@@ -39,7 +39,7 @@ public static class CrossCuttingFoundationExtensions
     /// startup errors are captured; OpenTelemetry tracing + metrics binds
     /// next; <see cref="IErrorTrackingProvider"/> branches by
     /// <paramref name="deploymentMode"/>; the MediatR pipeline registers the
-    /// eight canonical behaviors.
+    /// eight canonical stages: seven behaviors plus the handler.
     /// </summary>
     public static WebApplicationBuilder AddLearnStackCrossCuttingFoundation(
         this WebApplicationBuilder builder,

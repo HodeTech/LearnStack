@@ -5,10 +5,9 @@ namespace LearnStack.Application.Pipeline;
 
 /// <summary>
 /// MediatR pipeline behavior — step 5 of the canonical 8-step order
-/// (ADR-0032 § Sub-decision 2). Calls
-/// <c>IAuthorizationService.AuthorizeAsync</c> against the command's
-/// resource; on deny returns <c>Result.Fail(forbidden)</c> rather than
-/// throwing.
+/// (ADR-0032 § Sub-decision 2). The current shell passes requests through;
+/// Phase 03 owns resource-aware permission checks and the
+/// <c>Result.Fail(forbidden)</c> refusal path.
 /// </summary>
 /// <remarks>
 /// Phase 02a Packet 3 ships the <strong>shell</strong>: there is no

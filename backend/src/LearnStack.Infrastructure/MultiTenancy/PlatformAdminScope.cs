@@ -238,9 +238,9 @@ public sealed class PlatformAdminScope(
     /// sentinel is legal, every other announcement site refusing it (ADR-0044 § 1, § 10).
     /// </para>
     /// <para>
-    /// <b>No actor and no correlation id, and both are deliberate.</b> There is no
-    /// principal in the process — authentication is Phase 02b — so the caller is known
-    /// only through the compiler-supplied provenance, which lands in <c>metadata</c>
+    /// <b>No actor and no correlation id.</b> Tenant authentication is live, but this
+    /// scope accepts no operator identity and its platform-permission gate denies all
+    /// callers until Phase 03. Compiler-supplied provenance lands in <c>metadata</c>
     /// rather than being flattened into <c>reason</c>: the reason is an operator-authored
     /// slug that a query groups by, and appending a file and a line to it would make every
     /// group of one. The correlation id is scoped state, and this scope is entered from

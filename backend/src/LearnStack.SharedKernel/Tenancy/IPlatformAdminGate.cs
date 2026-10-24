@@ -55,8 +55,8 @@ public sealed class PlatformAdminScopeDeniedException : Exception
 {
     public PlatformAdminScopeDeniedException(string reason)
         : base($"Platform-admin scope entry was refused for reason '{reason}'. "
-            + "No principal in this deployment holds a platform-scope permission: "
-            + "authentication arrives in Phase 02b and the permission itself in Phase 03.") =>
+            + "No principal in this deployment holds a platform-scope permission; "
+            + "platform permissions arrive in Phase 03.") =>
         Reason = reason;
 
     public PlatformAdminScopeDeniedException()

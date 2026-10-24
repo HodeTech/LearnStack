@@ -279,13 +279,13 @@ public sealed class PlatformKillswitch
     public DateTimeOffset ToggledAt { get; private set; }
 
     /// <summary>
-    /// Who flipped it, once there is a principal to record.
+    /// Who flipped it, once Phase 03 supplies the permission-checked writer.
     /// </summary>
     /// <remarks>
     /// Nullable and plain <see cref="Guid"/> rather than <c>UserId</c>: the column holds
     /// no foreign key — a killswitch outlives the operator who set it and must not be
-    /// undeletable because of one — and there is no principal in the process until
-    /// Phase 02b, so the first rows Phase 03 writes are the first that can name one.
+    /// undeletable because of one. Tenant authentication grants no platform permission;
+    /// the first rows Phase 03's authorized writer creates can name the operator.
     /// </remarks>
     public Guid? ToggledBy { get; private set; }
 }

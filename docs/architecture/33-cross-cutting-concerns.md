@@ -154,8 +154,8 @@ Request
 [4] TenantContextBehavior    ←  assert ITenantContext.IsResolved;
                                 preserve context; public requests require host ceiling
   ▼
-[5] AuthorizationBehavior    ←  IAuthorizationService.AuthorizeAsync;
-                                Result.Fail(forbidden) on deny
+[5] AuthorizationBehavior    ←  current pass-through shell;
+                                Phase 03 owns permission enforcement
   ▼
 [6] TransactionBehavior      ←  IUnitOfWork.BeginTransactionAsync(); announce
                                 mode setup, then tenant announcement before data;
@@ -163,8 +163,8 @@ Request
                                 commit on success-Result, rollback on fail-Result
                                 or exception
   ▼
-[7] OutboxFlushBehavior      ←  enrol IOutbox messages in current tx;
-                                they ship via DaprEventBus on commit
+[7] OutboxFlushBehavior      ←  producer enrollment/invariant guard;
+                                enqueue inserts immediately in the current tx
   ▼
 [8] Handler                  ←  domain logic; returns Result<T>
 ```
@@ -240,11 +240,12 @@ Why this order:
   fires at connection open, not at transaction start. See
   [Security Standards § Tenant Context](../standards/11-security.md), the single
   authority for this placement.
-- **Authorization after tenant.** A permission decision usually keys on
-  `(tenant_id, user_id, resource)` — those must be ambient first.
-- **Transaction after authorization.** No transaction is opened for a
-  forbidden request; the `denied` MUST-class row for that request is written
-  standalone, in its own short transaction.
+- **Authorization after tenant.** Phase 03's permission decision needs ambient
+  `(tenant_id, user_id, resource)`. The current behavior passes requests through;
+  the closed HTTP boundary above does not implement those permissions.
+- **Transaction after authorization.** This position lets Phase 03 refuse a
+  permission-sensitive request before opening a business transaction; its
+  `denied` MUST-class row uses the standalone audit path.
 - **The MUST-class audit row is written inside the transaction, not after it.**
   `TransactionBehavior` calls `IAuditStore.WritePendingAsync` immediately before
   `COMMIT`, so the row commits with the state change it describes or not at all
@@ -252,10 +253,13 @@ Why this order:
   unit-of-work frame (`IUnitOfWorkScope.IsOwner`) writes and reports the commit
   boundary, and it flushes every intent in the scope; a joiner writes nothing,
   signals nothing, and does not clear the capture.
-- **Outbox flush inside the transaction.** Per
-  [15-event-and-outbox.md](15-event-and-outbox.md), outbox rows write in the
-  same transaction as the originating domain change; the behavior is the
-  enrollment seam.
+- **Producer guard inside the transaction.** Under
+  [ADR-0032 Amendment 4](../decisions/0032-exception-handling-logging-and-observability.md#amendment-4--bounded-producer-supersession-by-adr-0057-2026-10-12),
+  `IOutbox.EnqueueAsync` inserts immediately in the announced ambient transaction.
+  Step 7 checks producer enrollment and invariants; it buffers and publishes
+  nothing. The transaction owner drains domain events before MUST audit and
+  commit. A separate dispatcher later publishes through `IEventBus`, whose
+  current implementation is `InProcessEventBus`.
 - **Handler at the innermost layer.** Pure domain + application logic; everything
   ambient (tenant, logger, transaction, audit context) is set up before it
   runs.
@@ -566,13 +570,14 @@ Two integration points
 |---|---|---|
 | `Result<T>` + `Error` shape | Phase 01 (scaffolded) | Code already exists in `LearnStack.SharedKernel` |
 | `LearnStackException` hierarchy | Phase 02a | Day-1 foundation |
-| MediatR pipeline (8 behaviors) | Phase 02a | Order frozen by ADR-0032 |
+| MediatR pipeline (7 behaviors plus handler) | Phase 02a | Eight-stage order frozen by ADR-0032 |
 | `LearnStackExceptionHandler : IExceptionHandler` | Phase 02a | L1 catch site |
 | Serilog + OTel SDK wiring | Phase 02a | Hosts wire it once |
 | `TenantContextSpanProcessor` | Phase 02a | OTel span enrichment |
 | `IErrorTrackingProvider` socket | Phase 02a | Three implementations registered per `DeploymentMode` |
 | `IProviderResilience<TPort>` collaborator | Phase 02a | Foundation for every adapter |
 | Roslyn analyzer for `DomainException` | Phase 02a | Compile-time enforcement of "bug only" |
+| Sensitive exception-message analyzer | P02b-8 | `LS0002` covers bounded sensitive-name expressions across production C#; ADR-0032 Amendment 6 |
 | MUST-class audit write path (`IAuditStore`, `IAuditStateCapture`) | Phase 02a Packet 9 | Shape fixed by ADR-0033 + ADR-0044; `audit_log` ships plain, unpartitioned |
 | Public read-only transaction mode and host ceiling | P02d-4 | ADR-0052 Accepted; P02d-4 Step 1 delivers host admission, transaction modes and app-role write-refusal proofs; Step 2 adds site endpoints and structural dispatch/Off/persistence guards; Steps 3–4 deliver Education reads and contract/SDK/CI proofs |
 | Outbox / background-job correlation propagation | Phase 02b | Trusted outbox/job rows and delivery/`JobExecutor` restoration; Hangfire hints remain opaque |

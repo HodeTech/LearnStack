@@ -553,9 +553,10 @@ table above is the policy those deliverables implement, not a description of tod
   changes no platform-admin pre-entry audit or other bypass operation.
   Accepted ADR-0047 adds only the named job/recurrence routing/status extension,
   conditional on exact grants/caller censuses, bounded diagnostics, metrics/health
-  and same-transaction terminal MUST audit. Until P02b-4 implements those controls,
-  acceptance grants no executable exemption; ordinary business mutations and
-  privileged maintenance remain audited under their existing contracts.
+  and same-transaction terminal MUST audit. P02b-4 implements these controls;
+  the [canonical job obligations](21-architecture-tests-catalogue.md#p02b-4-background-job-obligations)
+  name their owners and proofs. Ordinary business mutations and privileged
+  maintenance remain audited under their existing contracts.
 - Accepted ADR-0047's sixth `WriteJobTerminalAsync` method accepts only the actual
   fenced job-transition witness and matching caller connection/transaction. It
   validates stored tenant/organization/job/definition/attempt/acquisition values,

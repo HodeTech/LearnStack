@@ -67,11 +67,10 @@ public interface IPlatformAdminScope
     /// <param name="callerFile">Supplied by the compiler; do not pass.</param>
     /// <param name="callerLine">Supplied by the compiler; do not pass.</param>
     /// <remarks>
-    /// The three <c>Caller*</c> parameters are how "the caller" is known at all. There is
-    /// no principal in the process — authentication is Phase 02b and
-    /// <c>AuthorizationBehavior</c> is still a pass-through — so the alternative to the
-    /// compiler filling these in is a log line that records only that <i>someone</i>
-    /// entered. These are the first use of the attributes anywhere in this solution.
+    /// The three <c>Caller*</c> parameters record the calling code. Tenant principals
+    /// do not authorize this bypass: the shipped platform gate denies everyone, and
+    /// this scope accepts no operator identity. Phase 03 owns permission-aware entry
+    /// and actor attribution. Compiler provenance remains distinct from that identity.
     /// </remarks>
     Task<IPlatformAdminScopeHandle> EnterAsync(
         string reason,

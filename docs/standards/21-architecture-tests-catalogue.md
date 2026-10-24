@@ -156,12 +156,12 @@ P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–8, with further
 source-boundary, observation and production-manifest companions in Step 9.
 Its nineteen packet obligations are implemented with actual canonical owners and
 complementary structural, native-runtime and PostgreSQL controls. The
-[Step 9 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
-distinguishes local enforcement qualification from pending review/packet/CI closeout.
-P02b-5 adds the authenticated route/helper census and closed claim/role authority
-controls; its seven obligations have actual local owners. Its Step 5 and
-[review remediation](../roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20)
-records distinguish prior hosted qualification from the current correction head.
+[P02b-4 merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
+owns its final review/CI qualification. Authentication, realm and BFF obligations
+have unit/integration/frontend/offline owners in their entries below; the
+[Phase 02b Status block](../roadmap/phase-02b-events-auth.md) links current delivery
+and qualification. The analyzer and asynchronous inventory controls also have
+actual owners; registration alone promotes none of these obligations.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -169,10 +169,10 @@ and most rows pair a rule with the companion assertion that stops it passing vac
 **Every number in this section is recomputed by `The_Catalogue_Counts_Its_Own_Rules`.** They
 are a second copy of what the repository already knows, and the first version of this section
 proved the point by being wrong on arrival: it published "ninety-five in that assembly" in the
-same commit that added three more. The count of methods is the count of `[Fact]` and `[Theory]`
-**declarations**, one per line, over source with literal contents removed — the attributes
-written as strings inside `Every_Database_Test_Carries_The_Docker_Trait` and its companion are
-not declarations, and the meta-test's `[Fact(DisplayName = …)]` is.
+same commit that added three more. The method count uses **compiled methods**
+carrying `[Fact]`/`[Theory]`, discovered by reflection.
+Attributes written as fixture strings and declarations removed by conditional
+compilation do not count; an actual `[Fact(DisplayName = …)]` method does.
 
 **The rows and the code are held together by a test, not by a table.** This section used to
 carry a hand-written list of rule → file, and it went stale the way any second copy does — on
@@ -5736,8 +5736,9 @@ assertions below; each Implemented status names its actual canonical owner.
 Acceptance alone promotes no rule, and a partial foundation does not enforce a
 complete assertion. The
 [Step 9 record](../roadmap/phase-02b-delivery-log.md#canonical-enforcement-reconciliation)
-distinguishes executed local qualification from packet/review and exact PR-head
-CI/job-budget closure.
+retains the original local enforcement scope; the
+[merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
+records final packet/review and PR-source CI/job-budget qualification.
 Production business/recurrence registries remain empty; real framework subjects
 and fixture definitions make the implemented controls non-vacuous.
 
