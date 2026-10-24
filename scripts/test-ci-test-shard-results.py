@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import tempfile
@@ -328,6 +329,25 @@ class AggregateControls(unittest.TestCase):
                     self.assertEqual('A' if attempt == '1' else 'B', result['variant'])
                     self.assertTrue(RESULTS.verify_jobs(self.jobs(scope, self.context(attempt)), self.context(attempt), self.plan, scope))
 
+    def test_aggregate_refuses_complete_receipts_whose_assignments_only_renumber_bins(self):
+        manifest = self.fixture.renumber_only_manifest()
+        for scope in ('backend', 'integration'):
+            with self.subTest(scope=scope), tempfile.TemporaryDirectory() as temporary:
+                paths = self.outputs(temporary, scope, manifest=manifest)
+                self.refuses('assignment_not_distinct', RESULTS.validate_outputs,
+                             paths, self.context(), self.plan, scope)
+
+    def test_prepared_images_match_the_actual_provider_and_database_fixture_sources(self):
+        provider = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/KeycloakFixture.cs').read_text()
+        database = (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database/PostgresFixture.cs').read_text()
+        provider_images = re.findall(r'\bconst string Image = "([^"\n]+)";', provider)
+        database_images = re.findall(r'new PostgreSqlBuilder\("([^"\n]+)"\)', database)
+        provider_databases = re.findall(r'new PostgreSqlBuilder\("([^"\n]+)"\)', provider)
+        self.assertEqual(1, len(provider_images))
+        self.assertEqual(1, len(database_images))
+        self.assertEqual(database_images, provider_databases)
+        self.assertEqual(tuple(provider_images + database_images), RESULTS.FIXTURE_IMAGES)
+
     def test_fixture_image_preparation_uses_fixed_images_and_preserves_cleanup_reserve(self):
         environment = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
                        'GITHUB_JOB': 'backend-integration-tests', 'LEARNSTACK_CI_STARTED_AT': '1000'}
@@ -451,6 +471,13 @@ class AggregateControls(unittest.TestCase):
         self.refuses('required_name_collision', RESULTS.workflow_topology, documents, self.plan)
         documents['.github/workflows/other.yml']['jobs']['copy']['name'] = '${{ matrix.name }}'
         self.refuses('unqualified_job_name', RESULTS.workflow_topology, documents, self.plan)
+
+    def test_root_workflow_permissions_cannot_be_widened(self):
+        for permissions in ({'contents': 'write'}, {'contents': 'read', 'actions': 'read'}, 'read-all', None):
+            with self.subTest(permissions=permissions):
+                documents = copy.deepcopy(self.documents)
+                documents['.github/workflows/ci.yml']['permissions'] = permissions
+                self.refuses('workflow_permissions_invalid', RESULTS.workflow_topology, documents, self.plan)
 
     def test_attempt_api_refuses_stale_missing_skipped_failed_duplicate_or_oversized_jobs(self):
         context = self.context('2'); clean = self.jobs('backend', context)

@@ -296,6 +296,12 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 actual.LedgerRows.Should().Be(2);
                 mutant.Applied.Should().Be(lieOnlyOnReconcile ? 1 : 0);
             }
+            if (forceFinalizerRetry && !observedLeaseLoss)
+            {
+                retry.Calls.Should().Be(2, "one deliberately refused finalizer and its successful successor need no further admission without observed lease loss");
+                actual.FinalizeAttempts.Should().Be(2);
+                actual.LedgerRows.Should().Be(3, "one normal attempt and exactly the two witnessed finalizers remain immutable");
+            }
             if (lieOnlyOnReconcile)
             {
                 ((long)mutant.Applied).Should().BeInRange(1, reconcileCalls,

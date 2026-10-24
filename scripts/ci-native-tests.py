@@ -598,6 +598,42 @@ CAUSAL_RESTART_BOUNDARIES = {
      for stage in ('request', 'release', 'stop', 'completion', 'complete')}
 
 
+def closed_causal_restart_counts(case, raw):
+    # Successful retry/lease-loss observations are diagnostics, never an
+    # alternative result, receipt success signal or grant of execution authority.
+    if (case['assembly'] != 'learnstack.tests.integration'
+            or case['name'] not in CAUSAL_RESTART_FAILURE_CASES):
+        return None
+    messages = raw.get('Messages')
+    if (not isinstance(messages, list) or not 1 <= len(messages) <= 32
+            or any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+                or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+                or not isinstance(item['Text'], str) for item in messages)
+            or sum(len(item['Text']) for item in messages) > 65536):
+        return None
+    marker = 'Causal restart counts;'
+    lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+             for line in item['Text'].splitlines() if marker in line]
+    forced_case = case['name'].endswith('(independentFailure: False, lieOnlyOnReconcile: False)')
+    if (len(lines) != (2 if forced_case else 1)
+            or sum(item['Text'].count(marker) for item in messages) != len(lines)):
+        return None
+    runs = []
+    for index, line in enumerate(lines):
+        match = re.fullmatch(re.escape(marker)
+            + r'reconciles=([0-9]+);finalize=([0-9]+);ledger=([0-9]+);forced=(yes|no);'
+            + r'leaseElapsed=([0-9]+);renewalRefused=([0-9]+)\.', line)
+        if match is None or (match[4] == 'yes') != (forced_case and index == 1):
+            return None
+        fields = ('reconciles', 'finalize', 'ledger', 'leaseElapsed', 'renewalRefused')
+        values = (match[1], match[2], match[3], match[5], match[6])
+        if any(not re.fullmatch(r'0|[1-9][0-9]{0,4}', value)
+               or int(value) > maximum for value, maximum in zip(values, (10000, 6, 12, 10000, 10000))):
+            return None
+        runs.append({**dict(zip(fields, map(int, values))), 'forced': match[4] == 'yes'})
+    return {'stage': 'causal_restart_counts', 'runs': runs}
+
+
 def closed_causal_restart_details(raw):
     messages = raw.get('Messages')
     if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
@@ -667,6 +703,49 @@ NATIVE_RECOVERY_FAILURE_CASES = {
     '(loseAcquisitionAck: ' + lost + ')'
     for lost in ('False', 'True')
 }
+NATIVE_HANDOFF_FAILURE_CASE = ('LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Native_fixture_start_waits_for_previous_actual_cleanup_before_one_same_generation_hint')
+NATIVE_HANDOFF_BOUNDARIES = {
+    'submit', 'bridge', 'lock', 'runtime_start', 'cleanup_enter', 'lock_release', 'hint_start',
+    'hint_count', 'premature_hint', 'release_cleanup', 'construction', 'renewal', 'assert', 'cleanup',
+}
+
+
+def closed_native_handoff_details(raw):
+    messages = raw.get('Messages')
+    if (not isinstance(messages, list) or not 1 <= len(messages) <= 32
+            or any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+                or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+                or not isinstance(item['Text'], str) for item in messages)
+            or sum(len(item['Text']) for item in messages) > 65536):
+        return None
+    marker = 'Native handoff failure;'
+    lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+             for line in item['Text'].splitlines() if marker in line]
+    if len(lines) != 1 or sum(item['Text'].count(marker) for item in messages) != 1:
+        return None
+    tasks = ('pulse', 'helper', 'pacing', 'cleanup', 'joined', 'constructor')
+    counts = ('executions', 'renewalRefused', 'leaseElapsed')
+    fields = ('boundary', 'kind', *tasks, *counts)
+    match = re.fullmatch(re.escape(marker)
+        + ';'.join(name + r'=([a-z_0-9]{1,32})' for name in fields) + r'\.', lines[0])
+    if match is None:
+        return None
+    values = dict(zip(fields, match.groups()))
+    if (values['boundary'] not in NATIVE_HANDOFF_BOUNDARIES
+            or values['kind'] not in ('timeout', 'cancellation', 'assertion', 'invalid_state', 'other')
+            or any(values[name] not in ('not_issued', 'pending', 'succeeded', 'canceled', 'faulted') for name in tasks)):
+        return None
+    for name in counts:
+        value = values[name]
+        if value == 'unavailable':
+            continue
+        if not re.fullmatch(r'0|[1-9][0-9]{0,4}', value) or int(value) > 10000:
+            return None
+        values[name] = int(value)
+    return {'stage': 'native_handoff', **values}
+
+
 NATIVE_RECOVERY_BOUNDARIES = {
     'rooted', 'construction', 'identity', 'renewal_wait', 'database_renewal', 'old_lease',
     'provider_before', 'reconcile', 'row_facts', 'cleanup_actual', 'cleanup_work',
@@ -796,6 +875,8 @@ def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
     if case['name'] in NATIVE_RECOVERY_FAILURE_CASES:
         return closed_native_recovery_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] == NATIVE_HANDOFF_FAILURE_CASE:
+        return closed_native_handoff_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == BFF_BROWSER_FAILURE_CASE:
         return closed_bff_browser_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:
@@ -992,6 +1073,8 @@ def command_failure_kind(stderr):
     text = stderr.lower()
     patterns = (
         ('rate_limit', (b'toomanyrequests', b'too many requests', b'rate limit')),
+        ('unavailable', (b'permission denied while trying to connect to the docker daemon socket',
+                         b'cannot connect to the docker daemon', b'daemon is not running')),
         ('auth', (b'unauthorized', b'authentication required', b'pull access denied',
                   b'no basic auth credentials', b'denied:', b'permission denied', b'403 forbidden')),
         ('manifest', (b'manifest unknown', b'no matching manifest', b'manifest not found', b'manifest invalid')),
@@ -1000,8 +1083,7 @@ def command_failure_kind(stderr):
         ('timeout', (b'timeout', b'timed out', b'deadline exceeded')),
         ('tls', (b'x509:', b'certificate signed by unknown authority', b'tls handshake',
                  b'tls: ', b'certificate verify failed')),
-        ('unavailable', (b'service unavailable', b'cannot connect to the docker daemon',
-                         b'daemon is not running', b'bad gateway', b'internal server error')),
+        ('unavailable', (b'service unavailable', b'bad gateway', b'internal server error')),
         ('disk', (b'no space left on device', b'disk quota exceeded', b'not enough space', b'enospc')),
         ('transport', (b'connection reset', b'connection refused', b'network is unreachable',
                        b'broken pipe', b'unexpected eof', b'connection closed')),
@@ -1427,6 +1509,7 @@ class ExecutionProgress:
         self.generations = 0
         self.first_result_at = None
         self.failure_locations = []
+        self.success_observations = []
 
     def close(self):
         self.reader.close()
@@ -1483,6 +1566,11 @@ class ExecutionProgress:
                 if details is not None:
                     diagnostic['details'] = details
                 self.failure_locations.append(diagnostic)
+            else:
+                details = closed_causal_restart_counts(case, raw)
+                if details is not None:
+                    self.success_observations.append({'assembly': case['assembly'], 'id': case['id'],
+                                                      'details': details})
             if self.first_result_at is None:
                 self.first_result_at = time.monotonic()
             item = {**case, 'outcome': outcome, 'duration': duration}
@@ -1810,7 +1898,8 @@ def shard_workload(mode, context, private, output, deadline, work):
                 diagnostic = private / (assembly + '-execution.diag')
                 progress = ExecutionProgress(diagnostic, assembly, expected, stream)
                 item = {'assembly': assembly.casefold(), 'cases': len(expected), 'adapter': None,
-                        'firstResultSeconds': None, 'testProcessSeconds': None, 'failureLocations': []}
+                        'firstResultSeconds': None, 'testProcessSeconds': None, 'failureLocations': [],
+                        'successObservations': []}
                 measurements['projects'].append(item)
                 try:
                     argv = ['test', project, '--configuration', 'Release', '--no-build', '--no-restore',
@@ -1824,6 +1913,7 @@ def shard_workload(mode, context, private, output, deadline, work):
                 finally:
                     progress.close()
                     item['failureLocations'] = progress.failure_locations
+                    item['successObservations'] = progress.success_observations
                     item['testProcessSeconds'] = round(time.monotonic() - began, 3)
                     if progress.first_result_at is not None:
                         item['firstResultSeconds'] = round(progress.first_result_at - began, 3)

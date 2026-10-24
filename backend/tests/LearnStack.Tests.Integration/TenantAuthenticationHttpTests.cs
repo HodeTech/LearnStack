@@ -213,21 +213,24 @@ public sealed class TenantAuthenticationHttpTests
         issuer.JwksRequests.Should().BeGreaterThan(0);
     }
 
-    [Fact]
-    public async Task Discovery_failure_on_an_actual_public_route_is_401_and_never_anonymous()
+    [Theory]
+    [InlineData(TenantAuthenticationHttpRequest.PublicPath)]
+    [InlineData(TenantAuthenticationHttpRequest.AccountPath)]
+    public async Task Discovery_failure_on_actual_public_and_account_routes_is_401_and_never_anonymous(string path)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
         issuer.DiscoveryStatusCode = 503;
         await using var factory = new TenantAuthenticationApiFactory(issuer);
         using var client = factory.CreateClient();
         using var response = await TenantAuthenticationHttpRequest.Send(client,
-            TenantAuthenticationReconciliationHost.TenantHost, TenantAuthenticationHttpRequest.PublicPath,
+            TenantAuthenticationReconciliationHost.TenantHost, path,
             token: issuer.Token());
 
         await Problem(response, HttpStatusCode.Unauthorized, "unauthorized");
         BareBearer(response);
         issuer.MetadataRequests.Should().BeGreaterThan(0);
         factory.Recorder!.Rejections.Should().BeEmpty();
+        factory.Ports.Memberships.Should().BeEmpty("discovery refusal precedes membership and controller dispatch");
     }
 
     [Theory]

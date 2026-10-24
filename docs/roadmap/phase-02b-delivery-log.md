@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,270 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,311 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -245,6 +245,7 @@ each packet decided and delivered, as
   - [ADR-0071 dependent mapping and composed controls (2026-10-24)](#adr-0071-dependent-mapping-and-composed-controls-2026-10-24) — 25 lines
   - [P02b-7 foundation second review closeout (2026-10-24)](#p02b-7-foundation-second-review-closeout-2026-10-24) — 17 lines
   - [P02b-7 recovery UI and proof observation implementation (2026-10-24)](#p02b-7-recovery-ui-and-proof-observation-implementation-2026-10-24) — 39 lines
+  - [P02b-7 CI and real-provider proof corrections (2026-10-24)](#p02b-7-ci-and-real-provider-proof-corrections-2026-10-24) — 41 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20015,6 +20016,47 @@ owned fake-grant/API fixture at 1280×720, without browser chrome or credentials
 They illustrate the scaffold and are not a real-provider browser journey.
 The real Keycloak/API chain and full current-source qualification remain
 required; fresh correction review rounds follow these implementation commits.
+
+
+### P02b-7 CI and real-provider proof corrections (2026-10-24)
+
+Existing CI owners receive isolated dirty controls for outer population union,
+nonzero test exit despite complete passing outputs, non-root identity, root
+workflow permissions, both assignment-independence callers, aborted/cancelled/
+error completion flags and unsafe private diagnostic-file metadata. The fixed
+fixture-image list is compared with its actual C# owners. Docker socket/daemon
+access failures now classify as unavailable before the broad registry-auth
+pattern; raw diagnostics remain private and the original command failure wins.
+No retry, image, budget, topology, assignment weight or required check changes.
+
+Warm event controls start with two unrelated prior event types, independently
+require all eight selected identity events and refuse each missing readback.
+The existing 28-case per-file population is preserved. The actual API discovery
+503 theory covers both public and AccountSite paths and proves 401 before
+membership/controller dispatch, two passed cases with no skip.
+
+Real BFF controls now replay the original pre-sign-out and pre-failed-refresh
+cookie headers, instead of relying on cleared browser state. Cross-host replay
+requires the exact closed redirect, no cookie edit and no authenticated reader.
+An opposite-tenant real persona must fail before publication and add exactly
+one security audit under each defended host tenant; AccountSite Off coverage
+and provider-event ownership still add no session-audit row. Provider-time HTTP
+observations replace blind sleeps without replacing the actual provider clock.
+
+The forced finalizer-retry branch requires two calls, two finalizer admissions
+and three ledger rows when no lease loss was observed; its one deliberate
+conflict remains exact. The separately justified observed-loss branch retains
+its existing bounds. Passed causal cases export only exact-case closed scalar
+observations in measurements, never raw output or alternative completion
+authority. NativeHandoff preserves its first failure boundary, task phases and
+lease counters from memory, without a diagnostic query or repair.
+
+Offline validation passes: 72 combined shard controls, including the separately
+executed 30 aggregate controls; 82 native owner controls; 28 realm-event controls.
+These totals are not added twice. The integration Release build has zero
+warnings/errors. The actual Keycloak/BFF/native-job journeys remain to execute
+on the final correction source; compilation and offline twins do not replace
+those runs or the fresh independent correction reviews.
 
 
 ## Status archive

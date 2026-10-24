@@ -265,6 +265,8 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                     }),
                 });
                 using var browser = provider.Browser();
+                var user = await admin.UserAsync(identity.Username);
+                var userPath = "users/" + user.GetProperty("id").GetString();
                 var cookies = new BffWireCookies();
                 var session = await LoginAsync(native, browser, identity, password, cookies, api.Observed);
                 session.GetProperty("expiresAt").GetDouble().Should().BeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(20).ToUnixTimeMilliseconds(),
@@ -274,27 +276,33 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                 admitted.Rendered.Should().BeTrue();
                 admitted.PrivateFree.Should().BeTrue();
                 admitted.Cache.Should().Contain("no-store");
-                var priorAuthenticated = api.Observed.Reads.Count(row => row.Actor is not null);
+                var priorReads = api.Observed.Reads.Count(row => row.Actor is not null);
                 var other = SeedData.All.Single(site => site != tenant);
                 var cross = await native.RequestAsync(Host(other), "/studio", cookies.Header);
                 cross.Status.Should().Be(303);
-                api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(priorAuthenticated,
-                    "copied HTTP cookies on another host cannot reach an authenticated API read");
-                await Task.Delay(TimeSpan.FromMilliseconds(1300));
+                cross.Location.Should().Be("https://" + Host(other) + "/api/auth/signin?returnTo=%2Fstudio");
+                cross.Cookies.Should().BeEmpty("a copied host cookie cannot authorize edits on the other host");
+                cross.PrivateFree.Should().BeTrue();
+                cross.Cache.Should().Contain("no-store");
+                api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(priorReads,
+                    "copied HTTP cookies on another host cannot reach an authenticated AccountSite reader");
+                var initialProviderSession = await admin.GetAsync(userPath + "/sessions");
+                initialProviderSession.GetArrayLength().Should().Be(1);
+                await WaitForProviderClockAsync(provider, initialProviderSession[0].GetProperty("lastAccess").GetInt64() + 1000);
                 var extended = await ExtendAsync(native, tenant, cookies, session, api.Observed);
                 extended.GetProperty("expiresAt").GetDouble().Should().BeGreaterThan(session.GetProperty("expiresAt").GetDouble(),
                     "an explicit fresh-access extension must actually renew provider idle");
-                var logout = await native.RequestAsync(Host(tenant), "/api/auth/signout", cookies.Header, "POST",
+                var beforeLogoutCookies = cookies.Header;
+                var logout = await native.RequestAsync(Host(tenant), "/api/auth/signout", beforeLogoutCookies, "POST",
                     Form("csrfToken", extended.GetProperty("csrfToken").GetString()!));
                 logout.Status.Should().Be(303);
+                await AnonymousAsync(native, tenant, beforeLogoutCookies);
                 cookies.Apply(logout);
                 var returned = await browser.CompleteBffLogoutAsync(PrivateLocation(logout));
                 var completion = await native.RequestAsync(Host(tenant), returned.PathAndQuery, cookies.Header);
                 completion.Status.Should().Be(303);
                 cookies.Apply(completion);
                 await AnonymousAsync(native, tenant, cookies);
-                var user = await admin.UserAsync(identity.Username);
-                var userPath = "users/" + user.GetProperty("id").GetString();
                 (await admin.GetAsync(userPath + "/sessions")).GetArrayLength().Should().Be(0,
                     "actual provider logout ends the corresponding provider SSO session");
 
@@ -303,11 +311,13 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                 using var failedBrowser = provider.Browser();
                 var failedCookies = new BffWireCookies();
                 var failedSession = await LoginAsync(native, failedBrowser, identity, password, failedCookies, api.Observed);
+                var beforeFailedRefreshCookies = failedCookies.Header;
                 (await admin.PostAsync(userPath + "/logout", new { })).Should().Be(HttpStatusCode.NoContent);
                 var failed = await native.RequestAsync(Host(tenant), "/api/auth/extend", failedCookies.Header, "POST",
                     Form("csrfToken", failedSession.GetProperty("csrfToken").GetString()!));
                 failed.Status.Should().Be(400);
                 failed.PrivateFree.Should().BeTrue();
+                await AnonymousAsync(native, tenant, beforeFailedRefreshCookies);
                 failedCookies.Apply(failed);
                 await AnonymousAsync(native, tenant, failedCookies);
 
@@ -324,7 +334,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                 var maximum = providerSessions[0].GetProperty("start").GetInt64() + 30_000;
                 for (var round = 0; round < 2; ++round)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(10));
+                    await WaitForProviderClockAsync(provider, maximum - 30_000 + (round + 1) * 10_000);
                     var next = await ExtendAsync(native, tenant, maximumCookies, maximumSession, api.Observed);
                     next.GetProperty("expiresAt").GetDouble().Should().BeLessThanOrEqualTo(maximum + 1000,
                         "real refresh never widens the actual provider SSO maximum (integer-second rounding only)");
@@ -334,6 +344,32 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                 (await admin.PutAsync("", new { ssoSessionIdleTimeout = 1800, ssoSessionMaxLifespan = 36000 }))
                     .Should().Be(HttpStatusCode.NoContent);
                 (await admin.PostAsync(userPath + "/logout", new { })).Should().Be(HttpStatusCode.NoContent);
+                var opposite = SeedData.IdentityUsers.First(user => user.Tenant == other);
+                using var oppositeBrowser = provider.Browser();
+                var oppositeCookies = new BffWireCookies();
+                var beforeOpposite = await AuditCountsAsync();
+                var beforeOppositeReads = api.Observed.Reads.Count(row => row.Actor is not null);
+                var oppositeCsrf = await native.RequestAsync(Host(tenant), "/api/auth/csrf", oppositeCookies.Header);
+                oppositeCsrf.Status.Should().Be(200);
+                oppositeCookies.Apply(oppositeCsrf);
+                var oppositeBegin = await native.RequestAsync(Host(tenant), "/api/auth/signin/keycloak", oppositeCookies.Header, "POST",
+                    Form("csrfToken", oppositeCsrf.Data.GetProperty("csrfToken").GetString()!));
+                oppositeBegin.Status.Should().Be(303);
+                oppositeCookies.Apply(oppositeBegin);
+                var oppositeCallback = await oppositeBrowser.CompleteBffLoginAsync(PrivateLocation(oppositeBegin), opposite.Username,
+                    passwords.GetValueOrDefault(opposite.Username) ?? KeycloakFixture.DemoPassword);
+                var oppositeCompleted = await native.RequestAsync(Host(tenant), oppositeCallback.PathAndQuery, oppositeCookies.Header);
+                oppositeCompleted.Status.Should().Be(400);
+                oppositeCompleted.Data.GetProperty("code").GetString().Should().Be("identity");
+                oppositeCompleted.PrivateFree.Should().BeTrue();
+                await AnonymousAsync(native, tenant, oppositeCookies.Header);
+                api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(beforeOppositeReads,
+                    "a real opposite-tenant persona is refused before the authenticated AccountSite reader and publication");
+                (await AuditCountsAsync()).Should().Equal(SeedData.All.Select((site, index) => beforeOpposite[index] + (site == tenant ? 1 : 0)),
+                    "the authenticated JWT mismatch writes exactly one security audit under the defended host tenant");
+                var oppositeUser = await admin.UserAsync(opposite.Username);
+                (await admin.PostAsync("users/" + oppositeUser.GetProperty("id").GetString() + "/logout", new { }))
+                    .Should().Be(HttpStatusCode.NoContent);
                 var authenticatedReads = api.Observed.Reads.Where(row => row.Actor is not null).ToArray();
                 authenticatedReads.Length.Should().Be(7, "three actual grants, three successful refreshes and the protected document read each require their own AccountSite witness");
                 authenticatedReads.All(row => row.Actor == identity.UserId.Value && row.Tenant == tenant.TenantId.Value
@@ -352,7 +388,8 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                 stored.EnumerateArray().Count(row => row.GetProperty("type").GetString() == type).Should().BeGreaterThan(0,
                     "the actual BFF journey persists provider event type {0}", type);
             }
-            (await AuditCountsAsync()).Should().Equal(auditBefore, "query Off coverage and the explicit provider-event policy add no LearnStack session audit rows");
+            (await AuditCountsAsync()).Should().Equal(auditBefore.Select(count => count + 1),
+                "only the one deliberately mismatched persona per host adds a security audit; query Off and provider-event ownership add none");
             output.WriteLine("Real warm BFF proof: hosts=2; real refresh/maximum/logout/error/events=true; zero-write rerun=true; fixture={0:F3}s; journey={1:F3}s.",
                 provider.StartupElapsed.TotalSeconds, journey.Elapsed.TotalSeconds);
         }
@@ -404,10 +441,28 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
     }
 
     private static async Task AnonymousAsync(BffNativeDriver native, SeedTenant tenant, BffWireCookies cookies)
+        => await AnonymousAsync(native, tenant, cookies.Header);
+
+    private static async Task AnonymousAsync(BffNativeDriver native, SeedTenant tenant, string originalCookies)
     {
-        var response = await native.RequestAsync(Host(tenant), "/api/auth/session", cookies.Header);
+        var response = await native.RequestAsync(Host(tenant), "/api/auth/session", originalCookies);
         response.Status.Should().Be(200);
+        response.PrivateFree.Should().BeTrue();
         (response.Data.GetProperty("state").GetString() == "anonymous").Should().BeTrue();
+    }
+
+    private static async Task WaitForProviderClockAsync(KeycloakFixture provider, long targetMilliseconds)
+    {
+        using var client = KeycloakHttp.Create(provider.BaseAddress, provider.RootCertificate);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        while (true)
+        {
+            using var response = await KeycloakHttp.SendAsync(client, HttpMethod.Get, "realms/learnstack", cancellationToken: deadline.Token);
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            response.Headers.Date.Should().NotBeNull("the actual provider clock, not a blind delay, gates the real expiry observation");
+            if (response.Headers.Date!.Value.ToUnixTimeMilliseconds() >= targetMilliseconds) return;
+            await Task.Delay(100, deadline.Token);
+        }
     }
 
     private ApiHost StartApi(string secret, KeycloakFixture provider)

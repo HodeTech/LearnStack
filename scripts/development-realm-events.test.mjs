@@ -21,7 +21,7 @@ test('a converged policy has no write and independently verifies listener/admin 
 test('disabled default storage needs one bounded empty-history read and retains effective prior types', async () => {
   const fixture = provider();
   Object.assign(fixture.state.eventsConfig, { eventsEnabled: false, eventsExpiration: 0,
-    enabledEventTypes: ['LOGIN', 'UPDATE_CREDENTIAL', 'CUSTOM_REQUIRED_ACTION'],
+    enabledEventTypes: ['UPDATE_CREDENTIAL', 'CUSTOM_REQUIRED_ACTION'],
     eventsListeners: ['jboss-logging', 'existing-listener'], adminEventsEnabled: true, adminEventsDetailsEnabled: true });
   const result = await plan(fixture);
   assert.deepEqual(fixture.writes, []);
@@ -30,8 +30,11 @@ test('disabled default storage needs one bounded empty-history read and retains 
   await result.verify();
   assert.equal(fixture.state.eventsConfig.eventsExpiration, 604800);
   assert.equal(fixture.state.eventsConfig.eventsEnabled, true);
-  assert.ok(fixture.state.eventsConfig.enabledEventTypes.includes('REFRESH_TOKEN_ERROR'));
-  assert.ok(fixture.state.eventsConfig.enabledEventTypes.includes('UPDATE_CREDENTIAL'));
+  assert.deepEqual(fixture.state.eventsConfig.enabledEventTypes, [
+    'LOGIN', 'LOGIN_ERROR', 'LOGOUT', 'LOGOUT_ERROR', 'CODE_TO_TOKEN',
+    'CODE_TO_TOKEN_ERROR', 'REFRESH_TOKEN', 'REFRESH_TOKEN_ERROR',
+    'UPDATE_CREDENTIAL', 'CUSTOM_REQUIRED_ACTION',
+  ].sort());
   assert.deepEqual(fixture.state.eventsConfig.eventsListeners, ['existing-listener', 'jboss-logging']);
   assert.equal(fixture.state.eventsConfig.adminEventsEnabled, true);
   assert.equal(fixture.state.eventsConfig.adminEventsDetailsEnabled, true);
@@ -87,7 +90,7 @@ for (const history of [[{ type: 'LOGIN', userId: 'synthetic-private-event' }], n
 }
 
 for (const [name, mutate] of [
-  ['missing refresh events', value => { value.enabledEventTypes = value.enabledEventTypes.filter(type => type !== 'REFRESH_TOKEN'); }],
+  ['each missing required event', value => value],
   ['lost listener', value => { value.eventsListeners = []; }],
   ['changed admin policy', value => { value.adminEventsEnabled = !value.adminEventsEnabled; }],
   ['changed retention', value => { value.eventsExpiration = 1209600; }],
@@ -95,8 +98,16 @@ for (const [name, mutate] of [
   test(`independent policy readback rejects ${name}`, async () => {
     const fixture = provider();
     const change = await plan(fixture);
-    mutate(fixture.state.eventsConfig);
-    await assert.rejects(change.verify(), error => error.stage === 'readback' && error.reason === 'readback_conflict');
+    const before = structuredClone(fixture.state.eventsConfig);
+    for (const removed of name === 'each missing required event' ? [
+      'LOGIN', 'LOGIN_ERROR', 'LOGOUT', 'LOGOUT_ERROR', 'CODE_TO_TOKEN',
+      'CODE_TO_TOKEN_ERROR', 'REFRESH_TOKEN', 'REFRESH_TOKEN_ERROR',
+    ] : [undefined]) {
+      fixture.state.eventsConfig = structuredClone(before);
+      if (removed) fixture.state.eventsConfig.enabledEventTypes = before.enabledEventTypes.filter(type => type !== removed);
+      else mutate(fixture.state.eventsConfig);
+      await assert.rejects(change.verify(), error => error.stage === 'readback' && error.reason === 'readback_conflict');
+    }
     assert.deepEqual(fixture.writes, []);
   });
 }

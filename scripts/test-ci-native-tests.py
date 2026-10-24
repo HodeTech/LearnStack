@@ -15,10 +15,12 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
@@ -209,6 +211,33 @@ class OwnerControls(unittest.TestCase):
                                                           'Stats': {'Passed': len(cases)}}},
             'LastRunTests': {'NewTestResults': [self.execution_result(case) for case in tail]}})
 
+    def selector_fixture(self):
+        spec = importlib.util.spec_from_file_location('ci_workload_fixtures', ROOT / 'scripts/test-ci-test-shards.py')
+        fixtures = importlib.util.module_from_spec(spec); spec.loader.exec_module(fixtures)
+        fixture = fixtures.ShardControls(); fixture.plan = self.owner.shard_owner().load_plan()
+        return fixture
+
+    def run_workload(self, manifest, status, name):
+        private, output = self.root / ('private-' + name), self.root / ('output-' + name)
+        private.mkdir(); output.mkdir(); (output / 'results').mkdir()
+        plan = self.owner.shard_owner().load_plan()
+        expected = self.owner.shard_owner().assign(manifest, plan, '1')['owners']['ordinary-0']
+        def completed(argv, deadline, work, consume, progress):
+            self.trx(private / 'trx', expected, raw_canary=True)
+            progress.line(self.execution_complete(expected, tail=expected).encode())
+            return status
+        with mock.patch.object(self.owner, 'cgroup_path', return_value='/owned/work'), \
+                mock.patch.object(self.owner, 'runtime_toolchain', return_value={}), \
+                mock.patch.object(self.owner, 'discover_selectors', return_value=manifest), \
+                mock.patch.object(self.owner, 'selected_discovery', return_value=expected), \
+                mock.patch.object(self.owner, 'test_projects', return_value=[('fixture', 'LearnStack.Tests.Integration')]), \
+                mock.patch.object(self.owner, 'adapter_evidence', return_value={}), \
+                mock.patch.object(self.owner, 'shard_dotnet', side_effect=completed), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.owner.workload('ordinary-0', {'runAttempt': '1'}, private, output,
+                                time.monotonic() + 3, '/owned/work')
+        return private, output, expected
+
     def trx(self, output, cases, *, outcome='Passed', summary='Completed', raw_canary=False):
         output.mkdir(parents=True, exist_ok=True)
         tag = lambda name: '{' + self.owner.NS['t'] + '}' + name
@@ -275,6 +304,12 @@ class OwnerControls(unittest.TestCase):
                         with self.subTest(mode=mode, services=services):
                             os.environ['LEARNSTACK_NATIVE_JOB_SERVICES'] = services
                             self.assertEqual('42', self.owner.identity(mode)['runId'])
+                    for uid, gid, euid in ((0, 1000, 0), (1000, 0, 1000), (1000, 1000, 0)):
+                        with self.subTest(mode=mode, uid=uid, gid=gid, euid=euid), \
+                                mock.patch.object(self.owner.os, 'getuid', return_value=uid), \
+                                mock.patch.object(self.owner.os, 'getgid', return_value=gid), \
+                                mock.patch.object(self.owner.os, 'geteuid', return_value=euid):
+                            self.refuses('nonroot_required', self.owner.identity, mode)
                     calls_before_dirty = len(self.calls())
                     for services in ('[]', '{"db":{}}', '"foreign"', 'broken', None):
                         with self.subTest(mode=mode, services=services):
@@ -473,6 +508,30 @@ except launcher.Refusal as failure:
                     side_effect=OSError(error, 'PRIVATE-CANARY')):
                 self.refuses('pull_' + kind, self.owner.command,
                              [self.owner.DOCKER, 'pull', 'fixed-image'], time.monotonic() + 2, 'pull', diagnose=True)
+
+    def test_private_diagnostic_spool_refuses_each_unsafe_stat_before_launch_and_closes(self):
+        original = tempfile.TemporaryFile
+        for field, value in (('st_mode', stat.S_IFDIR | 0o600), ('st_mode', stat.S_IFREG | 0o640),
+                             ('st_nlink', 1), ('st_uid', os.getuid() + 1)):
+            with self.subTest(field=field, value=value), original() as spool:
+                details = dict(st_mode=stat.S_IFREG | 0o600, st_nlink=0, st_uid=os.getuid())
+                details[field] = value
+                with mock.patch.object(self.owner.tempfile, 'TemporaryFile', return_value=spool), \
+                        mock.patch.object(self.owner.os, 'fstat', return_value=types.SimpleNamespace(**details)), \
+                        mock.patch.object(self.owner.subprocess, 'run') as run:
+                    self.refuses('pull_launch', self.owner.command,
+                                 [self.owner.DOCKER, 'pull', 'fixed-image'], time.monotonic() + 2, 'pull', diagnose=True)
+                    run.assert_not_called()
+                    self.assertTrue(spool.closed)
+
+    def test_docker_socket_access_failure_is_not_registry_authentication(self):
+        for diagnostic in (
+                b'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock',
+                b'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?'):
+            self.assertEqual('unavailable', self.owner.command_failure_kind(diagnostic))
+        for diagnostic in (b'pull access denied for private/image, repository does not exist or may require docker login',
+                           b'permission denied: registry policy', b'unauthorized: authentication required'):
+            self.assertEqual('auth', self.owner.command_failure_kind(diagnostic))
 
     def test_real_subprocess_and_setsid_keep_observed_membership_and_completed_duration(self):
         case = self.case(1)
@@ -1808,6 +1867,91 @@ except launcher.Refusal as failure:
         with contextlib.redirect_stdout(io.StringIO()):
             self.refuses('execution_incomplete', incomplete.line,
                          self.execution_complete(cases[:1], tail=cases[:1]).encode())
+
+    def test_complete_passed_population_does_not_override_execution_abort_cancel_or_error(self):
+        cases = self.population()['ordinary']
+        for field, value in (('IsCanceled', True), ('IsAborted', True), ('Error', {'Message': 'PRIVATE-CANARY'})):
+            with self.subTest(field=field):
+                progress = self.progress(self.root / (field + '.diag'),
+                                         'LearnStack.Tests.Integration', cases, io.StringIO())
+                message = json.loads(self.execution_complete(cases, tail=cases).split(
+                    self.owner.ExecutionProgress.marker.decode(), 1)[1])
+                message['Payload']['TestRunCompleteArgs'][field] = value
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.refuses('execution_incomplete', progress.line,
+                                 (self.owner.ExecutionProgress.marker.decode() + json.dumps(message)).encode())
+                self.assertEqual(progress.expected, progress.seen)
+                self.assertFalse(progress.completed)
+
+    def test_successful_causal_observations_retain_only_exact_case_bound_closed_counts(self):
+        counts = ('Causal restart counts;reconciles=1;finalize=1;ledger=2;forced=no;'
+                  'leaseElapsed=0;renewalRefused=0.')
+        forced = counts.replace('finalize=1;ledger=2;forced=no', 'finalize=2;ledger=3;forced=yes')
+        for index, name in enumerate(sorted(self.owner.CAUSAL_RESTART_FAILURE_CASES)):
+            case = {**self.case(index + 1), 'name': name}
+            forced_case = name.endswith('(independentFailure: False, lieOnlyOnReconcile: False)')
+            text = counts + ('\n' + forced if forced_case else '')
+            raw = self.execution_result(case)
+            raw['Messages'] = [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + text}]
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('success-counts-' + str(index) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [raw]})
+            self.assertEqual([], progress.failure_locations)
+            self.assertEqual(1, len(progress.success_observations))
+            observed = progress.success_observations[0]
+            self.assertEqual(case['id'], observed['id'])
+            self.assertEqual('causal_restart_counts', observed['details']['stage'])
+            self.assertEqual([False, True] if forced_case else [False],
+                             [run['forced'] for run in observed['details']['runs']])
+            exported = stream.getvalue() + json.dumps(progress.success_observations)
+            for private in ('PRIVATE-CANARY', 'Causal restart counts;', 'ErrorMessage', 'Messages'):
+                self.assertNotIn(private, exported)
+            self.assertEqual({'assembly', 'id', 'name', 'outcome', 'duration'}, set(json.loads(stream.getvalue())))
+            for category, dirty in (
+                    ('StdErrMsgs', text), ('StdOutMsgs', text + '\n' + counts),
+                    ('StdOutMsgs', text + 'PRIVATE-CANARY'), ('StdOutMsgs', text.replace('ledger=2', 'ledger=13')),
+                    ('StdOutMsgs', text.replace('reconciles=1', 'reconciles=01')),
+                    ('StdOutMsgs', text.replace('renewalRefused=0', 'renewalRefused=10001'))):
+                self.assertIsNone(self.owner.closed_causal_restart_counts(case,
+                    {'Messages': [{'Category': category, 'Text': dirty}]}))
+            self.assertIsNone(self.owner.closed_causal_restart_counts({**case, 'assembly': 'foreign'}, raw))
+
+    def test_native_handoff_first_failure_retains_only_closed_task_boundary_and_lease_facts(self):
+        case = {**self.case(1), 'name': self.owner.NATIVE_HANDOFF_FAILURE_CASE}
+        sentence = ('Native handoff failure;boundary=cleanup_enter;kind=cancellation;pulse=pending;'
+                    'helper=not_issued;pacing=pending;cleanup=pending;joined=pending;constructor=pending;'
+                    'executions=1;renewalRefused=0;leaseElapsed=0.')
+        raw = {'Messages': [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\n' + sentence}]}
+        actual = self.owner.closed_failure_details(case, raw)
+        self.assertEqual('native_handoff', actual['stage'])
+        self.assertEqual('cleanup_enter', actual['boundary'])
+        self.assertEqual(1, actual['executions'])
+        self.assertNotIn('PRIVATE-CANARY', json.dumps(actual))
+        for old, new in (('cleanup_enter', 'private'), ('kind=cancellation', 'kind=private'),
+                         ('helper=not_issued', 'helper=complete'), ('executions=1', 'executions=10001'),
+                         ('renewalRefused=0', 'renewalRefused=01')):
+            self.assertIsNone(self.owner.closed_failure_details(case,
+                {'Messages': [{'Category': 'StdOutMsgs', 'Text': sentence.replace(old, new)}]}))
+        for category, dirty in (('StdErrMsgs', sentence), ('StdOutMsgs', sentence + '\n' + sentence),
+                                ('StdOutMsgs', sentence + 'PRIVATE-CANARY')):
+            self.assertIsNone(self.owner.closed_failure_details(case, {'Messages': [{'Category': category, 'Text': dirty}]}))
+        self.assertIsNone(self.owner.closed_failure_details({**case, 'assembly': 'foreign'}, raw))
+
+    def test_nonzero_test_exit_refuses_even_with_all_passed_complete_protocol_and_trx(self):
+        manifest = self.selector_fixture().manifest()
+        private, output, expected = self.run_workload(manifest, 0, 'zero-exit')
+        self.assertEqual(len(expected), self.owner.validate_results(output, expected))
+        self.assertTrue(self.owner.read_json(private / 'workload.json')['success'])
+        self.refuses('tests_failed', self.run_workload, manifest, 7, 'nonzero-exit')
+        refused_output = self.root / 'output-nonzero-exit'
+        self.assertEqual(len(expected), self.owner.validate_results(refused_output, expected))
+        self.assertFalse((self.root / 'private-nonzero-exit/workload.json').exists())
+
+    def test_workload_rejects_assignments_that_only_renumber_bins(self):
+        self.refuses('assignment_not_distinct', self.run_workload,
+                     self.selector_fixture().renumber_only_manifest(), 0, 'renumber-only')
 
     def test_missing_or_invalid_execution_and_trx_durations_are_not_completion_evidence(self):
         case = self.case(1)
