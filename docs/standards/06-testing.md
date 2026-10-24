@@ -223,11 +223,15 @@ gaps and scoped resource observations accompany every successful execution.
 Uninstrumented fixture/container measurements remain unknown.
 
 Use **Re-run all jobs**, not failed-job or single-job reruns. All producer
-siblings must belong to the current run attempt. Odd/even attempts select the
-two deterministic layouts; final qualification requires genuinely distinct
-co-membership, including SharedSchema methods, on the same source, plan,
-toolchain and complete case population. Plan, algorithm or fixture-lifetime
-changes require both layouts. Complete this qualification before merging.
+siblings must belong to the current run attempt. Before rerunning, retain the
+completed attempt's original producer packages, aggregate receipts and workflow
+metadata: a rerun can replace its Actions artifacts. Recovered job-log rows are
+labelled recovery evidence, never original artifact packages.
+Odd/even attempts select the two deterministic layouts; final qualification
+requires genuinely distinct co-membership, including SharedSchema methods, on
+the same source, plan, toolchain and complete case population. Plan, algorithm
+or fixture-lifetime changes require both layouts. Complete this qualification
+before merging.
 GitHub can omit a merged same-repository PR from a run's REST projection; the
 aggregate refuses that missing identity even after a complete rerun. Further
 PR qualification uses an open follow-up PR, without weakening identity checks

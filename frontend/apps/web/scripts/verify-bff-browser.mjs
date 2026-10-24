@@ -563,7 +563,9 @@ try {
         (authorizeCalls ? 'browser-callback-' : 'browser-authorize-') +
         (codes.has(status) ? status : 'other');
     }
-    process.stderr.write('BFF browser fixture failed: ' + (clean ? stage : 'cleanup') + '\n');
+    // Preserve the original closed stage even if later actual cleanup fails.
+    process.stderr.write('BFF browser fixture failed: ' + stage + '\n');
+    if (!clean) process.stderr.write('BFF browser cleanup failed.\n');
   }
   process.exitCode = 1;
 }

@@ -82,6 +82,8 @@ STARTUP_FAILURES = {'resource_controllers_unavailable', 'work_cgroup_not_empty',
                     'cgroup_kill_unavailable', 'startup_io_refused', 'startup_internal_refusal'}
 FAILURE_SOURCES = {
     'OutboxProcessorTests.cs': 'outbox_processor',
+    'BffNativeDriver.cs': 'bff_native_driver',
+    'TenantBffSessionTests.cs': 'bff_session',
     'TenantRealmApiTests.WarmQualification.cs': 'realm_warm_qualification',
     'BackgroundJobPositiveSdkTests.CausalRestart.cs': 'positive_sdk_causal_restart',
     'BackgroundJobPositiveSdkTests.CausalRestartObservations.cs': 'positive_sdk_causal_observation',
@@ -657,8 +659,83 @@ def closed_causal_restart_details(raw):
     return result
 
 
+BFF_BROWSER_FAILURE_CASE = ('LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
+    'Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control')
+BFF_BROWSER_FAILURE_STAGES = {
+    'input', 'input-issuer', 'input-api', 'input-secrets', 'input-sites', 'setup', 'compile', 'build',
+    'start', 'command', 'request', 'request-deadline', 'request-connect', 'request-tls', 'request-socket',
+    'response-json', 'cleanup', 'native-stop',
+    'browser-launch', 'browser-anonymous', 'browser-signin-document', 'browser-submit',
+    'browser-origin-null', 'browser-origin-absent', 'browser-origin-other', 'browser-storage',
+    'browser-extension', 'browser-logout-submit', 'browser-logout-origin', 'browser-logout-origin-null',
+    'browser-logout-origin-other', 'browser-logout-response', 'browser-logout-location',
+    'browser-logout-navigation', 'browser-logout-cookie-header', 'browser-logout-cookie',
+    'browser-back-revalidation', 'browser-history-setup', 'browser-history-revalidation', 'browser-headers',
+} | {prefix + code for prefix in ('browser-callback-', 'browser-authorize-', 'browser-logout-status-')
+     for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')}
+BFF_BROWSER_FAILURE_REASONS = BFF_BROWSER_FAILURE_STAGES | {
+    stage + '_unexpected_output' for stage in BFF_BROWSER_FAILURE_STAGES
+} | {
+    stage + '_cleanup_failed' for stage in BFF_BROWSER_FAILURE_STAGES
+} | {'response', 'deadline_input', 'exit', 'output', 'node_module_missing', 'node_syntax', 'node_abort',
+     'node_permission', 'unexpected_output'}
+BFF_BROWSER_FIXED_FAILURES = {
+    'BFF native fixture could not start.': 'spawn',
+    'BFF native fixture private input failed.': 'input',
+    'BFF browser fixture lacks its complete positive/counter witness.': 'witness',
+    'BFF browser restore count is outside its bound.': 'restore_count',
+    'BFF browser counter has no closed restoration witness.': 'counter_witness',
+    'BFF native fixture emitted an unexpected extra receipt.': 'extra_receipt',
+    'BFF native fixture required forced cleanup.': 'forced_cleanup',
+    'BFF native fixture completed without a successful exit.': 'nonzero_exit',
+    'BFF native fixture retained its private TLS/build tree.': 'retained_tree',
+    'BFF native fixture cleanup could not be confirmed.': 'cleanup_deadline',
+}
+
+
+def closed_bff_browser_details(raw):
+    message = raw.get('ErrorMessage')
+    if not isinstance(message, str) or len(message) > 65536:
+        return None
+    result = {'stage': 'bff_browser'}
+    messages = raw.get('Messages', [])
+    if (not isinstance(messages, list) or len(messages) > 32
+            or any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+                or not isinstance(item['Category'], str) or not isinstance(item['Text'], str) for item in messages)
+            or sum(len(item['Text']) for item in messages) > 65536):
+        return None
+    for kind in ('failure', 'cleanup'):
+        marker = 'BFF browser ' + kind + ';'
+        count = sum(item['Text'].count(marker) for item in messages)
+        if not count:
+            continue
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        pattern = re.escape(marker) + r'journey=(positive|counter)' + (r';state=failed\.' if kind == 'cleanup' else r'\.')
+        match = re.fullmatch(pattern, lines[0]) if count == 1 and len(lines) == 1 else None
+        if match is None or kind == 'cleanup' and result.get('journey') != match[1]:
+            return None
+        if kind == 'failure':
+            result['journey'] = match[1]
+        else:
+            result['secondaryCleanup'] = 'failed'
+    # xUnit's exact exception prefix is stripped; arbitrary trailing text,
+    # nested exceptions and credentials never become a diagnostic dimension.
+    prefix = 'System.InvalidOperationException : '
+    if message.startswith(prefix):
+        message = message[len(prefix):]
+    if message in BFF_BROWSER_FIXED_FAILURES:
+        return {**result, 'reason': BFF_BROWSER_FIXED_FAILURES[message]}
+    match = re.fullmatch(r'BFF native fixture did not reach the closed browser_result/([a-z_0-9-]{1,96}) phase\.', message)
+    if match and match[1] in BFF_BROWSER_FAILURE_REASONS:
+        return {**result, 'reason': match[1]}
+    return {**result, 'reason': 'other'} if 'journey' in result else None
+
+
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
+    if case['name'] == BFF_BROWSER_FAILURE_CASE:
+        return closed_bff_browser_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:
         return closed_outbox_startup_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in NATIVE_WAIT_FAILURE_CASES:

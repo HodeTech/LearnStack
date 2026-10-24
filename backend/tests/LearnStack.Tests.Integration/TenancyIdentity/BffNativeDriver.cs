@@ -70,9 +70,31 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         }
     }
 
-    internal static async Task<BffBrowserReceipt> BrowserAsync(string root, object configuration, bool counter)
+    internal static async Task<BffBrowserReceipt> BrowserAsync(string root, object configuration, bool counter,
+        Action? secondaryCleanupFailure = null)
     {
-        await using var driver = new BffNativeDriver(root, browser: true, counter: counter);
+        var driver = new BffNativeDriver(root, browser: true, counter: counter);
+        var bodyFailed = false;
+        try { return await ReadBrowserAsync(driver, configuration, counter); }
+        catch (Exception error) when (Catchable(error)) { bodyFailed = true; throw; }
+        finally
+        {
+            // Always attempt actual disposal. A second cleanup error must not
+            // replace the first failure; cleanup-only failure still propagates.
+            try { await driver.DisposeAsync(); }
+            catch (Exception error) when (bodyFailed && Catchable(error))
+            {
+                try { secondaryCleanupFailure?.Invoke(); }
+                catch (Exception observation) when (Catchable(observation)) { }
+            }
+        }
+    }
+
+    private static bool Catchable(Exception error) => error.GetType() != typeof(OutOfMemoryException)
+        && error.GetType() != typeof(StackOverflowException);
+
+    private static async Task<BffBrowserReceipt> ReadBrowserAsync(BffNativeDriver driver, object configuration, bool counter)
+    {
         await driver.WriteAsync(configuration);
         var reply = await driver.ReadAsync("browser_result");
         driver._child.StandardInput.Close();
@@ -194,7 +216,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         return null;
     }
 
-    private static async Task<string?> ReadErrorsAsync(StreamReader reader, CancellationToken token)
+    internal static async Task<string?> ReadErrorsAsync(StreamReader reader, CancellationToken token)
     {
         var text = new System.Text.StringBuilder();
         var overflow = false;
@@ -208,6 +230,8 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             {
                 var closed = prefix + stage + "\n";
                 if (!overflow && text.ToString() == closed) return stage;
+                if (!overflow && prefix == "BFF browser fixture failed: "
+                    && text.ToString() == closed + "BFF browser cleanup failed.\n") return stage + "_cleanup_failed";
                 if (text.ToString().Contains(closed, StringComparison.Ordinal)) return stage + "_unexpected_output";
             }
         foreach (var (pattern, reason) in new[] { ("ERR_MODULE_NOT_FOUND", "node_module_missing"),

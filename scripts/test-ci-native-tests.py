@@ -440,11 +440,12 @@ except launcher.Refusal as failure:
                 'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
                 'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
                 'BackgroundJobRecurrenceStoreTests.Runtime.cs',
-                'TenantRealmApiTests.WarmQualification.cs'}
+                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs'}
         self.assertEqual(expected, set(self.owner.FAILURE_SOURCES))
         self.assertEqual(len(expected), len(set(self.owner.FAILURE_SOURCES.values())))
         for filename, code in self.owner.FAILURE_SOURCES.items():
-            directory = 'TenancyIdentity' if filename == 'TenantRealmApiTests.WarmQualification.cs' else 'Database'
+            directory = 'TenancyIdentity' if filename in {
+                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs'} else 'Database'
             self.assertTrue((ROOT / 'backend/tests/LearnStack.Tests.Integration' / directory / filename).is_file())
             progress.failure_locations.clear()
             item = self.execution_result(cases[0]); item['Outcome'] = 2
@@ -929,6 +930,66 @@ except launcher.Refusal as failure:
             self.assertNotIn('PRIVATE-CANARY', exported)
             self.assertNotIn('/private/', exported)
             self.assertNotIn('Source contention failure;', exported)
+
+    def test_bff_browser_details_preserve_only_existing_closed_reasons_and_journey(self):
+        case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        source = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/BffNativeDriver.cs').read_text()
+        stages = source.split('private static readonly string[] ErrorStages = ', 1)[1].split('private readonly Process', 1)[0]
+        initial, suffix = stages.split('.Concat', 1)
+        expected = set(re.findall(r'"([^"]+)"', initial))
+        expected |= {prefix + code for prefix in ('browser-callback-', 'browser-authorize-', 'browser-logout-status-')
+                     for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')}
+        self.assertEqual(expected, self.owner.BFF_BROWSER_FAILURE_STAGES)
+        for reason in self.owner.BFF_BROWSER_FAILURE_REASONS:
+            message = 'System.InvalidOperationException : BFF native fixture did not reach the closed browser_result/' + reason + ' phase.'
+            self.assertEqual({'stage': 'bff_browser', 'reason': reason}, parse(case, {'ErrorMessage': message}))
+        for message, reason in self.owner.BFF_BROWSER_FIXED_FAILURES.items():
+            self.assertIn(message, source)
+            self.assertEqual(reason, parse(case, {'ErrorMessage': message})['reason'])
+        for journey in ('positive', 'counter'):
+            raw = {'ErrorMessage': 'PRIVATE-CANARY', 'Messages': [{'Category': 'StdOutMsgs', 'Text':
+                'BFF browser failure;journey=' + journey + '.\nBFF browser cleanup;journey=' + journey + ';state=failed.'}]}
+            self.assertEqual({'stage': 'bff_browser', 'journey': journey, 'secondaryCleanup': 'failed', 'reason': 'other'}, parse(case, raw))
+            self.assertIsNone(parse({**case, 'name': case['name'] + '_other'}, raw))
+            self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+
+    def test_bff_browser_details_refuse_private_malformed_duplicate_and_wrong_channel_data(self):
+        case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        message = 'BFF native fixture did not reach the closed browser_result/browser-launch phase.'
+        for invalid in (None, {}, message + 'PRIVATE-CANARY', message + '\n' + message,
+                message.replace('browser-launch', 'private-canary'), 'X' * 65537 + message):
+            self.assertIsNone(parse(case, {'ErrorMessage': invalid}))
+        marker = 'BFF browser failure;journey=positive.'
+        for channel, text in [('StdErrMsgs', marker), ('StdOutMsgs', marker + '\n' + marker),
+                ('StdOutMsgs', marker + 'PRIVATE-CANARY'), ('StdOutMsgs', marker.replace('positive', 'private')),
+                ('StdOutMsgs', 'BFF browser cleanup;journey=positive;state=failed.'),
+                ('StdOutMsgs', marker + '\nBFF browser cleanup;journey=counter;state=failed.'),
+                ('StdOutMsgs', 'X' * 65537 + marker)]:
+            self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [{'Category': channel, 'Text': text}]}))
+        self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': marker, 'private': 'canary'}]}))
+
+    def test_bff_browser_failure_export_is_case_bound_failure_only_and_contains_no_raw_text(self):
+        case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        for outcome in (1, 2):
+            stream = io.StringIO()
+            progress = self.progress(self.root / ('bff-browser-' + str(outcome) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            item = self.execution_result(case, outcome)
+            item['ErrorMessage'] = 'System.InvalidOperationException : BFF native fixture did not reach the closed browser_result/browser-launch phase.'
+            item['ErrorStackTrace'] = '/private/PRIVATE-CANARY/BffNativeDriver.cs:line 123'
+            item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\nBFF browser failure;journey=positive.'}]
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual(bool(progress.failure_locations), outcome == 2)
+            if outcome == 2:
+                self.assertEqual({'stage': 'bff_browser', 'journey': 'positive', 'reason': 'browser-launch'}, progress.failure_locations[0]['details'])
+                self.assertEqual([{'source': 'bff_native_driver', 'line': 123}], progress.failure_locations[0]['locations'])
+            exported = stream.getvalue() + json.dumps(progress.failure_locations)
+            for private in ('PRIVATE-CANARY', '/private/', 'BFF native fixture', 'BFF browser failure;'):
+                self.assertNotIn(private, exported)
 
     @staticmethod
     def causal_restart_sentence(kind='failure', **changes):

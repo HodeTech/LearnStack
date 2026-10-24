@@ -95,6 +95,17 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
     [Fact]
     public async Task Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control()
     {
+        async Task<string?> ClosedErrorAsync(string text)
+        {
+            using var bytes = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text));
+            using var reader = new StreamReader(bytes);
+            return await BffNativeDriver.ReadErrorsAsync(reader, CancellationToken.None);
+        }
+        (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\n")).Should().Be("browser-launch");
+        (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\nBFF browser cleanup failed.\n"))
+            .Should().Be("browser-launch_cleanup_failed");
+        (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\nPRIVATE-CANARY\n"))
+            .Should().Be("browser-launch_unexpected_output");
         var input = new
         {
             protocol = 1,
@@ -106,8 +117,26 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
             })
         };
         var timer = Stopwatch.StartNew();
-        var positive = await BffNativeDriver.BrowserAsync(RepositoryRoot(), input, counter: false);
-        var counter = await BffNativeDriver.BrowserAsync(RepositoryRoot(), input, counter: true);
+        async Task<BffBrowserReceipt> JourneyAsync(bool counter)
+        {
+            var journey = counter ? "counter" : "positive";
+            try
+            {
+                return await BffNativeDriver.BrowserAsync(RepositoryRoot(), input, counter,
+                    () => output.WriteLine("BFF browser cleanup;journey=" + journey + ";state=failed."));
+            }
+            catch (Exception error) when (error.GetType() != typeof(OutOfMemoryException)
+                && error.GetType() != typeof(StackOverflowException))
+            {
+                try { output.WriteLine("BFF browser failure;journey=" + journey + "."); }
+                catch (Exception observation) when (observation.GetType() != typeof(OutOfMemoryException)
+                    && observation.GetType() != typeof(StackOverflowException))
+                { }
+                throw;
+            }
+        }
+        var positive = await JourneyAsync(counter: false);
+        var counter = await JourneyAsync(counter: true);
         counter.Version.Should().Be(positive.Version);
         output.WriteLine("Actual native HTTPS browser: stock Chromium={0}; hosts=2; cookie/send/isolation/keyboard/extension/back=true; natural persisted restores={1}; restoration counter killed at {2}; total including joined cleanup={3:F3}s.",
             positive.Version, positive.NaturalRestores, counter.CounterWitness, timer.Elapsed.TotalSeconds);

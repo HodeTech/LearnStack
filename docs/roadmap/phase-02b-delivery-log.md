@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,547 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,600 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -229,6 +229,7 @@ each packet decided and delivered, as
   - [P02b-7 third hosted A — closed browser-readiness evidence (2026-10-24)](#p02b-7-third-hosted-a--closed-browser-readiness-evidence-2026-10-24) — 44 lines
   - [P02b-7 first complete A and failed B — preserve the first cause (2026-10-24)](#p02b-7-first-complete-a-and-failed-b--preserve-the-first-cause-2026-10-24) — 52 lines
   - [P02b-7 hosted causal-restart correction (2026-10-24)](#p02b-7-hosted-causal-restart-correction-2026-10-24) — 71 lines
+  - [P02b-7 hosted BFF-browser diagnosis (2026-10-24)](#p02b-7-hosted-bff-browser-diagnosis-2026-10-24) — 53 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19276,6 +19277,59 @@ selector sum updates the existing advisory weight with its own retained source.
 No test row, runtime behavior, lease clock, operation budget, job count or ceiling
 changes. Complete source-bound hosted A/B qualification remains required before
 PR #36 leaves draft.
+
+
+### P02b-7 hosted BFF-browser diagnosis (2026-10-24)
+
+[Run `40052155438`](https://github.com/HodeTech/LearnStack/actions/runs/40052155438)
+uses source `419a8d9beb6682d4b27d2b7610345a75b0b98d4d`, source tree
+`6cff20b2996482fc441d1e5b57e33fdbf8346038` and merge checkout
+`ca3826d5662f50701dfc9920bbe0912062ded0bd`, whose tree matches the source.
+Attempt 1/A passes all 27 jobs and seven required contexts. All 20 original
+producer packages, both aggregate receipts, workflow metadata and public-demo
+evidence are retained before starting attempt 2/B. Independent verification
+checks their artifact hashes, exact 5,930-case union, disjoint ownership and
+successful actual cleanup without forced cleanup. The largest producer's
+whole-job duration is 999 seconds. Manifest and plan digests are respectively
+`43abf742a0454afe30495c117978008f84c75a31a30b4adda7a2a479987995e2`
+and `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b`.
+
+Attempt 2/B finishes with 25 successful jobs and two failures. Its sole failed
+case is the BFF HTTPS browser proof in ordinary-11, taking 24.009 seconds;
+integration aggregation correctly refuses that producer. All 5,930 cases
+complete, with 5,929 passes and one failure. All 20 original producer packages
+and workflow metadata are retained. The three causal-restart variants and
+public-admission browser proof pass. This is not complete A/B qualification.
+
+The failed browser case exports only `invalid_state`, with no source location
+or closed fixture stage. `owned_completion_missing` is the nonzero-workload
+refusal. The failure receipt's forced-cleanup/default Docker fields alone do
+not establish a browser leak or the first failing operation. The unchanged
+actual browser case passes locally in 33.333 seconds, zero skipped; TRX SHA-256
+is `98b9a222b44b3f9d321f5c5e0810b0614fb8a786bef3e2a7515cde9c5ae3a0b7`.
+Neither observation establishes the hosted failure's cause.
+
+Source inspection verifies two diagnostic defects: both the browser fixture
+and its .NET driver can replace an earlier failure with a later cleanup
+failure, and the CI projection omits BFF source aliases and closed reasons.
+The fixture now retains the original stage and separately marks failed cleanup.
+The driver always attempts actual disposal, preserves its first catchable body
+failure and separately records secondary cleanup failure. Cleanup-only failure
+still propagates. Exact-case CI diagnostics retain finite journey/reason codes
+and bounded source locations; private text, paths, credentials and arbitrary
+output remain excluded. No elapsed time or diagnostic becomes cleanup evidence.
+
+Two independent focused source reviewers approve the correction. All 74
+execution, 67 assignment and 26 aggregate controls pass together in 23.742
+seconds, inside their existing thirty-second allocation. Release compilation
+reports zero warnings/errors. The corrected actual browser proof, including
+positive/counter journeys and direct closed-reader controls, passes in 31.917
+seconds, zero skipped; TRX SHA-256 is
+`e9db4e5bf584fe0fd78835f21452ce79e3b01f8e35e5dc7550ea741d8043b675`.
+These local receipts do not claim a reproduction or resolution of the hosted
+interleaving. No runtime policy, readiness algorithm, timeout, retry, case row,
+advisory weight, job count or ceiling changes. Source-bound complete hosted
+A/B qualification remains required; PR #36 stays draft.
 
 
 ## Status archive
