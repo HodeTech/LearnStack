@@ -37,6 +37,8 @@ public sealed class AsyncStoreInventoryTests
             new SqlOperation { Sql = "CREATE TABLE public.inventory_probe (id uuid);" },
             new CreateTableOperation { Name = "inventory_probe" },
             new CreateTableOperation { Schema = "other", Name = "background_jobs" },
+            new SqlOperation { Sql = "SELECT * INTO public.inventory_probe FROM public.background_jobs;" },
+            new SqlOperation { Sql = "DO $$ BEGIN EXECUTE 'CREATE ' || 'TABLE public.inventory_probe (id int)'; END $$;" },
         ];
         foreach (var addition in additions)
             Check(subject.Document, [.. subject.Platform, addition], subject.Audit).Should().NotBeEmpty(
@@ -107,6 +109,9 @@ public sealed class AsyncStoreInventoryTests
             new RenameTableOperation { Name = "third", NewName = "fourth" },
             new SqlOperation { Sql = "DROP TABLE IF EXISTS public.second; DO $body$ BEGIN CREATE TABLE final_table (id int); END $body$;" },
             new DropTableOperation { Name = "fourth" },
+            new SqlOperation { Sql = "DO $$ DECLARE selected_id int; BEGIN SELECT id INTO selected_id FROM final_table; "
+                + "EXECUTE 'CREATE SCHEMA \"public\";'; "
+                + "EXECUTE ('ALTER SEQUENCE \"' || 'public' || '\".job_id_seq AS bigint MAXVALUE 9223372036854775807'); END $$;" },
         ];
         AsyncStoreInventoryCensus.Tables(operations).Should().BeEquivalentTo(["final_table"]);
         var unsupported = new[]
@@ -114,6 +119,10 @@ public sealed class AsyncStoreInventoryTests
             "CREATE TEMP TABLE hidden_table (id int);", "CREATE UNLOGGED TABLE hidden_table (id int);",
             "CREATE GLOBAL TEMP TABLE hidden_table (id int);",
             "DO $$ BEGIN EXECUTE 'CREATE TABLE hidden_table (id int)'; END $$;",
+            "DO $$ BEGIN EXECUTE 'CREATE ' || 'TABLE hidden_table (id int)'; END $$;",
+            "DO $$ BEGIN EXECUTE format('%s %s', 'CREATE', 'TABLE hidden_table (id int)'); END $$;",
+            "DO $$ BEGIN EXECUTE dynamic_sql; END $$;",
+            "SELECT * INTO public.hidden_table FROM public.background_jobs;",
             "CREATE TABLE IF absent_table (id int);", "CREATE TABLE (id int);",
             "SET search_path = other; CREATE TABLE hidden_table (id int);",
             "CREATE TABLE previous (id int); ALTER TABLE previous SET SCHEMA other;",

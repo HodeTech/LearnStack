@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -21,6 +22,15 @@ internal static class AsyncStoreInventoryCensus
     private static readonly Regex DynamicTableDeclaration = new(
         @"\b(?:CREATE\s+(?:(?:TEMP|TEMPORARY|UNLOGGED|FOREIGN)\s+)?TABLE|DROP\s+TABLE|ALTER\s+TABLE)\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    // The pinned installer has precisely these non-table dynamic command families.
+    // Resolve literal concatenation only; do not evaluate format(), variables or arbitrary SQL.
+    private static readonly Regex PinnedInstallerCommand = new(
+        "^(?:CREATE SCHEMA \"public\";|ALTER SEQUENCE \"public\"\\."
+        + "(?:counter|hash|jobparameter|jobqueue|list|set|state|job)_id_seq "
+        + "(?:AS bigint )?MAXVALUE 9223372036854775807|"
+        + "CREATE INDEX ix_hangfire_job_statename_is_not_null ON job USING btree\\(statename\\) "
+        + "INCLUDE \\(id\\) WHERE statename IS NOT NULL)$",
+        RegexOptions.CultureInvariant);
 
     internal static MigrationOperation[] Operations(DbContext context)
     {
@@ -71,9 +81,30 @@ internal static class AsyncStoreInventoryCensus
         {
             var tokens = SqlTokens.Matches(sql.TrimStart('\uFEFF')).Where(match => !match.Groups["comment"].Success)
                 .Select(match => new SqlToken(match.Value, match.Groups["word"].Success,
-                    match.Groups["quoted"].Success, match.Groups["literal"].Success)).ToArray();
+                    match.Groups["quoted"].Success, match.Groups["literal"].Success,
+                    match.Groups["dollar"].Success)).ToArray();
+            string? dollarBody = null;
+            var selecting = false;
             for (var index = 0; index < tokens.Length; index++)
             {
+                if (tokens[index].Dollar)
+                {
+                    if (dollarBody is null) dollarBody = tokens[index].Text;
+                    else if (dollarBody == tokens[index].Text) dollarBody = null;
+                }
+                // Outside procedural dollar bodies SELECT INTO creates a table. Inside them
+                // PostgreSQL uses it for assignment to PL/pgSQL variables instead.
+                if (dollarBody is null)
+                {
+                    if (At(index).Text == ";") selecting = false;
+                    if (Is(index, "SELECT")) selecting = true;
+                    if (selecting && Is(index, "INTO"))
+                        throw new FormatException("SELECT INTO table creation requires an explicit census reader decision.");
+                }
+                if (Is(index, "EXECUTE") && !Is(index + 1, "FUNCTION")
+                    && !Is(index + 1, "PROCEDURE") && !Is(index + 1, "ON"))
+                    RequirePinnedExecute(index + 1);
+
                 // Dynamic table DDL cannot be resolved by this reader. Refuse it rather than
                 // treating a literal embedded in EXECUTE/format as a harmless absence of tables.
                 if (tokens[index].Literal && DynamicTableDeclaration.IsMatch(tokens[index].Text))
@@ -130,6 +161,7 @@ internal static class AsyncStoreInventoryCensus
                     Create(next, false);
                 }
             }
+            if (dollarBody is not null) throw new FormatException("Unterminated SQL dollar body.");
 
             SqlToken At(int index) => index < tokens.Length ? tokens[index] : default;
             bool Is(int index, string word) => At(index).Word
@@ -137,6 +169,31 @@ internal static class AsyncStoreInventoryCensus
             void Require(int index, string word)
             {
                 if (!Is(index, word)) throw new FormatException("Malformed table declaration.");
+            }
+            void RequirePinnedExecute(int cursor)
+            {
+                var command = new StringBuilder();
+                var parentheses = 0;
+                var expectingLiteral = true;
+                while (cursor < tokens.Length && At(cursor).Text != ";")
+                {
+                    var token = At(cursor++);
+                    if (token.Literal && expectingLiteral)
+                    {
+                        command.Append(token.Text[1..^1].Replace("''", "'", StringComparison.Ordinal));
+                        expectingLiteral = false;
+                    }
+                    else if (token.Text == "(" && expectingLiteral) parentheses++;
+                    else if (token.Text == ")" && !expectingLiteral && parentheses > 0) parentheses--;
+                    else if (token.Text == "|" && At(cursor).Text == "|" && !expectingLiteral)
+                    {
+                        cursor++;
+                        expectingLiteral = true;
+                    }
+                    else throw new FormatException("Unresolved dynamic EXECUTE requires an explicit census reader decision.");
+                }
+                if (expectingLiteral || parentheses != 0 || !PinnedInstallerCommand.IsMatch(command.ToString()))
+                    throw new FormatException("Dynamic EXECUTE is outside the pinned non-table installer commands.");
             }
             string Identifier(ref int cursor)
             {
@@ -158,5 +215,5 @@ internal static class AsyncStoreInventoryCensus
     private static string Name(string? schema, string table) =>
         schema is null or "public" ? table : schema + "." + table;
 
-    private readonly record struct SqlToken(string Text, bool Word, bool Quoted, bool Literal);
+    private readonly record struct SqlToken(string Text, bool Word, bool Quoted, bool Literal, bool Dollar);
 }

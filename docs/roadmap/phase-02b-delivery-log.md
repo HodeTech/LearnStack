@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 451 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 487 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -276,6 +276,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 1 review round 1 (2026-10-25)](#p02b-8-step-1-review-round-1-2026-10-25) — 26 lines
   - [P02b-8 Step 1 review round 2 and closeout (2026-10-25)](#p02b-8-step-1-review-round-2-and-closeout-2026-10-25) — 21 lines
   - [P02b-8 Step 2 — Independent asynchronous inventory coverage (2026-10-25)](#p02b-8-step-2--independent-asynchronous-inventory-coverage-2026-10-25) — 30 lines
+  - [P02b-8 Step 2 review round 1 (2026-10-25)](#p02b-8-step-2-review-round-1-2026-10-25) — 36 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21407,6 +21408,42 @@ This is structural coverage, not field-level erasure, legal compliance, provider
 schema discovery or a new purge/grant/retention mechanism. Independent review of
 subject locators and existing authority remains part of this step. Both fresh
 implementation review rounds remain pending.
+
+### P02b-8 Step 2 review round 1 (2026-10-25)
+
+Two fresh independent reviewers inspect `b20ffaeb` against `fa56aac3`: a
+`gpt-6.1-sol`/xhigh census/proof reviewer and a `gpt-6-astra`/high data/governance
+reviewer. The latter independently checks migration fields/grants, immutable
+inbox/job facts, causal audit metadata, the six-column redaction boundary,
+pinned provider event fields and volatile BFF custody; no actionable finding is
+identified and no provider test is claimed.
+
+The census reviewer reruns the five existing Release cases, zero skips, and
+reproduces two omissions against the compiled internal parser/checker through
+an owned temporary reflection harness: top-level `SELECT INTO` can create a
+persisted copy without a CREATE token, and split-literal dynamic EXECUTE can
+construct table DDL without a complete declaration inside any one literal. Both
+leave the prior census unchanged and were therefore wrongly accepted. The fix
+must refuse these unsupported paths without confusing PL/pgSQL variable
+assignment or the pinned installer's non-table dynamic statements.
+
+The independent live PostgreSQL backstop also passes its table-class/RLS census
+and both unknown-table/history-lookalike controls, 3/3 with zero skips. These
+checks do not remove the new structural parser's obligation to reject its own
+unsupported shapes. Correction verification and the second fresh review round
+remain pending.
+
+#### Correction verification
+
+Both verified SQL omissions now refuse through the same complete inventory
+checker. Dollar-body tracking preserves existing PL/pgSQL INTO assignments;
+unresolved dynamic EXECUTE refuses, with bounded literal concatenation accepted
+only for the pinned installer's non-table schema/sequence/index commands.
+Additional format/variable EXECUTE negatives and the legitimate assignment/
+installer positives exercise that boundary. The five inventory and five corpus
+Release cases pass together, zero warnings/failures/skips; scoped formatting,
+documentation and whitespace checks pass. The fresh second review remains
+pending.
 
 ## Status archive
 
