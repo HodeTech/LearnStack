@@ -266,9 +266,10 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 256 lines
-  - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 230 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 292 lines
+  - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 244 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
+  - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 22 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21062,23 +21063,28 @@ succeed; an unrelated ordinary warning must still fail that build.
 #### G18 proposal — complete inventory, unchanged erasure authority
 
 [Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten)
-owns the inventory. Acceptance records the scope below; Step 2 installs its
-canonical matrix there with concrete locators, copies, current mutability and
-implementation dependencies. Identifier-only data can still identify a person;
-absence of free text is not an erasure exemption.
+owns the inventory. The first acceptance commit installs the concrete matrix
+below there and reconciles its Phase 03/11 handoffs and immutable/grant limits,
+before either gate is marked Accepted or Step 1 writes code. Accepting a future
+inventory scope alone does not close G18. Step 2 independently verifies that
+carrier against storage and implements its drift control. Identifier-only data
+can still identify a person; absence of free text is not an erasure exemption.
 
 | Store family | Copies and subject linkage the inventory must cover |
 |---|---|
-| `outbox_messages` | Envelope actor/tenant/organization, identifier-only payload, partition/causation/trace references and terminal state |
-| `event_deliveries` | Independent per-subscription envelope/payload copy, causal actor and delivery/replay state; producer cleanup cannot erase this copy |
-| `inbox_messages` | Tenant/subscription/event completion identity; indirect subject linkage through event identity and business effect, even without an actor column |
-| `background_jobs` | Causal actor, identifier-only parameters and plan, operation/parent/recipient identities, final-outcome reference and retained uncertainty |
-| `background_job_attempts` | Job/attempt linkage, persisted outcome, operation/quiescence identities and immutable retry facts |
-| `background_job_reservations`, `background_job_capacity` | Tenant/job/attempt occupancy linkage and capacity state; erasure is never evidence of quiescence or free occupancy |
-| `background_job_recurrences`, `background_job_occurrences`, `background_job_recipients` | Definition/occurrence/recipient/child-job links, tenant/organization routes and accepted/skipped receipts, even without person columns |
+| `outbox_messages` | `actor_user_id`, identifier-only `payload`, tenant/org, partition/causation/event IDs and `correlation_id`; new producer `metadata` is SQL NULL. Platform may SELECT/DELETE, not rewrite envelope fields |
+| `event_deliveries` | Independent per-subscription envelope/`payload` copy with `actor_user_id`, tenant/org, causation/trace/partition and replay state. Platform has no grant; producer cleanup cannot erase this copy |
+| `inbox_messages` | `(tenant_id, subscription_id, event_id)` and `recorded_at`; indirect subject linkage without actor/payload/org columns. Immutable completion history; no generic Platform purge |
+| `background_jobs` | `causal_actor_user_id`, identifier-only `parameters`/`plan`, trace/causation, parent/recipient/operation and final-attempt links. Envelope/prepared facts stay immutable; uncertain effects retain occupancy |
+| `background_job_attempts` | `job_id`, identifier-only `outcome`, operation/quiescence IDs, fingerprint, selected-outcome link and finite `failure_policy`. Write-once retry/effect/cleanup facts are not a mutable person profile |
+| `background_job_capacity` | `tenant_id`, finite capacity-group key and timestamp only. Coordination metadata, not person content or a person-erasure target |
+| `background_job_reservations` | Tenant/job/attempt linkage, finite group and reservation/release facts. Erasure never proves quiescence or frees unresolved occupancy |
+| `background_job_recurrences` | Finite definition/revision/manifest/target/schedule/recipient-policy metadata; no user or arbitrary parameters. Infrastructure control, no ordinary app access |
+| `background_job_occurrences` | Manifest/slot identity and frozen tenant/org sweep bounds/checkpoints; no person column or arbitrary payload. Preserve occurrence history and monotonic progress |
+| `background_job_recipients` | Immutable tenant/org route, occurrence/manifest/target and accepted child-job receipt. Recipient means a tenant/org route, not a person; restricted reciprocal job links affect future purge order |
 | Guarded Hangfire schema-23 storage | All twelve tables from `HangfireStorageContract.Columns`; invocation/argument, parameter, state, queue, hash/list/set, server, counter and lock/control metadata; guards forbid business payload/credentials, but opaque identifiers remain linkable |
 | Existing `audit_log` | New asynchronous terminal/causal metadata, including `causal_actor_user_id`, beside immutable actor/entity/causation identifiers; redacting human-facing fields alone does not remove every reference |
-| Development Keycloak user events | Provider subject/session, IP and event-detail references; selected event persistence and qualified finite retention remain governed by ADR-0070 |
+| Development Keycloak user events | Separate provider `EVENT_ENTITY`: subject `USER_ID`, `SESSION_ID`, `IP_ADDRESS`, client/realm and event-detail JSON. Selected events and qualified finite retention remain governed by ADR-0070; account invalidation does not erase past events |
 | Diagnostics and backups | External log/trace/error archives and database/WAL/backup copies follow the existing data-protection and Phase 11 operational ownership; they are not silently erased by deleting a source row |
 
 The twelve vendor table names are `schema`, `counter`, `aggregatedcounter`,
@@ -21086,6 +21092,12 @@ The twelve vendor table names are `schema`, `counter`, `aggregatedcounter`,
 `lock`, all in `public`. Schema bookkeeping and aggregate counters remain in the
 inventory as explicit no-person-content/control classifications, rather than
 disappearing from coverage. Provider storage is separate from LearnStack's DB.
+The canonical definitions remain in
+[Standards 05 § Outbox](../standards/05-database.md#outbox),
+[Inbox](../standards/05-database.md#inbox),
+[Background jobs](../standards/05-database.md#background-jobs) and
+[guarded vendor storage](../standards/05-database.md#p02b-4-stock-hangfire-control-storage).
+The inventory records references and constraints; it copies no SQL template.
 
 **Authority limits and handoff:**
 
@@ -21151,15 +21163,15 @@ rounds. Confirm findings against current code, fix and commit the verified ones,
 and record the review scope, commit and validation. Continue automatically to
 the next step unless a new decision or real blocker requires the maintainer.
 
-1. **Analyzer and compiler wiring.** Append the accepted ADR-0032 amendment,
-   register the diagnostic and inventory obligations before runtime changes,
-   then implement `LS0002`, shared matching, release row, all-production wiring,
+1. **Analyzer and compiler wiring.** After the acceptance commit, implement
+   `LS0002`, shared matching, release row, all-production wiring,
    Warning posture and compiler/architecture/unit/mutation controls. Update
    Standards 09/11/21, analyzer comments and Phase 03's severity reference.
-2. **Erasure inventory and drift proof.** Install the matrix in Architecture 23,
-   complete field/copy and immutable-authority analysis, add the structural census
-   and dirty controls, and reconcile Phase 03/11 handoffs and misleading DELETE
-   wording. Preserve schemas, grants, execution state and retention policy.
+2. **Inventory verification and drift proof.** Independently check the accepted
+   Architecture 23 matrix and Phase 03/11 handoffs against actual DDL, grants,
+   fields and copies; add the structural census and dirty controls. Preserve
+   schemas, grants, execution state and retention policy. G18's carrier is already
+   installed; this step supplies its implementation-level coverage control.
 3. **Carrier and catalogue reconciliation.** Repair stale current-tense phase,
    architecture, standard, skill, gateway and source-comment claims against
    delivered code. Preserve Accepted bodies and append-only records. Audit every
@@ -21177,10 +21189,13 @@ the next step unless a new decision or real blocker requires the maintainer.
    Phase 06's full browser-driven OIDC suite. A failed or missing proof leaves the
    packet/phase incomplete; user review and merge remain subsequent acts.
 
-The first acceptance commit carries the gate answers, dated amendment and
-Registered catalogue rows. Every extension stays Registered until its owner and
-controls ship; existing Implemented obligations do not become Registered merely
-because this packet reviews them. No code has been changed by this proposal.
+The first acceptance commit appends ADR-0032's dated amendment, installs G18's
+canonical Architecture 23 matrix, reconciles the Phase 03/11 prerequisites and
+misleading purge/actor-anonymisation wording, and registers the diagnostic and
+inventory rows. Only then does it record G16/G18 as Accepted and permit Step 1.
+Every extension stays Registered until its owner and controls ship; existing
+Implemented obligations do not become Registered merely because this packet
+reviews them. No code has been changed by this proposal.
 
 ### P02b-8 proposal review round 1 (2026-10-25)
 
@@ -21205,6 +21220,28 @@ catalogue unit cases and all five corpus cases, zero skips. Documentation
 fragment/structure/index and whitespace checks pass. These are baseline and
 proposal checks, not evidence that `LS0002` or an erasure workflow is implemented.
 Acceptance and the fresh second proposal review remain pending.
+
+### P02b-8 proposal review round 2 (2026-10-25)
+
+Two new independent readers review `7e6e61ff` against `0d0696ac`: a
+`gpt-6-astra`/high contract/data reviewer and a `gpt-6.1-sol`/xhigh
+proof/execution reviewer. They recheck the proposed analyzer, inventory,
+ownership, catalogue and qualification boundaries against current source and
+Accepted records. The first finds no actionable issue; the second identifies
+one verified acceptance-ordering gap.
+
+G18's vehicle is Architecture 23, not merely a future inventory promise in a
+phase-doc package. The revised proposal requires its concrete canonical matrix,
+the Phase 03/11 prerequisite corrections, ADR-0032 amendment and Registered rows
+in the first acceptance commit, before either gate closes or Step 1 writes code.
+Step 2 now supplies independent field/DDL/grant verification and the coverage
+control. The proposed matrix also spells out each LearnStack job table and
+distinguishes provider subject identity from LearnStack actor identity.
+
+Documentation fragment, structure, generated-index and whitespace checks pass.
+Both reviewers' bounded recheck of this correction remains pending; no provider,
+compiler-implementation or final hosted qualification is claimed. The package
+and both gates remain Proposed/Open until maintainer acceptance.
 
 ## Status archive
 
