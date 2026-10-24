@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 3,023 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 3,049 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -262,7 +262,8 @@ each packet decided and delivered, as
   - [P02b-7 correction review round 1 — ownership and proof (2026-10-24)](#p02b-7-correction-review-round-1--ownership-and-proof-2026-10-24) — 27 lines
   - [P02b-7 correction review round 2 — independent recheck (2026-10-24)](#p02b-7-correction-review-round-2--independent-recheck-2026-10-24) — 31 lines
   - [P02b-7 hosted observer argument failure and deterministic control (2026-10-24)](#p02b-7-hosted-observer-argument-failure-and-deterministic-control-2026-10-24) — 43 lines
-  - [P02b-7 observer correction review round 1 (2026-10-24)](#p02b-7-observer-correction-review-round-1-2026-10-24) — 23 lines
+  - [P02b-7 observer correction review round 1 (2026-10-24)](#p02b-7-observer-correction-review-round-1-2026-10-24) — 24 lines
+  - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 25 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20786,6 +20787,32 @@ The root's complete frontend guard also passes 2,376 cases in two packages with
 zero skips/todos after the deterministic fix. Second-round review and current
 source qualification remain pending; neither agent's scope is promoted into a
 new full-runtime or hosted execution claim.
+
+
+
+### P02b-7 observer correction review round 2 and source freeze (2026-10-24)
+
+Exact cumulative source: `806d6ba9..5748dbbc` (argument correction `3dedda8d`,
+first-round receipt `5748dbbc`). Two different fresh agents approve read-only,
+without a verified finding.
+
+- `/root/observer_option_r2_protocol` independently verifies Node 22.23.1's
+  exit-9/terminator distinction and exact 43-byte positional payload on both
+  streams; all ten support cases pass. In-memory controls fail when the privacy
+  guard is suppressed, scanners are disconnected or the terminator is removed.
+  Late cookie registration, clean/leaking twins, ownership, deadlines and case
+  population are unchanged. It runs no full workspace, build, service or hosted
+  assignment.
+- `/root/observer_option_r2_receipt` independently verifies the same argv and
+  actual owner/scanner path, passes all ten cases, diff check and docs gates
+  (2,256 fragments, structure and indexes). It does not attest hosted logs,
+  full-suite results or recovery of the original private CI cookie.
+
+The root's post-fix full frontend guard passes 2,376 cases in two packages,
+zero skips/todos. Implementation and both fresh review rounds for the runtime
+correction and its hosted observer follow-up are complete. The frozen source now
+requires full current-source A/B; no earlier failure, older passing source or
+selected check substitutes for either complete assignment.
 
 
 ## Status archive

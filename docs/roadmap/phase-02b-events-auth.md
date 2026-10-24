@@ -6,9 +6,9 @@
 > post-merge CI corrections are merged through
 > [PR #35](https://github.com/HodeTech/LearnStack/pull/35). P02b-7's earlier
 > implementation and source-bound A/B qualification remain recorded. The current
-> runtime corrections and both independent review rounds are locally complete.
-> Hosted A exposes an observer-test argument failure; its deterministic correction
-> is locally validated and awaits fresh review and final-source hosted A/B.
+> runtime corrections and the observer-test follow-up have completed local
+> validation and both fresh independent review rounds. Their final-source hosted
+> A/B qualification remains pending; the failed earlier source stays recorded.
 > [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) is Accepted and
 > implemented. The packet row below owns correction state; maintainer review and
 > merge remain separate. P02b-8's exit enforcement remains pending.
@@ -29,7 +29,7 @@
 > | P02b-4 | Background jobs | ✅ complete and merged — PR #32, 2026-10-19; [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) |
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
-> | P02b-7 | BFF session | [Observer-control correction](phase-02b-delivery-log.md#p02b-7-hosted-observer-argument-failure-and-deterministic-control-2026-10-24); fresh review and final-source A/B pending; [PR #36](https://github.com/HodeTech/LearnStack/pull/36) draft |
+> | P02b-7 | BFF session | [Corrections and both review rounds complete](phase-02b-delivery-log.md#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24); final-source A/B pending; [PR #36](https://github.com/HodeTech/LearnStack/pull/36) draft |
 > | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
 
 ## Goal
