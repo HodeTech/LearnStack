@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 581 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 600 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -280,6 +280,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 2 review round 2 (2026-10-25)](#p02b-8-step-2-review-round-2-2026-10-25) — 34 lines
   - [P02b-8 Step 2 closeout (2026-10-25)](#p02b-8-step-2-closeout-2026-10-25) — 16 lines
   - [P02b-8 Step 3 — Delivered carriers and catalogue reconciliation (2026-10-25)](#p02b-8-step-3--delivered-carriers-and-catalogue-reconciliation-2026-10-25) — 44 lines
+  - [P02b-8 Step 3 review round 1 (2026-10-25)](#p02b-8-step-3-review-round-1-2026-10-25) — 19 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21541,6 +21542,25 @@ offline shard/result controls pass 72/72 and 30/30. Documentation fragment,
 structure/index, added-prose width and whitespace checks pass. Full-source
 hosted A/B qualification remains Step 4, and both fresh Step 3 review rounds
 remain pending.
+
+### P02b-8 Step 3 review round 1 (2026-10-25)
+
+Two fresh independent reviewers inspect all 24 files in
+`3a564448..1231aedc`: a `gpt-6-astra`/high contract/authority reviewer and a
+`gpt-6.1-sol`/xhigh corpus/proof reviewer. Both approve without an actionable
+finding. They compare current identity/refusal/audit and owner-completion
+claims with source, preserve the deny-all platform gate and erasure prerequisites,
+and confirm that Accepted bodies and historical records remain intact.
+
+The corpus reviewer independently recounts 45 explicit Phase 02b entries plus
+nineteen inherited job obligations, verifies the inherited canonical-owner
+methods, and checks backend/frontend/offline ownership. Paginated read-only
+GitHub checks again find one writer and the same seven strict contexts bound
+to Actions app `15368`. Documentation lint resolves 2,328 fragments; corpus
+5/5 and selected inventory/pipeline/authority/surface controls 29/29 pass from
+existing Release binaries, zero skips. The contract reviewer performs source
+review only. Neither claims fresh build, full suites, provider/browser or hosted
+A/B execution. The fresh second review round remains pending.
 
 ## Status archive
 
