@@ -7,6 +7,7 @@ These controls do not qualify a hosted systemd/cgroup implementation or CI fit.
 """
 from collections import Counter
 import contextlib
+import errno
 import hashlib
 import importlib.util
 import io
@@ -30,6 +31,7 @@ import json, os, pathlib, signal, sys, time
 base = pathlib.Path(__file__).parent
 config_path = base / 'fixture.json'
 config = json.loads(config_path.read_text())
+os.write(2, config.get('stderr', '').encode())
 name = pathlib.Path(sys.argv[0]).name
 with (base / 'calls.jsonl').open('a') as stream:
     stream.write(json.dumps({'name': name, 'argv': sys.argv[1:],
@@ -326,8 +328,21 @@ except launcher.Refusal as failure:
         self.assertEqual([], fixture.commands('sudo'))
 
     def test_actual_subprocess_failure_and_timeout_disclose_no_provider_text(self):
-        self.configure(status={'docker': 7}, docker='PRIVATE-CANARY')
-        self.refuses('failed', self.owner.command, [self.owner.DOCKER, 'ps'], time.monotonic() + 2, 'failed')
+        self.configure(status={'docker': 7}, docker='PRIVATE-CANARY', stderr='unauthorized PRIVATE-CANARY')
+        actual_run = subprocess.run
+        with mock.patch.dict(os.environ, {'PRIVATE_CANARY': 'PRIVATE-CANARY', 'DOCKER_CONFIG': 'PRIVATE-CANARY'}), \
+                mock.patch.object(self.owner.subprocess, 'run', wraps=actual_run) as run, \
+                mock.patch.object(self.owner.tempfile, 'TemporaryFile') as spool:
+            self.refuses('failed', self.owner.command, [self.owner.DOCKER, 'ps'], time.monotonic() + 2, 'failed')
+            spool.assert_not_called()
+        self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stderr'])
+        self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stdin'])
+        self.assertEqual(subprocess.PIPE, run.call_args.kwargs['stdout'])
+        expected_environment = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
+            'HOME': os.environ.get('HOME', ''), 'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'}
+        self.assertEqual(expected_environment, run.call_args.kwargs['env'])
+        self.assertFalse(run.call_args.kwargs['check'])
+        self.assertIsNone(self.calls()[-1]['secret'])
         self.configure(status={}, delay=0.3)
         self.refuses('timed', self.owner.command, [self.owner.DOTNET], time.monotonic() + 0.05, 'timed')
         # subprocess.run really reaps its directly timed-out child; fixture's
@@ -335,6 +350,129 @@ except launcher.Refusal as failure:
         for directory in (self.bin / 'proc').iterdir():
             for path in directory.iterdir(): path.unlink()
             directory.rmdir()
+
+        actual_spool, captures = tempfile.TemporaryFile, []
+        def private_spool():
+            captured = actual_spool()
+            details = os.fstat(captured.fileno())
+            self.assertEqual(0o600, details.st_mode & 0o777)
+            self.assertEqual(0, details.st_nlink)
+            self.assertEqual(os.getuid(), details.st_uid)
+            captured.read = mock.Mock(wraps=captured.read)
+            captures.append(captured)
+            return captured
+        labels = {
+            'rate_limit': 'toomanyrequests: You have reached your pull rate limit',
+            'auth': 'unauthorized: authentication required',
+            'manifest': 'manifest unknown',
+            'dns': 'dial tcp: lookup registry: no such host',
+            'timeout': 'net/http: request canceled while waiting: timeout',
+            'tls': 'x509: certificate signed by unknown authority',
+            'unavailable': '503 Service Unavailable',
+            'disk': 'no space left on device',
+            'transport': 'read: connection reset by peer',
+            'other': 'unrecognized diagnostic',
+        }
+        self.assertEqual(set(labels) | {'launch', 'deadline', 'output_bound'}, self.owner.COMMAND_FAILURE_KINDS)
+        console = io.StringIO()
+        with mock.patch.object(self.owner.tempfile, 'TemporaryFile', side_effect=private_spool), \
+                contextlib.redirect_stdout(console), contextlib.redirect_stderr(console):
+            for kind, diagnostic in labels.items():
+                self.configure(status={'docker': 7}, docker='PRIVATE-CANARY',
+                               stderr=diagnostic + ' PRIVATE-CANARY https://private.invalid/token password=private')
+                self.refuses('pull_' + kind, self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             time.monotonic() + 2, 'pull', cap=55, diagnose=True)
+            self.assertEqual('other', self.owner.command_failure_kind(b'\xffPRIVATE-CANARY'))
+            self.configure(status={'docker': 0}, docker='ok', stderr='unauthorized PRIVATE-CANARY')
+            with mock.patch.object(self.owner.time, 'monotonic', return_value=500), \
+                    mock.patch.object(self.owner.subprocess, 'run', wraps=actual_run) as run:
+                self.assertEqual(b'ok', self.owner.command([self.owner.DOCKER, 'pull', 'fixed-image'],
+                                                         610, 'pull', cap=55, diagnose=True))
+            self.assertEqual(([self.owner.DOCKER, 'pull', 'fixed-image'],), run.call_args.args)
+            self.assertEqual(55, run.call_args.kwargs['timeout'])
+            self.assertEqual(expected_environment, run.call_args.kwargs['env'])
+            self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stdin'])
+            self.assertEqual(subprocess.PIPE, run.call_args.kwargs['stdout'])
+            self.assertFalse(run.call_args.kwargs['check'])
+            self.assertIs(captures[-1], run.call_args.kwargs['stderr'])
+            self.assertTrue(captures[-1].closed)
+            self.configure(status={'docker': 7}, docker='PRIVATE-CANARY', stderr='unknown PRIVATE-CANARY')
+            for unknown in ('PRIVATE-CANARY', {'private': 'PRIVATE-CANARY'}, None, 4):
+                with mock.patch.object(self.owner, 'command_failure_kind', return_value=unknown):
+                    self.refuses('pull_other', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                                 time.monotonic() + 2, 'pull', diagnose=True)
+            with mock.patch.object(self.owner, 'MAX_BYTES', 64):
+                for stdout, stderr in (('x' * 65, ''), ('', 'x' * 65)):
+                    self.configure(status={'docker': 0}, docker=stdout, stderr=stderr)
+                    self.refuses('pull_output_bound', self.owner.command,
+                                 [self.owner.DOCKER, 'pull', 'fixed-image'], time.monotonic() + 2, 'pull', diagnose=True)
+            self.refuses('pull_launch', self.owner.command, [str(self.bin / 'missing-command')],
+                         time.monotonic() + 2, 'pull', diagnose=True)
+            with mock.patch.object(self.owner.subprocess, 'run') as run:
+                self.refuses('pull_deadline', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             time.monotonic() - 1, 'pull', diagnose=True)
+                run.assert_not_called()
+            with mock.patch.object(self.owner, 'CANCELLED', True), \
+                    mock.patch.object(self.owner.subprocess, 'run') as run:
+                self.refuses('cancelled', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             time.monotonic() + 2, 'pull', diagnose=True)
+                run.assert_not_called()
+            timeout_child = self.bin / 'timeout-child'
+            pid_path = self.bin / 'timeout-child.pid'
+            timeout_child.write_text('#!' + sys.executable + '\nimport os, pathlib, sys, time\n'
+                + 'pathlib.Path(sys.argv[1]).write_text(str(os.getpid()))\n'
+                + 'print("PRIVATE-CANARY", flush=True)\n'
+                + 'print("PRIVATE-CANARY", file=sys.stderr, flush=True)\ntime.sleep(5)\n')
+            timeout_child.chmod(0o700)
+            self.refuses('pull_timeout', self.owner.command, [str(timeout_child), str(pid_path)],
+                         time.monotonic() + 2, 'pull', cap=0.5, diagnose=True)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(int(pid_path.read_text()), 0)
+        self.assertEqual('', console.getvalue())
+        self.assertTrue(all(captured.closed for captured in captures))
+
+        class CloseFailure:
+            def __init__(self, captured): self.captured = captured
+            def __getattr__(self, name): return getattr(self.captured, name)
+            def close(self):
+                self.captured.close()
+                raise OSError(errno.ENOSPC, 'PRIVATE-CANARY https://private.invalid/credential')
+        with mock.patch.object(self.owner.tempfile, 'TemporaryFile', side_effect=lambda: CloseFailure(private_spool())):
+            self.configure(status={'docker': 7}, docker='PRIVATE-CANARY', stderr='unauthorized PRIVATE-CANARY')
+            self.refuses('pull_auth', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                         time.monotonic() + 2, 'pull', diagnose=True)
+            self.refuses('pull_launch', self.owner.command, [str(self.bin / 'missing-command')],
+                         time.monotonic() + 2, 'pull', diagnose=True)
+            self.configure(status={'docker': 0}, docker='ok', stderr='')
+            self.refuses('pull_disk', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                         time.monotonic() + 2, 'pull', diagnose=True)
+            with mock.patch.object(self.owner.subprocess, 'run', side_effect=subprocess.TimeoutExpired(
+                    'PRIVATE-CANARY', 55, output=b'PRIVATE-CANARY')):
+                self.refuses('pull_timeout', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             time.monotonic() + 2, 'pull', diagnose=True)
+        self.assertTrue(all(captured.closed for captured in captures))
+        for global_deadline, after_spool in ((610, 556), (510, 511)):
+            clock = {'now': 500}
+            def delayed_spool():
+                captured = private_spool()
+                clock['now'] = after_spool
+                return captured
+            with mock.patch.object(self.owner.time, 'monotonic', side_effect=lambda: clock['now']), \
+                    mock.patch.object(self.owner.tempfile, 'TemporaryFile', side_effect=delayed_spool), \
+                    mock.patch.object(self.owner.subprocess, 'run') as run:
+                self.refuses('pull_deadline', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             global_deadline, 'pull', cap=55, diagnose=True)
+                run.assert_not_called()
+                self.assertTrue(captures[-1].closed)
+        for captured in captures:
+            self.assertLessEqual(captured.read.call_count, 1)
+            for call in captured.read.call_args_list:
+                self.assertIn(call.args, ((65,), (self.owner.MAX_BYTES + 1,)))
+        for error, kind in ((errno.ENOSPC, 'disk'), (errno.EIO, 'unavailable')):
+            with mock.patch.object(self.owner.tempfile, 'TemporaryFile',
+                    side_effect=OSError(error, 'PRIVATE-CANARY')):
+                self.refuses('pull_' + kind, self.owner.command,
+                             [self.owner.DOCKER, 'pull', 'fixed-image'], time.monotonic() + 2, 'pull', diagnose=True)
 
     def test_real_subprocess_and_setsid_keep_observed_membership_and_completed_duration(self):
         case = self.case(1)

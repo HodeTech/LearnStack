@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,929 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,987 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -236,6 +236,7 @@ each packet decided and delivered, as
   - [P02b-7 correction source handoff (2026-10-24)](#p02b-7-correction-source-handoff-2026-10-24) — 16 lines
   - [P02b-7 startup-counter cleanup confirmation (2026-10-24)](#p02b-7-startup-counter-cleanup-confirmation-2026-10-24) — 18 lines
   - [P02b-7 hosted recovery proof follow-up (2026-10-24)](#p02b-7-hosted-recovery-proof-follow-up-2026-10-24) — 51 lines
+  - [P02b-7 fixture image failure classification (2026-10-24)](#p02b-7-fixture-image-failure-classification-2026-10-24) — 58 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19665,6 +19666,64 @@ Production code, operation/test budgets, shard weights/counts and required check
 are unchanged. The historical CI cause remains unproven. A new complete
 source-bound pair remains required; live results belong in PR #36 so recording
 those results does not invalidate the source again.
+
+
+### P02b-7 fixture image failure classification (2026-10-24)
+
+The recovery-proof correction at `c2a7e979` completes the full A assignment in
+[run 40076725886](https://github.com/HodeTech/LearnStack/actions/runs/40076725886),
+attempt 1: 27 jobs, seven required contexts, 5,930 .NET cases, 2,160 frontend
+cases, 31 native cases, nine demo pages and 27 Lighthouse pairs. All 20 original
+producer packages, both aggregates and demo evidence are retained locally and
+independently hash/identity/case-union audited. The longest producer whole-job
+observation is 1,004 seconds; the aggregates take 19 and 39 seconds. These are
+measured observations, not future timing guarantees.
+
+Attempt 2/B fails before restore/build/tests while preparing the fixed fixture
+images, in ordinary-10 and ordinary-11. The closed error is
+`fixture_image_pull_failed`; the observed ordinary-11 preparation returns in
+about 1.75 seconds, rather than exhausting its budget. The doomed attempt is
+cancelled after preserving both setup-failure logs and available artifacts.
+Attempt 3/A is deliberately cancelled rather than repeat the retained complete
+A assignment; it supplies no qualification. All jobs run again in attempt 4/B,
+but ordinary-7 returns the same preparation refusal. Its failure log and
+available artifacts are preserved before cancellation. No earlier passing
+siblings are supplied to an aggregate, and no cancelled attempt qualifies.
+
+The original helper discards Docker stderr, so these observations cannot
+distinguish a registry, network, credentials, manifest or local-daemon failure.
+Further blind reruns stop. Only the two fixed image pulls opt into a diagnostic
+projection through the existing command owner:
+
+- Default callers retain stderr discard, direct argv, the scrubbed environment
+  and their original failure behavior. No new CLI/environment command selector
+  is introduced.
+- Opted-in stderr stays in an unlinked owner-only temporary file, closes on every
+  path and is inspected within the existing output bound. Only a fixed component
+  and a closed error category leave the boundary; raw provider text, URLs, paths,
+  credentials and exception messages are not exported.
+- First command failure survives later spool-cleanup failure. A cleanup-only
+  failure still refuses. The diagnostic is an observation, not a causal verdict
+  or a positive execution/cleanup witness.
+- Fixed images, 55-second command caps, the shared 110-second preparation bound,
+  execution/cleanup reserve, shard plan/topology and required checks stay intact.
+  No automatic image-pull retry or additional Docker command is introduced.
+
+The first review closes primary-error masking by spool cleanup, an invalid
+classifier-return success path and spool-setup deadline accounting. Two fresh
+independent focused reviewers then approve the final process and contract
+changes, including the deadline correction. The final 75 owner controls pass
+in 18.837 seconds; 68 combined controls pass in 2.780 seconds (41 assignment
+plus 27 aggregate, not additive totals). Actual owned-stub timeout/reaping,
+spool closure, canary containment, default behavior, fixed component/image
+selection and remaining-reserve controls pass. Five corpus controls, Python
+compilation and the diff whitespace check pass. No hosted result is inferred
+from these offline controls.
+
+The historical pull cause remains unknown. The next complete source-bound
+qualification must establish the new source; the retained A result is historical
+once this diagnostic change is committed. Live CI receipts stay in PR #36 rather
+than creating a delivery-only commit after each run.
 
 
 ## Status archive

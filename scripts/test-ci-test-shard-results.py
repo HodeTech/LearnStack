@@ -336,13 +336,49 @@ class AggregateControls(unittest.TestCase):
                 mock.patch.object(RESULTS.time, 'time', return_value=1700), \
                 mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
                 mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
-                mock.patch.object(RESULTS.OWNER, 'command', return_value=b'') as command, \
+                mock.patch.object(RESULTS.OWNER, 'command', return_value=b'PRIVATE-CANARY') as command, \
                 mock.patch('sys.stdout', output):
             self.assertEqual(0, RESULTS.prepare_fixture_images())
+        self.assertEqual(('quay.io/keycloak/keycloak:26.6.2', 'postgres:18.4-alpine'), RESULTS.FIXTURE_IMAGES)
         self.assertEqual([mock.call(['/usr/bin/docker', 'pull', image], 610,
-                                    'fixture_image_pull_failed', cap=55) for image in RESULTS.FIXTURE_IMAGES],
+                                    'fixture_image_pull_failed_' + component, cap=55, diagnose=True)
+                          for component, image in zip(('keycloak', 'postgres'), RESULTS.FIXTURE_IMAGES)],
                          command.call_args_list)
         self.assertEqual(list(RESULTS.FIXTURE_IMAGES), [row['image'] for row in json.loads(output.getvalue())['images']])
+        self.assertNotIn('PRIVATE-CANARY', output.getvalue())
+        for index, component in enumerate(('keycloak', 'postgres')):
+            output = io.StringIO()
+            reason = 'fixture_image_pull_failed_' + component + '_rate_limit'
+            with mock.patch.dict(os.environ, environment, clear=True), \
+                    mock.patch.object(RESULTS.time, 'time', return_value=1700), \
+                    mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
+                    mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
+                    mock.patch.object(RESULTS.OWNER, 'command',
+                        side_effect=[b'PRIVATE-CANARY'] * index + [RESULTS.OWNER.Refusal(reason)]) as command, \
+                    mock.patch('sys.stdout', output):
+                self.refuses(reason, RESULTS.prepare_fixture_images)
+            self.assertEqual(index + 1, command.call_count, 'No failed pull is retried or followed by another image')
+            self.assertEqual('', output.getvalue())
+        with mock.patch.dict(os.environ, environment, clear=True), \
+                mock.patch.object(RESULTS.time, 'time', return_value=1960), \
+                mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
+                mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
+                mock.patch.object(RESULTS.OWNER, 'command', return_value=b'') as command, \
+                mock.patch('sys.stdout', io.StringIO()):
+            self.assertEqual(0, RESULTS.prepare_fixture_images())
+            self.assertEqual(2, command.call_count)
+            self.assertTrue(all(call.args[1] == 500 + RESULTS.OWNER.JOB_SECONDS
+                - RESULTS.OWNER.RESERVE_SECONDS - 960 for call in command.call_args_list))
+            self.assertTrue(all(call.kwargs == {'cap': 55, 'diagnose': True} for call in command.call_args_list))
+        for images in ((), ('one',), ('one', 'two', 'three')):
+            with mock.patch.dict(os.environ, environment, clear=True), \
+                    mock.patch.object(RESULTS.time, 'time', return_value=1700), \
+                    mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
+                    mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
+                    mock.patch.object(RESULTS, 'FIXTURE_IMAGES', images), \
+                    mock.patch.object(RESULTS.OWNER, 'command') as command:
+                self.refuses('fixture_setup_images_invalid', RESULTS.prepare_fixture_images)
+                command.assert_not_called()
         with mock.patch.dict(os.environ, environment, clear=True), \
                 mock.patch.object(RESULTS.time, 'time', return_value=2000), \
                 mock.patch.object(RESULTS.sys, 'platform', 'linux'), \

@@ -21,6 +21,7 @@ import signal
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 
@@ -979,18 +980,93 @@ def write_json(path, value):
     temporary.replace(path)
 
 
-def command(argv, deadline, reason, *, cap=COMMAND_SECONDS):
+COMMAND_FAILURE_KINDS = frozenset({
+    'rate_limit', 'auth', 'manifest', 'dns', 'timeout', 'tls', 'unavailable',
+    'disk', 'transport', 'other', 'launch', 'deadline', 'output_bound',
+})
+
+
+def command_failure_kind(stderr):
+    # Report a closed observation, not a causal diagnosis. Never return a
+    # matched fragment, provider text, endpoint, path or exception message.
+    text = stderr.lower()
+    patterns = (
+        ('rate_limit', (b'toomanyrequests', b'too many requests', b'rate limit')),
+        ('auth', (b'unauthorized', b'authentication required', b'pull access denied',
+                  b'no basic auth credentials', b'denied:', b'permission denied', b'403 forbidden')),
+        ('manifest', (b'manifest unknown', b'no matching manifest', b'manifest not found', b'manifest invalid')),
+        ('dns', (b'no such host', b'temporary failure in name resolution', b'name or service not known',
+                 b'could not resolve host', b'server misbehaving')),
+        ('timeout', (b'timeout', b'timed out', b'deadline exceeded')),
+        ('tls', (b'x509:', b'certificate signed by unknown authority', b'tls handshake',
+                 b'tls: ', b'certificate verify failed')),
+        ('unavailable', (b'service unavailable', b'cannot connect to the docker daemon',
+                         b'daemon is not running', b'bad gateway', b'internal server error')),
+        ('disk', (b'no space left on device', b'disk quota exceeded', b'not enough space', b'enospc')),
+        ('transport', (b'connection reset', b'connection refused', b'network is unreachable',
+                       b'broken pipe', b'unexpected eof', b'connection closed')),
+    )
+    for kind, fragments in patterns:
+        if any(fragment in text for fragment in fragments):
+            return kind
+    return 'transport' if text.strip() == b'eof' else 'other'
+
+
+def command(argv, deadline, reason, *, cap=COMMAND_SECONDS, diagnose=False):
+    captured, failure, failure_kind = None, None, None
     try:
-        result = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, timeout=remaining(deadline, cap),
-                                env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8',
-                                     'LC_ALL': 'C.UTF-8', 'HOME': os.environ.get('HOME', ''),
-                                     'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'},
-                                check=False)
-    except (OSError, subprocess.TimeoutExpired):
-        raise Refusal(reason) from None
-    require(result.returncode == 0 and len(result.stdout) <= MAX_BYTES, reason)
-    return result.stdout
+        effective_deadline = min(deadline, time.monotonic() + cap) if diagnose else deadline
+        # Only the fixed fixture pulls opt in. The spool is unlinked/private,
+        # closed on every path, and read at most MAX_BYTES + 1 after actual join.
+        if diagnose:
+            captured = tempfile.TemporaryFile()
+            details = os.fstat(captured.fileno())
+            require(stat.S_ISREG(details.st_mode) and stat.S_IMODE(details.st_mode) == 0o600
+                    and details.st_nlink == 0 and details.st_uid == os.getuid(), reason + '_launch')
+        timeout = remaining(effective_deadline, cap)
+        try:
+            result = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                    stderr=captured if diagnose else subprocess.DEVNULL, timeout=timeout,
+                                    env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8',
+                                         'LC_ALL': 'C.UTF-8', 'HOME': os.environ.get('HOME', ''),
+                                         'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'},
+                                    check=False)
+            stdout = result.stdout
+        except subprocess.TimeoutExpired as expired:
+            if not diagnose:
+                raise Refusal(reason) from None
+            failure_kind, stdout = 'timeout', expired.stdout or b''
+        except OSError as error:
+            kind = 'disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'launch'
+            raise Refusal(reason + '_' + kind if diagnose else reason) from None
+        if diagnose:
+            captured.seek(0)
+            stderr = captured.read(MAX_BYTES + 1)
+            require(len(stdout) <= MAX_BYTES and len(stderr) <= MAX_BYTES, reason + '_output_bound')
+            if failure_kind is None and result.returncode != 0:
+                failure_kind = command_failure_kind(stderr)
+                require(isinstance(failure_kind, str) and failure_kind in COMMAND_FAILURE_KINDS, reason + '_other')
+            if failure_kind is not None:
+                require(isinstance(failure_kind, str) and failure_kind in COMMAND_FAILURE_KINDS, reason + '_other')
+                raise Refusal(reason + '_' + failure_kind) from None
+        else:
+            require(result.returncode == 0 and len(stdout) <= MAX_BYTES, reason)
+    except Refusal as refused:
+        failure = Refusal(reason + '_deadline') if diagnose and refused.reason == 'deadline_exhausted' else refused
+    except OSError as error:
+        kind = failure_kind or ('disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'unavailable')
+        failure = Refusal(reason + '_' + kind if diagnose else reason)
+    finally:
+        if captured is not None:
+            try:
+                captured.close()
+            except OSError as error:
+                if failure is None:
+                    kind = 'disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'unavailable'
+                    failure = Refusal(reason + '_' + kind)
+    if failure is not None:
+        raise failure from None
+    return stdout
 
 
 def identity(mode):

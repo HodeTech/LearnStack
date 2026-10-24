@@ -76,9 +76,11 @@ def prepare_fixture_images():
     beginning = time.monotonic()
     deadline = beginning + min(110, available)
     images = []
-    for image in FIXTURE_IMAGES:
+    require(len(FIXTURE_IMAGES) == 2, 'fixture_setup_images_invalid')
+    for component, image in zip(('keycloak', 'postgres'), FIXTURE_IMAGES):
         image_started = time.monotonic()
-        OWNER.command([OWNER.DOCKER, 'pull', image], deadline, 'fixture_image_pull_failed', cap=55)
+        OWNER.command([OWNER.DOCKER, 'pull', image], deadline,
+                      'fixture_image_pull_failed_' + component, cap=55, diagnose=True)
         images.append({'image': image, 'pullSeconds': round(time.monotonic() - image_started, 3)})
     require(time.monotonic() < deadline, 'fixture_setup_deadline_exhausted')
     print(json.dumps({'protocol': 1, 'fixtureImagePreparationSeconds': round(time.monotonic() - beginning, 3),
