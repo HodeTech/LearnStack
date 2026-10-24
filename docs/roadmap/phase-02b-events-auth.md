@@ -30,7 +30,7 @@
 > | P02b-4 | Background jobs | ✅ complete and merged — PR #32, 2026-10-19; [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) |
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
-> | P02b-7 | BFF session | [Correction implementation/reviews complete locally](phase-02b-delivery-log.md#p02b-7-final-correction-source-handoff-2026-10-24); corrected-source A/B pending; [PR #36](https://github.com/HodeTech/LearnStack/pull/36) draft |
+> | P02b-7 | BFF session | [Correction qualification in progress](phase-02b-delivery-log.md#p02b-7-same-source-qualification-and-causal-fixture-scheduling-2026-10-24); final-source A/B pending; [PR #36](https://github.com/HodeTech/LearnStack/pull/36) draft |
 > | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
 
 ## Goal

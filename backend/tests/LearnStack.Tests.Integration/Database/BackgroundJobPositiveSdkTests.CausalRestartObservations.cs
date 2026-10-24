@@ -49,7 +49,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
     // First body failure survives every later explicit cleanup failure. Timeouts
     // remain observation bounds and never become actual completion evidence.
     private static async Task StopCausalRestartRuntimeAsync(BackgroundJobRuntime runtime, bool bodyFailed,
-        string prefix, Action release, Action<string, string> observe)
+        string prefix, Action release, Action<string, string> observe, NativeSettlementTimeProvider? pacing = null)
     {
         ExceptionDispatchInfo? failure = null;
         var boundary = prefix + "_cleanup_request";
@@ -71,7 +71,20 @@ public sealed partial class BackgroundJobPositiveSdkTests
         boundary = prefix + "_cleanup_completion";
         try { await runtime.Completion.WaitAsync(cleanup.Token); }
         catch (Exception error) when (NativeWaitCatchable(error)) { Preserve(error); }
-        if (runtime.Completion.IsCompletedSuccessfully) boundary = prefix + "_cleanup_complete";
+        var timersJoined = pacing is null;
+        if (pacing is not null)
+        {
+            boundary = prefix + "_cleanup_timers";
+            try
+            {
+                var runtimeJoined = runtime.Completion.IsCompletedSuccessfully;
+                await pacing.JoinAsync(runtimeJoined).WaitAsync(cleanup.Token);
+                pacing.ThrowIfFaulted();
+                timersJoined = runtimeJoined;
+            }
+            catch (Exception error) when (NativeWaitCatchable(error)) { Preserve(error); }
+        }
+        if (runtime.Completion.IsCompletedSuccessfully && timersJoined) boundary = prefix + "_cleanup_complete";
         if (bodyFailed || failure is not null) observe("cleanup", boundary);
         if (!bodyFailed) failure?.Throw();
     }
@@ -101,6 +114,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 BackgroundJobRuntimeState.Stopped => "stopped",
                 _ => "unknown",
             };
+            // calls belongs to the optional finalizer retry probe, not the provider.
             output.WriteLine("Causal restart " + kind + ";boundary=" + boundary + ";runtime=" + state
                 + ";executions=" + Count(snapshot.Control?.Executions, 64)
                 + ";renewalRefused=" + Count(snapshot.Control?.LeaseLossRenewalRefused, 64)
@@ -112,7 +126,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 + ";incomplete=" + (row is null ? "unavailable" : row.Incomplete ? "yes" : "no")
                 + ";outcome=" + (row?.Outcome ?? "unavailable") + ";policy=" + (row?.Policy ?? "unavailable")
                 + ";reason=" + (row?.Reason ?? "unavailable") + ";nulls=" + Count(row?.Nulls, 511)
-                + ";calls=" + Count(retry?.Calls ?? 0, 6) + ";forced=" + Count(retry?.ForcedConflicts ?? 0, 1) + ".");
+                + ";calls=" + Count(retry?.Calls, 6) + ";forced=" + Count(retry?.ForcedConflicts ?? 0, 1) + ".");
         }
         catch (Exception error) when (NativeWaitCatchable(error))
         {

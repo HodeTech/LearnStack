@@ -594,6 +594,7 @@ CAUSAL_RESTART_BOUNDARIES = {
     'original_start', 'provider_accept', 'original_facts', 'independent_completion', 'original_stop',
     'provider_token', 'provider_completion', 'provider_report', 'original_retention', 'restart_start',
     'terminal_wait', 'reconcile_facts', 'read_facts', 'transaction_witness', 'assert_facts', 'meaning',
+    'original_cleanup_timers',
 } | {prefix + '_cleanup_' + stage for prefix in ('original', 'restart')
      for stage in ('request', 'release', 'stop', 'completion', 'complete')}
 
@@ -680,7 +681,7 @@ def closed_causal_restart_details(raw):
                     return None
             for name, maximum in counts.items():
                 value = values[name]
-                if value == 'out_of_range' or value == 'unavailable' and name not in ('calls', 'forced'):
+                if value == 'out_of_range' or value == 'unavailable' and name != 'forced':
                     continue
                 if not re.fullmatch(r'0|[1-9][0-9]{0,2}', value) or int(value) > maximum:
                     return None

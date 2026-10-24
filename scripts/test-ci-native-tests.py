@@ -1229,6 +1229,14 @@ except launcher.Refusal as failure:
             self.assertEqual(3, result['failure']['ledger'])
             self.assertEqual('assert_facts', result['failure']['boundary'])
             self.assertEqual('restart_cleanup_complete', result['cleanup']['boundary'])
+            timers = parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': self.causal_restart_sentence(boundary='original_cleanup_timers')}]})
+            self.assertEqual('original_cleanup_timers', timers['failure']['boundary'])
+            absent_probe = parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': self.causal_restart_sentence(boundary='provider_accept', calls='unavailable', forced='0')}]})
+            self.assertEqual('unavailable', absent_probe['failure']['calls'])
+            self.assertIsNone(parse(case, {'Messages': [{'Category': 'StdOutMsgs',
+                'Text': self.causal_restart_sentence(boundary='restart_cleanup_timers')}]}))
             self.assertNotIn('PRIVATE-CANARY', json.dumps(result))
             self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
             self.assertIsNone(parse({**case, 'name': name + '_other'}, raw))

@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,632 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,699 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -256,6 +256,7 @@ each packet decided and delivered, as
   - [P02b-7 recurrence observation review closeout (2026-10-24)](#p02b-7-recurrence-observation-review-closeout-2026-10-24) — 23 lines
   - [P02b-7 browser launch qualification observation (2026-10-24)](#p02b-7-browser-launch-qualification-observation-2026-10-24) — 43 lines
   - [P02b-7 browser observation first review (2026-10-24)](#p02b-7-browser-observation-first-review-2026-10-24) — 17 lines
+  - [P02b-7 same-source qualification and causal fixture scheduling (2026-10-24)](#p02b-7-same-source-qualification-and-causal-fixture-scheduling-2026-10-24) — 67 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20389,6 +20390,73 @@ changes only the closed observation label and its consumers/controls; it adds no
 case or runtime authority. The actual local Chromium pass and the hosted failure
 retain the distinct scopes recorded above. Fresh second-round reviews and
 complete hosted qualification remain pending.
+
+### P02b-7 same-source qualification and causal fixture scheduling (2026-10-24)
+
+Both fresh browser-observation second-round reviewers approve
+`43b12c70..aeeea13b` without a verified finding. Their source-only reviews confirm
+faithful branded observations, finite consumer parity and unchanged authority.
+
+Run [40100030047](https://github.com/HodeTech/LearnStack/actions/runs/40100030047)
+tests head `aeeea13b5fd5dc57043dc399db095364754443e3`, tree
+`b21d0b7d73415f67f6f774a2a2f839bbb03ddb70` and merge checkout
+`0bc732f4ec74303f00bd807033678e1a8905a8d4` in both complete attempts:
+
+- A/attempt 1 passes all 27 jobs and seven required contexts. Original evidence
+  is retained before B. Independent recomputation verifies 20 owners and all
+  5,931 distinct Passed .NET cases (3,352 non-Docker / 2,579 Docker), 2,315
+  frontend cases, natural ownership/cleanup, job ceilings and the tested tree.
+  Maximum producer wall time is 917 seconds; backend/integration aggregates
+  take 22/26 seconds. Six BFF cases, both recurrence rows and all three causal
+  success observations pass; the forced subrun records 1 reconciliation,
+  2 finalizations and 3 ledger rows without observed lease loss. Public demo
+  passes nine navigations / 27 reports with natural cleanup in 11.343 seconds.
+- B/attempt 2 passes 25 jobs; ordinary-9 and its integration aggregate fail.
+  All 20 original packages and other available evidence are retained. The union
+  contains 5,930 Passed and one Failed case. Consequently this is **not a
+  qualified A/B pair**, and A does not waive the failed B result.
+
+The failed case is the `(independentFailure: False, lieOnlyOnReconcile: False)`
+causal-restart row: cancellation after 42.004 seconds at `provider_accept`, one
+renewal-refusal first cause, zero elapsed-first causes and no remaining active
+execution at observation. There is no database row observation there. The
+historical `calls=0` field counts the optional finalizer-retry handler, not
+provider calls; `forced=0` in the original-host phase does not identify which
+helper invocation failed. These fields establish neither zero provider execution
+nor the actual SQL refusal branch. The closed diagnostic now uses `unavailable`
+when that optional call-count probe does not exist.
+
+Source inspection and the existing independent held-Prepare proof establish a
+legal counterexample: a short Prepare/Arm row lock can exclude an active identity
+from the `SKIP LOCKED` renewal batch; acknowledged empty renewal then closes its
+permission. The held-Prepare proof separately witnesses that branch and its
+committed Prepare / zero-provider result. It does not recover the hosted trace.
+Production renewal policy and SQL remain unchanged.
+
+The causal-restart fixture instead isolates its intended **post-acceptance**
+runtime stop using the already-qualified `NativeSettlementTimeProvider`. Only
+the original host uses its distinctive validated 1125 ms pacing. Actual native
+lease and deadline timers are armed before publication; the first real pacing
+callback stays held through actual provider acceptance and the existing live
+Run/token/provider assertions. Explicit runtime stop precedes release. The
+restarted host retains its one-second cadence and system clock.
+
+All exits release holds, attempt actual runtime and timer joins under the same
+existing 40-second cleanup token, and preserve the earlier failure. Cleanup is
+complete only after required joins; unconfirmed runtime completion retains the
+factory/barriers. Lease duration, startup/deadline bounds, provider facts,
+quiescence, reservation retention, fresh-host reconciliation, immutable ledger,
+audit assertions, dirty-adapter counter and held-Prepare counter remain intact.
+This excludes an unrelated lost precondition; it claims no production contention
+tolerance or historical causal repair and requires no new policy decision.
+
+Five real integration cases pass in 2 minutes 17 seconds, zero skips: all three
+causal rows and both Outcome-ACK cases, including the existing explicit
+held-Prepare counter. Forced/unforced success observations retain exact
+1/2/3 and 1/1/2 reconciliation/finalization/ledger counts, with no observed lease
+loss. All 83 native-owner controls pass; the integration project builds with
+zero warnings/errors after the diagnostic refinement. Fresh reviews and a new
+complete final-source A/B pair remain pending.
 
 ## Status archive
 

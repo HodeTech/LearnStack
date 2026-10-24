@@ -58,19 +58,21 @@ public sealed partial class BackgroundJobPositiveSdkTests
         DateTimeOffset oldLease;
         var boundary = "original_start";
         CausalRestartRowObservation? observedRow = null;
+        var originalBounds = bounds with { RenewalInterval = NativeSettlementTimeProvider.RenewalPacing };
 
         // Original host, source, process/run gates, cancellation source and
         // provider scope finish and dispose before the replacement host exists.
         await using (var originalHost = Fixture.Host(database, provider.Settings, configure: services =>
         {
             services.RemoveAll<BackgroundJobRuntimeOptions>();
-            services.AddSingleton(bounds);
+            services.AddSingleton(originalBounds);
             services.AddSingleton(originalProbe);
         }, applicationPoolSize: 32))
         await using (var originalSource = new PrivilegedDataSource(() =>
             OutboxDispatcherDataSource.Build(database.OutboxConnectionString)))
         {
-            var originalRuntime = NativeSdkRuntime(originalHost.Services, originalSource, bounds);
+            var originalTime = new NativeSettlementTimeProvider(retainedRecovery: false);
+            var originalRuntime = NativeSdkRuntime(originalHost.Services, originalSource, originalBounds, originalTime);
             var submitted = await Fixture.SubmitAsync(originalHost.Services, Fixture.Parameters(resource, prepared, finalized));
             submitted.IsSuccess.Should().BeTrue();
             var job = submitted.Value;
@@ -82,12 +84,19 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 // Publication follows the actual provider acceptance COMMIT and
                 // actual connector/transaction cleanup, not a fabricated report.
                 boundary = "provider_accept";
+                // This proof owns cancellation after provider acceptance. Keep
+                // real lease/deadline clocks armed while excluding the separate
+                // legal pre-ACK Prepare/Arm renewal-refusal interleaving.
+                await Task.WhenAll(originalProbe.Accepted.WaitAsync(startup.Token),
+                    originalTime.ProveNormalDeadlineArmedBeforePacingAsync(startup.Token));
                 originalContext = await originalProbe.Accepted.WaitAsync(startup.Token);
+                await originalTime.WaitForFirstCallbackAsync(startup.Token);
                 boundary = "original_facts";
                 originalContext.JobId.Should().Be(job);
                 originalProbe.RuntimeTokenCanBeCanceled.Should().BeTrue();
                 var invocation = NativeSdkInvocation(originalRuntime);
                 var execution = (BackgroundJobExecutionControl)NativeSdkField(invocation, "_execution");
+                originalTime.Original.Should().BeSameAs(execution);
                 var providerTask = (Task<JobExternalExecutionResult>)NativeSdkField(execution, "_externalProvider");
                 providerTask.IsCompleted.Should().BeFalse();
                 execution.Token.IsCancellationRequested.Should().BeFalse();
@@ -119,6 +128,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 boundary = "original_stop";
                 originalRuntime.RequestStop();
                 execution.RunGate.IsClosed.Should().BeTrue();
+                originalTime.ReleaseAll();
                 boundary = "provider_token";
                 await originalProbe.RuntimeTokenObserved.WaitAsync(TimeSpan.FromSeconds(10));
                 execution.Token.IsCancellationRequested.Should().BeTrue();
@@ -175,9 +185,11 @@ public sealed partial class BackgroundJobPositiveSdkTests
             {
                 await StopCausalRestartRuntimeAsync(originalRuntime, originalFailed, "original", () =>
                 {
+                    originalTime.ReleaseAll();
                     originalProbe.ReleaseIndependentFailure();
                     originalProbe.ReleaseReport();
-                }, (kind, stage) => WriteCausalRestartObservation(kind, stage, observedRow, originalRuntime, null));
+                }, (kind, stage) => WriteCausalRestartObservation(kind, stage, observedRow, originalRuntime, null),
+                    originalTime);
             }
             originalRuntime.Snapshot.CleanupConfirmed.Should().BeTrue();
             originalRuntime.Snapshot.RetainedInvocations.Should().Be(0);
