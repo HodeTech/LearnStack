@@ -1,18 +1,15 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-> **Status (2026-10-24).** Phase 02b is **in progress**. P02b-0 through P02b-5 are
-> complete, and P02b-1–5 are merged through PRs #29–#33. P02b-6's implementation is
-> merged through [PR #34](https://github.com/HodeTech/LearnStack/pull/34); its
-> post-merge CI corrections are merged through
-> [PR #35](https://github.com/HodeTech/LearnStack/pull/35). P02b-7's earlier
-> implementation and source-bound A/B qualification remain recorded. The current
-> runtime corrections and observer-test follow-up have completed local validation,
-> both fresh independent review rounds and final-source hosted A/B qualification.
-> The failed earlier source remains recorded; current-head required checks and
-> maintainer review/merge remain the PR gate.
-> [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) is Accepted and
-> implemented. The packet row below owns correction state; maintainer review and
-> merge remain separate. P02b-8's exit enforcement remains pending.
+> **Status (2026-10-25).** Phase 02b is **in progress**. P02b-0 through P02b-7 are
+> complete. P02b-1–5 are merged through PRs #29–#33; P02b-6 through PR #34 and
+> correction PR #35; P02b-7 through
+> [PR #36](https://github.com/HodeTech/LearnStack/pull/36).
+> [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) and
+> [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) are Accepted and
+> implemented. The P02b-7 merge closeout below links the source-bound A/B and
+> final PR-head qualification. P02b-8's exit enforcement remains pending:
+> G16's `LS0002` decision and implementation, G18's erasure inventory, carrier
+> reconciliation and final catalogue/required-check verification.
 >
 > This document is the plan. Every dated decision package, step record, review
 > round, correction and merge closeout lives in the [delivery log](phase-02b-delivery-log.md), split out
@@ -30,7 +27,7 @@
 > | P02b-4 | Background jobs | ✅ complete and merged — PR #32, 2026-10-19; [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) |
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
-> | P02b-7 | BFF session | [Review corrections and final-source A/B qualified](phase-02b-delivery-log.md#p02b-7-review-correction-qualification-2026-10-24); [PR #36](https://github.com/HodeTech/LearnStack/pull/36) pending maintainer review/merge |
+> | P02b-7 | BFF session | ✅ complete and merged — PR #36, 2026-10-25; [merge closeout](phase-02b-delivery-log.md#p02b-7-merge-and-closeout-2026-10-25) |
 > | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
 
 ## Goal

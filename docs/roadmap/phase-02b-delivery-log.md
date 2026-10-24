@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 3,133 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 3,179 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -265,6 +265,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 1 (2026-10-24)](#p02b-7-observer-correction-review-round-1-2026-10-24) — 24 lines
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
+  - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20899,6 +20900,52 @@ PR readiness. The A/B receipt belongs to the implementation source above, not
 that later documentation-only commit. PR #36 remains the maintainer review/merge
 gate; no merge is performed here.
 
+
+### P02b-7 merge and closeout (2026-10-25)
+
+Read-only GitHub verification confirms
+[PR #36](https://github.com/HodeTech/LearnStack/pull/36) merged at
+`2026-10-24T22:16:17Z` (2026-10-25 in Europe/Istanbul), squash commit
+`0dfade02a08fce6bd937fe0554f94f47c571ca8e`. Its source is
+`6b6f0629eac05bd9fe6e63a3185dee1e9ba42c15`. Fetching the merge confirms both
+commits have tree `99098202a0a687cd54d2848f0fcd438bc8862824`; their file contents
+are identical.
+
+The [preceding qualification](#p02b-7-review-correction-qualification-2026-10-24)
+owns the implementation source's complete A/1 and B/2 evidence in
+[run 40120289765](https://github.com/HodeTech/LearnStack/actions/runs/40120289765).
+The documentation-only final PR head additionally passes its complete current-head
+assignment in
+[run 40124028474](https://github.com/HodeTech/LearnStack/actions/runs/40124028474):
+27 successful jobs and all seven required contexts. Retained-evidence verification
+before merge confirms the same manifest, plan, captured toolchains and population:
+5,931 .NET cases and 2,376 frontend cases, zero skips, all 20 natural producer
+cleanups, nine demo navigations and 27 Lighthouse reports. This merge closeout
+rechecks run metadata and tree equality; it does not rerun tests or claim a new
+post-merge execution.
+
+All five implementation steps, their two independent review rounds, and the
+subsequent verified correction bundles are closed. Accepted
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) and
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) govern the shipped
+native credential owner, host-only opaque cookies, guarded Studio/Portal
+scaffolds, CSRF/Origin admission, refresh/logout and uncertain ordinary AccountSite
+401 handling. Anonymous public rendering remains independent of sign-in.
+
+The actual warm Keycloak/BFF/application-role API proof and the separate
+controlled-grant/API browser cookie/history proof retain their recorded scopes.
+[Phase 06](phase-06-renderer-admin-studio.md) owns full browser-driven OIDC
+journeys and Studio/Portal business functionality;
+[Phase 03](phase-03-identity-admin.md) owns membership/authorization and the
+identity-event ingress; [Phase 11](phase-11-production-hardening.md) owns
+production/distributed session qualification. This merge does not broaden those
+claims or erase earlier failed runs and evidence limits.
+
+P02b-7 is complete. The next packet is P02b-8: accept G16's `LS0002` contract
+before its implementation, complete G18's erasure inventory, reconcile remaining
+carriers and verify the catalogue, exact required-check names and phase exit
+criteria. No P02b-8 decision is accepted or implementation started by this
+documentation closeout; Phase 02b remains in progress.
 
 ## Status archive
 
