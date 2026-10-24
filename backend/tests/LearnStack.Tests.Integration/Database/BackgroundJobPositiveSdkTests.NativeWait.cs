@@ -26,7 +26,8 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var prepared = OrganizationId.From(Guid.CreateVersion7());
         var finalized = OrganizationId.From(Guid.CreateVersion7());
         var construction = new BackgroundJobPositiveProviderConstructionProbe(hold: true);
-        var bounds = new BackgroundJobRuntimeOptions { RenewalInterval = TimeSpan.FromSeconds(1) };
+        var time = new NativeSettlementTimeProvider(retainedRecovery: false);
+        var bounds = new BackgroundJobRuntimeOptions { RenewalInterval = NativeSettlementTimeProvider.RenewalPacing };
         await using var host = Fixture.Host(database, provider.Settings, construction, services =>
         {
             services.RemoveAll<BackgroundJobRuntimeOptions>();
@@ -34,7 +35,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         });
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         using var globals = new NativeSdkGlobalFilterSnapshot();
-        var runtime = NativeSdkRuntime(host.Services, source, bounds);
+        var runtime = NativeSdkRuntime(host.Services, source, bounds, time);
         var submitted = await Fixture.SubmitAsync(host.Services, Fixture.Parameters(Guid.CreateVersion7(), prepared, finalized));
         submitted.IsSuccess.Should().BeTrue();
         var job = submitted.Value;
@@ -42,15 +43,23 @@ public sealed partial class BackgroundJobPositiveSdkTests
         Task<bool>? wrapper = null;
         Task? actual = null;
         ExceptionDispatchInfo? failure = null;
+        NativeSdkHandoffObservation? handoff = null;
         var boundary = "start";
         try
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(startup.Token);
             boundary = "handoff";
-            await EnsureNativeSdkStartAsync(runtime, source, job, construction.Entered, startup.Token);
+            // Prepare/Arm legitimately hold the row lock and a concurrent renewal
+            // can refuse that row before construction. This test owns cancellation
+            // only after constructor entry; the separate held-Prepare proof covers
+            // the earlier refusal. Keep real lease/deadline timers armed throughout.
+            await Task.WhenAll(
+                EnsureNativeSdkStartAsync(runtime, source, job, construction.Entered, startup.Token, observe: value => handoff = value),
+                time.ProveNormalDeadlineArmedBeforePacingAsync(startup.Token));
             boundary = "constructor";
             await construction.Entered.WaitAsync(startup.Token);
+            await time.WaitForFirstCallbackAsync(startup.Token);
             boundary = "capture";
             owned = NativeSdkInvocation(runtime);
             var framework = (HangfireInvocationContract.BoundInvocation)NativeSdkField(owned, "_framework");
@@ -68,6 +77,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 expire.Parameters.AddWithValue("id", job.Value);
                 (await expire.ExecuteNonQueryAsync()).Should().Be(1);
             }
+            time.ReleaseAll();
             boundary = "return";
             await owned.ReturnRequested.WaitAsync(TimeSpan.FromSeconds(15));
             boundary = "wrapper";
@@ -78,6 +88,13 @@ public sealed partial class BackgroundJobPositiveSdkTests
             owned.Token.WaitHandle.Should().NotBeNull();
             runtime.Snapshot.RetainedInvocations.Should().Be(1);
             runtime.Snapshot.Control!.Executions.Should().Be(1);
+            if (reason == "lease_loss")
+            {
+                var execution = (BackgroundJobExecutionControl)NativeSdkField(owned, "_execution");
+                NativeSettlementCause(execution).Should().Be("renewal_refused");
+                runtime.Snapshot.Control.LeaseLossRenewalRefused.Should().Be(1);
+                runtime.Snapshot.Control.LeaseLossElapsed.Should().Be(0);
+            }
             runtime.Completion.IsCompleted.Should().BeFalse();
             construction.Calls.Should().Be(1);
             construction.ExternalDenial.Should().BeTrue();
@@ -87,11 +104,14 @@ public sealed partial class BackgroundJobPositiveSdkTests
         catch (Exception error) when (NativeWaitCatchable(error))
         {
             failure = ExceptionDispatchInfo.Capture(error);
+            WriteNativeHandoffObservation(handoff);
             WriteNativeWaitObservation("failure", boundary, construction, owned, wrapper, actual, runtime);
         }
         finally
         {
+            time.ReleaseAll();
             construction.Release();
+            var runtimeJoined = false;
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
             boundary = "cleanup_request";
             try
@@ -101,13 +121,30 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 await runtime.StopAsync(cleanup.Token);
                 boundary = "cleanup_completion";
                 await runtime.Completion.WaitAsync(cleanup.Token);
-                boundary = "cleanup_complete";
+                runtimeJoined = true;
             }
             catch (Exception error) when (NativeWaitCatchable(error))
             {
                 if (failure is null)
                 {
                     failure = ExceptionDispatchInfo.Capture(error);
+                    WriteNativeHandoffObservation(handoff);
+                    WriteNativeWaitObservation("failure", boundary, construction, owned, wrapper, actual, runtime);
+                }
+            }
+            boundary = "cleanup_timers";
+            try
+            {
+                await time.JoinAsync(runtimeJoined).WaitAsync(cleanup.Token);
+                time.ThrowIfFaulted();
+                if (runtimeJoined) boundary = "cleanup_complete";
+            }
+            catch (Exception error) when (NativeWaitCatchable(error))
+            {
+                if (failure is null)
+                {
+                    failure = ExceptionDispatchInfo.Capture(error);
+                    WriteNativeHandoffObservation(handoff);
                     WriteNativeWaitObservation("failure", boundary, construction, owned, wrapper, actual, runtime);
                 }
             }
@@ -189,6 +226,20 @@ public sealed partial class BackgroundJobPositiveSdkTests
             try { output.WriteLine("Native wait " + kind + ";boundary=" + boundary + ";snapshot=unavailable."); }
             catch (Exception outputError) when (NativeWaitCatchable(outputError)) { }
         }
+    }
+
+    private void WriteNativeHandoffObservation(NativeSdkHandoffObservation? value)
+    {
+        if (value is null) return;
+        static string Flag(bool flag) => flag ? "yes" : "no";
+        try
+        {
+            output.WriteLine("Native handoff;native=" + value.NativeState + ";eligible=" + Flag(value.Eligible)
+                + ";running=" + value.Running + ";retained=" + value.Retained + ";closed=" + Flag(value.Closed)
+                + ";route=" + value.Route + ";phase=" + value.Phase + ";owner=" + value.Owner
+                + ";lease=" + value.Lease + ";attempts=" + value.Attempts + ";hint=" + value.HintState + ".");
+        }
+        catch (Exception error) when (NativeWaitCatchable(error)) { }
     }
 
     private static bool NativeWaitCatchable(Exception error) => error.GetType() != typeof(OutOfMemoryException)

@@ -5,6 +5,7 @@
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 Frontend UI additions derive from [ADR-0027](../decisions/0027-frontend-i18n.md).
+Session UI follows [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
 
 i18n is a platform-level concern. It affects translatable content, slugs, URLs, SEO, dates, numbers, currencies, formats, and the Admin Studio UI itself. See [docs/architecture/12-localization.md](../architecture/12-localization.md) for the strategy.
 
@@ -233,6 +234,10 @@ applying the fallback chain.
   P02d-6 Step 1 implements the dependency/plugin, complete catalogues and key/ICU/
   argument/callsite controls. No shared i18n package is created without
   ADR-0009's duplication trigger.
+- Authentication/session copy uses the same app-local catalogue home in
+  `messages/{en,tr}/auth.json`, selected by `src/i18n/auth-catalogues.ts` from the
+  admitted site's locale. Its English/Turkish key, ICU and callsite controls
+  share the public UI catalogue guard; provider error text is never UI copy.
 - Backend: localized strings live in resource files under each module.
 - Strings are referenced by key, never duplicated:
 
@@ -270,8 +275,9 @@ planted failure controls, per ADR-0027 and the canonical
 The exact admitted content locale still selects API reads and document `lang`.
 UI groups carry their selected catalogue's actual `lang`/direction when different;
 Pattern B labels carry the API-resolved locale. Neither UI fallback nor label
-fallback substitutes Pattern A titles, summaries or bodies. Studio/portal scaffolds
-retain platform English until Phase 06 supplies their UI.
+fallback substitutes Pattern A titles, summaries or bodies. The current account
+scaffolds use the auth catalogue's selected language/direction. Phase 06 extends
+that foundation to the full Studio/Portal UI.
 
 ## Locale Codes
 

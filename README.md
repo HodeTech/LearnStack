@@ -37,7 +37,8 @@ the boundary between customization and capabilities that require platform code.
 
 > **Under active development.** The backend foundation and Education schema are
 > implemented. The first working browser experience is the current milestone;
-> browser sign-in, enrolment, payments and live teaching are still ahead.
+> the optional native BFF supplies guarded sign-in/session scaffolds; enrolment,
+> payments and live teaching are still ahead.
 > See [current status](#where-it-is-today) before trying the local scaffold.
 
 ## What it does
@@ -65,12 +66,10 @@ items, rules, custom fields and notification templates; their delivery is tracke
 ## Where it is today
 
 **Phase 01, Phase 02a and Phase 02d are complete; Phase 02b is in progress.**
-Phase 02d, the two-tenant walking skeleton, merged through PR #28 on 2026-10-11. In
-Phase 02b, P02b-0 through P02b-5 are complete, P02b-1–5 merged through PRs #29–#33,
-and P02b-6's realm and identity implementation is merged through PR #34; BFF
-sessions and phase exit remain P02b-7–8, so browser sign-in is not implemented.
-Packet state lives in the [Phase 02b](docs/roadmap/phase-02b-events-auth.md)
-document's Status block; the [roadmap](docs/roadmap/README.md) lists every phase.
+[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) owns the two-tenant walking
+skeleton. Current packet state lives in the
+[Phase 02b](docs/roadmap/phase-02b-events-auth.md) document's Status block; the
+[roadmap](docs/roadmap/README.md) lists every phase.
 
 | Area | Delivered now | Next milestone |
 |---|---|---|
@@ -78,8 +77,8 @@ document's Status block; the [roadmap](docs/roadmap/README.md) lists every phase
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs, the closed tenant bearer/AccountSite boundary and development realm reconciliation | BFF sessions and phase-exit enforcement in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs, the closed tenant bearer/AccountSite boundary and development realm reconciliation | Phase-exit enforcement in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke, generated typed SDK and optional bounded native BFF session scaffolds | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.
@@ -196,8 +195,9 @@ Supply `Authentication:Tenant:Issuer` too: the canonical HTTPS tenant-realm URL,
 with loopback HTTP allowed only in `Development`. The development configuration
 defaults to `http://localhost:8080/realms/learnstack`; issuer configuration is
 validated without contacting Keycloak at startup. Credential-free public reads
-remain available when Keycloak is stopped. P02b-6 owns current realm issuance/
-reconciliation qualification; browser sessions remain P02b-7.
+remain available when Keycloak is stopped. Optional tenant sign-in uses native
+server custody; see the [web setup](frontend/apps/web/README.md#optional-tenant-sign-in).
+The [phase document](docs/roadmap/phase-02b-events-auth.md) owns qualification state.
 
 **Ingress, visitor budgets and public entry.** The web bootstraps the captured
 host through the API, redirects using enabled/default locales and refuses
@@ -235,7 +235,7 @@ three product surfaces. See the
 | Database | PostgreSQL 18 | Migrations, tenant / organization RLS and integration proofs |
 | Frontend | Next.js 15 · React 19 · TypeScript | App/UI scaffolds; generated SDK and injected transport implemented |
 | Observability | OpenTelemetry · Serilog → OTLP | Cross-cutting backend instrumentation implemented |
-| Identity | Keycloak | Tenant API bearer boundary, real issuance and safe development realm reconciliation implemented; browser sessions remain P02b-7 |
+| Identity | Keycloak | Tenant API bearer boundary, real issuance, safe development realm reconciliation and optional native BFF sign-in |
 | Storage and search | SeaweedFS · PostgreSQL full-text search | Selected architecture; feature delivery belongs to Phases 04–05 |
 | Live classroom | LiveKit through a provider adapter | Planned in Phase 08c, starting with Cloud and retaining a self-hosted path |
 

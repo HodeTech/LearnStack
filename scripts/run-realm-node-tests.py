@@ -12,7 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # Per-file expectations also fix the total; an empty or deleted test file cannot be
 # replaced by a passing named suite or by extra tests in another file.
 EXPECTED = {
-    'development-realm-core.test.mjs': 62,
+    'development-realm-events.test.mjs': 51,
+    'development-realm-core.test.mjs': 63,
     'development-realm-http.test.mjs': 42,
     'development-realm-owner.test.mjs': 56,
     'development-realm-plan.test.mjs': 106,

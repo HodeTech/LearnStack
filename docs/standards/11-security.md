@@ -8,6 +8,10 @@ model, and session-variable placement**),
 (Amendment 1: `learnstack-hub` realm),
 [ADR-0067 Development Tenant Access-Token Issuance](../decisions/0067-development-tenant-access-token-issuance.md)
 (the configured development issuance lifespan and provider timestamp semantics),
+[ADR-0070 Owned Tenant BFF Sessions](../decisions/0070-owned-tenant-bff-sessions.md)
+(native custody, browser transactions and development provider event storage),
+[ADR-0071 Uncertain AccountSite Refusals](../decisions/0071-uncertain-account-site-refusals.md)
+(ordinary-read status mapping and positive revision publication),
 [ADR-0068 Development Warm-Realm Qualification](../decisions/0068-development-warm-realm-qualification.md)
 (the bounded preparation and stock-console assignment authority),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
@@ -148,8 +152,8 @@ LearnStack runs **two Keycloak realms** per
 General rules:
 
 - OIDC. No handwritten password code; no handwritten token rotation.
-- Refresh tokens stored as `HttpOnly`, `Secure`, `SameSite=Lax` cookies; never
-  accessible to JS.
+- Refresh/access/ID tokens stay in the native BFF session owner. Browser cookies
+  contain only opaque handles/proofs under the tenant BFF rules below.
 - Access tokens short-lived (≤ 1 hour) and refreshed silently by the BFF.
 - MFA enrollment supported for tenant-admin roles; required for platform-admin **and**
   for every Hub operator account.
@@ -188,8 +192,7 @@ after both independent reviews; its
 owns local proof/review closure and source-bound qualification receipts. The
 required CI checks qualify their exact source and assignment. ADR-0064's one-hour
 API acceptance ceiling and 30-second skew remain separate from issuance.
-P02b-7 owns BFF idle/absolute lifetimes and refresh custody; that part of G13
-remains Open.
+ADR-0070 owns BFF custody/lifetimes; P02b-7 delivers that Accepted contract.
 
 The pinned provider also copies the access-token expiration into generated ID
 tokens, including shorter session-clamped issuance. ID tokens remain identity
@@ -205,6 +208,91 @@ API's existing skew; an indeterminate clock/window fails qualification. Preserve
 session-clamping coverage for shorter late-session issuance and independent
 mutants with wrong expiration or configuration. Existing tokens retain their API
 acceptance bound; a shorter issuance setting does not revoke them immediately.
+
+### Tenant BFF sessions
+
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md), Accepted 2026-10-23,
+selects openid-client and native single-process custody behind `BffSessionStore`.
+P02b-7's five-step package owns implementation; acceptance alone enables no route.
+Use 256-bit random opaque `__Host-` session cookies: HttpOnly, Secure,
+SameSite=Lax, Path=/, no Domain. Credentials and raw profiles enter no browser
+projection. Verified host, browser binding, epoch and server state are required.
+The delivered opaque session/browser cookie format uses an eight-hour Max-Age;
+the standalone form-CSRF and login/logout proof cookies use 300 seconds, with
+Max-Age zero for an authorized deletion. These browser retention bounds never
+extend server idle, provider or absolute authority and do not make restart
+survivable. The real cookie controls compare emitted headers, not browser defaults.
+
+- Idle is 30 minutes, absolute eight hours; effective expiry also respects the
+  provider refresh deadline. Response owners refresh expired/near-expiry access,
+  touch qualifying activity and publish one revision. `auth()` is read-only.
+  Explicit extension refreshes the provider; a timestamp alone does not extend it.
+  The safe projection includes effective expiry and whether the known absolute
+  deadline limits it. UI never promises extension at that maximum or when the
+  provider returns an unchanged deadline. Full document navigation and the
+  protected-document history veil require fresh network admission on return.
+- Retain 1,024 total owners, including unsettled work; 128 pending for five minutes,
+  16 pending per verified visitor IP, eight session/logout-return owners per
+  validated issuer/subject. Same-browser replacement settles old work first.
+  No live other-device eviction or capacity bypass; source/subject refusal is
+  429 and global capacity refusal is 503. Full expiry scans precede global refusal.
+  AccountSite also remains subject to the API's shared peer/visitor limits under
+  ADR-0064; neither session capacity nor a subject allowance grants independent
+  end-to-end throughput to a host or browser.
+- Revocation/epochs fence late callbacks and refresh. Unknown/mismatched state
+  changes no cookies; verified failure clears only its own transaction cookie.
+  Logout revokes locally first, discards tokens after URL construction and keeps
+  only its bounded return proof/accounting. Late cookie delivery can force sign-in.
+- [ADR-0071's status table](../decisions/0071-uncertain-account-site-refusals.md#decision)
+  distinguishes ordinary checks from new revision publication. An uncertain
+  ordinary 401 or other availability failure retains a live owner without idle
+  touch and denies checked authenticated content. 403/404 and actor/scope
+  conflicts revoke; a masked host/hop configuration refusal can therefore close
+  a session too. Callback publication always requires positive API authority;
+  every failed post-refresh check revokes. A valid API 401 produces BFF POST
+  503/`provider_refused` for callback/extension, not a retryable-grant promise.
+  Public pages remain anonymous; unavailable protected checked reads return 503.
+  Passive projections describe local state only. Genuine 401 revocation can be
+  delayed; retention does not extend the existing refresh threshold or deadline.
+  The [route failure classification](../decisions/0070-owned-tenant-bff-sessions.md#amendment-3--implementation-controls-and-diagnostic-scope-2026-10-24)
+  separates malformed input from unavailable upstream/server work; it does not
+  change grant-publication or revocation rules.
+- Return destinations are the closed local set `/`, `/studio` and `/portal`.
+  No browser URL, unverified Host/forwarded header, provider error or callback
+  query chooses the issuer, API origin, provider endpoint or post-logout authority.
+  Callback/logout origins use only the independently verified native host/port.
+  Fixed discovery/token/JWKS purposes use the private issuer, no redirects, one
+  operation-wide deadline through body consumption and a decoded-byte bound.
+- Only the native AccountSite caller attaches its owned bearer to the fixed
+  authenticated endpoint. The public caller stays credential-free; neither
+  forwards browser Authorization or tenant/organization selectors. Source
+  admission uses the verified socket provenance, not a browser-supplied address.
+  Proxy deployment requires Phase 11's provenance qualification first.
+- BFF diagnostics emit only their closed lifecycle/failure categories. Do not
+  expose raw provider exceptions, responses, URLs, subjects, handles or tokens.
+  A category such as `provider_refused` is an observation, not a causal verdict,
+  proof of settled cleanup or a durable application session-audit record.
+- Explicit BFF opt-in validates issuer/secret together. Disabled mode keeps public
+  requests independent of Keycloak; auth paths are 404 and protected shells 503.
+  Restart signs sessions out. Multiple web processes require Phase 11's distributed
+  adapter and actual refresh/revocation/interruption qualification first.
+- Before importing Next, the native process closes its raw development URL trace
+  sink; Next configuration also disables automatic request/fetch logging. This
+  suppresses framework performance events for public development requests too,
+  while preserving separate build traces and API/business telemetry. A real
+  enabled-development callback/logout canary scans console and trace artifacts;
+  removing the trace guard must fail even with console logging disabled.
+
+Tenant **development** provider events use explicit LOGIN/LOGIN_ERROR,
+LOGOUT/LOGOUT_ERROR, CODE_TO_TOKEN/CODE_TO_TOKEN_ERROR and
+REFRESH_TOKEN/REFRESH_TOKEN_ERROR storage. Merge the existing effective selection;
+preserve listeners/admin policy. Fresh/default-empty retention is seven days.
+Warm adoption requires bounded empty-history proof; preserve finite retention
+of at least seven days, refusing shorter/indefinite/ambiguous custom policy before
+any write. Separate readback and zero-write rerun are mandatory. Provider records
+contain personal data, stay out of raw artifacts and are not an atomic BFF ledger.
+[Audit 18](18-audit-coverage.md#operation-types) owns that narrow audit boundary;
+Phase 11 owns production retention/capacity/security qualification.
 
 ## Ingress / Gateway (APISIX)
 
@@ -619,8 +707,10 @@ and redirect/query rules. These are the ongoing security obligations:
 P02d-5 delivers this boundary and ADR-0054's accounting, native admission and
 URL controls. The [remediation record](../roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
 owns execution, independent reviews and PR closeout evidence.
-Every native HTTP path, including matcher exemptions, admits GET/HEAD only;
-production upgrades close and development retains only validated GET HMR. See
+Native paths, including matcher exemptions, admit GET/HEAD; ADR-0070 adds only
+the three exact proof-bearing POST actions named in Frontend Standards.
+Other methods remain masked. Production upgrades close and development retains
+only validated GET HMR. See
 [Frontend Standards § Native Admission and URL Identity](07-frontend-architecture.md#native-admission-and-url-identity)
 for the native controls and their delivery/review boundary.
 
@@ -656,8 +746,20 @@ for the native controls and their delivery/review boundary.
 ## CSRF
 
 - Cookie sessions use `SameSite=Lax`.
-- Server Actions verify the Auth.js session implicitly.
-- Mutating fetches from JS include a CSRF token bound to the session.
+- BFF sign-in POST requires exact Origin and a random host-only double-submit
+  proof; authenticated sign-out/extension requires exact Origin and a random
+  constant-time checked session-bound token. Apply admission before allocation.
+- Sign-in HTML uses `same-origin` referrer policy so native forms retain that
+  Origin proof. Provider redirects and the ID-token-hint logout exception retain
+  `no-referrer`. Missing or `null` Origin remains a refusal.
+- The cross-origin provider callback instead requires its single-use state,
+  nonce, PKCE verifier and host/browser/epoch-bound transaction cookie.
+- Auth cookie families and decoded forms each have a 16 KiB ceiling. Native
+  auth POST admission requires a bounded Content-Length and no transfer encoding
+  before Next can clone a body; the form parser independently bounds actual bytes,
+  UTF-8, declared scalar fields and duplicates.
+- Only the exact auth POST set is open. SameSite and implicit framework checks
+  authorize neither sibling origins nor Server Actions.
 - Webhook endpoints verify signatures, not CSRF tokens.
 
 ## CORS

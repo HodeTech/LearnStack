@@ -289,6 +289,10 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      - name: Compile native web and authenticated SDK fixture entries
+        working-directory: frontend
+        run: pnpm --filter @learnstack/web build:ingress
+
       - name: Prepare pinned provider fixture images within the whole-job budget
         timeout-minutes: 2
         run: python3 scripts/ci-test-shards.py prepare-fixtures

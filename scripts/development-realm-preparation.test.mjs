@@ -38,7 +38,7 @@ test('the exact missing-definition and unmanaged-visibility trigger keeps all al
     const preparation = await probe(fixture);
     const expected = missing.length > 0 && !['ENABLED', 'ADMIN_EDIT', 'ADMIN_VIEW'].includes(policy);
     assert.equal(Boolean(preparation), expected, `${missing.length}/${policy}`);
-    if (!expected) assert.deepEqual(fixture.reads, ['users/profile']);
+    if (!expected) assert.deepEqual(fixture.reads, ['events/config', 'users/profile']);
     assert.deepEqual(fixture.writes, []);
   }
 });
@@ -73,7 +73,7 @@ test('hidden defaulted selected or unqualified existing protected definitions ca
     if (variant === 'selector') attribute.selector = {};
     if (variant === 'unknown_field') attribute.unsupported = false;
     await assert.rejects(probe(fixture), refusal('prepare', 'identity_conflict'));
-    assert.deepEqual(fixture.reads, ['users/profile']);
+    assert.deepEqual(fixture.reads, ['events/config', 'users/profile']);
     assert.deepEqual(fixture.writes, []);
   }
 });

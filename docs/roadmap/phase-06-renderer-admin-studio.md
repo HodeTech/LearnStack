@@ -243,6 +243,11 @@ already separates public/authenticated generated GET ownership. P02b-7 supplies
 session transport and its guarded page; this phase expands that foundation to the
 full authenticated browser/Studio/Portal journeys. It does not reintroduce token
 storage in browser JavaScript or make AccountSite an anonymous public wrapper.
+The authenticated browser matrix covers Chromium, Firefox and WebKit against
+the real provider and API, extending P02b-7's separate controlled-browser and
+real-provider proofs. It includes cold API discovery failure under
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md), not only a warm
+cached-key success path.
 
 ### End-to-end test stack — a carried dependency
 
@@ -277,6 +282,9 @@ browser suite against a mis-provisioned stack is worse evidence than no suite.
 - Shared UI package and the typed SDK over the full API surface.
 - The full Playwright Test/axe end-to-end suite running against the fixed ephemeral
   stack, extending the narrow P02d-7 public browser/audit proof.
+- Real-provider sign-in/AccountSite/extension/sign-out and protected navigation
+  journeys in Chromium, Firefox and WebKit, including both tenant hosts,
+  cookie/history isolation and controlled dependency refusals.
 
 ## Completion Criteria
 
@@ -305,6 +313,13 @@ browser suite against a mis-provisioned stack is worse evidence than no suite.
 - The full Playwright/axe suite covers the critical public and Studio flows,
   alongside the manual checks required by
   [Accessibility Standards](../standards/16-accessibility.md#testing).
+- Chromium, Firefox and WebKit complete the real-provider authenticated journey
+  on both hosts. Raw response attributes and actual cookie storage/send agree;
+  logout and browser history cannot restore protected content. Cold API discovery
+  failure with a fresh session withholds checked content without an ordinary-read
+  idle touch; callback and post-refresh refusal still follow ADR-0071's stricter
+  publication rules. Timeout warnings, truthful extension/recovery and no-JavaScript
+  alternatives have the required keyboard and assistive-technology observations.
 - Both seed tenants — the English school and the yoga studio — produce visually and
   structurally different published sites from the same binary, now with navigation, SEO
   and full page composition rather than the skeleton pages Phase 02d ships, whose set is

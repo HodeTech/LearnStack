@@ -145,7 +145,8 @@ the table it lives in and who may write it.
 
 | Attribute class | Owner | Storage | Writable by |
 |---|---|---|---|
-| Credentials, MFA factors, token material | Keycloak | Keycloak realm `learnstack` | Keycloak only |
+| Provider credentials, MFA factors, token issuance | Keycloak | Keycloak realm `learnstack` | Keycloak only |
+| BFF token custody | Native web session owner | Process-local store under [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) | The closed BFF owner only |
 | `sub`, canonical email, email-verified flag | Keycloak | mirrored onto `users` | The mirror handler only |
 | Global display name, avatar, preferred UI locale, global account status | The person | `users` | The person; platform admin under an audited `EnterPlatformAdminScope(reason)` |
 | Roles and permissions inside a tenant | Tenant | `memberships` | Tenant / organization admin of that tenant |
@@ -258,13 +259,26 @@ what may be written into it invites exactly the leak this phase closes.
 
 ### Authentication Integration
 
+P02b-7 implements [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
+Before immediate account-disable/sign-out-everywhere is promised, this phase
+owns authenticated OIDC back-channel logout ingress, signature/audience/time/
+replay validation and provider-session indexing into `BffSessionStore`.
+It also owns authenticated provider event ingress/mirroring through the existing
+identity-event/audit path. Earlier development provider storage is not a durable
+LearnStack session ledger; local-only expiry/outage acts retain that limitation.
+If the API needs a distinct indeterminate-authentication outcome or trusted
+refusal witness, this phase owns that separate contract decision and its BFF
+consumer proofs. Until then, preserve
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md)'s status table;
+provider errors or challenge text cannot manufacture a trusted distinction.
+
 Keycloak owns credentials, password reset, email verification, and MFA. This phase
 wires LearnStack into that flow:
 
-- OIDC token validation against Keycloak's JWKS
-  ([Phase 02b](phase-02b-events-auth.md) configured the middleware).
-- BFF session handling for the Next.js Studio: HTTP-only cookies, silent refresh,
-  end-session at Keycloak on logout.
+- Consume the existing strict API token validation and native BFF session owner
+  from [Phase 02b](phase-02b-events-auth.md), including opaque HttpOnly cookies,
+  on-demand refresh and local-first provider logout. Extend its membership and
+  permission integration here rather than implementing session custody again.
 - Post-login membership lookup: resolve memberships for the authenticated user and
   surface the active tenant via a host + claim cross-check.
 - Tenant-specific Keycloak federation surface in Admin Studio (configure SAML / OIDC
@@ -272,7 +286,9 @@ wires LearnStack into that flow:
 - Mapping of Keycloak `sub` to LearnStack `UserId`; idempotent on first login.
 
 LearnStack does **not** implement password hashing, password reset email rendering,
-refresh token storage, or brute-force protection — those are Keycloak responsibilities.
+or provider brute-force protection; Keycloak owns those capabilities and token
+issuance/rotation. The native BFF owns custody of the issued access, refresh and
+ID tokens under ADR-0070; no application identity table stores them.
 
 ### Authorization
 
@@ -508,6 +524,9 @@ find the result row already written rather than record a second one.
 - Invitation flow end to end, tenant and organization bound.
 - Identity events wired through the central audit pipeline; Keycloak webhook →
   `IEventBus` → Audit consumer working end to end.
+- Authenticated OIDC back-channel logout ingress and provider-session lookup into
+  `BffSessionStore`, with signature/audience/time/replay validation and fenced
+  local revocation, before immediate disable/sign-out-everywhere is promised.
 - Corrected APISIX route table: explicit priorities on every route, and no Hub HMAC
   reference anywhere in gateway configuration.
 - `LS0001` and `LS0002` escalated to Error.
@@ -543,6 +562,13 @@ find the result row already written rather than record a second one.
   alone cannot make either negative control pass.
 - Invitation flow is covered by integration tests, including email mismatch, revoked,
   expired, and cross-organization cases.
+- Real signed back-channel logout revokes only the intended provider/session
+  owners. Invalid signatures, issuer/audience/time claims and replay are refused;
+  unrelated users/sessions and newer logins outside the validated target remain
+  unaffected. Shared provider SSO is not mistaken for independent host sessions.
+  A held callback/refresh cannot republish after revocation, and unsettled work
+  retains its ownership until actual completion. Provider ingress/mirrored audit
+  evidence is distinguished from local-only session events.
 - MUST-class identity audit entries commit in the same transaction as the write they
   describe, with before / after snapshots where applicable; no Identity-owned `audit_*`
   table exists.

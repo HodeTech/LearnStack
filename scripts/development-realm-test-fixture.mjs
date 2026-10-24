@@ -23,6 +23,10 @@ export function provider() {
   const id = () => `provider-${serial += 1}`;
   const state = {
     realm: { realm: desired.realm, enabled: true, id: id(), accessTokenLifespan: 900, displayName: 'retained realm' },
+    eventHistory: [],
+    eventsConfig: { eventsEnabled: desired.eventsEnabled, eventsExpiration: desired.eventsExpiration,
+      enabledEventTypes: clone(desired.enabledEventTypes), eventsListeners: ['jboss-logging'],
+      adminEventsEnabled: false, adminEventsDetailsEnabled: false },
     profile: JSON.parse(desired.components['org.keycloak.userprofile.UserProfileProvider'][0].config['kc.user.profile.config'][0]),
     scopes: desired.clientScopes.map(scope => ({ ...clone(scope), id: id(),
       protocolMappers: (scope.protocolMappers ?? []).map(mapper => ({ ...storedMapper(mapper), id: id() })) })),
@@ -99,6 +103,8 @@ export function provider() {
     const parts = url.pathname.slice(1).split('/').map(decodeURIComponent);
     let value;
     if (path === '') value = state.realm;
+    else if (path === 'events/config') value = state.eventsConfig;
+    else if (path === 'events?first=0&max=1') value = state.eventHistory.slice(0, 1);
     else if (path === 'users/profile') value = state.profile;
     else if (path === 'groups/count') value = { count: state.groups.filter(group => group.type !== 'organization').length };
     else if (parts[0] === 'groups') {
@@ -176,6 +182,11 @@ export function provider() {
     writes.push({ method: 'PUT', path, body: clone(body) });
     const parts = path.split('/').map(decodeURIComponent);
     if (path === '') Object.assign(state.realm, clone(body));
+    else if (path === 'events/config') {
+      state.eventsConfig = clone(body);
+      for (const key of ['eventsEnabled', 'eventsExpiration', 'enabledEventTypes'])
+        state.realm[key] = clone(body[key]);
+    }
     else if (path === 'users/profile') state.profile = clone(body);
     else if (parts[0] === 'users') {
       const user = state.users.find(entry => entry.id === parts[1]);

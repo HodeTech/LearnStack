@@ -1,11 +1,18 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-> **Status (2026-10-22).** Phase 02b is **in progress**. P02b-0 through P02b-5 are
+> **Status (2026-10-24).** Phase 02b is **in progress**. P02b-0 through P02b-5 are
 > complete, and P02b-1–5 are merged through PRs #29–#33. P02b-6's implementation is
 > merged through [PR #34](https://github.com/HodeTech/LearnStack/pull/34); its
-> post-merge CI corrections continue on `development`, and their records own the
-> remaining qualification. P02b-7 and P02b-8 are pending; G13's session part, G16
-> and G18's erasure inventory stay Open.
+> post-merge CI corrections are merged through
+> [PR #35](https://github.com/HodeTech/LearnStack/pull/35). P02b-7's earlier
+> implementation and source-bound A/B qualification remain recorded. The current
+> runtime corrections and observer-test follow-up have completed local validation,
+> both fresh independent review rounds and final-source hosted A/B qualification.
+> The failed earlier source remains recorded; current-head required checks and
+> maintainer review/merge remain the PR gate.
+> [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) is Accepted and
+> implemented. The packet row below owns correction state; maintainer review and
+> merge remain separate. P02b-8's exit enforcement remains pending.
 >
 > This document is the plan. Every dated decision package, step record, review
 > round, correction and merge closeout lives in the [delivery log](phase-02b-delivery-log.md), split out
@@ -22,8 +29,8 @@
 > | P02b-3 | Consumer | ✅ complete and merged — PR #31, 2026-10-15; [merge closeout](phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15) |
 > | P02b-4 | Background jobs | ✅ complete and merged — PR #32, 2026-10-19; [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) |
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
-> | P02b-6 | Realm and seed | Implementation merged — PR #34, 2026-10-22; post-merge CI corrections in progress; [records](phase-02b-delivery-log.md#p02b-6--realm-and-seed) |
-> | P02b-7 | BFF session | Pending — G13's session part and P02b-6 |
+> | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
+> | P02b-7 | BFF session | [Review corrections and final-source A/B qualified](phase-02b-delivery-log.md#p02b-7-review-correction-qualification-2026-10-24); [PR #36](https://github.com/HodeTech/LearnStack/pull/36) pending maintainer review/merge |
 > | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
 
 ## Goal
@@ -238,7 +245,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-4** | Background jobs: accepted H1 transactional/external profiles, confined storage/wakeups, tenant capacity and recurrence/fan-out; no production job/recurrence definition | G9 Accepted 2026-10-15; P02b-3 complete |
 | **P02b-5** | API authentication: closed JWT profile, ordered reconciliation and attributed rejection recorder, additional subject quota and one physically read-only authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: shared client scope/mappers, protected user-profile UUIDs agreeing with `SeedData`, safe warm reconciliation, narrow account self-service and real Keycloak/API proofs | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
-| **P02b-7** | BFF session: Auth.js, the cookie session, single-flight refresh, CSRF, logout, the studio guard, the SDK's bearer attachment | G13 Accepted; P02b-6 |
+| **P02b-7** | BFF session: native custody, opaque cookies, single-flight refresh, CSRF, logout, studio guard and native caller bearer attachment to the injected SDK | G13 Accepted; P02b-6 |
 | **P02b-8** | `LS0002`, the carrier reconciliations this phase owes, the re-verification that the behavioural check is still required under the name it reports, and the exit checks | G16, G18 (the erasure inventory) Accepted |
 
 The events packets precede the identity packets because the Hub's `P02c-3` waits on this
@@ -274,7 +281,7 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G10 | Does the active tenant travel as a scalar `tenant_id` claim, a `memberships` array, or both — and what value does `UserId` hold? | The scalar claim, whose 02b source is an admin-set user attribute; a second UUID-valued `user_id` attribute for the actor, with `sub` staying Keycloak's subject | Phase-doc: [ADR-0036 § What is out of scope](../decisions/0036-tenant-resolution-trusted-inputs.md#what-is-out-of-scope-and-what-is-not) hands the shape to this phase by name. Reconcile `architecture/13`'s array sketch in the same change | P02b-5 | Accepted — 2026-10-19; [P02b-5 package](phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19) |
 | G11 | Which [ADR-0036 matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) rows resolve in this phase, given that row 10 consults a reader that denies everyone — and what row covers a signature-valid token carrying no `tenant_id` claim on a tenant host? | Issue a matching organization claim for row 9. Rows 7/10/14 remain membership-dependent refusals until Phase 03; a claimless principal retains public-only HostOnly authority. Row 14 records no tenant audit without a confirmed host tenant, as bounded by ADR-0064 | A dated **ADR-0036** amendment plus errata beside § Staging across packets and the 2026-09-02 erratum, both of which assign row 10 to this phase without noting that its `M covers (T, O)` term is denied until Phase 03 — which groups it with rows 7 and 14 rather than with 6 and 9 | P02b-5 | Accepted — 2026-10-19; [P02b-5 package](phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19) |
 | G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? Native HTTPS on retained `*.learnstack.local` hosts, with manual hosts/trust setup, is delivered by Phase 02d and re-verified by P02b-0 | A confidential BFF client with one redirect URI per seed host, retaining native HTTPS and `Secure` cookies; and an idempotent reconciler shared by `make seed` and `make demo` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-0 re-verifies [Phase 02d G32](phase-02d-walking-skeleton.md#the-decision-register), ADR-0053/0054 and ADR-0055; P02b-5 (which client the BFF redeems the code with: the API pins `azp` against it), P02b-6 | Accepted — BFF-client choice, 2026-10-19; realm/reconciliation/callback choices, [2026-10-21 package](phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20) |
-| G13 | What is the BFF session — its custody of the refresh token, its store, its idle and absolute lifetimes, its refresh serialisation under concurrent requests, its terminal `invalid_grant` behaviour, its CSRF control and its logout — and which document owns the access-token lifetime? | The `HttpOnly` cookie Security Standards already describes, encrypted by the session adapter, read only by server code, with single-flight refresh and one authority for the TTL | Phase-doc + one reconciled [Security Standards § Authentication](../standards/11-security.md#authentication); [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) is the dedicated development-issuance authority; a new session ADR is required for a server-side store | P02b-6 (which document owns the access-token lifetime: the realm export and its reconciler write it), P02b-7 | Accepted — issuance-TTL part, [2026-10-21 package](phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20) and separate ADR-0067 acceptance on 2026-10-21; session part Open for P02b-7 |
+| G13 | What is the BFF session — its custody of the refresh token, its store, its idle and absolute lifetimes, its refresh serialisation under concurrent requests, its terminal `invalid_grant` behaviour, its CSRF control and its logout — and which document owns the access-token lifetime? | The `HttpOnly` cookie Security Standards already describes, encrypted by the session adapter, read only by server code, with single-flight refresh and one authority for the TTL | Phase-doc + one reconciled [Security Standards § Authentication](../standards/11-security.md#authentication); [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) is the dedicated development-issuance authority; a new session ADR is required for a server-side store | P02b-6 (which document owns the access-token lifetime: the realm export and its reconciler write it), P02b-7 | Accepted — issuance-TTL part, [2026-10-21 package](phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20) and separate ADR-0067 acceptance on 2026-10-21; session part Accepted — [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) and [revised package](phase-02b-delivery-log.md#p02b-7-revised-decision-package-2026-10-23), [acceptance](phase-02b-delivery-log.md#p02b-7-acceptance-and-implementation-2026-10-23), 2026-10-23 |
 | G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject. The early anonymous stage already runs before authentication: P02d-5 delivers 60/min per canonical direct or authenticated-hop visitor IP plus 600/min peer acquisitions/allocations under ADR-0053 and ADR-0054. Exhausted known visitors refuse before peer debit; unknown visitor allocation remains peer-gated. These remain IP/peer quotas, not token quotas; a request they reject never reaches the token stage. Re-verify the [P5 remediation decision](phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09) before choosing authenticated accounting, preserving pre-classification protection against unknown-host abuse | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 (the token-keyed stage and the early stage's treatment of validated callers); G34's anonymous-hop policy and ADR-0054's bounded accounting replacement are Accepted and delivered in P02d-5 | Accepted — 2026-10-19; [P02b-5 package](phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19) |
 | G15 | What initiates a replay in this phase? | Targeted internal subscriber replay in P02b-3; producer/operator reset and fencing require a separate Phase 03 contract | Phase-doc; the URL space is its own decision record, per ADR-0036 | — (answered in § The consumer side; recorded so the question travels with the deferral) | Accepted — internal subscriber replay implemented by P02b-3 Step 4; operator contract Phase 03 |
 | G16 | What is `LS0002`'s rule name, which project trees does it run over, what does it inspect, and what escalates it to Error? | The name and scope recorded the way Amendment 1 recorded `LS0001`, with the scope reaching the assemblies that actually handle tokens | A dated **ADR-0032** amendment + a catalogue entry + an `AnalyzerReleases` row | P02b-8 | Open |
@@ -630,50 +637,26 @@ export that loses the mapper fails it.
 
 #### The BFF session
 
-The session is the first thing in the repository that holds a user credential, and its
-properties are required rather than inherited from an adapter's defaults. **G13**
-settles it; what the phase ships either way:
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) and the
+[Accepted five-step package](phase-02b-delivery-log.md#p02b-7-revised-decision-package-2026-10-23)
+settle G13. [Security 11](../standards/11-security.md#tenant-bff-sessions) owns
+ongoing custody/lifetime/admission rules. This packet delivers:
 
-- **OIDC Authorization Code flow with PKCE between the browser, the BFF and Keycloak.**
-  The BFF is the code-exchange client; the API is a resource server that validates a
-  bearer token and is not a party to the flow.
-- **Custody.** Security Standards puts refresh tokens in `HttpOnly`, `Secure`,
-  `SameSite=Lax` cookies and that document owns the rule; what this phase adds is that
-  only server code reads them, and that no response body, RSC payload, session JSON or
-  log line carries one.
-- **Lifetimes and refresh.** One authority for the access-token TTL — four documents
-  currently give four numbers, and this phase links the authority rather than adding a
-  fifth. Concurrent requests arriving with a near-expiry token produce exactly one token
-  request and one logical replacement session version, including any cookie chunks;
-  a terminal `invalid_grant` clears the session and the
-  visitor gets the public page anonymously rather than an error.
-- **Cookie scoping and CSRF.** Host-only cookies with no `Domain`, so two tenant hosts
-  do not share a session, plus an `Origin` check and a session-bound token on every
-  mutating route. `SameSite=Lax` does not separate hosts under one registrable domain,
-  which is exactly the SaaS subdomain shape, and no CSRF rule exists in the catalogue
-  today.
-- **Login topology**, under **G12**: login is served on the visitor's tenant host,
-  requiring one registered redirect URI per seed host. Phase 02d retains
-  `demo-english.learnstack.local` and `demo-yoga.learnstack.local` under the native
-  HTTPS launcher; hosts entries and certificate trust remain manual prerequisites.
-  `P02b-0` re-verifies [G32](phase-02d-walking-skeleton.md#the-decision-register)
-  and the ADR-0053/0054/0055 ingress, visitor/peer and single-bootstrap boundaries.
-  G12 still settles the BFF client, callback and post-logout URLs; it preserves
-  `Secure`. The login transaction's `state`, `nonce` and `code_verifier` live in a
-  host-only transaction cookie, and return URLs are validated.
-- **Logout**, which
-  [Identity and Auth § Logout](../architecture/13-identity-and-auth.md#logout) describes
-  and Phase 03 expects: the session cleared, the end-session endpoint called, and
-  back-navigation not restoring an authenticated view.
-- **Something that consumes the session.** One authenticated `/api/v1/*` read and one
-  guarded page, both in the OpenAPI document and the regenerated SDK. Without them "a
-  login completes" cannot be demonstrated, and
-  `Backend_RequiresJwt_OnAllAuthenticatedRoutes` sweeps an empty route set.
-- **Auth.js and `auth()` placed in `apps/web`**, the `(studio)` / `(portal)` redirect,
-  the server SDK's bearer attachment, and server-only environment keys. The
-  `add-frontend-route` and `add-feature-gated-ui` skills contain future auth
-  illustrations rather than shipped helpers; P02b-7 replaces them with the real
-  session API when it lands.
+- Library-validated OIDC code/S256/state/nonce on the two exact tenant callbacks,
+  with server-only credentials and per-transaction browser/host proof.
+- One native process session owner, bounded source/subject/global admission,
+  on-demand/single-flight refresh, effective expiry and actual provider extension.
+- Host-only opaque cookies and exact Origin/CSRF checks; local revocation before
+  provider logout, fenced late work and real history/cookie isolation proof.
+- Closed authenticated AccountSite transport and guarded Studio/Portal shells,
+  with a read-only app-local `auth()` facade and localized recovery/timeout UI.
+  No permission, membership, Server Action or general proxy is introduced.
+- Durable selected development provider events, qualified warm retention,
+  preservation/readback/zero-write controls and explicit local-only audit gaps.
+- Real warm-provider/BFF/API lifecycle plus both-host browser cookie/history
+  proof; existing anonymous sites remain independent of stopped Keycloak.
+- The route/feature-gate skills use the shipped facade when delivered in Step 4;
+  they must not infer future Phase 03 permissions from an authenticated actor.
 
 ### Useful provisioning flow
 
@@ -959,7 +942,7 @@ command. The phase retains zero skips, per assembly.
   `make seed`, preserving existing accounts and the `learnstack-hub` realm.
 - OIDC PKCE login through the BFF on the visitor's own tenant host, a cookie session
   with host-only scoping and single-flight refresh, an `Origin` plus session-bound-token
-  CSRF control, RP-initiated logout, and Auth.js wired in `apps/web` with the two
+  CSRF control, RP-initiated logout, and the ADR-0070 RP/owner wired in `apps/web` with the two
   skills' illustrative `auth` references replaced with the shipped helper.
 - The first authenticated `/api/v1/*` read and the first guarded page, both in the
   OpenAPI document and the regenerated SDK.
@@ -1216,16 +1199,27 @@ CI and merge verification; its dated local receipts retain their original scope.
   request through the retained native HTTPS launcher and manual hosts/trust setup
   that `P02b-0` re-verifies.
 - Two concurrent requests with a near-expiry token produce exactly one token request at
-  the issuer and one logical session version — counted as versions, not as `Set-Cookie`
-  headers, because a session adapter may split one cookie across several and a correct
-  single update can then emit more than one. Whatever the split, the chunks grow, shrink
-  and are all cleared on logout. A terminal `invalid_grant` clears the session and
+  the issuer and one logical server session revision, independent of cookie response
+  count. The fixed-size opaque format rejects malformed/duplicate/oversized cookie
+  families; unrelated transaction cookies survive failed callbacks. A terminal
+  `invalid_grant` revokes the session and
   serves the public page anonymously with a 200; logout ends the session at Keycloak and
   back-navigation does not restore an authenticated view.
 - A cross-origin POST between the two demo hosts is refused, and so is a POST with a
   correct `Origin` and no session-bound token.
-- An unauthenticated request to `(studio)` is redirected to sign-in and `(public)` is
-  not.
+- With BFF explicitly enabled, an unauthenticated exact `/studio` or `/portal`
+  request redirects to sign-in and public pages do not. Disabled mode returns
+  the bounded sign-in-unavailable 503 without provider work.
+- Source/subject/global admission and actual-settlement ownership satisfy
+  [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) independently; canceled
+  callers and abandoned/closing work cannot manufacture reusable capacity.
+- A valid ordinary AccountSite 401 withholds checked content without changing
+  idle expiry; later matching recovery reuses the owner. Initial and refreshed
+  revision publication still require a positive witness under
+  [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md).
+- Qualify the actual warm-provider/BFF/app-role API chain separately from the
+  controlled-grant/API browser cookie/history proof. Neither stands in for
+  Phase 06's full browser-driven OIDC journeys.
 - **Both [Phase 02d](phase-02d-walking-skeleton.md) sites still render anonymously with
   Keycloak stopped** — the session is additive to the anonymous path, never in front of
   it.
@@ -1321,6 +1315,17 @@ CI and merge verification; its dated local receipts retain their original scope.
   PostgreSQL, so that is inherited rather than mitigation. What this phase controls is
   that an anonymous page load depends on no identity provider, which the Phase 02d
   regression criterion asserts.
+- **Provider events are mistaken for a durable session ledger.** Selected
+  development events have finite retention and asynchronous expiry, not a row/
+  disk capacity bound or atomic application-audit guarantee. They cannot witness
+  local expiry or logout during a provider outage. Phase 03 owns the authenticated
+  identity-event ingress/mirror; Phase 11 owns production retention and capacity.
+- **A local BFF is mistaken for distributed continuity or outage immunity.**
+  Restart loses sessions and shared global/source/subject caps can refuse new
+  sign-ins across tenants. Refresh/publication still needs positive API/provider
+  authority. ADR-0071 retains an uncertain ordinary 401 only until the existing
+  refresh/deadline rules apply; masked 403/404 can still revoke. Phase 11's
+  distributed adapter/proxy qualification precedes multiple web processes.
 - **Keycloak claims leak into authorization decisions.** Keycloak authenticates;
   LearnStack authorizes. The realm currently ships three tenant-shaped realm roles with
   full scope on both clients, so the mitigation is the realm-role resolution above plus

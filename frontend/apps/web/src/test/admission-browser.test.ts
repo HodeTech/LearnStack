@@ -1,10 +1,15 @@
 // @vitest-environment node
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertFlightFallback,
   atBrowserPhase,
   browserFailureDetail,
+  readBrowserDevToolsPort,
   verifyBrowserFallback,
   waitForBrowserDevTools,
   waitForBrowserPage,
@@ -24,7 +29,11 @@ const document = { url: origin + target, type: 'Document', rsc: false, status: 2
 const browserEndpoint = 'ws://127.0.0.1:12345/devtools/page/owned';
 const browserPages = [{ type: 'page', webSocketDebuggerUrl: browserEndpoint }];
 
-afterEach(() => vi.useRealTimers());
+const roots: string[] = [];
+afterEach(() => {
+  vi.useRealTimers();
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
 
 describe('stock browser Flight fallback observation', () => {
   it('exposes only a closed phase when a private browser operation fails', async () => {
@@ -38,6 +47,9 @@ describe('stock browser Flight fallback observation', () => {
     expect(browserFailureDetail({ admissionStage: privateValue })).toBe('');
     expect(browserFailureDetail(new Error(privateValue))).toBe('');
     expect(browserFailureDetail(null)).toBe('');
+    expect(
+      browserFailureDetail({ admissionStage: 'browser-devtools', kind: 'deadline-missing' }),
+    ).toBe('');
   });
 
   it('preserves successful browser operations and rejects unregistered phases', async () => {
@@ -49,7 +61,7 @@ describe('stock browser Flight fallback observation', () => {
   });
 
   it('reports browser death before reading a debugging port as a launch failure', async () => {
-    const readPort = vi.fn(() => 12345);
+    const readPort = vi.fn(() => ({ kind: 'ready' as const, port: 12345 }));
     const failure = await waitForBrowserDevTools({
       assertActive: () => undefined,
       isLive: () => false,
@@ -59,23 +71,121 @@ describe('stock browser Flight fallback observation', () => {
     expect(readPort).not.toHaveBeenCalled();
   });
 
-  it('reports a live browser without a debugging port at the unchanged readiness deadline', async () => {
+  it.each(['missing', 'empty', 'malformed'] as const)(
+    'reports a live browser with %s readiness at the unchanged deadline',
+    async (kind) => {
+      vi.useFakeTimers();
+      const waiting = waitForBrowserDevTools({
+        assertActive: () => undefined,
+        isLive: () => true,
+        readPort: () => ({ kind }),
+      }).catch((error: Error) => error);
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(browserFailureDetail(await waiting)).toBe(' browser-devtools deadline-' + kind);
+    },
+  );
+
+  it("preserves a caller's shorter ten-second readiness deadline", async () => {
     vi.useFakeTimers();
+    let complete = false;
     const waiting = waitForBrowserDevTools({
       assertActive: () => undefined,
       isLive: () => true,
-      readPort: () => null,
-    }).catch((error: Error) => error);
-    await vi.advanceTimersByTimeAsync(20_000);
-    expect(browserFailureDetail(await waiting)).toBe(' browser-devtools');
+      readPort: () => ({ kind: 'missing' }),
+      timeout: 10_000,
+    }).catch((error: Error) => {
+      complete = true;
+      return error;
+    });
+    await vi.advanceTimersByTimeAsync(9999);
+    expect(complete).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(browserFailureDetail(await waiting)).toBe(' browser-devtools deadline-missing');
   });
 
   it('accepts the debugging port of a live owned browser', async () => {
     const assertActive = vi.fn();
     await expect(
-      waitForBrowserDevTools({ assertActive, isLive: () => true, readPort: () => 12345 }),
+      waitForBrowserDevTools({
+        assertActive,
+        isLive: () => true,
+        readPort: () => ({ kind: 'ready', port: 12345 }),
+      }),
     ).resolves.toBe(12345);
     expect(assertActive).toHaveBeenCalledOnce();
+  });
+
+  it('reads actual readiness files with closed observations and no check/read race', () => {
+    const root = mkdtempSync(join(tmpdir(), 'learnstack-admission-port-'));
+    roots.push(root);
+    const file = join(root, 'DevToolsActivePort');
+    expect(readBrowserDevToolsPort(file)).toEqual({ kind: 'missing' });
+    for (const value of ['', '\n/devtools/private-canary']) {
+      writeFileSync(file, value);
+      expect(readBrowserDevToolsPort(file)).toEqual({ kind: 'empty' });
+    }
+    for (const value of [
+      'PRIVATE-CANARY',
+      '65536\n/devtools/private-canary',
+      '0x1234',
+      '12345junk',
+    ]) {
+      writeFileSync(file, value);
+      expect(readBrowserDevToolsPort(file)).toEqual({ kind: 'malformed' });
+    }
+    writeFileSync(file, '12345\n/devtools/private-canary');
+    expect(readBrowserDevToolsPort(file)).toEqual({ kind: 'ready', port: 12345 });
+    rmSync(file);
+    expect(readBrowserDevToolsPort(file)).toEqual({ kind: 'missing' });
+    mkdirSync(file);
+    expect(readBrowserDevToolsPort(file)).toEqual({ kind: 'unreadable' });
+  });
+
+  it('waits through partial file publication until the live browser is ready', async () => {
+    vi.useFakeTimers();
+    const readPort = vi
+      .fn()
+      .mockReturnValueOnce({ kind: 'missing' })
+      .mockReturnValueOnce({ kind: 'empty' })
+      .mockReturnValueOnce({ kind: 'malformed' })
+      .mockReturnValue({ kind: 'ready', port: 12345 });
+    const waiting = waitForBrowserDevTools({
+      assertActive: () => undefined,
+      isLive: () => true,
+      readPort,
+    });
+    await vi.advanceTimersByTimeAsync(150);
+    await expect(waiting).resolves.toBe(12345);
+    expect(readPort).toHaveBeenCalledTimes(4);
+  });
+
+  it.each(['owner-inactive', 'port-unreadable'] as const)(
+    'keeps %s failures closed without private error text',
+    async (kind) => {
+      const refuse = () => {
+        throw new Error('PRIVATE-CANARY');
+      };
+      const failure = await waitForBrowserDevTools({
+        assertActive: kind === 'owner-inactive' ? refuse : () => undefined,
+        isLive: () => true,
+        readPort: kind === 'port-unreadable' ? refuse : () => ({ kind: 'missing' }),
+      }).catch((error: Error) => error);
+      expect(browserFailureDetail(failure)).toBe(' browser-devtools ' + kind);
+      expect(String(failure)).not.toContain('PRIVATE-CANARY');
+      expect(failure).not.toHaveProperty('cause');
+    },
+  );
+
+  it('observes browser death at the deadline boundary without reporting a live timeout', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const waiting = waitForBrowserDevTools({
+      assertActive: () => undefined,
+      isLive: () => Date.now() < 20_000,
+      readPort: () => ({ kind: 'missing' }),
+    }).catch((error: Error) => error);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(browserFailureDetail(await waiting)).toBe(' browser-launch');
   });
 
   it('waits for an initially empty target list to expose the owned page', async () => {

@@ -213,21 +213,24 @@ public sealed class TenantAuthenticationHttpTests
         issuer.JwksRequests.Should().BeGreaterThan(0);
     }
 
-    [Fact]
-    public async Task Discovery_failure_on_an_actual_public_route_is_401_and_never_anonymous()
+    [Theory]
+    [InlineData(TenantAuthenticationHttpRequest.PublicPath)]
+    [InlineData(TenantAuthenticationHttpRequest.AccountPath)]
+    public async Task Discovery_failure_on_actual_public_and_account_routes_is_401_and_never_anonymous(string path)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
         issuer.DiscoveryStatusCode = 503;
         await using var factory = new TenantAuthenticationApiFactory(issuer);
         using var client = factory.CreateClient();
         using var response = await TenantAuthenticationHttpRequest.Send(client,
-            TenantAuthenticationReconciliationHost.TenantHost, TenantAuthenticationHttpRequest.PublicPath,
+            TenantAuthenticationReconciliationHost.TenantHost, path,
             token: issuer.Token());
 
         await Problem(response, HttpStatusCode.Unauthorized, "unauthorized");
         BareBearer(response);
         issuer.MetadataRequests.Should().BeGreaterThan(0);
         factory.Recorder!.Rejections.Should().BeEmpty();
+        factory.Ports.Memberships.Should().BeEmpty("discovery refusal precedes membership and controller dispatch");
     }
 
     [Theory]
@@ -251,6 +254,27 @@ public sealed class TenantAuthenticationHttpTests
         issuer.JwksRequests.Should().Be(0);
         factory.Ports.HostLookups.Should().BeEmpty();
         factory.Recorder!.Rejections.Should().BeEmpty();
+
+        // A malformed token and unknown host independently avoid discovery.
+        // Remove both escape hatches before qualifying the route exclusion.
+        var token = issuer.Token();
+        using var wellFormed = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.TenantHost, path, token: token,
+            tenantAssertion: "not-a-guid", organizationAssertion: "also-not-a-guid");
+        wellFormed.StatusCode.Should().Be(status);
+        wellFormed.Headers.WwwAuthenticate.Should().BeEmpty();
+        issuer.MetadataRequests.Should().Be(0);
+        issuer.JwksRequests.Should().Be(0);
+        factory.Ports.HostLookups.Should().BeEmpty();
+        factory.Recorder!.Rejections.Should().BeEmpty();
+
+        // The same signed credential does reach the actual discovery transport
+        // on an admitted public route, rather than passing through an inert spy.
+        using var positive = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.TenantHost,
+            TenantAuthenticationHttpRequest.PublicPath, token: token);
+        await Problem(positive, HttpStatusCode.Unauthorized, "unauthorized");
+        issuer.MetadataRequests.Should().BeGreaterThan(0);
     }
 
     internal static async Task Problem(HttpResponseMessage response, HttpStatusCode status, string code)

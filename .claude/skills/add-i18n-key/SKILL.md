@@ -70,11 +70,13 @@ frontend/apps/web/src/i18n/
   messages/
     en/public.json
     tr/public.json
+    en/auth.json
+    tr/auth.json
 ```
 
-P02d-6 supplies only `public`; later features add a namespace beneath each locale.
-`catalogues.ts` statically imports the two public files, and `request.ts` explicitly
-mounts them as `messages.public`. There is no automatic file discovery. JSON nesting
+P02d-6 supplies `public`; P02b-7 adds `auth`. `catalogues.ts` and
+`auth-catalogues.ts` statically import their complete en/tr files; `request.ts`
+explicitly mounts both namespaces. There is no automatic file discovery. JSON nesting
 supplies dotted identifiers: `public.catalog.course_count` is
 `catalog.course_count` within the `public` translator.
 
@@ -141,7 +143,7 @@ same layout; they do not introduce an enrollment catalogue in P02d-6.
 
 For a new namespace, adding JSON files is insufficient. Wire their static imports
 and locale map into `catalogues.ts`, mount the namespace in `request.ts`, and add
-its typed translator and callsite-census coverage. Do not pass a catalogue to a
+its typed translator and callsite-census coverage (`auth` uses typed `copy`). Do not pass a catalogue to a
 Client Component. For public keys with new ICU arguments, update
 `PublicMessageArguments` alongside the messages and their callsites.
 

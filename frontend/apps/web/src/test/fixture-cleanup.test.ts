@@ -66,7 +66,9 @@ describe('owned production fixture cleanup', () => {
           expect(leader.exitCode).toBe(0);
           expect(absent(pid)).toBe(false); // Positive surviving-descendant control.
         }
-        await stopTestChild(leader);
+        const stopped = await stopTestChild(leader);
+        expect(stopped).toEqual({ forced: true });
+        expect(Object.isFrozen(stopped)).toBe(true);
         await exit(leader);
         expect(absent(pid)).toBe(true);
         expect(absent(-leader.pid!)).toBe(true);
@@ -125,7 +127,7 @@ describe('owned production fixture cleanup', () => {
     try {
       const first = stopTestChild(child);
       expect(stopTestChild(child)).toBe(first);
-      await first;
+      expect(await first).toEqual({ forced: false });
       expect(kill.mock.calls.filter(([, signal]) => signal === 'SIGTERM')).toHaveLength(1);
       expect(kill.mock.calls.filter(([, signal]) => signal === 'SIGKILL')).toHaveLength(0);
     } finally {
@@ -133,7 +135,9 @@ describe('owned production fixture cleanup', () => {
     }
   });
   it('accepts a failed spawn with no owned process', async () => {
-    await expect(stopTestChild({ pid: undefined } as ChildProcess)).resolves.toBeUndefined();
+    await expect(stopTestChild({ pid: undefined } as ChildProcess)).resolves.toEqual({
+      forced: false,
+    });
   });
   it.each([false, true])(
     'requires absence rather than treating permission refusal as cleanup, persistent = %s',
@@ -152,7 +156,7 @@ describe('owned production fixture cleanup', () => {
         const stopped = stopTestChild(child);
         const checked = persistent
           ? expect(stopped).rejects.toThrow('Owned fixture process group did not stop')
-          : expect(stopped).resolves.toBeUndefined();
+          : expect(stopped).resolves.toEqual({ forced: false });
         await vi.advanceTimersByTimeAsync(persistent ? 5020 : 20);
         await checked;
         expect(probes).toBeGreaterThan(1);

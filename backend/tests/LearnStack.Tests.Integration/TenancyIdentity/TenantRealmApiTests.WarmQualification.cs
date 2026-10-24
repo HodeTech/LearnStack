@@ -93,7 +93,7 @@ public sealed partial class TenantRealmApiTests
             var first = await KeycloakReconciliationDriver.RunAsync(warm);
             first.Success.Should().BeTrue("closed historical reconciliation outcome: {0}/{1}", first.Stage, first.Reason);
             first.PreparationDispatched.Should().BeTrue();
-            first.Mutations.Should().Be(17, "one preparation and sixteen ordinary writes; the eligible unrelated account needs no grant");
+            first.Mutations.Should().Be(18, "one preparation, sixteen prior ordinary writes and one ADR-0070 event-policy PUT; the unrelated account needs no grant");
             output.WriteLine("Historical journey stage: automatic reconciliation completed.");
             var accountsAfter = await WarmAccountsAsync(admin, usernames);
             WarmSame(expectedProfile, WarmNode(await admin.GetAsync("users/profile"))).Should().BeTrue(

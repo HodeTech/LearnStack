@@ -382,6 +382,17 @@ owns execution and independent review status. This delivery note leaves the
 original acceptance metadata, body and earlier amendments unchanged; it adds no
 P7 browser-demo, full accessibility or production deployment claim.
 
+### Amendment 11 — Separate authenticated BFF caller (2026-10-23)
+
+Accepted [ADR-0070](0070-owned-tenant-bff-sessions.md) adds one confined
+AccountSite caller using the native session owner's bearer and independently
+verified host/visitor hop. The quoted public-caller prohibition on forwarding
+Authorization/cookies/assertions remains unchanged for every public wrapper.
+This is an additive authenticated seam, not a general proxy or tenant selector.
+The request-local public holder does not store credentials. Acceptance enables
+no runtime route; P02b-7 delivers the caller with actual API/projection proofs.
+Original body, metadata and earlier amendments remain historical.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)

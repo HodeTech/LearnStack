@@ -50,8 +50,8 @@ not deferred to the showcase phase.
   maps each exit criterion to its proof.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
   — **in progress**: P02b-0–5 complete and merged through PRs #29–#33; P02b-6's
-  implementation merged through PR #34; P02b-7–8 pending. Its Status block owns
-  packet state.
+  implementation merged through PR #34. Its Status block owns remaining packet
+  state and current delivery.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)

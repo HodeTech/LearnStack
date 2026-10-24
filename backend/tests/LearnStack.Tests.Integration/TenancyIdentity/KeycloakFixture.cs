@@ -147,6 +147,29 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         catch { client.Dispose(); throw; }
     }
 
+    // A fresh isolated master issuance observes the provider's integer-second
+    // clock. This scalar is test timing only, never a token-authority witness.
+    // Extra master sessions belong to this fixture's actual container cleanup.
+    internal async Task<long> ObserveProviderUtcAsync(CancellationToken cancellationToken)
+    {
+        var credential = await AuthenticateAdministratorAsync(cancellationToken);
+        try
+        {
+            var parts = credential.AccessToken.Split('.');
+            if (parts.Length != 3) throw new InvalidOperationException();
+            using var payload = JsonDocument.Parse(Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(parts[1]));
+            if (payload.RootElement.ValueKind != JsonValueKind.Object
+                || payload.RootElement.EnumerateObject().Count(property => property.NameEquals("iat")) != 1
+                || !payload.RootElement.TryGetProperty("iat", out var issued)
+                || issued.ValueKind != JsonValueKind.Number || !issued.TryGetInt64(out var seconds)
+                || seconds <= 0) throw new InvalidOperationException();
+            return DateTimeOffset.FromUnixTimeSeconds(seconds).ToUnixTimeMilliseconds();
+        }
+        catch (Exception error) when (error.GetType() != typeof(OutOfMemoryException)
+            && error.GetType() != typeof(StackOverflowException))
+        { throw new InvalidOperationException("Keycloak fixture clock observation is invalid."); }
+    }
+
     private async Task<KeycloakAdminCredential> AuthenticateAdministratorAsync(CancellationToken cancellationToken)
     {
         using var client = KeycloakHttp.Create(BaseAddress, RootCertificate);

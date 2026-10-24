@@ -6,20 +6,22 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./authenticated-server": "./dist/authenticated-server.js"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "generate": "openapi-typescript ${LEARNSTACK_OPENAPI:-../../../backend/openapi/v1.json} -o src/generated/schema.d.ts",
     "test": "vitest run",
-    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src --ext .ts --max-warnings 0"
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src --ext .ts --max-warnings 0",
+    "build:native": "node scripts/build-native.mjs"
   },
   "devDependencies": {
     "@learnstack/config": "workspace:*",
     "openapi-typescript": "7.13.0",
     "typescript": "5.6.3",
-    "vite": "6.4.3",
-    "vitest": "4.1.11",
+    "vite": "6.4.4",
+    "vitest": "4.1.12",
     "eslint": "9.39.4"
   }
 }

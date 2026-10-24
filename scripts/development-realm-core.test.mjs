@@ -73,6 +73,26 @@ test('the actual core applies one mutation, verifies full state, and makes an ex
   assert.equal(recording.requests.filter(request => request.path === '/admin/realms/learnstack/' && !request.method).length, 6);
 });
 
+test('a successful independent readback still requires an empty final fresh plan', async () => {
+  const state = provider();
+  const recording = providerTransport(state);
+  let realmReads = 0;
+  const transport = async (url, options) => {
+    const response = await recording.transport(url, options);
+    if (url.pathname === '/admin/realms/learnstack/' && !options.method && ++realmReads === 3) {
+      assert.equal(options.stage, 'readback');
+      const value = JSON.parse(response.bytes.toString('utf8'));
+      value.accessTokenLifespan = 1800;
+      return { ...response, bytes: Buffer.from(JSON.stringify(value)) };
+    }
+    return response;
+  };
+  await assert.rejects(reconcileRealm(memoryInput(transport)), refusal('readback', 'readback_conflict'));
+  assert.equal(realmReads, 3, 'planning and its independent verification completed before the final fresh-plan control');
+  assert.deepEqual(state.writes, [], 'the remaining change is refused, never automatically applied');
+  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+});
+
 for (const stage of ['apply', 'readback']) {
   test(`an unexpected ${stage} fault preserves its closed stage and a committed mutation resumes from fresh state`, async () => {
     const state = provider(); state.state.realm.accessTokenLifespan = 1800;
@@ -442,7 +462,7 @@ test('an exact 512 KiB version document reaches planning only after the complete
   await assert.rejects(f.invoke(), refusal('plan', 'status'));
   assert.equal(f.paths.length, 4);
   assert.deepEqual(f.paths[2], ['GET', '/admin/serverinfo']);
-  assert.deepEqual(f.paths[3], ['GET', '/admin/realms/learnstack/users/profile']);
+  assert.deepEqual(f.paths[3], ['GET', '/admin/realms/learnstack/events/config']);
 });
 
 
@@ -611,9 +631,10 @@ test('hidden identity preparation is one fixed write, independently verified bef
   assert.deepEqual(recording.requests.filter(request => request.method && !request.form)
     .map(request => [request.stage, request.method, request.path]),
   [['prepare', 'PUT', '/admin/realms/learnstack/users/profile']]);
-  assert.deepEqual(recording.requests.slice(preparation + 1, preparation + 3)
+  assert.deepEqual(recording.requests.slice(preparation + 1, preparation + 4)
     .map(request => [request.stage, request.path]), [
     ['prepare', '/admin/realms/learnstack/users/profile'],
+    ['plan', '/admin/realms/learnstack/events/config'],
     ['plan', '/admin/realms/learnstack/'],
   ]);
   assert.deepEqual(fixture.state.profile.attributes.slice(0, before.profile.attributes.length), before.profile.attributes);

@@ -1,4 +1,4 @@
-import type { components, operations } from './generated/schema';
+import type { components, operations } from './generated/schema.js';
 
 export type PublicGetOperation =
   | 'GetPublicSite'

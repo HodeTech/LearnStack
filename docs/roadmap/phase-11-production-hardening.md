@@ -43,6 +43,14 @@ Two consequences follow, and both are stated plainly rather than implied:
 
 ### Demand-gated building blocks
 
+**Distributed BFF sessions** — trigger: multiple native web processes must serve
+one browser session. P02b-7's app-local `BffSessionStore` uses the volatile
+`InMemoryBffSessionStore` under
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) and ADR-0035's dated
+additive inventory. This phase supplies/qualifies the distributed adapter,
+credential security/retention, atomic refresh/revocation/interruption and
+production provider-event storage/capacity. Sticky routing is not continuity.
+
 Most items below have a port in `LearnStack.SharedKernel` and a default implementation
 from [Phase 02a Packet 5](phase-02a-kernel-tenancy.md), with a trigger condition recorded
 in [ADR-0035 § The gated set](../decisions/0035-demand-gated-infrastructure.md), which is
@@ -321,6 +329,28 @@ not a request to add an unused module, adapter or port.
   owns the current same-issuer constraint. A split metadata origin needs a separate
   accepted design and containment proofs before deployment; do not substitute an
   internal issuer merely to make the network request succeed.
+- **BFF host and proxy activation.** Register each newly activated tenant host's
+  exact HTTPS callback and root post-logout URI on the confidential web client
+  before enabling sign-in there; domain verification alone grants no redirect
+  registration. Qualify provider-event retention/storage and secret provisioning,
+  including replacement of published development credentials. The current native
+  listener counts its verified TCP peer as a source; proxy-derived visitor trust,
+  IPv6 prefix fairness and multi-process continuity need explicit deployment
+  decisions and proofs before promising those properties. P02b-7's two seed-host
+  and controlled-issuer evidence supplies none of them.
+- **BFF operational signals.** Before production activation, qualify closed
+  lifecycle/failure visibility, session/pending/source/subject capacity pressure,
+  alert thresholds, and a recovery runbook for the native owner.
+  The current failure warnings are not capacity telemetry or a durable session
+  ledger. Decide bounded signals and safe deployment attribution without token,
+  actor, session-handle or arbitrary host labels; test actual exported privacy
+  and volume before relying on dashboards or alerts.
+- **Native BFF resource and clock qualification.** Qualify the deployment's
+  listener/header/body/connection limits, trusted outbound TLS/proxy path and
+  suspend/resume behavior before production activation. Current monotonic
+  lifetimes and finite Node/form defaults do not promise suspended-host wall-time
+  continuity or a production denial-of-service bound. Changing those semantics
+  requires explicit review of the existing lifetime and transport contract.
 - **Outage and key rotation.** Exercise cold start without metadata, a warmed known
   signing key during an outage, a new key while refresh fails, recovery, and rejection
   of a withdrawn unexpired key after the replacement set has been observed. Current
@@ -635,6 +665,10 @@ same `ILiveClassProvider`.
   with the `DeploymentMode` composition root resolving each per mode.
 - Integration suites for `Dedicated`, `SelfHostedOnline` and `SelfHostedAirGapped`, and
   the support claim updated from two modes to five.
+- When multiple native web processes must serve one browser session, a distributed
+  adapter behind `BffSessionStore` with qualified credential custody/retention and
+  atomic refresh, revocation and interruption behavior before that topology is
+  activated. A sticky route does not satisfy this trigger.
 - `audit_log` converted to monthly range partitions — the parent created, the Packet 9
   table attached, indexes and policy recreated on it — with the partition-management and
   retention-purge jobs registered and monitored, and
@@ -689,6 +723,12 @@ same `ILiveClassProvider`.
 - A second application instance can be started without a correctness regression:
   distributed cache, cross-instance invalidation, and outbox dispatch under two
   dispatchers all behave.
+- Before multi-process web sessions are activated, two real web owners exercise
+  the distributed BFF adapter: one refresh revision is published, revocation
+  fences held/late work on either owner, interrupted grants are never blindly
+  replayed, and actual settlement governs cleanup. Restart/failover, credentials
+  and provider-event retention have explicit evidence; sticky routing or the
+  existing volatile store alone cannot establish continuity.
 - An integration event crosses a process boundary through Dapr and is delivered
   **at-least-once** to a subscriber in another process, with tenant context restored on
   the consumer side — and a forced redelivery of the same envelope produces exactly one

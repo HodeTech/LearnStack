@@ -18,7 +18,7 @@ export async function verifyHmrAdmission({
     assert.equal(counts.active, 0, 'Completed development render releases its admission');
     assert.equal(counts.snapshots, 0, 'Completed development render releases its snapshot');
   };
-  const path = join(app, 'src/app/(studio)/studio/page.tsx');
+  const path = join(app, 'src/app/(public)/[locale]/courses/page.tsx');
   const original = readFileSync(path, 'utf8');
   const page = (
     marker,
@@ -41,7 +41,7 @@ export default async function HmrAdmissionProbe() {
     const pid = child.pid;
     await checkpoint('hmr-before');
     stage = 'hmr-initial-request';
-    const before = await call('/studio');
+    const before = await call('/' + configuration.locale + '/courses');
     stage = 'hmr-initial-status';
     assert.equal(before.status, 200, 'Development admission positive control');
     stage = 'hmr-initial-source';
@@ -58,7 +58,7 @@ export default async function HmrAdmissionProbe() {
     stage = 'hmr-source-barrier';
     await watcher.afterWrite(() => writeFileSync(path, page('admission-hmr-after')));
     stage = 'hmr-refresh-request';
-    const after = await call('/studio', {
+    const after = await call('/' + configuration.locale + '/courses', {
       headers: { RSC: '1', 'Next-Hmr-Refresh': '1' },
     });
     stage = 'hmr-refresh-status';

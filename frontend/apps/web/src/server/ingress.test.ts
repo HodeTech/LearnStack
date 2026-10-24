@@ -2,7 +2,9 @@
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { IncomingMessage } from 'node:http';
 import { createServer, request } from 'node:https';
+import { Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connect } from 'node:tls';
@@ -33,6 +35,54 @@ const context = {
 } as const;
 
 describe('captured ingress provenance', () => {
+  it.each(['tenant.example', 'tenant.example:443', 'tenant.example:3001', 'tenant.example.:3000'])(
+    'refuses unbound BFF authority %s while preserving anonymous public normalization',
+    (host) => {
+      const make = (target: string, method = 'GET') => {
+        const socket = new Socket();
+        Object.defineProperty(socket, 'remoteAddress', { value: '127.0.0.1' });
+        const request = new IncomingMessage(socket);
+        request.rawHeaders = ['Host', host];
+        request.headers = { host, 'content-length': '0' };
+        request.method = method;
+        request.url = target;
+        return request;
+      };
+      for (const target of [
+        '/api/auth/signin',
+        '/api/auth/callback/keycloak?state=x',
+        '/studio',
+        '/portal',
+      ]) {
+        const request = make(target);
+        expect(admitIncomingRequest(request, secret, true)).toBe(false);
+        expect(request.headers[INGRESS_HEADER]).toBeUndefined();
+      }
+      expect(admitIncomingRequest(make('/api/auth/signout', 'POST'), secret, true)).toBe(false);
+      const publicRead = make('/en/courses');
+      expect(admitIncomingRequest(publicRead, secret, true)).toBe(true);
+      expect(verifyProvenance(String(publicRead.headers[INGRESS_HEADER]), secret)?.host).toBe(
+        normalizeHost(host),
+      );
+    },
+  );
+  it.each(['tenant.example:3000', 'Tenant.Example:3000', '[::1]:3000'])(
+    'accepts the native BFF authority %s without trusting forwarded ports',
+    (host) => {
+      const socket = new Socket();
+      Object.defineProperty(socket, 'remoteAddress', { value: '127.0.0.1' });
+      const request = new IncomingMessage(socket);
+      request.rawHeaders = ['Host', host, 'X-Forwarded-Port', '4444'];
+      request.headers = { host, 'x-forwarded-port': '4444' };
+      request.method = 'GET';
+      request.url = '/api/auth/signin';
+      expect(admitIncomingRequest(request, secret, true)).toBe(true);
+      expect(request.headers['x-forwarded-port']).toBeUndefined();
+      expect(verifyProvenance(String(request.headers[INGRESS_HEADER]), secret)?.host).toBe(
+        normalizeHost(host),
+      );
+    },
+  );
   it.each([
     ['127.0.0.1', '127.0.0.1'],
     ['::ffff:127.0.0.1', '127.0.0.1'],

@@ -21,6 +21,7 @@ import signal
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 
@@ -82,12 +83,17 @@ STARTUP_FAILURES = {'resource_controllers_unavailable', 'work_cgroup_not_empty',
                     'cgroup_kill_unavailable', 'startup_io_refused', 'startup_internal_refusal'}
 FAILURE_SOURCES = {
     'OutboxProcessorTests.cs': 'outbox_processor',
+    'BffNativeDriver.cs': 'bff_native_driver',
+    'TenantBffSessionTests.cs': 'bff_session',
     'TenantRealmApiTests.WarmQualification.cs': 'realm_warm_qualification',
     'BackgroundJobPositiveSdkTests.CausalRestart.cs': 'positive_sdk_causal_restart',
+    'BackgroundJobPositiveSdkTests.CausalRestartObservations.cs': 'positive_sdk_causal_observation',
     'BackgroundJobPositiveSdkTests.NativeSettlement.cs': 'positive_sdk_native_settlement',
     'BackgroundJobPositiveSdkTests.NativeWait.cs': 'positive_sdk_native_wait',
     'BackgroundJobPositiveSdkTests.NativeHistory.cs': 'positive_sdk_native_history',
     'BackgroundJobPositiveSdkTests.NativeHandoff.cs': 'positive_sdk_native_handoff',
+    'BackgroundJobPositiveSdkTests.NativeRecovery.cs': 'positive_sdk_native_recovery',
+    'BackgroundJobPositiveSdkTests.SourceContention.cs': 'positive_sdk_source_contention',
     'BackgroundJobPositiveSdkTests.NativeSettlementScheduling.cs': 'positive_sdk_settlement_scheduling',
     'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs': 'positive_sdk_settlement_prepare',
     'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs': 'recurrence_native_ownership',
@@ -135,6 +141,9 @@ PUBLIC_FAILURE_DETAILS = {'browser-' + name for name in (
     'setup initial-request initial-status initial-source initial-site initial-release watch-connect change '
     'source-barrier refresh-request refresh-status refresh-type refresh-source refresh-site refresh-release after'
 ).split()}
+PUBLIC_DEVTOOLS_KINDS = {
+    'owner-inactive', 'port-unreadable', 'deadline-missing', 'deadline-empty', 'deadline-malformed',
+}
 KEYCLOAK_FAILURE_CLASSES = {
     'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
     'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
@@ -404,7 +413,7 @@ def closed_native_wait_details(raw):
     if sum(len(item['Text']) for item in messages) > 65536:
         return None
     stages = {'start', 'handoff', 'constructor', 'capture', 'cancel', 'return', 'wrapper', 'held',
-              'cleanup_request', 'cleanup_stop', 'cleanup_completion', 'cleanup_complete'}
+              'cleanup_request', 'cleanup_stop', 'cleanup_completion', 'cleanup_timers', 'cleanup_complete'}
     tasks = {'not_issued', 'succeeded', 'cancelled', 'faulted', 'pending'}
     fields = ('boundary', 'constructor', 'invocation', 'wrapper', 'actual', 'runtime', 'completion',
               'control', 'pools', 'shared', 'bridgeLoop', 'bridgeStop')
@@ -441,6 +450,37 @@ def closed_native_wait_details(raw):
         if values['boundary'] not in stages or kind == 'cleanup' and not values['boundary'].startswith('cleanup_'):
             return None
         result[kind] = values
+    marker = 'Native handoff;'
+    count = sum(item['Text'].count(marker) for item in messages)
+    if count:
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        if count != 1 or len(lines) != 1:
+            return None
+        fields = ('native', 'eligible', 'running', 'retained', 'closed', 'route', 'phase',
+                  'owner', 'lease', 'attempts', 'hint')
+        match = re.fullmatch(re.escape(marker) + ';'.join(name + r'=([a-z_0-9]{1,24})' for name in fields)
+                             + r'\.', lines[0])
+        if match is None:
+            return None
+        handoff = dict(zip(fields, match.groups()))
+        allowed = {
+            'native': {'succeeded', 'processing', 'enqueued', 'scheduled', 'missing', 'other'},
+            'eligible': {'yes', 'no'}, 'closed': {'yes', 'no'},
+            'hint': {'not_attempted', 'attempted', 'acknowledged'},
+            'route': {'not_checked', 'allowed', 'refused'},
+            'phase': {'pending', 'preparing', 'prepared', 'executing', 'reconciling', 'finalize_pending',
+                      'finalizing', 'terminal_pending', 'completed', 'quarantined', 'other'},
+            'owner': {'none', 'routing', 'execution', 'recovery', 'other'},
+            'lease': {'absent', 'live', 'elapsed'},
+        }
+        if any(handoff[field] not in values for field, values in allowed.items()):
+            return None
+        for field, maximum in (('running', 64), ('retained', 64), ('attempts', 6)):
+            if not re.fullmatch(r'0|[1-9][0-9]?', handoff[field]) or int(handoff[field]) > maximum:
+                return None
+            handoff[field] = int(handoff[field])
+        result['handoff'] = handoff
     return result
 
 
@@ -481,12 +521,430 @@ def closed_outbox_startup_details(raw):
     return result
 
 
+SOURCE_CONTENTION_FAILURE_CASE = (
+    'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Native_transactional_pool_completes_at_the_app_source_floor_while_actual_external_reconcile_is_held'
+)
+SOURCE_CONTENTION_BOUNDARIES = {
+    'start', 'capacity', 'reconcile_wait', 'reconcile_facts', 'pressure', 'submit',
+    'transaction_wait', 'transaction_facts', 'overflow', 'transaction_complete', 'committed', 'external_facts',
+    'cleanup_pressure', 'cleanup_request', 'cleanup_stop', 'cleanup_completion', 'cleanup_complete',
+}
+
+
+def closed_source_contention_details(raw):
+    """Test-owned first failure and later cleanup; neither is completion authority."""
+    messages = raw.get('Messages')
+    if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
+        return None
+    if any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+           or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+           or not isinstance(item['Text'], str) for item in messages):
+        return None
+    if sum(len(item['Text']) for item in messages) > 65536:
+        return None
+    tasks = {'not_issued', 'succeeded', 'cancelled', 'faulted', 'pending'}
+    states = {'not_started', 'bootstrapping', 'starting', 'running', 'stopping', 'retained', 'stopped', 'unknown'}
+    counts = {'pressure': 30, 'executions': 64, 'retained': 64, 'renewalRefused': 64, 'leaseElapsed': 64}
+    fields = ('boundary', 'reconcile', 'transactional', 'provider', 'auxiliary', 'pressure',
+              'runtime', 'completion', 'executions', 'retained', 'renewalRefused', 'leaseElapsed')
+    result = {'stage': 'source_contention'}
+    for kind in ('failure', 'cleanup'):
+        marker = 'Source contention ' + kind + ';'
+        count = sum(item['Text'].count(marker) for item in messages)
+        if count == 0 and kind == 'cleanup':
+            continue
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        if count != 1 or len(lines) != 1:
+            return None
+        unavailable = re.fullmatch(re.escape(marker) + r'boundary=([a-z_]+);snapshot=unavailable\.', lines[0])
+        if unavailable:
+            values = {'boundary': unavailable[1], 'snapshot': 'unavailable'}
+        else:
+            match = re.fullmatch(re.escape(marker) + ';'.join(name + r'=([a-z_0-9]{1,32})' for name in fields)
+                                 + r'\.', lines[0])
+            if not match:
+                return None
+            values = dict(zip(fields, match.groups()))
+            if values['runtime'] not in states or any(values[name] not in tasks for name in
+                    ('reconcile', 'transactional', 'provider', 'auxiliary', 'completion')):
+                return None
+            for name, maximum in counts.items():
+                value = values[name]
+                if value in ('unavailable', 'out_of_range') and name != 'pressure':
+                    continue
+                if not re.fullmatch(r'0|[1-9][0-9]?', value) or int(value) > maximum:
+                    return None
+                values[name] = int(value)
+        if values['boundary'] not in SOURCE_CONTENTION_BOUNDARIES or (
+                kind == 'cleanup' and not values['boundary'].startswith('cleanup_')):
+            return None
+        result[kind] = values
+    return result
+
+
+CAUSAL_RESTART_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Native_completed_cancellation_survives_restart_and_independent_failure_is_not_reclassified'
+    '(independentFailure: ' + independent + ', lieOnlyOnReconcile: ' + lie + ')'
+    for independent, lie in [('False', 'False'), ('True', 'False'), ('False', 'True')]
+}
+CAUSAL_RESTART_BOUNDARIES = {
+    'original_start', 'provider_accept', 'original_facts', 'independent_completion', 'original_stop',
+    'provider_token', 'provider_completion', 'provider_report', 'original_retention', 'restart_start',
+    'terminal_wait', 'reconcile_facts', 'read_facts', 'transaction_witness', 'assert_facts', 'meaning',
+    'original_cleanup_timers',
+} | {prefix + '_cleanup_' + stage for prefix in ('original', 'restart')
+     for stage in ('request', 'release', 'stop', 'completion', 'complete')}
+
+
+def closed_causal_restart_counts(case, raw):
+    # Successful retry/lease-loss observations are diagnostics, never an
+    # alternative result, receipt success signal or grant of execution authority.
+    if (case['assembly'] != 'learnstack.tests.integration'
+            or case['name'] not in CAUSAL_RESTART_FAILURE_CASES):
+        return None
+    messages = raw.get('Messages')
+    if (not isinstance(messages, list) or not 1 <= len(messages) <= 32
+            or any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+                or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+                or not isinstance(item['Text'], str) for item in messages)
+            or sum(len(item['Text']) for item in messages) > 65536):
+        return None
+    marker = 'Causal restart counts;'
+    lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+             for line in item['Text'].splitlines() if marker in line]
+    forced_case = case['name'].endswith('(independentFailure: False, lieOnlyOnReconcile: False)')
+    if (len(lines) != (2 if forced_case else 1)
+            or sum(item['Text'].count(marker) for item in messages) != len(lines)):
+        return None
+    runs = []
+    for index, line in enumerate(lines):
+        match = re.fullmatch(re.escape(marker)
+            + r'reconciles=([0-9]+);finalize=([0-9]+);ledger=([0-9]+);forced=(yes|no);'
+            + r'leaseElapsed=([0-9]+);renewalRefused=([0-9]+)\.', line)
+        if match is None or (match[4] == 'yes') != (forced_case and index == 1):
+            return None
+        fields = ('reconciles', 'finalize', 'ledger', 'leaseElapsed', 'renewalRefused')
+        values = (match[1], match[2], match[3], match[5], match[6])
+        if any(not re.fullmatch(r'0|[1-9][0-9]{0,4}', value)
+               or int(value) > maximum for value, maximum in zip(values, (10000, 6, 12, 10000, 10000))):
+            return None
+        runs.append({**dict(zip(fields, map(int, values))), 'forced': match[4] == 'yes'})
+    return {'stage': 'causal_restart_counts', 'runs': runs}
+
+
+def closed_causal_restart_details(raw):
+    messages = raw.get('Messages')
+    if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
+        return None
+    if any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+           or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+           or not isinstance(item['Text'], str) for item in messages):
+        return None
+    if sum(len(item['Text']) for item in messages) > 65536:
+        return None
+    states = {'not_started', 'bootstrapping', 'starting', 'running', 'stopping', 'retained', 'stopped', 'unknown'}
+    counts = {'executions': 64, 'renewalRefused': 64, 'leaseElapsed': 64, 'normal': 6, 'finalize': 6,
+              'ledger': 12, 'release': 64, 'audits': 64, 'nulls': 511, 'calls': 6, 'forced': 1}
+    row_fields = {'normal', 'finalize', 'ledger', 'release', 'audits', 'incomplete', 'outcome', 'policy', 'reason', 'nulls'}
+    fields = ('boundary', 'runtime', 'executions', 'renewalRefused', 'leaseElapsed', 'row',
+              'normal', 'finalize', 'ledger', 'release', 'audits', 'incomplete', 'outcome', 'policy',
+              'reason', 'nulls', 'calls', 'forced')
+    enums = {'runtime': states, 'row': {'observed', 'unobserved'}, 'incomplete': {'yes', 'no'},
+             'outcome': {'succeeded', 'failed', 'cancelled', 'other', 'missing'},
+             'policy': {'permanent', 'transient_repeatable', 'transient_not_repeatable', 'other', 'missing'},
+             'reason': {'permanent_failure', 'external_retry_forbidden', 'retry_exhausted',
+                        'finalize_refused', 'finalize_exhausted', 'other', 'missing'}}
+    result = {'stage': 'causal_restart'}
+    for kind in ('failure', 'cleanup'):
+        marker = 'Causal restart ' + kind + ';'
+        count = sum(item['Text'].count(marker) for item in messages)
+        if count == 0 and kind == 'cleanup':
+            continue
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        if count != 1 or len(lines) != 1:
+            return None
+        unavailable = re.fullmatch(re.escape(marker) + r'boundary=([a-z_]+);snapshot=unavailable\.', lines[0])
+        if unavailable:
+            values = {'boundary': unavailable[1], 'snapshot': 'unavailable'}
+        else:
+            match = re.fullmatch(re.escape(marker) + ';'.join(name + r'=([a-z_0-9]{1,32})' for name in fields)
+                                 + r'\.', lines[0])
+            if not match:
+                return None
+            values = dict(zip(fields, match.groups()))
+            for name, allowed in enums.items():
+                if values[name] not in allowed and not (name in row_fields and values[name] == 'unavailable'):
+                    return None
+            for name, maximum in counts.items():
+                value = values[name]
+                if value == 'out_of_range' or value == 'unavailable' and name != 'forced':
+                    continue
+                if not re.fullmatch(r'0|[1-9][0-9]{0,2}', value) or int(value) > maximum:
+                    return None
+                values[name] = int(value)
+            if values['row'] == 'unobserved':
+                if any(values[name] != 'unavailable' for name in row_fields):
+                    return None
+            elif any(values[name] == 'unavailable' for name in row_fields):
+                return None
+        if values['boundary'] not in CAUSAL_RESTART_BOUNDARIES or (
+                kind == 'cleanup' and '_cleanup_' not in values['boundary']):
+            return None
+        result[kind] = values
+    return result
+
+
+NATIVE_RECOVERY_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Actual_native_recovery_owner_renews_past_old_deadlines_without_admission_or_another_Execute'
+    '(loseAcquisitionAck: ' + lost + ')'
+    for lost in ('False', 'True')
+}
+RECURRENCE_RUNTIME_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.Database.BackgroundJobRecurrenceStoreTests.'
+    'Actual_runtime_fans_out_to_both_scopes_and_duplicate_native_ticks_create_no_extra_children'
+    '(organization: ' + value + ')' for value in ('True', 'False')
+}
+RECURRENCE_RUNTIME_COUNTS = (
+    'completed', 'executed', 'occurrences', 'recipients', 'fanouts', 'applications',
+    'retainedApplications', 'bridgeOutstanding', 'bridgeRetained', 'bridgeFailed',
+    'executions', 'renewalRefused', 'leaseElapsed',
+)
+
+
+def closed_recurrence_runtime_details(raw):
+    messages = raw.get('Messages')
+    if (not isinstance(messages, list) or not 1 <= len(messages) <= 32
+            or any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+                or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+                or not isinstance(item['Text'], str) for item in messages)
+            or sum(len(item['Text']) for item in messages) > 65536):
+        return None
+    marker = 'Recurrence runtime failure;'
+    lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+             for line in item['Text'].splitlines() if marker in line]
+    if len(lines) != 1 or sum(item['Text'].count(marker) for item in messages) != 1:
+        return None
+    fields = ('boundary', 'runtime', *RECURRENCE_RUNTIME_COUNTS)
+    match = re.fullmatch(re.escape(marker)
+        + ';'.join(name + r'=([A-Za-z_0-9]{1,32})' for name in fields) + r'\.', lines[0])
+    if match is None:
+        return None
+    values = dict(zip(fields, match.groups()))
+    if (values['boundary'] not in ('start', 'children', 'fanout', 'ticks', 'health', 'assertions')
+            or values['runtime'] not in ('NotStarted', 'Bootstrapping', 'Starting', 'Running',
+                                         'Stopping', 'Retained', 'Stopped')):
+        return None
+    for name in RECURRENCE_RUNTIME_COUNTS:
+        value = values[name]
+        if value == 'unavailable':
+            values[name] = None
+        elif re.fullmatch(r'0|[1-9][0-9]{0,4}', value) and int(value) <= 10000:
+            values[name] = int(value)
+        else:
+            return None
+    return {'stage': 'recurrence_runtime', **values}
+
+
+NATIVE_HANDOFF_FAILURE_CASE = ('LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.'
+    'Native_fixture_start_waits_for_previous_actual_cleanup_before_one_same_generation_hint')
+NATIVE_HANDOFF_BOUNDARIES = {
+    'submit', 'bridge', 'lock', 'runtime_start', 'cleanup_enter', 'lock_release', 'hint_start',
+    'hint_count', 'premature_hint', 'release_cleanup', 'construction', 'renewal', 'assert', 'cleanup',
+}
+
+
+def closed_native_handoff_details(raw):
+    messages = raw.get('Messages')
+    if (not isinstance(messages, list) or not 1 <= len(messages) <= 32
+            or any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+                or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+                or not isinstance(item['Text'], str) for item in messages)
+            or sum(len(item['Text']) for item in messages) > 65536):
+        return None
+    marker = 'Native handoff failure;'
+    lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+             for line in item['Text'].splitlines() if marker in line]
+    if len(lines) != 1 or sum(item['Text'].count(marker) for item in messages) != 1:
+        return None
+    tasks = ('pulse', 'helper', 'pacing', 'cleanup', 'joined', 'constructor')
+    counts = ('executions', 'renewalRefused', 'leaseElapsed')
+    fields = ('boundary', 'kind', *tasks, *counts)
+    match = re.fullmatch(re.escape(marker)
+        + ';'.join(name + r'=([a-z_0-9]{1,32})' for name in fields) + r'\.', lines[0])
+    if match is None:
+        return None
+    values = dict(zip(fields, match.groups()))
+    if (values['boundary'] not in NATIVE_HANDOFF_BOUNDARIES
+            or values['kind'] not in ('timeout', 'cancellation', 'assertion', 'invalid_state', 'other')
+            or any(values[name] not in ('not_issued', 'pending', 'succeeded', 'canceled', 'faulted') for name in tasks)):
+        return None
+    for name in counts:
+        value = values[name]
+        if value == 'unavailable':
+            continue
+        if not re.fullmatch(r'0|[1-9][0-9]{0,4}', value) or int(value) > 10000:
+            return None
+        values[name] = int(value)
+    return {'stage': 'native_handoff', **values}
+
+
+NATIVE_RECOVERY_BOUNDARIES = {
+    'rooted', 'construction', 'identity', 'renewal_wait', 'database_renewal', 'old_lease',
+    'provider_before', 'reconcile', 'row_facts', 'cleanup_actual', 'cleanup_work',
+    'cleanup_control', 'post_cleanup',
+}
+
+
+def closed_native_recovery_details(raw):
+    messages = raw.get('Messages')
+    if (not isinstance(messages, list) or not 1 <= len(messages) <= 32
+            or any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+                or not isinstance(item['Category'], str) or not 1 <= len(item['Category']) <= 32
+                or not isinstance(item['Text'], str) for item in messages)
+            or sum(len(item['Text']) for item in messages) > 65536):
+        return None
+    fields = ('boundary', 'kind', 'actual', 'timerChanges', 'baselineChanges', 'renewals',
+              'renewalLosses', 'elapsedLosses', 'runClosed', 'tokenCancelled', 'dropped', 'clean')
+    enums = {'boundary': NATIVE_RECOVERY_BOUNDARIES,
+             'kind': {'timeout', 'cancellation', 'assertion', 'invalid_state', 'other'},
+             'actual': {'not_issued', 'pending', 'succeeded', 'faulted', 'canceled'}}
+    counts = ('timerChanges', 'baselineChanges', 'renewals', 'renewalLosses', 'elapsedLosses', 'dropped')
+    result = {'stage': 'native_recovery'}
+    for record_kind in ('failure', 'cleanup'):
+        marker = 'Native recovery ' + record_kind + ';'
+        count = sum(item['Text'].count(marker) for item in messages)
+        if record_kind == 'cleanup' and count == 0:
+            continue
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        match = re.fullmatch(re.escape(marker)
+            + ';'.join(name + r'=([a-z_0-9]{1,32})' for name in fields) + r'\.', lines[0]) \
+            if count == 1 and len(lines) == 1 else None
+        if match is None:
+            return None
+        values = dict(zip(fields, match.groups()))
+        if any(values[name] not in allowed for name, allowed in enums.items()):
+            return None
+        for name in counts:
+            value = values[name]
+            if value in ('unavailable', 'out_of_range'):
+                continue
+            if not re.fullmatch(r'0|[1-9][0-9]{0,4}', value) or int(value) > 10000:
+                return None
+            values[name] = int(value)
+        for name in ('runClosed', 'tokenCancelled', 'clean'):
+            if values[name] not in ('true', 'false'):
+                return None
+            values[name] = values[name] == 'true'
+        result[record_kind] = values
+    return result
+
+
+BFF_BROWSER_FAILURE_CASE = ('LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
+    'Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control')
+BFF_BROWSER_FAILURE_STAGES = {
+    'input', 'input-issuer', 'input-api', 'input-secrets', 'input-sites', 'setup', 'compile', 'build',
+    'start', 'command', 'request', 'request-deadline', 'request-connect', 'request-tls', 'request-socket',
+    'response-json', 'cleanup', 'privacy', 'native-stop',
+    'browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
+    'browser-devtools-unreadable', 'browser-devtools-missing', 'browser-devtools-empty', 'browser-devtools-malformed',
+    'browser-not-live', 'browser-connect', 'browser-context',
+    'browser-launch', 'browser-anonymous', 'browser-signin-document', 'browser-submit',
+    'browser-origin-null', 'browser-origin-absent', 'browser-origin-other', 'browser-storage',
+    'browser-extension', 'browser-logout-submit', 'browser-logout-origin', 'browser-logout-origin-null',
+    'browser-logout-origin-other', 'browser-logout-response', 'browser-logout-location',
+    'browser-logout-navigation', 'browser-logout-cookie-header', 'browser-logout-cookie',
+    'browser-back-revalidation', 'browser-history-setup', 'browser-history-revalidation', 'browser-headers',
+} | {prefix + code for prefix in ('browser-callback-', 'browser-authorize-', 'browser-logout-status-')
+     for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')}
+BFF_BROWSER_FAILURE_REASONS = BFF_BROWSER_FAILURE_STAGES | {
+    stage + '_unexpected_output' for stage in BFF_BROWSER_FAILURE_STAGES
+} | {
+    stage + '_cleanup_failed' for stage in BFF_BROWSER_FAILURE_STAGES
+} | {'response', 'deadline_input', 'exit', 'output', 'node_module_missing', 'node_syntax', 'node_abort',
+     'node_permission', 'unexpected_output'}
+BFF_BROWSER_FIXED_FAILURES = {
+    'BFF native fixture could not start.': 'spawn',
+    'BFF native fixture private input failed.': 'input',
+    'BFF browser fixture lacks its complete positive/counter witness.': 'witness',
+    'BFF browser restore count is outside its bound.': 'restore_count',
+    'BFF browser counter has no closed restoration witness.': 'counter_witness',
+    'BFF native fixture emitted an unexpected extra receipt.': 'extra_receipt',
+    'BFF native fixture required forced cleanup.': 'forced_cleanup',
+    'BFF native fixture completed without a successful exit.': 'nonzero_exit',
+    'BFF native fixture retained its private TLS/build tree.': 'retained_tree',
+    'BFF native fixture cleanup could not be confirmed.': 'cleanup_deadline',
+}
+
+
+def closed_bff_browser_details(raw):
+    message = raw.get('ErrorMessage')
+    if not isinstance(message, str) or len(message) > 65536:
+        return None
+    result = {'stage': 'bff_browser'}
+    messages = raw.get('Messages', [])
+    if (not isinstance(messages, list) or len(messages) > 32
+            or any(not isinstance(item, dict) or set(item) != {'Category', 'Text'}
+                or not isinstance(item['Category'], str) or not isinstance(item['Text'], str) for item in messages)
+            or sum(len(item['Text']) for item in messages) > 65536):
+        return None
+    for kind in ('failure', 'cleanup'):
+        marker = 'BFF browser ' + kind + ';'
+        count = sum(item['Text'].count(marker) for item in messages)
+        if not count:
+            continue
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        pattern = re.escape(marker) + r'journey=(positive|counter)' + (r';state=failed\.' if kind == 'cleanup' else r'\.')
+        match = re.fullmatch(pattern, lines[0]) if count == 1 and len(lines) == 1 else None
+        if match is None or kind == 'cleanup' and result.get('journey') != match[1]:
+            return None
+        if kind == 'failure':
+            result['journey'] = match[1]
+        else:
+            result['secondaryCleanup'] = 'failed'
+    # xUnit's exact exception prefix is stripped; arbitrary trailing text,
+    # nested exceptions and credentials never become a diagnostic dimension.
+    prefix = 'System.InvalidOperationException : '
+    if message.startswith(prefix):
+        message = message[len(prefix):]
+    if message in BFF_BROWSER_FIXED_FAILURES:
+        return {**result, 'reason': BFF_BROWSER_FIXED_FAILURES[message]}
+    match = re.fullmatch(r'BFF native fixture did not reach the closed browser_result/([a-z_0-9-]{1,96}) phase\.', message)
+    if match and match[1] in BFF_BROWSER_FAILURE_REASONS:
+        return {**result, 'reason': match[1]}
+    return {**result, 'reason': 'other'} if 'journey' in result else None
+
+
 def closed_failure_details(case, raw):
     """Decode only existing test-owned finite facts; raw error text never leaves this function."""
+    if case['name'] in RECURRENCE_RUNTIME_FAILURE_CASES:
+        return closed_recurrence_runtime_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] in NATIVE_RECOVERY_FAILURE_CASES:
+        return closed_native_recovery_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] == NATIVE_HANDOFF_FAILURE_CASE:
+        return closed_native_handoff_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] == BFF_BROWSER_FAILURE_CASE:
+        return closed_bff_browser_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:
         return closed_outbox_startup_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in NATIVE_WAIT_FAILURE_CASES:
         return closed_native_wait_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] == SOURCE_CONTENTION_FAILURE_CASE:
+        return closed_source_contention_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] in CAUSAL_RESTART_FAILURE_CASES:
+        if case['assembly'] != 'learnstack.tests.integration':
+            return None
+        details = closed_causal_restart_details(raw)
+        if details and not case['name'].endswith('(independentFailure: False, lieOnlyOnReconcile: False)'):
+            if any(value.get('forced', 0) != 0 for key, value in details.items() if key in ('failure', 'cleanup')):
+                return None
+        return details
     if case['name'] == RECURRENCE_NATIVE_FAILURE_CASE:
         return closed_recurrence_native_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in SETTLEMENT_FAILURE_CASES:
@@ -525,6 +983,10 @@ def closed_failure_details(case, raw):
             stage = match[1]
             if stage in PUBLIC_FAILURE_STAGES:
                 return {'stage': stage}
+            parts = stage.rsplit(' ', 2)
+            if (len(parts) == 3 and parts[0] in {'browser 429', 'browser 503'}
+                    and parts[1] == 'browser-devtools' and parts[2] in PUBLIC_DEVTOOLS_KINDS):
+                return {'stage': parts[0], 'detail': parts[1], 'kind': parts[2]}
             stage, _, detail = stage.rpartition(' ')
             if stage in PUBLIC_FAILURE_STAGES and detail in PUBLIC_FAILURE_DETAILS:
                 return {'stage': stage, 'detail': detail}
@@ -651,7 +1113,116 @@ def write_json(path, value):
     temporary.replace(path)
 
 
-def command(argv, deadline, reason, *, cap=COMMAND_SECONDS):
+COMMAND_FAILURE_KINDS = frozenset({
+    'rate_limit', 'auth', 'manifest', 'dns', 'timeout', 'tls', 'unavailable',
+    'disk', 'transport', 'other', 'launch', 'deadline', 'output_bound',
+})
+
+
+def command_failure_kind(stderr):
+    # Report a closed observation, not a causal diagnosis. Never return a
+    # matched fragment, provider text, endpoint, path or exception message.
+    text = stderr.lower()
+    patterns = (
+        ('rate_limit', (b'toomanyrequests', b'too many requests', b'rate limit')),
+        ('unavailable', (b'permission denied while trying to connect to the docker daemon socket',
+                         b'cannot connect to the docker daemon', b'daemon is not running')),
+        ('auth', (b'unauthorized', b'authentication required', b'pull access denied',
+                  b'no basic auth credentials', b'denied:', b'permission denied', b'403 forbidden')),
+        ('manifest', (b'manifest unknown', b'no matching manifest', b'manifest not found', b'manifest invalid')),
+        ('dns', (b'no such host', b'temporary failure in name resolution', b'name or service not known',
+                 b'could not resolve host', b'server misbehaving')),
+        ('timeout', (b'timeout', b'timed out', b'deadline exceeded')),
+        ('tls', (b'x509:', b'certificate signed by unknown authority', b'tls handshake',
+                 b'tls: ', b'certificate verify failed')),
+        ('unavailable', (b'service unavailable', b'bad gateway', b'internal server error')),
+        ('disk', (b'no space left on device', b'disk quota exceeded', b'not enough space', b'enospc')),
+        ('transport', (b'connection reset', b'connection refused', b'network is unreachable',
+                       b'broken pipe', b'unexpected eof', b'connection closed')),
+    )
+    for kind, fragments in patterns:
+        if any(fragment in text for fragment in fragments):
+            return kind
+    return 'transport' if text.strip() == b'eof' else 'other'
+
+
+def diagnostic_command(argv, deadline, reason, cap):
+    # Only fixed fixture pulls opt in. Drain both private pipes while the child
+    # runs: neither a flood nor a slow command can grow a disk spool or an
+    # unbounded communicate() buffer. A timeout is never a process-join witness.
+    process, selector, failure = None, None, None
+    stdout, stderr = bytearray(), bytearray()
+    effective_deadline = min(deadline, time.monotonic() + cap)
+    try:
+        selector = selectors.DefaultSelector()
+        remaining(effective_deadline)
+        try:
+            process = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8',
+                     'LC_ALL': 'C.UTF-8', 'HOME': os.environ.get('HOME', ''),
+                     'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'})
+        except OSError as error:
+            kind = 'disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'launch'
+            raise Refusal(reason + '_' + kind) from None
+        selector.register(process.stdout, selectors.EVENT_READ, stdout)
+        selector.register(process.stderr, selectors.EVENT_READ, stderr)
+        while selector.get_map() or process.poll() is None:
+            try:
+                budget = remaining(effective_deadline)
+            except Refusal as refused:
+                if refused.reason == 'deadline_exhausted':
+                    raise Refusal(reason + '_timeout') from None
+                raise
+            for key, _ in selector.select(min(POLL_SECONDS, budget)):
+                target = key.data
+                chunk = os.read(key.fd, min(65536, MAX_BYTES - len(target) + 1))
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                require(len(target) + len(chunk) <= MAX_BYTES, reason + '_output_bound')
+                target.extend(chunk)
+        process.wait()
+        if process.returncode != 0:
+            kind = command_failure_kind(stderr)
+            require(isinstance(kind, str) and kind in COMMAND_FAILURE_KINDS, reason + '_other')
+            raise Refusal(reason + '_' + kind)
+    except Refusal as refused:
+        failure = Refusal(reason + '_deadline') if refused.reason == 'deadline_exhausted' else refused
+    except OSError as error:
+        kind = 'disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'unavailable'
+        failure = Refusal(reason + '_' + kind)
+    finally:
+        # Reap the direct child even after overflow/cancellation. Its exit does
+        # not claim anything about other runner processes or Docker containers.
+        if process is not None:
+            try:
+                try:
+                    if process.poll() is None:
+                        process.kill()
+                finally:
+                    process.wait()
+            except OSError as error:
+                if failure is None:
+                    kind = 'disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'unavailable'
+                    failure = Refusal(reason + '_' + kind)
+        for resource in (selector, process.stdout if process else None,
+                         process.stderr if process else None):
+            if resource is not None:
+                try:
+                    resource.close()
+                except OSError as error:
+                    if failure is None:
+                        kind = 'disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'unavailable'
+                        failure = Refusal(reason + '_' + kind)
+    if failure is not None:
+        raise failure from None
+    return bytes(stdout)
+
+
+def command(argv, deadline, reason, *, cap=COMMAND_SECONDS, diagnose=False):
+    if diagnose:
+        return diagnostic_command(argv, deadline, reason, cap)
     try:
         result = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                 stderr=subprocess.DEVNULL, timeout=remaining(deadline, cap),
@@ -659,7 +1230,7 @@ def command(argv, deadline, reason, *, cap=COMMAND_SECONDS):
                                      'LC_ALL': 'C.UTF-8', 'HOME': os.environ.get('HOME', ''),
                                      'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'},
                                 check=False)
-    except (OSError, subprocess.TimeoutExpired):
+    except (subprocess.TimeoutExpired, OSError):
         raise Refusal(reason) from None
     require(result.returncode == 0 and len(result.stdout) <= MAX_BYTES, reason)
     return result.stdout
@@ -1023,6 +1594,7 @@ class ExecutionProgress:
         self.generations = 0
         self.first_result_at = None
         self.failure_locations = []
+        self.success_observations = []
 
     def close(self):
         self.reader.close()
@@ -1079,6 +1651,11 @@ class ExecutionProgress:
                 if details is not None:
                     diagnostic['details'] = details
                 self.failure_locations.append(diagnostic)
+            else:
+                details = closed_causal_restart_counts(case, raw)
+                if details is not None:
+                    self.success_observations.append({'assembly': case['assembly'], 'id': case['id'],
+                                                      'details': details})
             if self.first_result_at is None:
                 self.first_result_at = time.monotonic()
             item = {**case, 'outcome': outcome, 'duration': duration}
@@ -1406,7 +1983,8 @@ def shard_workload(mode, context, private, output, deadline, work):
                 diagnostic = private / (assembly + '-execution.diag')
                 progress = ExecutionProgress(diagnostic, assembly, expected, stream)
                 item = {'assembly': assembly.casefold(), 'cases': len(expected), 'adapter': None,
-                        'firstResultSeconds': None, 'testProcessSeconds': None, 'failureLocations': []}
+                        'firstResultSeconds': None, 'testProcessSeconds': None, 'failureLocations': [],
+                        'successObservations': []}
                 measurements['projects'].append(item)
                 try:
                     argv = ['test', project, '--configuration', 'Release', '--no-build', '--no-restore',
@@ -1420,6 +1998,7 @@ def shard_workload(mode, context, private, output, deadline, work):
                 finally:
                     progress.close()
                     item['failureLocations'] = progress.failure_locations
+                    item['successObservations'] = progress.success_observations
                     item['testProcessSeconds'] = round(time.monotonic() - began, 3)
                     if progress.first_result_at is not None:
                         item['firstResultSeconds'] = round(progress.first_result_at - began, 3)

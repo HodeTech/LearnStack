@@ -91,6 +91,8 @@ describe('P02d-7 exact demo identity boundary', () => {
     for (const path of [
       'frontend/apps/web/src/middleware.ts',
       'frontend/apps/web/src/server/ingress.ts',
+      'frontend/apps/web/src/server/auth/session-runtime.ts',
+      'frontend/apps/web/src/server/auth/session-store.ts',
       'frontend/apps/web/src/server/configured-public-client.ts',
       'frontend/apps/web/src/components/public/lesson.tsx',
       'frontend/apps/web/src/i18n/messages/en/public.json',
@@ -98,6 +100,7 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/apps/web/scripts/public-server.mjs',
       'frontend/apps/web/scripts/development-hmr.mjs',
       'frontend/apps/web/scripts/stop-test-child.mjs',
+      'frontend/apps/web/scripts/verify-bff-protocol.mjs',
       'scripts/demo.mjs',
       'scripts/require-node-test-cases.mjs',
     ])
@@ -111,6 +114,18 @@ describe('P02d-7 exact demo identity boundary', () => {
 
   const identity = vocabulary.values.find((row) => row.kind === 'tenant-name')!.value;
   const id = vocabulary.values.find((row) => row.kind === 'id')!.value;
+  it('scans the native BFF proof entry instead of exempting planted demo literals', () => {
+    const entry = 'frontend/apps/web/scripts/verify-bff-protocol.mjs';
+    for (const value of ['independent', identity]) {
+      const files = productionDemoSources(
+        new Map([[entry, `export const name = ${JSON.stringify(value)};`]]),
+      );
+      expect(files.has(entry)).toBe(true);
+      expect(demoIdentityFindings(entry, files.get(entry)!, vocabulary)).toEqual(
+        value === identity ? [identity] : [],
+      );
+    }
+  });
   it.each([
     'src/components/public/lesson.tsx',
     'src/server/configured-public-client.ts',
@@ -504,20 +519,41 @@ describe('P02d-7 exact demo identity boundary', () => {
   it('admits only the validated native generated-output mapping and known stylesheet', () => {
     const entry = 'scripts/demo.mjs';
     const source = 'frontend/apps/web/src/server/ingress.ts';
+    const nested = 'frontend/apps/web/src/server/auth/session-runtime.ts';
+    const helper = 'frontend/apps/web/src/server/auth/owned-helper.ts';
     const config = {
       compilerOptions: { rootDir: 'src/server', outDir: '.server' },
-      include: ['src/server/ingress.ts', 'src/server/public-admission-runtime.ts'],
+      include: [
+        'src/server/ingress.ts',
+        'src/server/public-admission-runtime.ts',
+        'src/server/auth/account-client.ts',
+        'src/server/auth/configuration.ts',
+        'src/server/auth/http-protocol.ts',
+        'src/server/auth/logout-response.ts',
+        'src/server/auth/provider-core.ts',
+        'src/server/auth/request-runtime.ts',
+        'src/server/auth/session-runtime.ts',
+      ],
     };
     const files = new Map([
       [
         entry,
-        "import '../frontend/apps/web/.server/ingress.js'; import '../frontend/apps/web/src/app/globals.css';",
+        "import '../frontend/apps/web/.server/ingress.js'; import '../frontend/apps/web/.server/auth/session-runtime.js'; import '../frontend/apps/web/src/app/globals.css';",
       ],
       [source, 'export const clean = true;'],
+      [nested, "import './owned-helper.js';"],
+      [helper, 'export const owned = true;'],
       ['frontend/apps/web/src/app/globals.css', ':root { color: black }'],
       ['frontend/apps/web/tsconfig.server.json', JSON.stringify(config)],
     ]);
-    expect(productionDemoSources(files).has(source)).toBe(true);
+    const selected = productionDemoSources(files);
+    for (const input of [source, nested, helper]) expect(selected.has(input)).toBe(true);
+    const unknown = new Map(files);
+    unknown.set(
+      'frontend/apps/web/tsconfig.server.json',
+      JSON.stringify({ ...config, include: [...config.include, 'src/server/unmodeled.ts'] }),
+    );
+    expect(() => productionDemoSources(unknown)).toThrow('Unmodeled');
     files.set(
       'frontend/apps/web/tsconfig.server.json',
       JSON.stringify({

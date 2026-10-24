@@ -996,7 +996,8 @@ test('hidden or synthesized protected values refuse before writes, including the
     await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'identity_conflict', variant);
     assert.equal(fixture.writes.length, 0);
     assert.deepEqual(fixture.state, original);
-    assert.deepEqual(fixture.reads, ['', 'users/profile'], 'profile qualification precedes projected account reads');
+    assert.deepEqual(fixture.reads, ['events/config', '', 'users/profile'],
+      'event-policy and profile qualification precede projected account reads');
   }
 });
 

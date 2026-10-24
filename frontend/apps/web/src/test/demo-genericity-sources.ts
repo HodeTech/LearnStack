@@ -232,7 +232,17 @@ export function productionDemoSources(
   const serverConfig = all.get('frontend/apps/web/tsconfig.server.json');
   if (serverConfig) {
     const config = JSON.parse(serverConfig);
-    const expected = ['src/server/ingress.ts', 'src/server/public-admission-runtime.ts'];
+    const expected = [
+      'src/server/auth/account-client.ts',
+      'src/server/auth/configuration.ts',
+      'src/server/auth/http-protocol.ts',
+      'src/server/auth/logout-response.ts',
+      'src/server/auth/provider-core.ts',
+      'src/server/auth/request-runtime.ts',
+      'src/server/auth/session-runtime.ts',
+      'src/server/ingress.ts',
+      'src/server/public-admission-runtime.ts',
+    ];
     if (
       config.compilerOptions?.rootDir !== 'src/server' ||
       config.compilerOptions?.outDir !== '.server' ||
@@ -241,8 +251,23 @@ export function productionDemoSources(
       refused('tsconfig.server.json');
     for (const input of expected)
       generated.set(
-        `frontend/apps/web/.server/${posix.basename(input, '.ts')}.js`,
+        `frontend/apps/web/.server/${posix.relative('src/server', input).replace(/\.ts$/, '.js')}`,
         `frontend/apps/web/${input}`,
+      );
+  }
+  const sdkConfig = all.get('frontend/packages/sdk/tsconfig.native.json');
+  if (sdkConfig) {
+    const config = JSON.parse(sdkConfig);
+    if (
+      config.compilerOptions?.rootDir !== 'src' ||
+      config.compilerOptions?.outDir !== 'dist' ||
+      JSON.stringify(config.include) !== JSON.stringify(['src/authenticated-server.ts'])
+    )
+      refused('tsconfig.native.json');
+    for (const extension of ['js', 'd.ts'])
+      generated.set(
+        'frontend/packages/sdk/dist/authenticated-server.' + extension,
+        'frontend/packages/sdk/src/authenticated-server.ts',
       );
   }
   const candidates = (base: string) => [

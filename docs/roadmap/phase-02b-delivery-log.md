@@ -156,7 +156,7 @@ each packet decided and delivered, as
     - [ADR-0066 acceptance and implementation (2026-10-20)](#adr-0066-acceptance-and-implementation-2026-10-20) — 135 lines
   - [P02b-5 systematic proof and document corrections (2026-10-20)](#p02b-5-systematic-proof-and-document-corrections-2026-10-20) — 399 lines
   - [P02b-5 merge and closeout (2026-10-20)](#p02b-5-merge-and-closeout-2026-10-20) — 100 lines
-- [P02b-6 — Realm and seed](#p02b-6--realm-and-seed) — 5,162 lines
+- [P02b-6 — Realm and seed](#p02b-6--realm-and-seed) — 5,181 lines
   - [P02b-6 decision package (2026-10-20)](#p02b-6-decision-package-2026-10-20) — 446 lines
   - [P02b-6 Step 1 — executable realm and identity declaration (2026-10-21)](#p02b-6-step-1--executable-realm-and-identity-declaration-2026-10-21) — 97 lines
   - [P02b-6 Step 2 — owned warm-realm reconciliation (2026-10-21)](#p02b-6-step-2--owned-warm-realm-reconciliation-2026-10-21) — 553 lines
@@ -195,6 +195,76 @@ each packet decided and delivered, as
     - [P02b-6 aggregate producer-state refusal attribution (2026-10-22)](#p02b-6-aggregate-producer-state-refusal-attribution-2026-10-22) — 73 lines
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
+  - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 3,133 lines
+  - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
+  - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
+  - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
+  - [P02b-7 revised decision package (2026-10-23)](#p02b-7-revised-decision-package-2026-10-23) — 202 lines
+  - [P02b-7 revised proposal review round 1 (2026-10-23)](#p02b-7-revised-proposal-review-round-1-2026-10-23) — 27 lines
+  - [P02b-7 revised proposal review round 2 and readiness (2026-10-23)](#p02b-7-revised-proposal-review-round-2-and-readiness-2026-10-23) — 34 lines
+  - [P02b-7 acceptance and implementation (2026-10-23)](#p02b-7-acceptance-and-implementation-2026-10-23) — 33 lines
+  - [P02b-7 Step 1 — inactive RP foundation and provider events (2026-10-23)](#p02b-7-step-1--inactive-rp-foundation-and-provider-events-2026-10-23) — 48 lines
+  - [P02b-7 Step 1 review round 1 and corrections (2026-10-23)](#p02b-7-step-1-review-round-1-and-corrections-2026-10-23) — 31 lines
+  - [P02b-7 Step 1 review round 2 and closeout (2026-10-23)](#p02b-7-step-1-review-round-2-and-closeout-2026-10-23) — 35 lines
+  - [P02b-7 Step 2 — native session ownership implementation (2026-10-23)](#p02b-7-step-2--native-session-ownership-implementation-2026-10-23) — 45 lines
+  - [P02b-7 Step 2 review round 1 and visitor correction (2026-10-23)](#p02b-7-step-2-review-round-1-and-visitor-correction-2026-10-23) — 24 lines
+  - [P02b-7 Step 2 review round 2 and closeout (2026-10-23)](#p02b-7-step-2-review-round-2-and-closeout-2026-10-23) — 19 lines
+  - [P02b-7 Step 3 — closed HTTP and request projection (2026-10-23)](#p02b-7-step-3--closed-http-and-request-projection-2026-10-23) — 46 lines
+  - [P02b-7 Step 3 review round 1 (2026-10-23)](#p02b-7-step-3-review-round-1-2026-10-23) — 35 lines
+  - [P02b-7 Step 3 review round 2 and closeout (2026-10-23)](#p02b-7-step-3-review-round-2-and-closeout-2026-10-23) — 20 lines
+  - [P02b-7 Step 4 — optional activation and session UI (2026-10-23)](#p02b-7-step-4--optional-activation-and-session-ui-2026-10-23) — 64 lines
+  - [P02b-7 Step 4 review round 1 (2026-10-23)](#p02b-7-step-4-review-round-1-2026-10-23) — 44 lines
+  - [P02b-7 Step 4 review round 2 and closeout (2026-10-23)](#p02b-7-step-4-review-round-2-and-closeout-2026-10-23) — 26 lines
+  - [P02b-7 Step 5 — real lifecycle proof in progress (2026-10-24)](#p02b-7-step-5--real-lifecycle-proof-in-progress-2026-10-24) — 61 lines
+  - [P02b-7 Step 5 — implementation and local qualification (2026-10-24)](#p02b-7-step-5--implementation-and-local-qualification-2026-10-24) — 37 lines
+  - [P02b-7 Step 5 — independent review round 1 (2026-10-24)](#p02b-7-step-5--independent-review-round-1-2026-10-24) — 16 lines
+  - [P02b-7 Step 5 — stopped-provider public demo (2026-10-24)](#p02b-7-step-5--stopped-provider-public-demo-2026-10-24) — 18 lines
+  - [P02b-7 Step 5 — round 1 corrections and qualification (2026-10-24)](#p02b-7-step-5--round-1-corrections-and-qualification-2026-10-24) — 46 lines
+  - [P02b-7 Step 5 — independent review round 2 (2026-10-24)](#p02b-7-step-5--independent-review-round-2-2026-10-24) — 24 lines
+  - [P02b-7 Step 5 — round 2 corrections and local closeout (2026-10-24)](#p02b-7-step-5--round-2-corrections-and-local-closeout-2026-10-24) — 36 lines
+  - [P02b-7 hosted frontend ingress correction (2026-10-24)](#p02b-7-hosted-frontend-ingress-correction-2026-10-24) — 31 lines
+  - [P02b-7 first hosted A — fixture corrections (2026-10-24)](#p02b-7-first-hosted-a--fixture-corrections-2026-10-24) — 56 lines
+  - [P02b-7 second hosted A — remaining handoff precondition (2026-10-24)](#p02b-7-second-hosted-a--remaining-handoff-precondition-2026-10-24) — 46 lines
+  - [P02b-7 third hosted A — closed browser-readiness evidence (2026-10-24)](#p02b-7-third-hosted-a--closed-browser-readiness-evidence-2026-10-24) — 44 lines
+  - [P02b-7 first complete A and failed B — preserve the first cause (2026-10-24)](#p02b-7-first-complete-a-and-failed-b--preserve-the-first-cause-2026-10-24) — 52 lines
+  - [P02b-7 hosted causal-restart correction (2026-10-24)](#p02b-7-hosted-causal-restart-correction-2026-10-24) — 71 lines
+  - [P02b-7 hosted BFF-browser diagnosis (2026-10-24)](#p02b-7-hosted-bff-browser-diagnosis-2026-10-24) — 53 lines
+  - [P02b-7 implementation and hosted qualification closeout (2026-10-24)](#p02b-7-implementation-and-hosted-qualification-closeout-2026-10-24) — 72 lines
+  - [P02b-7 external review corrections and disposition (2026-10-24)](#p02b-7-external-review-corrections-and-disposition-2026-10-24) — 131 lines
+  - [P02b-7 correction reviews and local validation closeout (2026-10-24)](#p02b-7-correction-reviews-and-local-validation-closeout-2026-10-24) — 41 lines
+  - [P02b-7 correction source handoff (2026-10-24)](#p02b-7-correction-source-handoff-2026-10-24) — 16 lines
+  - [P02b-7 startup-counter cleanup confirmation (2026-10-24)](#p02b-7-startup-counter-cleanup-confirmation-2026-10-24) — 18 lines
+  - [P02b-7 hosted recovery proof follow-up (2026-10-24)](#p02b-7-hosted-recovery-proof-follow-up-2026-10-24) — 51 lines
+  - [P02b-7 fixture image failure classification (2026-10-24)](#p02b-7-fixture-image-failure-classification-2026-10-24) — 58 lines
+  - [P02b-7 retained correction-source A/B qualification (2026-10-24)](#p02b-7-retained-correction-source-ab-qualification-2026-10-24) — 40 lines
+  - [P02b-7 second correction package and ADR-0071 proposal (2026-10-24)](#p02b-7-second-correction-package-and-adr-0071-proposal-2026-10-24) — 63 lines
+  - [ADR-0071 acceptance and review corrections (2026-10-24)](#adr-0071-acceptance-and-review-corrections-2026-10-24) — 33 lines
+  - [P02b-7 correction foundation implementation (2026-10-24)](#p02b-7-correction-foundation-implementation-2026-10-24) — 48 lines
+  - [P02b-7 foundation first review corrections (2026-10-24)](#p02b-7-foundation-first-review-corrections-2026-10-24) — 18 lines
+  - [ADR-0071 dependent mapping and composed controls (2026-10-24)](#adr-0071-dependent-mapping-and-composed-controls-2026-10-24) — 25 lines
+  - [P02b-7 foundation second review closeout (2026-10-24)](#p02b-7-foundation-second-review-closeout-2026-10-24) — 17 lines
+  - [P02b-7 recovery UI and proof observation implementation (2026-10-24)](#p02b-7-recovery-ui-and-proof-observation-implementation-2026-10-24) — 39 lines
+  - [P02b-7 CI and real-provider proof corrections (2026-10-24)](#p02b-7-ci-and-real-provider-proof-corrections-2026-10-24) — 41 lines
+  - [P02b-7 current carrier reconciliation (2026-10-24)](#p02b-7-current-carrier-reconciliation-2026-10-24) — 49 lines
+  - [P02b-7 policy, UI and evidence first review (2026-10-24)](#p02b-7-policy-ui-and-evidence-first-review-2026-10-24) — 27 lines
+  - [P02b-7 real-provider clock and HTML negative correction (2026-10-24)](#p02b-7-real-provider-clock-and-html-negative-correction-2026-10-24) — 37 lines
+  - [P02b-7 second review and final SDK proof census (2026-10-24)](#p02b-7-second-review-and-final-sdk-proof-census-2026-10-24) — 27 lines
+  - [P02b-7 SDK first review and counterfactual qualification (2026-10-24)](#p02b-7-sdk-first-review-and-counterfactual-qualification-2026-10-24) — 24 lines
+  - [P02b-7 final correction source handoff (2026-10-24)](#p02b-7-final-correction-source-handoff-2026-10-24) — 36 lines
+  - [P02b-7 recurrence qualification failure observation (2026-10-24)](#p02b-7-recurrence-qualification-failure-observation-2026-10-24) — 38 lines
+  - [P02b-7 recurrence observation review closeout (2026-10-24)](#p02b-7-recurrence-observation-review-closeout-2026-10-24) — 23 lines
+  - [P02b-7 browser launch qualification observation (2026-10-24)](#p02b-7-browser-launch-qualification-observation-2026-10-24) — 43 lines
+  - [P02b-7 browser observation first review (2026-10-24)](#p02b-7-browser-observation-first-review-2026-10-24) — 17 lines
+  - [P02b-7 same-source qualification and causal fixture scheduling (2026-10-24)](#p02b-7-same-source-qualification-and-causal-fixture-scheduling-2026-10-24) — 67 lines
+  - [P02b-7 final correction qualification (2026-10-24)](#p02b-7-final-correction-qualification-2026-10-24) — 84 lines
+  - [P02b-7 review correction contracts and proof controls (2026-10-24)](#p02b-7-review-correction-contracts-and-proof-controls-2026-10-24) — 116 lines
+  - [P02b-7 correction review round 1 — ownership and proof (2026-10-24)](#p02b-7-correction-review-round-1--ownership-and-proof-2026-10-24) — 27 lines
+  - [P02b-7 correction review round 2 — independent recheck (2026-10-24)](#p02b-7-correction-review-round-2--independent-recheck-2026-10-24) — 31 lines
+  - [P02b-7 hosted observer argument failure and deterministic control (2026-10-24)](#p02b-7-hosted-observer-argument-failure-and-deterministic-control-2026-10-24) — 43 lines
+  - [P02b-7 observer correction review round 1 (2026-10-24)](#p02b-7-observer-correction-review-round-1-2026-10-24) — 24 lines
+  - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
+  - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -17677,6 +17747,3158 @@ On 2026-10-23 the maintainer decided that PR #35 qualifies with one complete
 green assignment. [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md)
 requires both variants only for plan, algorithm or fixture-lifetime changes.
 This decision replaces the final-source A/B requirement stated in the entries above.
+
+### P02b-6 correction merge and closeout (2026-10-23)
+
+Read-only GitHub verification confirms [PR #35](https://github.com/HodeTech/LearnStack/pull/35)
+merged at `2026-10-23T14:55:58Z`, merge commit
+`935d8da66878286d6a1695f3d41d985ebce4e791`. Its source is
+`395d078cd07af6619ed3b8237a368e0589c10dfc`.
+[Run 39964808314](https://github.com/HodeTech/LearnStack/actions/runs/39964808314),
+attempt 1, reports completed/success for that exact source, with all 27 CI jobs
+and all seven required contexts successful. External review-bot status is not
+included in that CI count. This verification reads run/check metadata; it does
+not download or independently revalidate every test artifact.
+
+The preceding record owns the maintainer's one-green-assignment qualification
+decision. Earlier failed attempts and the unresolved historical constructor
+cancellation retain their recorded evidence limits; a green source does not
+prove a historical cause. PR #34's implementation and this merged correction
+close P02b-6. The newly requested P02b-7 opens its own decision pass below;
+no session implementation or G13 acceptance is inferred from either merge.
+
+## P02b-7 — BFF session
+
+### P02b-7 decision package (2026-10-23)
+
+**Historical first proposal.** This unaccepted draft and its reviews below are
+retained for chronology. The
+[revised proposal](#p02b-7-revised-decision-package-2026-10-23) replaces its
+library/cookie/admission/event-policy assumptions before acceptance.
+
+**Status: Proposed — maintainer approval pending.** The user requested this
+packet on `development`, with document review before implementation and a
+commit plus two fresh independent review rounds for every step. G13's session
+part remains Open. [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)
+proposes the server-side custody and exact admission authority; no dependent
+runtime or Accepted ADR body is changed by this proposal.
+
+#### Problem and inherited boundary
+
+P02b-6 issues the strict API profile and reserves two exact callback URLs, but
+the browser cannot sign in. P02b-7 connects that provider to one safe browser
+session, the existing AccountSite read and guarded Studio/Portal shells. It
+does not add Phase 03 permissions, membership, account administration or a
+generic authenticated API proxy. Public sites retain their credential-free
+transport, live host admission and stopped-Keycloak rendering proof.
+
+The document/source pass inspects `395d078c`. PR #34's merged implementation
+is the starting point; PR #35 is now merged, as independently checked in the
+[correction closeout](#p02b-6-correction-merge-and-closeout-2026-10-23).
+This new packet changes no unexplained background-job test. Its PR/CI evidence must
+identify its actual final source rather than borrow earlier receipts.
+
+#### Reviewed documents and verified dispositions
+
+| Surface | Finding at the inspected source | Required action |
+|---|---|---|
+| Phase 02b G12/G13, session scope and completion criteria; P02b-5/6 Accepted packages | Client, callback, token profile and host authority are settled; session custody/lifetimes/state machine are not | Preserve settled decisions; accept ADR-0070 and this sequence before dependent code. |
+| ADR-0004/0036/0064/0067/0068 | Provider, matrix, public ceiling, exact AccountSite read, development issuance and safe reconciliation remain authoritative | No password/permission/membership/provider-role change; no production token or realm policy rewrite. |
+| ADR-0053/0054/0055 | Public caller excludes credentials; listener permits only GET/HEAD; native request holder owns only request/public state | Add a separate authenticated caller and session holder; disclose exact auth POST admission in ADR-0054 and additive caller seam in ADR-0053 at acceptance. |
+| Security 11; Frontend 07; Architecture 13/14 | Cookie-held refresh prose, explicit `Domain=` advice, implicit Server Action CSRF and independent-logout claims conflict with the complete session contract | Reconcile to server custody, no Domain, three CSRF classes, response ownership and shared-provider-SSO limits under ADR-0070. |
+| Audit 18; Architecture 13/31; Phase 03 | Generic login/revocation examples and provider-owned events need an explicit BFF disposition | Record the proposed provider-owned/diagnostic-only boundary and its durable-evidence loss; do not borrow AccountSite Off or invent an audit-write API. |
+| Frontend 03/07/08/16; Architecture 14; skills for routes/feature gates | Server-only SDK use, localization, timeout warning and future `auth()` examples must agree with real helpers | Implement localized sign-in/error/timeout controls and update both skill illustrations with the shipped safe projection. |
+| Standards 06/10/13/14/17/18/20/21; Phase 02d/03/06/11; glossary | Existing test, ingress, observability, record and demand-gating owners apply | Register actual proof owners, bounded diagnostics and the distributed-store trigger; keep full browser OIDC journey in Phase 06. |
+| `apps/web` package and official tagged library sources | Next 15.5.27/React 19; Auth.js absent. Beta.32 is compatible; RSC auth discards Set-Cookie; no automatic refresh owner | Explicitly approve the beta pin; prove supported hooks and response-owned state transitions before activation. |
+| Native ingress, middleware, root/i18n layouts, public source graph, SDK, launcher environment | POST and auth paths are refused; Cookie/Origin are dropped downstream; layouts require public admission; AccountSite transport absent | Change exact branches and graph ownership together, with real pinned-Next negative/positive controls. Do not exempt whole middleware or leak secrets into the public-only launch. |
+
+#### Decisions presented together
+
+ADR-0070 owns the state machine and costs; this package owns its closed route
+set, delivery sequence and proof map. Approval accepts all of the following:
+
+- Process-local credential custody, an encrypted opaque host-only cookie and
+  restart sign-out. No distributed/durable continuity or application identity
+  persistence is claimed. The future named store adapter is a Phase 11 trigger.
+- Thirty-minute idle/eight-hour absolute lifetime, sixty-second refresh lead,
+  accessible idle warning/extension, and earlier provider expiry. Asset, prefetch
+  and passive status traffic do not keep a session alive.
+- At most 1,024 total owner entries, with at most 128 pending sign-ins and a
+  five-minute pending lifetime. Logout reuses its existing entry as a bounded
+  return transaction, without spending a sign-in reservation or allocating
+  another slot. Closing/in-flight owners retain their slots. Full capacity
+  refuses new admission with 503; unrelated tenants can be affected. These are
+  initial resource budgets, not measured fit.
+- One refresh owner/version, revocation before logout I/O and no late-result
+  resurrection. An uncertain/failed refresh ends the local session without
+  grant replay; short provider faults can require a new sign-in.
+- Keycloak SSO logout with honest failure and cross-host consequences. The
+  provider-directed ID-token-hint redirect is a bounded exception; access and
+  refresh tokens never enter a browser-visible surface.
+- Provider-owned authentication events and closed local lifecycle diagnostics;
+  no durable application session audit trail or new audit API. Existing MUST
+  mutation/rejection coverage stays unchanged.
+- Exact auth-route admission, separate authenticated AccountSite transport,
+  strict same-origin plus the appropriate CSRF proof, and the beta library pin.
+
+The earlier 900s issuance setting and API acceptance/skew are unchanged. No
+session default is inferred from them. No additional decision is intentionally
+left for implementation; a disproved feasibility premise reopens this pass.
+
+#### Proposed exact route and input matrix
+
+Every path first requires verified native provenance and successful live API
+host bootstrap, independently of cookies. Health/assets retain their current
+exemptions and methods. Public/bootstrap API calls carry no browser credential.
+
+| Path | Methods | Required evidence and behavior |
+|---|---|---|
+| `/api/auth/signin` | GET/HEAD | Same-host localized sign-in entry; only return destinations `/`, `/studio`, `/portal`. No submitted provider/absolute URL. |
+| `/api/auth/csrf` | GET/HEAD | Auth.js pre-session CSRF response; host-only cookie, no-store; no provider traffic. |
+| `/api/auth/signin/keycloak` | POST | Exact Origin, Auth.js pre-session CSRF and pending reservation; fixed provider and callback. Bind the reservation to the library-generated state before redirect. |
+| `/api/auth/callback/keycloak` | GET | Matching host, state/nonce/verifier and unexpired single-use reservation, then library-validated exchange; no anonymous fallback for a failed callback. |
+| `/api/auth/session` | GET/HEAD | Explicit minimal projection or unauthenticated state; passive read does not extend idle time. Never expose handle/provider profile/tokens. |
+| `/api/auth/error` | GET/HEAD | Closed localized recovery state; no reflection of provider error text or callback parameters. |
+| `/api/auth/signout` | POST | Exact Origin and session-bound CSRF in addition to the library's applicable check; revoke locally before end-session redirect. GET cannot sign out. |
+| `/api/auth/extend` | POST | Exact Origin and session-bound CSRF; touch only an active, unexpired session, never its absolute deadline. |
+| `/` with an owned logout-return transaction | GET | Check returned logout state and clear its cookie before the ordinary same-host root redirect. The registered post-logout URI remains exact `/`; arbitrary query values grant nothing. |
+| `/studio`, `/portal` | GET/HEAD | Response-owned session admission, then safe RSC projection and exact AccountSite read; otherwise redirect to sign-in. No application writes. |
+
+No catch-all action is admitted merely because Auth.js implements it. Deny
+providers/session-update/sign-out GET, other providers/methods, unsupported
+Server Actions and alternate callback paths. HEAD never performs code exchange
+or mutates authenticated state. Bound auth form bodies to 16 KiB, accept only
+the declared URL-encoded scalar fields, and reject duplicate security fields.
+Bound the full auth-cookie family to 16 KiB before Next; individual issued
+cookies retain browser-compatible size/chunking. Header and transport limits
+must cover slow/oversized input, not only a stated Content-Length.
+
+Use the native host and HTTPS port for the library request; discard automatic
+environment/forwarded authority. A login transaction uses Auth.js state/PKCE/
+nonce checks, not a replacement protocol. Its native reservation has a shorter
+five-minute authority even if the library's sealed cookie can decode longer.
+Concurrent sign-in tabs use the last transaction-cookie family; failed older
+callbacks cannot clear or replace a newer valid session. Provider requests have
+one ten-second total deadline including body reads and a 256 KiB decoded body
+ceiling; retained credentials still obey the smaller bundle limit. No automatic
+token-request retry is introduced.
+
+`LEARNSTACK_BFF_ENABLED` is absent/false for a public-only launch. That mode
+projects no BFF secrets and makes no provider call; the web-client secret
+already used by realm tooling does not count as a partial BFF configuration.
+Explicit true requires one complete, agreeing private group: issuer, existing
+web-client secret and a separate freshly generated session encryption secret.
+The session key never aliases the public hop/client secret. Partial/conflicting
+enabled configuration refuses startup. Setup documents explicit enablement;
+existing private files are not silently repaired or overwritten. Neither mode
+contacts Keycloak at startup. Only BFF-enabled runtime receives client/session
+secrets; API, data Seeder, browser, public-only CI proof and receipts do not.
+When disabled, auth endpoints are masked 404 and Studio/Portal return a bounded
+503 sign-in-unavailable state without AccountSite access. Public pages remain
+unchanged; no protected shell is rendered as an anonymous fallback.
+
+#### Five implementation steps after acceptance
+
+Every step ends with a clean commit, then a fresh correctness/security reviewer
+and a fresh evidence/corpus reviewer. A second different pair reviews the
+committed result after verified findings are fixed and committed. Reviewers
+start with standards-check and then code-review; the implementation owner
+serializes real runtime/provider/browser work. Material fixes after round two
+receive focused independent confirmation. Routine completion advances to the
+next step automatically. New authority decisions return to the maintainer.
+
+1. **Library and inactive protocol foundation.** Pin dependencies/lockfile,
+   implement bounded provider configuration/transport, complete closed logger
+   overrides and safe Auth.js callbacks. Prove actual library code/state/nonce/
+   PKCE behavior against an owned stub issuer and validate metadata/token/log
+   canaries. No production registration, route or listener exemption activates.
+2. **Native session ownership.** Implement the store port/default/native holder,
+   transaction reservations, monotonic expiry, resource accounting, single-flight
+   refresh and revocation/stop lifecycle. Exercise held I/O, waiter cancellation,
+   refresh/logout/expiry races, restart, capacity and late outcomes. RSC auth
+   remains a safe projection; old cookies never restore absent state.
+3. **Closed HTTP protocol and authenticated transport.** Implement the exact
+   ingress/middleware/route matrix, bounded cookie/form carriers, response-owned
+   refresh, CSRF classes, logout return, pure authenticated SDK wrapper/parser
+   and app-local configured AccountSite caller. Prove real pinned-Next behavior,
+   immutable per-request projection and missing/forged provenance refusals.
+   Production route registration and native exemptions stay closed; test-owned
+   wiring exercises the full path before the complete guards ship together.
+4. **Atomic activation and usable signed-in surface.** Wire the complete optional
+   BFF configuration group, known-host sign-in/recovery, Studio/Portal guards,
+   AccountSite views, logout and localized timeout warning/extension. Retain
+   accessible keyboard/focus/error behavior, no-store/history revalidation and
+   the public graph/caller/IdP-down boundary. Update the two skills' examples.
+5. **Production proof and closeout.** Exercise route-level actual Auth.js/stub
+   issuer and a real BFF/warm-Keycloak/API chain: a seed user completes code
+   exchange through the actual BFF, its cookie authorizes AccountSite on each
+   host, and provider logout is verified. An HTTP harness suffices for this
+   provider chain; independent token issuance tests cannot replace it. Run the
+   owned browser against both retained HTTPS hosts to prove cookie storage/send/
+   isolation and logout/back behavior. Preserve the nine-page stopped-Keycloak
+   public demo.
+   Complete catalogue controls, docs, exact CI discovery/assignment and measured
+   budget fit. Record actual source-bound checks/reviews before preparing the PR;
+   approval or local tests do not certify hosted CI or authorize merge.
+
+#### Proof and carrier map
+
+ADR-0070 names four new canonical obligations and their actual frontend owners.
+Register them and update catalogue count/status controls at acceptance; keep
+each Registered until its implementation and proof ship together. Existing
+public/native/request-holder fences get exact extensions, never broad exclusions.
+
+Required negatives include wrong/missing state/verifier/nonce, duplicate fields,
+unregistered callback, wrong issuer/audience/purpose/actor/scope, query/forwarded
+host substitution, default vendor log output, script/RSC/session credential
+canaries, stale cookies, failed refresh, logout races, cross-demo-Origin POST,
+correct-Origin/missing-token POST, capacity and HMR duplicate ownership. Each
+has a reachable positive control. Actual Auth.js cookie chunker grow/shrink/
+clear controls complement naturally small opaque production cookies.
+
+`TenancyIdentity/TenantBffSessionTests.cs` owns the real BFF/warm-provider chain
+in backend Integration, with the Docker trait and real app-role API/database
+boundary. It reuses the existing production-rendering fixture's Node/tooling
+and owned browser/process lifecycle. The ordinary jobs already provision those
+tools; no new execution VM or required-check name is proposed. Register its
+complete discovered population and measure actual setup/proof/cleanup before
+claiming fit within the existing budgets. Browser process/version evidence is
+retained; the separate public Lighthouse proof keeps its pinned browser policy.
+
+Real TLS browser evidence uses the supported native launcher and both actual
+seed hostnames; developer hosts/trust setup remains manual. An isolated CI
+fixture may provide its owned hostname resolution/CA to its managed browser;
+it does not modify workstation hosts or install machine trust. Record this as
+stub-provider cookie proof, distinct from the real-provider HTTP chain and not
+a full three-process real-Keycloak browser flow.
+That full journey remains Phase 06. Backend provider/API tests still use the
+real pinned realm; a stub never replaces those proofs.
+
+Acceptance updates G13 and the phase's custody/HTTP plan, appends named ADR
+disclosures and reconciles Standards 07/11/18/21, Architecture 13/14/31, glossary
+session terms, Phase 03's custody/permission boundary, Phase 11's store trigger,
+environment/setup guidance and the
+catalogue registry. Runtime slices update actual owners and test counts with
+their first consumers. Update packet status only in the phase Status block;
+dated records stay here and `make docs-index` regenerates this log's index.
+
+### P02b-7 proposal review round 1 (2026-10-23)
+
+Two initial read-only audits inspect the inherited contracts and frontend
+feasibility before proposal authoring (`gpt-6-astra`, high contract/security;
+`gpt-6.1-sol`, high source/evidence). They identify the Open session gate,
+GET/HEAD-only ingress, missing authenticated transport, cookie/Domain/CSRF
+carrier contradictions and provider-SSO logout scope. The proposal explicitly
+answers these instead of treating existing Auth.js illustrations as runtime.
+
+A different fresh pair reviews proposal commit `baeb32fa`
+(`gpt-6-astra`, high security/correctness; `gpt-6.1-sol`, high evidence/governance).
+Both request changes. Verified findings and their dispositions:
+
+- A provider-directed logout redirect cannot guarantee local recovery after
+  navigation. The ADR now distinguishes pre-navigation recovery and later local
+  visits from browser/provider error pages; local revocation remains immediate.
+- The shared pending-login/logout cap conflicted with guaranteed logout at full
+  sign-in admission. Logout now reuses its existing owner entry; only pending
+  sign-ins spend the 128 allowance, within the unchanged total 1,024 bound.
+- Separate stub-BFF and real-token tests do not prove the required warm-realm
+  BFF sign-in. Step 5 now names an actual BFF/warm-Keycloak/AccountSite HTTP
+  chain and provider logout, with a Docker Integration owner. Browser cookie
+  proof remains separate from the full Phase 06 browser OIDC journey.
+- Phase 03's refresh-storage wording also needs an acceptance-time custody
+  correction; it is now named in the carrier map. Proposed glossary terms make
+  no runtime or approval claim.
+
+The evidence reviewer independently verifies the package versions/licences,
+Next/React peers and tagged Auth.js response/logger seams. Both preserve the
+source-inspection versus runtime-proof boundary. No reviewer edits source or
+runs a provider/build/browser. Whole-tree document guards, seven ADR parser
+controls, relative-path checks and diff hygiene pass before the first draft
+commit. A second different review pair inspects the corrected proposal before
+maintainer approval is requested.
+
+### P02b-7 proposal review round 2 (2026-10-23)
+
+A different fresh pair (`gpt-6-astra`, high security/correctness;
+`gpt-6.1-sol`, high evidence/governance) reviews the complete proposal through
+`30933cbb`, not only the first findings. Both approve its design/evidence
+boundary, with no verified Blocker or Major. The security reviewer requests
+one wording correction: provider-free cookie-less requests must mean ordinary
+public traffic, since the explicitly admitted sign-in/callback must contact the
+issuer. The ADR now names that exception.
+
+Root self-review also catches an optional-configuration ambiguity: the existing
+realm-tooling web secret cannot make a public-only launch partially configured.
+An explicit `LEARNSTACK_BFF_ENABLED` opt-in now distinguishes the modes; both
+reviewers inspect and approve that clarification. Disabled auth paths and
+protected-shell unavailability are explicit, without anonymous protected views.
+
+The evidence reviewer independently verifies npm pins/peers/licences, tagged
+library behavior, actual ordinary-job Node/pnpm/browser prerequisites and the
+real warm-BFF/provider test owner. It passes the whole-tree document guards and
+seven parser controls and verifies the committed generated index, while noting
+it must be regenerated after the clarification. The security reviewer checks
+the native/callback/safe-projection seams, expiry/refresh/revocation, CSRF and
+resource ownership. Neither runs runtime/provider/build/browser work. Approval
+here means proposal coherence, not maintainer acceptance or implementation.
+
+
+### P02b-7 revised decision package (2026-10-23)
+
+**Status: Accepted — 2026-10-23.** The maintainer approved ADR-0070 and this
+revised five-step package after both new review rounds. The initial proposal was
+not accepted; its records remain historical. The acceptance entry below records
+the source and bounded carrier changes. No runtime qualification is inferred.
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) owns the revised
+contract; this entry owns exact delivery/proof placement.
+
+#### Verified findings and dispositions
+
+| Review topic | Verified source/effect | Revision |
+|---|---|---|
+| Durable authentication evidence | Realm has no events settings; pinned provider defaults do not persist refresh events | Step 1 enables named development user events and qualified seven-day retention; Step 5 reads actual login/logout/refresh-error evidence. Explicit local-only evidence gaps remain. |
+| Cheap pending/active saturation | 128 anonymous pending entries lack source caps; 1,024 entries lack subject/replacement policy | Add 16 pending per verified visitor IP and eight established/closing per issuer/subject across hosts, plus same-browser replacement. Preserve residual distributed/NAT/self-denial costs. |
+| Library alternative and maintenance | Auth.js v5 is beta; official 2025 transition recommends Better Auth for new work; direct oauth4webapi is not custom crypto | Select openid-client 6.8.8 with a plain opaque cookie; fairly compare direct oauth4webapi and Better Auth, and explicitly replace Standards 07's Auth.js rule at acceptance. |
+| Extension/provider idle | Realm idle is 1,800 seconds; a local touch does not renew provider idle | Warning uses effective minimum deadline; extension forces/joins real refresh and publishes actual renewed expiry. |
+| Reclamation latency | A 64-entry batch every 30 seconds revisits 1,024 entries in eight minutes | Full finite scalar-state sweep and one full expiry pass before global-capacity refusal; retain in-flight ownership. |
+| Carrier inventory | ADR-0035 lacks the distinct store; Architecture 25 targets auto-scaling; glossary describes tenant/org header proxying | Add the gated inventory amendment and Architecture 25/31/Phase 03/11 carriers. Correct the stale generic BFF definition using existing trusted-host/API authority. |
+| Callback cookie race | Fixed Auth.js transaction names can clear a newer tab's cookie | Use independent per-transaction cookies plus server browser epochs; mismatched state changes no cookies; failed callbacks never clear a primary session cookie. |
+| Activation/refresh ownership | Opt-in was package-only; expired-access refresh and idle-touch owner were underspecified | ADR now names explicit opt-in/disabled behavior, on-demand refresh after access expiry and response-owned idle updates. |
+| Other notes | Backchannel owner, logout-token retention, RSC activity and dependency deduplication were incomplete | Name Phase 03's backchannel trigger; discard tokens after logout-URL construction; classify non-prefetch RSC; require one resolved dependency copy. |
+
+The audit/storage finding is accepted, not dismissed as a terminology issue.
+Provider event history is still not an atomic durable BFF ledger. This remains
+an explicit scoped Standards 18 decision requiring maintainer approval; local
+expiry/provider outage does not magically create a provider event.
+
+#### Revised decisions presented together
+
+- Active RP library (`openid-client`) and plain random opaque cookies; no Auth.js
+  runtime, session-encryption key, credential-bearing cookie or user/account ORM.
+  OIDC/JOSE verification remains library-owned, explicitly signature-enabled.
+- Native single-process authority, existing 30-minute/eight-hour limits,
+  effective provider deadline, on-demand/early refresh and real extension.
+  Restart signs sessions out; uncertainty ends the local session without replay.
+- Global 1,024/pending 128 budgets plus source 16 and subject eight; no eviction
+  of another device. A successful validated same-browser replacement transfers
+  its own old credit only after old owned I/O settles. Full finite reclaim runs
+  before a global refusal. These are selected limits, not load measurements.
+  Logout-return transactions keep their minimal subject key and credit until
+  return consumption/expiry and actual owned-operation settlement; repeated
+  login/logout cannot evade the eight-owner cap.
+- Browser epochs and per-transaction cookie binding prevent late publication.
+  Delayed already-sent cookie responses can still force reauthentication; no
+  uninterrupted-cookie delivery guarantee is made.
+- Tenant development user-event persistence, with seven-day default retention
+  and explicit preservation/refusal of customized warm policy. This affects all
+  users of that realm, including account-console; Hub/admin-event policy is not
+  changed. Stored personal data and asynchronous retention have real costs.
+- The prior local-logout, shared-SSO, provider navigation/outage and ID-token-hint
+  limitations remain. Immediate remote admin-disable/backchannel handling is
+  Phase 03 before its sign-out-everywhere contract, not an unowned omission.
+
+G12's callback/client topology, ADR-0067 issuance, ADR-0064 API profile/read
+ceiling and the credential-free public caller remain unchanged. The accepted
+P02b-6 field/preservation allowance receives a dated event-policy extension at
+acceptance; no source-role, credential or SSO-timeout adjustment is authorized.
+
+#### Exact route and input matrix
+
+Every auth/page path first verifies native provenance and live API host
+bootstrap. The public bootstrap carries no browser credential. Keep existing
+health/assets admission, default GET/HEAD and production upgrade closure.
+
+| Path | Methods | Admission and response ownership |
+|---|---|---|
+| `/api/auth/signin` | GET/HEAD | Localized sign-in form with host-only random pre-session CSRF proof; return path only `/`, `/studio` or `/portal`. No password form or issuer call. |
+| `/api/auth/csrf` | GET/HEAD | Same-origin pre-session CSRF response, no-store, no provider or native reservation. |
+| `/api/auth/signin/keycloak` | POST | Exact Origin and double-submit CSRF; source/global reservation, then fixed-provider authorization request. Store library-generated state/nonce/verifier and independent browser/transaction binding. |
+| `/api/auth/callback/keycloak` | GET | Exact state, transaction cookie, host/browser epoch and single-use reservation; library code/nonce/PKCE/signature validation followed by actual-token AccountSite validation before publication. |
+| `/api/auth/session` | GET/HEAD | Minimal active/anonymous projection and effective expiry; passive read makes no refresh/idle update or provider call. No handles/profile/tokens. |
+| `/api/auth/error` | GET/HEAD | Closed localized recovery; no reflection of provider error text/query values. |
+| `/api/auth/signout` | POST | Exact Origin and current-session CSRF; close browser epoch/revoke first, reuse owner entry for logout proof, build end-session URL, then discard credentials. |
+| `/api/auth/extend` | POST | Exact Origin and current-session CSRF; force/join refresh even for fresh access, then publish actual effective expiry; absolute deadline never moves. |
+| `/` with owned logout-return proof | GET | Host/browser-bound returned state; consume/clear only that return proof, then ordinary same-host root redirect. Correlation alone is not remote-termination proof. |
+| `/studio`, `/portal` | GET/HEAD | Response-owned session admission, then safe RSC projection/AccountSite. Missing/ended session redirects to sign-in; disabled BFF returns bounded 503. No authoring capability. |
+
+No generic catch-all auth action, session update, arbitrary provider/target,
+sign-out GET or Server Action is admitted. HEAD is bodyless and never exchanges
+a code, refreshes or updates authenticated idle state. Auth form bodies are at
+most 16 KiB, URL-encoded declared scalar fields only; duplicate security fields,
+unsupported media types and slow/oversized input refuse before dispatch.
+Reject browser Authorization and ambiguous/oversized cookies. The whole auth
+cookie family is bounded at 16 KiB, including browser/session/pre-CSRF and
+per-transaction names; reject foreign/duplicate format rather than arbitrary
+chunk reconstruction. The session itself is fixed-size, not chunked.
+
+Provider operations have a ten-second total deadline through discovery/token/
+JWKS/body work and a 256 KiB decoded body ceiling. AccountSite uses its separate
+existing finite API caller budget. Unknown/unbounded provider refresh lifetime,
+invalid signatures or wrong protected identity never fall back to anonymous
+callback success. A normal public response after later session invalidation can
+remain anonymous 200, as required.
+
+`LEARNSTACK_BFF_ENABLED` absent/false selects public-only operation. True requires
+`LEARNSTACK_BFF_ISSUER` and the existing `KEYCLOAK_WEB_CLIENT_SECRET`, with source
+agreement. No session-encryption key is needed. Ignore automatic Auth.js-style
+URL/trust configuration and all forwarded authority. Only the BFF-enabled web
+receives this group; API/data Seeder/public-only CI receive no BFF client secret.
+Existing private values are not overwritten. Startup makes no provider call.
+
+#### Five revised implementation steps after acceptance
+
+Each step is committed, followed by a fresh independent correctness/security
+and evidence/corpus pair, verified fixes/commit, then a different fresh pair.
+Material fixes after the second round receive focused confirmation before the
+next step. The primary agent owns serialized runtime/provider/browser work;
+reviewers inspect source/offline evidence. Routine progress continues without
+new permission, but an actual new authority decision returns for approval.
+
+1. **Inactive RP foundation and provider-event policy.** Pin the RP library and
+   exact resolved dependencies, implement bounded lazy configuration/transport,
+   explicit signature-enabled grant validation and closed diagnostics. Extend
+   fresh export and the shared warm reconciler only for the qualified event
+   policy: effective selection union, retention qualification, preserving
+   listeners/admin events/unrelated realm state, explicit bounded readback and
+   zero-write rerun. Retention conflicts refuse before preparation/ordinary
+   writes. Retain the current 5s/120s tooling waits and response budgets; no Admin
+   credentials enter web runtime. Test actual library grants against an owned
+   stub and actual fresh/warm provider event persistence independently. Keep
+   native exemptions/routes/configuration inactive in production.
+2. **Native session/transaction ownership.** Implement one store/holder with
+   global/source/subject accounting, browser epochs, transaction cookies,
+   verified same-browser replacement, effective deadlines, full reclamation,
+   one refresh owner and revocation/stop joining. Exercise source 16 versus
+   global 128, subject eight versus total 1,024, existing-service continuation,
+   failed replacement, held old I/O, repeated logout without return, competing
+   tabs, late callbacks/cookies,
+   waiter cancellation, on-demand refresh, extension and shutdown. Prove no
+   expired settled entries cause a capacity refusal after the full pass.
+3. **Closed HTTP protocol and authenticated SDK.** Implement exact ingress,
+   middleware, route/field/CSRF matrix, small cookie parser, response-owned idle/
+   refresh/projection, logout return and the exact authenticated AccountSite
+   wrapper/configured caller. Test actual pinned Next provenance and lifetime
+   behavior, including no refresh/idle writes in RSC facade or passive/HEAD/
+   prefetch traffic. Test-owned wiring exercises the full path; production route
+   registration/exemptions remain closed until the guards ship together.
+4. **Atomic activation and usable session UI.** Wire explicit optional BFF
+   configuration, localized form/recovery, Studio/Portal guards, AccountSite,
+   same-origin logout and effective-deadline timeout warning/extension. Verify
+   keyboard/focus/error behavior, non-prefetch RSC navigation, no-store/history
+   revalidation and public anonymous/source/call-count isolation. Update both
+   skills to the real app-local `auth()` facade without future permissions.
+5. **Real lifecycle proof and closeout.** Through actual BFF plus a reconciled
+   warm real Keycloak realm, sign a seed user in, consume its cookie for each
+   host's AccountSite and verify provider logout plus persisted provider event
+   types. Verify real extension advances provider idle and respects its maximum.
+   Independent real-token/API controls remain. Run the native HTTPS browser on
+   both retained seed hosts for actual cookie storage/send/isolation, callback
+   binding and logout/back behavior. Preserve the stopped-Keycloak nine-page
+   public demo. Finish catalogue/docs/discovery, measure actual fixture/job
+   budgets, and record exact-source hosted evidence before the PR is ready.
+
+#### Test ownership and acceptance carriers
+
+ADR-0070 names four new Registered obligations with actual frontend owners.
+The existing `Tenant_Realm_Issuance_Matches_The_Api_Profile` and
+`Development_Realm_Reconciliation_Preserves_Accounts` owners gain event-policy
+assertions with their implementation; preserve Implemented status for existing
+subjects and name the extension until its first proof ships. Catalogue count/
+status controls change with registration, never by an unsupported count claim.
+
+`TenancyIdentity/TenantBffSessionTests.cs` owns the real BFF/warm-provider HTTP
+chain under Docker with the real app-role API/database boundary. Provider
+fixtures/export/reconciliation tests own actual event storage and fresh/warm/
+retention preservation. BFF unit/native route tests own source/subject caps,
+effective idle/extension, epoch/replacement and cookie/race negatives. Browser
+proof reuses owned Node/browser lifecycle on the two actual HTTPS hostnames;
+fixture-owned CA/resolution never edits workstation hosts or machine trust.
+The full three-process real-browser OIDC journey remains Phase 06, distinct
+from this real-provider HTTP chain and narrow browser cookie proof.
+
+At least one clean reachable positive precedes every planted negative: missing/
+wrong state, verifier, nonce or browser binding; signature removal; changed
+refresh subject versus original identity; protected ID actor/scope disagreement
+with AccountSite (which has no subject field); stale epochs; shared-IP
+saturation; ninth subject owner including logout-return transactions; failed/
+held replacement; settled expiry across all registry positions; extension with
+fresh access; expired-access recovery; disabled/missing opt-in; provider event
+storage disabled or refresh types omitted; wrong retention; event-config loss
+of listeners/custom selection; readback drift and zero-write rerun. No artificial
+cookie-chunk exercise is required for a fixed-size opaque format.
+Late logout returns consume only their dedicated proof cookie, never a newer
+session/browser binding; sign-out clears session/sign-in cookies separately.
+
+At acceptance, append dated ADR-0035/0053/0054 disclosures and the P02b-6 event
+allowance; reconcile G13/phase Auth.js and chunking text, Standards 06/07/10/11/
+18/20/21, Architecture 13/14/25/31, Phase 03/11, glossary, realm/environment/
+setup guidance and the two skills. The ADR-0035 additive inventory names the
+port/default/Phase 11/multi-process trigger without editing old decision bodies.
+Architecture 25 must distinguish auto-scaled targets from single-process session
+support. Phase 03 explicitly owns signed back-channel token ingress and replay/
+provider-session indexing before immediate disablement/sign-out-everywhere.
+
+No new execution VM/required-check name or timeout enlargement is proposed.
+Ordinary jobs already provide Node/pnpm/browser prerequisites. New tests enter
+complete discovery and source-bound assignment with zero skips; measured setup/
+proof/cleanup fit remains a qualification gate, not an acceptance assertion.
+Run `make docs-index`; packet/gate status remains only in the phase Status/
+register and dated evidence remains in this log.
+
+### P02b-7 revised proposal review round 1 (2026-10-23)
+
+Two fresh independent source reviews inspect `325558e5`. GPT-6-astra high covers
+protocol, custody, admission and browser races; GPT-6.1-sol high covers source
+claims, library/provider behavior, governance carriers and proof ownership.
+The evidence review approves; the security review requests one lifecycle fix
+and one contract clarification. Neither runs a provider/browser/build or writes
+repository files.
+
+- Logout-return entries now explicitly retain their subject key and credit
+  through return consumption/expiry and actual work settlement. They count in
+  the eight-owner limit; repeated sign-in/logout without return gets a planted
+  negative. Existing bootstrap limits affect throughput, not this accounting
+  rule; no measured one-IP global-denial claim is made.
+- AccountSite has actor/tenant/organization but no issuer/subject fields.
+  Protected ID-token actor/scope claims match that projection; independently
+  validated ID-token issuer/subject must retain the original session pair on
+  refresh. No `sub == actorId` or nonexistent response-field check is promised.
+- The primary pass separates logout-proof cookies from cleared session/sign-in
+  cookies. A late return consumes only its own proof, never a newer session or
+  browser binding. Provider credentials are still discarded after URL creation.
+
+The first pass reproduces 2,163 fragment links, roadmap structure, both generated
+indexes and Proposed lifecycle parsing. Corrections require the same offline
+checks and a second fresh pair against the resulting committed source. Runtime
+qualification and maintainer acceptance remain pending.
+
+### P02b-7 revised proposal review round 2 and readiness (2026-10-23)
+
+Two different fresh reviewers inspect `ecb34b57`: GPT-6-astra high covers the
+protocol/session contract; GPT-6.1-sol high covers source claims, authority,
+provider events, delivery and proof ownership. Both approve without a remaining
+verified actionable finding. Their source checks confirm the RP dependency
+ranges/signature opt-in and Keycloak's default event selection and explicit
+retention update behavior. They recheck R1's credit/AccountSite corrections,
+separate logout proof, closed activation and real-provider/browser test split.
+
+The primary's final source pass distinguishes a missing organization claim from
+the API's resolved organization: `TenantResolutionAttempt` uses claim or host
+organization and still requires API membership. The protocol reviewer confirms
+the clarification: compare any present protected organization claim, accept
+resolved scope only from AccountSite, and preserve both original claim values
+and resolved scope across refresh. Current row 10 remains DenyAll until Phase
+03; this grants no membership or endpoint. Logout proof uses its own transaction
+cookie with the same host-only security attributes.
+
+Read-only/offline validation at the reviewed source passes 2,164 fragment links,
+roadmap structure, both generated indexes and diff hygiene. The primary also
+checks 672 relative file targets across the five proposal carriers with none
+missing, seven ADR parser controls, Proposed lifecycle and the ADR prose width.
+Final index regeneration and document guards pass with 2,165 resolving fragment
+links, conforming structure and both current indexes; parser controls still pass.
+No runtime/build/provider/browser proof is claimed by these inspections.
+
+The revised ADR/package are ready for renewed maintainer approval. The RP
+library/plain-cookie choice, source/subject admission and development event
+storage/retention are presented together with their costs. G13's session part
+remains Open and dependent implementation remains unstarted until acceptance.
+After approval, the five-step commit/two-review-pair cycle proceeds automatically
+unless a genuinely new decision or blocker requires the maintainer.
+
+### P02b-7 acceptance and implementation (2026-10-23)
+
+The maintainer explicitly approved the revised ADR and five-step plan at
+`d3033f30`: “Revize ADR ve planı onaylıyorum; uygula”. G13's session part is now
+Accepted. This is separate from the earlier unaccepted Auth.js proposal and its
+historical reviews. Work stays on `development`; no push, PR or merge is implied.
+
+- ADR-0070 is Accepted, with native openid-client custody, opaque cookies,
+  effective lifetime, source/subject/global admission and qualified development
+  provider-event storage/retention. Its acceptance-time source has no runtime.
+- Dated ADR-0035/0053/0054 disclosures record the additive store/caller and exact
+  POST extension. Original Accepted bodies and metadata remain unchanged.
+- **P02b-6 allowance extension:** The shared development reconciler may now read
+  and update only the ADR-0070-qualified tenant user-event configuration. It
+  unions effective existing selection, preserves listeners/admin policy and
+  qualified retention, checks conflicts before any preparation/ordinary write,
+  verifies separately and requires a completed zero-write rerun. All other
+  account/credential/role/client/profile/SSO/Hub preservation limits remain.
+  Existing preparation/uncertain-progress rules still apply. No web runtime
+  obtains Admin credentials or generic realm mutation authority.
+- Mutable standards, architecture, glossary and G13/phase plans reconcile the
+  selected authority; four catalogue obligations register with named owners.
+  Existing Implemented counts remain unchanged. Actual setup/env/skill and
+  per-rule implementation updates accompany their owning delivery steps.
+
+The five revised steps above are authorized in order. Step 1 starts with the
+inactive RP foundation and fresh/warm provider-event policy; Step 2 owns the
+native store; Step 3 owns closed routes/caller; Step 4 activates all guards/UI
+atomically; Step 5 supplies actual lifecycle/browser and final-source CI proof.
+Each step commits, passes two fresh independent review pairs and commits verified
+fixes before the next. The primary alone runs serialized provider/browser/build
+work. A new authority decision requires approval; routine implementation does not.
+
+### P02b-7 Step 1 — inactive RP foundation and provider events (2026-10-23)
+
+**Implementation/review in progress; not step closeout.** The acceptance commit
+`eb911862` precedes code. This step adds the inactive server-only RP adapter and
+qualified development user-event configuration without native route exemptions,
+production registration or environment-secret projection.
+
+- `openid-client` 6.8.8 resolves exactly one oauth4webapi 3.8.8 and jose 6.2.13.
+  Explicit signature-enabled code/refresh processing uses mandatory injected
+  fixed-purpose transport, one ten-second operation deadline through decoded
+  body consumption, 256 KiB response and 32 KiB credential limits. No global
+  fetch fallback/public-caller exemption or raw provider error is introduced.
+- Callback state/nonce/S256, signed issuer/audience/lifetime and protected
+  identity are checked; refresh cannot change identity. Effective refresh time
+  is conservative; initial custody requires a refresh token. This grants no API
+  authority: AccountSite validation remains the later publication requirement.
+- Fresh export preserves all 95 pinned default-saved types and adds refresh
+  success/error storage. Warm qualification unions the effective prior selection,
+  preserves listener/admin policy and qualified retention, and checks before
+  metadata preparation. One bounded history row disproves safe empty adoption.
+  Independent readback and completed zero-write rerun remain mandatory.
+- The first real warm-provider run exposes the pinned omitted-zero expiration
+  representation. `ModelToRepresentation.toEventsConfigReprensetation` omits zero;
+  the adapter now recognizes that exact default and still refuses enabled
+  indefinite policy or any nonempty prior history. Actual fresh/warm tests pass
+  after correction. This is an implementation correction, not an ADR policy change.
+- Historical success/resume assertions now count the one separately authorized
+  event-policy PUT; they keep credential/role/profile/scope/Hub preservation and
+  explicit zero-write controls. Older delivery receipts retain their old counts.
+
+Targeted validation completed: 27 pinned-library signed-grant controls; the
+complete realm Node census (367 passing cases in eight files, zero skips/todos),
+six executed-gate controls, frontend lint/typecheck and the complete guarded
+frontend run (1,879 cases in two packages). Five targeted export/real-provider
+cases pass, including actual stored LOGIN/CODE_TO_TOKEN/REFRESH_TOKEN/
+REFRESH_TOKEN_ERROR and warm empty adoption/nonempty refusal. Acceptance-time
+CorpusConsistencyTests pass 5/5.
+
+A further actual HTTP incomplete-body cancellation control has been added and
+requires its executing frontend rerun. The broad real historical reconciliation
+regression is still running; its loaded old numeric preparation assertions expose
+the expected +1 event-policy write and have been corrected in source. Those
+specific cases require fresh execution after the owner finishes. No source-bound
+hosted qualification or complete Step 1 review is claimed. The two fresh review
+pairs inspect committed code and the acceptance carriers; any pending/failed
+qualification must be resolved before Step 2 starts.
+
+
+### P02b-7 Step 1 review round 1 and corrections (2026-10-23)
+
+Two new read-only reviewers inspect `1d513938`: GPT-6-astra high covers the RP
+protocol/transport and GPT-6.1-sol high covers provider policy, preservation,
+proofs and acceptance carriers. Both request corrections; neither executes
+provider/build/browser work or claims pending runtime evidence passed.
+
+- Qualified loopback HTTP sign-in must also construct its logout URL. The fresh
+  end-session configuration now carries the same explicit allowance; library
+  URL failures cross the closed error boundary. A real signed loopback grant
+  reaches the end-session builder without extra transport and verifies the
+  resulting fixed endpoint and token hint.
+- Realm readback budgeting now includes the three event fields before either
+  metadata preparation or ordinary actions escape. Pinned Keycloak
+  [realm representation](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/models/utils/ModelToRepresentation.java#L463-L470)
+  carries these fields. Four planted controls cover both planning paths at the
+  exact 256 KiB boundary and one byte over, with reachable successful readback.
+  The owned provider model now reflects the fields into the root realm.
+- The accepted ADR-0070 index row is restored to the Active ADRs table.
+
+Validation after corrections: complete realm Node census 371/371 across eight
+files, six executed-gate controls, frontend lint/typecheck and guarded workspace
+1,881/1,881 across two packages, including 29 RP controls. The earlier broad
+historical provider run has 19 passing cases and four old exact-count failures;
+all four corrected cases pass their focused real-provider rerun (zero skips).
+The extra authorized event-policy PUT is explicitly counted, not hidden by a
+relaxed bound. Fresh architecture/event checks and a second new review pair
+still precede Step 1 closeout. No production activation or hosted evidence is
+claimed.
+
+
+### P02b-7 Step 1 review round 2 and closeout (2026-10-23)
+
+Two new independent read-only reviewers inspect `26ccc731`: GPT-6-astra high
+covers RP security/protocol and GPT-6.1-sol high covers provider policy/corpus.
+Both find one actionable issue. The author verifies each against pinned source,
+fixes it, and each reviewer independently confirms its focused correction.
+Neither reviewer executes runtime or claims independent test evidence.
+
+- openid-client wraps custom transport errors in `ClientError.cause`. The RP
+  boundary now recognizes only that actual library type with an actual closed
+  `BffProviderError`, and emits a fresh closed reason without retaining the cause.
+  Three actual-library controls cover token/JWKS and refresh network failures,
+  distinct transport classification, no grant replay and no private diagnostics.
+- **Correction to the initial Step 1 receipt:** the earlier 95-default/97-total
+  assertion was incorrect. Its source extraction omitted digit-bearing OAUTH2
+  names. Pinned Keycloak has **103 default-saved event types**; all 103 plus two
+  refresh types now appear in the export. An independent source-bound fixture
+  records the complete selection and tagged source SHA-256
+  `e96d8c99c67ff697d6798d2919bfcbeda238ff58dc923daaf59250672ab9b0b6`.
+  The export validator requires the full baseline, and a reachable control
+  removes each of its 103 types and requires the specific preservation violation.
+  The actual fresh provider also verifies the entire baseline after import.
+
+Final local validation: frontend lint/typecheck and guarded workspace **1,884
+passing cases** in two packages, including 32 RP controls; complete Node census
+**371 passing cases** in eight files and six gate controls; six targeted export/
+actual-provider cases and 14 architecture/corpus/Docker-trait/genericity controls,
+all with zero skips. Backend execution uses `CI=true`. The earlier four focused
+historical-count reruns pass; the other 19 broad historical cases already pass.
+No repeated broad execution, native route activation or hosted qualification is
+claimed. Both required independent review rounds and their verified corrections
+are complete. **Step 1 is locally complete; Step 2 begins automatically** under
+the accepted five-step package. Production BFF paths remain closed.
+
+
+### P02b-7 Step 2 — native session ownership implementation (2026-10-23)
+
+**Implementation submitted for review; not step closeout.** Step 1 closes at
+`fd708462`. The native `BffSessionStore` port/default and immutable process holder
+now exist; response/cookie grammar, request projection and activation remain
+with Steps 3–4. Production entry points still install no BFF runtime or exemption.
+
+- `InMemoryBffSessionStore` privately owns credentials, transactions, browser
+  groups/epochs, subject credits and actual operations. Server methods return
+  closed display/deadline/CSRF projections or response-owner opaque proofs;
+  they expose no credential-returning capability. The typed AccountSite witness
+  must match protected actor/tenant, any present organization claim and prior
+  resolved scope. Subject remains independently validated opaque identity.
+- Global 1,024 / pending 128 / source 16 / subject eight bounds include unsettled
+  owners. A same-browser replacement transfers its existing subject credit only
+  after actual old I/O settles; its pending owner holds that credit meanwhile.
+  Failed validation/capacity leaves the prior primary intact. Logout-return
+  credits survive later sign-ins and refresh cancellation until their own return/
+  expiry and settlement. No other browser is evicted.
+- Single-use transaction proof/state, independent host/browser bindings and
+  browser elections fence competing callbacks. A missing primary cookie creates
+  an independent browser group rather than authorizing eviction. Older logout
+  returns cannot revoke a newer primary. Actual HTTP cookie writes remain Step 3.
+- Monotonic idle/absolute/provider deadlines, on-demand/forced single-flight
+  refresh, stable protected claims/resolved scope, conservative merged credential
+  bounds and independent waiter cancellation are covered. `peek` is passive;
+  qualifying reads use the API witness. Stop closes publication/admission, aborts
+  owned I/O, joins actual promises and stops the thirty-second full sweep.
+- A compiled native child proves one frozen global holder across independently
+  loaded module copies, no provider call at construction, no fallback/reinstall,
+  separation from the public admission holder, and joined shutdown. The pure
+  provider error value no longer carries a Next-only import sentinel; credential
+  modules/facades and transitive client fences remain private.
+- The exact native-source census gains only this compiled entry and preserves
+  nested generated paths. Planted unknown entries still refuse, and its real
+  source plus transitive helper remain in demo-genericity coverage.
+
+Validation: 51 unit ownership controls and four native composition controls pass;
+frontend lint/typecheck and the complete guarded workspace pass **1,939 cases**
+in two packages with zero skips/todos. Native compilation runs with ordinary
+Node, without a global React/server condition. No actual browser/provider-session
+or hosted qualification is claimed by these unit/native proofs. Two fresh
+independent review rounds still precede Step 2 closeout.
+
+
+### P02b-7 Step 2 review round 1 and visitor correction (2026-10-23)
+
+Two fresh independent read-only reviewers inspect `11cd37d0`: GPT-6-astra
+xhigh covers lifecycle/security races; GPT-6.1-sol high covers proof adequacy,
+native/client/genericity boundaries and authority. The proof review approves;
+the lifecycle review identifies one verified port defect.
+
+`complete` previously used the sign-in request's visitor for callback AccountSite
+validation. It now requires the callback's independently verified canonical
+source and validates it before consuming state. The actual AccountSite hop uses
+that current source; pending admission retains its original source credit until
+promotion or actual settlement. IP is not a callback authentication binding.
+A planted network-change control proves both accounting facts; malformed/missing
+callback sources leave the valid transaction untouched and dispatch no grant.
+
+Frontend lint/typecheck and native compilation pass. The complete guarded
+frontend run passes **1,941 cases** in two packages, zero skips/todos, including
+53 ownership controls and four composition cases. To distinguish proof levels,
+one composition case runs an actual separately compiled native child; three
+inspect passive facade/descriptor/source behavior under Node Vitest. No actual
+Next request integration, production activation or provider/browser journey is
+claimed yet. The second fresh independent review pair still precedes closeout.
+
+
+### P02b-7 Step 2 review round 2 and closeout (2026-10-23)
+
+Two new independent source-only reviewers inspect `47ffca71`: GPT-6-astra
+xhigh covers lifecycle/security concurrency; GPT-6.1-sol high covers proofs,
+confinement and corpus. Both approve without an actionable finding. They confirm
+current callback-source validation and original pending-source accounting,
+held-work credit ownership, replacement validation before revocation, epoch
+fences, one refresh owner, stable identity/scope, independent logout returns and
+joined shutdown. Neither reviewer executes runtime or claims independent passes.
+
+The preceding source's full frontend guard passes 1,941 cases in two packages,
+zero skips/todos, with frontend lint/typecheck/native compilation and document
+guards passing. No code changes follow this round. **Step 2 is locally complete;
+Step 3 begins automatically.** HTTP cookie/CSRF/route and request-projection
+integration, atomic activation, real BFF/provider/browser evidence and exact-source
+hosted qualification keep their accepted later-step owners; none is inferred
+from native unit controls.
+
+
+### P02b-7 Step 3 — closed HTTP and request projection (2026-10-23)
+
+The third implementation slice supplies the exact auth method/path matrix,
+Origin plus presession/session CSRF, state-named transaction and independent
+logout proof cookies, bounded scalar forms/cookie families and closed responses.
+Native POST exemptions remain disabled by default and the production launcher
+and middleware do not install or call the BFF yet. Only the three exact POST
+paths can use the explicit test-owned opt-in. Native admission rejects oversized,
+unknown-length or transfer-encoded bodies before Next can clone them; the form
+reader independently checks actual bytes, UTF-8, field names and duplicates.
+
+A separate native request holder publishes one immutable safe projection after
+live-host bootstrap and response-owned admission. App-local `auth()` reads it
+without refresh, idle mutation or cookie writes. Actual response finish/close,
+request abort and stop revoke request authority. Exclusive sign-in/callback work
+follows request cancellation while keeping unsettled work owned; cancellation of
+a shared-refresh waiter still leaves its owner running. AccountSite receives the
+current callback/read visitor and trace rather than retained initial attribution.
+
+The SDK gains one injected `getAccountSite` capability under its separate
+`authenticated-server` entry. A narrow native build makes that same typed parser
+available to the native caller. The configured caller alone attaches the stored
+access token and verified host/current visitor, applies existing API budgets and
+projects only its closed witness. Public wrappers retain their original contract.
+Source controls model the exact generated SDK/native entries, confine the two
+hop setters and continue forbidding global fetch in the authenticated adapter.
+Shared native/Next modules use NodeNext specifiers with explicit Next resolution.
+
+Frontend lint/typecheck and native compilation pass. The full guarded frontend
+run passes **2,034 cases in two packages**, zero skips/todos. Tests cover native
+HTTP opt-in/refusals, the actual pinned Next request/response bridge, safe RSC
+reads, callback cancellation and cookie/CSRF/refresh/logout negatives. One owned
+production Next copy runs real native HTTPS, middleware and RSC bundles through
+sign-in/callback/session/logout, confirming cross-bundle lifetime/projection and
+multiple cookie delivery. Its grant and AccountSite capabilities are explicit
+fakes: it is not real Keycloak/API or browser proof. Actual Next qualification
+also requires absolute local redirect URLs; only the verified host and three
+closed return paths form them. Existing native GC proof retains its original
+collection assertions with the new shared path-policy dependency copied too.
+
+Both independent review rounds still precede this step's closeout. Atomic
+production activation/localized UI remain Step 4; real provider/app-role API,
+browser and exact-source hosted qualification remain Step 5. The four BFF
+catalogue obligations remain Registered until their complete controls ship.
+
+
+### P02b-7 Step 3 review round 1 (2026-10-23)
+
+Two fresh independent source-only reviewers inspect `3279258d`. GPT-6-astra
+xhigh reviews protocol/security/lifecycle; GPT-6.1-sol high reviews evidence,
+confinement and corpus. The evidence reviewer approves without an actionable
+finding. The protocol reviewer verifies one major defect against pinned Next:
+its middleware adapter removes Flight headers before invoking middleware and
+restores them afterwards. Classifying the middleware headers therefore treats
+ordinary RSC navigation as passive. The initial production fixture observes
+rendering/confinement but does not detect that missing refresh/idle behavior.
+Neither reviewer runs runtime or independently reproduces reported passes.
+
+The native request holder now captures only a closed read/passive scalar from
+the original incoming protocol headers before Next. The scalar is bound to the
+same request lifetime and read by the response owner before publication; no
+request/header object is retained as session authority. RSC `auth()` remains a
+read-only safe projection lookup. Unit controls mutate/remove the original
+headers after capture and verify classification and phase/lifetime closure.
+
+The actual production Next fixture now uses a private deterministic clock and
+scalar IPC observations. RSC with `Accept: */*` and empty fetch destination
+refreshes expired access, validates AccountSite once and advances effective idle.
+Actual prefetch, HEAD and passive session polls do none of those operations.
+The same fixture independently builds a copied handoff with native activity
+removed: its preceding sign-in/callback positive succeeds, then the RSC assertion
+fails at that exact stage. A build/startup/cleanup failure cannot satisfy this
+counter-control. Grant/account capabilities remain explicit fakes; this is not
+provider/browser qualification.
+
+Frontend lint/typecheck/native compilation pass. The complete guarded frontend
+suite passes **2,036 cases in two packages**, zero skips/todos, including both
+actual Next runs. The correction is committed before the second fresh review
+pair. Production activation remains closed pending Step 4.
+
+
+### P02b-7 Step 3 review round 2 and closeout (2026-10-23)
+
+Two new independent source-only reviewers inspect `2ebae0c9..7fded69c`.
+GPT-6.1-sol xhigh covers protocol/security/lifecycle; GPT-6-astra high covers
+proofs, confinement and corpus. Both approve without an actionable finding.
+They independently trace the pinned Flight-header behavior and native scalar
+handoff, safe projection lifetime, callback/current attribution, cancellation
+ownership, CSRF and independent logout proofs. They confirm the actual Next
+counter-control reaches its RSC assertion after successful sign-in/callback.
+Neither reviewer runs runtime or independently attests reported passes.
+
+No code changes follow this round. The reviewed source's complete frontend
+guard passes 2,036 cases in two packages with zero skips/todos; lint, typecheck,
+native compilation and documentation guards pass. **Step 3 is locally complete;
+Step 4 begins automatically.** Production optional configuration/activation,
+localized session UI and skill reconciliation now have the next step's owner.
+Real provider/app-role API/browser/history and exact-source hosted evidence
+remain Step 5 gates, not claims inferred from fake capabilities or source review.
+
+
+### P02b-7 Step 4 — optional activation and session UI (2026-10-23)
+
+The native launcher activates both session/request holders and the closed POST
+admission together, only after agreeing private configuration passes. Absent or
+false opt-in returns no BFF issuer/secret configuration. Enabled source files are
+bounded, regular, single-link and owner-private; permission/link/conflict
+controls prove refusal without repair. Provider construction/discovery remains
+lazy. Native shutdown seals requests and joins actual session-owner settlement;
+the existing failed hard-stop ceiling is not evidence of successful cleanup.
+
+Middleware resolves the live public host/site and validates locale membership
+before cookie/provider work. Disabled auth stays 404 and disabled shells render
+localized no-store 503. Enabled shells redirect anonymous visitors to the closed
+same-host sign-in flow. Enabled locales still take precedence over a same-spelled
+studio/portal root. Rebuilt downstream headers carry no browser cookies, Origin
+or Authorization. Expected browser errors render bounded localized recovery;
+owner-authorized transaction-cookie edits survive without clearing another flow.
+
+Complete English/Turkish `auth` catalogues have typed callsite/ICU controls and
+whole-catalogue fallback. Next's production compiler refuses react-dom/server in
+middleware, so the closed sign-in document uses escaped text/attributes, validated
+four-color CSS and no script, password field or provider-error reflection.
+Studio/Portal render the safe AccountSite projection and native sign-out form;
+no roles, permissions or authoring capability are invented. Session warning uses
+effective expiry, offers actual forced refresh, reports unchanged expiry honestly
+and offers reauthentication at the known absolute maximum. A later admitted RSC
+projection supersedes an older in-flight client result. Failure hides the account
+view and focuses recovery; passive countdown never touches the server session.
+
+The browser action adapter permits only a fixed same-origin no-store extension,
+with bounded response/closed projection. Dirty URL/header/cache/redirect/renaming
+controls prove that exception does not authorize arbitrary fetch or API calls.
+Navigation uses document anchors. A fixed pre-interactive history script veils
+before caching and keeps a restored document hidden until network reload; this
+mechanism's actual cookie/history behavior remains the Step 5 browser proof.
+Route, feature-gate and i18n skills now describe the shipped app-local facade,
+not a nonexistent Auth.js package or permissions array. Configuration examples and
+setup/security/catalogue carriers are reconciled.
+
+Root-owned validation before the implementation commit:
+
+- Complete guarded frontend suite: **2,081 passed in two packages**, zero skips
+  or todos. Frontend lint, typecheck and native compilation pass.
+- Production Next build passes. A copied full production app exercises both
+  translated sign-in documents, HEAD, unknown-host refusal, callback, protected
+  HTML/Flight, passive requests, cross-host cookie rejection, real owner
+  extension and local logout. This uses explicit fake grant/AccountSite
+  capabilities; it is not real-provider or real-browser evidence.
+- Existing PostgreSQL/app-role `PublicAdmissionRenderingTests` passes, one case,
+  zero skips, 37 seconds reported test duration. Its anonymous shell overlap now
+  verifies the intended 503/site palette without RSC dispatch. Browser fallback,
+  late HEAD and real HMR use an existing public catalogue instead of bypassing
+  the new shell guard; exact API-read accounting remains asserted.
+- Five architecture corpus controls and all documentation guards pass; 2,190
+  relative fragment links resolve and both delivery-log indexes are current.
+- Initial full-suite refusals identify stale projection, catalogue and anonymous
+  shell expectations; they are updated to the new closed contracts. Fixture
+  declaration files and the changed native instrumentation anchor are aligned.
+
+Step 4 awaits its two fresh independent review pairs. Real warm-provider/API,
+native HTTPS browser/history, stopped-Keycloak demo and final-source hosted
+qualification remain Step 5. The four BFF catalogue rules remain Registered.
+
+
+### P02b-7 Step 4 review round 1 (2026-10-23)
+
+Two fresh source-only reviewers inspect implementation `09b3aa62`:
+`gpt-6-astra` at xhigh for security/lifecycle and `gpt-6.1-sol` at xhigh for
+UI/proof/corpus. Both identify the same development diagnostics Blocker; the UI
+reviewer also identifies the missing skip link. Neither runs a provider, browser,
+build or test; root owns all runtime confirmation.
+
+- Pinned Next's development request handler records the raw URL even when
+  middleware owns the response. Its independent reporter persists callback
+  code/state and logout state in `.next/trace`; disabling console logging alone
+  is insufficient. The native launcher now suppresses performance spans before
+  importing Next, using a threshold above every duration the pinned tracer can
+  accept. Next automatic request/fetch logging is also disabled. This loses
+  public development performance events too; separate build traces and API
+  telemetry remain. Security 11 and web setup disclose the cost.
+- An actual enabled development copy completes sign-in, protected rendering,
+  logout return and a refused provider-error callback. Private random canaries
+  are scanned in stdout/stderr and the persisted trace after the actual native
+  child exits successfully. Removing only native trace suppression leaves
+  console logging disabled but fails specifically at the trace canary, after
+  successful callbacks. Raw trace data and canary values never leave its owned
+  temporary root. This is fake-grant protocol evidence, not provider/browser
+  qualification.
+- Sign-in/recovery documents and enabled protected shells now place a localized
+  skip link before their content, targeting a focusable main element. They reuse
+  the existing public UI translation. DOM assertions cover both languages.
+- The expanded source graph makes the existing multi-mutation ownership test
+  exceed Vitest's implicit five-second limit. Only that finite complete-graph
+  control receives twenty seconds; all planted variants remain. The Turkish
+  skip-text assertion is corrected for its actual dotted capital letter.
+- A complete rerun also exposes CPU contention in three unchanged lint controls
+  when Vitest starts file workers by machine CPU count alongside native Next
+  builds. Web file concurrency is now four; those controls keep their existing
+  timeouts and all discovered cases still run under the same package deadline.
+
+Root validation: **2,083 frontend cases pass in two packages, zero skips/todos**;
+the web population completes in 61 seconds with four workers. Lint, typecheck,
+native compilation and all document guards pass (2,191 fragment links). The real
+PostgreSQL/app-role renderer case passes again, one case, zero skips, 45 seconds
+reported test duration. Second-round closeout follows below. The four broader
+BFF rules remain Registered; real provider/API/browser and hosted proof remain
+Step 5.
+
+### P02b-7 Step 4 review round 2 and closeout (2026-10-23)
+
+A different fresh source-only pair reviews complete Step 4 through `2cf2a25b`:
+`gpt-6-astra` at xhigh for security/lifecycle and `gpt-6.1-sol` at xhigh for
+UI/evidence/corpus. The security reviewer approves without verified findings,
+independently tracing the pinned reporter's accepted-duration bound and native
+import order. The UI reviewer confirms the first-round fixes and identifies one
+Major keyboard-recovery gap: unchanged/newly maximum extension removes the
+focused button without announcing or focusing its replacement; automatic expiry
+also removes focused descendants without recovering focus.
+
+Recovery notices now have status semantics. Only a transition to ended/recovery
+state moves focus, and only if focus remains in the session container or has
+fallen to the body; an external active control and the ordinary warning retain
+focus. Nine component controls pass, including focused unchanged/maximum/expiry
+and external-focus controls for both expiry and unchanged response. Focused lint
+passes. The same UI reviewer performs source-only focused confirmation and
+approves the fix, with no remaining actionable issue.
+
+Together with first-round complete validation above, **Steps 1–4 are locally
+implemented and both independent review rounds are complete. Step 5 begins
+automatically.** Its real warm-provider/app-role API, native HTTPS browser and
+history, stopped-Keycloak demo, discovery/budget and exact-source hosted proofs
+remain mandatory. None is inferred from fake grants, DOM unit tests or source
+review; the four broad BFF catalogue obligations remain Registered.
+
+### P02b-7 Step 5 — real lifecycle proof in progress (2026-10-24)
+
+Step 4 closes at `a48011cb`; Step 5 now connects the existing production RP,
+native launcher and AccountSite caller to a reconciled historical provider and
+real Kestrel/application-role database. A separate stock-browser fixture owns
+the two retained HTTPS seed hosts. It does not claim a full browser OIDC journey.
+The four catalogue obligations remain Registered pending complete proof.
+
+The shared owned Next fixture compiles the copied current native sources rather
+than symlinking stale workstation output. The guarded frontend test entry and
+ordinary CI preparation explicitly compile native web/authenticated SDK entries.
+Existing protocol positives still pass after extraction. No execution job,
+required context, shard range or whole-job ceiling changes.
+
+Initial real-chain readiness failures expose fixture issues, not successful
+product qualification. The first closed input guard omitted the real `tr-TR`
+seed locale; refusal also left stdin held, so the parent waited for its deadline.
+Input-failure cleanup now closes that stream, and private IPC explicitly uses
+flushed UTF-8 without a BOM and finite progress/error tokens. A small no-provider
+startup control then exposes its noncanonical trailing-slash API origin; its
+input is corrected to the existing production origin contract. An independent
+real-mode startup/cleanup pipe control passes without provider/API access.
+The real chain subsequently reaches actual sign-in, refresh, provider logout,
+invalid-grant revocation and compressed provider-maximum checks. Fixture
+assertions are corrected to read the projection's fractional-millisecond number
+and include the ordinary protected read's independent AccountSite witness;
+neither changes the product lifetime or weakens the witness guard. The corrected real-chain case passes in 81.524 seconds, with zero skips: English
+and Turkish native lifecycles take 29.202/28.759 seconds, seven authenticated API
+witnesses each, provider startup 17.040 seconds and joined cleanup 0.736 seconds.
+Both owned containers and the network are independently absent. The passing
+receipt proves actual provider refresh, maximum, logout/error/events and the
+zero-write warm rerun; it is separate from browser storage/history evidence.
+
+The actual browser discovers a product issue: `no-referrer` on the sign-in HTML
+serializes the native navigation POST's Origin as `null`. Only that HTML response
+now uses `same-origin`; token-bearing provider redirects remain `no-referrer`,
+and null/missing/cross-origin admission negatives still refuse. The
+[Fetch Origin algorithm](https://fetch.spec.whatwg.org/#append-a-request-origin-header)
+is the source of this distinction. The header regression and private-output
+scanner controls pass (38 cases).
+
+Stock Chromium `156.0.8078.48` passes both HTTPS hosts' native sign-in,
+secure/HttpOnly/Lax/host-only opaque cookie storage, script inaccessibility,
+cross-host transaction refusal, keyboard skip-link, extension, logout deletion
+and actual back-navigation admission. No natural persisted restore occurs in
+this run. An explicit persisted-event control separately reaches the restoration
+branch; removing only the copied history reload kills the counter there.
+A real owned HTTPS logout stub replaces an invalid Playwright redirect-target
+interception assumption. Fake grants/API remain explicit; this is not the real
+provider HTTP proof or the Phase 06 full browser OIDC journey.
+
+All failed provider runs join and independently verify absence of their two
+owned containers and network. No raw input, token, cookie or exception payload is
+retained in results. The complete guarded frontend run passes 2,089 cases in two packages with zero
+skips/todos. Lint and typecheck pass. Offline CI controls pass 67 assignment,
+26 aggregate and 63 execution-owner cases, including new native/SDK compilation
+gate mutants. The actual source fixture census includes the event and BFF test
+classes; shard counts, required names, whole-job ceilings and authority remain
+unchanged. Final runtime counts, two review rounds, demo and hosted qualification
+will be appended after they actually complete.
+
+### P02b-7 Step 5 — implementation and local qualification (2026-10-24)
+
+The final local source passes all three `TenantBffSessionTests` cases with zero
+skips: real warm lifecycle 85.062 seconds, actual browser positive/counter pair
+32.476 seconds and enabled no-network startup/stop 13.387 seconds. Each grant
+and successful refresh independently increments the real authenticated API
+witness before publication, in addition to the seven-per-host complete journey
+count. English/Turkish lifecycles take 29.839/28.876 seconds; provider startup is
+19.040 seconds, joined provider cleanup 2.124 seconds. The two containers and
+network are independently absent. Stock Chromium `156.0.8078.48` observes zero
+natural persisted restores; the explicit restoration counter is killed at
+`persisted_event`, never reported as a natural BFCache result.
+
+The passing local TRX has SHA-256
+`e7e98d28870397f11c8e0962dafc0c7fa2473cd9f25d9113098ba292e1df7d78`.
+Its three method durations enter the source-controlled plan as advisory local
+body costs. The receipt embeds no immutable source identity; `sourceSha` stays
+null, and collection startup/hosted wall fit are not inferred from method sums.
+The complete source fixture census also includes the Step 1 event test class.
+
+Fresh complete VSTest discovery finds 5,927 cases: 3,351 non-Docker and 2,576
+Docker, with the latter exactly 31 native plus 2,545 ordinary. Both complete
+A/B assignments are disjoint unions, fit the existing selector bounds and
+actually differ across architecture, ordinary and shared-fixture composition.
+This is local discovery/assignment evidence, not hosted timing qualification.
+
+The guarded frontend run passes 2,089 cases in two packages with zero skips/todos;
+lint/typecheck pass. The complete Release solution builds with zero warnings and
+errors. Seven corpus/status/Docker-trait controls pass with zero skips.
+Offline assignment/aggregate/execution controls pass 67/26/63 cases;
+source topology refuses skipped or changed native/SDK fixture compilation.
+
+The four broad BFF obligations remain Registered until all their proof owners
+ship. Two fresh independent review rounds, the fresh stopped-provider public
+demo, final catalogue promotion and exact-source hosted A/B qualification remain
+open. No PR-ready or packet-complete status is claimed by this local checkpoint.
+
+### P02b-7 Step 5 — independent review round 1 (2026-10-24)
+
+Two fresh source-only reviewers inspect `a48011cb..5efecf70`: Astra/xhigh
+reviews lifecycle/security and Sol/xhigh reviews browser/evidence/CI integrity.
+Neither runs builds, tests or providers. Their actionable findings overlap on
+abortive parent disposal: `BffNativeDriver` kills Node before its fixture owner
+can remove the temporary build/TLS tree. The lifecycle reviewer additionally
+finds that successful receipts establish group absence without requiring the
+native launcher's zero exit/no signal. Both are verified in the current source;
+normal passing runs do not disprove failure-path defects.
+
+Root queues focused failure/counter reproductions after the already-running
+fresh public demo, preserving the sole runtime executor and port ownership.
+Corrections and their actual validation remain pending in this entry; no review
+approval or successful failure-cleanup proof is inferred from source inspection.
+
+### P02b-7 Step 5 — stopped-provider public demo (2026-10-24)
+
+A fresh tracked-only clone of the same `development` branch qualifies source
+`5efecf708457841b14d43d75d0626bae68b977d1`, tree
+`412ddd8619ded86869298aa5502877a4a9b887c8`, through the unchanged
+`make demo DEMO_MODE=ci` lifecycle. No workstation environment file is copied.
+Its nine seeded public pages pass 27 Lighthouse runs after the selected
+Keycloak is stopped; all 27 JSON/HTML pairs and nine screenshots are present.
+The receipt records `passed: true`, setup 82.502 seconds and proof 577.291
+seconds, with pinned Playwright 1.64.0/Lighthouse 13.5.0 and managed Chromium
+revision 1248 (`156.0.8078.4`). Both negative TLS controls refuse.
+
+Cleanup passes in 10.726 seconds: owned processes stopped, temporary Compose
+project empty, private files/environment/lock removed. This is a local exact-
+source public proof, not hosted qualification or a new manual accessibility
+pass. Round 1's subsequent changes concern proof ownership and failure cleanup;
+they do not replace this receipt with a claim about a different source tree.
+
+### P02b-7 Step 5 — round 1 corrections and qualification (2026-10-24)
+
+Both verified findings are corrected. The C# parent creates a private outer
+fixture directory and supplies it only as the owned child's temporary location.
+Disposal closes the private input first, drains output and joins under a fresh
+cleanup budget, removes only an independently empty outer directory and always
+fails a forced fallback. The browser reads one bounded initialization line,
+keeps stdin actively draining as its lifetime channel and closes it on terminal
+paths. Its stock browser is synchronously spawned/owned before CDP connection,
+using the existing public-demo pattern; no unresolved launch can acquire an
+unowned process after cancellation. Native spawns check ownership before spawn.
+
+Successful BFF receipts now require native exit 0 without a signal and no forced
+group escalation. The shared stop helper exposes a cached immutable `forced`
+result without changing existing consumers' behavior. Its real uncooperative
+surviving-descendant controls prove that a zero-exit leader can still require
+forced cleanup; BFF proof treats that as failure. All resource attempts still
+run, including when an earlier stop fails.
+
+All five BFF Docker cases pass with zero skips: actual warm provider/API
+90.731 seconds, actual browser positive/history counter 33.541 seconds, ordinary
+no-network startup/stop 7.219 seconds, early-parent cleanup 7.903 seconds and the
+nonzero-native-stop counter 7.465 seconds. The early-parent case independently
+observes its exact outer directory disappear. The shutdown mutant changes only
+the copied native exit to 1 and is rejected at `complete/native-stop`; a general
+fixture failure cannot stand in for this counter. Both retained hosts still have
+seven real API witnesses each; provider startup is 24.386 seconds and joined
+cleanup 0.644 seconds, with both containers/network independently absent.
+
+The passing local TRX has SHA-256
+`a8aed7b2684219ebec622a931c85640c8a59fcfa40407aabe9f0be95a1208fb5`.
+The plan keeps this as a new advisory local source, preserving the prior receipt;
+no embedded immutable source or hosted wall fit is claimed. All 2,089 frontend
+cases still pass with zero skips/todos; the 35 focused ownership/output controls
+also pass. Release compilation with CI warning policy reports zero warnings and
+errors. The seven corpus/status/Docker-trait controls pass with zero skips.
+Fresh actual discovery contains 5,929 rows: 3,351 non-Docker and 2,578 Docker
+(31 native plus 2,547 ordinary). Both genuinely different local A/B assignments
+have complete disjoint unions and bounded filters; this proves assignment, not
+hosted fit. The four complete BFF catalogue controls are locally Implemented,
+with current owners and counters updated together. Assignment (67), aggregate
+(26) and execution (63) offline controls pass; all 2,197 Markdown fragment links
+resolve and roadmap/index guards pass. Fresh round 2 and exact-source hosted A/B
+remain required before PR readiness.
+
+
+### P02b-7 Step 5 — independent review round 2 (2026-10-24)
+
+A different fresh source-only pair inspects `a48011cb..83858d12`:
+GPT-6-astra/xhigh covers lifecycle/security and GPT-6.1-sol/xhigh covers proof,
+browser, CI and corpus integrity. Both request corrections. Neither executes
+runtime work. Root verifies the two actionable findings in current source:
+
+- The session fixture's async input iterator stops consuming while awaiting
+  compile/build. Parent EOF can therefore remain unobserved until acquisition
+  finishes. Post-ready early disposal does not prove this earlier path.
+- The extracted production protocol/UI proof still accepts cleanup without
+  checking native zero exit and unforced settlement. Development checks exit
+  but also needs to reject force escalation.
+
+Corrections keep a bounded private frame pump flowing independently throughout
+acquisition and install EOF as an owner lifetime signal. A held owned build
+child is exposed only through a closed fixture mode, so a new parent-disposal
+control can stop before native readiness and independently observe the exact
+private tree disappear. All protocol/UI modes now require unforced settlement,
+zero exit and no signal; a copied exit-1 counter must fail at `native-stop`.
+Actual execution and both reviewers' focused confirmations remain pending in
+this review entry. No approval is inferred from the earlier five passing cases.
+
+
+### P02b-7 Step 5 — round 2 corrections and local closeout (2026-10-24)
+
+Both fresh round-2 reviewers independently confirm the focused source fixes
+without a remaining actionable defect. They inspect the active bounded input
+pump/EOF lifetime channel, owned held-build acknowledgement and exact directory
+absence control, and the protocol/UI/development zero-exit/unforced requirement
+with its copied shutdown mutant. Their confirmations are source reviews, not
+independent runtime execution.
+
+Root re-executes all six actual BFF Docker cases, with zero failures or skips:
+held-build parent EOF 0.971 seconds, post-ready early disposal 7.367 seconds,
+nonzero native-stop counter 6.539 seconds, normal no-network startup/stop 6.595
+seconds, stock HTTPS browser positive/history counter 32.914 seconds and actual
+warm Keycloak/native BFF/application-role API 79.261 seconds. The passing TRX
+SHA-256 is
+`eb29f34d707a87e2ddcdc9c0c269cd011c983cce4a79d8592ffaf9c95aa2ccf0`.
+The separate advisory plan source retains that receipt; no immutable-source or
+hosted timing claim is inferred from a local TRX. The complete guarded frontend
+passes 2,090 cases in two packages with zero skips/todos, including the exact
+protocol exit-1 counter rejected only at `native-stop`. Release compilation under
+CI warning policy has zero warnings and errors. The architecture description
+also names the actual local sign-in form before explicit provider navigation;
+the realm guide removes the obsolete future-BFF consumer wording.
+
+Frontend lint/typecheck pass. Fresh actual discovery contains 5,930 rows:
+3,351 non-Docker and 2,579 Docker (31 native plus 2,548 ordinary). The A/B
+assignments are genuinely different, complete and disjoint; every generated
+filter remains within its bound. Local assignment is not hosted timing proof.
+
+All five implementation steps and both fresh review rounds per step are locally
+complete. The earlier exact-source stopped-provider public demo is retained
+separately. Same-source hosted A/B execution remains qualification work before
+packet completion or PR readiness; no failing, missing or skipped execution is
+waived.
+
+
+### P02b-7 hosted frontend ingress correction (2026-10-24)
+
+[PR #36](https://github.com/HodeTech/LearnStack/pull/36) is draft. Its first
+[A attempt](https://github.com/HodeTech/LearnStack/actions/runs/40037549651)
+uses source `fedffbe82d2dcac254d62e05714885df9219ff3f`, whose tree equals
+`b600a0f9` after synchronizing the already-merged main history. Frontend
+lint/typecheck/build and all 2,090 guarded cases pass; its subsequent standalone
+ingress proof fails because its legacy `/studio` and `/portal` rows still expect
+the old 200 placeholder. Actual disabled-BFF 503 behavior matches ADR-0070 and
+the existing activation controls. This is not a successful full qualification.
+
+The correction changes only those two expected statuses and adds no-store,
+30-second retry, no-cookie, no-protected-markup and no-form assertions; GET
+requires an HTML document and HEAD remains bodyless. Exact bootstrap counts,
+unsupported-method refusal, TLS, upgrade and source-isolation controls remain.
+Both round-2 reviewers independently approve this focused source correction.
+A fresh production build, the actual complete native ingress proof and all 19
+failed-fixture cleanup controls pass locally. No automatic flaky retry, product
+behavior change, check removal or timeout enlargement is used.
+
+Separately, screenshot-only instrumentation in a private copy of the existing
+actual HTTPS browser proof captures English/Turkish sign-in and Studio views.
+The normal positive browser checks still pass and root visually inspects all
+four images. These are fake-grant/API UI images, not a new real-provider browser
+journey, natural BFCache result or assistive-technology claim. No private raw
+HTML or credentials enter retained repository documentation.
+
+The remaining first-attempt jobs are allowed to finish for their independent
+failure/timing evidence before a new complete source-bound run. Both final A/B
+assignments and current-head required checks remain qualification gates.
+
+### P02b-7 first hosted A — fixture corrections (2026-10-24)
+
+The complete [first A attempt](https://github.com/HodeTech/LearnStack/actions/runs/40037549651)
+on source `fedffbe8` finishes with 22 successful and five failed jobs. Its backend
+aggregate passes all 3,351 non-Docker cases; native qualification passes all 31.
+All six new BFF cases pass, including the real warm-provider/app-role API chain
+and separate actual HTTPS browser proof. The integration aggregate correctly
+refuses the failed ordinary producers. These component passes do not qualify the
+whole source. The already-recorded frontend correction is committed as `d3d7c041`.
+
+Three ordinary failures share one copied-fixture omission: the public local
+launcher copies the real ingress module but omits its new direct, pure
+`auth/http-paths.ts` dependency. Copying that leaf into the existing private
+fixture fixes the actual TypeScript compilation; all three real Docker launcher
+cases pass locally, with no product or credential change.
+
+The remaining ordinary failure is the existing native held-constructor
+`host_stop` case. Its closed receipt locates cancellation at `handoff`, before
+constructor entry or invocation capture; cleanup subsequently completes. A local
+execution of the exact same 236 selected cases passes. Neither that pass nor the
+receipt proves the historical hosted cause.
+
+Source analysis identifies a real competing precondition: Prepare/Arm owns the
+row lock, the renewal query skips that row, and the acknowledged empty batch
+requests safe cancellation before constructor entry. The existing
+[held-Prepare renewal proof](../../backend/tests/LearnStack.Tests.Integration/Database/BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs)
+deterministically demonstrates that separate path with real transactions. The
+held-constructor test now reuses its existing real-callback pacing owner to
+establish constructor entry before requesting host stop or expiring the SQL
+lease. Clocks, lease/deadline timers and production behavior stay unchanged. The
+lease-loss variant additionally requires actual renewal refusal, with no elapsed
+lease substituted. Every exit releases holds and joins runtime and actual timers
+within the original shared cleanup budget.
+
+Both round-2 reviewers independently approve the focused corrections after a
+separate source diagnosis. Release compilation has zero warnings/errors. All
+five focused real-worker/renewal cases pass without skips; their TRX SHA-256 is
+`6480ff89659f2e8f234882517a94fe7ee4ca09d5d44d85c3a5598517a1a0c696`.
+The two constructor cases take 2.044/2.158 seconds. This is a fixture-ordering
+correction, not a claim that the old hosted failure was conclusively reproduced.
+
+Failure-only handoff diagnostics retain finite native/durable state, routing,
+lease/attempt and hint-issuance facts. The CI parser admits only the exact two
+registered cases and closed fields; raw messages, identities and credentials
+remain excluded. These observations never supply completion or admission
+capability, and successful aggregate rules remain unchanged. All 65 execution
+protocol controls and 26 aggregate controls pass. They exercise admitted values
+and private/malformed/duplicate counterexamples; no passing-path diagnostic is
+claimed as an observed failure.
+
+Repository overview pointers now describe optional native sign-in and link its
+setup/security rules instead of presenting BFF sessions as future-only work.
+Exact-source complete hosted A/B qualification remains required before PR #36
+leaves draft; no failed-only rerun, timeout increase, skipped case or check waiver
+is used.
+
+### P02b-7 second hosted A — remaining handoff precondition (2026-10-24)
+
+The [A run on `19cd8102`](https://github.com/HodeTech/LearnStack/actions/runs/40040983884)
+finishes with 24 successful jobs and three failures. Frontend and both public
+launcher populations pass. All six BFF cases and 31 native cases pass again;
+the 236-case ordinary-2 producer now passes both held-constructor cases in
+4.534/3.462 seconds, with complete ownership, no forced cleanup and Docker
+absence. Backend aggregation succeeds. Whole-source qualification still fails.
+
+One failure is a local sequencing mistake: the final receipt sentence was
+edited after index generation/check, leaving two generated line counts stale.
+Meta correctly rejects it. Regeneration follows the final content edit and the
+index/lint checks run again after commit; this changes no workflow rule.
+
+The other producer failure is the existing one-hint cleanup control,
+`Native_fixture_start_waits_for_previous_actual_cleanup_before_one_same_generation_hint`.
+All 252 producer cases finish, with only this case failing: cancellation at the
+post-helper constructor wait after 31.493 seconds. The producer correctly refuses
+completion/ownership qualification and the integration aggregate refuses it.
+A location alone does not prove the historical cancellation cause.
+
+A complete source census finds this is the last caller of the shared startup
+helper still using one-second renewal. Its subject is preceding real cleanup
+and exactly one later hint, not renewal refusal. It composes the existing real
+renewal-pacing provider beneath its existing held-disposal timer. The controlled
+initial empty recovery creates no typed lease/deadline; the later real normal
+publication does. The concurrent pacing proof leaves the original cleanup and
+premature-hint counterexample intact, then requires actual constructor and first
+callback entry. Stop releases both holds before actual runtime/timer joining.
+No production behavior, timeout, lease clock, grant, job count or test population
+changes. Direct-owner renewal/refusal controls remain unchanged; source-only
+possibilities in unrelated causal/policy journeys are not labelled reproduced
+faults or used to justify a broad patch.
+
+Both independent round-2 reviewers inspect the applied correction and find no
+actionable defect. Release compilation has zero warnings/errors. All six
+focused real-worker/handoff/renewal cases pass, zero skipped; TRX SHA-256 is
+`12be32c0e7326198d183cbfdafefa373432981e331044826d980c65376c0d837`.
+The one-hint control takes 2.196 seconds. Its early-hint assertions remain under
+the actual original cleanup hold. This is a test-precondition correction,
+not a claim to have reproduced the hosted failure's exact causal interleaving.
+
+A new complete source-bound A/B qualification follows these corrections. The
+failed runs and their independent component evidence remain in this log; PR #36
+stays draft until qualification succeeds.
+
+### P02b-7 third hosted A — closed browser-readiness evidence (2026-10-24)
+
+The [A run on `1784507c`](https://github.com/HodeTech/LearnStack/actions/runs/40043096810)
+finishes with 25 successful jobs and two failures. Meta and both corrected
+native worker populations pass; all six BFF cases, 31 native cases, backend
+aggregation and stopped-provider public demo pass. The ordinary-9 producer
+fails only the existing public-admission browser fallback case; integration
+aggregation correctly refuses it. This is not complete source qualification.
+
+The case lasts 59.507 seconds. Its retained location is the child exit assertion;
+the closed detail is `browser 429` / `browser-devtools`. The first value names the
+intended scenario, not an observed HTTP failure. Existing attribution cannot
+distinguish owner closure, unreadable/incomplete port-file state and the live
+browser readiness deadline. The VM memory peak is not evidence of OOM, and the
+phase alone does not prove a timeout. The exact real case passes locally before
+the correction, so the hosted cause remains unproven.
+
+The test-only readiness observer now retains five branded closed kinds:
+`owner-inactive`, `port-unreadable`, `deadline-missing`, `deadline-empty` and
+`deadline-malformed`. A single file read replaces the existence-check/read pair;
+ENOENT remains incomplete readiness within the existing poll. This closes a
+structural check/read race without claiming it occurred in CI. The original
+20-second/50-millisecond readiness budget/poll stays intact; final owner/liveness
+observation adds no wait and keeps observed child death distinct. There is no
+browser launch retry, security-flag change, skipped case or timeout enlargement.
+Raw exceptions, file bytes/paths, ports and browser output remain private.
+
+Only the exact public-admission case and its two browser scenarios may export
+the five kinds through the existing parser. Plain forged diagnostic objects do
+not gain the JavaScript brand. Both independent round-2 reviewers inspect the
+applied change and approve its privacy, timing and positive/counter controls;
+this is focused confirmation of the material diagnostic refinement.
+
+All 51 focused browser-observation controls and 2,097 guarded frontend cases
+pass, zero skipped/todo. Lint/typecheck pass. The actual Docker/browser case
+passes with the correction in 36.294 seconds; TRX SHA-256 is
+`91453c18f5af9927f743f357408e817c65b2da1e812b5ebd555f28edd98c7df5`.
+Actual file states, partial publication, private exceptions, unchanged deadline,
+boundary death, eventual readiness and forged diagnostics have reachable
+controls. All 65 execution-protocol and 26 aggregate controls pass. Passing local
+observations do not label the old failure harmless or prove its cause. Complete
+same-source hosted A/B qualification remains pending.
+
+
+### P02b-7 first complete A and failed B — preserve the first cause (2026-10-24)
+
+The [run on `c245afcc`](https://github.com/HodeTech/LearnStack/actions/runs/40045256382)
+uses merge checkout `77085cbff7e4782564ef3c33d96df4d089eaf87c`, whose tree equals
+the reviewed source. Attempt 1/A succeeds in all 27 jobs and seven required
+contexts: all 5,930 .NET cases, all 2,097 frontend cases, all six BFF cases and
+31 native cases pass without skips. The stopped-provider public demo passes.
+Attempt 2/B finishes with 25 successful jobs and two failures. Its sole failed
+case is the existing source-floor contention proof; integration aggregation
+correctly refuses the failed ordinary-7 producer. All 5,930 cases finish with
+5,929 passes and one failure. This is not complete same-source A/B qualification.
+
+The failing case takes 41.552 seconds and exports cancellation without a source
+location. Its original explicit cleanup can replace an earlier failure, so the
+receipt cannot establish whether startup, execution or cleanup first failed.
+The unchanged case passes locally in 17.979 seconds. No production defect or
+historical causal interleaving is inferred from either observation.
+
+The test now captures its first catchable body/explicit-cleanup failure, attempts
+every pressure-connection disposal, releases both holds and separately attempts
+stop and actual completion. Failure-only memory snapshots preserve closed
+boundaries, task states, pressure counts, runtime state and finite lease-loss
+counters before and after cleanup. A fixed source alias restores bounded line
+locations. The exact-case parser rejects private, malformed, duplicate and
+wrong-channel data. These observations never supply cleanup or admission
+capability. No pacing, lease clock, startup/execution/cleanup budget, production
+behavior or successful assertion changes.
+
+Both independent round-2 reviewers approve this focused source correction;
+neither claims to have reproduced the hosted cause. Release compilation reports
+zero warnings/errors. Two separate corrected real PostgreSQL/native-worker
+executions pass in 18.024 and 17.895 seconds, zero skipped; their TRX SHA-256s are
+`4dfce5cd0d8914d197f9b7f3154fbe51bc67fe5dc2dc6a91c58817c47902e2cf`
+and `2ee1e199ea9a1786a8a3f3def2c2670913f21448cfa589e652399f924bae16ae`.
+All 68 execution-protocol and 26 aggregate controls pass. Local passes do not
+prove that the historical hosted cancellation is resolved.
+
+Evidence retention has a separate limit: the all-jobs rerun removes earlier
+Actions artifacts. The original A aggregate receipts, workflow metadata and one
+producer package were saved first; all 20 original producer job logs remain
+available and are independently captured. Their actual 5,930 unique case IDs,
+outcomes and durations match the retained complete discovery, with all producer
+ownership/cleanup results successful. Six masked display names are discarded,
+not reconstructed. These derived case records are explicitly job-log recovery,
+not original Actions artifacts. All 20 original B producer packages are now
+retained. Future complete A evidence is downloaded before starting B.
+
+PR #36 stays draft. New complete source-bound A/B execution remains required;
+no failed-only rerun, skip, timeout increase or failing-check waiver is used.
+
+
+
+### P02b-7 hosted causal-restart correction (2026-10-24)
+
+The [A run on `f2a3814b`](https://github.com/HodeTech/LearnStack/actions/runs/40049101128)
+finishes with 25 successful jobs and two failures. All 5,930 cases complete:
+5,929 pass and the existing causal-restart cancellation case fails in 52.717
+seconds. Integration aggregation correctly refuses ordinary-4. The preceding
+source-contention case passes in 16.585 seconds and the public-admission browser
+case in 56.026 seconds, with complete ownership/cleanup and no forced cleanup.
+All six BFF cases, 31 native cases, backend aggregation, frontend and public demo
+pass. All 20 original producer packages and workflow metadata are retained; no
+B rerun follows this failed A.
+
+The failed case retains only source locations 199/217/235, without an exception
+kind or row facts. Three unchanged local variants pass in 22.156/22.231/23.436
+seconds. Those observations do not establish the historical failure's exact
+cause. Source analysis does verify an incorrect expectation: Finalize may retry
+under fresh authority, but this causal test requires exactly one finalizer and
+two ledger rows. Successful terminal state and its terminal MUST audit already
+share the actual Finalize transaction; adding a generic audit-dispatch wait
+would not correct that expectation.
+
+A narrow actual counter delegates all work to the genuine registered Finalize
+handler, then raises one concurrency conflict after a successful real nested
+write. Its next admission uses a different actual application source owner.
+With the original assertions unchanged, this counter records two handler calls
+and exactly one forced conflict, then fails with expected 1/found 2. The red TRX
+SHA-256 is
+`88f55b4b8766ec40fdd03b2e9891e10847c3882a5d2939da8da36f30dbd2e98d`.
+The counter claims its one injection after genuine success, preventing a natural
+first-call failure from bypassing the planted conflict.
+
+The corrected assertion requires one immutable normal attempt, 1–6 admitted
+finalizers and exactly one ledger row per admission. The counter additionally
+requires at least two finalizers, exactly one injected conflict and different,
+actually cleaned injected/final source owners. One Execute, zero external
+effects, immutable provider completion/evidence, one reservation release, one
+committed final organization, one terminal audit and the two committed physical
+application transaction roots remain exact. The same positive assertion still
+rejects the deliberately false cancellation report.
+
+The count census also finds that completed Reconcile reads may repeat if the
+private gate closes before Outcome admission; actual cleanup and lease recovery
+then reread the same provider attempt. The test therefore requires at least one
+real read and, for the dirty adapter, at least one mutation bounded by actual
+durable read calls. It invents no six-read ceiling. Execute/effect and committed
+business/audit evidence remain unchanged. Both fresh round-2 reviewers approve
+these focused corrections after independent source diagnosis. This establishes
+legal retry behavior, not the historical hosted interleaving.
+
+Failure-only projections retain finite boundaries, already-read app-role row
+counts, a fixed nine-column null mask, closed state/policy/reason and runtime
+counters. No additional SQL, provider call, identity or raw exception is exported.
+The transaction-witness boundary starts only after row decoding. The first body
+failure survives later explicit cleanup failures; request/release/stop and
+actual completion are attempted under the original cleanup budget.
+
+Five focused real-worker/retry cases pass, zero skipped; TRX SHA-256 is
+`de0f7bdb0eaff3edf7874aedb2222d7bb5b73b71ddff7e8546c925ff95a22bd4`.
+The three causal variants are independently repeated in 22.226/59.409/22.166
+seconds with the final diagnostic attribution; TRX SHA-256 is
+`8f004ff7e3631179620ed3ca5cc8873402520ec147f537cca224eb2a6b3d242d`.
+The final repeat-read assertion reconciliation is source-qualified separately;
+these local TRXs do not embed an immutable source. Final Release compilation has
+zero warnings/errors; all 71 execution, 67 assignment and 26 aggregate controls
+pass. The extra real retry journey increases case cost, so its measured local
+selector sum updates the existing advisory weight with its own retained source.
+No test row, runtime behavior, lease clock, operation budget, job count or ceiling
+changes. Complete source-bound hosted A/B qualification remains required before
+PR #36 leaves draft.
+
+
+### P02b-7 hosted BFF-browser diagnosis (2026-10-24)
+
+[Run `40052155438`](https://github.com/HodeTech/LearnStack/actions/runs/40052155438)
+uses source `419a8d9beb6682d4b27d2b7610345a75b0b98d4d`, source tree
+`6cff20b2996482fc441d1e5b57e33fdbf8346038` and merge checkout
+`ca3826d5662f50701dfc9920bbe0912062ded0bd`, whose tree matches the source.
+Attempt 1/A passes all 27 jobs and seven required contexts. All 20 original
+producer packages, both aggregate receipts, workflow metadata and public-demo
+evidence are retained before starting attempt 2/B. Independent verification
+checks their artifact hashes, exact 5,930-case union, disjoint ownership and
+successful actual cleanup without forced cleanup. The largest producer's
+whole-job duration is 999 seconds. Manifest and plan digests are respectively
+`43abf742a0454afe30495c117978008f84c75a31a30b4adda7a2a479987995e2`
+and `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b`.
+
+Attempt 2/B finishes with 25 successful jobs and two failures. Its sole failed
+case is the BFF HTTPS browser proof in ordinary-11, taking 24.009 seconds;
+integration aggregation correctly refuses that producer. All 5,930 cases
+complete, with 5,929 passes and one failure. All 20 original producer packages
+and workflow metadata are retained. The three causal-restart variants and
+public-admission browser proof pass. This is not complete A/B qualification.
+
+The failed browser case exports only `invalid_state`, with no source location
+or closed fixture stage. `owned_completion_missing` is the nonzero-workload
+refusal. The failure receipt's forced-cleanup/default Docker fields alone do
+not establish a browser leak or the first failing operation. The unchanged
+actual browser case passes locally in 33.333 seconds, zero skipped; TRX SHA-256
+is `98b9a222b44b3f9d321f5c5e0810b0614fb8a786bef3e2a7515cde9c5ae3a0b7`.
+Neither observation establishes the hosted failure's cause.
+
+Source inspection verifies two diagnostic defects: both the browser fixture
+and its .NET driver can replace an earlier failure with a later cleanup
+failure, and the CI projection omits BFF source aliases and closed reasons.
+The fixture now retains the original stage and separately marks failed cleanup.
+The driver always attempts actual disposal, preserves its first catchable body
+failure and separately records secondary cleanup failure. Cleanup-only failure
+still propagates. Exact-case CI diagnostics retain finite journey/reason codes
+and bounded source locations; private text, paths, credentials and arbitrary
+output remain excluded. No elapsed time or diagnostic becomes cleanup evidence.
+
+Two independent focused source reviewers approve the correction. All 74
+execution, 67 assignment and 26 aggregate controls pass together in 23.742
+seconds, inside their existing thirty-second allocation. Release compilation
+reports zero warnings/errors. The corrected actual browser proof, including
+positive/counter journeys and direct closed-reader controls, passes in 31.917
+seconds, zero skipped; TRX SHA-256 is
+`e9db4e5bf584fe0fd78835f21452ce79e3b01f8e35e5dc7550ea741d8043b675`.
+These local receipts do not claim a reproduction or resolution of the hosted
+interleaving. No runtime policy, readiness algorithm, timeout, retry, case row,
+advisory weight, job count or ceiling changes. Source-bound complete hosted
+A/B qualification remains required; PR #36 stays draft.
+
+
+### P02b-7 implementation and hosted qualification closeout (2026-10-24)
+
+All five implementation steps and both independent review rounds per step are
+complete; the [Step 5 local closeout](#p02b-7-step-5--round-2-corrections-and-local-closeout-2026-10-24)
+retains their source and local proof records. The subsequent dated CI records
+retain failed attempts and focused corrections without replacing that history.
+
+[Run `40056362565`](https://github.com/HodeTech/LearnStack/actions/runs/40056362565)
+qualifies implementation source `4ce7d4dbf7619fadeabe7d1c35932339c483b1fd`,
+tree `62c97d0b31f641eedf0d4c10ecc38f1182534c6a`. Both attempts use merge checkout
+`a8161e6899ad8e9fe644a8cad62781fe7ca00915`, whose tree matches that source.
+Attempt 1/A and the complete all-jobs attempt 2/B each pass all 27 jobs and
+seven required contexts. No failed-only rerun, skip or failing-check waiver
+supplies this qualification.
+
+All 20 original producer packages per attempt, aggregate receipts, workflow
+metadata and public-demo evidence are retained locally. A's originals are saved
+before starting B, which can replace earlier Actions artifacts. Independent
+verification recomputes retained file hashes, exact case/selector unions, ownership,
+unforced cleanup, scoped Docker absence and native-only collector authority.
+Each attempt passes the same 5,930 .NET cases: 3,351 non-Docker and 2,579 Docker,
+including 31 native crash-proof cases. There are zero skipped or failed cases.
+Manifest and plan digests are respectively
+`43abf742a0454afe30495c117978008f84c75a31a30b4adda7a2a479987995e2`
+and `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b`.
+
+Actual co-membership differs in both movable populations and in the ordinary
+methods of the 77 source-declared `SharedSchema` classes. Owner changes are:
+
+| Population | Selectors changing owner | Cases changing owner |
+|---|---:|---:|
+| Architecture | 220 | 371 |
+| Ordinary Docker | 1,074 | 2,256 |
+| `SharedSchema` ordinary subset | 901 | 1,874 |
+
+The last row is a subset, not an additional population. Source, plan, complete
+case set and actual toolchain match between attempts: SDK `10.0.402`, console
+`18.7.0-release-26505-111` and loaded adapter `2.8.2.0`, including their retained
+hashes. The largest producer whole-job durations are 938/908 seconds for A/B;
+backend aggregates take 16/21 seconds and integration aggregates 28/29 seconds.
+All remain within the unchanged twenty-/five-minute ceilings. The workflow
+still uses 20 backend/test execution VMs and the same seven required names.
+
+Both attempts also pass 2,097 frontend cases, zero skips/todos, and the public
+demo's nine pages and 27 Lighthouse JSON/HTML report pairs with Keycloak stopped.
+Public-demo cleanup independently confirms stopped processes, empty Compose
+ownership and removed private files/environment/lock in 13,141/12,963 ms.
+All six BFF cases pass in each layout, including the actual warm-provider/native
+BFF/application-role API chain and the separate actual HTTPS browser proof.
+The browser proof uses fake grants/API; its explicit history-event counter is
+not a natural BFCache claim or a full browser-driven OIDC journey. Phase 06
+retains that broader suite. Local English/Turkish sign-in and protected-shell
+visual inspection remains recorded in Step 5.
+
+The earlier browser failure's historical cause remains unproven. Passing this
+pair does not retrospectively establish it. The retained correction preserves
+first failures and secondary cleanup separately. Three additional local driver
+controls exercise actual owned Node children: body plus failed disposal,
+body plus failed disposal and a throwing observer, and cleanup-only failure.
+Each retains the expected first failure and confirms child absence; these are
+controlled protocol/cleanup counters, not product browser proof. Their closed
+three-pass receipt has SHA-256
+`0f04126fecca80ba7eec888ee4979af9ac9b8866edcf8b24dd5cc2e250e8b941`.
+
+This closeout changes documentation only. Runtime/test sources, plan and
+workflow remain byte-identical to the qualified implementation. Normal
+current-head checks are still required before [PR #36](https://github.com/HodeTech/LearnStack/pull/36)
+leaves draft; maintainer review and merge follow separately. The
+[phase Status](phase-02b-events-auth.md) owns packet state; P02b-8 owns remaining
+exit enforcement and erasure inventory work.
+
+
+### P02b-7 external review corrections and disposition (2026-10-24)
+
+The correction baseline is `5fc18ce7`. Current-code inspection verifies the
+findings individually; mutation-survival totals and speculative scenarios are
+not treated as reproduced product failures. PR #36 returns to draft while the
+changed source is validated. Earlier source-bound receipts remain historical.
+
+#### Verified behavior and proof corrections
+
+- Enabled public projection treats unsupported Authorization and malformed BFF
+  cookies as anonymous. Qualifying GET documents clear only malformed owned
+  cookie names, with bounded deletion headers and no reflected values. HEAD,
+  prefetch and passive requests make no cookie writes. Auth routes retain their
+  strict input/Origin/CSRF checks.
+- A temporary ordinary AccountSite failure withholds the response's authenticated
+  projection, preserves the live owner and does not advance idle time. Protected
+  reads return 503; public pages render anonymously. Identity refusal or scope
+  conflict still revokes. Post-refresh authority failure still revokes under the
+  consumed-grant rule; no grant is retried. Owner and signed-provider controls
+  also prove replacement refresh-token use and omitted-token preservation.
+- The native sign-out response confines Location to the fixed provider logout
+  endpoint or the independently verified local root. It suppresses Next's 303
+  URL body, preserving separate cookies and write/end callbacks. Actual Next
+  canaries exercise the ID-token-hint Location exception without a body leak.
+- BFF responses and protected HTML gain frame denial. Accept alone no longer
+  qualifies activity. Header links have spacing; expired UI has its own message;
+  Studio/Portal gain localized document titles, retaining their existing h1s.
+  Institution display text is labelled as institution, not a person's name.
+- RP and SDK actor UUID validation matches the API's non-nil UUID contract rather
+  than requiring version 7. Configuration failures have six closed causes;
+  startup forces TLS verification before loading Next. Source agreement and
+  private-file validation remain unchanged.
+- Browser waiters attach rejection handlers before keyboard actions. Readiness
+  uses the shared atomic DevTools reader and checks failed spawn/exit/signal with
+  its original ten-second bound. Sign-in, extension and sign-out use Enter.
+  Protocol/session/browser proofs preserve first failure and separately mark
+  cleanup failure; the driver accepts only each matching closed two-line form.
+- Cookie diagnostics retain all output up to a fixed 256 KiB per child, recheck
+  subsequently learned canaries and refuse overflow. They do not silently lose
+  earlier text through a rolling window. CSRF's allowed form/JSON projection is
+  distinct from its prohibition in diagnostics. The default protocol harness is
+  labelled as a minimal harness; the separate UI mode copies product middleware.
+- Added planted CI controls reject missing durations, a foreign partition case
+  with matching surrounding evidence and false/ill-typed Docker-absence claims.
+  The four BFF catalogue names identify their existing executable owners; stale
+  extension statuses and phase ownership/flow illustrations are reconciled.
+
+The first real local run exposes two correction-fixture defects, not passing
+proof. Removing Accept-only activity correctly makes its synthetic document
+request passive, so the real-provider fixture supplies document fetch metadata
+and retains the exact seven-read expectation. The browser reaches the expected
+303 but its Playwright route does not intercept the redirected authorization
+request; a closed debug observation records `ERR_NAME_NOT_RESOLVED`. Pinned
+Playwright's redirect continuation bypasses that route interception. Authorization
+and logout now use actual endpoints on the proof's owned HTTPS provider stub;
+both authorization visits, wrong-host rejection and real callback navigation
+remain required. This does not establish the cause of the earlier hosted failure.
+
+The corrected real run passes all six BFF cases and three causal-restart variants,
+zero skips. The warm historical realm is automatically prepared/reconciled and
+then converges with zero writes before real native BFF/application-role API,
+refresh/logout and provider-event verification on both hosts. Chromium
+`156.0.8078.48` completes the separate fake-grant/API browser positive and history
+counter in 25.957 seconds. Natural persisted restores remain zero; the explicit
+history-event counter is not a natural BFCache claim. Real-provider evidence
+passes in 76.352 seconds; owned provider containers/network are independently
+absent after cleanup. TRX SHA-256:
+`d6ae73206ce7684af8f78a8aded3db302d6d9566b6e25e22933e9761dca77898`.
+
+#### Causal-restart assertion and evidence reconciliation
+
+Unforced paths with no observed runtime lease loss again require exactly one
+Reconcile, one finalizer and two ledger rows; the dirty report is applied once.
+Only observed lease loss or the explicit real-handler concurrency counter uses
+the legal retry ranges. Normal attempt, Execute, effects, final business write,
+reservation release and terminal audit retain their exact assertions. Closed
+counts are emitted on every successful qualification. This local run observes
+`1/1/2` Reconcile/finalizer/ledger in every unforced path with zero lease loss;
+the deliberate conflict observes `1/2/3` and different actually cleaned sources.
+
+The original successful A/B pair was the first complete successful pair for this
+packet. It followed six runs with a failed attempt:
+[40037549651](https://github.com/HodeTech/LearnStack/actions/runs/40037549651),
+[40040983884](https://github.com/HodeTech/LearnStack/actions/runs/40040983884),
+[40043096810](https://github.com/HodeTech/LearnStack/actions/runs/40043096810),
+[40045256382](https://github.com/HodeTech/LearnStack/actions/runs/40045256382),
+[40049101128](https://github.com/HodeTech/LearnStack/actions/runs/40049101128) and
+[40052155438](https://github.com/HodeTech/LearnStack/actions/runs/40052155438).
+The preceding dated records distinguish demonstrated fixture defects from
+historical source-contention, causal-restart and browser interleavings whose
+causes remain unproven. Passing later runs does not explain those interleavings.
+No claim that success assertions were unchanged is retained in the PR summary.
+
+Control accounting is also clarified: the former 67 combined assignment controls
+already included 26 aggregate controls. They are not additive totals. The current
+scripts pass 75 execution controls and 68 combined controls (41 assignment plus
+27 aggregate), in 17.404 and 3.020 seconds locally. No workflow ceiling changes.
+Original A-attempt producer artifacts were retained locally before rerunning all
+jobs for B; they are not claimed available from GitHub after replacement.
+
+#### Findings that do not justify another policy change
+
+| Concern | Current evidence and disposition |
+|---|---|
+| IPv6 addresses, NAT/proxy peers and capacity monopoly | The limit is per canonical verified IP, not per person or /64. Multiple addresses can spend multiple allowances; a shared proxy combines visitors. ADR-0070's dated clarification and the support guide state the limit; subnet fairness and production proxy qualification remain Phase 11's named trigger, not a new guarantee. |
+| Published development secret accepted by a production-mode Next build | Production-mode compilation is not a qualified production deployment. Existing single-process/development-provider support remains explicit; Phase 11 owns production credentials, provider events, host registrations and proxy/distributed qualification before activation. No unsupported production security claim is inferred. |
+| Conflicting root/web environment values; unsafe files in disabled mode | Source agreement and no-follow/bounded private loading are intentional. Guidance now teaches changing every present activation source and the launcher distinguishes closed failure causes. Silently overriding or ignoring an unsafe file would weaken the accepted boundary. |
+| Secret visible in Next server process; ambient proxy/CA settings | A local probe confirms server-process environment visibility, not browser export. Native and Next code share one server trust boundary; no public alias is emitted. The actual ambient TLS-disable bypass is closed. No exploit or forbidden endpoint was demonstrated from trusted operator proxy/CA configuration. |
+| JWKS fetched again per grant | Confirmed; each grant keeps its own finite transport owner. A shared mutable fetch callback would violate isolation. No measured fit failure justifies changing that ownership for an unmeasured cache optimization. |
+| Server monotonic sleep semantics and browser clock | The server, including its expiry and epoch checks, authorizes requests; the browser clock only drives display. A server-suspend exploit was not reproduced. Production clock/availability behavior is not established by this development proof. |
+| Five-minute transaction vs provider login timeout | The deliberately shorter local transaction refuses a late callback; it promises no provider-screen lifetime. Increasing it would change the accepted capacity/lifetime tradeoff. |
+| Real historical identity path, token rotation and full browser OIDC | The existing real-provider case executes historical preparation, zero-write convergence and authenticated BFF/API on both hosts; signed adapter/owner rotation controls are strengthened. The separate browser proof remains fake-grant/API. Full browser-driven provider login and Firefox/WebKit remain Phase 06's explicit scope. |
+| Different A/B co-membership and narrow CI timing margin | The guard compares method groups, rejecting shard renumbering; it does not promise a movement percentage. Earlier actual movement is quantified in the original closeout. Weights are advisory and measured hosted fit is source-bound; no automatic topology/budget expansion is introduced. |
+| Aggregate API failures and failed-only reruns | Fail-closed current-attempt ownership under ADR-0063 requires a complete rerun. Opportunistic evidence reuse or an unqualified retry policy is not added as a review shortcut. |
+| Duplicate standards, owner wording and bounded readers | Correct stale owners, terms and executable source references rather than broadly refactor independent protocol boundaries. No demonstrated shared-reader bug or obligation requiring a new generic abstraction was found. |
+
+ADR-0070 gains a dated delivered-owner/read-failure clarification without rewriting
+its Accepted decision or claiming future runtime was false when accepted. The
+Phase 03, Architecture 04/13, Security 11, Catalogue 21, glossary, web guide and
+review skill carry their current responsibilities. New tenant-host callback and
+post-logout registration is explicitly owned by Phase 11 before production
+activation. No new ADR, schema, role, grant, endpoint, token TTL, owner capacity,
+operation timeout, shard plan, execution VM or required-check name is introduced.
+
+The first fresh independent review pair finds and closes local-root fallback,
+passive cookie writes, late-learned canary retention and planned-vs-delivered
+proof-owner attribution. Final complete frontend/lint/typecheck, second fresh
+review and new source-bound hosted qualification are still required; none is
+inferred from the original green head. The phase Status owns current delivery.
+
+
+### P02b-7 correction reviews and local validation closeout (2026-10-24)
+
+Both fresh independent correction review pairs complete. The second pair
+confirms product authority/lifecycle behavior and closes two additional evidence
+paths: strict causal-count failures now emit their closed census before the
+assertions and enter the existing diagnostic catch; startup disposal always runs
+without replacing an earlier catchable startup error, including when a secondary
+observer throws. The original Accepted ADR table remains intact; its delivered
+owner clarification lives only in dated Amendment 1.
+
+Two actual Node children deliberately retain their own private trees after
+reporting a closed compile/cleanup failure. Startup must preserve that exact
+first stage, separately observe actual disposal failure and join child exit,
+with both ordinary and throwing observers. The counter independently confirms
+child absence, then removes only its validated owned retained tree. The existing
+parent-EOF/held-build case includes both controls; no new case row is added.
+Its final passing TRX SHA-256 is
+`58b74cc2188697e1f17bbcb8d65f54997b16022df4cbf28c1b81a89ba2420644`.
+The three causal-restart variants and the startup case also pass together, zero
+skips; TRX SHA-256 is
+`dfb794aa029a43c49eff28874374c2e8abadd6e048c4cbfdb4856b5039b2d22e`.
+Passed count output lives in these local raw TRXs; sanitized hosted receipts do
+not retain successful StdOut, and no contrary remote-retention claim is made.
+
+The complete guarded frontend passes 2,160 cases in two packages with zero
+skips/todos, including actual minimal Next protocol, actual product UI and
+negative diagnostic/activity/shutdown controls. Lint and typecheck pass. Backend
+Release compilation reports zero warnings/errors; all 2,616 Unit cases and five
+CorpusConsistency architecture cases pass. ADR parser controls pass seven cases;
+ADR-0070 remains Accepted. The separate nine-case real integration receipt,
+75 execution controls and 68 combined assignment/aggregate controls remain
+recorded above. Independent round-2 checks additionally pass 154 targeted
+runtime/security tests and 57 proof-support/DevTools tests; these are subsets,
+not additive populations.
+
+No service credentials, private review files or foreign worktrees are changed.
+The final working-tree receipts establish local validation, not immutable-source
+hosted qualification. Commit, complete new-source A/B execution and current-head
+required checks precede PR readiness; PR #36 remains draft meanwhile.
+
+
+### P02b-7 correction source handoff (2026-10-24)
+
+Commit `903ed92f` contains the verified runtime/test/document corrections. Both
+fresh review pairs and focused confirmations are complete. This handoff changes
+only delivery documentation; runtime/test sources remain byte-identical to that
+commit. PR #36's Tests section records the new qualification source, hosted run,
+A/B attempts and current required-check result as they complete. Earlier runs
+and locally retained originals are not substituted for those current checks.
+
+The phase Status records implemented/reviewed delivery without copying transient
+CI job state. Required checks and exact-source A/B qualification still govern PR
+readiness; maintainer review and merge are separate. Recording live CI receipts
+in the PR avoids another documentation-only source change after qualification.
+No full provider/browser, production or historical failure-cause claim is added.
+
+
+### P02b-7 startup-counter cleanup confirmation (2026-10-24)
+
+A final focused inspection finds that the new startup counter's failure branch
+could delete its trees before independently confirming child absence. Recursive
+cleanup now requires that confirmation; unknown/alive child state retains both
+trees and fails. Both ordinary and throwing-observer actual Node controls, plus
+the held-build parent-EOF journey, pass again with no skips. Release compilation
+has zero warnings/errors. TRX SHA-256:
+`99532b0b06846d7ab0655e499cf6f42a34e2f6fcc8e812d34f08e7f3fe98c17a`.
+The independent reviewer confirms the focused delta before commit/push.
+
+Run [40070734838](https://github.com/HodeTech/LearnStack/actions/runs/40070734838)
+on the preceding source is intentionally cancelled for this test-hygiene
+correction and supplies no qualification. It is not a passing rerun or a waived
+failure. No further delivery-only commit is needed for live CI receipts: the
+PR records the final source and its complete new A/B attempts.
+
+
+### P02b-7 hosted recovery proof follow-up (2026-10-24)
+
+Run [40071690886](https://github.com/HodeTech/LearnStack/actions/runs/40071690886)
+on correction source `5e07cce6` completes attempt 1/A with all 27 jobs and seven
+required contexts passing. Its 5,930 .NET cases include 31 native cases; frontend
+passes 2,160 cases and the demo supplies nine pages and 27 Lighthouse pairs.
+Attempt 2/B refuses before native provisioning/test launch because Docker
+image-layer provenance cannot be established. Its other 19 producers pass 5,899
+cases. The refusal proves neither an actual dump nor a specific Docker failure.
+
+The complete attempt 3/A passes native 31/31 and 25 jobs but records one failed
+normal Docker case: the lost-acquisition-acknowledgement variant of
+`Actual_native_recovery_owner_renews_past_old_deadlines_without_admission_or_another_Execute`,
+in 21.443 seconds. Its other variant passes in 20.649 seconds. All original
+producer packages and available aggregate/demo receipts are retained locally;
+independent case accounting gives 5,929 passed and one failed case. The integration
+aggregate correctly rejects that failed producer. Workload/ownership refusal
+fields do not independently establish a resource leak.
+
+Three unchanged-source local repetitions pass all six recovery cases. They do
+not establish the historical cause. Source inspection instead verifies three
+narrow proof/diagnostic gaps, now corrected:
+
+- Capture the initial timer-change count before starting control and require a
+  later change. Initial timer setup alone is not renewal evidence; the real SQL
+  lease, old-window survival and exact provider/attempt assertions remain.
+- Preserve the first catchable body error while attempting actual-operation,
+  work and control cleanup. A later cleanup error stays a separate observation.
+- Add the missing source alias and retain exact failed-case-only closed
+  observations for this pair. Stages, exception categories, task states and bounded memory
+  counters contain no provider text, identifiers, credentials or raw paths.
+  Diagnostics perform no extra SQL or provider call and grant no completion or
+  cleanup authority. Capture the cancellation-token value before private-source
+  disposal so post-cleanup observation does not lose its own record.
+
+The final Release build has zero warnings/errors. All four actual recovery and
+Prepare/renewal controls pass, zero skips, in 41 seconds; five corpus controls
+and the documentation checks pass. Final focused TRX SHA-256:
+`7cd4581ec96fe72a3f1287e5133cb35c53927528ea1a7eecd2b534498ac3396a`.
+
+The first independent source review catches that disposed-source observation
+error; the captured-token correction closes it. Two fresh independent focused
+reviews then approve the C# lifetime/proof and Python containment/control changes.
+The full 75 offline execution controls pass, including exact-case, wrong-channel,
+foreign-assembly, duplicate, bounds, success-path and canary counterexamples.
+Production code, operation/test budgets, shard weights/counts and required checks
+are unchanged. The historical CI cause remains unproven. A new complete
+source-bound pair remains required; live results belong in PR #36 so recording
+those results does not invalidate the source again.
+
+
+### P02b-7 fixture image failure classification (2026-10-24)
+
+The recovery-proof correction at `c2a7e979` completes the full A assignment in
+[run 40076725886](https://github.com/HodeTech/LearnStack/actions/runs/40076725886),
+attempt 1: 27 jobs, seven required contexts, 5,930 .NET cases, 2,160 frontend
+cases, 31 native cases, nine demo pages and 27 Lighthouse pairs. All 20 original
+producer packages, both aggregates and demo evidence are retained locally and
+independently hash/identity/case-union audited. The longest producer whole-job
+observation is 1,004 seconds; the aggregates take 19 and 39 seconds. These are
+measured observations, not future timing guarantees.
+
+Attempt 2/B fails before restore/build/tests while preparing the fixed fixture
+images, in ordinary-10 and ordinary-11. The closed error is
+`fixture_image_pull_failed`; the observed ordinary-11 preparation returns in
+about 1.75 seconds, rather than exhausting its budget. The doomed attempt is
+cancelled after preserving both setup-failure logs and available artifacts.
+Attempt 3/A is deliberately cancelled rather than repeat the retained complete
+A assignment; it supplies no qualification. All jobs run again in attempt 4/B,
+but ordinary-7 returns the same preparation refusal. Its failure log and
+available artifacts are preserved before cancellation. No earlier passing
+siblings are supplied to an aggregate, and no cancelled attempt qualifies.
+
+The original helper discards Docker stderr, so these observations cannot
+distinguish a registry, network, credentials, manifest or local-daemon failure.
+Further blind reruns stop. Only the two fixed image pulls opt into a diagnostic
+projection through the existing command owner:
+
+- Default callers retain stderr discard, direct argv, the scrubbed environment
+  and their original failure behavior. No new CLI/environment command selector
+  is introduced.
+- Opted-in stderr stays in an unlinked owner-only temporary file, closes on every
+  path and is inspected within the existing output bound. Only a fixed component
+  and a closed error category leave the boundary; raw provider text, URLs, paths,
+  credentials and exception messages are not exported.
+- First command failure survives later spool-cleanup failure. A cleanup-only
+  failure still refuses. The diagnostic is an observation, not a causal verdict
+  or a positive execution/cleanup witness.
+- Fixed images, 55-second command caps, the shared 110-second preparation bound,
+  execution/cleanup reserve, shard plan/topology and required checks stay intact.
+  No automatic image-pull retry or additional Docker command is introduced.
+
+The first review closes primary-error masking by spool cleanup, an invalid
+classifier-return success path and spool-setup deadline accounting. Two fresh
+independent focused reviewers then approve the final process and contract
+changes, including the deadline correction. The final 75 owner controls pass
+in 18.837 seconds; 68 combined controls pass in 2.780 seconds (41 assignment
+plus 27 aggregate, not additive totals). Actual owned-stub timeout/reaping,
+spool closure, canary containment, default behavior, fixed component/image
+selection and remaining-reserve controls pass. Five corpus controls, Python
+compilation and the diff whitespace check pass. No hosted result is inferred
+from these offline controls.
+
+The historical pull cause remains unknown. The next complete source-bound
+qualification must establish the new source; the retained A result is historical
+once this diagnostic change is committed. Live CI receipts stay in PR #36 rather
+than creating a delivery-only commit after each run.
+
+
+### P02b-7 retained correction-source A/B qualification (2026-10-24)
+
+This durable receipt records the qualification previously carried in PR #36.
+It certifies implementation source `c12f4eed524f218518497eb2355b447ce5d108f1`,
+tree `906f934f6f56aa2a9d4b0e940ff6faefc6410098`, against base
+`935d8da66878286d6a1695f3d41d985ebce4e791`. The tested merge checkout is
+`52d0d57928e6f9cca66c0b8ab2ee19b0736c82db`, with the same tree. It does not
+qualify later source corrections.
+
+[Run 40080617716](https://github.com/HodeTech/LearnStack/actions/runs/40080617716)
+completes attempt 1/A and attempt 2/B: all 27 jobs and all seven required
+contexts pass in each attempt. Each assignment executes 5,930 .NET cases:
+3,351 non-Docker and 2,579 Docker, including 31 native and six BFF cases.
+Each frontend population passes 2,160 cases without skips/todos. The public
+demo supplies nine pages and 27 Lighthouse report pairs in each attempt.
+
+All 20 original producer packages, both aggregates and the demo evidence from
+each attempt are retained and independently audited. Attempt A's originals
+were saved before the full B rerun replaced remote artifacts; this receipt does
+not promise their continued GitHub availability. Source/case/selector unions,
+current-attempt identities, natural process ownership/cleanup and toolchain
+equality pass. Architecture, ordinary, shared and SharedSchema method cohorts
+have genuinely different co-membership between A and B; a changed bin number
+alone is not the independence witness.
+
+| Retained identity | SHA-256 |
+|---|---|
+| Discovery manifest | `43abf742a0454afe30495c117978008f84c75a31a30b4adda7a2a479987995e2` |
+| Assignment plan | `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b` |
+| Independent complete-pair audit | `3df848bfbd12ba13e6c6178bc6543699d5d78ebb42da50feaa54d22456ab9709` |
+
+The longest observed producer whole-job durations are 1,010 seconds for A and
+924 seconds for B, within the unchanged 1,200-second ceiling. The two aggregates
+take 17/34 seconds in A and 21/27 seconds in B, within 300 seconds. Demo cleanup
+takes 10,665/12,371 milliseconds; every required process/container absence and
+removal observation is true. There is no forced-cleanup qualification. These
+are observations of this source, not guarantees about later duration or
+capacity. Both fixed image pulls succeed here; the historical preparation
+failure's root cause remains unknown.
+
+### P02b-7 second correction package and ADR-0071 proposal (2026-10-24)
+
+A further source review distinguishes current defects, regression-proof gaps
+and suggestions that would change policy. PR #36 returns to draft while these
+corrections are implemented and qualified. The completed A/B receipt above is
+historical evidence; it is not reused as qualification for changed code.
+
+The only newly proposed runtime policy is
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md). ADR-0064's
+present invalid-or-undecidable credential contract returns 401 for both causes.
+The actual API control
+`Discovery_failure_on_an_actual_public_route_is_401_and_never_anonymous`
+passes independently: a normal signed token plus discovery 503 produces API
+401. The current BFF instead treats every valid 401 problem as proven identity
+rejection and closes the ordinary-read owner. The proposal retains that owner
+without touching idle time and withholds checked authenticated content; initial
+callback and post-refresh checks retain their stricter rules. Genuine 401
+revocation is consequently delayed. Approval is required before that mapping
+or its dependent normative carriers change.
+
+The correction sequence is bounded by the existing session/CI contracts:
+
+1. Close exact HTTP/source census and cancellation proofs; independently bind
+   session lifetimes, logical custody cleanup, response handoff and provider
+   transport/TTL arithmetic. Apply compatible security patches and prove the
+   existing native Next.js seam against the resolved version.
+2. Correct accessible recovery and warning state; strengthen the actual
+   provider/browser, real API, warm-realm, causal-job and CI ownership controls.
+   Retain closed diagnostics and current operation, cleanup and job budgets.
+3. Reconcile current architecture, standards and named future-phase acceptance
+   owners. If ADR-0071 is approved, accept it first, append its own ADR-0070
+   disclosure and implement its isolated mapping and composed controls.
+4. Complete both fresh independent review rounds for each correction package,
+   fix verified findings, then freeze implementation and run the complete
+   source-bound hosted assignments. Record their source/tree, populations,
+   cohort independence and cleanup in the repository; compact the PR body and
+   attach a safe current UI image. Merge remains the maintainer's action.
+
+| Finding family | Verified disposition |
+|---|---|
+| Ordinary AccountSite 401 | Policy defect confirmed against actual API behavior; ADR-0071 proposed, dependent mapping unchanged pending approval. |
+| Matcher, routes, methods, Origin, raw logout body and HTTP cancellation | Current production gates are present; add independently discriminating negative controls through their real owners. |
+| Session lifetime/custody and provider bounds | Add independent clocks, provider windows, scalar logical retention/index observations and valid-response transport twins; scalar cleanup is not heap zeroization. |
+| Expiry projection and recovery UI | Stabilize monotonic-to-UTC projection; keep protected content hidden after failure while preserving sign-out/reauthentication and a truthful interactive retry. |
+| CI ownership, warm event policy and real API proof | Plant isolated violations in the existing controls; use retained original cookies and explicit cross-tenant audit expectations rather than a cleared cookie jar. |
+| Causal job observations | Tighten the forced, no-observed-lease-loss branch and retain closed success/failure facts. No production renewal policy is inferred from an unproven historical cause. |
+| Dependencies | Patch verified affected compatible releases; independently assess any remaining advisory against actual runtime/build exposure. No required audit check or topology is silently added. |
+| Documentation and future-phase ownership | Correct stale current descriptions; add concrete deliverables/criteria for already named future work rather than promising unowned proof. |
+| Request nonce, extension cooldown and lock-contention renewal change | No current defect established. ALS/provenance binds each owned request; accepted explicit extension refreshes provider idle; historical contention causality remains a hypothesis. |
+| Blanket reason-name census and all suggested mutations | A string appearing in a test is not semantic proof. Add isolated controls for the verified guards and preserve meaningful clean twins. |
+| Existing JWT detector, fixture cancellation and Secure assertion | Existing independent controls already exercise these requirements; extend only distinct uncovered boundaries. |
+
+Two independent first-round ADR reviewers and two fresh second-round reviewers
+inspect the source contracts, policy boundary, governance and proof plan. The
+first round corrects the Phase 06 reference and narrows the callback negative
+to preserve a prior live replacement owner. Both fresh second-round reviewers
+approve without an actionable finding. These are source reviews, not execution
+claims. The ADR parser reads Proposed; all seven parser controls and the full
+documentation checks pass, including 2,222 fragment links. Implementation
+corrections and their tests remain in progress; no passing hosted result or
+policy approval is inferred from this proposal.
+
+
+### ADR-0071 acceptance and review corrections (2026-10-24)
+
+The maintainer authorizes acceptance and immediate implementation after closing
+still-valid review findings, without another approval request. The revised
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) is Accepted before
+its dependent mapping changes. The approved correction sequence above remains
+the delivery plan; this record grants no additional endpoint or grant policy.
+
+The follow-up clarifies that Amendment 1 of ADR-0070 enumerates no status map:
+ADR-0071 completes that gap and ratifies its ordinary-read availability choice,
+rather than superseding an invented 401 clause. Existing availability retention
+and the new 401 mapping are distinguished. All other valid API problems are
+covered; masked 403/404 remain conservative access-boundary refusals with an
+explicit configuration-outage cost. The shared legacy `identity` category does
+not certify an invalid person. Callback/extension 401 changes BFF
+400/`identity` to 503/`provider_refused`, while refuse/revoke remains mandatory.
+
+The decision records cached-key and pre-refresh availability limits, explains
+the new package's positive API witness requirement and rejects publishing a
+refreshed package without it. A later user read is distinct from an automatic
+retry. Reason overloading, named Phase 03/06/11 owners, concrete existing
+catalogue obligations and the taxonomy references are explicit. No new glossary
+term or second failure taxonomy is introduced. The API discovery-failure control
+is being expanded from its actual public route to the actual AccountSite route.
+
+Two fresh focused policy/governance reviewers independently inspect these
+corrections against the source and Accepted contracts; both approve without an
+actionable finding. These are source reviews. ADR-0070 gains its own dated
+Amendment 2, its earlier history remains intact, and Security 11/Architecture 13
+reference the new decision. The decision index moves the single 0071 row to the
+active table. Runtime and composed proof completion follow in a separate commit.
+
+
+### P02b-7 correction foundation implementation (2026-10-24)
+
+The first correction package closes exact matcher/config/route/Server Action
+source census, imported production-directory and transport/storage bypasses,
+the complete method/path set, all three Origin-negative forms and HEAD side
+effects. Cookie attributes/lifetimes are checked at the actual route; raw TCP
+observation proves that logout emits no body even when a client would trust
+`Content-Length: 0`. The unnecessary protocol-proof genericity exemption is
+removed. These gates preserve the approved product surface.
+
+The owner now anchors monotonic-to-UTC deadline projection once per entry,
+preventing sampling jitter from claiming an extension. Native counts expose
+only scalar logical credential/transaction/proof/CSRF and state-index occupancy,
+never values or owner snapshots. Independent provider windows/clocks bind the
+literal lifetime/refresh/sweep boundaries, late authority checks and release
+symmetry. Actual HTTP protocol cancellation reaches the real store; unsettled
+work retains its owner until completion. Provider controls use valid response
+twins and literal byte/time boundaries. The reachable RP graph and shared jose
+copy are checked without treating stale installation directories as authority.
+
+Compatible security updates select Next/eslint-config-next 15.5.28, Vite 6.4.4,
+Vitest 4.1.12, and scoped transitive Zod 4.6.6 / fast-uri 3.1.9 in the lockfile.
+The [Next advisory](https://github.com/advisories/GHSA-2464-fhr4-w9xw),
+[Vite advisory](https://github.com/advisories/GHSA-587h-7wmj-h5pm) and
+[Zod advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)
+support the affected/patched versions. The post-update audit has zero critical,
+high or low advisories and one moderate postcss-selector-parser advisory in
+Tailwind/postcss-nested's trusted build-only path. Its
+[published exposure condition](https://github.com/advisories/GHSA-rj75-hqrm-r3gf)
+requires synchronous attacker-controlled selectors, which this application
+does not parse there. Forcing major version 7 outside both parents' version-6
+ranges is not a justified minimal repair. This is an exposure assessment, not
+a zero-advisory claim or a new required audit gate.
+
+Focused validation passes: 437 surface controls, 157 owner/provider/protocol
+controls and 21 fast request-runtime controls. Those selections deliberately
+exclude existing compiled/heavy cases, not the final suite. App/native
+TypeScript and selected repository lint checks pass. The rebuilt native seam
+and actual pinned Next protocol proof pass on 15.5.28. In a private temporary
+copy of 14 actual source/test files, the clean HTTP baseline passes 132 cases;
+each of eight isolated extra-route/Origin/HEAD/cookie/method/logout-body mutations
+fails its intended assertion. No shared source is mutated by those controls.
+
+The package is committed for its two independent review rounds. Full build,
+browser/provider and complete hosted qualification remain required after the
+remaining correction packages settle; focused success is not a completion claim.
+
+
+### P02b-7 foundation first review corrections (2026-10-24)
+
+Two fresh independent reviewers inspect committed foundation `0fa1afe9`, one
+covering the closed surface and one the owner/provider/cancellation boundaries.
+Neither finds a production behavior defect. They identify two proof gaps:
+post-declaration configuration mutation can evade the new source census, and a
+quoted scoped pnpm key can evade the forbidden-library check.
+
+The configuration binding may now appear only at its declaration and approved
+plugin argument; independent `Object.assign` and alias-escape counterexamples
+exercise that restriction, including middleware configuration. The dependency
+control checks bare/single-/double-quoted lock keys and both manifest dependency
+sections, with independently planted forbidden entries. The current clean
+configuration and reachable dependency graph remain passing twins. All 284
+public-boundary controls pass; the targeted graph control passes. These fixes
+are committed before the fresh second review pair.
+
+
+### ADR-0071 dependent mapping and composed controls (2026-10-24)
+
+After acceptance commit `e782f971`, the AccountSite caller removes 401 from its
+`identity` status set. Valid 403/404 remain conservative access-boundary
+refusals; all other valid API problems use `provider_refused`. No store retry,
+grant-publication, lifetime or API response policy changes.
+
+`account-site-policy.test.ts` composes the actual SDK caller, real session store,
+native request/admission runtimes and real middleware/protocol response owners.
+A held valid 401 produces anonymous public/503 protected responses with no cookie
+edit, second grant or idle advance. A later valid response admits the same
+handle. Fresh and replacement callbacks independently return
+503/`provider_refused`, clear only their transaction proof and publish no new
+owner; a prior live replacement owner survives. The post-refresh 401 returns
+that same status/category while revoking its owner and refusing replay.
+
+The caller table includes valid other-4xx/5xx problems and malformed 401/403/404
+twins. Four focused files pass 146 cases; app TypeScript and repository lint
+pass. The actual API discovery-failure theory separately passes both public and
+AccountSite routes, two cases with no skip. These compose the two contract
+halves; they do not claim a full browser-driven real-provider outage journey.
+The fresh implementation review rounds and complete final-source qualification
+remain part of the correction closeout.
+
+
+### P02b-7 foundation second review closeout (2026-10-24)
+
+Two fresh second-round reviewers inspect `0fa1afe9` and `9a323182`, separately
+covering surface and owner/provider/cancellation correctness. The owner reviewer
+approves without a finding. The surface reviewer finds that a locally replaced
+plugin import can retain the checked call shape. The final correction pins the
+actual runtime default import to `next-intl/plugin`, the type import to Next,
+and the four top-level configuration statements. Changed-source, type-only and
+wrong-binding counterexamples retain the clean current configuration twin.
+
+All 284 boundary controls and app TypeScript pass. The surface reviewer then
+independently confirms the focused fix and approves without a remaining
+actionable finding. Both required review rounds for this foundation package
+are complete. These reviews do not claim that the separate in-progress policy,
+UI, CI or complete real-provider/hosted packages have already qualified.
+
+
+### P02b-7 recovery UI and proof observation implementation (2026-10-24)
+
+The protected scaffold withholds admitted content after failed extension but
+keeps sign-out and a closed Studio/Portal reauthentication destination available.
+A user-triggered retry never restores the old content while checking; only a
+positive result can restore it. The earlier success announcement disappears in
+the next warning window. Extension controls appear only after hydration;
+non-JavaScript output states that limitation while retaining working sign-out
+and sign-in forms/navigation. English/Turkish catalogues own the new copy.
+
+The component and actual shell tests cover both route destinations/locales,
+failure/retry, no-JavaScript rendering and focus/announcement behavior. Existing
+localized metadata/no-index controls remain present. All 21 focused component/
+catalogue cases pass. This is not a complete assistive-technology conformance
+claim; Phase 06 retains the named real-browser/manual expansion.
+
+The actual native fixture and its control share one child-output wiring owner.
+Real Node stdout/stderr canaries emitted before cookie discovery must be detected
+later. Browser proof checks raw cookie attributes, including explicit SameSite,
+instead of relying on the browser's Lax default. Privacy failure is reported at
+the closed privacy stage after actual cleanup; it is not relabeled a cleanup
+fault. Proof text comes from the selected committed catalogue with independent
+locale checks. Existing JWT, cancellation and keyboard controls remain intact.
+
+All 57 focused proof-support/fixture/genericity controls pass, as do selected
+lint, formatting and TypeScript. A private copied-source clean baseline passes
+nine cases; four isolated child-cookie/raw-SameSite/locale/privacy mutations are
+rejected. The actual native Next UI proof passes. The actual Chromium proof
+passes on two hosts with Chromium `156.0.8078.48`, exit zero, empty stderr and
+joined natural cleanup. `naturalRestores` is zero: no natural BFCache claim.
+
+The [English](../assets/bff-session/studio-en.png) and
+[Turkish](../assets/bff-session/studio-tr.png) page-only images show the current
+owned fake-grant/API fixture at 1280×720, without browser chrome or credentials.
+They illustrate the scaffold and are not a real-provider browser journey.
+The real Keycloak/API chain and full current-source qualification remain
+required; fresh correction review rounds follow these implementation commits.
+
+
+### P02b-7 CI and real-provider proof corrections (2026-10-24)
+
+Existing CI owners receive isolated dirty controls for outer population union,
+nonzero test exit despite complete passing outputs, non-root identity, root
+workflow permissions, both assignment-independence callers, aborted/cancelled/
+error completion flags and unsafe private diagnostic-file metadata. The fixed
+fixture-image list is compared with its actual C# owners. Docker socket/daemon
+access failures now classify as unavailable before the broad registry-auth
+pattern; raw diagnostics remain private and the original command failure wins.
+No retry, image, budget, topology, assignment weight or required check changes.
+
+Warm event controls start with two unrelated prior event types, independently
+require all eight selected identity events and refuse each missing readback.
+The existing 28-case per-file population is preserved. The actual API discovery
+503 theory covers both public and AccountSite paths and proves 401 before
+membership/controller dispatch, two passed cases with no skip.
+
+Real BFF controls now replay the original pre-sign-out and pre-failed-refresh
+cookie headers, instead of relying on cleared browser state. Cross-host replay
+requires the exact closed redirect, no cookie edit and no authenticated reader.
+An opposite-tenant real persona must fail before publication and add exactly
+one security audit under each defended host tenant; AccountSite Off coverage
+and provider-event ownership still add no session-audit row. Provider-time HTTP
+observations replace blind sleeps without replacing the actual provider clock.
+
+The forced finalizer-retry branch requires two calls, two finalizer admissions
+and three ledger rows when no lease loss was observed; its one deliberate
+conflict remains exact. The separately justified observed-loss branch retains
+its existing bounds. Passed causal cases export only exact-case closed scalar
+observations in measurements, never raw output or alternative completion
+authority. NativeHandoff preserves its first failure boundary, task phases and
+lease counters from memory, without a diagnostic query or repair.
+
+Offline validation passes: 72 combined shard controls, including the separately
+executed 30 aggregate controls; 82 native owner controls; 28 realm-event controls.
+These totals are not added twice. The integration Release build has zero
+warnings/errors. The actual Keycloak/BFF/native-job journeys remain to execute
+on the final correction source; compilation and offline twins do not replace
+those runs or the fresh independent correction reviews.
+
+
+### P02b-7 current carrier reconciliation (2026-10-24)
+
+Current mutable architecture/standards and route guidance now describe native
+credential custody, exact AccountSite transport and the actual Studio/Portal
+scaffolds rather than a general `app/api` proxy or already-enforced admin role.
+GET/HEAD remains the default with exactly the three existing native auth POST
+exceptions. Standard authority headers are adjacent; current auth catalogues,
+cookie retention bounds, recovery/accessibility limits, private transport,
+return destinations, bearer/source provenance and closed diagnostics are explicit.
+Existing catalogue obligations name their actual control owners without a rule
+count or lifecycle-status promotion.
+
+Phase 03's already assigned back-channel logout and Phase 11's conditional
+distributed-session adapter now have concrete deliverables and completion
+criteria. Phase 06 explicitly owns real-provider Chromium/Firefox/WebKit,
+cold-discovery, cookie/history and manual accessibility journeys. These are
+future delivery obligations, not present evidence. Architecture 25 already
+states the single-process boundary and multi-process trigger and needs no edit.
+Phase 02b qualifies enabled/disabled Studio behavior, native-caller attachment,
+development event retention and shared-capacity/availability risks. The setup
+guide no longer claims development event storage is absent.
+
+The earlier Step 2 event-field citation is historical and is not rewritten.
+Its precise pinned
+[realm-representation locator](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/models/utils/ModelToRepresentation.java#L495-L505)
+shows event enablement, expiration, listeners and selected types. The earlier
+type-count correction remains in its dated follow-up; inserting an inline edit
+would break the append-only record. ADR-0070 already quotes Security 11's former
+credential-cookie baseline in its relationship section and explicitly replaces
+it with opaque-cookie server custody. Its historical considered-options/body
+is not rewritten to restate that comparison. ADR-0053's public-caller forwarding
+prohibition remains the named configured-caller clause; the separate authenticated
+seam is unchanged. No extra policy decision is inferred from those editorial
+suggestions.
+
+The new browser privacy stage is also carried through the C# driver's closed
+reason set and Python sanitizer, with its exact-stage control. This preserves
+privacy diagnosis without exporting raw text or weakening actual cleanup.
+During commit formatting, the hook's temporary stash conflicted only over two
+C# switch-expression layouts. The formatted version was compared with the
+saved source, all other work was restored byte-for-byte, and only this task's
+verified recovery stash was removed after the successful commit. Foreign
+worktrees and older stashes remain untouched.
+
+Documentation fragment/roadmap/index checks pass; the new privacy-stage control
+passes. The correction implementation is committed before the next two fresh
+independent review rounds and final real-dependency/hosted qualification.
+
+
+### P02b-7 policy, UI and evidence first review (2026-10-24)
+
+Two fresh independent reviewers inspect the committed policy/UI/proof and
+CI/realm/C#/carrier corrections through `4ead28c5`. They verify actual caller/
+owner/publication boundaries, accessible recovery and retained metadata cases,
+child/raw-cookie/privacy observations, isolated CI negatives, diagnostic-only
+success facts, real persona/audit proof and named future owners. Neither finds
+a runtime defect. One mutable-carrier sentence incorrectly groups every Host
+header with untrusted selectors. It now explicitly excludes unverified headers
+while preserving the independently verified native host/port for callback and
+logout authority, as ADR-0070 requires. No behavior or policy changes.
+
+The guarded full frontend passes 2,293 cases in two packages with zero skips/
+todos. Complete workspace lint, TypeScript and production build pass on the
+updated dependency set. Documentation and all seven ADR parser controls pass.
+Real Keycloak/API/native-job execution is in progress and is not counted as
+passed here. The next fresh review pair follows this committed correction.
+
+Both source reviewers also distinguish implementation qualification from its
+durable receipt: the final implementation source P needs complete A/B with
+different cohorts. A subsequent C commit may add only the receipt/generated
+index/phase Status; it must identify P explicitly and prove no executable,
+plan, toolchain or fixture-lifetime change. C then receives one complete current
+assignment under ADR-0063's normal-future-push rule. No A/B result is attributed
+to C and no earlier sibling is substituted into an aggregate.
+
+
+### P02b-7 real-provider clock and HTML negative correction (2026-10-24)
+
+The ten selected real BFF/native-job cases at `4ead28c5` produce nine passes and
+one failure, with no skip. All three causal restart rows pass without an
+observed lease-loss escape: the ordinary rows have one reconcile/finalizer and
+two ledger rows; the deliberately forced sub-run has two finalizers and three
+ledger rows. NativeHandoff and the other BFF lifecycle/browser cases pass.
+
+The warm BFF case disproves the new test's assumption that the provider realm
+GET has a Date header. No rerun is used to dismiss it. The replacement observes
+only `iat` from a fresh isolated-master issuance through the existing fixed
+private TLS authentication path. Keycloak's pinned
+[`issuedNow()` clock](https://github.com/keycloak/keycloak/blob/26.6.2/core/src/main/java/org/keycloak/representations/JsonWebToken.java)
+provides the integer-second observation. The fixture returns one unique positive
+integral DateTime-range scalar, never the credential or identity authority.
+The existing five-second request, 256 KiB response and 15-second combined wait
+bounds remain; polling is at most once per second, without transport retry or
+host-clock fallback. Extra master sessions/credentials are confined to the
+owned fixture and its actual destruction; tenant/BFF SSO is untouched.
+
+The next targeted run passes that clock boundary and reaches a second new test
+assumption: the real browser asks for HTML, so its masked 400 has no JSON `code`.
+The test now requires the actual HTML projection, no admitted render, no-store,
+no new session cookie, no authenticated reader, anonymous replay and the exact
+one-row defended-tenant security audit. The JSON taxonomy remains independently
+covered by the composed caller/protocol controls. Runtime policy is unchanged.
+
+The corrected actual warm case passes both hosts in 75.210 seconds, with seven
+authenticated API witnesses per host, real refresh/maximum/logout/error/events
+and a zero-write rerun. Joined cleanup takes 0.502 seconds and independently
+confirms both containers and the network absent. These targeted results are
+not relabeled a new complete ten-case run. The failed receipts remain retained.
+The first-round CI/provider reviewer independently confirms this focused source
+correction without a remaining finding. Fresh round 2 and full hosted
+qualification remain required.
+
+
+### P02b-7 second review and final SDK proof census (2026-10-24)
+
+Two fresh second-round reviewers inspect the policy/UI/proof and CI/provider/
+governance corrections through `9fb1cf3e`. Both approve without a verified
+actionable finding. Their source reviews cover the independent publication and
+recovery rules, observed child/cookie/privacy controls, real-provider clock/HTML
+corrections, CI ownership/diagnostic separation and future-phase carriers. They
+do not independently claim the execution receipts or a full OIDC browser journey.
+Both review rounds for those correction packages are complete.
+
+The final finding-to-source census separately confirms one still-open SDK proof
+gap: its negative wrapper assertion compares lowercase wrapper names with an
+operation identifier. `authenticated-server.test.ts` now checks the actual
+operation map, wrapper map and public SDK capability. Twenty-one additional
+cases isolate the authenticated wrapper's cancellation, body/error taxonomy,
+valid/invalid Problem Details, Retry-After and unexpected-status boundaries.
+Existing shared public response-policy controls are not duplicated. The ten
+original authenticated cases remain; all 103 SDK cases pass, alongside lint and
+TypeScript. No production SDK or API behavior changes.
+
+The earlier full frontend result remains 2,293 at `4ead28c5`; the new SDK-only
+population is recorded separately, not relabeled as a new full frontend run.
+All 2,616 unit cases and five corpus controls pass with no skip. The SDK-only
+correction is committed for its own two fresh focused review rounds before the
+final implementation source is frozen for complete hosted qualification.
+
+
+### P02b-7 SDK first review and counterfactual qualification (2026-10-24)
+
+Two fresh focused first-round reviewers inspect `4b7f01a3` against the actual
+authenticated/public SDK and shared response policy. The mapping reviewer
+approves without a finding. The cancellation reviewer raises a possible signal
+identity gap in the call matcher. A private four-state control does not reproduce
+that gap on pinned Vitest 4.1.12: the original signal passes with/without an extra
+identity assertion; a fresh signal fails the existing call matcher even when
+that assertion is removed. A composed signal is rejected too. No redundant
+assertion or production change is retained for that unverified finding.
+
+A private actual-source baseline passes all 31 authenticated cases. Five isolated
+signal/post-header-abort/post-JSON-abort/SyntaxError/Retry-After mutations each
+fail the intended behavioral case, not setup or TypeScript. Only temporary
+copies are mutated and removed. The unchanged committed SDK passes all 103 cases,
+lint and TypeScript. The complete guarded workspace at `4b7f01a3` passes 2,314
+frontend cases in two packages, with zero skips/todos. This replaces neither
+the real-provider proof nor the required hosted current-source checks.
+
+The next fresh focused pair reviews the SDK-only correction. All earlier general
+correction/foundation review rounds remain complete; their conclusions are not
+used to skip this separately identified proof population.
+
+
+### P02b-7 final correction source handoff (2026-10-24)
+
+Both fresh focused SDK second-round reviewers approve `4b7f01a3` without a
+verified finding. They independently trace cancellation/settlement, the actual
+ownership maps and public capability, sanitized errors/retry delegation,
+invalid-response gates and preservation of the original cases. These are source
+reviews, not independent execution claims. Only completed reviews count; the
+replacement for an unavailable reviewer completes its own inspection.
+
+The foundation, policy/UI/evidence/carrier and focused SDK correction packages
+have completed their required two independent review rounds and verified fixes.
+The implementation is frozen for complete hosted qualification. Local evidence
+is deliberately separated by source and scope:
+
+- Full frontend: 2,314 cases in two packages at `4b7f01a3`, zero skips/todos;
+  complete workspace lint/typecheck/production build passed before the later
+  SDK-test-only addition; its full 103-case suite/lint/typecheck also pass.
+- Backend: all 2,616 unit and five corpus cases pass, with no skip. Both actual
+  public/AccountSite discovery-failure cases pass. The real BFF/native selection
+  initially has nine passes and the documented warm-proof failure; the corrected
+  warm case then passes both hosts in 75.210 seconds with independent cleanup.
+- CI controls: 82 native owner, 72 combined shard and its included 30 aggregate
+  cases pass; 28 warm-event controls pass. These overlapping totals are not added.
+- Actual controlled-browser/native UI, source-copy counterfactuals and current
+  fixture images are recorded above with their scope limits. No full real-browser
+  OIDC, natural BFCache, production topology or instantaneous revocation claim
+  is inferred.
+
+The next complete hosted A/B pair must identify this final source and its tested
+merge tree, preserve originals before the second attempt replaces artifacts,
+and independently verify exact case/selector ownership, changed co-membership,
+toolchains, job ceilings and natural cleanup. Durable final receipts follow in
+the repository under the reviewed documentation-only closeout rule. Current-head
+checks and maintainer review still gate PR #36; no merge is performed here.
+
+
+### P02b-7 recurrence qualification failure observation (2026-10-24)
+
+The first complete correction-source run,
+[40096245413 attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/40096245413),
+tests head `e42cc551a73697f49d22eb415a82d66a172bf0bd` and merge checkout
+`a8cbe0ac3c2ffd1409dcc458b9be7fcc866d7935`. Twenty-five jobs pass; ordinary-0
+and its dependent integration aggregate fail. This is not a qualified A result.
+
+The failed case is the organization variant of
+`Actual_runtime_fans_out_to_both_scopes_and_duplicate_native_ticks_create_no_extra_children`.
+Its first wait for two completed child jobs times out after 31.406 seconds;
+the tenant-wide variant passes in 5.53 seconds. The owner records
+`workloadError=tests_failed`, then `owned_completion_missing` with forced cleanup,
+so this shard supplies no natural ownership/cleanup proof. The retained closed
+location and exception category identify the wait, not its cause. No claim of a
+transient failure, infrastructure cause or corrected runtime mechanism follows.
+
+Independent source inspection finds a separate database per case, SharedSchema
+serialization and an AsyncLocal tenant accessor; it finds no verified production
+defect or conflicting BFF global-filter writer. A recipient's retained lease can
+outlast this test wait, but that remains a possible mechanism, not a diagnosis.
+The unchanged targeted two-case selection passes locally, with no skips. After
+adding the observation below it passes again; neither local pass explains CI.
+
+The correction records the last count from the existing SQL poll and finite
+runtime/recurrence/bridge/execution counters before stop changes the state.
+It adds no database reads, polling, retry, production change, timeout increase,
+plan change or alternative completion authority. Only the exact two cases may
+export these bounded observations through the existing failure-location channel;
+private text, foreign cases/assemblies, duplicate markers, unknown states and
+invalid counts are rejected. Diagnostic failure cannot replace the test fault.
+All 83 native-owner controls pass; the new control also sends an actual failed
+protocol result through the reader and confirms its outcome remains Failed.
+
+The source is reopened only for this diagnostic gap. Both fresh review rounds
+and a new complete final-source hosted pair remain required. The failed run is
+retained as evidence rather than overwritten or relabelled as a passing result.
+
+### P02b-7 recurrence observation review closeout (2026-10-24)
+
+Both fresh first-round source reviewers approve `d380aa67`. The second fresh
+round independently confirms the unchanged polling, timeout, cleanup and
+finite export. One reviewer identifies a control gap: iterating the production
+allowlist lets removal of a supported row also remove its test. The correction
+defines the two expected case names independently and asserts exact set equality
+before exercising both. Its focused control passes.
+
+The original failed source's 20 producer packages, aggregates that exist,
+frontend log, demo evidence and tested-source metadata are retained before any
+rerun. An independent inventory finds all 5,931 distinct .NET cases: 5,930 Passed
+and one Failed. The integration aggregate is absent because its producer fails;
+this is not an artifact-path diagnosis. Successful causal-restart observations
+are also present for all three cases, including the actual forced subrun's
+1 reconciliation / 2 finalization attempts / 3 ledger rows. These observations
+do not qualify the failed complete assignment or explain its recurrence timeout.
+
+The correction changes no production behavior, fixture lifetime, plan, test
+population or toolchain. A new final-source pair remains pending. Subsequent
+passing observations may qualify that source; they must not be described as a
+causal repair of the retained unexplained failure.
+
+### P02b-7 browser launch qualification observation (2026-10-24)
+
+Focused second-round confirmation approves the independent two-case recurrence
+control in `43b12c70`. Its complete hosted run,
+[40098005110 attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/40098005110),
+tests head `43b12c70f5124b217f3003596fa7438100bf5817`, tree
+`fb1d69bdc3482da36ea7f5a2073e714e27fa3e12` and merge checkout
+`7b1db5122d96960dc93625b172897c499ce696ff`. Twenty-five jobs pass; ordinary-9
+and its integration aggregate fail. All 20 original producer packages and the
+other available evidence are retained. This is not a qualified A result.
+
+The failed case is
+`Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control`:
+22.357 seconds, positive journey, `browser-launch_cleanup_failed`, with
+`workloadError=tests_failed` followed by `owned_completion_missing` and forced
+cleanup. The previous run's recurrence cases now pass; the failed browser case
+passed on that previous source. Neither fact proves a transient cause or repair.
+The observed runner image changes from `20261012.334.1` to `20261023.334.3`;
+that observation does not establish causality.
+
+Independent source inspection verifies a diagnostic loss: executable lookup,
+spawn, DevTools readiness, CDP connection and context creation share one stage;
+the outer catch discards the existing readiness helper's branded finite reason.
+The correction separates those stages and maps only actual branded readiness
+failures, including exited child, inactive owner, unreadable port and missing,
+empty or malformed readiness file at the existing deadline. Unbranded/forged
+errors retain the generic closed stage. C# and the sanitized CI reader accept
+the exact finite set and keep cleanup failure separate. No raw browser output,
+address, path or exception message is exported.
+
+No browser flag, HOME/XDG policy, sandbox, executable selection, timeout, retry,
+cleanup authority or production behavior changes. The lost detail is repaired;
+the hosted launch failure's cause remains unproven. Both fresh review rounds
+and a new final-source pair remain required.
+
+The 62 focused frontend controls and web typecheck/lint pass. The actual native
+browser case passes locally with zero skips: stock Chromium `156.0.8078.48`,
+two hosts, positive cookie/isolation/keyboard/extension/logout/back proof and
+the live restoration counter, 26.764 seconds including joined cleanup. Natural
+persisted restores are zero; the counter reaches the explicit persisted event,
+not a claimed natural BFCache restoration. This is controlled-grant/API browser
+proof, not the separate real-provider OIDC/application-role chain.
+
+### P02b-7 browser observation first review (2026-10-24)
+
+Both independent first-round reviewers find the same Minor observation error in
+`dd57d534`: the readiness helper's not-live predicate can mean a failed spawn as
+well as an exited child, so `browser-exited` overstates the fact. The correction
+renames it `browser-not-live` across the producer, C# consumer, sanitized CI reader
+and their independent controls. The observation records no stronger exit fact.
+Both focused CI-reader controls and all ten proof-support cases pass after the
+rename. No other verified finding remains from this round.
+
+The full frontend at `dd57d534` passes 2,315 cases in two packages, zero skips or
+todos: 2,212 web and 103 SDK. All 83 native-owner controls pass. The later rename
+changes only the closed observation label and its consumers/controls; it adds no
+case or runtime authority. The actual local Chromium pass and the hosted failure
+retain the distinct scopes recorded above. Fresh second-round reviews and
+complete hosted qualification remain pending.
+
+### P02b-7 same-source qualification and causal fixture scheduling (2026-10-24)
+
+Both fresh browser-observation second-round reviewers approve
+`43b12c70..aeeea13b` without a verified finding. Their source-only reviews confirm
+faithful branded observations, finite consumer parity and unchanged authority.
+
+Run [40100030047](https://github.com/HodeTech/LearnStack/actions/runs/40100030047)
+tests head `aeeea13b5fd5dc57043dc399db095364754443e3`, tree
+`b21d0b7d73415f67f6f774a2a2f839bbb03ddb70` and merge checkout
+`0bc732f4ec74303f00bd807033678e1a8905a8d4` in both complete attempts:
+
+- A/attempt 1 passes all 27 jobs and seven required contexts. Original evidence
+  is retained before B. Independent recomputation verifies 20 owners and all
+  5,931 distinct Passed .NET cases (3,352 non-Docker / 2,579 Docker), 2,315
+  frontend cases, natural ownership/cleanup, job ceilings and the tested tree.
+  Maximum producer wall time is 917 seconds; backend/integration aggregates
+  take 22/26 seconds. Six BFF cases, both recurrence rows and all three causal
+  success observations pass; the forced subrun records 1 reconciliation,
+  2 finalizations and 3 ledger rows without observed lease loss. Public demo
+  passes nine navigations / 27 reports with natural cleanup in 11.343 seconds.
+- B/attempt 2 passes 25 jobs; ordinary-9 and its integration aggregate fail.
+  All 20 original packages and other available evidence are retained. The union
+  contains 5,930 Passed and one Failed case. Consequently this is **not a
+  qualified A/B pair**, and A does not waive the failed B result.
+
+The failed case is the `(independentFailure: False, lieOnlyOnReconcile: False)`
+causal-restart row: cancellation after 42.004 seconds at `provider_accept`, one
+renewal-refusal first cause, zero elapsed-first causes and no remaining active
+execution at observation. There is no database row observation there. The
+historical `calls=0` field counts the optional finalizer-retry handler, not
+provider calls; `forced=0` in the original-host phase does not identify which
+helper invocation failed. These fields establish neither zero provider execution
+nor the actual SQL refusal branch. The closed diagnostic now uses `unavailable`
+when that optional call-count probe does not exist.
+
+Source inspection and the existing independent held-Prepare proof establish a
+legal counterexample: a short Prepare/Arm row lock can exclude an active identity
+from the `SKIP LOCKED` renewal batch; acknowledged empty renewal then closes its
+permission. The held-Prepare proof separately witnesses that branch and its
+committed Prepare / zero-provider result. It does not recover the hosted trace.
+Production renewal policy and SQL remain unchanged.
+
+The causal-restart fixture instead isolates its intended **post-acceptance**
+runtime stop using the already-qualified `NativeSettlementTimeProvider`. Only
+the original host uses its distinctive validated 1125 ms pacing. Actual native
+lease and deadline timers are armed before publication; the first real pacing
+callback stays held through actual provider acceptance and the existing live
+Run/token/provider assertions. Explicit runtime stop precedes release. The
+restarted host retains its one-second cadence and system clock.
+
+All exits release holds, attempt actual runtime and timer joins under the same
+existing 40-second cleanup token, and preserve the earlier failure. Cleanup is
+complete only after required joins; unconfirmed runtime completion retains the
+factory/barriers. Lease duration, startup/deadline bounds, provider facts,
+quiescence, reservation retention, fresh-host reconciliation, immutable ledger,
+audit assertions, dirty-adapter counter and held-Prepare counter remain intact.
+This excludes an unrelated lost precondition; it claims no production contention
+tolerance or historical causal repair and requires no new policy decision.
+
+Five real integration cases pass in 2 minutes 17 seconds, zero skips: all three
+causal rows and both Outcome-ACK cases, including the existing explicit
+held-Prepare counter. Forced/unforced success observations retain exact
+1/2/3 and 1/1/2 reconciliation/finalization/ledger counts, with no observed lease
+loss. All 83 native-owner controls pass; the integration project builds with
+zero warnings/errors after the diagnostic refinement. Fresh reviews and a new
+complete final-source A/B pair remain pending.
+
+### P02b-7 final correction qualification (2026-10-24)
+
+Both fresh first-round and both fresh second-round source reviewers approve
+`aeeea13b..ae2f7f7c` without a verified finding. They independently trace actual
+timer ownership, post-acceptance stop causality, unchanged provider/durable-state
+assertions, shared-budget cleanup and finite diagnostic semantics. These are
+source reviews; the execution receipts below are separate.
+
+The final implementation source is
+`ae2f7f7cc65995957109ba8e738052ac6a2ddd6a`, tree
+`e87a8d080a918853b13a6adaa5d31d3766f2a360`. Complete hosted run
+[40104248664](https://github.com/HodeTech/LearnStack/actions/runs/40104248664)
+qualifies attempt 1/A and full attempt 2/B against the identical merge checkout
+`2b26a144b8022f3b0366e831078a3349138cda74`, with unchanged base
+`935d8da66878286d6a1695f3d41d985ebce4e791`. Original A packages are retained
+before rerunning all jobs for B; B originals are retained independently. No
+failed-only or mixed-attempt union supplies this qualification.
+
+| Observation | A / attempt 1 | B / attempt 2 |
+|---|---|---|
+| Successful jobs / required contexts | 27 / 7 | 27 / 7 |
+| Natural producer ownership/cleanup | 20 / 20 | 20 / 20 |
+| Distinct Passed .NET cases | 5,931 | 5,931 |
+| Non-Docker / Docker cases | 3,352 / 2,579 | 3,352 / 2,579 |
+| Ordinary / native Docker cases | 2,548 / 31 | 2,548 / 31 |
+| Frontend cases, zero skips/todos | 2,315 | 2,315 |
+| BFF / recurrence / causal cases | 6 / 2 / 3 | 6 / 2 / 3 |
+| Maximum producer whole-job seconds | 959 | 953 |
+| Backend / integration aggregate seconds | 26 / 25 | 22 / 36 |
+| Demo navigations / Lighthouse reports | 9 / 27 | 9 / 27 |
+| Natural demo cleanup milliseconds | 10,779 | 10,666 |
+
+Independent verification recomputes every assignment from actual discovery and
+the committed plan, compares exact selector/method ownership, validates every
+retained result artifact digest and requires complete Passed unions and actual
+natural cleanup. There are no skipped .NET cases, forced successful cleanups or
+unowned producers. Execution and aggregate ceilings remain 1,200/300 seconds.
+Actual co-membership changes, not merely bin labels: Architecture moves
+220 methods / 371 cases; ordinary Docker moves 1,074 / 2,256; SharedSchema
+specifically moves 901 / 1,874. The 77-class SharedSchema set is independently
+re-derived from current source before comparing group membership.
+
+The same captured .NET toolchain appears in both variants: SDK `10.0.402`,
+console `18.7.0-release-26505-111` and identical console/dependency/adapter hashes.
+Both demo receipts capture Node `v22.23.1`, Playwright `1.64.0`, Chromium revision
+`1248`, Lighthouse `13.5.0` and identical configuration digest. Each frontend
+receipt independently confirms 2,212 web and 103 SDK cases in 71 files.
+
+All three successful causal observations are retained in each variant. The
+unforced paths record 1 reconciliation / 1 finalization / 2 ledger rows; the
+deliberately forced subrun records 1 / 2 / 3. Neither reports elapsed or renewal
+lease loss. These observations supplement the real results and never replace
+completion authority. The separate held-Prepare counter and dirty-adapter
+counter remain required and passing.
+
+- Manifest digest:
+  `0386c8b99e2a94fda613670ec0d347aaf3bd04b6ff8b4f42c193701a682c3a70`.
+- Plan digest:
+  `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b`.
+- A assignment digest:
+  `2efb41bb3b00ec0f994ad7c247594b33abf22a3e63c2b6d3a6c610be2a4917d1`.
+- B assignment digest:
+  `71c91e7aa02ff4f60e21e062ac8d101052bd4bcc30bd70d671182932a9a7f1ce`.
+- Independent complete-pair audit SHA-256:
+  `ae6e8634701e854b58a74864f92c56f5a9841435980edbcdddc8123b5293da43`.
+- A/B supplementary audit SHA-256:
+  `86dfa22d6df37fb6404a8c0c5bf0b86059d50fbc693f3229be77c004fb4a4928` /
+  `fb816df8ee6675ab7e5851b5805fcfc0891d2dc8db6231db5d15d0b8f3bb0cb5`.
+
+The failed sources above remain failed evidence. Passing final assignments do
+not recover their missing historical causes, prove every possible ordering, or
+change production renewal policy. The browser proof remains the separately
+scoped controlled-grant/API journey; full real-browser OIDC and the browser
+matrix remain Phase 06's named deliverable.
+
+This closeout changes only this delivery record/generated index and the phase
+packet Status. It changes no executable, plan, fixture lifetime or toolchain.
+Under [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md), its normal
+current-head push still requires one complete assignment before PR readiness.
+This A/B receipt belongs to the implementation source above, not the later
+documentation-only commit. [PR #36](https://github.com/HodeTech/LearnStack/pull/36)
+remains the maintainer review/merge gate; no merge is performed here.
+
+
+### P02b-7 review correction contracts and proof controls (2026-10-24)
+
+This correction starts from `a2869504`. Earlier A/B qualification stays bound to
+`ae2f7f7c`; its documentation-only follow-up passed separately at `a2869504`.
+Neither receipt qualifies the changed implementation and fixture source here.
+PR #36 returns to draft until this source completes both fresh review rounds and
+its required qualification. No merge is performed.
+
+**ADR-0071 acceptance evidence.** The maintainer's instruction in this task is:
+
+> Aşağıdaki review çıktılarını dikkatli bir şekilde inceleyip gerekli aksiyonları al ve sonrasında ADR yi onaylandıya çek ve beklemeden implementasyonu yap lütfen
+
+The conditional authorization follows the review of the Proposed decision and
+permits acceptance and implementation after closing verified findings.
+Acceptance is `e782f971073213b1029221d2c2f4544af8c45ec7` (2026-10-24,
+14:31:18 +03:00); runtime classification is
+`7133f8ad9b90988c4400d62cc4a95d6f7c7b5b9e` (14:44:18 +03:00).
+ADR-0071's own dated amendment links this receipt. Its Accepted metadata and
+acceptance-time pending wording are preserved.
+
+**Verified corrections.**
+
+- Restore the single phase Status source: remove packet histories from root
+  pointers, correct the stale pending paragraph and join ADR-0071 to its index
+  table. G13 retains the original leaning recovered from `935d8da6`; its Status
+  links the normative revised package and acceptance. Architecture 14 labels its
+  mixed current/target tree, and web setup names real prerequisites, matching API
+  issuer and disable/restart behavior. Completion Criteria now name actual
+  settlement, admission, uncertain-401 and distinct browser/provider proof scopes.
+- Native auth/protected admission checks the fixed HTTPS authority before
+  signing it. Unbound ports and trailing-dot BFF origins refuse; anonymous public
+  normalization remains unchanged. Closed status controls distinguish malformed
+  input from upstream/server unavailability without changing custody authority.
+- Recovery retains focus after a successful retry, announces each failed retry
+  and keeps its busy button focusable while the existing in-flight guard prevents
+  duplicate work. First client markup no longer depends on a changed display
+  clock. Three regressions fail before the fix and pass afterward. No client clock
+  becomes server authority. Account-unavailable documents offer only closed
+  checked-retry/reauthentication links and public navigation, without a retained
+  authenticated projection or a session CSRF value. Sign-in sits outside the
+  catalogue-labelled navigation landmark.
+- Provider wire assertions run outside production error conversion. Independent
+  controls bind the verifier-derived S256 challenge, nonce/state, exact scope,
+  confidential exchange and logout parameters. Session CSRF/logout capabilities,
+  publication clocks and start/callback cancellation have isolated controls.
+  A separately longer provider window exposes idle touches for every ordinary
+  availability category. Existing custody/index and shared-waiter controls remain.
+- Raw socket observers cover implicit and explicit write/end logout paths and
+  an unprotected counter; same-path foreign issuer origins are independent
+  negatives. Qualified ALS twins isolate forged provenance. HMR negatives name
+  the actual closed stage; valid-CSRF POST controls isolate the return-path set.
+  Hook/storage census adds not-found/instrumentation and IndexedDB/Cookie Store
+  with dirty and locally shadowed clean counterparts. The 16 KiB client boundary
+  uses otherwise-valid JSON on both sides of the byte limit.
+- Each standalone native proof builds its current SDK as well as server sources;
+  held-build and ready share the 90-second compilation budget. Excluded API routes
+  receive a well-formed signed token on a known host, with a same-token admitted
+  public control proving that discovery would otherwise run. No .NET case is
+  added or removed by these refinements.
+- Realm controls isolate desired-export flags/retention/types, enablement
+  readback, byte/type bounds and the final zero-write replan. Actual provider
+  selection must equal prior types union the required types, rather than merely
+  contain that union. The Accepted custom-retention refusal is unchanged.
+- Diagnostic fixed-image pulls drain both anonymous pipes concurrently under
+  their existing deadline, enforcing each byte bound while the child is live.
+  Overflow/cancellation kills and actually reaps the direct child; all pipes and
+  selector resources close. The non-diagnostic command path is unchanged. Local
+  expiry and successful signout emit only their existing closed reasons once per
+  transition; the launcher labels these lifecycle observations accurately.
+- The recurrence case shares validated 15-second repair grace between DI
+  execution and actual control/bridge stores, retaining its 30-second completion
+  wait and durable-state assertions. Production defaults are unchanged. The real
+  provider clamp uses case-owned 22-second idle / 35-second maximum with the same
+  start+10/+20-second refresh schedule; strict growth and the maximum witness
+  remain. No historical failure cause is inferred from these refinements.
+
+**Verified dispositions.** ADR-0071 was explicitly authorized; it is not reopened
+for an absent approval. ADR-0035 already names the app-local port and all gated
+components. Accepted ADRs' Registered/pending descriptions are historical;
+current catalogue status is separate. The causal restart case already proves an
+uncancelled live execution before explicit stop and durable `runtime_token`
+cancellation afterward. Normalized event-policy refusal already has a fixed
+remediation notice; indefinite custom history is not silently widened or erased.
+
+Sequential explicit extensions consume a refresh under the Accepted contract;
+concurrent owners remain single-flight. Expired/unknown-owner signout still
+refuses without a live CSRF witness and performs no provider action. The safe
+projection remains local state and cannot authorize sensitive/business content.
+A changed clock authority, JWKS cache reuse across operation signals, trusted
+proxy/listener resource policy and full browser error/matrix expansion are not
+smuggled into these fixes: the existing Phase 06/11 owners and explicit activation
+criteria govern them. The current fixed-issuer TLS transport accepts no
+request-selected proxy, endpoint or TLS bypass. Development credential fixtures
+remain the previously disclosed loopback capability; no production secret
+rotation or realm-role policy is introduced.
+
+The inherited review records are contemporaneous summaries, not stored full
+agent transcripts. This correction's new review receipts name their exact source
+and scope below. Local copies retain the original earlier A producer packages;
+the GitHub artifact listing at this correction exposes B's 20 packages but no A
+packages. The prior A audit therefore relies on that retained original set and
+its recorded hashes, not a claim of current A downloads from the GitHub API.
+
+**Local checks before fresh review.** Frontend lint/typecheck/build pass;
+2,376 cases pass in both packages with zero skips/todos. Realm Node controls pass
+395 cases; native-owner controls pass 87, and result/aggregate controls pass 30.
+Integration Release build has zero warnings/errors. Fifteen real integration
+cases pass with no skips: all six native BFF cases (including held build,
+controlled browser and real warm provider), two event-policy cases, two actual
+recurrence rows and five authentication/discovery exclusion cases. Targeted
+private-copy counterfactuals kill 13 provider/store regressions and five realm
+regressions; their clean controls pass. These are selected regressions, not a
+mutation-coverage percentage. Full current-source hosted A/B remains pending.
+
+
+
+### P02b-7 correction review round 1 — ownership and proof (2026-10-24)
+
+Exact source: `a2869504..cac786dd`. Two fresh independent agents review the
+committed delta read-only, with separate ownership/runtime and proof/governance
+assignments. Neither edits source or runs services.
+
+- `/root/pr36_third_r1_ownership`: Approve; no verified actionable finding.
+  Traces canonical ingress, failure/recovery, hydration/focus, lifecycle
+  diagnostics, bounded child ownership, SDK acquisition, actual recurrence
+  configuration and the provider clamp. Independently runs five diagnostic-owner
+  controls in 2.195 seconds, all passing. Frontend/browser/provider integration
+  outcomes are inspected as source, not rerun or independently attested.
+- `/root/pr36_third_r1_proof_docs`: Approve; no verified Blocker/Major/Minor.
+  Traces wire/capability/cancellation/clock/return-path negatives and twins,
+  storage/hook census, realm guards, signed-token exclusion and unchanged durable
+  assertions. Confirms append-only ADR amendments, explicit acceptance sequence
+  and phase/package/catalogue agreement. Independently passes `make lint-docs`
+  (2,252 fragments, structure and both indexes) and `git diff --check`.
+  It does not rerun runtime suites or attest hosted qualification.
+
+These are scoped reviewer conclusions, recorded separately from execution
+receipts. There is no first-round fix commit because neither produces a verified
+finding. The next independent round reviews the cumulative correction and this
+receipt; current-source hosted A/B remains pending.
+
+
+
+### P02b-7 correction review round 2 — independent recheck (2026-10-24)
+
+Exact cumulative source: `a2869504..86598f70` (implementation `cac786dd`,
+first-round receipt `86598f70`). Two different fresh agents inspect the complete
+correction read-only. Neither relies on the first verdict or modifies source.
+
+- `/root/pr36_third_r2_runtime`: Approve; no verified Blocker/Major/Minor.
+  Independently traces native authority, HTTP classification/recovery, React
+  clock/focus/retry guards, lifecycle observations, SDK child/group cleanup,
+  shared recurrence options and the provider maximum witness. Five isolated
+  diagnostic-owner controls pass in 2.040 seconds; diff check passes. It does
+  not rerun frontend/browser/provider/.NET services or hosted assignments.
+- `/root/pr36_third_r2_proof_corpus`: Approve; no verified Blocker/Major/Minor.
+  Independently checks contract assertions outside conversion, capability/
+  cancellation/clock/idle witnesses, wire/provenance/HMR/return-path twins,
+  hook/storage/boundary controls, realm desired/readback/replan guards and exact
+  provider union. Checks signed-token exclusion's positive control, real clamp
+  growth and shared repair configuration. Verifies append-only ADRs, explicit
+  acceptance, original G13 leaning and normative links, Status ownership and
+  source-bound evidence limits. Core/events Node controls pass 114/114, zero
+  skips/todos; `make lint-docs` passes 2,253 fragments, structure and both indexes;
+  cumulative diff check passes. Larger runtime/hosted totals are not its own
+  execution or attestation.
+
+No verified finding requires a second-round fix. Implementation and both review
+rounds are locally complete. This final source, including the dated receipts and
+pending Status, now requires complete same-source hosted A/B qualification;
+older passing assignments and local selected checks cannot supply it.
+
+
+
+### P02b-7 hosted observer argument failure and deterministic control (2026-10-24)
+
+[Run 40118767190](https://github.com/HodeTech/LearnStack/actions/runs/40118767190),
+source `806d6ba9`, is not a passing assignment. Frontend job `120945546090` fails
+its owned-child stderr observer: the child returns exit 9, while the control
+requires 0. Web completes 2,272 passing cases and one failure; the workspace guard
+refuses before running SDK tests. Other job outcomes cannot supply frontend
+success or a complete A/B qualification.
+
+The observer passes a valid opaque cookie as a positional argument to Node's
+`-e` child. That alphabet permits an initial `-`; the command omits the option
+terminator. Forcing that legal prefix deterministically produces exit 9 in both
+stdout and stderr controls before the intended late-cookie scanner assertion.
+Adding `--` preserves the payload as `process.argv[1]`; both controls then reach
+and distinguish their clean/leaking observations. The ten-case owner/support
+file passes after the fix. The original random CI value was intentionally not
+retained, so this records the reproduced matching fault mechanism without
+claiming recovery of its private input.
+
+Only the test's argument framing and deterministic boundary canary change.
+Shipping credential handling, child ownership, scanner behavior, deadlines,
+case population and the passing runtime/realm controls are unchanged. Fresh
+source reviews and full qualification follow this correction; a failed-only
+rerun does not substitute for them.
+
+**Additional scope checks.** Native proof cancellation can report no diagnostic
+line, or an unobserved input-stage deadline, when no later IPC stage is received;
+it remains a failed proof with actual cleanup requirements. The current harness
+qualifies cleanup and closed observations, not complete stage progress on every
+stall. The shipping launcher correctly restores TLS verification and passes its
+BFF opt-in into POST admission; primitive disabled-mode controls and enabled
+native flows do not independently kill every launcher-wiring mutation. These
+are disclosed witness limits, not an observed TLS bypass or public POST grant.
+The controlled-browser fake provider deliberately does not prove full OIDC;
+exact wire/store controls and the separate real-provider chain own that proof.
+Historical timing ratios alone do not establish a timeout defect or justify
+raising ceilings; the full corrected local frontend run completes its web
+population in 47.18 seconds; the failed hosted web population takes 151.30
+seconds. Its observed failure is exit 9, not a timeout. Neither measurement
+promises future timing fit.
+
+
+
+### P02b-7 observer correction review round 1 (2026-10-24)
+
+Exact source: `806d6ba9..3dedda8d`. Two new read-only agents independently
+approve the narrow argument/canary correction without a verified finding.
+
+- `/root/observer_option_r1_contract` checks the actual owned child/scanner path,
+  independently reproduces Node 22.23.1 exit 9 without the terminator and exact
+  payload/exit 0 with it on both streams, and runs the ten-case file successfully.
+  Confirms production randomness, ownership, privacy, deadlines and population
+  are unchanged. It does not rerun hosted/build/service proofs.
+- `/root/observer_option_r1_evidence` independently reproduces the same argv
+  distinction, passes all ten file cases and documentation gates (2,255 fragments,
+  structure and indexes), and confirms pending source-bound qualification.
+  GitHub job metadata independently confirms the frontend failure during Vitest;
+  its log access does not attest the recorded counts/timing. The original CI
+  input remains unretained. No services or edits are performed.
+
+The root's complete frontend guard also passes 2,376 cases in two packages with
+zero skips/todos after the deterministic fix. Second-round review and current
+source qualification remain pending; neither agent's scope is promoted into a
+new full-runtime or hosted execution claim.
+
+
+
+### P02b-7 observer correction review round 2 and source freeze (2026-10-24)
+
+Exact cumulative source: `806d6ba9..5748dbbc` (argument correction `3dedda8d`,
+first-round receipt `5748dbbc`). Two different fresh agents approve read-only,
+without a verified finding.
+
+- `/root/observer_option_r2_protocol` independently verifies Node 22.23.1's
+  exit-9/terminator distinction and exact 43-byte positional payload on both
+  streams; all ten support cases pass. In-memory controls fail when the privacy
+  guard is suppressed, scanners are disconnected or the terminator is removed.
+  Late cookie registration, clean/leaking twins, ownership, deadlines and case
+  population are unchanged. It runs no full workspace, build, service or hosted
+  assignment.
+- `/root/observer_option_r2_receipt` independently verifies the same argv and
+  actual owner/scanner path, passes all ten cases, diff check and docs gates
+  (2,256 fragments, structure and indexes). It does not attest hosted logs,
+  full-suite results or recovery of the original private CI cookie.
+
+The root's post-fix full frontend guard passes 2,376 cases in two packages,
+zero skips/todos. Implementation and both fresh review rounds for the runtime
+correction and its hosted observer follow-up are complete. The frozen source now
+requires full current-source A/B; no earlier failure, older passing source or
+selected check substitutes for either complete assignment.
+
+
+
+### P02b-7 review correction qualification (2026-10-24)
+
+The runtime/proof correction `cac786dd` and observer argument correction
+`3dedda8d` each complete both fresh independent review rounds recorded above.
+The final qualified implementation/review source is
+`0bde36f00335141a3ec1e21d6c9ca2f30fae8e00`, tree
+`3a0923b8664c64f91ea475db3d9fd18c843e854c`.
+[Run 40120289765](https://github.com/HodeTech/LearnStack/actions/runs/40120289765)
+passes complete attempts 1/A and 2/B, both on the identical merge checkout
+`c0d08887240a94030879541679dc3fbc6a889def` and unchanged base
+`935d8da66878286d6a1695f3d41d985ebce4e791`. Original A packages, job metadata and
+logs are retained before rerunning all jobs for B; B originals are retained
+separately. No mixed or failed-only union supplies this result.
+
+| Observation | A / attempt 1 | B / attempt 2 |
+|---|---|---|
+| Successful jobs / required contexts | 27 / 7 | 27 / 7 |
+| Natural producer ownership/cleanup | 20 / 20 | 20 / 20 |
+| Distinct Passed .NET cases | 5,931 | 5,931 |
+| Non-Docker / Docker | 3,352 / 2,579 | 3,352 / 2,579 |
+| Ordinary / native Docker | 2,548 / 31 | 2,548 / 31 |
+| Frontend cases, zero skips/todos | 2,376 | 2,376 |
+| Web / SDK cases in 71 files | 2,273 / 103 | 2,273 / 103 |
+| BFF / recurrence / causal cases | 6 / 2 / 3 | 6 / 2 / 3 |
+| Maximum producer whole-job seconds | 997 | 900 |
+| Backend / integration aggregate seconds | 15 / 34 | 14 / 35 |
+| Demo navigations / Lighthouse reports | 9 / 27 | 9 / 27 |
+| Natural demo cleanup milliseconds | 12,053 | 10,587 |
+
+Independent verification recomputes actual selection and assignment from full
+current discovery and the committed plan, requires exact method/case ownership,
+checks every retained artifact digest and complete Passed unions, then verifies
+actual natural-cleanup evidence. Execution/aggregate ceilings stay 1,200/300
+seconds. No missing, skipped, censored or forced-cleanup result becomes success.
+
+Actual selector co-membership changes: Architecture moves 220 methods / 371
+cases; ordinary moves 1,074 / 2,256. SharedSchema specifically moves 901 / 1,874,
+using the independently re-derived 77-class set. This is a different process
+composition, not a renumbering or a claim to prove every possible test order.
+The controlled-browser case itself moves from ordinary-9 to ordinary-11.
+
+Both variants capture the same .NET SDK `10.0.402`, console
+`18.7.0-release-26505-111` and console/dependency/adapter hashes. Demo captures
+Node `v22.23.1`, Playwright `1.64.0`, Chromium revision `1248`, Lighthouse
+`13.5.0` and identical configuration digest. The controlled-browser producer's
+separate stock-browser preflight reports `155.0.8059.39` in each variant; this
+observation is separate from the pinned managed demo and a full browser matrix.
+
+The three causal observations pass in each assignment. Unforced runs retain
+1 reconciliation / 1 finalization / 2 ledger rows; the forced subrun retains
+1 / 2 / 3, with no observed elapsed/renewal lease loss. These observations supplement the actual Passed results; held-Prepare and
+dirty-adapter counters remain. They do not replace actual runtime completion
+authority.
+
+- Manifest digest:
+  `0386c8b99e2a94fda613670ec0d347aaf3bd04b6ff8b4f42c193701a682c3a70`.
+- Plan digest:
+  `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b`.
+- A assignment digest:
+  `2efb41bb3b00ec0f994ad7c247594b33abf22a3e63c2b6d3a6c610be2a4917d1`.
+- B assignment digest:
+  `71c91e7aa02ff4f60e21e062ac8d101052bd4bcc30bd70d671182932a9a7f1ce`.
+- Independent complete-pair audit SHA-256:
+  `8e363868ba47a42b37a17034c56a9caf4d9fdd8a3abfd06504c424236600bf6f`.
+- A/B supplemental audit SHA-256:
+  `c17febd814137dfe9f16d73f6d71107ad8ae9e9e2f838107dd0a96ca7d7e06c1` /
+  `0ce804bb5307974104adc951d669c0569ae20703524174dbe517333abe80e417`.
+
+The failed source `806d6ba9` remains failed: 26 jobs and all 5,931 .NET cases
+pass with natural producer cleanup, but the frontend child-observer failure
+prevents qualification. The deterministic argument correction does not recover
+its deliberately unretained cookie. Earlier failures and all stated observer,
+launcher-wiring and browser-scope limits remain historical and explicit.
+
+This closeout changes only the delivery receipt/generated index and phase
+Status. No executable, fixture lifetime, plan, population or toolchain changes.
+Under [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md), this normal
+documentation push still requires one complete current-head assignment before
+PR readiness. The A/B receipt belongs to the implementation source above, not
+that later documentation-only commit. PR #36 remains the maintainer review/merge
+gate; no merge is performed here.
+
 
 ## Status archive
 

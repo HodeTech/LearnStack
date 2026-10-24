@@ -12,13 +12,93 @@ Route groups (`(public)`, `(studio)`, `(portal)`) organize files without
 affecting URLs — each surface owns a distinct URL prefix so the three roots
 don't collide at `/`:
 
-| Route group                           | URL prefix                   | Purpose                                          | Phase that fills it in   |
-| ------------------------------------- | ---------------------------- | ------------------------------------------------ | ------------------------ |
-| `(public)/[locale]/courses/`          | `/{locale}/courses`          | Implemented catalog, course and lesson pages     | 02d; expanded by 04 / 06 |
-| `(public)/[locale]/status/not-found/` | `/{locale}/status/not-found` | Localized fixed 404 recovery document            | 02d                      |
-| `(studio)/studio/`                    | `/studio`                    | Admin + content studio                           | 04 / 06                  |
-| `(portal)/portal/`                    | `/portal`                    | Learner + instructor portal                      | 07                       |
-| `api/`                                | `/api/*`                     | Thin BFF route handlers (`/api/healthz` shipped) | 02a+                     |
+| Route group                           | URL prefix                   | Purpose                                      | Phase that fills it in   |
+| ------------------------------------- | ---------------------------- | -------------------------------------------- | ------------------------ |
+| `(public)/[locale]/courses/`          | `/{locale}/courses`          | Implemented catalog, course and lesson pages | 02d; expanded by 04 / 06 |
+| `(public)/[locale]/status/not-found/` | `/{locale}/status/not-found` | Localized fixed 404 recovery document        | 02d                      |
+| `(studio)/studio/`                    | `/studio`                    | Admin + content studio                       | 04 / 06                  |
+| `(portal)/portal/`                    | `/portal`                    | Learner + instructor portal                  | 07                       |
+| `api/`                                | `/api/healthz`               | Exact infrastructure health route            | 02a                      |
+
+The closed `/api/auth/*` protocol runs in native middleware under ADR-0070;
+there is no general `/api/*` proxy or browser-to-backend bearer forwarding.
+
+## Optional tenant sign-in
+
+First complete the root [HTTPS Quickstart](../../../README.md#quickstart), start
+the selected infrastructure with `make dev`, and converge it with `make seed`.
+Keep the API running through `make public-api`. On the default development
+stack, the BFF issuer is `http://localhost:8080/realms/learnstack`; it must exactly
+match the tenant API's configured issuer, including scheme, port and path. A
+different selected provider port needs the same explicit change in both owners.
+
+[ADR-0070](../../../docs/decisions/0070-owned-tenant-bff-sessions.md) selects a
+native openid-client session owner. Set `LEARNSTACK_BFF_ENABLED=true`, a canonical
+`LEARNSTACK_BFF_ISSUER` in `/realms/learnstack`, and the existing confidential
+`KEYCLOAK_WEB_CLIENT_SECRET`. Root `.env`, optional web `.env.local` and process
+values must agree. To enable sign-in, change the root example's existing `false`
+to `true` and make every supplied process/web projection match; a web value does
+not override the root source. The optional web `.env.local` is unnecessary and
+can be omitted. Enabled mode requires regular, single-link, owner-private
+source files (`chmod 600`); startup never repairs permissions or rotates secrets.
+Existing source files must always be regular, nonsymlink, valid bounded files,
+including in public-only mode; unsafe input is refused rather than ignored.
+Next may load `.env.local` values into its server process environment. That file
+does not hide a secret from server code; never use a `NEXT_PUBLIC_` alias or pass
+credentials into client configuration.
+`make public-web` permits a loopback HTTP development issuer. Production web
+requires HTTPS and normal certificate verification. Both modes discover the
+provider lazily, without a startup network dependency.
+
+The native process suppresses Next's automatic request/fetch logs and development
+performance trace events before importing the framework. This covers public
+requests too: raw callback/logout query values must not enter `.next/trace` or
+console output. The separately invoked production build keeps its build traces;
+API/business telemetry is unchanged. Requalify the pinned threshold seam and its
+real development canary/counter-control whenever Next changes.
+
+Absent/false opt-in keeps the anonymous renderer independent of Keycloak. Auth
+paths then return 404; `/studio` and `/portal` return a localized unavailable
+document with 503. Enabled mode exposes the closed `/api/auth` actions in native
+middleware and requires a session for those two shells. The shells show the
+read-only AccountSite projection, not future authoring or role permissions.
+
+The browser receives only host-only opaque cookies and a safe session projection.
+The warning uses the actual effective expiry; an explicit extension refreshes the
+provider and reports an unchanged deadline honestly. Logout revokes locally first;
+other institution tabs sharing provider SSO may need to sign in again. Ordinary
+document anchors and a pre-navigation history veil require fresh admission when
+returning to a protected document. `TenantBffSessionTests` owns the real warm
+Keycloak/native BFF/application-role API journey and the separate actual HTTPS
+browser cookie/history proof. The browser case uses fake grants/API, observes
+natural persisted restores separately and kills a copied history-reload removal
+with an explicit persisted-event control. It does not claim a full browser OIDC
+journey, a universal browser cache or a new assistive-technology result.
+
+The guarded frontend test entry compiles current native web and authenticated SDK
+sources first. Docker execution uses the same explicit preparation, then builds
+the copied current native and Next sources in its owned temporary directory.
+Fixture IPC carries private configuration and responses only between owning test
+processes; retained results contain closed outcomes, counts and timings. No
+application test route, provider transport override or system trust installation
+is added.
+
+To return to public-only operation, set `LEARNSTACK_BFF_ENABLED=false` in every
+supplied configuration source and restart the native web process. This removes
+the volatile sessions; it does not undo development provider-event storage or
+other reconciled realm settings.
+
+Restart signs users out. One native process owns the session store; deploying
+multiple web instances requires the distributed adapter and qualification owned
+by Phase 11. [Security 11](../../../docs/standards/11-security.md#tenant-bff-sessions)
+owns limits, custody and ongoing rules.
+
+The qualified environment uses the private native listener and pinned tenant
+development realm. Accepting an HTTPS issuer in a production web build is a
+transport requirement, not a production-readiness claim; Phase 11 owns that
+qualification. Pending sign-in limits count canonical verified visitor IPs,
+not IPv6 prefixes or people. Different addresses can fill the global allowance;
+a reverse proxy sharing one socket peer can instead share one source allowance.
 
 P02d-4 delivers the API reads; P02d-5 delivers live bootstrap and membership-first
 entry under [ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md).
@@ -57,7 +137,9 @@ primitives or ask LearnStack to add a new composite.
 ```bash
 # from the repository root, after the documented hosts/certificate preparation
 make demo          # production API + native web; Ctrl+C joins owned processes
-# Optional separate development/watch terminals: make public-api / make public-web
+# For the default HTTP development issuer, use separate terminals:
+# make public-api
+# make public-web
 ```
 
 Follow the root [HTTPS Quickstart](../../../README.md#quickstart) for dependencies,

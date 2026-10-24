@@ -4,6 +4,8 @@
 **Derives from:** WCAG 2.2 AA (external authoritative standard), [00-principles.md](00-principles.md) § 6 (Foundation First).
 Public-page obligations also follow [ADR-0027](../decisions/0027-frontend-i18n.md)
 and the [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
+Session-warning behavior follows
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md#effective-lifetime-activity-and-refresh).
 
 LearnStack targets **WCAG 2.2 AA** across all user-facing surfaces.
 
@@ -92,6 +94,19 @@ LearnStack is an education platform; learners with disabilities are a first-clas
 
 - Auto-logout warnings appear with sufficient lead time and an option to extend.
 - Long-form learning content does not impose hard time limits unless pedagogically required.
+- The current BFF shows its two-minute warning against effective expiry and
+  offers explicit extension through the response owner. Announce the actual
+  result; an unchanged provider deadline or absolute maximum is not a successful
+  extension. Passive polling never keeps the session alive.
+- Announce warning/progress/recovery without stealing external focus. At expiry
+  or failed verification, withhold protected content while preserving sign-out
+  and a closed reauthentication destination. Interactive retry must not restore
+  protected content before a positive result. Without JavaScript, show truthful
+  extension guidance and retain working sign-in/sign-out navigation/forms.
+- [WCAG 2.2.1 Timing Adjustable](https://www.w3.org/WAI/WCAG22/Understanding/timing-adjustable.html)
+  governs time-limit evaluation. A warning and extension control alone do not
+  establish conformance: provider/absolute limits, assistive technology and the
+  complete authenticated journey require Phase 06's browser/manual qualification.
 
 ## Tooling
 

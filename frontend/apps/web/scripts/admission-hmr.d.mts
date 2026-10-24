@@ -1,7 +1,10 @@
 type NativeChild = { readonly pid: number; readonly exitCode: number | null };
 export function verifyHmrAdmission(options: {
   readonly app: string;
-  readonly configuration: { readonly tenants: readonly { readonly name: string }[] };
+  readonly configuration: {
+    readonly locale: string;
+    readonly tenants: readonly { readonly name: string }[];
+  };
   readonly checkpoint: (name: string) => Promise<unknown>;
   readonly startNative: (dev: boolean) => Promise<NativeChild>;
   readonly stopNative: (child: NativeChild) => Promise<void>;

@@ -2,6 +2,7 @@
 import { createTranslator } from 'next-intl';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getAuthCatalogue } from './auth-catalogues';
 import * as catalogues from './catalogues';
 import en from './messages/en/public.json';
 import tr from './messages/tr/public.json';
@@ -45,7 +46,10 @@ describe('verified public next-intl request configuration', () => {
       expect(dependencies.request).toHaveBeenCalledWith();
       expect(dependencies.notFound).not.toHaveBeenCalled();
       expect(config.locale).toBe(uiLocale);
-      expect(config.messages).toEqual({ public: messages });
+      expect(config.messages).toEqual({
+        public: messages,
+        auth: getAuthCatalogue(String(locale ?? 'en')).messages,
+      });
       const translate = createTranslator({
         ...config,
         locale: config.locale!,

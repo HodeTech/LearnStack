@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { bffSessionEnabled } from './auth/session-owner';
 import { createConfiguredPublicClient, publicTraceparent } from './configured-public-client';
 import type { ConfiguredPublicClient } from './configured-public-client';
 import { INGRESS_HEADER, verifyProvenance } from './ingress';
@@ -42,7 +43,7 @@ const loadPublicRequest = requestMemo(async (incoming): Promise<PublicRequest | 
       context,
       client,
       site: admission.site,
-      locale: entry.locale,
+      locale: entry.locale ?? (bffSessionEnabled() ? admission.site.defaultLocale : null),
       route: publicRoute(context.target),
     };
   } catch {

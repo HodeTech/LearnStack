@@ -15,6 +15,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Xunit;
 
@@ -49,20 +50,37 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
                 return Task.FromResult(Result.Ok(None.Value));
             },
         };
-        await using var host = RecipientHost(database, probe,
-            configure: services => services.AddSingleton<IAuditCatalogSource>(new RecurrenceFixtureAuditSource()));
+        // Keep a lost native hint's legal repair observable inside this case's
+        // unchanged 30-second wait. The actual control and DI executor share
+        // this validated case-owned configuration; production defaults stay intact.
+        var bounds = new BackgroundJobRuntimeOptions
+        {
+            ControlPoll = TimeSpan.FromMilliseconds(50),
+            FanoutPageSize = 2,
+            HandoffRepairGrace = TimeSpan.FromSeconds(15),
+        };
+        bounds.Validate();
+        await using var host = RecipientHost(database, probe, configure: services =>
+        {
+            services.RemoveAll<BackgroundJobRuntimeOptions>();
+            services.AddSingleton(bounds);
+            services.AddSingleton<IAuditCatalogSource>(new RecurrenceFixtureAuditSource());
+        });
         await using var source = Source(database);
         using var globals = new RecurrenceGlobalFilters();
-        var bounds = new BackgroundJobRuntimeOptions { ControlPoll = TimeSpan.FromMilliseconds(50), FanoutPageSize = 2 };
         var runtime = RecurrenceRuntime(host.Services, source, Fixture.Recurrences(manifest), bounds);
         using var metrics = new BackgroundJobMetricProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
+        long? completed = null;
+        var boundary = "start";
         try
         {
             await runtime.StartAsync();
+            boundary = "children";
             await RecurrenceEventuallyAsync(async () =>
             {
                 await using var connection = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
-                return await ReadAsync<long>(connection, "SELECT count(*) FROM background_jobs WHERE phase='completed'") == 2;
+                completed = await ReadAsync<long>(connection, "SELECT count(*) FROM background_jobs WHERE phase='completed'");
+                return completed == 2;
             });
             var expected = new[]
             {
@@ -70,6 +88,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
                 (SchemaFixture.TenantB, organization ? (Guid?)SchemaFixture.OrgB1 : null),
             };
             executed.ToArray().Should().BeEquivalentTo(expected);
+            boundary = "fanout";
             await RecurrenceEventuallyAsync(() => Task.FromResult(runtime.Snapshot.Control!.Recurrence!.FanoutsCompletedAcknowledged == 1));
             AssertProgress();
             AssertProgress();
@@ -95,13 +114,16 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
                 CultureInfo.CurrentCulture = culture;
                 CultureInfo.CurrentUICulture = uiCulture;
             }
+            boundary = "ticks";
             await RecurrenceEventuallyAsync(async () =>
             {
                 await using var connection = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
                 return await ReadAsync<long>(connection,
                     "SELECT count(*) FROM public.job WHERE id::text=ANY(@ticks) AND statename='Succeeded'", ("ticks", ticks)) == ticks.Length;
             });
+            boundary = "health";
             await RecurrenceEventuallyAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy));
+            boundary = "assertions";
             await using var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
             (await ReadAsync<long>(dispatcher, "SELECT count(*) FROM background_job_occurrences")).Should().Be(1);
             (await ReadAsync<long>(dispatcher, "SELECT skipped_slots FROM background_job_occurrences")).Should().Be(2);
@@ -119,6 +141,32 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
             runtime.Snapshot.Control!.Recurrence!.RetainedApplications.Should().Be(0);
             AssertProgress();
         }
+        catch (Exception)
+        {
+            // Observe before stop changes the state. No diagnostic I/O, new
+            // polling or deadline extension may hide the original test failure.
+            try
+            {
+                var snapshot = runtime.Snapshot;
+                var recurrence = snapshot.Control?.Recurrence;
+                output.WriteLine("Recurrence runtime failure;boundary=" + boundary
+                    + ";runtime=" + snapshot.State
+                    + ";completed=" + Count(completed) + ";executed=" + Count(executed.Count)
+                    + ";occurrences=" + Count(recurrence?.OccurrencesAcknowledged)
+                    + ";recipients=" + Count(recurrence?.RecipientsInsertedAcknowledged)
+                    + ";fanouts=" + Count(recurrence?.FanoutsCompletedAcknowledged)
+                    + ";applications=" + Count(recurrence?.ApplicationOwners)
+                    + ";retainedApplications=" + Count(recurrence?.RetainedApplications)
+                    + ";bridgeOutstanding=" + Count(snapshot.Bridge?.Outstanding)
+                    + ";bridgeRetained=" + Count(snapshot.Bridge?.Retained)
+                    + ";bridgeFailed=" + Count(snapshot.Bridge?.Failed)
+                    + ";executions=" + Count(snapshot.Control?.Executions)
+                    + ";renewalRefused=" + Count(snapshot.Control?.LeaseLossRenewalRefused)
+                    + ";leaseElapsed=" + Count(snapshot.Control?.LeaseLossElapsed) + ".");
+            }
+            catch (Exception) { } // Observation must not replace the original fault.
+            throw;
+        }
         finally
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -127,6 +175,9 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         }
         runtime.Snapshot.CleanupConfirmed.Should().BeTrue();
         runtime.Snapshot.Control!.Recurrence!.CleanupConfirmed.Should().BeTrue();
+
+        static string Count(long? value) => value is >= 0 and <= 10000
+            ? value.Value.ToString(CultureInfo.InvariantCulture) : "unavailable";
 
         void AssertProgress()
         {

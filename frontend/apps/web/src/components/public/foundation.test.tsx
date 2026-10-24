@@ -10,6 +10,11 @@ import { ErrorLabelsProvider } from './error-labels';
 import { PublicState } from './state';
 import { PublicTheme, publicThemeCss } from './theme';
 
+vi.mock('@/components/auth/signin-link', () => ({
+  // eslint-disable-next-line @next/next/no-html-link-for-pages -- The real sign-in control uses full document navigation.
+  SignInLink: () => <a href="/api/auth/signin">Sign in</a>,
+}));
+
 const palette = {
   primary: '#1f6feb',
   background: '#ffffff',
@@ -77,6 +82,7 @@ describe('P02d-6 document foundation', () => {
     const nav = screen.getByRole('navigation');
     expect(nav).toHaveAttribute('lang', 'en');
     expect(nav).toHaveAttribute('dir', 'ltr');
+    expect(nav).not.toContainElement(screen.getByRole('link', { name: 'Sign in' }));
     expect(screen.getByRole('link', { name: 'Course catalog' })).toHaveAttribute(
       'href',
       '/ar/courses',

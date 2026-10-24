@@ -217,6 +217,23 @@ this ADR's sense because the durable implementation is a table rather than a ven
 adapter — a distinction this ADR does not draw, and the row costs less than the
 argument did.
 
+### Amendment 2 — Native BFF session store joins the gated set (2026-10-23)
+
+The maintainer accepted [ADR-0070](0070-owned-tenant-bff-sessions.md).
+This additive inventory extends the gated set without changing its four-part
+rule or the original body/acceptance metadata:
+
+| Building block | Port | Selected working default | Owner | Trigger |
+|---|---|---|---|---|
+| Distributed BFF sessions | App-local `BffSessionStore` | `InMemoryBffSessionStore`, delivered by P02b-7 Step 2 | Phase 11 | Multiple native web processes must serve one browser session |
+
+Acceptance authorizes the port/default; it does not claim their implementation.
+The volatile single-process default loses sessions on restart. The distributed
+adapter must qualify atomic refresh, revocation and interrupted work before
+multi-process session support. The
+[P02b-7 package](../roadmap/phase-02b-delivery-log.md#p02b-7-revised-decision-package-2026-10-23)
+owns delivery and proof; no cache adapter is silently reused for credential state.
+
 ## References
 
 - [ADR-0014 Adopt Dapr](0014-adopt-dapr.md)

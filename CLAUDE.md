@@ -40,16 +40,10 @@ repository holds only LearnStack's side of the boundary, in
 ## What state this is in
 
 **Phase 01, Phase 02a and Phase 02d are complete; Phase 02b is the live phase.**
-[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md), the two-tenant walking
-skeleton and the first user-visible milestone, merged through PR #28 on
-2026-10-11: two hosts, two tenants, two education sites, one binary and one
-database. In [Phase 02b](docs/roadmap/phase-02b-events-auth.md), P02b-0 through
-P02b-5 are complete and P02b-1–5 merged through PRs #29–#33 — transactional event
-production, durable dispatch, subscriber delivery, background jobs and tenant API
-authentication — and P02b-6's realm and identity implementation is merged through
-PR #34, with post-merge CI corrections continuing on `development`. P02b-7 (BFF
-session) and P02b-8 (exit enforcement) are pending, and G13's session part stays
-Open, so browser sign-in is not implemented. Phase 06 retains the full
+[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) owns the two-tenant walking
+skeleton. [Phase 02b](docs/roadmap/phase-02b-events-auth.md) owns current packet
+and decision state for events, background jobs, identity and sessions.
+[Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) owns the full
 renderer/Studio expansion.
 
 **Status lives in one place.** Each phase document's Status block owns packet
