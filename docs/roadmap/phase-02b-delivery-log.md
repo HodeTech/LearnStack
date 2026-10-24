@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,475 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,511 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -251,6 +251,7 @@ each packet decided and delivered, as
   - [P02b-7 real-provider clock and HTML negative correction (2026-10-24)](#p02b-7-real-provider-clock-and-html-negative-correction-2026-10-24) — 37 lines
   - [P02b-7 second review and final SDK proof census (2026-10-24)](#p02b-7-second-review-and-final-sdk-proof-census-2026-10-24) — 27 lines
   - [P02b-7 SDK first review and counterfactual qualification (2026-10-24)](#p02b-7-sdk-first-review-and-counterfactual-qualification-2026-10-24) — 24 lines
+  - [P02b-7 final correction source handoff (2026-10-24)](#p02b-7-final-correction-source-handoff-2026-10-24) — 36 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20226,6 +20227,42 @@ the real-provider proof nor the required hosted current-source checks.
 The next fresh focused pair reviews the SDK-only correction. All earlier general
 correction/foundation review rounds remain complete; their conclusions are not
 used to skip this separately identified proof population.
+
+
+### P02b-7 final correction source handoff (2026-10-24)
+
+Both fresh focused SDK second-round reviewers approve `4b7f01a3` without a
+verified finding. They independently trace cancellation/settlement, the actual
+ownership maps and public capability, sanitized errors/retry delegation,
+invalid-response gates and preservation of the original cases. These are source
+reviews, not independent execution claims. Only completed reviews count; the
+replacement for an unavailable reviewer completes its own inspection.
+
+The foundation, policy/UI/evidence/carrier and focused SDK correction packages
+have completed their required two independent review rounds and verified fixes.
+The implementation is frozen for complete hosted qualification. Local evidence
+is deliberately separated by source and scope:
+
+- Full frontend: 2,314 cases in two packages at `4b7f01a3`, zero skips/todos;
+  complete workspace lint/typecheck/production build passed before the later
+  SDK-test-only addition; its full 103-case suite/lint/typecheck also pass.
+- Backend: all 2,616 unit and five corpus cases pass, with no skip. Both actual
+  public/AccountSite discovery-failure cases pass. The real BFF/native selection
+  initially has nine passes and the documented warm-proof failure; the corrected
+  warm case then passes both hosts in 75.210 seconds with independent cleanup.
+- CI controls: 82 native owner, 72 combined shard and its included 30 aggregate
+  cases pass; 28 warm-event controls pass. These overlapping totals are not added.
+- Actual controlled-browser/native UI, source-copy counterfactuals and current
+  fixture images are recorded above with their scope limits. No full real-browser
+  OIDC, natural BFCache, production topology or instantaneous revocation claim
+  is inferred.
+
+The next complete hosted A/B pair must identify this final source and its tested
+merge tree, preserve originals before the second attempt replaces artifacts,
+and independently verify exact case/selector ownership, changed co-membership,
+toolchains, job ceilings and natural cleanup. Durable final receipts follow in
+the repository under the reviewed documentation-only closeout rule. Current-head
+checks and maintainer review still gate PR #36; no merge is performed here.
 
 
 ## Status archive
