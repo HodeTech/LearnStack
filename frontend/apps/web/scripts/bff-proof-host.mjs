@@ -18,6 +18,49 @@ function replace(source, needle, value) {
   assert.equal(source.split(needle).length, 2, 'unique instrumentation anchor');
   return source.replace(needle, value);
 }
+
+/** One real child/output path shared by the native proof and its observer control. */
+export function ownBffProofChild({
+  owner,
+  app,
+  args,
+  env,
+  ipc = false,
+  privateValues,
+  cookieCanaries,
+  scanners,
+}) {
+  owner.assertActive();
+  const process = owner.ownChild(
+    spawn(globalThis.process.execPath, args, {
+      cwd: app,
+      env,
+      detached: globalThis.process.platform !== 'win32',
+      stdio: ['ignore', 'pipe', 'pipe', ...(ipc ? ['ipc'] : [])],
+    }),
+  );
+  const scanner = createPrivateScanner(privateValues);
+  const cookieScanner = createBffCookieScanner(cookieCanaries);
+  scanners.push(scanner, cookieScanner);
+  for (const stream of [process.stdout, process.stderr]) {
+    stream.on('data', (chunk) => {
+      scanner.push(chunk);
+      cookieScanner.push(chunk);
+    });
+    stream.once('end', () => {
+      scanner.finish();
+      cookieScanner.finish();
+    });
+  }
+  process.once('error', () => {});
+  return {
+    process,
+    scanner,
+    completed: new Promise((resolve) =>
+      process.once('close', (code, signal) => resolve({ code, signal })),
+    ),
+  };
+}
 export async function startBffProof({
   owner,
   root,
@@ -43,36 +86,16 @@ export async function startBffProof({
   // forbidden in child/browser diagnostics, independently of body projections.
   const cookieCanaries = [];
   function child(args, env, ipc = false) {
-    owner.assertActive();
-    const process = owner.ownChild(
-      spawn(globalThis.process.execPath, args, {
-        cwd: app,
-        env,
-        detached: globalThis.process.platform !== 'win32',
-        stdio: ['ignore', 'pipe', 'pipe', ...(ipc ? ['ipc'] : [])],
-      }),
-    );
-    const scanner = createPrivateScanner(privateValues);
-    const cookieScanner = createBffCookieScanner(cookieCanaries);
-    scanners.push(scanner, cookieScanner);
-    for (const stream of [process.stdout, process.stderr]) {
-      stream.on('data', (chunk) => {
-        scanner.push(chunk);
-        cookieScanner.push(chunk);
-      });
-      stream.once('end', () => {
-        scanner.finish();
-        cookieScanner.finish();
-      });
-    }
-    process.once('error', () => {});
-    return {
-      process,
-      scanner,
-      completed: new Promise((resolve) =>
-        process.once('close', (code, signal) => resolve({ code, signal })),
-      ),
-    };
+    return ownBffProofChild({
+      owner,
+      app,
+      args,
+      env,
+      ipc,
+      privateValues,
+      cookieCanaries,
+      scanners,
+    });
   }
   function get(path, cookie, extra = {}) {
     return new Promise((resolve, reject) => {

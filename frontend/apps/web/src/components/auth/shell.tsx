@@ -11,10 +11,11 @@ import { assertPublicRequestActive } from '@/server/public-request';
 import { requirePublicResource } from '@/server/public-resource';
 
 export async function AccountShell({ kind }: { readonly kind: 'studio' | 'portal' }) {
+  const returnTo = kind === 'studio' ? '/studio' : '/portal';
   const { request } = await requirePublicResource();
   const session = await auth();
   assertPublicRequestActive(request);
-  if (!session) redirect('/api/auth/signin?returnTo=' + encodeURIComponent('/' + kind));
+  if (!session) redirect('/api/auth/signin?returnTo=' + encodeURIComponent(returnTo));
   const { locale, direction, copy } = createAuthTranslator(request.site.defaultLocale);
   const labels = {
     warning: copy('session.warning'),
@@ -27,11 +28,25 @@ export async function AccountShell({ kind }: { readonly kind: 'studio' | 'portal
     failed: copy('session.failed'),
     expired: copy('session.expired'),
     reauthenticate: copy('session.reauthenticate'),
+    retry: copy('session.retry'),
+    javascript_required: copy('session.javascript_required'),
   };
   return (
     <section className="auth-shell" lang={locale} dir={direction}>
       <h1>{kind === 'studio' ? copy('shell.studio') : copy('shell.portal')}</h1>
-      <SessionControls initial={session} labels={labels} locale={locale}>
+      <SessionControls
+        initial={session}
+        labels={labels}
+        locale={locale}
+        returnTo={returnTo}
+        recoveryActions={
+          <form action="/api/auth/signout" method="post">
+            <input name="csrfToken" type="hidden" value={session.csrfToken} />
+            <button type="submit">{copy('shell.signout')}</button>
+            <p>{copy('shell.signout_scope')}</p>
+          </form>
+        }
+      >
         <p>
           {copy('shell.active')}: {session.displayName}
         </p>
@@ -40,11 +55,6 @@ export async function AccountShell({ kind }: { readonly kind: 'studio' | 'portal
           <a href="/studio">{copy('shell.studio')}</a> <a href="/portal">{copy('shell.portal')}</a>{' '}
           <a href={'/' + request.site.defaultLocale + '/courses'}>{copy('shell.catalog')}</a>
         </nav>
-        <form action="/api/auth/signout" method="post">
-          <input name="csrfToken" type="hidden" value={session.csrfToken} />
-          <button type="submit">{copy('shell.signout')}</button>
-          <p>{copy('shell.signout_scope')}</p>
-        </form>
       </SessionControls>
     </section>
   );

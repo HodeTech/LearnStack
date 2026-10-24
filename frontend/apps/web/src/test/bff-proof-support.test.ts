@@ -4,12 +4,97 @@ import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertBffCookieAttributes,
+  bffProofCopy,
   createBffCookieScanner,
   rememberBffCookies,
   withProofWaiters,
 } from '../../scripts/bff-proof-support.mjs';
+import en from '../i18n/messages/en/auth.json';
+import tr from '../i18n/messages/tr/auth.json';
 
 describe('BFF proof observation ownership', () => {
+  it.each(['stdout', 'stderr'])(
+    'the actual owned-child %s observer catches cookies learned after the child settles',
+    (stream) => {
+      const hostUrl = new URL('../../scripts/bff-proof-host.mjs', import.meta.url).href;
+      const fixtureUrl = new URL('../../scripts/fixture-support.mjs', import.meta.url).href;
+      const supportUrl = new URL('../../scripts/bff-proof-support.mjs', import.meta.url).href;
+      const program = `
+        import assert from 'node:assert/strict';
+        import { randomBytes } from 'node:crypto';
+        import { mkdtempSync } from 'node:fs';
+        import { tmpdir } from 'node:os';
+        import { join } from 'node:path';
+        const { ownBffProofChild } = await import(process.argv[1]);
+        const { createFixtureOwner, fixtureEnvironment } = await import(process.argv[2]);
+        const { rememberBffCookies, assertBffPrivateOutput } = await import(process.argv[3]);
+        const owner = createFixtureOwner();
+        const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-bff-observer-')));
+        try {
+          for (const leaking of [false, true]) {
+            const cookie = randomBytes(32).toString('base64url');
+            const cookieCanaries = [];
+            const scanners = [];
+            const child = ownBffProofChild({ owner, app: root, env: fixtureEnvironment({ root }),
+              args: ['-e', 'process.${stream}.write(process.argv[1]);', leaking ? cookie : 'clean child output'],
+              privateValues: [], cookieCanaries, scanners });
+            assert.deepEqual(await child.completed, { code: 0, signal: null });
+            assert.doesNotThrow(() => assertBffPrivateOutput(scanners));
+            rememberBffCookies(['__Host-ls-session=' + cookie], cookieCanaries);
+            if (leaking) assert.throws(() => assertBffPrivateOutput(scanners), /BFF proof private output/);
+            else assert.doesNotThrow(() => assertBffPrivateOutput(scanners));
+          }
+        } finally { await owner.dispose(); }
+      `;
+      expect(
+        execFileSync(
+          process.execPath,
+          ['--input-type=module', '-e', program, hostUrl, fixtureUrl, supportUrl],
+          {
+            encoding: 'utf8',
+            timeout: 5000,
+          },
+        ),
+      ).toBe('');
+    },
+  );
+  it('checks literal raw cookie attributes independently of browser SameSite defaults', () => {
+    const value = 'A'.repeat(43);
+    const header =
+      '__Host-ls-session=' + value + '; Path=/; Max-Age=28800; HttpOnly; Secure; SameSite=Lax';
+    expect(() => assertBffCookieAttributes([header])).not.toThrow();
+    expect(() =>
+      assertBffCookieAttributes([header.replace(value, '').replace('28800', '0')]),
+    ).not.toThrow();
+    for (const invalid of [
+      header.replace('; SameSite=Lax', ''),
+      header.replace('SameSite=Lax', 'SameSite=None'),
+      header.replace('; Secure', ''),
+      header.replace('; HttpOnly', ''),
+      header.replace('Path=/', 'Path=/nested'),
+      header + '; Domain=example.test',
+    ])
+      expect(() => assertBffCookieAttributes([invalid])).toThrow();
+    expect(() => assertBffCookieAttributes(['ordinary=public'])).not.toThrow();
+  });
+  it('uses the chosen committed locale and rejects unknown copy instead of falling back', () => {
+    for (const [locale, catalogue] of [
+      ['en', en],
+      ['tr', tr],
+      ['tr-TR', tr],
+    ] as const) {
+      expect(bffProofCopy(locale, 'signin.continue')).toBe(catalogue.signin.continue);
+      expect(bffProofCopy(locale, 'shell.studio')).toBe(catalogue.shell.studio);
+      expect(bffProofCopy(locale, 'shell.account')).toBe(catalogue.shell.account);
+      expect(bffProofCopy(locale, 'shell.portal')).toBe(catalogue.shell.portal);
+      expect(bffProofCopy(locale, 'session.extended')).toBe(catalogue.session.extended);
+    }
+    expect(bffProofCopy('en', 'signin.continue')).not.toBe(bffProofCopy('tr', 'signin.continue'));
+    expect(bffProofCopy('en', 'session.extended')).not.toBe(bffProofCopy('tr', 'session.extended'));
+    expect(() => bffProofCopy('de', 'signin.continue')).toThrow('closed proof locale');
+    expect(() => bffProofCopy('en', 'missing.copy')).toThrow('closed proof copy');
+  });
   it('does not leave a late rejected waiter unhandled when the browser action fails first', () => {
     const moduleUrl = new URL('../../scripts/bff-proof-support.mjs', import.meta.url).href;
     const program = `

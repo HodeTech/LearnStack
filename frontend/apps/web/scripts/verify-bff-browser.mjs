@@ -12,6 +12,9 @@ import { fileURLToPath } from 'node:url';
 import { readBrowserDevToolsPort, waitForBrowserDevTools } from './admission-browser.mjs';
 import { startBffProof } from './bff-proof-host.mjs';
 import {
+  assertBffCookieAttributes,
+  assertBffPrivateOutput,
+  bffProofCopy,
   createBffCookieScanner,
   rememberBffCookies,
   withProofWaiters,
@@ -279,6 +282,7 @@ try {
               cookies.map((cookie) => cookie.value),
               host.cookieCanaries,
             );
+            assertBffCookieAttributes(cookies.map((cookie) => cookie.value));
             return (
               cookies.every((cookie) => !/;\s*domain=/i.test(cookie.value)) &&
               (await response.request().allHeaders()).authorization === undefined
@@ -421,13 +425,7 @@ try {
     const extend = page.locator('button[type=button]');
     await extend.focus();
     await page.keyboard.press('Enter');
-    await page
-      .getByText(
-        site.locale === 'en'
-          ? 'Your session end time has been updated.'
-          : 'Oturumunuzun bitiş saati güncellendi.',
-      )
-      .waitFor();
+    await page.getByText(bffProofCopy(site.locale, 'session.extended')).waitFor();
     assert.equal((await host.advance(0)).refreshes, before + 1);
   }
   assert.notEqual(
@@ -558,10 +556,8 @@ try {
   assert.ok(headerChecks.length > 0 && (await Promise.all(headerChecks)).every(Boolean));
   stage = 'cleanup';
   await cleanup();
-  assert.equal(
-    host.scanners.some((scanner) => scanner.leaked),
-    false,
-  );
+  stage = 'privacy';
+  assertBffPrivateOutput(scanners);
   clearTimeout(deadline);
   process.stdin.destroy();
   process.stdout.write(
@@ -589,13 +585,12 @@ try {
   let clean = true;
   try {
     await cleanup();
-    clean &&= !scanners.some((scanner) => scanner.leaked);
   } catch {
     clean = false;
   }
   clearTimeout(deadline);
   process.stdin.destroy();
-  if (expectedCounter && clean) {
+  if (expectedCounter && clean && !scanners.some((scanner) => scanner.leaked)) {
     process.stdout.write(
       JSON.stringify({
         protocol: 1,

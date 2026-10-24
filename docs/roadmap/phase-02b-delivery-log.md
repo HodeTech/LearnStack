@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,231 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,270 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -244,6 +244,7 @@ each packet decided and delivered, as
   - [P02b-7 foundation first review corrections (2026-10-24)](#p02b-7-foundation-first-review-corrections-2026-10-24) — 18 lines
   - [ADR-0071 dependent mapping and composed controls (2026-10-24)](#adr-0071-dependent-mapping-and-composed-controls-2026-10-24) — 25 lines
   - [P02b-7 foundation second review closeout (2026-10-24)](#p02b-7-foundation-second-review-closeout-2026-10-24) — 17 lines
+  - [P02b-7 recovery UI and proof observation implementation (2026-10-24)](#p02b-7-recovery-ui-and-proof-observation-implementation-2026-10-24) — 39 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19975,6 +19976,45 @@ independently confirms the focused fix and approves without a remaining
 actionable finding. Both required review rounds for this foundation package
 are complete. These reviews do not claim that the separate in-progress policy,
 UI, CI or complete real-provider/hosted packages have already qualified.
+
+
+### P02b-7 recovery UI and proof observation implementation (2026-10-24)
+
+The protected scaffold withholds admitted content after failed extension but
+keeps sign-out and a closed Studio/Portal reauthentication destination available.
+A user-triggered retry never restores the old content while checking; only a
+positive result can restore it. The earlier success announcement disappears in
+the next warning window. Extension controls appear only after hydration;
+non-JavaScript output states that limitation while retaining working sign-out
+and sign-in forms/navigation. English/Turkish catalogues own the new copy.
+
+The component and actual shell tests cover both route destinations/locales,
+failure/retry, no-JavaScript rendering and focus/announcement behavior. Existing
+localized metadata/no-index controls remain present. All 21 focused component/
+catalogue cases pass. This is not a complete assistive-technology conformance
+claim; Phase 06 retains the named real-browser/manual expansion.
+
+The actual native fixture and its control share one child-output wiring owner.
+Real Node stdout/stderr canaries emitted before cookie discovery must be detected
+later. Browser proof checks raw cookie attributes, including explicit SameSite,
+instead of relying on the browser's Lax default. Privacy failure is reported at
+the closed privacy stage after actual cleanup; it is not relabeled a cleanup
+fault. Proof text comes from the selected committed catalogue with independent
+locale checks. Existing JWT, cancellation and keyboard controls remain intact.
+
+All 57 focused proof-support/fixture/genericity controls pass, as do selected
+lint, formatting and TypeScript. A private copied-source clean baseline passes
+nine cases; four isolated child-cookie/raw-SameSite/locale/privacy mutations are
+rejected. The actual native Next UI proof passes. The actual Chromium proof
+passes on two hosts with Chromium `156.0.8078.48`, exit zero, empty stderr and
+joined natural cleanup. `naturalRestores` is zero: no natural BFCache claim.
+
+The [English](../assets/bff-session/studio-en.png) and
+[Turkish](../assets/bff-session/studio-tr.png) page-only images show the current
+owned fake-grant/API fixture at 1280×720, without browser chrome or credentials.
+They illustrate the scaffold and are not a real-provider browser journey.
+The real Keycloak/API chain and full current-source qualification remain
+required; fresh correction review rounds follow these implementation commits.
 
 
 ## Status archive

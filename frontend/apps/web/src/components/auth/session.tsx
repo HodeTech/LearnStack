@@ -19,6 +19,8 @@ export type SessionLabels = Readonly<{
   failed: string;
   expired: string;
   reauthenticate: string;
+  retry: string;
+  javascript_required: string;
 }>;
 
 /** Only a safe projection and already translated labels cross this client boundary. */
@@ -27,15 +29,20 @@ export function SessionControls({
   labels,
   children,
   locale,
+  returnTo,
+  recoveryActions,
 }: {
   readonly initial: SessionProjection;
   readonly locale: string;
   readonly labels: SessionLabels;
   readonly children: ReactNode;
+  readonly returnTo: '/studio' | '/portal';
+  readonly recoveryActions?: ReactNode;
 }) {
   const [session, setSession] = useState(initial);
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
+  const [interactive, setInteractive] = useState(false);
   const [outcome, setOutcome] = useState<'extended' | 'unchanged' | 'failed' | null>(null);
   const inFlight = useRef(false);
   const alive = useRef(true);
@@ -55,6 +62,7 @@ export function SessionControls({
   }, [initial]);
   useEffect(() => {
     alive.current = true;
+    setInteractive(true);
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       alive.current = false;
@@ -73,11 +81,14 @@ export function SessionControls({
     (ended ? alert.current : status.current)?.focus();
   }, [ended, recovery]);
   const warning = !ended && session.expiresAt - now <= 120_000;
+  const signin = '/api/auth/signin?returnTo=' + encodeURIComponent(returnTo);
   async function extend() {
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
-    setOutcome(null);
+    // A failed check withholds protected content until a later positive result.
+    // Starting a retry must not briefly restore the previous projection.
+    setOutcome((previous) => (previous === 'failed' ? previous : null));
     const current = generation.current;
     try {
       const updated = await extendBffSession(session.csrfToken);
@@ -96,7 +107,8 @@ export function SessionControls({
     <div data-bff-protected="true" ref={container}>
       <div aria-live="polite" aria-atomic="true">
         {warning && <p>{labels.warning}</p>}
-        {!ended && outcome === 'extended' && <p>{labels.extended}</p>}
+        {busy && <p>{labels.extending}</p>}
+        {!ended && !warning && !busy && outcome === 'extended' && <p>{labels.extended}</p>}
       </div>
       <p>
         {labels.until}:{' '}
@@ -109,25 +121,38 @@ export function SessionControls({
         </time>
       </p>
       {ended ? (
-        <p role="alert" tabIndex={-1} ref={alert}>
-          {expired ? labels.expired : labels.failed}{' '}
-          <a href="/api/auth/signin">{labels.reauthenticate}</a>
-        </p>
+        <>
+          <p role="alert" tabIndex={-1} ref={alert}>
+            {expired ? labels.expired : labels.failed} <a href={signin}>{labels.reauthenticate}</a>
+          </p>
+          {interactive && !session.limitedByAbsolute && (
+            <button type="button" onClick={extend} disabled={busy} aria-busy={busy}>
+              {busy ? labels.extending : labels.retry}
+            </button>
+          )}
+        </>
       ) : (
         <>
           {recovery ? (
             <p role="status" aria-atomic="true" tabIndex={-1} ref={status}>
               {session.limitedByAbsolute ? labels.maximum : labels.unchanged}{' '}
-              <a href="/api/auth/signin">{labels.reauthenticate}</a>
+              <a href={signin}>{labels.reauthenticate}</a>
             </p>
           ) : (
-            <button type="button" onClick={extend} disabled={busy} aria-busy={busy}>
-              {busy ? labels.extending : labels.extend}
-            </button>
+            interactive && (
+              <button type="button" onClick={extend} disabled={busy} aria-busy={busy}>
+                {busy ? labels.extending : labels.extend}
+              </button>
+            )
           )}
           {children}
         </>
       )}
+      {recoveryActions}
+      <noscript>
+        <p>{labels.javascript_required}</p>
+        <a href={signin}>{labels.reauthenticate}</a>
+      </noscript>
     </div>
   );
 }

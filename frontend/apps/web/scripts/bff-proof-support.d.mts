@@ -1,3 +1,6 @@
+export function bffProofCopy(locale: string, key: string): string;
+export function assertBffCookieAttributes(headers: readonly string[] | undefined): void;
+export function assertBffPrivateOutput(scanners: readonly { readonly leaked: boolean }[]): void;
 export function createBffCookieScanner(canaries: string[]): {
   push(chunk: string | Buffer): void;
   contains(value: string): boolean;

@@ -1,6 +1,55 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { createPrivateScanner } from './fixture-support.mjs';
+
+const catalogues = {
+  en: JSON.parse(
+    readFileSync(new URL('../src/i18n/messages/en/auth.json', import.meta.url), 'utf8'),
+  ),
+  tr: JSON.parse(
+    readFileSync(new URL('../src/i18n/messages/tr/auth.json', import.meta.url), 'utf8'),
+  ),
+};
+
+/** Expectations come from the selected committed catalogue, independently of rendered HTML. */
+export function bffProofCopy(locale, key) {
+  assert.ok(['en', 'tr', 'tr-TR'].includes(locale), 'closed proof locale');
+  assert.ok(
+    [
+      'signin.continue',
+      'shell.studio',
+      'shell.account',
+      'shell.portal',
+      'session.extended',
+    ].includes(key),
+    'closed proof copy',
+  );
+  const [group, name] = key.split('.');
+  const value = catalogues[locale === 'en' ? 'en' : 'tr'][group][name];
+  assert.ok(typeof value === 'string' && value.length > 0, 'nonempty proof copy');
+  return value;
+}
+
+/** Browser cookie jars default absent SameSite to Lax; inspect the actual header too. */
+export function assertBffCookieAttributes(headers) {
+  for (const header of headers ?? []) {
+    if (!header.startsWith('__Host-ls-')) continue;
+    assert.ok(/;\s*Path=\/(?:;|$)/i.test(header), 'owned cookie root path');
+    assert.ok(/;\s*HttpOnly(?:;|$)/i.test(header), 'owned cookie HttpOnly');
+    assert.ok(/;\s*Secure(?:;|$)/i.test(header), 'owned cookie Secure');
+    assert.ok(/;\s*SameSite=Lax(?:;|$)/i.test(header), 'owned cookie explicit SameSite');
+    assert.ok(!/;\s*Domain=/i.test(header), 'owned cookie no Domain');
+  }
+}
+
+export function assertBffPrivateOutput(scanners) {
+  assert.equal(
+    scanners.some((scanner) => scanner.leaked),
+    false,
+    'BFF proof private output',
+  );
+}
 
 // Cookie values become known only after a response. Retain the complete bounded
 // output until then; overflow refuses the proof instead of losing earlier bytes.

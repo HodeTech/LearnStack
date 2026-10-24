@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { startBffProof, jar } from './bff-proof-host.mjs';
+import { assertBffPrivateOutput, bffProofCopy } from './bff-proof-support.mjs';
 import { createFixtureOwner } from './fixture-support.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 const owner = createFixtureOwner();
@@ -62,9 +63,9 @@ try {
   });
   if (uiMode) {
     stage = 'ui-signin';
-    for (const [host, label] of [
-      ['institution.example.test:3000', 'Continue to sign in'],
-      ['other.example.test:3000', 'Giriş yapmaya devam edin'],
+    for (const [host, locale] of [
+      ['institution.example.test:3000', 'en'],
+      ['other.example.test:3000', 'tr'],
     ]) {
       const page = await get('/api/auth/signin?returnTo=%2Fstudio', undefined, {
         headers: { host, Accept: 'text/html' },
@@ -73,7 +74,8 @@ try {
       if (page.status !== 200) process.stderr.write(JSON.stringify({ status: page.status }) + '\n');
       assert.equal(page.status, 200);
       stage = host.startsWith('other.') ? 'ui-signin-tr-render' : 'ui-signin-en-render';
-      assert.ok(page.body.includes(label));
+      assert.ok(page.body.includes(bffProofCopy(locale, 'signin.continue')));
+      assert.ok(page.body.includes('<html lang="' + locale + '"'));
       assert.ok(page.body.includes('name="csrfToken"'));
       assert.equal(page.body.includes(marker), false);
       assert.equal(page.headers['cache-control'], 'no-store');
@@ -142,8 +144,8 @@ try {
   const document = await get('/studio', active);
   assert.equal(document.status, 200);
   if (uiMode) {
-    assert.match(document.body, /<h1>Studio<\/h1>/);
-    assert.ok(document.body.includes('Account access'));
+    assert.ok(document.body.includes('<h1>' + bffProofCopy('en', 'shell.studio') + '</h1>'));
+    assert.ok(document.body.includes(bffProofCopy('en', 'shell.account')));
     assert.ok(document.body.includes('bff-history'));
   } else assert.match(document.body, /<h1>authenticated<\/h1>/);
   assert.equal(document.body.includes(marker), false);
@@ -217,7 +219,7 @@ try {
     });
     assert.equal(portal.status, 200);
     assert.match(portal.body, /<html lang="tr"/);
-    assert.ok(portal.body.includes('Portalınız'));
+    assert.ok(portal.body.includes(bffProofCopy('tr', 'shell.portal')));
     assert.ok(portal.body.includes('Diğer kurum'));
     assert.equal(portal.body.includes(marker), false);
     stage = 'ui-extension';
@@ -303,11 +305,8 @@ try {
   assert.equal(stopped.signal, null);
   stage = 'cleanup';
   await owner.dispose();
-  assert.equal(
-    scanners.some((scanner) => scanner.leaked),
-    false,
-    'private output scanner',
-  );
+  stage = 'privacy';
+  assertBffPrivateOutput(scanners);
   clearTimeout(deadline);
   process.stdout.write(
     devMode
