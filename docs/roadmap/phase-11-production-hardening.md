@@ -598,20 +598,37 @@ same `ILiveClassProvider`.
 
 ### Data Operations
 
+This phase extends [Phase 03](phase-03-identity-admin.md)'s tenant-scoped DSAR
+export/erasure, separate global closure and audit redaction across later modules
+and retained copies. Phase 03 retains those implementations, subject mapping and
+request authority. The canonical
+[durable asynchronous store inventory](../architecture/23-data-protection.md#durable-asynchronous-store-inventory)
+and its [first-writer prerequisites](../architecture/23-data-protection.md#erasure-authority-and-first-writer-prerequisites)
+bound this work; this handoff chooses no retention period, purge principal or
+new erasure permission.
+
 - Backup strategy.
 - Restore drills — a drill counts only when a backup is restored to a fresh instance and
   the integration suite passes against it.
+- Retained database/WAL/backup, provider-event and diagnostic-copy reconciliation,
+  including a post-restore control that does not reintroduce erased references.
+  Source-row deletion and local BFF invalidation prove no removal from these
+  copies. Qualify the actual retention/deletion and operational evidence here.
 - Migration strategy, including the two-step plan every destructive change requires.
 - Seed data strategy.
 - Data retention policy.
 - Soft delete and purge jobs.
-- Processed `outbox_messages` and aged `inbox_messages` purging. Both tables start
-  filling in [Phase 02b](phase-02b-events-auth.md), which records the constraint rather
-  than solving it: the `DELETE` grant belongs to `learnstack_platform`, whose only entry
-  takes a reason and no actor, so a recurring job has no principal to present — and an
-  inbox purge shorter than the redelivery window silently breaks deduplication. Phase
-  02b states how long a pair stays replayable; this phase picks the principal and the
-  interval that honours it.
+- Processed outbox, delivery, inbox and job-history purge decisions against the
+  inventory. Among the ten first-party asynchronous tables, only
+  `outbox_messages` currently grants Platform SELECT/DELETE;
+  inbox, delivery and LearnStack job tables grant Platform no access. Immutable
+  completion/execution facts and no-delete guards remain effective even with
+  `BYPASSRLS`. Before the first purge writer, a bounded decision names the exact
+  principal, minimum grants and required migration, eligible facts, dependency
+  order and retention/replay floor. A recurring job cannot borrow the
+  dispatcher's credential or treat ordinary SystemActor delivery as authority.
+  Retention must preserve deduplication throughout the maximum redelivery window;
+  erasure cannot release unresolved reservations or prove external quiescence.
 - Recording retention and purge jobs.
 - `audit_log` retention and partition lifecycle — see **Demand-gated building blocks**
   above; the jobs and their cadence are specified by
@@ -652,9 +669,11 @@ same `ILiveClassProvider`.
 ### Compliance Readiness
 
 - GDPR/KVKK data handling review.
-- User data export.
-- User deletion / anonymization strategy, honouring the global-`User`-versus-tenant-owned-profile
-  boundary established in [Phase 03](phase-03-identity-admin.md).
+- Complete Phase 03's export and erasure workflows across later modules and
+  retained copies, preserving its global-`User`-versus-tenant-owned-profile
+  boundary and first-writer prerequisites.
+- Purge/retention and provider/diagnostic/backup operations, with exercised
+  reconciliation evidence against the canonical inventory.
 - Consent tracking.
 - Terms / privacy content support.
 - Classroom recording consent and retention review.
@@ -701,6 +720,9 @@ same `ILiveClassProvider`.
   evidence, explicit diagnostic/readiness decisions, and exercised IdP, key,
   subject-capacity and assertion-suppression runbooks.
 - Backup and restore process with a completed drill.
+- Later-module and retained-copy DSAR reconciliation, bounded purge/retention
+  decisions and operational controls against the canonical asynchronous-store
+  inventory, preserving Phase 03's implementation and authority boundary.
 - Performance baseline against the budgets in
   [15-performance.md](../standards/15-performance.md).
 - Gateway/CDN response-cache policy and isolation/freshness proofs before activation,
@@ -758,10 +780,13 @@ same `ILiveClassProvider`.
   and no other, and a late success racing it is absorbed by `IInboxGuard`; and a
   terminal job is recovered by requeue and runs once. Each case names the single effect
   it expects, and each runs while a second pod holds the lease.
-- The outbox and inbox purge jobs run under a principal the platform-admin gate admits —
-  named, not borrowed from the dispatcher's credential — and the inbox retention floor
-  is at least the maximum redelivery window, asserted by a case that advances retention
-  and shows a still-replayable event performing its effect once rather than twice.
+- Each asynchronous-store purge writer satisfies its bounded decision and exact
+  migration/grant contract, using a named principal admitted by the required
+  audited gate. Existing Platform outbox DELETE is not inbox, delivery or job
+  authority. The inbox retention floor is at least the maximum redelivery window,
+  asserted by advancing retention and showing a still-replayable event performing
+  its effect once rather than twice. Immutable facts, uncertain effects and
+  reservations survive until their independently required evidence permits change.
 - No module references a Dapr, Kafka, Valkey or Vault client type.
   `Modules_Do_Not_Reference_DeploymentMode` is green.
 - Production deployment is repeatable and documented.
@@ -773,6 +798,10 @@ same `ILiveClassProvider`.
   [Observability Standards § Health checks](../standards/10-observability.md#health-checks)
   sets.
 - Backup restore test passes on a fresh instance.
+- Export/erasure reconciliation covers later modules and retained provider,
+  diagnostic, database/WAL/backup copies in the canonical inventory. Restoring a
+  backup does not reintroduce erased references; local BFF invalidation and source
+  cleanup are not used as evidence for independent copies.
 - Tenant + organization isolation regression tests exist, are not skippable, and run as
   `learnstack_app`.
 - **A single tenant cannot degrade another tenant's request latency beyond a stated

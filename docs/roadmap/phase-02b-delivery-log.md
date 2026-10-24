@@ -266,11 +266,12 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 301 lines
-  - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 243 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 331 lines
+  - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
     - [Correction verification (2026-10-25)](#correction-verification-2026-10-25) — 10 lines
+  - [P02b-8 acceptance (2026-10-25)](#p02b-8-acceptance-2026-10-25) — 27 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20956,9 +20957,12 @@ documentation closeout; Phase 02b remains in progress.
 
 ### P02b-8 decision package (2026-10-25)
 
-**Proposed — maintainer acceptance pending.** This package closes neither G16
-nor G18 and authorizes no implementation before acceptance. Its baseline is
-`0d0696acf06b35d45ba2456197dfc2dd2f4ff798` on `development`.
+**Accepted — 2026-10-25.** The maintainer approved the reviewed package at
+`486588d9` and its four implementation steps. The
+[acceptance record](#p02b-8-acceptance-2026-10-25) identifies the installed gate
+vehicles; the re-verified baseline is
+`0d0696acf06b35d45ba2456197dfc2dd2f4ff798` on `development`. Earlier review
+receipts retain their pre-acceptance state.
 
 **Problem and scope.** Finish the compile-time secret-message guard, inventory
 the durable copies this phase actually introduced, reconcile their carriers and
@@ -21252,6 +21256,33 @@ classifications, preserved Phase 03 commitments and the absence of new erasure
 authority remain explicit. This completes both proposal review rounds, not any
 implementation review. Only maintainer acceptance of the proposed G16/G18
 answers and four-step plan remains before the acceptance commit and Step 1.
+
+### P02b-8 acceptance (2026-10-25)
+
+The maintainer explicitly approves the revised package at `486588d9` and directs
+implementation. This acceptance installs the complete decision vehicles before
+Step 1 changes any code:
+
+- [ADR-0032 Amendment 6](../decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25)
+  records `LS0002`'s identity, bounded forms, all-production C# scope, shared
+  tokens and Warning/Phase 03 escalation. The existing Decision, metadata and
+  `LS0001` Domain/Application contract are unchanged.
+- [Architecture 23's canonical inventory](../architecture/23-data-protection.md#durable-asynchronous-store-inventory)
+  covers the actual ten first-party event/job tables, twelve guarded vendor
+  tables, existing audit references, provider events and retained/external
+  copies. Phase 03/11 carriers preserve their respective DSAR/redaction and
+  retained-copy/purge operations, with immutable/grant preconditions explicit.
+- Standards 21 registers the diagnostic and
+  `Durable_Async_Store_Inventory_Covers_The_Storage_Census`; the analyzer release
+  record registers `LS0002`. Both new catalogue obligations are Registered until
+  their implementation and controls ship.
+- G16 and G18's inventory part are Accepted — 2026-10-25. Prior payload and
+  failure-descriptor decisions remain Accepted; this adds no erasure authority,
+  retention interval, grant or application permission.
+
+The four approved implementation steps follow on `development`, each with its
+commit, two fresh independent review rounds and committed verified corrections.
+No implementation or final-source CI/phase exit is claimed by this acceptance.
 
 ## Status archive
 

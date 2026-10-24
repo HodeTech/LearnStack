@@ -484,6 +484,45 @@ otherwise).
 - **Status:** **Implemented** — analyzer + unit tests.
 - **Phase:** 02a (Packet 3).
 
+#### `LearnStackException-SensitiveExceptionMessage` (Roslyn analyzer)
+
+- **Rule name:** `LearnStackException-SensitiveExceptionMessage`.
+- **Diagnostic id:** `LS0002`.
+- **Asserts:** direct thrown Exception construction is checked for sensitive
+  names in direct string references, interpolation and string concatenation,
+  within the bounded semantic contract in ADR-0032 Amendment 6. All production
+  C# projects under `backend/src` are wired automatically, while `LS0001` keeps
+  its Domain/Application scope. The runtime and analyzer use one internal
+  source for the complete single/two-word token union and word matcher.
+- **Severity:** Warning, including CI; `WarningsNotAsErrors` preserves this
+  posture until Phase 03 exit, when both diagnostics become Errors.
+- **Proofs:** compiler-clean positive/negative cases, exact ID/location/severity
+  and no `AD0001`; independent union and two-word-only mutation; evaluated
+  MSBuild/new-project wiring and unchanged `LS0001` scope; a real `CI=true`
+  Warning build and an unrelated-warning failure control. No taint analysis or
+  JavaScript/TypeScript coverage is claimed.
+- **Source:** [ADR-0032 Amendment 6](../decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25).
+- **Kind:** compile-time.
+- **Status:** **Registered** — P02b-8 Step 1; analyzer and proof owners must ship
+  before this becomes Implemented.
+- **Phase:** 02b (P02b-8).
+
+#### `Durable_Async_Store_Inventory_Covers_The_Storage_Census`
+
+- **Asserts:** the canonical erasure inventory covers the actual event/job
+  storage census and all guarded vendor tables, including explicit control-only
+  classifications. Added tables, missing inventory rows and a removed row are
+  discriminated by planted controls. This is a coverage check, not a proof of
+  field-level erasure, legal compliance or personal-data absence.
+- **Source:** ADR-0046/0047/0057 and
+  [Data Protection inventory](../architecture/23-data-protection.md#durable-asynchronous-store-inventory),
+  accepted through [P02b-8](../roadmap/phase-02b-delivery-log.md#p02b-8-decision-package-2026-10-25).
+- **Type:** storage-definition and documentation census with dirty controls.
+- **Kind:** structural.
+- **Status:** **Registered** — P02b-8 Step 2; the accepted inventory exists,
+  implementation-level drift controls remain pending.
+- **Phase:** 02b (P02b-8).
+
 #### `Handlers_Return_Result`
 
 - **Asserts:** every `IRequestHandler<TRequest, TResponse>` implementation in any

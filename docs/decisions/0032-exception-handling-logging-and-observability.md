@@ -858,3 +858,58 @@ uses fixed bounded descriptors, below-filter vendor guards and a bounded log
 provider. Pipeline order, HTTP/event origins and the full W3C traceparent contract
 remain. P02b-4 supplies implementation and dirty/clean proof controls; none is
 claimed delivered by acceptance.
+
+### Amendment 6 — Sensitive exception-message diagnostic (2026-10-25)
+
+**Status: Accepted.** The maintainer approved the revised
+[P02b-8 package](../roadmap/phase-02b-delivery-log.md#p02b-8-decision-package-2026-10-25)
+at `486588d9`. This additive diagnostic leaves the original Decision, acceptance
+metadata, pipeline and `LS0001` contract intact. Acceptance precedes code and
+claims no analyzer implementation or phase-exit qualification.
+
+- **Identity:** `LS0002`, rule name
+  `LearnStackException-SensitiveExceptionMessage`, category `Security`, enabled
+  by default. Diagnostic text is fixed remediation, without a secret value or
+  rendered expression.
+- **Scope:** all production C# projects recursively under `backend/src`,
+  including API, SharedKernel, module layers, infrastructure and Seeder, with
+  automatic coverage for new production projects. Analyzer/test projects and
+  generated code are excluded. Loading the shared analyzer assembly outside
+  Domain/Application must not broaden `LS0001`'s existing scope.
+- **Thrown forms:** direct construction of `System.Exception` itself or a
+  transitively derived type in a throw statement/expression; aliases,
+  target-typed construction, parentheses and conversions are covered. Exception
+  identity is semantic, not a type-name suffix.
+- **Expressions:** inspect string-valued constructor arguments, regardless of
+  argument position, for direct sensitive references, interpolation holes and
+  built-in string concatenation, after unwrapping parentheses/conversions.
+  Within those forms, evaluated local/parameter/field/property names use the
+  canonical word matcher; named constants are not exempt. Literal text,
+  `nameof`, `typeof` and method/type names are not sensitive value references.
+  Other root expression forms are outside this initial contract.
+- **One token source:** an internal framework-compatible helper under
+  SharedKernel/Secrets owns both token sets and the existing word matcher; its
+  source is compiled into runtime and analyzer. The public runtime facade keeps
+  its matching behavior and exposes an immutable complete union snapshot.
+  The analyzer acquires neither a net10 runtime dependency nor a duplicate
+  public type.
+- **Severity:** Warning, including `CI=true`, through Phase 02b. `LS0002` joins
+  `WarningsNotAsErrors`, never `NoWarn`. At Phase 03 exit both `LS0001` and
+  `LS0002` become Errors and leave that exemption after their scoped call sites
+  and the solution build satisfy that exit gate.
+
+This name-based guard is not taint analysis: prior assignments, exception
+factories, rethrows of existing objects, formatting helpers, literal secrets and
+dictionary string keys are outside coverage. Renaming a value can evade it;
+derived metadata such as `token.Length` inside interpolation may warn. It
+covers no TypeScript/JavaScript tooling or BFF code. Existing runtime redaction,
+closed diagnostics and bounded durable descriptors remain necessary.
+
+Acceptance registers the catalogue and analyzer release row before code.
+Compiler-clean positive/negative cases, diagnostic severity/location and no
+`AD0001`, complete single/two-word union and a two-word-only mutation, evaluated production/new
+project wiring, preserved `LS0001` scope, and an actual CI-warning build with an
+unrelated-warning failure control are required proofs. The package specifies
+the four implementation steps and their independent review rounds. Standards
+09/11/21, Phase 03's escalation reference and the analyzer comments carry this
+contract; no existing Accepted body or earlier amendment is rewritten.
