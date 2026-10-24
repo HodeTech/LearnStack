@@ -9,7 +9,29 @@ import {
   bffCookies,
   clearMalformedBffCookies,
 } from '../server/auth/cookies';
-import { bffActivity, bffForm, bffQuery, bffRoute } from '../server/auth/http-input';
+import {
+  BFF_POST_PATHS,
+  bffActivity,
+  bffForm,
+  bffQuery,
+  bffRoute,
+} from '../server/auth/http-input';
+
+const postPaths = ['/api/auth/signin/keycloak', '/api/auth/signout', '/api/auth/extend'];
+const readPaths = ['/api/auth/signin', '/api/auth/csrf', '/api/auth/session', '/api/auth/error'];
+const methods = [
+  'GET',
+  'HEAD',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'OPTIONS',
+  'CONNECT',
+  'TRACE',
+  'get',
+  'post',
+];
 
 const fixtures: ReturnType<typeof bffFixture>[] = [];
 const fixture = () => {
@@ -23,23 +45,76 @@ afterEach(async () => {
 
 describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
   it('admits only the exact method/route set', () => {
-    for (const path of ['signin', 'csrf', 'session', 'error'])
-      for (const method of ['GET', 'HEAD'])
-        expect(bffRoute(method, '/api/auth/' + path)).toBe(true);
-    for (const path of ['signin/keycloak', 'signout', 'extend'])
-      expect(bffRoute('POST', '/api/auth/' + path)).toBe(true);
-    expect(bffRoute('GET', '/api/auth/callback/keycloak')).toBe(true);
-    for (const [method, path] of [
-      ['POST', '/studio'],
-      ['POST', '/api/auth/session'],
-      ['HEAD', '/api/auth/callback/keycloak'],
-      ['PUT', '/api/auth/signout'],
-      ['POST', '/api/auth/signin/arbitrary'],
-      ['POST', '/api/auth/extend/'],
-      ['GET', '/api/auth/providers'],
-    ])
-      expect(bffRoute(method!, path!)).toBe(false);
+    expect(BFF_POST_PATHS).toEqual(postPaths);
+    const paths = [
+      ...readPaths,
+      ...postPaths,
+      '/api/auth/callback/keycloak',
+      '/api/auth/refresh',
+      '/api/auth/providers',
+      '/api/auth/signin/arbitrary',
+      '/api/auth',
+      '/studio',
+    ];
+    for (const path of [...paths, ...paths.map((path) => path + '/')])
+      for (const method of methods)
+        expect(bffRoute(method, path), method + ' ' + path).toBe(
+          (method === 'POST' && postPaths.includes(path)) ||
+            (method === 'GET' && path === '/api/auth/callback/keycloak') ||
+            (['GET', 'HEAD'].includes(method) && readPaths.includes(path)),
+        );
   });
+  it.each(
+    postPaths.flatMap((path) =>
+      methods.filter((method) => method !== 'POST').map((method) => [method, path]),
+    ),
+  )('refuses %s %s with valid session/CSRF before any operation', async (method, path) => {
+    const f = fixture();
+    const current = await f.login();
+    const before = f.store.peek(current.binding)!;
+    const response = await f.http.handle(
+      bffRequest(path!, {
+        method,
+        cookie: current.cookie,
+        form: 'csrfToken=' + before.csrfToken,
+      }),
+    );
+    expect(response!.status).toBe(404);
+    expect(response!.headers.getSetCookie()).toEqual([]);
+    expect(f.store.peek(current.binding)).toEqual(before);
+    expect(f.provider.begin).toHaveBeenCalledTimes(1);
+    expect(f.provider.refresh).not.toHaveBeenCalled();
+    expect(f.provider.logoutUrl).not.toHaveBeenCalled();
+    expect(f.account).toHaveBeenCalledTimes(1);
+  });
+  it.each(
+    readPaths.flatMap((path) => [false, true].map((authenticated) => ({ path, authenticated }))),
+  )(
+    'HEAD is passive without cookie allocation or rendering: %j',
+    async ({ path, authenticated }) => {
+      const f = fixture();
+      const current = authenticated ? await f.login() : null;
+      f.advance(840_000);
+      const before = current && f.store.peek(current.binding);
+      const counts = f.store.counts();
+      let renders = 0;
+      const response = await f.http.handle(
+        bffRequest(path, { method: 'HEAD', cookie: current?.cookie }),
+        () => {
+          ++renders;
+          return '<form>owned</form>';
+        },
+      );
+      expect(response!.status).toBe(path.endsWith('/error') ? 400 : 200);
+      expect(await response!.text()).toBe('');
+      expect(response!.headers.getSetCookie()).toEqual([]);
+      expect(renders).toBe(0);
+      expect(f.store.counts()).toEqual(counts);
+      if (current) expect(f.store.peek(current.binding)).toEqual(before);
+      expect(f.account).toHaveBeenCalledTimes(authenticated ? 1 : 0);
+      expect(f.provider.refresh).not.toHaveBeenCalled();
+    },
+  );
   it.each(['GET', 'HEAD', 'POST'])(
     'unknown %s auth actions remain masked without owner/provider work',
     async (method) => {
@@ -105,23 +180,40 @@ describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
     await expect(pending).rejects.toThrow();
     expect(cancel).toBe(1);
   });
-  it.each([null, 'https://foreign.example', 'null', 'http://' + bffHost])(
-    'rejects missing/mismatched Origin %s before any reservation',
-    async (origin) => {
-      const f = fixture();
-      const token = bffOpaque();
-      const request = bffRequest('/api/auth/signin/keycloak', {
-        method: 'POST',
-        cookie: BFF_COOKIES.csrf + '=' + token,
-        form: 'csrfToken=' + token,
-      });
-      if (origin === null) request.headers.delete('origin');
-      else request.headers.set('origin', origin);
-      expect((await f.http.handle(request))!.status).toBe(400);
-      expect(f.store.counts().owners).toBe(0);
-      expect(f.provider.begin).not.toHaveBeenCalled();
-    },
-  );
+  it.each(
+    postPaths.flatMap((path) =>
+      [
+        null,
+        'https://foreign.example',
+        'null',
+        'http://' + bffHost,
+        'https://' + bffHost + '/',
+      ].map((origin) => ({ path, origin })),
+    ),
+  )('rejects wrong Origin with otherwise valid CSRF/session: %j', async ({ path, origin }) => {
+    const f = fixture();
+    const current = path.endsWith('/signin/keycloak') ? null : await f.login();
+    f.advance(840_000);
+    const before = current && f.store.peek(current.binding);
+    const token = before?.csrfToken ?? bffOpaque();
+    const counts = f.store.counts();
+    const request = bffRequest(path, {
+      method: 'POST',
+      cookie: current?.cookie ?? BFF_COOKIES.csrf + '=' + token,
+      form: 'csrfToken=' + token,
+    });
+    if (origin === null) request.headers.delete('origin');
+    else request.headers.set('origin', origin);
+    const response = await f.http.handle(request);
+    expect(response!.status).toBe(400);
+    expect(response!.headers.getSetCookie()).toEqual([]);
+    expect(f.store.counts()).toEqual(counts);
+    if (current) expect(f.store.peek(current.binding)).toEqual(before);
+    expect(f.provider.begin).toHaveBeenCalledTimes(current ? 1 : 0);
+    expect(f.provider.refresh).not.toHaveBeenCalled();
+    expect(f.provider.logoutUrl).not.toHaveBeenCalled();
+    expect(f.account).toHaveBeenCalledTimes(current ? 1 : 0);
+  });
   it('same-origin alone cannot pass either presession or authenticated CSRF', async () => {
     const f = fixture();
     const token = bffOpaque();

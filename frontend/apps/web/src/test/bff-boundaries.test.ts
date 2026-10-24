@@ -1,7 +1,9 @@
 // @vitest-environment node
 import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -103,6 +105,128 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
     }
     expect(runtime.counts()).toBe(0);
     runtime.stop();
+  });
+  it.each([
+    { csrfToken: 'not-an-opaque-secret' },
+    { displayName: 'x'.repeat(1025) },
+    { expiresAt: Number.NaN },
+    { expiresAt: Number.POSITIVE_INFINITY },
+    { limitedByAbsolute: 'true' },
+    { state: 'anonymous' },
+    undefined,
+  ])('invalid projection publication closes request authority: %j', (patch) => {
+    const runtime = createBffRequestRuntime();
+    const { request, response } = lifetime();
+    runtime.run(context, request, response, () => {
+      const invalid = patch === undefined ? undefined : { ...projection(), ...patch };
+      expect(() =>
+        runtime.holder.publish(context, invalid as ReturnType<typeof projection>),
+      ).toThrow();
+      expect(() => runtime.holder.read(context)).toThrow();
+    });
+    expect(runtime.counts()).toBe(0);
+    expect(
+      request.listenerCount('aborted') +
+        response.listenerCount('finish') +
+        response.listenerCount('close'),
+    ).toBe(0);
+  });
+  it.each([{ peer: '203.0.113.72' }, { method: 'HEAD' }, { target: '/portal' }])(
+    'denies a different request binding %j without changing the correct snapshot',
+    (patch) => {
+      const runtime = createBffRequestRuntime();
+      const { request, response } = lifetime();
+      runtime.run(context, request, response, () => {
+        const session = projection();
+        runtime.holder.publish(context, session);
+        expect(() => runtime.holder.read({ ...context, ...patch })).toThrow();
+        expect(runtime.holder.read(context).session).toEqual(session);
+        response.emit('finish');
+      });
+      expect(runtime.counts()).toBe(0);
+    },
+  );
+  it.each(['aborted', 'destroyed', 'writableEnded'] as const)(
+    'never invokes work for a request/response that is already %s',
+    (flag) => {
+      const runtime = createBffRequestRuntime();
+      const { request, response } = lifetime();
+      if (flag === 'aborted') request.aborted = true;
+      else response[flag] = true;
+      let entered = false;
+      expect(() =>
+        runtime.run(context, request, response, () => {
+          entered = true;
+        }),
+      ).toThrow();
+      expect(entered).toBe(false);
+      expect(runtime.counts()).toBe(0);
+      expect(
+        request.listenerCount('aborted') +
+          response.listenerCount('finish') +
+          response.listenerCount('close'),
+      ).toBe(0);
+    },
+  );
+  it('synchronous work failure relinquishes native listeners and active authority', () => {
+    const runtime = createBffRequestRuntime();
+    const { request, response } = lifetime();
+    const failure = new Error('owned-work-failure');
+    expect(() =>
+      runtime.run(context, request, response, () => {
+        throw failure;
+      }),
+    ).toThrow(failure);
+    expect(runtime.counts()).toBe(0);
+    expect(
+      request.listenerCount('aborted') +
+        response.listenerCount('finish') +
+        response.listenerCount('close'),
+    ).toBe(0);
+  });
+  it('resolves the pinned RP graph to one copy of each protocol and signing dependency', () => {
+    const require = createRequire(import.meta.url);
+    const client = require.resolve('openid-client');
+    const oauth = realpathSync(createRequire(client).resolve('oauth4webapi'));
+    const directJose = realpathSync(require.resolve('jose'));
+    const transitiveJose = realpathSync(createRequire(client).resolve('jose'));
+    const manifest = (entry: string, name: string): { name: string; version: string } => {
+      let directory = dirname(entry);
+      while (dirname(directory) !== directory) {
+        try {
+          const value = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
+          if (value.name === name) return value;
+        } catch {
+          /* parent directory may not be a package boundary */
+        }
+        directory = dirname(directory);
+      }
+      throw new Error('Reachable dependency has no package manifest');
+    };
+    const declared = JSON.parse(
+      readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+    );
+    expect(declared.dependencies['openid-client']).toBe('6.8.8');
+    expect(declared.devDependencies.jose).toBe('6.2.13');
+    expect(manifest(client, 'openid-client').version).toBe('6.8.8');
+    expect(manifest(oauth, 'oauth4webapi').version).toBe('3.8.8');
+    expect(manifest(directJose, 'jose').version).toBe('6.2.13');
+    expect(transitiveJose).toBe(directJose);
+    const lock = readFileSync(new URL('../../../../pnpm-lock.yaml', import.meta.url), 'utf8');
+    for (const [name, version] of [
+      ['openid-client', '6.8.8'],
+      ['oauth4webapi', '3.8.8'],
+      ['jose', '6.2.13'],
+    ]) {
+      const versions = [...lock.matchAll(new RegExp('^  ' + name + '@([^:]+):', 'gm'))].map(
+        (match) => match[1],
+      );
+      expect(new Set(versions)).toEqual(new Set([version]));
+    }
+    for (const name of ['next-auth', '@auth/core', 'better-auth']) {
+      expect(declared.dependencies).not.toHaveProperty(name);
+      expect(lock).not.toMatch(new RegExp('^  ' + name + '@', 'm'));
+    }
   });
   it('the actual separately compiled native module and pinned NextRequest share only the immutable projection', () => {
     const moduleUrl = new URL('../../.server/auth/request-runtime.js', import.meta.url).href;

@@ -40,7 +40,7 @@ function probeKind(error) {
   }
 }
 
-/** Bound only Next 15.5.27's one-argument informational lookup in this fixture. */
+/** Bound only Next 15.5.28's one-argument informational lookup in this fixture. */
 export function boundNextVersionFetch(delegate, notify) {
   return function (...args) {
     if (args.length !== 1 || args[0] !== 'https://registry.npmjs.org/-/package/next/dist-tags')

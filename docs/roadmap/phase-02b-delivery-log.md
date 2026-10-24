@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,123 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,171 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -240,6 +240,7 @@ each packet decided and delivered, as
   - [P02b-7 retained correction-source A/B qualification (2026-10-24)](#p02b-7-retained-correction-source-ab-qualification-2026-10-24) — 40 lines
   - [P02b-7 second correction package and ADR-0071 proposal (2026-10-24)](#p02b-7-second-correction-package-and-adr-0071-proposal-2026-10-24) — 63 lines
   - [ADR-0071 acceptance and review corrections (2026-10-24)](#adr-0071-acceptance-and-review-corrections-2026-10-24) — 33 lines
+  - [P02b-7 correction foundation implementation (2026-10-24)](#p02b-7-correction-foundation-implementation-2026-10-24) — 48 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19863,6 +19864,54 @@ actionable finding. These are source reviews. ADR-0070 gains its own dated
 Amendment 2, its earlier history remains intact, and Security 11/Architecture 13
 reference the new decision. The decision index moves the single 0071 row to the
 active table. Runtime and composed proof completion follow in a separate commit.
+
+
+### P02b-7 correction foundation implementation (2026-10-24)
+
+The first correction package closes exact matcher/config/route/Server Action
+source census, imported production-directory and transport/storage bypasses,
+the complete method/path set, all three Origin-negative forms and HEAD side
+effects. Cookie attributes/lifetimes are checked at the actual route; raw TCP
+observation proves that logout emits no body even when a client would trust
+`Content-Length: 0`. The unnecessary protocol-proof genericity exemption is
+removed. These gates preserve the approved product surface.
+
+The owner now anchors monotonic-to-UTC deadline projection once per entry,
+preventing sampling jitter from claiming an extension. Native counts expose
+only scalar logical credential/transaction/proof/CSRF and state-index occupancy,
+never values or owner snapshots. Independent provider windows/clocks bind the
+literal lifetime/refresh/sweep boundaries, late authority checks and release
+symmetry. Actual HTTP protocol cancellation reaches the real store; unsettled
+work retains its owner until completion. Provider controls use valid response
+twins and literal byte/time boundaries. The reachable RP graph and shared jose
+copy are checked without treating stale installation directories as authority.
+
+Compatible security updates select Next/eslint-config-next 15.5.28, Vite 6.4.4,
+Vitest 4.1.12, and scoped transitive Zod 4.6.6 / fast-uri 3.1.9 in the lockfile.
+The [Next advisory](https://github.com/advisories/GHSA-2464-fhr4-w9xw),
+[Vite advisory](https://github.com/advisories/GHSA-587h-7wmj-h5pm) and
+[Zod advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)
+support the affected/patched versions. The post-update audit has zero critical,
+high or low advisories and one moderate postcss-selector-parser advisory in
+Tailwind/postcss-nested's trusted build-only path. Its
+[published exposure condition](https://github.com/advisories/GHSA-rj75-hqrm-r3gf)
+requires synchronous attacker-controlled selectors, which this application
+does not parse there. Forcing major version 7 outside both parents' version-6
+ranges is not a justified minimal repair. This is an exposure assessment, not
+a zero-advisory claim or a new required audit gate.
+
+Focused validation passes: 437 surface controls, 157 owner/provider/protocol
+controls and 21 fast request-runtime controls. Those selections deliberately
+exclude existing compiled/heavy cases, not the final suite. App/native
+TypeScript and selected repository lint checks pass. The rebuilt native seam
+and actual pinned Next protocol proof pass on 15.5.28. In a private temporary
+copy of 14 actual source/test files, the clean HTTP baseline passes 132 cases;
+each of eight isolated extra-route/Origin/HEAD/cookie/method/logout-body mutations
+fails its intended assertion. No shared source is mutated by those controls.
+
+The package is committed for its two independent review rounds. Full build,
+browser/provider and complete hosted qualification remain required after the
+remaining correction packages settle; focused success is not a completion claim.
 
 
 ## Status archive

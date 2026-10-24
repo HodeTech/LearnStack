@@ -175,7 +175,7 @@ export function verifyProvenance(
 }
 
 /**
- * Next 15.5.27 normalizes `.rsc` on the full URL before parsing, then deletes
+ * Next 15.5.28 normalizes `.rsc` on the full URL before parsing, then deletes
  * `_rsc`, serializing URLSearchParams even when absent. Retain the signed raw
  * target for route identity and inert query data; this grants no suffix aliases.
  */

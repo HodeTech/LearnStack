@@ -8,7 +8,6 @@ import ts from 'typescript';
 // Shared runtime helpers are not exemptions, even if tests also import them.
 const exemptEntries = new Set([
   'frontend/apps/web/scripts/verify-ingress.mjs',
-  'frontend/apps/web/scripts/verify-bff-protocol.mjs',
   'frontend/apps/web/scripts/verify-ingress-cleanup.mjs',
   'frontend/apps/web/scripts/verify-ingress-controls.mjs',
   'frontend/apps/web/scripts/verify-public-admission.mjs',

@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { createServer } from 'node:http';
 import type { ServerResponse } from 'node:http';
+import { createConnection } from 'node:net';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -31,7 +32,69 @@ async function observe(action: (response: ServerResponse) => void) {
   }
 }
 
+async function observeWire(action: (response: ServerResponse) => void, protect = true) {
+  const server = createServer((_request, response) => {
+    if (protect) protectBffLogoutResponse(response, issuer, host);
+    action(response);
+  });
+  try {
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Test listener unavailable');
+    const wire = await new Promise<Buffer>((resolve, reject) => {
+      const socket = createConnection({ host: '127.0.0.1', port: address.port });
+      const chunks: Buffer[] = [];
+      socket.setTimeout(2000, () => socket.destroy(new Error('Owned socket did not settle')));
+      socket.once('connect', () =>
+        socket.write('GET / HTTP/1.1\r\nHost: owned.test\r\nConnection: close\r\n\r\n'),
+      );
+      socket.on('data', (chunk) => chunks.push(chunk));
+      socket.once('error', reject);
+      socket.once('end', () => resolve(Buffer.concat(chunks)));
+    });
+    const end = wire.indexOf('\r\n\r\n');
+    expect(end).toBeGreaterThan(0);
+    return { headers: wire.subarray(0, end).toString(), body: wire.subarray(end + 4).toString() };
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+      server.closeAllConnections();
+    });
+  }
+}
+
 describe('native logout redirect containment', () => {
+  it.each(['write', 'end'] as const)(
+    'suppresses actual wire bytes from %s, even when Content-Length tells fetch to ignore them',
+    async (method) => {
+      const callback = vi.fn();
+      const action = (response: ServerResponse) => {
+        response.writeHead(303, {
+          location: destination,
+          'content-length': '0',
+          'set-cookie': [
+            '__Host-one=; Max-Age=0; Path=/; Secure',
+            '__Host-two=owned; Path=/; Secure',
+          ],
+        });
+        if (method === 'write') {
+          response.write(hint, callback);
+          response.end();
+        } else response.end(hint, callback);
+      };
+      const clean = await observeWire(action);
+      expect(clean.headers).toMatch(/^HTTP\/1\.1 303 /);
+      expect(clean.headers.toLowerCase()).toContain('content-length: 0');
+      expect(clean.headers.toLowerCase().match(/\r\nset-cookie:/g)).toHaveLength(2);
+      expect(clean.body).toBe('');
+      expect(callback).toHaveBeenCalledOnce();
+      // Same observer and same declared zero length must expose an unprotected body.
+      const control = await observeWire(action, false);
+      expect(control.headers.toLowerCase()).toContain('content-length: 0');
+      expect(control.body).toBe(hint);
+      expect(callback).toHaveBeenCalledTimes(2);
+    },
+  );
   it.each([destination, '/', 'https://' + host + '/'])(
     'retains the allowed Location but removes the Next redirect body: %s',
     async (location) => {

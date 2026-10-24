@@ -20,6 +20,25 @@ const jar = (response: Response) =>
     .getSetCookie()
     .map((value) => value.split(';', 1)[0]!)
     .join('; ');
+const expectCookies = (response: Response, expected: Record<string, number>) => {
+  const cookies = response.headers.getSetCookie();
+  expect(cookies.map((cookie) => cookie.split('=', 1)[0]!).sort()).toEqual(
+    Object.keys(expected).sort(),
+  );
+  for (const cookie of cookies) {
+    const [pair, ...attributes] = cookie.split('; ');
+    const equal = pair!.indexOf('=');
+    const maxAge = expected[pair!.slice(0, equal)]!;
+    expect(pair!.slice(equal + 1)).toMatch(maxAge === 0 ? /^$/ : /^[\w-]{43}$/);
+    expect(attributes).toEqual([
+      'Path=/',
+      'Max-Age=' + maxAge,
+      'HttpOnly',
+      'Secure',
+      'SameSite=Lax',
+    ]);
+  }
+};
 
 describe('closed BFF routes with the actual owner', () => {
   it('public authorization input stays anonymous without clearing a valid session or reaching its API', async () => {
@@ -138,6 +157,7 @@ describe('closed BFF routes with the actual owner', () => {
   it('presession CSRF → redirect → bound callback → safe session, then local-first logout and own return', async () => {
     const f = fixture();
     const csrf = await f.http.handle(bffRequest('/api/auth/csrf'));
+    expectCookies(csrf!, { [BFF_COOKIES.csrf]: 300 });
     const token = (await csrf!.json()).csrfToken;
     const start = await f.http.handle(
       bffRequest('/api/auth/signin/keycloak', {
@@ -153,10 +173,16 @@ describe('closed BFF routes with the actual owner', () => {
     const entries = bffCookies(cookies);
     const name = [...entries.keys()].find((key) => key.startsWith(BFF_COOKIES.login))!;
     const state = name.slice(BFF_COOKIES.login.length);
+    expectCookies(start!, { [BFF_COOKIES.browser]: 28_800, [name]: 300 });
     const callback = await f.http.handle(
       bffRequest('/api/auth/callback/keycloak?state=' + state + '&code=owned', { cookie: cookies }),
     );
     expect(callback!.headers.get('location')).toBe('/studio');
+    expectCookies(callback!, {
+      [BFF_COOKIES.session]: 28_800,
+      [BFF_COOKIES.browser]: 28_800,
+      [name]: 0,
+    });
     const active = jar(callback!)
       .split('; ')
       .filter((value) => !value.endsWith('='))
@@ -193,6 +219,7 @@ describe('closed BFF routes with the actual owner', () => {
       .find((value) => value.startsWith(BFF_COOKIES.logout))!
       .split(';', 1)[0]!;
     const logoutState = proofCookie.slice(BFF_COOKIES.logout.length).split('=')[0]!;
+    expectCookies(logout!, { [BFF_COOKIES.session]: 0, [BFF_COOKIES.logout + logoutState]: 300 });
     const browser = entries.get(BFF_COOKIES.browser)!;
     const returned = await f.http.handle(
       bffRequest('/?state=' + logoutState, {
@@ -202,6 +229,7 @@ describe('closed BFF routes with the actual owner', () => {
     expect(returned!.headers.get('location')).toBe('/');
     expect(returned!.headers.getSetCookie()).toHaveLength(1);
     expect(returned!.headers.getSetCookie()[0]).toContain(BFF_COOKIES.logout + logoutState + '=;');
+    expectCookies(returned!, { [BFF_COOKIES.logout + logoutState]: 0 });
     expect(f.store.counts().owners).toBe(0);
   });
   it('a valid failed callback clears only its own transaction, leaving an existing primary intact', async () => {

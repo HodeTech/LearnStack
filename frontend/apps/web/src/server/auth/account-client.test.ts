@@ -105,6 +105,42 @@ describe('configured exact AccountSite capability', () => {
       ).rejects.toMatchObject({ reason: 'identity', message: 'BFF provider: identity' });
     },
   );
+  it.each([429, 500, 502, 503, 504])(
+    'maps a valid temporary API problem %s to availability rather than identity',
+    async (status) => {
+      const transport = vi.fn(async () =>
+        response(
+          {
+            type: 'https://errors.learnstack.dev/dependency_unavailable',
+            title: 'private-outage-title',
+            instance: '/api/v1/account/site',
+            status,
+            code: 'dependency_unavailable',
+            messageKey: 'lockey_dependency_unavailable',
+            correlationId: 'private-outage-correlation',
+          },
+          status,
+          'application/problem+json',
+        ),
+      );
+      await expect(
+        createAccountSiteCaller(configuration, transport)('token', binding, signal()),
+      ).rejects.toMatchObject({
+        reason: 'provider_refused',
+        message: 'BFF provider: provider_refused',
+      });
+      expect(transport).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('maps a network rejection without cancellation to a closed transport failure without retry', async () => {
+    const transport = vi.fn(async () => {
+      throw new Error('private-network-canary');
+    });
+    await expect(
+      createAccountSiteCaller(configuration, transport)('token', binding, signal()),
+    ).rejects.toMatchObject({ reason: 'transport', message: 'BFF provider: transport' });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
   it.each([
     response(account, 201),
     response(account, 200, 'text/html'),

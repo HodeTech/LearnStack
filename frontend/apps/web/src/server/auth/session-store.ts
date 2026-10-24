@@ -67,6 +67,7 @@ type Owner = {
   account?: AccountWitness;
   absolute: number;
   activity: number;
+  utcOffset: number;
   csrf: string;
   refresh?: Promise<void>;
   logoutState?: string;
@@ -203,7 +204,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     return Object.freeze({
       state: 'authenticated',
       displayName: entry.account.displayName,
-      expiresAt: this.#utc() + Math.max(0, this.#effective(entry) - this.#now()),
+      // Anchor the clock conversion once: projecting an unchanged monotonic
+      // deadline must not manufacture an extension from wall-clock sampling noise.
+      expiresAt: Math.round(entry.utcOffset + this.#effective(entry)),
       limitedByAbsolute: this.#effective(entry) === entry.absolute,
       csrfToken: entry.csrf,
     });
@@ -340,6 +343,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       replacement,
       absolute: now + BFF_LIMITS.absoluteMs,
       activity: now,
+      utcOffset: this.#utc() - now,
       csrf: opaque(),
     };
     group.members.add(entry);
@@ -665,6 +669,13 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       subjects: new Set([...this.#owners.values()].map((entry) => entry.subject).filter(Boolean))
         .size,
       operations: [...this.#owners.values()].reduce((count, entry) => count + entry.work.size, 0),
+      credentialRecords: [...this.#owners.values()].filter((entry) => entry.credentials).length,
+      transactionRecords: [...this.#owners.values()].filter((entry) => entry.transaction).length,
+      proofRecords: [...this.#owners.values()].filter((entry) => entry.proof || entry.logoutProof)
+        .length,
+      csrfRecords: [...this.#owners.values()].filter((entry) => entry.csrf).length,
+      loginStates: this.#states.size,
+      logoutStates: this.#logoutStates.size,
     });
   }
 }

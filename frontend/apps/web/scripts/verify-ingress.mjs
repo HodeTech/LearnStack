@@ -729,7 +729,7 @@ async function run() {
 
   await stopTestChild(stock);
   await stopTestChild(native);
-  // Next 15.5.27 loads next.config.ts for this custom production server; its
+  // Next 15.5.28 loads next.config.ts for this custom production server; its
   // serialized build config contributes only isExperimentalCompile. Mutate the
   // copied runtime configuration and restart, without touching shared output.
   const configPath = join(app, 'next.config.ts');

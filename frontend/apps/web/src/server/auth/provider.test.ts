@@ -7,7 +7,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createTenantProvider } from './provider';
 import { BffProviderError } from './provider-error';
-import { MAX_PROVIDER_BODY_BYTES, PROVIDER_DEADLINE_MS } from './provider-transport';
+import { MAX_PROVIDER_BODY_BYTES, providerOperation } from './provider-transport';
 
 const issuer = 'https://identity.example.test/realms/learnstack';
 const callback = 'https://school.example.test/api/auth/callback/keycloak';
@@ -131,7 +131,9 @@ describe('inactive tenant RP boundary', () => {
   it('contacts nothing at construction; real pinned code/refresh validate signed ID tokens and return server-only credentials', async () => {
     const f = await fixture();
     expect(f.calls).toHaveLength(0);
+    const beforeGrant = performance.now();
     const { transaction, redirectUrl, result } = await f.login();
+    const afterGrant = performance.now();
     const authorization = new URL(redirectUrl);
     expect(authorization.origin).toBe(new URL(issuer).origin);
     expect(authorization.searchParams.get('code_challenge_method')).toBe('S256');
@@ -145,8 +147,17 @@ describe('inactive tenant RP boundary', () => {
       organizationId: null,
     });
     expect(result.accessToken).toBe(privateCanary);
-    expect(result.refreshExpiresAt).toBeGreaterThan(performance.now() + 1790_000);
+    expect(result.accessExpiresAt).toBeGreaterThanOrEqual(beforeGrant + 900_000);
+    expect(result.accessExpiresAt).toBeLessThanOrEqual(afterGrant + 900_000);
+    expect(result.refreshExpiresAt).toBeGreaterThanOrEqual(beforeGrant + 1_800_000);
+    expect(result.refreshExpiresAt).toBeLessThanOrEqual(afterGrant + 1_800_000);
+    const beforeRefresh = performance.now();
     const refreshed = await f.provider.refresh(result.refreshToken!, result.identity);
+    const afterRefresh = performance.now();
+    expect(refreshed.accessExpiresAt).toBeGreaterThanOrEqual(beforeRefresh + 900_000);
+    expect(refreshed.accessExpiresAt).toBeLessThanOrEqual(afterRefresh + 900_000);
+    expect(refreshed.refreshExpiresAt).toBeGreaterThanOrEqual(beforeRefresh + 1_800_000);
+    expect(refreshed.refreshExpiresAt).toBeLessThanOrEqual(afterRefresh + 1_800_000);
     expect(refreshed.identity).toEqual(result.identity);
     expect(f.calls.filter((call) => call.url.endsWith('/token'))).toHaveLength(2);
     expect(f.calls.filter((call) => call.url.endsWith('/certs')).length).toBeGreaterThan(0);
@@ -358,6 +369,80 @@ describe('inactive tenant RP boundary', () => {
     });
   }
 
+  it.each(['media type', 'redirect', 'decoded byte limit'] as const)(
+    'independently rejects %s before returning an otherwise valid discovery document',
+    async (defect) => {
+      const document = JSON.stringify({
+        issuer,
+        authorization_endpoint: `${issuer}/protocol/openid-connect/auth`,
+        token_endpoint: `${issuer}/protocol/openid-connect/token`,
+        jwks_uri: `${issuer}/protocol/openid-connect/certs`,
+        end_session_endpoint: `${issuer}/protocol/openid-connect/logout`,
+      });
+      for (const planted of [false, true]) {
+        let cancelled = false;
+        let sent = false;
+        const text =
+          planted && defect === 'decoded byte limit' ? document.padEnd(262_145, ' ') : document;
+        const transport = vi.fn(
+          async () =>
+            new Response(
+              new ReadableStream<Uint8Array>(
+                {
+                  pull(controller) {
+                    if (sent) controller.close();
+                    else {
+                      sent = true;
+                      controller.enqueue(new TextEncoder().encode(text));
+                    }
+                  },
+                  cancel() {
+                    cancelled = true;
+                  },
+                },
+                { highWaterMark: 0 },
+              ),
+              {
+                status: planted && defect === 'redirect' ? 302 : 200,
+                headers: {
+                  'content-type':
+                    planted && defect === 'media type' ? 'text/html' : 'application/json',
+                },
+              },
+            ),
+        );
+        const operation = providerOperation(issuer, undefined, transport);
+        const received = operation.fetch(`${issuer}/.well-known/openid-configuration`);
+        if (planted) {
+          await expect(received).rejects.toMatchObject({ reason: 'response' });
+          if (defect === 'decoded byte limit') expect(cancelled).toBe(true);
+        } else {
+          expect(await (await received).json()).toEqual(JSON.parse(document));
+        }
+        expect(transport).toHaveBeenCalledTimes(1);
+      }
+    },
+  );
+
+  it('accepts the literal decoded-body ceiling through the actual provider discovery path', async () => {
+    const document = JSON.stringify({
+      issuer,
+      authorization_endpoint: `${issuer}/protocol/openid-connect/auth`,
+      token_endpoint: `${issuer}/protocol/openid-connect/token`,
+      jwks_uri: `${issuer}/protocol/openid-connect/certs`,
+      end_session_endpoint: `${issuer}/protocol/openid-connect/logout`,
+    });
+    const f = await fixture();
+    f.setResponse(
+      () =>
+        new Response(document.padEnd(262_144, ' '), {
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    await expect(f.provider.begin(callback)).resolves.toHaveProperty('transaction');
+    expect(f.calls).toHaveLength(1);
+  });
+
   it('uses one operation deadline and distinguishes it from caller cancellation without raw causes', async () => {
     for (const cancelled of [false, true]) {
       const deadline = new AbortController();
@@ -377,7 +462,7 @@ describe('inactive tenant RP boundary', () => {
         await expect(provider.begin(callback, caller.signal)).rejects.toMatchObject({
           reason: cancelled ? 'cancelled' : 'deadline',
         });
-        expect(timeout).toHaveBeenCalledExactlyOnceWith(PROVIDER_DEADLINE_MS);
+        expect(timeout).toHaveBeenCalledExactlyOnceWith(10_000);
       } finally {
         timeout.mockRestore();
       }

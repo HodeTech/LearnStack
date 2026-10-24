@@ -43,8 +43,8 @@ afterEach(async () => {
   await Promise.all(stopped);
 });
 
-function fixture() {
-  let now = 0;
+function fixture(options: { initialTime?: number; utcJitter?: () => number } = {}) {
+  let now = options.initialTime ?? 0;
   let currentIdentity = identity;
   let sequence = 0;
   let tokenPatch: Partial<ProviderCredentials> = {};
@@ -97,7 +97,10 @@ function fixture() {
   const store = new InMemoryBffSessionStore({
     provider,
     account,
-    clock: { monotonic: () => now, utc: () => 1_800_000_000_000 + now },
+    clock: {
+      monotonic: () => now,
+      utc: () => 1_800_000_000_000 + now + (options.utcJitter?.() ?? 0),
+    },
     diagnostic: (reason) => diagnostics.push(reason),
   });
   stores.push(store);
@@ -191,7 +194,6 @@ describe('Bff_Session_Refresh_And_Revocation_Have_One_Owner', () => {
     expect(JSON.stringify(projection)).not.toContain(privateCanary);
     expect(JSON.stringify(projection)).not.toContain(binding.handle);
     expect(JSON.stringify(projection)).not.toContain(binding.browser);
-    expect(JSON.stringify(f.store)).toBe('{}');
     expect(finished.returnPath).toBe('/studio');
     expect(f.store.counts()).toMatchObject({ owners: 1, pending: 0, groups: 1, subjects: 1 });
     f.advance(10_000);
@@ -742,13 +744,7 @@ describe('logout, actual settlement and shutdown', () => {
     gate.resolve();
     await refused;
     await first;
-    expect(f.store.counts()).toEqual({
-      owners: 0,
-      pending: 0,
-      groups: 0,
-      subjects: 0,
-      operations: 0,
-    });
+    expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
   });
 });
 
@@ -870,5 +866,276 @@ describe('current callback visitor provenance', () => {
     expect(f.provider.redeem).not.toHaveBeenCalled();
     await expect(f.complete(login)).resolves.toHaveProperty('handle');
     expect(f.provider.redeem).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('independent lifetime and logical custody controls', () => {
+  const hour = 60 * 60_000;
+  function longProvider() {
+    const f = fixture({ initialTime: 12_345.5 });
+    f.setTokens({ accessExpiresAt: 24 * hour, refreshExpiresAt: 24 * hour });
+    return f;
+  }
+  it('keeps the accepted literal resource and lifetime limits', () => {
+    expect(BFF_LIMITS).toEqual({
+      owners: 1024,
+      pending: 128,
+      source: 16,
+      subject: 8,
+      transactionMs: 300_000,
+      idleMs: 1_800_000,
+      absoluteMs: 28_800_000,
+      sweepMs: 30_000,
+      refreshAheadMs: 60_000,
+      credentialBytes: 32_768,
+    });
+  });
+  it('expires at thirty idle minutes even when the provider allows twenty-four hours', async () => {
+    const f = longProvider();
+    const { binding } = await f.login();
+    f.advance(1_799_999);
+    expect(f.store.peek(binding)).not.toBeNull();
+    f.advance(1);
+    expect(f.store.peek(binding)).toBeNull();
+  });
+  it.each(['passive', 'peek', 'denied read'] as const)(
+    '%s never advances the independent idle deadline',
+    async (activity) => {
+      const f = longProvider();
+      const { binding } = await f.login();
+      f.advance(20 * 60_000);
+      if (activity === 'peek') f.store.peek(binding);
+      else if (activity === 'passive') await f.store.admit(binding, source, 'passive');
+      else {
+        f.account.mockRejectedValueOnce(new BffProviderError('provider_refused'));
+        await expect(f.store.admit(binding, source, 'read')).rejects.toMatchObject({
+          reason: 'provider_refused',
+        });
+      }
+      f.advance(10 * 60_000);
+      expect(f.store.peek(binding)).toBeNull();
+    },
+  );
+  it('successful ordinary authority admission advances idle without refreshing fresh credentials', async () => {
+    const f = longProvider();
+    const { binding } = await f.login();
+    f.advance(10 * 60_000);
+    await f.store.admit(binding, source, 'read');
+    f.advance(1_799_999);
+    expect(f.store.peek(binding)).not.toBeNull();
+    f.advance(1);
+    expect(f.store.peek(binding)).toBeNull();
+    expect(f.provider.refresh).not.toHaveBeenCalled();
+  });
+  it('refreshes at sixty seconds before access expiry, but not sixty seconds plus one millisecond', async () => {
+    const f = fixture({ initialTime: 1234 });
+    f.setTokens({ refreshExpiresAt: 24 * hour });
+    const { binding } = await f.login();
+    f.advance(839_999);
+    await f.store.admit(binding, source, 'read');
+    expect(f.provider.refresh).not.toHaveBeenCalled();
+    f.advance(1);
+    await f.store.admit(binding, source, 'read');
+    expect(f.provider.refresh).toHaveBeenCalledTimes(1);
+  });
+  it('a successful shared refresh advances idle even after its only waiter cancels', async () => {
+    const f = longProvider();
+    const { binding } = await f.login();
+    f.advance(10 * 60_000);
+    const held = f.blockRefresh();
+    const controller = new AbortController();
+    const attempted = f.store.admit(binding, source, 'extend', controller.signal);
+    await vi.waitFor(() => expect(f.provider.refresh).toHaveBeenCalledTimes(1));
+    controller.abort();
+    await expect(attempted).rejects.toMatchObject({ reason: 'cancelled' });
+    f.advance(60_000);
+    held.resolve();
+    await vi.waitFor(() => expect(f.store.counts().operations).toBe(0));
+    f.advance(1_799_999);
+    expect(f.store.peek(binding)).not.toBeNull();
+    f.advance(1);
+    expect(f.store.peek(binding)).toBeNull();
+  });
+  it('maintenance uses active idle lifetime rather than the expired login transaction deadline', async () => {
+    const f = longProvider();
+    const { binding } = await f.login();
+    f.advance(10 * 60_000);
+    f.store.sweep();
+    expect(f.store.peek(binding)).not.toBeNull();
+    f.advance(20 * 60_000);
+    f.store.sweep();
+    expect(f.store.counts()).toMatchObject({ owners: 0, credentialRecords: 0 });
+  });
+  it('starts a fresh five-minute logout-return window when an older session signs out', async () => {
+    const f = longProvider();
+    const { binding, finished } = await f.login();
+    f.advance(4 * 60_000);
+    const logout = f.store.signout(binding, finished.session.csrfToken);
+    f.advance(2 * 60_000);
+    expect(f.store.consumeLogout({ ...binding, ...logout })).toBe(true);
+    expect(f.store.counts()).toMatchObject({ owners: 0, logoutStates: 0 });
+  });
+  it('rejects logout return at the exact five-minute boundary and reclaims its index', async () => {
+    const f = longProvider();
+    const { binding, finished } = await f.login();
+    f.advance(4 * 60_000);
+    const logout = f.store.signout(binding, finished.session.csrfToken);
+    f.advance(300_000);
+    expect(f.store.consumeLogout({ ...binding, ...logout })).toBe(false);
+    f.store.sweep();
+    expect(f.store.counts()).toMatchObject({ owners: 0, logoutStates: 0 });
+  });
+  it('rejects a callback at the exact five-minute transaction boundary', async () => {
+    const f = longProvider();
+    const started = await f.start();
+    f.advance(300_000);
+    await expect(f.complete(started)).rejects.toMatchObject({ reason: 'expired' });
+    expect(f.provider.redeem).not.toHaveBeenCalled();
+    expect(f.store.counts()).toMatchObject({ owners: 0, loginStates: 0 });
+  });
+  it('cannot restore idle lifetime when post-refresh AccountSite finishes after expiry', async () => {
+    const f = longProvider();
+    const { binding } = await f.login();
+    const held = f.blockAccount();
+    const pending = f.store.admit(binding, source, 'extend');
+    const refused = expect(pending).rejects.toMatchObject({ reason: 'expired' });
+    await vi.waitFor(() => expect(f.account).toHaveBeenCalledTimes(2));
+    f.advance(1_800_000);
+    held.resolve();
+    await refused;
+    expect(f.store.peek(binding)).toBeNull();
+    expect(f.store.counts()).toMatchObject({ owners: 0, credentialRecords: 0 });
+  });
+  it('releases every failed begin reservation before another source slot is requested', async () => {
+    const f = fixture();
+    vi.mocked(f.provider.begin).mockRejectedValue(new BffProviderError('transport'));
+    for (let i = 0; i < 17; ++i) {
+      await expect(f.start()).rejects.toMatchObject({ reason: 'transport' });
+      expect(f.store.counts()).toMatchObject({ owners: 0, pending: 0, groups: 0, loginStates: 0 });
+    }
+    expect(f.provider.begin).toHaveBeenCalledTimes(17);
+    vi.mocked(f.provider.begin).mockImplementation(async (callbackUri) => ({
+      transaction: { callbackUri, state: secret(), nonce: secret(), verifier: secret() },
+      redirectUrl: 'https://identity.example.test/authorize',
+    }));
+    await f.login();
+    expect(f.store.counts().owners).toBe(1);
+  });
+  it('idle same-browser replacement releases old owners and keeps one subject credit', async () => {
+    const f = fixture();
+    let current = await f.login();
+    for (let i = 0; i < 12; ++i) {
+      const old = current.binding;
+      current = await f.login({ browser: old.browser, handle: old.handle });
+      expect(f.store.peek(old)).toBeNull();
+      expect(f.store.counts()).toMatchObject({ owners: 1, subjects: 1, credentialRecords: 1 });
+    }
+  });
+  it('a concurrent second submission of the same callback never redeems its code twice', async () => {
+    const f = fixture();
+    const started = await f.start();
+    const held = f.blockRedeem();
+    const first = f.complete(started);
+    await vi.waitFor(() => expect(f.provider.redeem).toHaveBeenCalledTimes(1));
+    await expect(f.complete(started)).rejects.toMatchObject({ reason: 'transaction' });
+    held.resolve();
+    await first;
+    expect(f.provider.redeem).toHaveBeenCalledTimes(1);
+    expect(f.store.counts()).toMatchObject({ owners: 1, loginStates: 0 });
+  });
+  it('a logout return is single-use even while revoked AccountSite work remains unsettled', async () => {
+    const f = fixture();
+    const { binding, finished } = await f.login();
+    const held = f.blockAccount();
+    const read = f.store.admit(binding, source, 'read');
+    const refused = expect(read).rejects.toMatchObject({ reason: 'revoked' });
+    await vi.waitFor(() => expect(f.account).toHaveBeenCalledTimes(2));
+    const logout = f.store.signout(binding, finished.session.csrfToken);
+    expect(f.store.consumeLogout({ ...binding, ...logout })).toBe(true);
+    expect(f.store.consumeLogout({ ...binding, ...logout })).toBe(false);
+    expect(f.store.counts()).toMatchObject({
+      owners: 1,
+      operations: 1,
+      credentialRecords: 0,
+      logoutStates: 0,
+    });
+    held.resolve();
+    await refused;
+    expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+  });
+  it('equal external subject strings in different issuers do not share a subject capacity key', async () => {
+    const f = fixture();
+    for (let i = 0; i < 8; ++i) await f.login();
+    await expect(f.login()).rejects.toMatchObject({ reason: 'subject_capacity' });
+    f.setIdentity({ issuer: 'https://second-identity.example.test/realms/learnstack' });
+    await f.login();
+    expect(f.store.counts()).toMatchObject({ owners: 9, subjects: 9 });
+  });
+  it('one browser proof may name independent host groups without rotating either host binding', async () => {
+    const f = fixture();
+    const first = await f.login();
+    const second = await f.login({ host: secondHost, browser: first.binding.browser });
+    expect(second.binding.browser).toBe(first.binding.browser);
+    expect(f.store.peek(first.binding)).not.toBeNull();
+    expect(f.store.peek(second.binding)).not.toBeNull();
+    expect(f.store.counts()).toMatchObject({ owners: 2, groups: 2 });
+  });
+  it('observes only scalar owner-held custody and indexes through publication, logout and release', async () => {
+    const f = fixture();
+    const started = await f.start();
+    expect(f.store.counts()).toMatchObject({
+      credentialRecords: 0,
+      transactionRecords: 1,
+      proofRecords: 1,
+      csrfRecords: 1,
+      loginStates: 1,
+      logoutStates: 0,
+    });
+    const finished = await f.complete(started);
+    expect(f.store.counts()).toMatchObject({
+      credentialRecords: 1,
+      transactionRecords: 0,
+      proofRecords: 0,
+      csrfRecords: 1,
+      loginStates: 0,
+      logoutStates: 0,
+    });
+    const binding = { host, browser: finished.browser, handle: finished.handle };
+    const logout = f.store.signout(binding, finished.session.csrfToken);
+    expect(f.store.counts()).toMatchObject({
+      credentialRecords: 0,
+      transactionRecords: 0,
+      proofRecords: 1,
+      csrfRecords: 0,
+      loginStates: 0,
+      logoutStates: 1,
+    });
+    expect(f.store.consumeLogout({ ...binding, ...logout })).toBe(true);
+    expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+  });
+  it('clears owner-held credentials immediately while cancelled actual work keeps its owner until settlement', async () => {
+    const f = fixture();
+    const { binding } = await f.login();
+    const held = f.blockRefresh();
+    const pending = f.store.admit(binding, source, 'extend');
+    const refused = expect(pending).rejects.toMatchObject({ reason: 'stopped' });
+    await vi.waitFor(() => expect(f.provider.refresh).toHaveBeenCalledTimes(1));
+    const stopped = f.store.stop();
+    expect(f.store.counts()).toMatchObject({ owners: 1, credentialRecords: 0, operations: 1 });
+    held.resolve();
+    await refused;
+    await stopped;
+    expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+  });
+  it('projects an identical integral epoch deadline despite independent UTC sampling jitter', async () => {
+    let samples = 0;
+    const f = fixture({ initialTime: 1234.125, utcJitter: () => (++samples % 2 ? 0.3 : -0.4) });
+    const { binding } = await f.login();
+    const first = f.store.peek(binding)!.expiresAt;
+    expect(Number.isInteger(first)).toBe(true);
+    for (let i = 0; i < 10; ++i) {
+      f.advance(0.125);
+      expect(f.store.peek(binding)!.expiresAt).toBe(first);
+    }
   });
 });

@@ -100,6 +100,7 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/apps/web/scripts/public-server.mjs',
       'frontend/apps/web/scripts/development-hmr.mjs',
       'frontend/apps/web/scripts/stop-test-child.mjs',
+      'frontend/apps/web/scripts/verify-bff-protocol.mjs',
       'scripts/demo.mjs',
       'scripts/require-node-test-cases.mjs',
     ])
@@ -113,6 +114,18 @@ describe('P02d-7 exact demo identity boundary', () => {
 
   const identity = vocabulary.values.find((row) => row.kind === 'tenant-name')!.value;
   const id = vocabulary.values.find((row) => row.kind === 'id')!.value;
+  it('scans the native BFF proof entry instead of exempting planted demo literals', () => {
+    const entry = 'frontend/apps/web/scripts/verify-bff-protocol.mjs';
+    for (const value of ['independent', identity]) {
+      const files = productionDemoSources(
+        new Map([[entry, `export const name = ${JSON.stringify(value)};`]]),
+      );
+      expect(files.has(entry)).toBe(true);
+      expect(demoIdentityFindings(entry, files.get(entry)!, vocabulary)).toEqual(
+        value === identity ? [identity] : [],
+      );
+    }
+  });
   it.each([
     'src/components/public/lesson.tsx',
     'src/server/configured-public-client.ts',

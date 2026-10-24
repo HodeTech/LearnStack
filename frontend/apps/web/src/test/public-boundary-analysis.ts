@@ -32,6 +32,190 @@ export const ADMISSION_FACADE = 'apps/web/src/server/public-admission.ts';
 export const SDK_AUTHENTICATED = 'packages/sdk/src/authenticated-server.ts';
 export const SDK_SERVER = 'packages/sdk/src/server.ts';
 
+/** Only these test roots are outside the production inventory; names are not authority. */
+export function omittedProductionDirectory(path: string): boolean {
+  return path === 'apps/web/src/test';
+}
+
+/** Pin the response entry points independently of middleware's runtime dispatcher. */
+export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
+  const findings: Finding[] = [];
+  const entries = new Set([
+    'apps/web/src/app/api/healthz/route.ts',
+    'apps/web/src/app/(studio)/studio/page.tsx',
+    'apps/web/src/app/(portal)/portal/page.tsx',
+    'apps/web/src/app/(public)/[locale]/courses/page.tsx',
+    'apps/web/src/app/(public)/[locale]/courses/[slug]/page.tsx',
+    'apps/web/src/app/(public)/[locale]/courses/[slug]/lessons/[lessonSlug]/page.tsx',
+    'apps/web/src/app/(public)/[locale]/status/not-found/page.tsx',
+  ]);
+  const files = new Map(
+    Object.entries(sources).map(([name, source]) => [
+      name,
+      ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true),
+    ]),
+  );
+  for (const [name, file] of files) {
+    if (/^apps\/web\/(?:app\/|pages\/|src\/pages\/|middleware\.)/.test(name))
+      findings.push(
+        finding(
+          file,
+          'Fix: keep framework routing in the approved src/app and src/middleware owners.',
+        ),
+      );
+    if (
+      name.startsWith('apps/web/src/app/') &&
+      /\/(?:page|route|default|robots|sitemap|manifest|icon|apple-icon|opengraph-image|twitter-image)\.[^.]+$/.test(
+        name,
+      ) &&
+      !entries.delete(name)
+    )
+      findings.push(finding(file, 'Fix: keep the approved HTTP entry-point census closed.'));
+    walk(file, (node) => {
+      if (
+        (ts.isSourceFile(node) || ts.isBlock(node)) &&
+        node.statements.some(
+          (statement, index, statements) =>
+            ts.isExpressionStatement(statement) &&
+            ts.isStringLiteral(statement.expression) &&
+            statement.expression.text === 'use server' &&
+            statements
+              .slice(0, index)
+              .every(
+                (prior) => ts.isExpressionStatement(prior) && ts.isStringLiteral(prior.expression),
+              ),
+        )
+      )
+        findings.push(
+          finding(node, 'Fix: no Server Action is admitted by the closed BFF surface.'),
+        );
+    });
+    if (name === 'apps/web/src/app/api/healthz/route.ts')
+      walk(file, (node) => {
+        if (
+          ts.isIdentifier(node) &&
+          ['HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'CONNECT', 'TRACE'].includes(
+            node.text,
+          )
+        )
+          findings.push(finding(node, 'Fix: the infrastructure route exports only GET.'));
+      });
+  }
+  for (const file of entries)
+    findings.push({ file, line: 1, reason: 'Fix: retain the approved HTTP entry point.' });
+  const object = (file: ts.SourceFile | undefined, name: string, exported = false) => {
+    for (const statement of file?.statements ?? [])
+      if (
+        ts.isVariableStatement(statement) &&
+        (!exported ||
+          statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword))
+      )
+        for (const declaration of statement.declarationList.declarations)
+          if (ts.isIdentifier(declaration.name) && declaration.name.text === name) {
+            const value = declaration.initializer && unwrapped(declaration.initializer);
+            if (value && ts.isObjectLiteralExpression(value)) return value;
+          }
+    return undefined;
+  };
+  const properties = (value: ts.ObjectLiteralExpression | undefined) =>
+    value?.properties.map((property) =>
+      !ts.isSpreadAssignment(property) &&
+      property.name &&
+      (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+        ? property.name.text
+        : undefined,
+    );
+  const middleware = files.get(MIDDLEWARE);
+  const config = object(middleware, 'config', true);
+  const matcher = config?.properties.find(
+    (property) => ts.isPropertyAssignment(property) && property.name.getText() === 'matcher',
+  );
+  const runtime = config?.properties.find(
+    (property) => ts.isPropertyAssignment(property) && property.name.getText() === 'runtime',
+  );
+  if (
+    JSON.stringify(properties(config)?.sort()) !== JSON.stringify(['matcher', 'runtime']) ||
+    !matcher ||
+    !ts.isPropertyAssignment(matcher) ||
+    !ts.isArrayLiteralExpression(matcher.initializer) ||
+    matcher.initializer.elements.length !== 1 ||
+    !ts.isStringLiteral(matcher.initializer.elements[0]!) ||
+    matcher.initializer.elements[0]!.text !== '/((?!_next/|api/healthz$|favicon\\.ico$).*)' ||
+    !runtime ||
+    !ts.isPropertyAssignment(runtime) ||
+    !ts.isStringLiteral(runtime.initializer) ||
+    runtime.initializer.text !== 'nodejs'
+  )
+    findings.push({
+      file: MIDDLEWARE,
+      line: 1,
+      reason: 'Fix: retain the exact native middleware matcher and runtime.',
+    });
+  const next = 'apps/web/next.config.ts';
+  const nextFile = files.get(next);
+  const nextConfig = object(nextFile, 'nextConfig');
+  const allowed = [
+    'reactStrictMode',
+    'poweredByHeader',
+    'logging',
+    'images',
+    'transpilePackages',
+    'skipMiddlewareUrlNormalize',
+    'skipTrailingSlashRedirect',
+    'experimental',
+    'webpack',
+  ];
+  if (JSON.stringify(properties(nextConfig)?.sort()) !== JSON.stringify(allowed.sort()))
+    findings.push({
+      file: next,
+      line: 1,
+      reason: 'Fix: keep Next configuration free of unapproved routing hooks or spreads.',
+    });
+  const exports = nextFile?.statements.filter(ts.isExportAssignment);
+  const exported = exports?.length === 1 ? exports[0]!.expression : undefined;
+  if (
+    !exported ||
+    !ts.isCallExpression(exported) ||
+    exported.arguments.length !== 1 ||
+    !ts.isIdentifier(exported.arguments[0]!) ||
+    exported.arguments[0]!.text !== 'nextConfig' ||
+    !ts.isCallExpression(exported.expression) ||
+    !ts.isIdentifier(exported.expression.expression) ||
+    exported.expression.expression.text !== 'createNextIntlPlugin' ||
+    exported.expression.arguments.length !== 1 ||
+    !ts.isStringLiteral(exported.expression.arguments[0]!) ||
+    exported.expression.arguments[0]!.text !== './src/i18n/request.ts'
+  )
+    findings.push({
+      file: next,
+      line: 1,
+      reason: 'Fix: export only the checked Next configuration through its fixed i18n plugin.',
+    });
+  for (const file of [middleware, nextFile])
+    if (file)
+      walk(file, (node) => {
+        const name = ts.isPropertyAccessExpression(node)
+          ? node.name.text
+          : ts.isElementAccessExpression(node) && ts.isStringLiteral(node.argumentExpression)
+            ? node.argumentExpression.text
+            : undefined;
+        if (
+          (file === nextFile && name === 'rewrites') ||
+          (file === middleware &&
+            name === 'matcher' &&
+            ts.isBinaryExpression(node.parent) &&
+            node.parent.left === node)
+        )
+          findings.push(
+            finding(
+              node,
+              'Fix: do not replace the checked routing configuration after declaration.',
+            ),
+          );
+      });
+  return findings;
+}
+
 /** Native ownership is not a cache exception in the bundled rendering graph. */
 export function admissionBoundaryFindings(graph: SourceGraph): Finding[] {
   const findings: Finding[] = [];
@@ -566,6 +750,13 @@ export function transportFindings(graph: SourceGraph): Finding[] {
         findings.push(
           finding(node, 'Fix: call the configured public SDK adapter instead of global fetch.'),
         );
+      if (ts.isCallExpression(node) && node.arguments.some((value) => globalFetch(value, graph)))
+        findings.push(
+          finding(
+            node,
+            'Fix: inject transport; do not pass global fetch outside the configured adapter.',
+          ),
+        );
       if (
         (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isPropertyAssignment(node)) &&
         node.initializer &&
@@ -613,6 +804,23 @@ export function transportFindings(graph: SourceGraph): Finding[] {
         );
     });
   }
+  return findings;
+}
+
+/** Browser persistence and script-readable cookies cannot become credential stores. */
+export function browserStorageFindings(graph: SourceGraph): Finding[] {
+  const findings: Finding[] = [];
+  for (const file of graph.files.values())
+    walk(file, (node) => {
+      if (
+        ['localStorage', 'sessionStorage', 'document.cookie'].some((name) =>
+          globalBuiltin(node, name, graph.checker),
+        )
+      )
+        findings.push(
+          finding(node, 'Fix: keep browser credentials in opaque HttpOnly host cookies.'),
+        );
+    });
   return findings;
 }
 
