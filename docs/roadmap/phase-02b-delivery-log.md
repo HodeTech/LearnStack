@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,214 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,231 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -243,6 +243,7 @@ each packet decided and delivered, as
   - [P02b-7 correction foundation implementation (2026-10-24)](#p02b-7-correction-foundation-implementation-2026-10-24) — 48 lines
   - [P02b-7 foundation first review corrections (2026-10-24)](#p02b-7-foundation-first-review-corrections-2026-10-24) — 18 lines
   - [ADR-0071 dependent mapping and composed controls (2026-10-24)](#adr-0071-dependent-mapping-and-composed-controls-2026-10-24) — 25 lines
+  - [P02b-7 foundation second review closeout (2026-10-24)](#p02b-7-foundation-second-review-closeout-2026-10-24) — 17 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19957,6 +19958,23 @@ AccountSite routes, two cases with no skip. These compose the two contract
 halves; they do not claim a full browser-driven real-provider outage journey.
 The fresh implementation review rounds and complete final-source qualification
 remain part of the correction closeout.
+
+
+### P02b-7 foundation second review closeout (2026-10-24)
+
+Two fresh second-round reviewers inspect `0fa1afe9` and `9a323182`, separately
+covering surface and owner/provider/cancellation correctness. The owner reviewer
+approves without a finding. The surface reviewer finds that a locally replaced
+plugin import can retain the checked call shape. The final correction pins the
+actual runtime default import to `next-intl/plugin`, the type import to Next,
+and the four top-level configuration statements. Changed-source, type-only and
+wrong-binding counterexamples retain the clean current configuration twin.
+
+All 284 boundary controls and app TypeScript pass. The surface reviewer then
+independently confirms the focused fix and approves without a remaining
+actionable finding. Both required review rounds for this foundation package
+are complete. These reviews do not claim that the separate in-progress policy,
+UI, CI or complete real-provider/hosted packages have already qualified.
 
 
 ## Status archive

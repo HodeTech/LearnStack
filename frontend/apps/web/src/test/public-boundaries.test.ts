@@ -196,6 +196,12 @@ describe('ADR-0053 production public boundaries', () => {
         current[config]!.replace('reactStrictMode: true,', '...routing, reactStrictMode: true,'),
       ],
       [config, current[config]! + '\nnextConfig.rewrites = async () => [];'],
+      [config, current[config]!.replace("from 'next-intl/plugin'", "from './routing'")],
+      [
+        config,
+        current[config]!.replace('import createNextIntlPlugin', 'import type createNextIntlPlugin'),
+      ],
+      [config, current[config]!.replace('import createNextIntlPlugin', 'import anotherPlugin')],
       [
         config,
         current[config]!.replace(

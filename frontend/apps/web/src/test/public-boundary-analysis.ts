@@ -154,6 +154,35 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
   const next = 'apps/web/next.config.ts';
   const nextFile = files.get(next);
   const nextConfig = object(nextFile, 'nextConfig');
+  const imports = nextFile?.statements.filter(ts.isImportDeclaration) ?? [];
+  const typeImport = imports.find(
+    (item) => ts.isStringLiteral(item.moduleSpecifier) && item.moduleSpecifier.text === 'next',
+  );
+  const pluginImport = imports.find(
+    (item) =>
+      ts.isStringLiteral(item.moduleSpecifier) && item.moduleSpecifier.text === 'next-intl/plugin',
+  );
+  const types = typeImport?.importClause?.namedBindings;
+  if (
+    nextFile?.statements.length !== 4 ||
+    imports.length !== 2 ||
+    !typeImport?.importClause?.isTypeOnly ||
+    typeImport.importClause.name ||
+    !types ||
+    !ts.isNamedImports(types) ||
+    types.elements.length !== 1 ||
+    types.elements[0]!.name.text !== 'NextConfig' ||
+    types.elements[0]!.propertyName ||
+    !pluginImport?.importClause ||
+    pluginImport.importClause.isTypeOnly ||
+    pluginImport.importClause.name?.text !== 'createNextIntlPlugin' ||
+    pluginImport.importClause.namedBindings
+  )
+    findings.push({
+      file: next,
+      line: 1,
+      reason: 'Fix: keep the fixed Next type/plugin imports and closed configuration statements.',
+    });
   const allowed = [
     'reactStrictMode',
     'poweredByHeader',
