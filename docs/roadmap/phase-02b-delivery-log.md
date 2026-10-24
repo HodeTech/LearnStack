@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,699 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,782 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -257,6 +257,7 @@ each packet decided and delivered, as
   - [P02b-7 browser launch qualification observation (2026-10-24)](#p02b-7-browser-launch-qualification-observation-2026-10-24) — 43 lines
   - [P02b-7 browser observation first review (2026-10-24)](#p02b-7-browser-observation-first-review-2026-10-24) — 17 lines
   - [P02b-7 same-source qualification and causal fixture scheduling (2026-10-24)](#p02b-7-same-source-qualification-and-causal-fixture-scheduling-2026-10-24) — 67 lines
+  - [P02b-7 final correction qualification (2026-10-24)](#p02b-7-final-correction-qualification-2026-10-24) — 83 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20457,6 +20458,89 @@ held-Prepare counter. Forced/unforced success observations retain exact
 loss. All 83 native-owner controls pass; the integration project builds with
 zero warnings/errors after the diagnostic refinement. Fresh reviews and a new
 complete final-source A/B pair remain pending.
+
+### P02b-7 final correction qualification (2026-10-24)
+
+Both fresh first-round and both fresh second-round source reviewers approve
+`aeeea13b..ae2f7f7c` without a verified finding. They independently trace actual
+timer ownership, post-acceptance stop causality, unchanged provider/durable-state
+assertions, shared-budget cleanup and finite diagnostic semantics. These are
+source reviews; the execution receipts below are separate.
+
+The final implementation source is
+`ae2f7f7cc65995957109ba8e738052ac6a2ddd6a`, tree
+`e87a8d080a918853b13a6adaa5d31d3766f2a360`. Complete hosted run
+[40104248664](https://github.com/HodeTech/LearnStack/actions/runs/40104248664)
+qualifies attempt 1/A and full attempt 2/B against the identical merge checkout
+`2b26a144b8022f3b0366e831078a3349138cda74`, with unchanged base
+`935d8da66878286d6a1695f3d41d985ebce4e791`. Original A packages are retained
+before rerunning all jobs for B; B originals are retained independently. No
+failed-only or mixed-attempt union supplies this qualification.
+
+| Observation | A / attempt 1 | B / attempt 2 |
+|---|---|---|
+| Successful jobs / required contexts | 27 / 7 | 27 / 7 |
+| Natural producer ownership/cleanup | 20 / 20 | 20 / 20 |
+| Distinct Passed .NET cases | 5,931 | 5,931 |
+| Non-Docker / Docker cases | 3,352 / 2,579 | 3,352 / 2,579 |
+| Ordinary / native Docker cases | 2,548 / 31 | 2,548 / 31 |
+| Frontend cases, zero skips/todos | 2,315 | 2,315 |
+| BFF / recurrence / causal cases | 6 / 2 / 3 | 6 / 2 / 3 |
+| Maximum producer whole-job seconds | 959 | 953 |
+| Backend / integration aggregate seconds | 26 / 25 | 22 / 36 |
+| Demo navigations / Lighthouse reports | 9 / 27 | 9 / 27 |
+| Natural demo cleanup milliseconds | 10,779 | 10,666 |
+
+Independent verification recomputes every assignment from actual discovery and
+the committed plan, compares exact selector/method ownership, validates every
+retained result artifact digest and requires complete Passed unions and actual
+natural cleanup. There are no skipped .NET cases, forced successful cleanups or
+unowned producers. Execution and aggregate ceilings remain 1,200/300 seconds.
+Actual co-membership changes, not merely bin labels: Architecture moves
+220 methods / 371 cases; ordinary Docker moves 1,074 / 2,256; SharedSchema
+specifically moves 901 / 1,874. The 77-class SharedSchema set is independently
+re-derived from current source before comparing group membership.
+
+The same captured .NET toolchain appears in both variants: SDK `10.0.402`,
+console `18.7.0-release-26505-111` and identical console/dependency/adapter hashes.
+Both demo receipts capture Node `v22.23.1`, Playwright `1.64.0`, Chromium revision
+`1248`, Lighthouse `13.5.0` and identical configuration digest. Each frontend
+receipt independently confirms 2,212 web and 103 SDK cases in 71 files.
+
+All three successful causal observations are retained in each variant. The
+unforced paths record 1 reconciliation / 1 finalization / 2 ledger rows; the
+deliberately forced subrun records 1 / 2 / 3. Neither reports elapsed or renewal
+lease loss. These observations supplement the real results and never replace
+completion authority. The separate held-Prepare counter and dirty-adapter
+counter remain required and passing.
+
+- Manifest digest:
+  `0386c8b99e2a94fda613670ec0d347aaf3bd04b6ff8b4f42c193701a682c3a70`.
+- Plan digest:
+  `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b`.
+- A assignment digest:
+  `2efb41bb3b00ec0f994ad7c247594b33abf22a3e63c2b6d3a6c610be2a4917d1`.
+- B assignment digest:
+  `71c91e7aa02ff4f60e21e062ac8d101052bd4bcc30bd70d671182932a9a7f1ce`.
+- Independent complete-pair audit SHA-256:
+  `ae6e8634701e854b58a74864f92c56f5a9841435980edbcdddc8123b5293da43`.
+- A/B supplementary audit SHA-256:
+  `86dfa22d6df37fb6404a8c0c5bf0b86059d50fbc693f3229be77c004fb4a4928` /
+  `fb816df8ee6675ab7e5851b5805fcfc0891d2dc8db6231db5d15d0b8f3bb0cb5`.
+
+The failed sources above remain failed evidence. Passing final assignments do
+not recover their missing historical causes, prove every possible ordering, or
+change production renewal policy. The browser proof remains the separately
+scoped controlled-grant/API journey; full real-browser OIDC and the browser
+matrix remain Phase 06's named deliverable.
+
+This closeout changes only this delivery record/generated index and the phase
+packet Status. It changes no executable, plan, fixture lifetime or toolchain.
+Under [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md), its normal
+current-head push still requires one complete assignment before PR readiness.
+This A/B receipt belongs to the implementation source above, not the later
+documentation-only commit. [PR #36](https://github.com/HodeTech/LearnStack/pull/36)
+remains the maintainer review/merge gate; no merge is performed here.
 
 ## Status archive
 
