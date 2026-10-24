@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,600 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,672 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -230,6 +230,7 @@ each packet decided and delivered, as
   - [P02b-7 first complete A and failed B — preserve the first cause (2026-10-24)](#p02b-7-first-complete-a-and-failed-b--preserve-the-first-cause-2026-10-24) — 52 lines
   - [P02b-7 hosted causal-restart correction (2026-10-24)](#p02b-7-hosted-causal-restart-correction-2026-10-24) — 71 lines
   - [P02b-7 hosted BFF-browser diagnosis (2026-10-24)](#p02b-7-hosted-bff-browser-diagnosis-2026-10-24) — 53 lines
+  - [P02b-7 implementation and hosted qualification closeout (2026-10-24)](#p02b-7-implementation-and-hosted-qualification-closeout-2026-10-24) — 72 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19330,6 +19331,78 @@ These local receipts do not claim a reproduction or resolution of the hosted
 interleaving. No runtime policy, readiness algorithm, timeout, retry, case row,
 advisory weight, job count or ceiling changes. Source-bound complete hosted
 A/B qualification remains required; PR #36 stays draft.
+
+
+### P02b-7 implementation and hosted qualification closeout (2026-10-24)
+
+All five implementation steps and both independent review rounds per step are
+complete; the [Step 5 local closeout](#p02b-7-step-5--round-2-corrections-and-local-closeout-2026-10-24)
+retains their source and local proof records. The subsequent dated CI records
+retain failed attempts and focused corrections without replacing that history.
+
+[Run `40056362565`](https://github.com/HodeTech/LearnStack/actions/runs/40056362565)
+qualifies implementation source `4ce7d4dbf7619fadeabe7d1c35932339c483b1fd`,
+tree `62c97d0b31f641eedf0d4c10ecc38f1182534c6a`. Both attempts use merge checkout
+`a8161e6899ad8e9fe644a8cad62781fe7ca00915`, whose tree matches that source.
+Attempt 1/A and the complete all-jobs attempt 2/B each pass all 27 jobs and
+seven required contexts. No failed-only rerun, skip or failing-check waiver
+supplies this qualification.
+
+All 20 original producer packages per attempt, aggregate receipts, workflow
+metadata and public-demo evidence are retained locally. A's originals are saved
+before starting B, which can replace earlier Actions artifacts. Independent
+verification recomputes retained file hashes, exact case/selector unions, ownership,
+unforced cleanup, scoped Docker absence and native-only collector authority.
+Each attempt passes the same 5,930 .NET cases: 3,351 non-Docker and 2,579 Docker,
+including 31 native crash-proof cases. There are zero skipped or failed cases.
+Manifest and plan digests are respectively
+`43abf742a0454afe30495c117978008f84c75a31a30b4adda7a2a479987995e2`
+and `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b`.
+
+Actual co-membership differs in both movable populations and in the ordinary
+methods of the 77 source-declared `SharedSchema` classes. Owner changes are:
+
+| Population | Selectors changing owner | Cases changing owner |
+|---|---:|---:|
+| Architecture | 220 | 371 |
+| Ordinary Docker | 1,074 | 2,256 |
+| `SharedSchema` ordinary subset | 901 | 1,874 |
+
+The last row is a subset, not an additional population. Source, plan, complete
+case set and actual toolchain match between attempts: SDK `10.0.402`, console
+`18.7.0-release-26505-111` and loaded adapter `2.8.2.0`, including their retained
+hashes. The largest producer whole-job durations are 938/908 seconds for A/B;
+backend aggregates take 16/21 seconds and integration aggregates 28/29 seconds.
+All remain within the unchanged twenty-/five-minute ceilings. The workflow
+still uses 20 backend/test execution VMs and the same seven required names.
+
+Both attempts also pass 2,097 frontend cases, zero skips/todos, and the public
+demo's nine pages and 27 Lighthouse JSON/HTML report pairs with Keycloak stopped.
+Public-demo cleanup independently confirms stopped processes, empty Compose
+ownership and removed private files/environment/lock in 13,141/12,963 ms.
+All six BFF cases pass in each layout, including the actual warm-provider/native
+BFF/application-role API chain and the separate actual HTTPS browser proof.
+The browser proof uses fake grants/API; its explicit history-event counter is
+not a natural BFCache claim or a full browser-driven OIDC journey. Phase 06
+retains that broader suite. Local English/Turkish sign-in and protected-shell
+visual inspection remains recorded in Step 5.
+
+The earlier browser failure's historical cause remains unproven. Passing this
+pair does not retrospectively establish it. The retained correction preserves
+first failures and secondary cleanup separately. Three additional local driver
+controls exercise actual owned Node children: body plus failed disposal,
+body plus failed disposal and a throwing observer, and cleanup-only failure.
+Each retains the expected first failure and confirms child absence; these are
+controlled protocol/cleanup counters, not product browser proof. Their closed
+three-pass receipt has SHA-256
+`0f04126fecca80ba7eec888ee4979af9ac9b8866edcf8b24dd5cc2e250e8b941`.
+
+This closeout changes documentation only. Runtime/test sources, plan and
+workflow remain byte-identical to the qualified implementation. Normal
+current-head checks are still required before [PR #36](https://github.com/HodeTech/LearnStack/pull/36)
+leaves draft; maintainer review and merge follow separately. The
+[phase Status](phase-02b-events-auth.md) owns packet state; P02b-8 owns remaining
+exit enforcement and erasure inventory work.
 
 
 ## Status archive
