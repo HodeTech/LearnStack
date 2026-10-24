@@ -117,6 +117,7 @@ owns outstanding hosted CI/PR qualification. Phase 11 owns production qualificat
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
+| 0071 | [Uncertain AccountSite Refusals](0071-uncertain-account-site-refusals.md) | Proposed: preserve ordinary-read custody on ambiguous API 401 while withholding authority; callback and post-refresh failures still refuse/revoke | P02b-7 correction, maintainer approval before the dependent mapping |
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and

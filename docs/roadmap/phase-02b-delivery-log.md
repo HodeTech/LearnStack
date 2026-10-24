@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,987 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,090 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -237,6 +237,8 @@ each packet decided and delivered, as
   - [P02b-7 startup-counter cleanup confirmation (2026-10-24)](#p02b-7-startup-counter-cleanup-confirmation-2026-10-24) — 18 lines
   - [P02b-7 hosted recovery proof follow-up (2026-10-24)](#p02b-7-hosted-recovery-proof-follow-up-2026-10-24) — 51 lines
   - [P02b-7 fixture image failure classification (2026-10-24)](#p02b-7-fixture-image-failure-classification-2026-10-24) — 58 lines
+  - [P02b-7 retained correction-source A/B qualification (2026-10-24)](#p02b-7-retained-correction-source-ab-qualification-2026-10-24) — 40 lines
+  - [P02b-7 second correction package and ADR-0071 proposal (2026-10-24)](#p02b-7-second-correction-package-and-adr-0071-proposal-2026-10-24) — 63 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19724,6 +19726,109 @@ The historical pull cause remains unknown. The next complete source-bound
 qualification must establish the new source; the retained A result is historical
 once this diagnostic change is committed. Live CI receipts stay in PR #36 rather
 than creating a delivery-only commit after each run.
+
+
+### P02b-7 retained correction-source A/B qualification (2026-10-24)
+
+This durable receipt records the qualification previously carried in PR #36.
+It certifies implementation source `c12f4eed524f218518497eb2355b447ce5d108f1`,
+tree `906f934f6f56aa2a9d4b0e940ff6faefc6410098`, against base
+`935d8da66878286d6a1695f3d41d985ebce4e791`. The tested merge checkout is
+`52d0d57928e6f9cca66c0b8ab2ee19b0736c82db`, with the same tree. It does not
+qualify later source corrections.
+
+[Run 40080617716](https://github.com/HodeTech/LearnStack/actions/runs/40080617716)
+completes attempt 1/A and attempt 2/B: all 27 jobs and all seven required
+contexts pass in each attempt. Each assignment executes 5,930 .NET cases:
+3,351 non-Docker and 2,579 Docker, including 31 native and six BFF cases.
+Each frontend population passes 2,160 cases without skips/todos. The public
+demo supplies nine pages and 27 Lighthouse report pairs in each attempt.
+
+All 20 original producer packages, both aggregates and the demo evidence from
+each attempt are retained and independently audited. Attempt A's originals
+were saved before the full B rerun replaced remote artifacts; this receipt does
+not promise their continued GitHub availability. Source/case/selector unions,
+current-attempt identities, natural process ownership/cleanup and toolchain
+equality pass. Architecture, ordinary, shared and SharedSchema method cohorts
+have genuinely different co-membership between A and B; a changed bin number
+alone is not the independence witness.
+
+| Retained identity | SHA-256 |
+|---|---|
+| Discovery manifest | `43abf742a0454afe30495c117978008f84c75a31a30b4adda7a2a479987995e2` |
+| Assignment plan | `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b` |
+| Independent complete-pair audit | `3df848bfbd12ba13e6c6178bc6543699d5d78ebb42da50feaa54d22456ab9709` |
+
+The longest observed producer whole-job durations are 1,010 seconds for A and
+924 seconds for B, within the unchanged 1,200-second ceiling. The two aggregates
+take 17/34 seconds in A and 21/27 seconds in B, within 300 seconds. Demo cleanup
+takes 10,665/12,371 milliseconds; every required process/container absence and
+removal observation is true. There is no forced-cleanup qualification. These
+are observations of this source, not guarantees about later duration or
+capacity. Both fixed image pulls succeed here; the historical preparation
+failure's root cause remains unknown.
+
+### P02b-7 second correction package and ADR-0071 proposal (2026-10-24)
+
+A further source review distinguishes current defects, regression-proof gaps
+and suggestions that would change policy. PR #36 returns to draft while these
+corrections are implemented and qualified. The completed A/B receipt above is
+historical evidence; it is not reused as qualification for changed code.
+
+The only newly proposed runtime policy is
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md). ADR-0064's
+present invalid-or-undecidable credential contract returns 401 for both causes.
+The actual API control
+`Discovery_failure_on_an_actual_public_route_is_401_and_never_anonymous`
+passes independently: a normal signed token plus discovery 503 produces API
+401. The current BFF instead treats every valid 401 problem as proven identity
+rejection and closes the ordinary-read owner. The proposal retains that owner
+without touching idle time and withholds checked authenticated content; initial
+callback and post-refresh checks retain their stricter rules. Genuine 401
+revocation is consequently delayed. Approval is required before that mapping
+or its dependent normative carriers change.
+
+The correction sequence is bounded by the existing session/CI contracts:
+
+1. Close exact HTTP/source census and cancellation proofs; independently bind
+   session lifetimes, logical custody cleanup, response handoff and provider
+   transport/TTL arithmetic. Apply compatible security patches and prove the
+   existing native Next.js seam against the resolved version.
+2. Correct accessible recovery and warning state; strengthen the actual
+   provider/browser, real API, warm-realm, causal-job and CI ownership controls.
+   Retain closed diagnostics and current operation, cleanup and job budgets.
+3. Reconcile current architecture, standards and named future-phase acceptance
+   owners. If ADR-0071 is approved, accept it first, append its own ADR-0070
+   disclosure and implement its isolated mapping and composed controls.
+4. Complete both fresh independent review rounds for each correction package,
+   fix verified findings, then freeze implementation and run the complete
+   source-bound hosted assignments. Record their source/tree, populations,
+   cohort independence and cleanup in the repository; compact the PR body and
+   attach a safe current UI image. Merge remains the maintainer's action.
+
+| Finding family | Verified disposition |
+|---|---|
+| Ordinary AccountSite 401 | Policy defect confirmed against actual API behavior; ADR-0071 proposed, dependent mapping unchanged pending approval. |
+| Matcher, routes, methods, Origin, raw logout body and HTTP cancellation | Current production gates are present; add independently discriminating negative controls through their real owners. |
+| Session lifetime/custody and provider bounds | Add independent clocks, provider windows, scalar logical retention/index observations and valid-response transport twins; scalar cleanup is not heap zeroization. |
+| Expiry projection and recovery UI | Stabilize monotonic-to-UTC projection; keep protected content hidden after failure while preserving sign-out/reauthentication and a truthful interactive retry. |
+| CI ownership, warm event policy and real API proof | Plant isolated violations in the existing controls; use retained original cookies and explicit cross-tenant audit expectations rather than a cleared cookie jar. |
+| Causal job observations | Tighten the forced, no-observed-lease-loss branch and retain closed success/failure facts. No production renewal policy is inferred from an unproven historical cause. |
+| Dependencies | Patch verified affected compatible releases; independently assess any remaining advisory against actual runtime/build exposure. No required audit check or topology is silently added. |
+| Documentation and future-phase ownership | Correct stale current descriptions; add concrete deliverables/criteria for already named future work rather than promising unowned proof. |
+| Request nonce, extension cooldown and lock-contention renewal change | No current defect established. ALS/provenance binds each owned request; accepted explicit extension refreshes provider idle; historical contention causality remains a hypothesis. |
+| Blanket reason-name census and all suggested mutations | A string appearing in a test is not semantic proof. Add isolated controls for the verified guards and preserve meaningful clean twins. |
+| Existing JWT detector, fixture cancellation and Secure assertion | Existing independent controls already exercise these requirements; extend only distinct uncovered boundaries. |
+
+Two independent first-round ADR reviewers and two fresh second-round reviewers
+inspect the source contracts, policy boundary, governance and proof plan. The
+first round corrects the Phase 06 reference and narrows the callback negative
+to preserve a prior live replacement owner. Both fresh second-round reviewers
+approve without an actionable finding. These are source reviews, not execution
+claims. The ADR parser reads Proposed; all seven parser controls and the full
+documentation checks pass, including 2,222 fragment links. Implementation
+corrections and their tests remain in progress; no passing hosted result or
+policy approval is inferred from this proposal.
 
 
 ## Status archive
