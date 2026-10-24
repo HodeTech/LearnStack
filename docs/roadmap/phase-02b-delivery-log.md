@@ -266,10 +266,11 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 292 lines
-  - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 244 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 301 lines
+  - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 243 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
-  - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 22 lines
+  - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
+    - [Correction verification (2026-10-25)](#correction-verification-2026-10-25) — 10 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21052,9 +21053,8 @@ order, members, direct references, interpolation and string concatenation;
 both `System.Exception` itself and a derived exception; sensitive and ordinary
 named constants. Non-sensitive names, literal text/`nameof`/`typeof`, sensitive
 expressions outside a throw and fixed messages with a cancellation-token argument
-remain clean. Prove the complete single/two-word union independently, including a
-two-word-only
-addition that exposes a stale or single-set-only analyzer view. Do not mutate
+remain clean. Prove the complete single/two-word union independently. Include a
+two-word-only addition exposing a stale or single-set-only analyzer view. Do not mutate
 global static token sets during concurrent tests. Evaluated MSBuild wiring must
 include API/infrastructure and a planted new project, while preserving `LS0001`.
 A disposable real build with `CI=true` must report `LS0002` as a Warning and
@@ -21242,6 +21242,16 @@ Documentation fragment, structure, generated-index and whitespace checks pass.
 Both reviewers' bounded recheck of this correction remains pending; no provider,
 compiler-implementation or final hosted qualification is claimed. The package
 and both gates remain Proposed/Open until maintainer acceptance.
+
+#### Correction verification (2026-10-25)
+
+Both second-round reviewers independently recheck `7e6e61ff..49b541c5` against
+the current DDL and Accepted records. The acceptance-ordering finding is closed;
+neither identifies a new actionable finding in the bounded correction. Table
+classifications, preserved Phase 03 commitments and the absence of new erasure
+authority remain explicit. This completes both proposal review rounds, not any
+implementation review. Only maintainer acceptance of the proposed G16/G18
+answers and four-step plan remains before the acceptance commit and Step 1.
 
 ## Status archive
 
