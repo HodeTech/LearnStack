@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,189 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,214 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -242,6 +242,7 @@ each packet decided and delivered, as
   - [ADR-0071 acceptance and review corrections (2026-10-24)](#adr-0071-acceptance-and-review-corrections-2026-10-24) — 33 lines
   - [P02b-7 correction foundation implementation (2026-10-24)](#p02b-7-correction-foundation-implementation-2026-10-24) — 48 lines
   - [P02b-7 foundation first review corrections (2026-10-24)](#p02b-7-foundation-first-review-corrections-2026-10-24) — 18 lines
+  - [ADR-0071 dependent mapping and composed controls (2026-10-24)](#adr-0071-dependent-mapping-and-composed-controls-2026-10-24) — 25 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19931,6 +19932,31 @@ sections, with independently planted forbidden entries. The current clean
 configuration and reachable dependency graph remain passing twins. All 284
 public-boundary controls pass; the targeted graph control passes. These fixes
 are committed before the fresh second review pair.
+
+
+### ADR-0071 dependent mapping and composed controls (2026-10-24)
+
+After acceptance commit `e782f971`, the AccountSite caller removes 401 from its
+`identity` status set. Valid 403/404 remain conservative access-boundary
+refusals; all other valid API problems use `provider_refused`. No store retry,
+grant-publication, lifetime or API response policy changes.
+
+`account-site-policy.test.ts` composes the actual SDK caller, real session store,
+native request/admission runtimes and real middleware/protocol response owners.
+A held valid 401 produces anonymous public/503 protected responses with no cookie
+edit, second grant or idle advance. A later valid response admits the same
+handle. Fresh and replacement callbacks independently return
+503/`provider_refused`, clear only their transaction proof and publish no new
+owner; a prior live replacement owner survives. The post-refresh 401 returns
+that same status/category while revoking its owner and refusing replay.
+
+The caller table includes valid other-4xx/5xx problems and malformed 401/403/404
+twins. Four focused files pass 146 cases; app TypeScript and repository lint
+pass. The actual API discovery-failure theory separately passes both public and
+AccountSite routes, two cases with no skip. These compose the two contract
+halves; they do not claim a full browser-driven real-provider outage journey.
+The fresh implementation review rounds and complete final-source qualification
+remain part of the correction closeout.
 
 
 ## Status archive

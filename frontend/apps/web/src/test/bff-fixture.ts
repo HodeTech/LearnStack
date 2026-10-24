@@ -5,12 +5,13 @@ import { vi } from 'vitest';
 import type { BffHttpRequest } from '../server/auth/http-input';
 import { createBffHttpProtocol } from '../server/auth/http-protocol';
 import type { ProviderIdentity } from '../server/auth/provider';
+import type { SessionDependencies } from '../server/auth/session-contract';
 import { InMemoryBffSessionStore } from '../server/auth/session-store';
 
 export const bffHost = 'institution.example.test:3000';
 export const bffSource = '203.0.113.71';
 export const bffOpaque = () => randomBytes(32).toString('base64url');
-export function bffFixture() {
+export function bffFixture(options: { account?: SessionDependencies['account'] } = {}) {
   let now = 0;
   const identity: ProviderIdentity = {
     issuer: 'https://identity.example.test/realms/learnstack',
@@ -44,7 +45,7 @@ export function bffFixture() {
   }));
   const store = new InMemoryBffSessionStore({
     provider,
-    account,
+    account: options.account ?? account,
     clock: { monotonic: () => now, utc: () => 1_800_000_000_000 + now },
   });
   const http = createBffHttpProtocol(store);

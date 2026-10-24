@@ -86,8 +86,8 @@ describe('configured exact AccountSite capability', () => {
       /^00-[0-9a-f]{32}-[0-9a-f]{16}-00$/,
     );
   });
-  it.each([401, 403, 404])(
-    'maps a genuine API refusal %s to identity without exposing a problem payload',
+  it.each([403, 404])(
+    'maps a deliberate API access-boundary refusal %s to identity without exposing a problem payload',
     async (status) => {
       const problem = {
         type: 'https://errors.learnstack.dev/not_found',
@@ -105,8 +105,8 @@ describe('configured exact AccountSite capability', () => {
       ).rejects.toMatchObject({ reason: 'identity', message: 'BFF provider: identity' });
     },
   );
-  it.each([429, 500, 502, 503, 504])(
-    'maps a valid temporary API problem %s to availability rather than identity',
+  it.each([400, 401, 405, 409, 422, 429, 500, 502, 503, 504])(
+    'maps a valid uncertain API problem %s to availability rather than identity',
     async (status) => {
       const transport = vi.fn(async () =>
         response(
@@ -146,6 +146,9 @@ describe('configured exact AccountSite capability', () => {
     response(account, 200, 'text/html'),
     response({ ...account, actorId: '00000000-0000-0000-0000-000000000000' }),
     response({}, 503, 'application/problem+json'),
+    response({}, 401, 'application/problem+json'),
+    response({}, 403, 'application/problem+json'),
+    response({}, 404, 'application/problem+json'),
   ])('fails closed on unexpected status/media/identity/problem', async (bad) => {
     await expect(
       createAccountSiteCaller(configuration, async () => bad)('token', binding, signal()),

@@ -117,9 +117,11 @@ export function createAccountSiteCaller(
     const result = await sdk.getAccountSite({ signal });
     interrupted();
     if (failure) throw failure;
+    // API 401 includes undecidable credentials. Only its deliberate 403/404
+    // access-boundary refusals select the session owner's identity category.
     if (result.kind !== 'success')
       throw new BffProviderError(
-        result.kind === 'api-error' && [401, 403, 404].includes(result.status)
+        result.kind === 'api-error' && [403, 404].includes(result.status)
           ? 'identity'
           : result.kind === 'api-error'
             ? 'provider_refused'
