@@ -8,8 +8,8 @@
 > [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) are Accepted and
 > implemented. The P02b-7 merge closeout below links the source-bound A/B and
 > final PR-head qualification. P02b-8's G16/G18 decisions are Accepted; its
-> analyzer and inventory controls, with both review rounds per step, are complete;
-> carrier reconciliation and final catalogue/required-check verification remain.
+> implementation Steps 1–3 and both review rounds per step are complete. Step 4
+> source-bound qualification and the exit evidence index remain in progress.
 >
 > This document is the plan. Every dated decision package, step record, review
 > round, correction and merge closeout lives in the [delivery log](phase-02b-delivery-log.md), split out
@@ -28,7 +28,7 @@
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
 > | P02b-7 | BFF session | ✅ complete and merged — PR #36, 2026-10-25; [merge closeout](phase-02b-delivery-log.md#p02b-7-merge-and-closeout-2026-10-25) |
-> | P02b-8 | Exit enforcement | Decisions Accepted — [acceptance](phase-02b-delivery-log.md#p02b-8-acceptance-2026-10-25); [Step 1 complete with both reviews](phase-02b-delivery-log.md#p02b-8-step-1-review-round-2-and-closeout-2026-10-25); [Step 2 complete with both reviews](phase-02b-delivery-log.md#p02b-8-step-2-closeout-2026-10-25); Step 3 implemented, reviews pending; Step 4 pending |
+> | P02b-8 | Exit enforcement | Decisions Accepted — [acceptance](phase-02b-delivery-log.md#p02b-8-acceptance-2026-10-25); [Step 1 complete with both reviews](phase-02b-delivery-log.md#p02b-8-step-1-review-round-2-and-closeout-2026-10-25); [Step 2 complete with both reviews](phase-02b-delivery-log.md#p02b-8-step-2-closeout-2026-10-25); [Step 3 complete with both reviews](phase-02b-delivery-log.md#p02b-8-step-3-review-round-2-and-closeout-2026-10-25); Step 4 in progress |
 
 ## Goal
 

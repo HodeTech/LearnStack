@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 600 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 622 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -281,6 +281,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 2 closeout (2026-10-25)](#p02b-8-step-2-closeout-2026-10-25) — 16 lines
   - [P02b-8 Step 3 — Delivered carriers and catalogue reconciliation (2026-10-25)](#p02b-8-step-3--delivered-carriers-and-catalogue-reconciliation-2026-10-25) — 44 lines
   - [P02b-8 Step 3 review round 1 (2026-10-25)](#p02b-8-step-3-review-round-1-2026-10-25) — 19 lines
+  - [P02b-8 Step 3 review round 2 and closeout (2026-10-25)](#p02b-8-step-3-review-round-2-and-closeout-2026-10-25) — 22 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21561,6 +21562,28 @@ to Actions app `15368`. Documentation lint resolves 2,328 fragments; corpus
 existing Release binaries, zero skips. The contract reviewer performs source
 review only. Neither claims fresh build, full suites, provider/browser or hosted
 A/B execution. The fresh second review round remains pending.
+
+### P02b-8 Step 3 review round 2 and closeout (2026-10-25)
+
+Two new independent reviewers inspect `3a564448..4d242bc8`, including all
+24 changed implementation files and the first review receipt: a
+`gpt-6.1-sol`/xhigh semantics reviewer and a `gpt-6-astra`/high proof/governance
+reviewer. Both approve without an actionable finding. They independently confirm
+all 64 obligations and the nineteen inherited canonical owner methods, current
+carrier/code agreement, actor/metadata limits, shared pipeline registration and
+unchanged Phase 03/11 responsibilities. Neither edits files or changes settings.
+
+The proof reviewer runs existing Release corpus checks 5/5, zero skips, and
+passes documentation lint (2,329 fragments, structure and indexes) and whitespace
+checks. Its read-only live GitHub check again confirms one writer and seven
+strict required contexts bound to app `15368`. The semantics review is source/
+corpus inspection only. Neither claims full suites, provider/browser or hosted
+A/B execution.
+
+Step 3 and both fresh review rounds are complete. Step 4 now owns the individual
+exit-evidence index, full-source local and hosted A/B qualification, final live
+protection verification and the review PR. Until those proofs complete, P02b-8
+and Phase 02b remain in progress.
 
 ## Status archive
 
