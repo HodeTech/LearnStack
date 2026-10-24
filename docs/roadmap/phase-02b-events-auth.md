@@ -7,8 +7,8 @@
 > [PR #35](https://github.com/HodeTech/LearnStack/pull/35). P02b-7's implementation,
 > both review rounds per step and the original source-bound hosted A/B
 > qualification are complete. A further correction package is in progress;
-> [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) awaits approval
-> before its dependent 401 policy changes. Current-source required checks govern
+> [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) is Accepted;
+> its mapping and composed proofs are being implemented. Current-source required checks govern
 > [PR #36](https://github.com/HodeTech/LearnStack/pull/36)'s readiness; maintainer
 > review and merge remain separate. P02b-8's exit enforcement remains pending.
 >
@@ -28,7 +28,7 @@
 > | P02b-4 | Background jobs | ✅ complete and merged — PR #32, 2026-10-19; [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) |
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
-> | P02b-7 | BFF session | [Further corrections](phase-02b-delivery-log.md#p02b-7-second-correction-package-and-adr-0071-proposal-2026-10-24) in progress; ADR-0071 approval pending; [PR #36](https://github.com/HodeTech/LearnStack/pull/36) draft |
+> | P02b-7 | BFF session | [Further corrections](phase-02b-delivery-log.md#p02b-7-second-correction-package-and-adr-0071-proposal-2026-10-24) in progress; [ADR-0071 accepted](phase-02b-delivery-log.md#adr-0071-acceptance-and-review-corrections-2026-10-24); [PR #36](https://github.com/HodeTech/LearnStack/pull/36) draft |
 > | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
 
 ## Goal

@@ -194,6 +194,16 @@ prefixes. Multiple addresses can consume the global pending allowance; clients
 sharing a reverse proxy's socket peer can share one source allowance. No
 prefix fairness or general proxy deployment is established by the local proof.
 
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md#decision)
+owns the ordinary AccountSite status distinction. API 401 deliberately includes
+undecidable authentication, so an ordinary check retains its live local owner
+without idle touch while withholding authenticated content. This does not make
+the token usable at the API or establish live authority in a passive projection.
+Initial callback and post-refresh publication still require a positive API
+witness; failed refresh validation revokes. True 401 revocation is delayed,
+whereas masked 403/404 still close the owner, including configuration refusals.
+The benefit ends when the existing refresh threshold requires a new grant.
+
 ## Tenant Resolution Across Identity
 
 When a user logs in, they may have multiple memberships. HTTP tenant authority

@@ -113,11 +113,12 @@ owns outstanding hosted CI/PR qualification. Phase 11 owns production qualificat
 | 0069 | [Phase Documents and Delivery Logs](0069-phase-documents-and-delivery-logs.md) | Accepted 2026-10-22 after one review round: each phase keeps its plan in the phase document and its dated packet records in a sibling append-only delivery log whose Accepted decision packages stay normative; packet status lives once, in the phase document's bounded Status block; a whole-tree Markdown fragment audit and a roadmap structure guard enforce both, with Phase 02a, Phase 01 and ten Phase 02d entries declared as legacy shapes. |
 | 0070 | [Owned Tenant BFF Sessions](0070-owned-tenant-bff-sessions.md) | Accepted 2026-10-23: openid-client, bounded native credential custody and host-only opaque cookies; qualified development provider events. Dated ADR-0035/0053/0054 disclosures preserve earlier bodies. The [acceptance record](../roadmap/phase-02b-delivery-log.md#p02b-7-acceptance-and-implementation-2026-10-23) owns authorized implementation and proof status. [Amendment 1](0070-owned-tenant-bff-sessions.md#amendment-1--delivered-proof-owners-and-read-failure-clarification-2026-10-24) names delivered proof owners and clarifies ordinary-read availability and source-IP limits. |
 
+| 0071 | [Uncertain AccountSite Refusals](0071-uncertain-account-site-refusals.md) | Accepted 2026-10-24: explicit ordinary-read AccountSite status decision and ratification; ambiguous 401 retains local ownership without granting checked authority, while callback/post-refresh failures still refuse/revoke. [ADR-0070 Amendment 2](0070-owned-tenant-bff-sessions.md#amendment-2--explicit-accountsite-status-decision-2026-10-24) preserves its original history; the [acceptance record](../roadmap/phase-02b-delivery-log.md#adr-0071-acceptance-and-review-corrections-2026-10-24) owns the authorized correction plan and proof status. |
+
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
-| 0071 | [Uncertain AccountSite Refusals](0071-uncertain-account-site-refusals.md) | Proposed: preserve ordinary-read custody on ambiguous API 401 while withholding authority; callback and post-refresh failures still refuse/revoke | P02b-7 correction, maintainer approval before the dependent mapping |
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and

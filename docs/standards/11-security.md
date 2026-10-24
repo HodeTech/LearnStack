@@ -10,6 +10,8 @@ model, and session-variable placement**),
 (the configured development issuance lifespan and provider timestamp semantics),
 [ADR-0070 Owned Tenant BFF Sessions](../decisions/0070-owned-tenant-bff-sessions.md)
 (native custody, browser transactions and development provider event storage),
+[ADR-0071 Uncertain AccountSite Refusals](../decisions/0071-uncertain-account-site-refusals.md)
+(ordinary-read status mapping and positive revision publication),
 [ADR-0068 Development Warm-Realm Qualification](../decisions/0068-development-warm-realm-qualification.md)
 (the bounded preparation and stock-console assignment authority),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
@@ -233,11 +235,17 @@ projection. Verified host, browser binding, epoch and server state are required.
   changes no cookies; verified failure clears only its own transaction cookie.
   Logout revokes locally first, discards tokens after URL construction and keeps
   only its bounded return proof/accounting. Late cookie delivery can force sign-in.
-- A failed ordinary AccountSite availability check denies the response without
-  revoking a live session or touching idle time. An explicit identity refusal or
-  actor/scope conflict revokes. Every failed post-refresh authority check revokes
-  under the existing consumed-grant uncertainty rule. Public pages remain
-  anonymous; temporarily unavailable protected reads return 503.
+- [ADR-0071's status table](../decisions/0071-uncertain-account-site-refusals.md#decision)
+  distinguishes ordinary checks from new revision publication. An uncertain
+  ordinary 401 or other availability failure retains a live owner without idle
+  touch and denies checked authenticated content. 403/404 and actor/scope
+  conflicts revoke; a masked host/hop configuration refusal can therefore close
+  a session too. Callback publication always requires positive API authority;
+  every failed post-refresh check revokes. A valid API 401 produces BFF POST
+  503/`provider_refused` for callback/extension, not a retryable-grant promise.
+  Public pages remain anonymous; unavailable protected checked reads return 503.
+  Passive projections describe local state only. Genuine 401 revocation can be
+  delayed; retention does not extend the existing refresh threshold or deadline.
 - Explicit BFF opt-in validates issuer/secret together. Disabled mode keeps public
   requests independent of Keycloak; auth paths are 404 and protected shells 503.
   Restart signs sessions out. Multiple web processes require Phase 11's distributed

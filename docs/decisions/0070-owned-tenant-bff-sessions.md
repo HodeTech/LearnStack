@@ -489,6 +489,31 @@ The accepted budgets provide no subnet fairness or production proxy support.
 Production provisioning and distributed/proxy qualification remain Phase 11's
 named responsibilities.
 
+### Amendment 2 — Explicit AccountSite status decision (2026-10-24)
+
+[ADR-0071](0071-uncertain-account-site-refusals.md), Accepted 2026-10-24,
+completes the ordinary AccountSite status mapping and ratifies the availability
+choice recorded in Amendment 1 as an explicit policy decision. Amendment 1
+names no HTTP status table; it does not establish that a bare 401 proves
+identity rejection. Its heading/body and this record's original decision,
+metadata and rationale remain intact. This is not an ADR-0041 factual erratum.
+
+ADR-0064 deliberately returns the same 401 for invalid and undecidable
+credentials. ADR-0071 changes that response's caller category to
+`provider_refused`: an ordinary read with no preceding refresh retains a live
+owner without touching idle time and withholds checked authenticated content.
+Public documents render anonymously; protected checked reads return 503.
+Masked 403/404 continue to revoke as access-boundary refusals, including the
+accepted possibility of host/hop configuration failure. The status table and
+delayed genuine-401 revocation cost live in ADR-0071.
+
+Initial callback publication still requires a positive API witness. Every
+failed post-refresh authority check still revokes its current owner because
+the new package cannot publish a revision without that witness. Callback and
+extension AccountSite 401 consequently return BFF 503/`provider_refused`, rather
+than 400/`identity`; the owner result remains refuse/revoke. API response codes,
+grant replay rules, cookie/session lifetimes and capacity are unchanged.
+
 ## References
 
 - [Phase 02b](../roadmap/phase-02b-events-auth.md), [Security 11](../standards/11-security.md#authentication), [Frontend 07](../standards/07-frontend-architecture.md#auth), [Audit 18](../standards/18-audit-coverage.md#operation-types), [Catalogue 21](../standards/21-architecture-tests-catalogue.md).

@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,090 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,123 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -239,6 +239,7 @@ each packet decided and delivered, as
   - [P02b-7 fixture image failure classification (2026-10-24)](#p02b-7-fixture-image-failure-classification-2026-10-24) — 58 lines
   - [P02b-7 retained correction-source A/B qualification (2026-10-24)](#p02b-7-retained-correction-source-ab-qualification-2026-10-24) — 40 lines
   - [P02b-7 second correction package and ADR-0071 proposal (2026-10-24)](#p02b-7-second-correction-package-and-adr-0071-proposal-2026-10-24) — 63 lines
+  - [ADR-0071 acceptance and review corrections (2026-10-24)](#adr-0071-acceptance-and-review-corrections-2026-10-24) — 33 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19829,6 +19830,39 @@ claims. The ADR parser reads Proposed; all seven parser controls and the full
 documentation checks pass, including 2,222 fragment links. Implementation
 corrections and their tests remain in progress; no passing hosted result or
 policy approval is inferred from this proposal.
+
+
+### ADR-0071 acceptance and review corrections (2026-10-24)
+
+The maintainer authorizes acceptance and immediate implementation after closing
+still-valid review findings, without another approval request. The revised
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) is Accepted before
+its dependent mapping changes. The approved correction sequence above remains
+the delivery plan; this record grants no additional endpoint or grant policy.
+
+The follow-up clarifies that Amendment 1 of ADR-0070 enumerates no status map:
+ADR-0071 completes that gap and ratifies its ordinary-read availability choice,
+rather than superseding an invented 401 clause. Existing availability retention
+and the new 401 mapping are distinguished. All other valid API problems are
+covered; masked 403/404 remain conservative access-boundary refusals with an
+explicit configuration-outage cost. The shared legacy `identity` category does
+not certify an invalid person. Callback/extension 401 changes BFF
+400/`identity` to 503/`provider_refused`, while refuse/revoke remains mandatory.
+
+The decision records cached-key and pre-refresh availability limits, explains
+the new package's positive API witness requirement and rejects publishing a
+refreshed package without it. A later user read is distinct from an automatic
+retry. Reason overloading, named Phase 03/06/11 owners, concrete existing
+catalogue obligations and the taxonomy references are explicit. No new glossary
+term or second failure taxonomy is introduced. The API discovery-failure control
+is being expanded from its actual public route to the actual AccountSite route.
+
+Two fresh focused policy/governance reviewers independently inspect these
+corrections against the source and Accepted contracts; both approve without an
+actionable finding. These are source reviews. ADR-0070 gains its own dated
+Amendment 2, its earlier history remains intact, and Security 11/Architecture 13
+reference the new decision. The decision index moves the single 0071 row to the
+active table. Runtime and composed proof completion follow in a separate commit.
 
 
 ## Status archive
