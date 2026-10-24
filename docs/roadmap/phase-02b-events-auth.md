@@ -28,7 +28,7 @@
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
 > | P02b-7 | BFF session | ✅ complete and merged — PR #36, 2026-10-25; [merge closeout](phase-02b-delivery-log.md#p02b-7-merge-and-closeout-2026-10-25) |
-> | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
+> | P02b-8 | Exit enforcement | Decision pass — [proposed package](phase-02b-delivery-log.md#p02b-8-decision-package-2026-10-25); G16 and G18's erasure inventory await acceptance |
 
 ## Goal
 

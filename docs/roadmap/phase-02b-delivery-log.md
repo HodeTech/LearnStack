@@ -266,6 +266,8 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 226 lines
+  - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 224 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20946,6 +20948,232 @@ before its implementation, complete G18's erasure inventory, reconcile remaining
 carriers and verify the catalogue, exact required-check names and phase exit
 criteria. No P02b-8 decision is accepted or implementation started by this
 documentation closeout; Phase 02b remains in progress.
+
+## P02b-8 — Exit enforcement
+
+### P02b-8 decision package (2026-10-25)
+
+**Proposed — maintainer acceptance pending.** This package closes neither G16
+nor G18 and authorizes no implementation before acceptance. Its baseline is
+`0d0696acf06b35d45ba2456197dfc2dd2f4ff798` on `development`.
+
+**Problem and scope.** Finish the compile-time secret-message guard, inventory
+the durable copies this phase actually introduced, reconcile their carriers and
+qualify the phase exit against the final source. No business feature, provider,
+permission, persistence privilege or retention policy changes here.
+
+#### Re-verified premises
+
+- G16 is still Open; `backend/analyzers/LearnStack.Analyzers` contains only
+  `LS0001`. Its consuming projects cover Domain/Application, excluding the API,
+  SharedKernel, infrastructure and Seeder where credentials are handled.
+- `SensitiveTokenCatalog.IsSensitive` consumes single-word and two-word sets;
+  `DefaultTokens` currently exposes only the first. `authheader`,
+  `authenticationheader` and `setcookie` demonstrate the omitted second-set
+  coverage. Runtime property redaction does not scrub exception messages.
+- Current event/job failure stores persist closed bounded descriptors, rather
+  than arbitrary exception messages. `LS0002` complements those controls; it
+  does not replace them or certify that existing sinks contain raw messages.
+- G18's historical four-store count is insufficient: three event stores, seven
+  LearnStack job tables and twelve guarded vendor tables now exist. Durable
+  provider events and new actor references in existing audit storage also need
+  explicit treatment. The BFF session store is volatile, not a durable ledger.
+- All 62 existing Phase 02b catalogue obligations are marked Implemented: 43
+  explicit Phase entries plus 19 inherited under the P02b-4 section. `LS0002`
+  has no entry, so checking only existing statuses would miss it entirely.
+- A local Release run of `CorpusConsistencyTests` passes 5/5, with zero skips.
+  This baseline checks corpus mechanics, not P02b-8 implementation or exit.
+- Three read-only audits cover analyzer/security, storage/erasure, and catalogue/
+  CI/carrier obligations. Their verified corrections and limits are captured in
+  this package; implementation and its two review rounds per step remain pending.
+
+#### G16 proposal — additive ADR-0032 amendment
+
+G16 already names its vehicle: a dated amendment to
+[ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md),
+plus the catalogue and release record. No new ADR number is needed. Acceptance
+appends the following bounded contract as the next free amendment; the existing
+body, acceptance metadata, pipeline and `LS0001` decision remain unchanged.
+
+**Proposed amendment: Sensitive exception-message diagnostic.**
+
+- **Identity:** `LS0002`, human-readable rule name
+  `LearnStackException-SensitiveExceptionMessage`, category `Security`, enabled
+  by default. A diagnostic uses fixed remediation text and never includes the
+  interpolated value or rendered expression.
+- **Scope:** every production C# project recursively under `backend/src`,
+  including all module layers, API, SharedKernel, infrastructure and Seeder.
+  Analyzer/test projects and generated code are excluded. Wiring must reach
+  future production projects automatically. Broadening the assembly reference
+  must not broaden `LS0001` beyond its existing Domain/Application projects.
+- **Thrown forms:** direct construction of a type semantically derived from
+  `System.Exception` in a throw statement or throw expression, including aliases,
+  target-typed construction, parentheses and conversions. A type-name suffix
+  does not establish exception identity.
+- **Expressions:** inspect string-valued constructor arguments for direct
+  sensitive value references, interpolation holes and built-in string `+`
+  concatenation, after unwrapping parentheses/conversions. Other root expression
+  forms are outside the initial rule. Within these forms, inspect evaluated
+  local, parameter, field and property names
+  through the canonical word matcher. Argument position is irrelevant; the
+  provider exception's message is not its first parameter. `nameof`, `typeof`,
+  method/type names and literal text are not sensitive value references.
+- **Token source:** extract the existing token sets and word matcher into one
+  internal framework-compatible source under SharedKernel/Secrets, compiled
+  into both SharedKernel and the netstandard2.0 analyzer. Keep the public runtime
+  facade and its matching behavior; expose an immutable complete union snapshot.
+  No runtime dependency or second public type is added to the analyzer.
+- **Severity:** Warning throughout this packet; append `LS0002` to
+  `WarningsNotAsErrors`, never `NoWarn`. At
+  [Phase 03 exit](phase-03-identity-admin.md#cross-cutting-follow-up-at-phase-exit),
+  both `LS0001` and `LS0002` become Errors and leave `WarningsNotAsErrors`, after
+  their scoped call sites and the solution build satisfy that exit gate.
+
+This is a name-based source guard, not taint analysis or a secrecy guarantee.
+Earlier assignments, exception factories, `throw existingException`, formatting
+helpers, literal secrets and dictionary string keys are outside its initial
+coverage. Renaming a value can evade it; metadata such as `token.Length` inside
+an interpolation can conservatively warn. TypeScript/JavaScript BFF and realm
+tooling remain under their existing closed diagnostic and runtime controls.
+
+**Options considered.** Domain/Application-only coverage misses actual credential
+handlers. An independent analyzer token list invites drift. Referencing net10
+SharedKernel from its analyzer creates a framework/dependency problem. Full taint
+analysis adds a materially different contract; it is not claimed by this rule.
+Interpolation-only detection misses ordinary concatenation and direct string
+arguments. The proposed bounded forms cover those without tracing prior values.
+
+**Required proofs:** compiler-clean positive/negative compilations, exact Warning
+ID/name/location and no `AD0001`; throw statement/expression, aliases, argument
+order, members, direct references, interpolation and string concatenation;
+non-sensitive names, constants/`nameof`, sensitive expressions outside a throw
+and fixed messages with a cancellation-token argument remaining clean. Prove
+the complete single/two-word union independently, including a two-word-only
+addition that exposes a stale or single-set-only analyzer view. Do not mutate
+global static token sets during concurrent tests. Evaluated MSBuild wiring must
+include API/infrastructure and a planted new project, while preserving `LS0001`.
+A disposable real build with `CI=true` must report `LS0002` as a Warning and
+succeed; an unrelated ordinary warning must still fail that build.
+
+#### G18 proposal — complete inventory, unchanged erasure authority
+
+[Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten)
+owns the inventory. Acceptance records the scope below; Step 2 installs its
+canonical matrix there with concrete locators, copies, current mutability and
+implementation dependencies. Identifier-only data can still identify a person;
+absence of free text is not an erasure exemption.
+
+| Store family | Copies and subject linkage the inventory must cover |
+|---|---|
+| `outbox_messages` | Envelope actor/tenant/organization, identifier-only payload, partition/causation/trace references and terminal state |
+| `event_deliveries` | Independent per-subscription envelope/payload copy, causal actor and delivery/replay state; producer cleanup cannot erase this copy |
+| `inbox_messages` | Tenant/subscription/event completion identity; indirect subject linkage through event identity and business effect, even without an actor column |
+| `background_jobs` | Causal actor, identifier-only parameters and plan, operation/parent/recipient identities, final-outcome reference and retained uncertainty |
+| `background_job_attempts` | Job/attempt linkage, persisted outcome, operation/quiescence identities and immutable retry facts |
+| `background_job_reservations`, `background_job_capacity` | Tenant/job/attempt occupancy linkage and capacity state; erasure is never evidence of quiescence or free occupancy |
+| `background_job_recurrences`, `background_job_occurrences`, `background_job_recipients` | Definition/occurrence/recipient/child-job links, tenant/organization routes and accepted/skipped receipts, even without person columns |
+| Guarded Hangfire schema-23 storage | All twelve tables from `HangfireStorageContract.Columns`; invocation/argument, parameter, state, queue, hash/list/set, server, counter and lock/control metadata; guards forbid business payload/credentials, but opaque identifiers remain linkable |
+| Existing `audit_log` | New asynchronous terminal/causal metadata, including `causal_actor_user_id`, beside immutable actor/entity/causation identifiers; redacting human-facing fields alone does not remove every reference |
+| Development Keycloak user events | Provider subject/session, IP and event-detail references; selected event persistence and qualified finite retention remain governed by ADR-0070 |
+| Diagnostics and backups | External log/trace/error archives and database/WAL/backup copies follow the existing data-protection and Phase 11 operational ownership; they are not silently erased by deleting a source row |
+
+The twelve vendor table names are `schema`, `counter`, `aggregatedcounter`,
+`hash`, `job`, `state`, `jobqueue`, `list`, `server`, `set`, `jobparameter` and
+`lock`, all in `public`. Schema bookkeeping and aggregate counters remain in the
+inventory as explicit no-person-content/control classifications, rather than
+disappearing from coverage. Provider storage is separate from LearnStack's DB.
+
+**Authority limits and handoff:**
+
+- P02b-8 implements no erasure, purge, payload rewrite or new storage grant.
+  It chooses no retention duration, principal, deletion order or replay reset.
+  Live/uncertain effects, immutable facts, deduplication floors, reservation
+  accounting and same-transaction MUST audit remain unchanged.
+- Current inbox/delivery/job grants and guards do not give a generic platform
+  eraser permission to update/delete these records. BYPASSRLS does not bypass
+  SQL privileges, no-delete triggers or write-once facts. Phase 11's contrary
+  inbox-DELETE wording must be corrected, not implemented as an invented grant.
+- The current audit redaction column grant excludes `metadata`. Phase 03's
+  first redaction/erasure writer must account for these surviving references and
+  obtain its own bounded decision before changing an immutable/audit boundary.
+  `actor_user_id` also remains immutable; the six currently redactable columns
+  are `actor_email`, `ip_address`, `user_agent`, `before_state`, `after_state`
+  and `changes`. Correct Architecture 23's broader actor-anonymisation wording
+  against this existing contract. This inventory does not declare that complete
+  anonymisation already works.
+- Phase 03 owns identity mapping, tenant-versus-global request authority and the
+  audit-redaction entry boundary. Phase 11 owns the complete export/erasure,
+  retained-copy reconciliation, purge/principal/retention and backup workflows.
+  Their plans link this inventory and retain these preconditions before a writer
+  ships; ordinary SystemActor delivery or dispatcher credentials are no substitute.
+- Volatile BFF custody is explicitly distinguished from durable provider events.
+  Its local invalidation is not a claim to erase provider events or log archives.
+
+**Proof boundary:** register
+`Durable_Async_Store_Inventory_Covers_The_Storage_Census` as structural coverage
+under existing ADR-0046/0047/0057 obligations. Compare the documented LearnStack
+table set and vendor classifications with their actual storage definitions;
+missing or added tables and a removed inventory row must fail via planted
+controls. This checks inventory coverage, not legal compliance, SQL erasure
+correctness or arbitrary personal data hidden in values. Locator/mutability
+accuracy remains independently reviewed against DDL and contracts.
+
+#### Current CI and inherited documentation checks
+
+Read-only GitHub checks on 2026-10-25 confirm `main` uses strict protection and
+these seven exact required contexts, each bound to GitHub Actions app `15368`:
+
+1. `backend (build + unit + arch + contract)`
+2. `frontend (typecheck + lint + build + test)`
+3. `secret scan (leakwatch)`
+4. `meta (compose + commit hygiene + link audit)`
+5. `backend integration (Testcontainers)`
+6. `openapi diff`
+7. `public demo + lighthouse`
+
+The read-only paginated collaborator census finds one contributor with write
+access. The inherited second-write-contributor trigger has not fired. Hand the
+XML-documentation target-existence and changed-prose 88-column CI checks to
+Phase 03 with that unchanged trigger; existing fragment lint is not a substitute.
+No protection setting changes are proposed.
+
+#### Four implementation steps after acceptance
+
+Each step lands its implementation and commit, then two fresh independent review
+rounds. Confirm findings against current code, fix and commit the verified ones,
+and record the review scope, commit and validation. Continue automatically to
+the next step unless a new decision or real blocker requires the maintainer.
+
+1. **Analyzer and compiler wiring.** Append the accepted ADR-0032 amendment,
+   register the diagnostic and inventory obligations before runtime changes,
+   then implement `LS0002`, shared matching, release row, all-production wiring,
+   Warning posture and compiler/architecture/unit/mutation controls. Update
+   Standards 09/11/21, analyzer comments and Phase 03's severity reference.
+2. **Erasure inventory and drift proof.** Install the matrix in Architecture 23,
+   complete field/copy and immutable-authority analysis, add the structural census
+   and dirty controls, and reconcile Phase 03/11 handoffs and misleading DELETE
+   wording. Preserve schemas, grants, execution state and retention policy.
+3. **Carrier and catalogue reconciliation.** Repair stale current-tense phase,
+   architecture, standard, skill, gateway and source-comment claims against
+   delivered code. Preserve Accepted bodies and append-only records. Audit every
+   Phase 02b obligation, including inherited P4 entries and frontend owners;
+   register/implement any verified missing proof before claiming exit. Keep the
+   provider-SDK rule with Phase 03's first real SDK subject. Transfer the unchanged
+   documentation-lint trigger and keep front doors as phase pointers.
+4. **Source-bound qualification and exit evidence.** Run relevant local backend
+   and frontend suites, documentation/format/secret checks and applicable real
+   integration proofs. Qualify complete same-source A/B assignments under
+   ADR-0063; do not combine failed-only reruns or relabel P7 receipts as P8 runs.
+   Recheck exact live protection and zero skips, map every exit criterion to its
+   actual proof in a phase exit index, and prepare the review PR on development.
+   Keep actual warm-provider/BFF/API and controlled-browser proofs distinct from
+   Phase 06's full browser-driven OIDC suite. A failed or missing proof leaves the
+   packet/phase incomplete; user review and merge remain subsequent acts.
+
+The first acceptance commit carries the gate answers, dated amendment and
+Registered catalogue rows. Every extension stays Registered until its owner and
+controls ship; existing Implemented obligations do not become Registered merely
+because this packet reviews them. No code has been changed by this proposal.
 
 ## Status archive
 
