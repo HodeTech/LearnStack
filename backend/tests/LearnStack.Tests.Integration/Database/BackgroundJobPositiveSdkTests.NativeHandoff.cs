@@ -21,7 +21,8 @@ public sealed partial class BackgroundJobPositiveSdkTests
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
         await using var provider = await BackgroundJobProviderJournalDatabase.CreateAsync(schema.Postgres);
         var construction = new BackgroundJobPositiveProviderConstructionProbe(hold: true);
-        var bounds = new BackgroundJobRuntimeOptions { RenewalInterval = TimeSpan.FromSeconds(1) };
+        var renewal = new NativeSettlementTimeProvider(retainedRecovery: false);
+        var bounds = new BackgroundJobRuntimeOptions { RenewalInterval = NativeSettlementTimeProvider.RenewalPacing };
         await using var host = Fixture.Host(database, provider.Settings, construction, services =>
         {
             services.RemoveAll<BackgroundJobRuntimeOptions>();
@@ -29,7 +30,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         });
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         using var globals = new NativeSdkGlobalFilterSnapshot();
-        var time = new NativeHandoffCleanupTime(bounds.TransactionTimeout);
+        var time = new NativeHandoffCleanupTime(bounds.TransactionTimeout, renewal);
         var runtime = NativeSdkRuntime(host.Services, source, bounds, time);
         BackgroundJobBridge? bridge = null;
         using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -38,7 +39,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var releaseHelper = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         NpgsqlConnection? blocker = null;
         NpgsqlTransaction? transaction = null;
-        Task? pulse = null, helper = null;
+        Task? pulse = null, helper = null, pacing = null;
         ExceptionDispatchInfo? failure = null;
         try
         {
@@ -63,6 +64,10 @@ public sealed partial class BackgroundJobPositiveSdkTests
             }
             pulse = KeepNativeHandoffLockAsync(blocker, transaction, pulseStop.Token);
             await runtime.StartAsync(startup.Token);
+            // The initial empty recovery creates no typed lease. Keep real
+            // renewal pacing held through the later normal Prepare/Arm, so a
+            // row-lock refusal cannot replace the constructor-entry subject.
+            pacing = renewal.ProveNormalDeadlineArmedBeforePacingAsync(startup.Token);
             var entered = await Task.WhenAny(time.Entered, pulse).WaitAsync(startup.Token);
             entered.Should().BeSameAs(time.Entered, "a failed keepalive cannot silently release the controlled lock");
             await time.Entered;
@@ -108,8 +113,9 @@ public sealed partial class BackgroundJobPositiveSdkTests
             time.Release();
             await time.Joined.WaitAsync(startup.Token);
             releaseHelper.TrySetResult();
-            await helper;
+            await Task.WhenAll(helper, pacing);
             await construction.Entered.WaitAsync(startup.Token);
+            await renewal.WaitForFirstCallbackAsync(startup.Token);
             construction.Calls.Should().Be(1);
             (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!.NormalAttempts.Should().Be(1);
             (await GenerationAsync(database, job)).Should().Be(1);
@@ -119,6 +125,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         finally
         {
             runtime.RequestStop();
+            renewal.ReleaseAll();
             startup.Cancel();
             time.Release();
             releaseHelper.TrySetResult();
@@ -132,13 +139,26 @@ public sealed partial class BackgroundJobPositiveSdkTests
             try { if (helper is not null) await helper; }
             catch (OperationCanceledException) when (startup.IsCancellationRequested) { }
             catch (Exception error) when (NativeWaitCatchable(error)) { failure ??= ExceptionDispatchInfo.Capture(error); }
+            try { if (pacing is not null) await pacing; }
+            catch (OperationCanceledException) when (startup.IsCancellationRequested) { }
+            catch (Exception error) when (NativeWaitCatchable(error)) { failure ??= ExceptionDispatchInfo.Capture(error); }
             if (pulse is not null) await ObserveCleanupAsync(() => pulse);
             if (transaction is not null) await ObserveCleanupAsync(() => transaction.DisposeAsync().AsTask());
             if (blocker is not null) await ObserveCleanupAsync(() => blocker.DisposeAsync().AsTask());
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
             if (bridge is not null) await ObserveCleanupAsync(() => bridge.StopAsync(cleanup.Token));
             await ObserveCleanupAsync(() => runtime.StopAsync(cleanup.Token));
-            await ObserveCleanupAsync(() => runtime.Completion.WaitAsync(cleanup.Token));
+            var runtimeJoined = false;
+            await ObserveCleanupAsync(async () =>
+            {
+                await runtime.Completion.WaitAsync(cleanup.Token);
+                runtimeJoined = true;
+            });
+            await ObserveCleanupAsync(async () =>
+            {
+                await renewal.JoinAsync(runtimeJoined).WaitAsync(cleanup.Token);
+                renewal.ThrowIfFaulted();
+            });
         }
         failure?.Throw();
     }
@@ -156,7 +176,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }
     }
 
-    private sealed class NativeHandoffCleanupTime(TimeSpan frameworkWait) : TimeProvider
+    private sealed class NativeHandoffCleanupTime(TimeSpan frameworkWait, TimeProvider time) : TimeProvider
     {
         private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -170,7 +190,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         internal void Release() => _release.TrySetResult();
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {
-            var actual = System.CreateTimer(callback, state, dueTime, period);
+            var actual = time.CreateTimer(callback, state, dueTime, period);
             return state is HangfireGenerationWork.Invocation && dueTime == frameworkWait
                 && Interlocked.CompareExchange(ref _captured, 1, 0) == 0 ? new HeldTimer(actual, this) : actual;
         }

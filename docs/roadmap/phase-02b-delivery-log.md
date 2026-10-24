@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,333 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,380 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -224,7 +224,8 @@ each packet decided and delivered, as
   - [P02b-7 Step 5 — independent review round 2 (2026-10-24)](#p02b-7-step-5--independent-review-round-2-2026-10-24) — 24 lines
   - [P02b-7 Step 5 — round 2 corrections and local closeout (2026-10-24)](#p02b-7-step-5--round-2-corrections-and-local-closeout-2026-10-24) — 36 lines
   - [P02b-7 hosted frontend ingress correction (2026-10-24)](#p02b-7-hosted-frontend-ingress-correction-2026-10-24) — 31 lines
-  - [P02b-7 first hosted A — fixture corrections (2026-10-24)](#p02b-7-first-hosted-a--fixture-corrections-2026-10-24) — 55 lines
+  - [P02b-7 first hosted A — fixture corrections (2026-10-24)](#p02b-7-first-hosted-a--fixture-corrections-2026-10-24) — 56 lines
+  - [P02b-7 second hosted A — remaining handoff precondition (2026-10-24)](#p02b-7-second-hosted-a--remaining-handoff-precondition-2026-10-24) — 46 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19060,6 +19061,52 @@ setup/security rules instead of presenting BFF sessions as future-only work.
 Exact-source complete hosted A/B qualification remains required before PR #36
 leaves draft; no failed-only rerun, timeout increase, skipped case or check waiver
 is used.
+
+### P02b-7 second hosted A — remaining handoff precondition (2026-10-24)
+
+The [A run on `19cd8102`](https://github.com/HodeTech/LearnStack/actions/runs/40040983884)
+finishes with 24 successful jobs and three failures. Frontend and both public
+launcher populations pass. All six BFF cases and 31 native cases pass again;
+the 236-case ordinary-2 producer now passes both held-constructor cases in
+4.534/3.462 seconds, with complete ownership, no forced cleanup and Docker
+absence. Backend aggregation succeeds. Whole-source qualification still fails.
+
+One failure is a local sequencing mistake: the final receipt sentence was
+edited after index generation/check, leaving two generated line counts stale.
+Meta correctly rejects it. Regeneration follows the final content edit and the
+index/lint checks run again after commit; this changes no workflow rule.
+
+The other producer failure is the existing one-hint cleanup control,
+`Native_fixture_start_waits_for_previous_actual_cleanup_before_one_same_generation_hint`.
+All 252 producer cases finish, with only this case failing: cancellation at the
+post-helper constructor wait after 31.493 seconds. The producer correctly refuses
+completion/ownership qualification and the integration aggregate refuses it.
+A location alone does not prove the historical cancellation cause.
+
+A complete source census finds this is the last caller of the shared startup
+helper still using one-second renewal. Its subject is preceding real cleanup
+and exactly one later hint, not renewal refusal. It composes the existing real
+renewal-pacing provider beneath its existing held-disposal timer. The controlled
+initial empty recovery creates no typed lease/deadline; the later real normal
+publication does. The concurrent pacing proof leaves the original cleanup and
+premature-hint counterexample intact, then requires actual constructor and first
+callback entry. Stop releases both holds before actual runtime/timer joining.
+No production behavior, timeout, lease clock, grant, job count or test population
+changes. Direct-owner renewal/refusal controls remain unchanged; source-only
+possibilities in unrelated causal/policy journeys are not labelled reproduced
+faults or used to justify a broad patch.
+
+Both independent round-2 reviewers inspect the applied correction and find no
+actionable defect. Release compilation has zero warnings/errors. All six
+focused real-worker/handoff/renewal cases pass, zero skipped; TRX SHA-256 is
+`12be32c0e7326198d183cbfdafefa373432981e331044826d980c65376c0d837`.
+The one-hint control takes 2.196 seconds. Its early-hint assertions remain under
+the actual original cleanup hold. This is a test-precondition correction,
+not a claim to have reproduced the hosted failure's exact causal interleaving.
+
+A new complete source-bound A/B qualification follows these corrections. The
+failed runs and their independent component evidence remain in this log; PR #36
+stays draft until qualification succeeds.
 
 ## Status archive
 
