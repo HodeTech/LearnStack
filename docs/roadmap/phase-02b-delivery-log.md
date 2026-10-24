@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,360 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,387 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -247,6 +247,7 @@ each packet decided and delivered, as
   - [P02b-7 recovery UI and proof observation implementation (2026-10-24)](#p02b-7-recovery-ui-and-proof-observation-implementation-2026-10-24) — 39 lines
   - [P02b-7 CI and real-provider proof corrections (2026-10-24)](#p02b-7-ci-and-real-provider-proof-corrections-2026-10-24) — 41 lines
   - [P02b-7 current carrier reconciliation (2026-10-24)](#p02b-7-current-carrier-reconciliation-2026-10-24) — 49 lines
+  - [P02b-7 policy, UI and evidence first review (2026-10-24)](#p02b-7-policy-ui-and-evidence-first-review-2026-10-24) — 27 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20107,6 +20108,33 @@ worktrees and older stashes remain untouched.
 Documentation fragment/roadmap/index checks pass; the new privacy-stage control
 passes. The correction implementation is committed before the next two fresh
 independent review rounds and final real-dependency/hosted qualification.
+
+
+### P02b-7 policy, UI and evidence first review (2026-10-24)
+
+Two fresh independent reviewers inspect the committed policy/UI/proof and
+CI/realm/C#/carrier corrections through `4ead28c5`. They verify actual caller/
+owner/publication boundaries, accessible recovery and retained metadata cases,
+child/raw-cookie/privacy observations, isolated CI negatives, diagnostic-only
+success facts, real persona/audit proof and named future owners. Neither finds
+a runtime defect. One mutable-carrier sentence incorrectly groups every Host
+header with untrusted selectors. It now explicitly excludes unverified headers
+while preserving the independently verified native host/port for callback and
+logout authority, as ADR-0070 requires. No behavior or policy changes.
+
+The guarded full frontend passes 2,293 cases in two packages with zero skips/
+todos. Complete workspace lint, TypeScript and production build pass on the
+updated dependency set. Documentation and all seven ADR parser controls pass.
+Real Keycloak/API/native-job execution is in progress and is not counted as
+passed here. The next fresh review pair follows this committed correction.
+
+Both source reviewers also distinguish implementation qualification from its
+durable receipt: the final implementation source P needs complete A/B with
+different cohorts. A subsequent C commit may add only the receipt/generated
+index/phase Status; it must identify P explicitly and prove no executable,
+plan, toolchain or fixture-lifetime change. C then receives one complete current
+assignment under ADR-0063's normal-future-push rule. No A/B result is attributed
+to C and no earlier sibling is substituted into an aggregate.
 
 
 ## Status archive
