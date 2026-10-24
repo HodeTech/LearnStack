@@ -329,6 +329,15 @@ not a request to add an unused module, adapter or port.
   owns the current same-issuer constraint. A split metadata origin needs a separate
   accepted design and containment proofs before deployment; do not substitute an
   internal issuer merely to make the network request succeed.
+- **BFF host and proxy activation.** Register each newly activated tenant host's
+  exact HTTPS callback and root post-logout URI on the confidential web client
+  before enabling sign-in there; domain verification alone grants no redirect
+  registration. Qualify provider-event retention/storage and secret provisioning,
+  including replacement of published development credentials. The current native
+  listener counts its verified TCP peer as a source; proxy-derived visitor trust,
+  IPv6 prefix fairness and multi-process continuity need explicit deployment
+  decisions and proofs before promising those properties. P02b-7's two seed-host
+  and controlled-issuer evidence supplies none of them.
 - **Outage and key rotation.** Exercise cold start without metadata, a warmed known
   signing key during an outage, a new key while refresh fails, recovery, and rejection
   of a withdrawn unexpired key after the replacement set has been observed. Current

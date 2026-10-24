@@ -31,8 +31,19 @@ describe('exact authenticated AccountSite SDK', () => {
     });
     expect(Object.values(PUBLIC_GET_WRAPPERS)).not.toContain('GetAccountSite');
   });
+  it('accepts the API actor contract without imposing a UUID version', async () => {
+    const body = { ...account, actorId: 'FA22AEF7-7175-4CF3-8AD3-A300E2204776' };
+    expect(await createAuthenticatedServerSdk(async () => response(body)).getAccountSite()).toEqual(
+      {
+        kind: 'success',
+        status: 200,
+        data: body,
+      },
+    );
+  });
   it.each([
-    { ...account, actorId: account.tenantId },
+    { ...account, actorId: 'not-a-uuid' },
+    { ...account, actorId: '00000000-0000-0000-0000-000000000000' },
     { ...account, tenantId: '00000000-0000-0000-0000-000000000000' },
     { ...account, organizationId: 'bad' },
     { ...account, site: {} },

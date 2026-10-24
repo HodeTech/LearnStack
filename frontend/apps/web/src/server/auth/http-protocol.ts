@@ -1,6 +1,13 @@
 import { randomBytes } from 'node:crypto';
 
-import { BFF_COOKIES, BffInputError, bffCookie, bffCookies, clearBffCookie } from './cookies.js';
+import {
+  BFF_COOKIES,
+  BffInputError,
+  bffCookie,
+  bffCookies,
+  clearBffCookie,
+  clearMalformedBffCookies,
+} from './cookies.js';
 import { bffActivity, bffForm, bffQuery, bffRoute, exactBffOrigin } from './http-input.js';
 import type { BffHttpRequest } from './http-input.js';
 import { BffSessionError } from './session-contract.js';
@@ -13,6 +20,11 @@ export type BffPage = Readonly<
   { kind: 'signin'; csrfToken: string; returnPath: string } | { kind: 'error' }
 >;
 export type BffPageRenderer = (page: BffPage) => string;
+type BffProjection = Readonly<{
+  session: SessionProjection | null;
+  cookies: readonly string[];
+  unavailable: boolean;
+}>;
 function result(
   request: BffHttpRequest,
   value: unknown,
@@ -24,6 +36,7 @@ function result(
     'content-type': 'application/json; charset=utf-8',
     'referrer-policy': 'no-referrer',
     'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
   });
   for (const cookie of cookies) headers.append('set-cookie', cookie);
   if (status === 429 || status === 503) headers.set('retry-after', '30');
@@ -68,16 +81,32 @@ export function createBffHttpProtocol(store: BffSessionStore) {
     async project(
       request: BffHttpRequest,
       activity: 'read' | 'passive' = bffActivity(request.method, request.headers),
-    ): Promise<SessionProjection | null> {
-      const cookies = input(request);
-      const current = binding(request, cookies);
-      if (!current) return null;
+    ): Promise<BffProjection> {
+      const anonymous = (cookies: readonly string[] = [], unavailable = false): BffProjection =>
+        Object.freeze({ session: null, cookies, unavailable });
+      let cookies: ReadonlyMap<string, string>;
       try {
-        return await store.admit(current, request.source, activity, request.signal);
+        cookies = bffCookies(request.headers.get('cookie'));
+      } catch (error) {
+        if (!(error instanceof BffInputError)) throw error;
+        return anonymous(
+          request.method === 'GET' && activity === 'read'
+            ? clearMalformedBffCookies(request.headers.get('cookie'))
+            : [],
+        );
+      }
+      // Authorization is never a BFF credential and must not prevent public reading.
+      if (request.headers.has('authorization')) return anonymous();
+      const current = binding(request, cookies);
+      if (!current) return anonymous();
+      try {
+        const session = await store.admit(current, request.source, activity, request.signal);
+        return Object.freeze({ session, cookies: [], unavailable: false });
       } catch (error) {
         if (!(error instanceof BffSessionError)) throw error;
-        // Public rendering remains anonymous after local invalidation. No writes in auth().
-        return null;
+        // A failed plain read may leave a live owner. Protected reads return 503;
+        // public rendering stays anonymous without deleting that recoverable session.
+        return anonymous([], store.peek(current) !== null);
       }
     },
     async handle(request: BffHttpRequest, render?: BffPageRenderer): Promise<Response | null> {

@@ -30,6 +30,8 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
     [Fact]
     public async Task Parent_EOF_during_held_build_joins_acquisition_and_removes_its_private_tree()
     {
+        await AssertStartupFailureSurvivesCleanupAsync(observerThrows: false);
+        await AssertStartupFailureSurvivesCleanupAsync(observerThrows: true);
         await using var unavailable = new UnavailableTenantIssuer();
         using var authority = new KeycloakTls();
         await using var native = await BffNativeDriver.StartAsync(RepositoryRoot(), NoNetworkConfiguration(unavailable, authority), heldBuild: true);
@@ -38,6 +40,67 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
         await native.DisposeAsync();
         Directory.Exists(root).Should().BeFalse("EOF must cancel acquisition without waiting for the suspended command iterator");
         unavailable.Connections.Should().Be(0);
+    }
+
+    private static async Task AssertStartupFailureSurvivesCleanupAsync(bool observerThrows)
+    {
+        var root = Directory.CreateTempSubdirectory("learnstack-bff-start-counter-");
+        var receiptPath = Path.Combine(root.FullName, "owned.json");
+        string? retained = null;
+        try
+        {
+            var scripts = Path.Combine(root.FullName, "frontend/apps/web/scripts");
+            Directory.CreateDirectory(scripts);
+            await File.WriteAllTextAsync(Path.Combine(scripts, "verify-bff-session.mjs"), $$"""
+                import { mkdirSync, writeFileSync } from 'node:fs';
+                import { join } from 'node:path';
+                process.stdin.once('data', () => {
+                  mkdirSync(join(process.env.TMPDIR, 'retained'));
+                  writeFileSync({{JsonSerializer.Serialize(receiptPath)}}, JSON.stringify({ pid: process.pid, temporary: process.env.TMPDIR }));
+                  process.stderr.write('BFF session fixture failed: compile\nBFF session cleanup failed.\n');
+                  process.stdin.destroy();
+                  process.exitCode = 1;
+                });
+                """);
+            var observed = 0;
+            Exception? failure = null;
+            try
+            {
+                await BffNativeDriver.StartAsync(root.FullName, new { protocol = 1 },
+                    secondaryCleanupFailure: () =>
+                    {
+                        observed++;
+                        if (observerThrows) throw new InvalidOperationException("Deliberate closed observer failure.");
+                    });
+            }
+            catch (Exception error) when (error.GetType() != typeof(OutOfMemoryException)
+                && error.GetType() != typeof(StackOverflowException))
+            { failure = error; }
+            using var receipt = JsonDocument.Parse(await File.ReadAllTextAsync(receiptPath));
+            var candidate = receipt.RootElement.GetProperty("temporary").GetString()!;
+            Path.GetDirectoryName(candidate).Should().Be(Path.TrimEndingDirectorySeparator(Path.GetTempPath()));
+            Path.GetFileName(candidate).Should().StartWith("learnstack-bff-driver-");
+            retained = candidate;
+            Directory.Exists(Path.Combine(retained, "retained")).Should().BeTrue();
+            var absent = false;
+            try
+            {
+                using var child = Process.GetProcessById(receipt.RootElement.GetProperty("pid").GetInt32());
+                absent = child.HasExited;
+            }
+            catch (ArgumentException) { absent = true; }
+            absent.Should().BeTrue("the failed driver still joins its actual owned child before returning the original error");
+            failure.Should().BeOfType<InvalidOperationException>().Which.Message.Should()
+                .Be("BFF native fixture did not reach the closed ready/compile_cleanup_failed phase.");
+            observed.Should().Be(1, "the actual retained-tree disposal error must be separately observed");
+        }
+        finally
+        {
+            // Only this counter's independently witnessed retained tree is removed.
+            // Its presence must first make actual driver disposal fail.
+            if (retained is not null && Directory.Exists(retained)) Directory.Delete(retained, recursive: true);
+            root.Delete(recursive: true);
+        }
     }
 
     [Fact]
@@ -92,6 +155,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
         unavailable.Connections.Should().Be(0, "enabled native construction and successful joined stop must not discover the issuer or bootstrap an unsolicited request");
     }
 
+    /// <summary>Catalogue: Bff_Host_Cookies_And_History_Are_Isolated (ADR-0070).</summary>
     [Fact]
     public async Task Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control()
     {
@@ -106,6 +170,10 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
             .Should().Be("browser-launch_cleanup_failed");
         (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\nPRIVATE-CANARY\n"))
             .Should().Be("browser-launch_unexpected_output");
+        (await ClosedErrorAsync("BFF session fixture failed: native-stop\nBFF session cleanup failed.\n"))
+            .Should().Be("native-stop_cleanup_failed");
+        (await ClosedErrorAsync("BFF session fixture failed: native-stop\nBFF browser cleanup failed.\n"))
+            .Should().Be("native-stop_unexpected_output");
         var input = new
         {
             protocol = 1,

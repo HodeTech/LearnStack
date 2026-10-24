@@ -9,7 +9,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { readBrowserDevToolsPort, waitForBrowserDevTools } from './admission-browser.mjs';
 import { startBffProof } from './bff-proof-host.mjs';
+import {
+  createBffCookieScanner,
+  rememberBffCookies,
+  withProofWaiters,
+} from './bff-proof-support.mjs';
 import {
   createFixtureOwner,
   createPrivateScanner,
@@ -121,17 +127,31 @@ try {
     assert.ok(['en', 'tr', 'tr-TR'].includes(site.locale));
   }
   assert.notEqual(input.sites[0].host, input.sites[1].host);
-  // Redirect targets are not a second Playwright routing boundary. Use an
-  // actually owned HTTPS endpoint for the fake provider's logout document.
+  // Chromium forwards redirect-chain requests without a second Playwright route
+  // interception. Both fake provider endpoints therefore use this actual owned
+  // HTTPS listener, including the authorization target after the native POST 303.
+  let authorize;
+  const authorizePath = '/realms/learnstack/protocol/openid-connect/auth';
+  const logoutPath = '/realms/learnstack/protocol/openid-connect/logout';
   const logoutServer = owner.ownServer(
-    createServer((_request, response) => {
-      ++logoutRoutes;
-      response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' });
-      response.end('<!doctype html><title>Owned provider sentinel</title>');
+    createServer((request, response) => {
+      if (request.method === 'GET' && request.url === authorizePath && authorize) {
+        void authorize(response);
+        return;
+      }
+      if (request.method === 'GET' && request.url === logoutPath) {
+        ++logoutRoutes;
+        response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' });
+        response.end('<!doctype html><title>Owned provider sentinel</title>');
+        return;
+      }
+      response.writeHead(404, { 'cache-control': 'no-store' });
+      response.end();
     }),
   );
   await new Promise((resolve) => logoutServer.listen(0, '127.0.0.1', resolve));
-  const logoutTarget = 'https://localhost:' + logoutServer.address().port + '/logout';
+  const fakeIssuer = 'https://localhost:' + logoutServer.address().port + '/realms/learnstack';
+  const logoutTarget = fakeIssuer + '/protocol/openid-connect/logout';
   const host = await startBffProof({
     owner,
     root,
@@ -140,6 +160,7 @@ try {
     marker,
     uiMode: true,
     sites: input.sites,
+    fakeIssuer,
     fakeLogout: logoutTarget,
     clockBase: Date.now(),
     mutation: counter ? 'history' : undefined,
@@ -211,22 +232,30 @@ try {
     ),
   );
   const browserOutput = createPrivateScanner(privateValues);
-  scanners.push(browserOutput);
+  const browserCookies = createBffCookieScanner(host.cookieCanaries);
+  scanners.push(browserOutput, browserCookies);
   for (const stream of [browserProcess.stdout, browserProcess.stderr]) {
-    stream.on('data', (chunk) => browserOutput.push(chunk));
-    stream.once('end', () => browserOutput.finish());
+    stream.on('data', (chunk) => {
+      browserOutput.push(chunk);
+      browserCookies.push(chunk);
+    });
+    stream.once('end', () => {
+      browserOutput.finish();
+      browserCookies.finish();
+    });
   }
-  browserProcess.once('error', () => {});
+  let browserFailed = false;
+  browserProcess.once('error', () => {
+    browserFailed = true;
+  });
   const portFile = join(profile, 'DevToolsActivePort');
-  const launchDeadline = Date.now() + 10000;
-  while (!existsSync(portFile)) {
-    owner.assertActive();
-    assert.equal(browserProcess.exitCode, null);
-    assert.ok(Date.now() < launchDeadline);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  const port = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
-  assert.ok(Number.isInteger(port) && port > 0 && port <= 65535);
+  const port = await waitForBrowserDevTools({
+    assertActive: () => owner.assertActive(),
+    isLive: () =>
+      !browserFailed && browserProcess.exitCode === null && browserProcess.signalCode === null,
+    readPort: () => readBrowserDevToolsPort(portFile),
+    timeout: 10_000,
+  });
   browser = await chromium.connectOverCDP('http://127.0.0.1:' + port, { timeout: 10000 });
   version = browser.version();
   assert.match(version, /^\d+(?:\.\d+){1,3}$/);
@@ -245,6 +274,10 @@ try {
           try {
             const cookies = (await response.headersArray()).filter(
               (header) => header.name.toLowerCase() === 'set-cookie',
+            );
+            rememberBffCookies(
+              cookies.map((cookie) => cookie.value),
+              host.cookieCanaries,
             );
             return (
               cookies.every((cookie) => !/;\s*domain=/i.test(cookie.value)) &&
@@ -271,10 +304,10 @@ try {
   });
   let currentSite;
   let wrongHostChecked = false;
-  // Only the external stub provider is intercepted. Native TLS/cookie/Origin,
-  // callbacks, middleware, UI and the browser's storage/send rules remain real.
+  // Only provider grant/account operations are fake. The browser fetches both
+  // provider documents over owned HTTPS; native callbacks and cookies remain real.
   let routeFailed = false;
-  await context.route('https://identity.example.test/authorize', async (route) => {
+  authorize = async (response) => {
     try {
       ++authorizeCalls;
       const cookies = await context.cookies(origin(currentSite));
@@ -302,18 +335,17 @@ try {
         );
         await negative.close();
       }
-      await route.fulfill({
-        status: 302,
-        headers: {
-          location:
-            origin(currentSite) + '/api/auth/callback/keycloak?state=' + state + '&code=' + code,
-        },
+      response.writeHead(302, {
+        location:
+          origin(currentSite) + '/api/auth/callback/keycloak?state=' + state + '&code=' + code,
+        'cache-control': 'no-store',
       });
+      response.end();
     } catch {
       routeFailed = true;
-      await route.abort().catch(() => {});
+      response.destroy();
     }
-  });
+  };
   const pages = [];
   const documentCount = (site) =>
     documents.filter((value) => {
@@ -330,14 +362,18 @@ try {
     currentSite = site;
     stage = 'browser-signin-document';
     await page.goto(origin(site) + '/api/auth/signin?returnTo=%2Fstudio');
-    const postedRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'POST' &&
-        new URL(request.url()).pathname === '/api/auth/signin/keycloak',
-    );
     stage = 'browser-submit';
-    await page.getByRole('button').click();
-    const posted = await postedRequest;
+    await page.getByRole('button').focus();
+    const [posted] = await withProofWaiters(
+      [
+        page.waitForRequest(
+          (request) =>
+            request.method() === 'POST' &&
+            new URL(request.url()).pathname === '/api/auth/signin/keycloak',
+        ),
+      ],
+      () => page.keyboard.press('Enter'),
+    );
     const submittedOrigin = await posted.headerValue('origin');
     if (submittedOrigin !== origin(site)) {
       stage =
@@ -365,8 +401,11 @@ try {
       assert.equal(cookie.sameSite, 'Lax');
     }
     assert.equal((await page.evaluate(() => document.cookie)).includes('__Host-ls-'), false);
-    assert.equal((await page.content()).includes(marker), false);
-    assert.equal((await page.content()).includes(secret), false);
+    const content = await page.content();
+    assert.equal(content.includes(marker), false);
+    assert.equal(content.includes(secret), false);
+    for (const cookie of owned.filter((cookie) => cookie.name !== '__Host-ls-csrf'))
+      assert.equal(content.includes(cookie.value), false, 'opaque cookie stays out of HTML');
     cookiesSeen.push(owned.find((cookie) => cookie.name === '__Host-ls-session').value);
     // Actual keyboard activation reaches the existing focusable main target.
     await page.keyboard.press('Tab');
@@ -380,7 +419,8 @@ try {
     await host.advance(60000);
     const before = (await host.advance(0)).refreshes;
     const extend = page.locator('button[type=button]');
-    await extend.click();
+    await extend.focus();
+    await page.keyboard.press('Enter');
     await page
       .getByText(
         site.locale === 'en'
@@ -398,24 +438,29 @@ try {
   const [page, otherPage] = pages;
   stage = 'browser-logout-submit';
   const first = input.sites[0];
-  const outgoingLogout = page.waitForRequest(
-    (request) =>
-      request.method() === 'POST' && new URL(request.url()).pathname === '/api/auth/signout',
+  await page.locator('form[action="/api/auth/signout"] button').focus();
+  const [outgoingLogout, logoutResponse] = await withProofWaiters(
+    [
+      page.waitForRequest(
+        (request) =>
+          request.method() === 'POST' && new URL(request.url()).pathname === '/api/auth/signout',
+      ),
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === '/api/auth/signout',
+      ),
+    ],
+    () => page.keyboard.press('Enter'),
   );
-  const logoutResponse = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      new URL(response.url()).pathname === '/api/auth/signout',
-  );
-  await page.locator('form[action="/api/auth/signout"] button').click();
   stage = 'browser-logout-origin';
-  const logoutOrigin = await (await outgoingLogout).headerValue('origin');
+  const logoutOrigin = await outgoingLogout.headerValue('origin');
   if (logoutOrigin !== origin(first)) {
     stage = logoutOrigin === 'null' ? 'browser-logout-origin-null' : 'browser-logout-origin-other';
     throw new Error('Logout form must retain its exact same-origin proof');
   }
   stage = 'browser-logout-response';
-  const observedLogout = await logoutResponse;
+  const observedLogout = logoutResponse;
   const logoutStatus = observedLogout.status();
   if (logoutStatus !== 303) {
     stage =
@@ -429,7 +474,7 @@ try {
   await page.waitForURL(
     (url) =>
       url.origin === new URL(logoutTarget).origin &&
-      url.pathname === '/logout' &&
+      url.pathname === logoutPath &&
       url.search === '',
   );
   assert.ok(logoutRoutes > 0, 'the browser actually fetched the owned provider logout document');
@@ -473,9 +518,10 @@ try {
   const second = input.sites[1];
   const control = await context.newPage();
   await control.goto(origin(second) + '/portal');
-  await control.locator('form[action="/api/auth/signout"] button').click();
+  await control.locator('form[action="/api/auth/signout"] button').focus();
+  await control.keyboard.press('Enter');
   await control.waitForURL(
-    (url) => url.origin === new URL(logoutTarget).origin && url.pathname === '/logout',
+    (url) => url.origin === new URL(logoutTarget).origin && url.pathname === logoutPath,
   );
   assert.equal(await otherPage.locator('[data-bff-protected]').count(), 1);
   assert.equal(
@@ -504,6 +550,11 @@ try {
   stage = 'browser-headers';
   assert.equal(restoresVeiled, true, 'naturally restored protected documents are already veiled');
   assert.equal(routeFailed, false, 'fake authorization control completed');
+  assert.equal(
+    authorizeCalls,
+    input.sites.length,
+    'both logins fetch the owned HTTPS authorization endpoint',
+  );
   assert.ok(headerChecks.length > 0 && (await Promise.all(headerChecks)).every(Boolean));
   stage = 'cleanup';
   await cleanup();

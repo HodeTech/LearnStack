@@ -2,7 +2,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { bffFixture, bffHost, bffOpaque, bffRequest } from './bff-fixture';
-import { AUTH_INPUT_LIMIT, BFF_COOKIES, bffCookie, bffCookies } from '../server/auth/cookies';
+import {
+  AUTH_INPUT_LIMIT,
+  BFF_COOKIES,
+  bffCookie,
+  bffCookies,
+  clearMalformedBffCookies,
+} from '../server/auth/cookies';
 import { bffActivity, bffForm, bffQuery, bffRoute } from '../server/auth/http-input';
 
 const fixtures: ReturnType<typeof bffFixture>[] = [];
@@ -15,7 +21,7 @@ afterEach(async () => {
   await Promise.all(fixtures.splice(0).map((f) => f.store.stop()));
 });
 
-describe('BFF finite input and CSRF admission', () => {
+describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
   it('admits only the exact method/route set', () => {
     for (const path of ['signin', 'csrf', 'session', 'error'])
       for (const method of ['GET', 'HEAD'])
@@ -204,8 +210,23 @@ describe('BFF finite input and CSRF admission', () => {
     ['GET', { rsc: '1', 'next-router-prefetch': '1' }, 'passive'],
     ['GET', { 'sec-purpose': 'prefetch;prerender', accept: 'text/html' }, 'passive'],
     ['GET', { 'sec-fetch-dest': 'document' }, 'read'],
+    ['GET', { accept: 'text/html' }, 'passive'],
+    ['GET', { accept: 'text/html', 'sec-fetch-dest': 'empty' }, 'passive'],
     ['GET', {}, 'passive'],
   ] as const)('activity classification %s %j is %s', (method, headers, expected) => {
     expect(bffActivity(method, new Headers(headers))).toBe(expected);
+  });
+  it('malformed-cookie recovery bounds deletion bytes and never reflects invalid names or values', () => {
+    expect(clearMalformedBffCookies('foreign=private; __Host-ls-invalid name=private')).toEqual([]);
+    const edits = clearMalformedBffCookies(
+      Array.from(
+        { length: 500 },
+        (_, index) => '__Host-ls-malformed-' + index + '=private-cookie-canary',
+      ).join('; '),
+    );
+    expect(edits.length).toBeGreaterThan(0);
+    expect(Buffer.byteLength(edits.join(''))).toBeLessThanOrEqual(AUTH_INPUT_LIMIT);
+    expect(edits.join('')).not.toContain('private');
+    expect(clearMalformedBffCookies(null)).toEqual([]);
   });
 });

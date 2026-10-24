@@ -7,6 +7,23 @@ namespace LearnStack.Tests.Integration.Database;
 
 public sealed partial class BackgroundJobPositiveSdkTests
 {
+    private void WriteCausalRestartCounts(long reconciles, int finalizers, long ledger, bool forced,
+        BackgroundJobRuntime runtime)
+    {
+        static string Count(long? value) => value is >= 0 and <= 10000
+            ? value.Value.ToString(CultureInfo.InvariantCulture) : "out_of_range";
+        try
+        {
+            var control = runtime.Snapshot.Control;
+            output.WriteLine("Causal restart counts;reconciles=" + Count(reconciles)
+                + ";finalize=" + Count(finalizers) + ";ledger=" + Count(ledger)
+                + ";forced=" + (forced ? "yes" : "no")
+                + ";leaseElapsed=" + Count(control?.LeaseLossElapsed)
+                + ";renewalRefused=" + Count(control?.LeaseLossRenewalRefused) + ".");
+        }
+        catch (Exception error) when (NativeWaitCatchable(error)) { }
+    }
+
     private sealed record CausalRestartRowObservation(int Normal, int Finalize, long Ledger, long Release,
         long Audits, bool Incomplete, string Outcome, string Policy, string Reason, int Nulls);
 

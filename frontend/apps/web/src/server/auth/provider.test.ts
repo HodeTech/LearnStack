@@ -161,6 +161,17 @@ describe('inactive tenant RP boundary', () => {
     expect(f.calls).toHaveLength(before);
   });
 
+  it('accepts a nonnil actor UUID independently of its version, matching the API profile', async () => {
+    const f = await fixture();
+    const versionFourActor = 'FA22AEF7-7175-4CF3-8AD3-A300E2204776';
+    f.setClaims({ user_id: versionFourActor });
+    const { result } = await f.login();
+    expect(result.identity.actorId).toBe(versionFourActor.toLowerCase());
+    expect((await f.provider.refresh(result.refreshToken!, result.identity)).identity.actorId).toBe(
+      versionFourActor.toLowerCase(),
+    );
+  });
+
   it('retains the qualified loopback allowance for logout and closes malformed return errors', async () => {
     const f = await fixture('http://127.0.0.1:8099/realms/learnstack');
     const { result } = await f.login();
@@ -184,7 +195,8 @@ describe('inactive tenant RP boundary', () => {
     ['expired ID token', { exp: 1 }],
     ['wrong nonce', { nonce: 'wrong' }],
     ['non-scalar actor', { user_id: [actorId] }],
-    ['invalid actor UUID', { user_id: tenantId }],
+    ['invalid actor UUID', { user_id: 'not-a-uuid' }],
+    ['nil actor UUID', { user_id: '00000000-0000-0000-0000-000000000000' }],
     ['missing tenant', { tenant_id: null }],
     ['invalid organization', { organization_id: 'private-profile-canary' }],
   ] as const) {
@@ -295,6 +307,22 @@ describe('inactive tenant RP boundary', () => {
       await expect(f.login()).rejects.toMatchObject({ reason: 'response' });
     });
   }
+
+  it('returns rotated refresh credentials and uses their replacement for the next signed grant', async () => {
+    const f = await fixture();
+    const { result } = await f.login();
+    const replacement = 'rotated-private-refresh-canary';
+    f.setTokens({ refresh_token: replacement });
+    const rotated = await f.provider.refresh(result.refreshToken!, result.identity);
+    expect(rotated.refreshToken).toBe(replacement);
+    await f.provider.refresh(rotated.refreshToken!, rotated.identity);
+    const refreshes = f.calls.filter((call) => call.body.get('grant_type') === 'refresh_token');
+    expect(refreshes).toHaveLength(2);
+    expect(refreshes.map((call) => call.body.get('refresh_token'))).toEqual([
+      result.refreshToken,
+      replacement,
+    ]);
+  });
 
   it('allows omitted replacement refresh token only during refresh, never initial custody', async () => {
     const f = await fixture();

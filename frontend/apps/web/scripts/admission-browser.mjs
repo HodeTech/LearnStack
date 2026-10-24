@@ -144,9 +144,10 @@ export function readBrowserDevToolsPort(path) {
 }
 
 /** Keep browser death and closed readiness observations distinct, with no extra wait. */
-export function waitForBrowserDevTools({ assertActive, isLive, readPort }) {
+export function waitForBrowserDevTools({ assertActive, isLive, readPort, timeout = 20_000 }) {
   return atBrowserPhase('browser-devtools', async () => {
-    const deadline = Date.now() + 20_000;
+    assert.ok(Number.isSafeInteger(timeout) && timeout > 0 && timeout <= 20_000);
+    const deadline = Date.now() + timeout;
     let last = 'missing';
     const active = async () => {
       try {

@@ -85,6 +85,24 @@ describe('stock browser Flight fallback observation', () => {
     },
   );
 
+  it("preserves a caller's shorter ten-second readiness deadline", async () => {
+    vi.useFakeTimers();
+    let complete = false;
+    const waiting = waitForBrowserDevTools({
+      assertActive: () => undefined,
+      isLive: () => true,
+      readPort: () => ({ kind: 'missing' }),
+      timeout: 10_000,
+    }).catch((error: Error) => {
+      complete = true;
+      return error;
+    });
+    await vi.advanceTimersByTimeAsync(9999);
+    expect(complete).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(browserFailureDetail(await waiting)).toBe(' browser-devtools deadline-missing');
+  });
+
   it('accepts the debugging port of a live owned browser', async () => {
     const assertActive = vi.fn();
     await expect(

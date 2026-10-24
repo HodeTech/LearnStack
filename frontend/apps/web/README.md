@@ -12,13 +12,16 @@ Route groups (`(public)`, `(studio)`, `(portal)`) organize files without
 affecting URLs — each surface owns a distinct URL prefix so the three roots
 don't collide at `/`:
 
-| Route group                           | URL prefix                   | Purpose                                          | Phase that fills it in   |
-| ------------------------------------- | ---------------------------- | ------------------------------------------------ | ------------------------ |
-| `(public)/[locale]/courses/`          | `/{locale}/courses`          | Implemented catalog, course and lesson pages     | 02d; expanded by 04 / 06 |
-| `(public)/[locale]/status/not-found/` | `/{locale}/status/not-found` | Localized fixed 404 recovery document            | 02d                      |
-| `(studio)/studio/`                    | `/studio`                    | Admin + content studio                           | 04 / 06                  |
-| `(portal)/portal/`                    | `/portal`                    | Learner + instructor portal                      | 07                       |
-| `api/`                                | `/api/*`                     | Thin BFF route handlers (`/api/healthz` shipped) | 02a+                     |
+| Route group                           | URL prefix                   | Purpose                                      | Phase that fills it in   |
+| ------------------------------------- | ---------------------------- | -------------------------------------------- | ------------------------ |
+| `(public)/[locale]/courses/`          | `/{locale}/courses`          | Implemented catalog, course and lesson pages | 02d; expanded by 04 / 06 |
+| `(public)/[locale]/status/not-found/` | `/{locale}/status/not-found` | Localized fixed 404 recovery document        | 02d                      |
+| `(studio)/studio/`                    | `/studio`                    | Admin + content studio                       | 04 / 06                  |
+| `(portal)/portal/`                    | `/portal`                    | Learner + instructor portal                  | 07                       |
+| `api/`                                | `/api/healthz`               | Exact infrastructure health route            | 02a                      |
+
+The closed `/api/auth/*` protocol runs in native middleware under ADR-0070;
+there is no general `/api/*` proxy or browser-to-backend bearer forwarding.
 
 ## Optional tenant sign-in
 
@@ -26,8 +29,16 @@ don't collide at `/`:
 native openid-client session owner. Set `LEARNSTACK_BFF_ENABLED=true`, a canonical
 `LEARNSTACK_BFF_ISSUER` in `/realms/learnstack`, and the existing confidential
 `KEYCLOAK_WEB_CLIENT_SECRET`. Root `.env`, optional web `.env.local` and process
-values must agree. Enabled mode requires regular, single-link, owner-private
+values must agree. To enable sign-in, change the root example's existing `false`
+to `true` and make every supplied process/web projection match; a web value does
+not override the root source. The optional web `.env.local` is unnecessary and
+can be omitted. Enabled mode requires regular, single-link, owner-private
 source files (`chmod 600`); startup never repairs permissions or rotates secrets.
+Existing source files must always be regular, nonsymlink, valid bounded files,
+including in public-only mode; unsafe input is refused rather than ignored.
+Next may load `.env.local` values into its server process environment. That file
+does not hide a secret from server code; never use a `NEXT_PUBLIC_` alias or pass
+credentials into client configuration.
 `make public-web` permits a loopback HTTP development issuer. Production web
 requires HTTPS and normal certificate verification. Both modes discover the
 provider lazily, without a startup network dependency.
@@ -70,6 +81,13 @@ multiple web instances requires the distributed adapter and qualification owned
 by Phase 11. [Security 11](../../../docs/standards/11-security.md#tenant-bff-sessions)
 owns limits, custody and ongoing rules.
 
+The qualified environment uses the private native listener and pinned tenant
+development realm. Accepting an HTTPS issuer in a production web build is a
+transport requirement, not a production-readiness claim; Phase 11 owns that
+qualification. Pending sign-in limits count canonical verified visitor IPs,
+not IPv6 prefixes or people. Different addresses can fill the global allowance;
+a reverse proxy sharing one socket peer can instead share one source allowance.
+
 P02d-4 delivers the API reads; P02d-5 delivers live bootstrap and membership-first
 entry under [ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md).
 `/` redirects through live default-locale admission; it is not a placeholder page.
@@ -107,7 +125,9 @@ primitives or ask LearnStack to add a new composite.
 ```bash
 # from the repository root, after the documented hosts/certificate preparation
 make demo          # production API + native web; Ctrl+C joins owned processes
-# Optional separate development/watch terminals: make public-api / make public-web
+# For the default HTTP development issuer, use separate terminals:
+# make public-api
+# make public-web
 ```
 
 Follow the root [HTTPS Quickstart](../../../README.md#quickstart) for dependencies,

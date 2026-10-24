@@ -462,6 +462,33 @@ storage/send/history proof remain mandatory, alongside public call counts and
 stopped-Keycloak rendering. CI retains complete discovery, no skips and existing
 whole-job ceilings; new fixture cost requires measured qualification.
 
+## Amendments
+
+### Amendment 1 — Delivered proof owners and read-failure clarification (2026-10-24)
+
+The delivered `verify-bff-session.mjs` owns the real-provider HTTP chain, while
+`verify-bff-browser.mjs` owns the native HTTPS browser proof. The original table
+records the planned assignment before runtime existed; this dated clarification
+names the delivered owners without changing the required proof. The original
+row and this record's decision, metadata and rationale remain intact. This is
+not an ADR-0041 claim that nonexistent runtime contradicted the accepted plan.
+
+The existing refresh uncertainty rule applies after a grant may have been
+consumed. An ordinary AccountSite read consumes no grant: temporary availability
+failure denies that response without revoking a still-live session or advancing
+its idle deadline. A proven identity refusal or actor/scope conflict still
+revokes. Public responses remain anonymous; protected reads return unavailable
+until authority can be checked. A failed AccountSite validation after refresh
+still revokes, because its old grant cannot safely be replayed. This clarifies
+the existing read/refresh distinction; it does not relax grant publication.
+
+Source admission counts canonical verified IP addresses, not people, networks
+or IPv6 prefixes. One client with several addresses can consume several source
+allowances; a reverse proxy's shared TCP peer can combine unrelated visitors.
+The accepted budgets provide no subnet fairness or production proxy support.
+Production provisioning and distributed/proxy qualification remain Phase 11's
+named responsibilities.
+
 ## References
 
 - [Phase 02b](../roadmap/phase-02b-events-auth.md), [Security 11](../standards/11-security.md#authentication), [Frontend 07](../standards/07-frontend-architecture.md#auth), [Audit 18](../standards/18-audit-coverage.md#operation-types), [Catalogue 21](../standards/21-architecture-tests-catalogue.md).

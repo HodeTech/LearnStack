@@ -270,6 +270,8 @@ public sealed partial class BackgroundJobPositiveSdkTests
             await StopCausalRestartRuntimeAsync(restarted, restartedFailed, "restart", () => { },
                 (kind, stage) => WriteCausalRestartObservation(kind, stage, observedRow, restarted, retry));
         }
+        WriteCausalRestartCounts(reconcileCalls, actual.FinalizeAttempts, actual.LedgerRows,
+            forceFinalizerRetry, restarted);
         restarted.Snapshot.CleanupConfirmed.Should().BeTrue();
         restarted.Snapshot.RetainedInvocations.Should().Be(0);
         restarted.Snapshot.Control!.Executions.Should().Be(0);
@@ -285,6 +287,15 @@ public sealed partial class BackgroundJobPositiveSdkTests
         Action qualify = () => AssertCausalRestartMeaning(actual, committedProvider);
         try
         {
+            var observedLeaseLoss = restarted.Snapshot.Control.LeaseLossElapsed > 0
+                || restarted.Snapshot.Control.LeaseLossRenewalRefused > 0;
+            if (!forceFinalizerRetry && !observedLeaseLoss)
+            {
+                reconcileCalls.Should().Be(1, "the unforced path has no observed lease loss requiring a reread");
+                actual.FinalizeAttempts.Should().Be(1, "the unforced path has no observed lease loss or injected retry");
+                actual.LedgerRows.Should().Be(2);
+                mutant.Applied.Should().Be(lieOnlyOnReconcile ? 1 : 0);
+            }
             if (lieOnlyOnReconcile)
             {
                 ((long)mutant.Applied).Should().BeInRange(1, reconcileCalls,

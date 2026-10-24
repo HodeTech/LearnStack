@@ -13,8 +13,23 @@ export type BffConfiguration = Readonly<
   | { enabled: false }
   | { enabled: true; issuer: string; clientSecret: string; allowLoopbackHttp: boolean }
 >;
-const refused = (): never => {
-  throw new BffProviderError('configuration');
+export type BffConfigurationIssue =
+  | 'activation'
+  | 'source_conflict'
+  | 'private_file'
+  | 'issuer'
+  | 'client_secret'
+  | 'source_file';
+
+/** Closed startup context; contains no source path, setting name or private value. */
+export class BffConfigurationError extends BffProviderError {
+  constructor(readonly issue: BffConfigurationIssue) {
+    super('configuration');
+  }
+}
+
+const refused = (issue: BffConfigurationIssue): never => {
+  throw new BffConfigurationError(issue);
 };
 const maximumBytes = 256 * 1024;
 function source(path: string) {
@@ -22,7 +37,7 @@ function source(path: string) {
   try {
     descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     const state = fstatSync(descriptor);
-    if (!state.isFile() || state.size > maximumBytes) return refused();
+    if (!state.isFile() || state.size > maximumBytes) return refused('source_file');
     const bytes = Buffer.alloc(maximumBytes + 1);
     let size = 0;
     while (size < bytes.length) {
@@ -30,7 +45,7 @@ function source(path: string) {
       if (count === 0) break;
       size += count;
     }
-    if (size > maximumBytes) return refused();
+    if (size > maximumBytes) return refused('source_file');
     const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size));
     return {
       values: parseLocalEnvironment(text),
@@ -45,7 +60,7 @@ function source(path: string) {
       error.code === 'ENOENT'
     )
       return { values: {}, privateFile: true };
-    return refused();
+    return refused('source_file');
   } finally {
     if (descriptor !== undefined) closeSync(descriptor);
   }
@@ -66,17 +81,24 @@ export function bffConfiguration(
         (value) => value !== undefined,
       );
       if (values.some((value) => typeof value !== 'string') || new Set(values).size > 1)
-        return refused();
+        return refused('source_conflict');
       return values[0];
     };
     const enabled = agree('LEARNSTACK_BFF_ENABLED');
-    if (enabled !== undefined && enabled !== 'true' && enabled !== 'false') return refused();
+    if (enabled !== undefined && enabled !== 'true' && enabled !== 'false')
+      return refused('activation');
     if (enabled !== 'true') return Object.freeze({ enabled: false });
-    if (sources.some((source) => !source.privateFile)) return refused();
+    if (sources.some((source) => !source.privateFile)) return refused('private_file');
     const issuer = agree('LEARNSTACK_BFF_ISSUER');
     const clientSecret = agree('KEYCLOAK_WEB_CLIENT_SECRET');
-    if (!issuer || !clientSecret || /[\r\n\0]/.test(clientSecret)) return refused();
-    const url = new URL(issuer);
+    if (!issuer) return refused('issuer');
+    if (!clientSecret || /[\r\n\0]/.test(clientSecret)) return refused('client_secret');
+    let url: URL;
+    try {
+      url = new URL(issuer);
+    } catch {
+      return refused('issuer');
+    }
     const allowLoopbackHttp = environment.NODE_ENV === 'development';
     if (
       url.href !== issuer ||
@@ -92,9 +114,10 @@ export function bffConfiguration(
           ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
       )
     )
-      return refused();
+      return refused('issuer');
     return Object.freeze({ enabled: true, issuer, clientSecret, allowLoopbackHttp });
-  } catch {
-    return refused();
+  } catch (error) {
+    if (error instanceof BffConfigurationError) throw error;
+    return refused('source_file');
   }
 }

@@ -664,7 +664,7 @@ class AggregateControls(unittest.TestCase):
                          integration, self.context(), self.plan, 'integration')
 
     def test_actual_trx_and_completed_fields_are_rechecked_even_with_matching_hashes(self):
-        for changed in ('completed', 'trx', 'missing'):
+        for changed in ('completed', 'trx', 'missing', 'missing_duration', 'outside_partition'):
             with tempfile.TemporaryDirectory() as temporary:
                 paths = self.outputs(temporary, 'backend'); base = paths['base']
                 if changed == 'completed':
@@ -673,10 +673,42 @@ class AggregateControls(unittest.TestCase):
                 elif changed == 'trx':
                     path = next((base / 'results').glob('*.trx')); value = path.read_text().replace('outcome="Passed"', 'outcome="NotExecuted"')
                     path.write_text(value); reason = 'trx_counters_invalid'
+                elif changed == 'missing_duration':
+                    path = next((base / 'results').glob('*.trx')); root = ET.parse(path)
+                    root.find('t:Results/t:UnitTestResult', RESULTS.OWNER.NS).attrib.pop('duration')
+                    root.write(path, encoding='utf-8'); reason = 'trx_duration_invalid'
+                elif changed == 'outside_partition':
+                    # Matching hashes, counters and completed evidence cannot
+                    # turn a discovered case owned by another shard into base work.
+                    foreign = self.fixture.manifest()['ordinary'][0]
+                    path = next((base / 'results').glob('*.trx')); root = ET.parse(path)
+                    definition = root.find('t:TestDefinitions/t:UnitTest', RESULTS.OWNER.NS)
+                    definition.set('id', foreign['id']); definition.set('storage', foreign['assembly'] + '.dll')
+                    row = root.find('t:Results/t:UnitTestResult', RESULTS.OWNER.NS)
+                    row.set('testId', foreign['id']); row.set('testName', foreign['name'])
+                    root.write(path, encoding='utf-8')
+                    (base / 'completed-cases.jsonl').write_text(json.dumps({
+                        **{key: foreign[key] for key in ('assembly', 'id', 'name')},
+                        'outcome': 'Passed', 'duration': '00:00:00.001'}) + '\n')
+                    reason = 'trx_case_name_mismatch'
                 else:
                     (base / 'completed-cases.jsonl').write_bytes(b''); reason = 'completed_evidence_incomplete'
                 self.rehash(base)
                 self.refuses(reason, RESULTS.validate_outputs, paths, self.context(), self.plan, 'backend')
+
+    def test_docker_absence_is_required_only_for_actual_docker_owners(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = self.outputs(temporary, 'integration')
+            assignment = PLAN.assign(self.fixture.manifest(), self.plan, '1')
+            for owner in ('base', 'native', 'ordinary-0'):
+                path = paths[owner]; clean = RESULTS.read_json(path / 'result.json')
+                self.assertTrue(RESULTS.verify_receipt(path, self.context(), owner, self.plan, assignment))
+                for absent in ((True, False, 0) if owner == 'base' else (False, None, 1, 'true')):
+                    with self.subTest(owner=owner, absent=absent):
+                        self.write(path, 'result.json', {**clean, 'dockerAbsent': absent})
+                        self.refuses('execution_authority_mismatch', RESULTS.verify_receipt,
+                                     path, self.context(), owner, self.plan, assignment)
+                self.write(path, 'result.json', clean)
 
     def test_native_scope_provisioning_crash_witness_and_no_dump_refusals_remain_mandatory(self):
         with tempfile.TemporaryDirectory() as temporary:

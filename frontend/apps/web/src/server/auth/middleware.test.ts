@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { middleware } from '../../middleware';
+import { bffFixture } from '../../test/bff-fixture';
 import type * as ingress from '../ingress';
 
 const f = vi.hoisted(() => ({
@@ -56,10 +57,61 @@ beforeEach(() => {
   f.getSite.mockResolvedValue({ kind: 'success', data: f.site });
   f.bff.mockImplementation(async () => {
     expect(f.published).toBe(true);
-    return { response: null, session: null };
+    return { response: null, session: null, cookies: [], unavailable: false };
   });
 });
 describe('atomic host-first BFF middleware activation', () => {
+  it.each([
+    ['anonymous', {}],
+    ['authorization', { authorization: 'Bearer private-header-canary' }],
+    ['malformed-cookie', { cookie: '__Host-ls-session=private-cookie-canary' }],
+  ] as const)(
+    'enabled public %s input remains readable through the actual protocol',
+    async (kind, headers) => {
+      f.enabled = true;
+      const actual = bffFixture();
+      f.bff.mockImplementation(async (request) => ({
+        response: null,
+        ...(await actual.http.project({
+          host: 'institution.example.test:3000',
+          source: '203.0.113.1',
+          method: request.method,
+          target: '/en/courses',
+          headers: request.headers,
+          body: null,
+          signal: request.signal,
+        })),
+      }));
+      try {
+        const response = await middleware(
+          incoming('/en/courses', { ...headers, 'sec-fetch-dest': 'document' }),
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers.get('x-middleware-next')).toBe('1');
+        expect(response.headers.getSetCookie()).toEqual(
+          kind === 'malformed-cookie'
+            ? ['__Host-ls-session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax']
+            : [],
+        );
+        expect(actual.account).not.toHaveBeenCalled();
+        expect(actual.provider.begin).not.toHaveBeenCalled();
+      } finally {
+        await actual.store.stop();
+      }
+    },
+  );
+  it.each(['/studio', '/en/courses'])(
+    'a recoverable account outage at %s does not redirect to sign-in or clear cookies',
+    async (path) => {
+      f.enabled = true;
+      f.bff.mockResolvedValue({ response: null, session: null, cookies: [], unavailable: true });
+      const response = await middleware(incoming(path));
+      expect(response.status).toBe(path === '/studio' ? 503 : 200);
+      expect(response.headers.get('location')).toBeNull();
+      expect(response.headers.getSetCookie()).toEqual([]);
+      expect(response.headers.get('x-frame-options')).toBe('DENY');
+    },
+  );
   it('unknown host refuses before mode selection, cookies, owner or provider work', async () => {
     f.enabled = true;
     f.getSite.mockResolvedValue({ kind: 'api-error', status: 404, error: { code: 'not_found' } });
@@ -99,7 +151,12 @@ describe('atomic host-first BFF middleware activation', () => {
   });
   it('continues authenticated shells with no browser cookie, origin or authorization in downstream headers', async () => {
     f.enabled = true;
-    f.bff.mockResolvedValue({ response: null, session: { state: 'authenticated' } });
+    f.bff.mockResolvedValue({
+      response: null,
+      session: { state: 'authenticated' },
+      cookies: [],
+      unavailable: false,
+    });
     const response = await middleware(
       incoming('/studio', {
         cookie: 'private-canary',
@@ -111,6 +168,7 @@ describe('atomic host-first BFF middleware activation', () => {
     for (const key of ['cookie', 'origin', 'authorization'])
       expect(response.headers.get('x-middleware-request-' + key)).toBeNull();
     expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('x-frame-options')).toBe('DENY');
   });
   it('keeps root owned logout ahead of locale redirect and preserves only owner-authorized cookie edits', async () => {
     f.enabled = true;
@@ -121,7 +179,7 @@ describe('atomic host-first BFF middleware activation', () => {
         'set-cookie': '__Host-ls-logout-owned=; Secure; Path=/; Max-Age=0',
       },
     });
-    f.bff.mockResolvedValue({ response, session: null });
+    f.bff.mockResolvedValue({ response, session: null, cookies: [], unavailable: false });
     expect(await middleware(incoming('/?state=owned'))).toBe(response);
   });
   it('renders a bounded localized browser recovery document instead of provider error text', async () => {
@@ -132,6 +190,8 @@ describe('atomic host-first BFF middleware activation', () => {
         headers: { 'set-cookie': '__Host-ls-login-owned=; Secure; Path=/; Max-Age=0' },
       }),
       session: null,
+      cookies: [],
+      unavailable: false,
     });
     const response = await middleware(
       incoming('/api/auth/callback/keycloak?state=x', { accept: 'text/html' }),

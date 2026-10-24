@@ -15,7 +15,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { bffConfiguration } from './configuration';
+import { BffConfigurationError, bffConfiguration } from './configuration';
 
 const roots: string[] = [];
 const fields = {
@@ -42,6 +42,24 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 describe('atomic optional native BFF configuration', () => {
+  it.each([
+    ['activation', { LEARNSTACK_BFF_ENABLED: 'ambiguous-private-canary' }],
+    ['issuer', { ...fields, LEARNSTACK_BFF_ISSUER: 'private-malformed-issuer-canary' }],
+    ['client_secret', { ...fields, KEYCLOAK_WEB_CLIENT_SECRET: '' }],
+  ] as const)('reports the closed %s startup issue without input details', (issue, environment) => {
+    const f = fixture();
+    let error: unknown;
+    try {
+      bffConfiguration(f.root, environment);
+    } catch (value) {
+      error = value;
+    }
+    expect(error).toBeInstanceOf(BffConfigurationError);
+    expect(error).toMatchObject({ issue, reason: 'configuration' });
+    expect((error as Error).message).toBe('BFF provider: configuration');
+    expect(JSON.stringify(error)).not.toContain('private-canary');
+    expect(JSON.stringify(error)).not.toContain(f.root);
+  });
   it('absent/false remains public-only even with unrelated or conflicting secrets', () => {
     const f = fixture({ KEYCLOAK_WEB_CLIENT_SECRET: 'old-private' });
     expect(bffConfiguration(f.root, {})).toEqual({ enabled: false });
@@ -79,6 +97,11 @@ describe('atomic optional native BFF configuration', () => {
     expect(() => bffConfiguration(f.root, { [key]: 'different-private-canary' })).toThrow(
       'BFF provider: configuration',
     );
+    try {
+      bffConfiguration(f.root, { [key]: 'different-private-canary' });
+    } catch (error) {
+      expect(error).toMatchObject({ issue: 'source_conflict' });
+    }
   });
   it.each(['LEARNSTACK_BFF_ISSUER', 'KEYCLOAK_WEB_CLIENT_SECRET'] as const)(
     'true requires %s',
@@ -104,6 +127,11 @@ describe('atomic optional native BFF configuration', () => {
       }
       const metadata = lstatSync(path);
       expect(() => bffConfiguration(f.root, {})).toThrow('BFF provider: configuration');
+      try {
+        bffConfiguration(f.root, {});
+      } catch (error) {
+        expect(error).toMatchObject({ issue: kind === 'symlink' ? 'source_file' : 'private_file' });
+      }
       expect(readFileSync(path)).toEqual(before);
       expect(lstatSync(path)).toMatchObject({
         mode: metadata.mode,

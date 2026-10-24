@@ -4553,7 +4553,7 @@ structural test proves — and what it does not.
   Existing Implemented status and rule counts remain unchanged.
 - **Phase:** P02b-6 Steps 1/4.
 
-- **ADR-0070 Accepted extension — 2026-10-23, pending implementation:** Actual
+- **ADR-0070 Accepted extension — 2026-10-23, implemented:** Actual
   fresh/warm development provider-event storage covers the named login/logout/
   code/refresh success/error set. Effective prior selection, listeners/admin
   policy and qualified retention are preserved; conflicts refuse before any
@@ -4626,7 +4626,7 @@ structural test proves — and what it does not.
   Existing Implemented status and rule counts remain unchanged.
 - **Phase:** P02b-6 Steps 2–4.
 
-- **ADR-0070 Accepted extension — 2026-10-23, pending implementation:** Actual
+- **ADR-0070 Accepted extension — 2026-10-23, implemented:** Actual
   fresh/warm development provider-event storage covers the named login/logout/
   code/refresh success/error set. Effective prior selection, listeners/admin
   policy and qualified retention are preserved; conflicts refuse before any
@@ -5590,8 +5590,9 @@ The maintainer accepted [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.m
 and the five-step package on 2026-10-23. Step 5 delivers the complete local
 controls below, including actual warm-provider/API and separate HTTPS browser
 evidence, failure cleanup and nonzero-shutdown counters, and the stopped-provider
-public demo. Exact-source hosted A/B and review closeout remain packet gates;
-local implementation alone claims no hosted timing fit.
+public demo. The phase Status and dated correction records own current review
+and exact-source hosted qualification; local implementation alone claims no
+hosted timing fit. Prior receipts do not qualify subsequent source changes.
 
 #### `Bff_Credentials_And_Projections_Are_Confined`
 

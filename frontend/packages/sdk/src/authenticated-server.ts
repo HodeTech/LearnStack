@@ -7,7 +7,6 @@ export type AuthenticatedServerSdk = {
   getAccountSite(options?: Readonly<{ signal?: AbortSignal }>): Promise<ApiResult<AccountSite>>;
 };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const actor = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function identifier(value: unknown) {
   return (
     typeof value === 'string' &&
@@ -19,8 +18,7 @@ export function isAccountSite(value: unknown): value is AccountSite {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const object = value as Record<string, unknown>;
   return (
-    typeof object.actorId === 'string' &&
-    actor.test(object.actorId) &&
+    identifier(object.actorId) &&
     identifier(object.tenantId) &&
     (object.organizationId === null || identifier(object.organizationId)) &&
     isSuccess('GetPublicSite', object.site)

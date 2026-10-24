@@ -233,6 +233,11 @@ projection. Verified host, browser binding, epoch and server state are required.
   changes no cookies; verified failure clears only its own transaction cookie.
   Logout revokes locally first, discards tokens after URL construction and keeps
   only its bounded return proof/accounting. Late cookie delivery can force sign-in.
+- A failed ordinary AccountSite availability check denies the response without
+  revoking a live session or touching idle time. An explicit identity refusal or
+  actor/scope conflict revokes. Every failed post-refresh authority check revokes
+  under the existing consumed-grant uncertainty rule. Public pages remain
+  anonymous; temporarily unavailable protected reads return 503.
 - Explicit BFF opt-in validates issuer/secret together. Disabled mode keeps public
   requests independent of Keycloak; auth paths are 404 and protected shells 503.
   Restart signs sessions out. Multiple web processes require Phase 11's distributed

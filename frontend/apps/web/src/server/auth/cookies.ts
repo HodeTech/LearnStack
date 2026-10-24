@@ -60,3 +60,33 @@ export function clearBffCookie(name: string): string {
   bffCookie(name, 'A'.repeat(43), 1);
   return name + '=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax';
 }
+
+/** Recovery deletes only names in our host-cookie namespace; it never reflects values. */
+export function clearMalformedBffCookies(header: string | null): readonly string[] {
+  const names = new Map<string, { pair: string; count: number }>();
+  let inputBytes = 0;
+  for (const member of (header ?? '').split(';')) {
+    const pair = member.trim();
+    const name = pair.split('=', 1)[0]!;
+    if (!name.startsWith(prefix) || !/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name)) continue;
+    inputBytes += Buffer.byteLength(pair) + 2;
+    names.set(name, { pair, count: (names.get(name)?.count ?? 0) + 1 });
+  }
+  const edits: string[] = [];
+  let bytes = 0;
+  for (const [name, { pair, count }] of names) {
+    if (count === 1 && inputBytes <= AUTH_INPUT_LIMIT) {
+      try {
+        bffCookies(pair);
+        continue;
+      } catch (error) {
+        if (!(error instanceof BffInputError)) throw error;
+      }
+    }
+    const edit = name + '=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax';
+    if (bytes + Buffer.byteLength(edit) > AUTH_INPUT_LIMIT) break;
+    bytes += Buffer.byteLength(edit);
+    edits.push(edit);
+  }
+  return Object.freeze(edits);
+}

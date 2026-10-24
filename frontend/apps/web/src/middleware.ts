@@ -115,10 +115,17 @@ export async function middleware(request: NextRequest) {
             'content-type': 'text/html; charset=utf-8',
             'referrer-policy': 'no-referrer',
             'x-content-type-options': 'nosniff',
+            'x-frame-options': 'DENY',
             ...(status === 429 || status === 503 ? { 'retry-after': '30' } : {}),
           },
         },
       );
+    let cookieEdits: readonly string[] = [];
+    const bffResponse = (response: NextResponse) => {
+      for (const cookie of cookieEdits) response.headers.append('set-cookie', cookie);
+      if (enabled) response.headers.set('x-frame-options', 'DENY');
+      return response;
+    };
     if (!enabled && authPath) return finish(refusal(request.method, 404));
     if (!enabled && protectedPath) return finish(document('unavailable', 503));
     if (enabled) {
@@ -126,6 +133,7 @@ export async function middleware(request: NextRequest) {
       const bff = await admitBffHttp(request, context, signal, (page) =>
         renderBffDocument(bootstrap.data, page),
       );
+      cookieEdits = bff.cookies;
       if (bff.response) {
         if (
           bff.response.status >= 400 &&
@@ -140,17 +148,18 @@ export async function middleware(request: NextRequest) {
           );
           for (const cookie of bff.response.headers.getSetCookie())
             response.headers.append('set-cookie', cookie);
-          return response;
+          return bffResponse(response);
         }
-        return bff.response;
+        return bffResponse(bff.response);
       }
+      if (protectedPath && bff.unavailable) return bffResponse(document('unavailable', 503));
       if (protectedPath && !bff.session) {
         const response = NextResponse.redirect(
           publicRedirect(context.host, '/api/auth/signin?returnTo=' + encodeURIComponent(path)),
           303,
         );
         response.headers.set('cache-control', 'no-store');
-        return response;
+        return bffResponse(response);
       }
     }
     if (entry.kind === 'redirect') {
@@ -159,7 +168,7 @@ export async function middleware(request: NextRequest) {
         entry.status,
       );
       response.headers.set('cache-control', 'no-store');
-      return enabled ? response : finish(response);
+      return enabled ? bffResponse(response) : finish(response);
     }
     // Next's pinned adapter hides Flight headers here and restores them after
     // middleware. Rebuild ordinary headers; protocol restoration is proved by
@@ -175,7 +184,7 @@ export async function middleware(request: NextRequest) {
     });
     response.headers.set('cache-control', 'no-store');
     if (!enabled) admission.publish(bootstrap.data);
-    return response;
+    return bffResponse(response);
   } catch {
     try {
       admission?.refuse();

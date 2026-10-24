@@ -1,6 +1,6 @@
-import { AccountShell } from '@/components/auth/shell';
+import { AccountShell, accountShellMetadata } from '@/components/auth/shell';
 
-export const metadata = { robots: { index: false, follow: false } };
+export const generateMetadata = () => accountShellMetadata('portal');
 export default function PortalHomePage() {
   return <AccountShell kind="portal" />;
 }

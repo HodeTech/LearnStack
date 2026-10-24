@@ -25,6 +25,7 @@ export async function AccountShell({ kind }: { readonly kind: 'studio' | 'portal
     unchanged: copy('session.unchanged'),
     maximum: copy('session.maximum'),
     failed: copy('session.failed'),
+    expired: copy('session.expired'),
     reauthenticate: copy('session.reauthenticate'),
   };
   return (
@@ -47,4 +48,14 @@ export async function AccountShell({ kind }: { readonly kind: 'studio' | 'portal
       </SessionControls>
     </section>
   );
+}
+
+export async function accountShellMetadata(kind: 'studio' | 'portal') {
+  const { request } = await requirePublicResource();
+  assertPublicRequestActive(request);
+  const { copy } = createAuthTranslator(request.site.defaultLocale);
+  return {
+    title: kind === 'studio' ? copy('shell.studio') : copy('shell.portal'),
+    robots: { index: false, follow: false },
+  };
 }

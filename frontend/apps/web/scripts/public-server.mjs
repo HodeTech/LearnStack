@@ -4,7 +4,8 @@ import { createServer } from 'node:https';
 import { fileURLToPath } from 'node:url';
 
 import { delegateDevelopmentHmr } from './development-hmr.mjs';
-import { bffConfiguration } from '../.server/auth/configuration.js';
+import { BffConfigurationError, bffConfiguration } from '../.server/auth/configuration.js';
+import { protectBffLogoutResponse } from '../.server/auth/logout-response.js';
 import {
   admitIncomingRequest,
   loadLocalEnvironment,
@@ -19,6 +20,8 @@ import { installPublicAdmissionRuntime } from '../.server/public-admission-runti
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 try {
+  // The native provider/API transports never inherit an ambient TLS bypass.
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '1';
   // A nonempty exclusion survives debug initialization and prevents later dotenv
   // loading from restoring diagnostics. Apply it before importing any Next code.
   process.env.DEBUG = '-*';
@@ -83,6 +86,8 @@ try {
         return refuseIngress(response);
       const binding = verifyProvenance(request.headers[INGRESS_HEADER], configuration.secret);
       if (!binding) return refuseIngress(response);
+      if (bff.enabled && binding.method === 'POST' && binding.target === '/api/auth/signout')
+        protectBffLogoutResponse(response, bff.issuer, binding.host);
       // No request, credential or provider-error values enter launcher diagnostics.
       Promise.resolve()
         .then(() =>
@@ -146,7 +151,9 @@ try {
   server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1', () => {
     console.warn(`Public HTTPS listener ready on 127.0.0.1:${PUBLIC_HTTPS_PORT}`);
   });
-} catch {
-  console.error('Public server configuration or startup failed');
+} catch (error) {
+  if (error instanceof BffConfigurationError)
+    console.error(`Public server BFF configuration refused: ${error.issue}`);
+  else console.error('Public server configuration or startup failed');
   process.exit(1);
 }

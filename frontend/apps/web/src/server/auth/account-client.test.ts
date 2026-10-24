@@ -108,7 +108,7 @@ describe('configured exact AccountSite capability', () => {
   it.each([
     response(account, 201),
     response(account, 200, 'text/html'),
-    response({ ...account, actorId: tenantId }),
+    response({ ...account, actorId: '00000000-0000-0000-0000-000000000000' }),
     response({}, 503, 'application/problem+json'),
   ])('fails closed on unexpected status/media/identity/problem', async (bad) => {
     await expect(

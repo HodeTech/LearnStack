@@ -237,6 +237,7 @@ export function productionDemoSources(
       'src/server/auth/account-client.ts',
       'src/server/auth/configuration.ts',
       'src/server/auth/http-protocol.ts',
+      'src/server/auth/logout-response.ts',
       'src/server/auth/provider-core.ts',
       'src/server/auth/request-runtime.ts',
       'src/server/auth/session-runtime.ts',

@@ -96,6 +96,7 @@ The cost is one more service to operate. That is acceptable: self-hosted infrast
 |---|---|---|
 | User credentials (password hash, MFA factors) | yes | no |
 | OIDC tokens (issuance, signing keys) | yes | no |
+| BFF access/refresh/ID-token custody | no | native web session owner ([ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)) |
 | Federation with social/SAML/OIDC providers | yes | no |
 | Email verification, password reset emails | yes (or LearnStack via SMTP delegation) | no |
 | Global `User` record (canonical identity, email) | mirrored | source for application data |
@@ -138,29 +139,37 @@ decision before its first consumer.
 ```mermaid
 sequenceDiagram
     participant Browser
-    participant Web as Next.js
-    participant BFF as Next.js BFF
+    participant Web as Native Next.js BFF
     participant KC as Keycloak
     participant API as .NET API
 
     Browser->>Web: GET /studio
-    Web->>Browser: redirect to KC /auth (PKCE)
+    Web-->>Browser: 303 /api/auth/signin?returnTo=/studio
+    Browser->>Web: GET /api/auth/signin?returnTo=/studio
+    Web-->>Browser: Same-origin sign-in form and CSRF proof
+    Browser->>Web: POST /api/auth/signin/keycloak (Origin + CSRF)
+    Web-->>Browser: 303 Keycloak authorization URL (PKCE)
     Browser->>KC: login form
-    KC->>Browser: redirect with code
-    Browser->>BFF: GET /api/auth/callback/keycloak?code=...
-    BFF->>KC: POST /token (exchange)
-    KC-->>BFF: access_token + refresh_token + id_token
-    BFF->>BFF: set HttpOnly cookie 'session'
-    BFF->>Browser: redirect to /studio/dashboard
-    Browser->>BFF: GET /api/courses
-    BFF->>API: GET /api/v1/account/site (Bearer, verified host)
-    API->>API: validate JWT signature against KC JWKS
-    API-->>BFF: tenant-scoped response
-    BFF-->>Browser: response
+    KC-->>Browser: Redirect with bound code/state/issuer
+    Browser->>Web: GET /api/auth/callback/keycloak
+    Web->>KC: POST /token (code + PKCE verifier)
+    KC-->>Web: access_token + refresh_token + id_token
+    Web->>API: GET /api/v1/account/site (Bearer, verified host)
+    API->>API: Validate JWT and independent host scope
+    API-->>Web: Read-only AccountSite witness
+    Web->>Web: Retain credentials in the session store
+    Web-->>Browser: 303 /studio + host-only opaque cookies
+    Browser->>Web: GET /studio (document navigation)
+    Web->>API: GET /api/v1/account/site (current access token)
+    API-->>Web: Independently validated AccountSite
+    Web-->>Browser: Protected shell and safe session projection
 ```
 
 Key details:
 
+- Anonymous Studio entry uses the local sign-in form before provider navigation.
+  The response owner performs the exact authenticated AccountSite read; there is
+  no general `/api/courses` BFF proxy or `/studio/dashboard` route in this packet.
 - **PKCE only.** No implicit flow, no client secrets in the browser.
 - **Cookies, not localStorage.** Tokens never enter JavaScript; the BFF holds them.
 - **Short access token TTL.** [Security Standards](../standards/11-security.md#authentication)
@@ -169,6 +178,21 @@ Key details:
   P02b-6's realm export/reconciler owns its executable value and enforcement.
   ADR-0064 bounds API acceptance; P02b-7 owns BFF refresh and session lifetimes.
 - **JWKS rotation.** API validates tokens against Keycloak's JWKS endpoint, with key caching and rotation handling built into the .NET OIDC middleware.
+
+### Current BFF support boundary
+
+The qualified BFF environment is one native web process with the private
+loopback listener and pinned tenant development realm. Its session store is
+volatile; restart requires sign-in. An HTTPS issuer accepted by a production
+web build does not establish production identity-event retention, proxy
+provenance or deployment readiness. [Phase 11](../roadmap/phase-11-production-hardening.md)
+owns that qualification and the distributed adapter before multiple web
+processes serve one session.
+
+Source admission counts canonical verified visitor IPs, not people or IPv6
+prefixes. Multiple addresses can consume the global pending allowance; clients
+sharing a reverse proxy's socket peer can share one source allowance. No
+prefix fairness or general proxy deployment is established by the local proof.
 
 ## Tenant Resolution Across Identity
 

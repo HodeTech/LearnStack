@@ -102,6 +102,25 @@ function harness(f: ReturnType<typeof bffFixture>) {
   };
 }
 describe('pinned Next / native BFF admission seam', () => {
+  it('malformed public auth input publishes anonymous admission and response-owned cookie recovery', async () => {
+    const f = fixture();
+    const h = harness(f);
+    try {
+      const result = await h.run('/en/courses', {
+        cookie: '__Host-ls-session=private-malformed-canary; foreign=keep',
+        extra: { 'sec-fetch-dest': 'document' },
+      });
+      expect(result.response).toBeNull();
+      expect(result.session).toBeNull();
+      expect(result.unavailable).toBe(false);
+      expect(result.cookies).toEqual([
+        '__Host-ls-session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
+      ]);
+      expect(f.account).not.toHaveBeenCalled();
+    } finally {
+      h.stop();
+    }
+  });
   it('a real NextRequest POST consumes only verified native authority and returns all distinct host cookies', async () => {
     const f = fixture();
     const h = harness(f);
@@ -144,7 +163,7 @@ describe('pinned Next / native BFF admission seam', () => {
       const result = await h.run('/studio?inert=a%20b', {
         cookie: active.cookie,
         observed: '/studio?inert=a+b',
-        extra: { accept: 'text/html' },
+        extra: { 'sec-fetch-dest': 'document' },
       });
       expect(result.session?.state).toBe('authenticated');
       expect(f.account).toHaveBeenCalledTimes(2);

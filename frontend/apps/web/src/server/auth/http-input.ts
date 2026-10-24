@@ -36,9 +36,7 @@ export function bffActivity(method: string, headers: Headers): 'read' | 'passive
       .includes('prefetch')
   )
     return 'passive';
-  return headers.get('rsc') === '1' ||
-    headers.get('sec-fetch-dest') === 'document' ||
-    headers.get('accept')?.includes('text/html')
+  return headers.get('rsc') === '1' || headers.get('sec-fetch-dest') === 'document'
     ? 'read'
     : 'passive';
 }

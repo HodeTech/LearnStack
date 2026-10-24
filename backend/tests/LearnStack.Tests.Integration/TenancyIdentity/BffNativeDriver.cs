@@ -54,7 +54,8 @@ internal sealed class BffNativeDriver : IAsyncDisposable
 
     internal string TemporaryRoot => _temporaryRoot;
 
-    internal static async Task<BffNativeDriver> StartAsync(string root, object configuration, bool shutdownCounter = false, bool heldBuild = false)
+    internal static async Task<BffNativeDriver> StartAsync(string root, object configuration, bool shutdownCounter = false, bool heldBuild = false,
+        Action? secondaryCleanupFailure = null)
     {
         var driver = new BffNativeDriver(root, counter: shutdownCounter, heldBuild: heldBuild);
         try
@@ -63,9 +64,14 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             await driver.ReadAsync(heldBuild ? "held-build" : "ready");
             return driver;
         }
-        catch
+        catch (Exception error) when (Catchable(error))
         {
-            await driver.DisposeAsync();
+            try { await driver.DisposeAsync(); }
+            catch (Exception cleanup) when (Catchable(cleanup))
+            {
+                try { secondaryCleanupFailure?.Invoke(); }
+                catch (Exception observation) when (Catchable(observation)) { }
+            }
             throw;
         }
     }
@@ -230,8 +236,9 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             {
                 var closed = prefix + stage + "\n";
                 if (!overflow && text.ToString() == closed) return stage;
-                if (!overflow && prefix == "BFF browser fixture failed: "
-                    && text.ToString() == closed + "BFF browser cleanup failed.\n") return stage + "_cleanup_failed";
+                var cleanup = prefix == "BFF browser fixture failed: "
+                    ? "BFF browser cleanup failed.\n" : "BFF session cleanup failed.\n";
+                if (!overflow && text.ToString() == closed + cleanup) return stage + "_cleanup_failed";
                 if (text.ToString().Contains(closed, StringComparison.Ordinal)) return stage + "_unexpected_output";
             }
         foreach (var (pattern, reason) in new[] { ("ERR_MODULE_NOT_FOUND", "node_module_missing"),

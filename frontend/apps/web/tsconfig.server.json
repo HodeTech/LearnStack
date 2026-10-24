@@ -17,7 +17,8 @@
     "src/server/auth/account-client.ts",
     "src/server/auth/request-runtime.ts",
     "src/server/auth/http-protocol.ts",
-    "src/server/auth/configuration.ts"
+    "src/server/auth/configuration.ts",
+    "src/server/auth/logout-response.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

@@ -1570,6 +1570,33 @@ except launcher.Refusal as failure:
             self.refuses('execution_incomplete', incomplete.line,
                          self.execution_complete(cases[:1], tail=cases[:1]).encode())
 
+    def test_missing_or_invalid_execution_and_trx_durations_are_not_completion_evidence(self):
+        case = self.case(1)
+        stream = io.StringIO()
+        clean = self.progress(self.root / 'duration-clean.diag', 'LearnStack.Tests.Integration', [case], stream)
+        with contextlib.redirect_stdout(io.StringIO()):
+            clean.results({'NewTestResults': [self.execution_result(case)]})
+        self.assertEqual('00:00:00.0010000', json.loads(stream.getvalue())['duration'])
+        for index, duration in enumerate((None, '', '-00:00:01', 'PRIVATE-CANARY', 1)):
+            result = self.execution_result(case)
+            if duration is None:
+                result.pop('Duration')
+            else:
+                result['Duration'] = duration
+            progress = self.progress(self.root / f'duration-{index}.diag',
+                                     'LearnStack.Tests.Integration', [case], io.StringIO())
+            self.refuses('execution_duration_invalid', progress.results, {'NewTestResults': [result]})
+            path = self.trx(self.root / f'trx-duration-{index}', [case], raw_canary=True)
+            root = ET.parse(path)
+            row = root.find('t:Results/t:UnitTestResult', self.owner.NS)
+            if duration is None:
+                row.attrib.pop('duration')
+            else:
+                row.set('duration', str(duration))
+            root.write(path, encoding='utf-8')
+            self.refuses('trx_duration_invalid', self.owner.trx_cases, path, sanitize=True)
+            self.assertIn(b'PRIVATE-CANARY', path.read_bytes())
+
     def test_rotated_execution_preserves_old_tail_partial_line_and_exact_case_ids(self):
         cases = self.population()['ordinary']
         path = self.root / 'rotate.diag'

@@ -35,7 +35,6 @@ type ProviderInput = Readonly<{
 }>;
 type Operation = ReturnType<typeof providerOperation>;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const actor = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const allZero = '00000000-0000-0000-0000-000000000000';
 
 function identity(claims: oidc.IDToken | undefined, issuer: string): ProviderIdentity {
@@ -47,7 +46,8 @@ function identity(claims: oidc.IDToken | undefined, issuer: string): ProviderIde
     claims.sub.length > 1024 ||
     /[\r\n]/.test(claims.sub) ||
     typeof claims.user_id !== 'string' ||
-    !actor.test(claims.user_id) ||
+    !uuid.test(claims.user_id) ||
+    claims.user_id === allZero ||
     typeof claims.tenant_id !== 'string' ||
     !uuid.test(claims.tenant_id) ||
     claims.tenant_id === allZero ||

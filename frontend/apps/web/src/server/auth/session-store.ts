@@ -574,7 +574,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         this.#account(entry, credentials, account, entry.account);
       } catch (error) {
         const reason = this.#reason(error);
-        if (entry.phase !== 'logout') this.#close(entry);
+        // An ordinary read consumes no provider grant. A failed authority check
+        // denies this response, but only a proven identity refusal revokes the
+        // live session. Refresh above retains its stricter uncertainty fence.
+        if (reason === 'identity' && entry.phase !== 'logout') this.#close(entry);
         this.#diagnostic(reason);
         throw new BffSessionError(reason);
       }

@@ -213,6 +213,9 @@ try {
         headers: {
           host: site.host,
           accept: 'text/html',
+          ...(command.method === 'GET' && ['/studio', '/portal'].includes(path.pathname)
+            ? { 'sec-fetch-dest': 'document' }
+            : {}),
           ...(command.method === 'POST'
             ? {
                 origin: 'https://' + site.host,
@@ -283,6 +286,7 @@ try {
   }
   clearTimeout(deadline);
   process.stdin.destroy();
-  process.stderr.write('BFF session fixture failed: ' + (cleanup ? stage : 'cleanup') + '\n');
+  process.stderr.write('BFF session fixture failed: ' + stage + '\n');
+  if (!cleanup) process.stderr.write('BFF session cleanup failed.\n');
   process.exitCode = 1;
 }

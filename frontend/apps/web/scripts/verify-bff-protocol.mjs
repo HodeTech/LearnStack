@@ -1,4 +1,5 @@
-// Test-owned production Next copy. Fake grant/account capabilities; real chain is separate.
+// Minimal production-mode Next protocol harness. --ui uses current product middleware/UI.
+// Fake grant/account capabilities; the real provider/API chain has a separate owner.
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { mkdtempSync, readFileSync } from 'node:fs';
@@ -36,12 +37,15 @@ try {
         ].includes(process.argv[2])),
     'closed proof mode',
   );
-  const { app, server, advance, get, scanners } = await startBffProof({
+  const { app, server, advance, get, scanners, cookieCanaries } = await startBffProof({
     owner,
     root,
     privateValues,
     secret,
     marker,
+    fakeLogout:
+      'https://identity.example.test/realms/learnstack/protocol/openid-connect/logout?id_token_hint=' +
+      marker,
     devMode,
     uiMode,
     mutation:
@@ -60,7 +64,7 @@ try {
     stage = 'ui-signin';
     for (const [host, label] of [
       ['institution.example.test:3000', 'Continue to sign in'],
-      ['other.example.test:3000', 'Giriş yapmaya devam et'],
+      ['other.example.test:3000', 'Giriş yapmaya devam edin'],
     ]) {
       const page = await get('/api/auth/signin?returnTo=%2Fstudio', undefined, {
         headers: { host, Accept: 'text/html' },
@@ -238,6 +242,11 @@ try {
     body: 'csrfToken=' + projection.csrfToken,
   });
   assert.equal(logout.status, 303);
+  assert.equal(
+    logout.body.includes(marker),
+    false,
+    'logout credentials never enter a redirect body',
+  );
   stage = 'revocation';
   const refused = await get('/studio', active);
   if (uiMode) {
@@ -275,7 +284,7 @@ try {
     } catch (error) {
       if (error?.code !== 'ENOENT') throw error;
     }
-    for (const canary of [callbackCode, errorCanary, state, logoutState]) {
+    for (const canary of [callbackCode, errorCanary, state, logoutState, ...cookieCanaries]) {
       stage = 'dev-trace';
       assert.equal(trace.includes(canary), false, 'no auth URL value in persisted trace');
       stage = 'dev-console';
@@ -308,12 +317,14 @@ try {
         : 'BFF native Next protocol: passed\n',
   );
 } catch {
+  let clean = true;
   try {
     await owner.dispose();
   } catch {
-    stage = 'cleanup';
+    clean = false;
   }
   clearTimeout(deadline);
   process.stderr.write('BFF native Next protocol failed: ' + stage + '\n');
+  if (!clean) process.stderr.write('BFF protocol cleanup failed.\n');
   process.exitCode = 1;
 }

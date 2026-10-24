@@ -7,6 +7,7 @@ import { request } from 'node:https';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createBffCookieScanner, rememberBffCookies } from './bff-proof-support.mjs';
 import { createPrivateScanner, fixtureEnvironment } from './fixture-support.mjs';
 const source = fileURLToPath(new URL('../', import.meta.url));
 function file(path, value) {
@@ -28,7 +29,8 @@ export async function startBffProof({
   mutation,
   clockBase = 1800000000000,
   external,
-  fakeLogout = 'https://identity.example.test/logout',
+  fakeIssuer = 'https://identity.example.test/realms/learnstack',
+  fakeLogout = fakeIssuer + '/protocol/openid-connect/logout',
   mark = () => {},
   sites = [
     { host: 'institution.example.test:3000', displayName: 'Institution', locale: 'en' },
@@ -37,6 +39,9 @@ export async function startBffProof({
 }) {
   const app = join(root, 'frontend/apps/web');
   const scanners = [];
+  // CSRF cookies may appear in their intended HTML/JSON response. They remain
+  // forbidden in child/browser diagnostics, independently of body projections.
+  const cookieCanaries = [];
   function child(args, env, ipc = false) {
     owner.assertActive();
     const process = owner.ownChild(
@@ -48,10 +53,17 @@ export async function startBffProof({
       }),
     );
     const scanner = createPrivateScanner(privateValues);
-    scanners.push(scanner);
+    const cookieScanner = createBffCookieScanner(cookieCanaries);
+    scanners.push(scanner, cookieScanner);
     for (const stream of [process.stdout, process.stderr]) {
-      stream.on('data', (chunk) => scanner.push(chunk));
-      stream.once('end', () => scanner.finish());
+      stream.on('data', (chunk) => {
+        scanner.push(chunk);
+        cookieScanner.push(chunk);
+      });
+      stream.once('end', () => {
+        scanner.finish();
+        cookieScanner.finish();
+      });
     }
     process.once('error', () => {});
     return {
@@ -94,9 +106,14 @@ export async function startBffProof({
           });
           response.once('error', reject);
           response.once('aborted', () => reject(new Error('owned response aborted')));
-          response.once('end', () =>
-            resolve({ status: response.statusCode, headers: response.headers, body }),
-          );
+          response.once('end', () => {
+            try {
+              rememberBffCookies(response.headers['set-cookie'], cookieCanaries);
+              resolve({ status: response.statusCode, headers: response.headers, body });
+            } catch (error) {
+              reject(error);
+            }
+          });
         },
       );
       // A real callback can traverse three separate ten-second owners: bootstrap,
@@ -129,6 +146,7 @@ export async function startBffProof({
     'http-input',
     'http-paths',
     'http-protocol',
+    'logout-response',
     'provider',
     'provider-core',
     'provider-error',
@@ -268,8 +286,8 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
   if (!external) {
     launcher = replace(
       launcher,
-      "import { bffConfiguration } from '../.server/auth/configuration.js';",
-      "import { bffConfiguration } from '../.server/auth/configuration.js';\nimport { randomBytes } from 'node:crypto';",
+      "import { BffConfigurationError, bffConfiguration } from '../.server/auth/configuration.js';",
+      "import { BffConfigurationError, bffConfiguration } from '../.server/auth/configuration.js';\nimport { randomBytes } from 'node:crypto';",
     );
     launcher = replace(
       launcher,
@@ -280,8 +298,8 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     };`,
       `    let now = 0; let refreshes = 0; let accounts = 0;
     process.on('message', async value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; await (await import('next/dist/trace/index.js')).flushAllTraces(); process.send?.({ kind: 'snapshot', now, refreshes, accounts }); } });
-    const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: 'https://identity.example.test/realms/learnstack', subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
-    const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: 'https://identity.example.test/authorize' }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => ${JSON.stringify(fakeLogout)} }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName }); }, clock: { monotonic: () => now, utc: () => ${clockBase} + now } };`,
+    const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
+    const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: ${JSON.stringify(fakeIssuer + '/protocol/openid-connect/auth')} }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => ${JSON.stringify(fakeLogout)} }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName }); }, clock: { monotonic: () => now, utc: () => ${clockBase} + now } };`,
     );
   }
   file(join(app, 'scripts/public-server.mjs'), launcher);
@@ -350,7 +368,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     root,
     bffValues: {
       LEARNSTACK_BFF_ENABLED: 'true',
-      LEARNSTACK_BFF_ISSUER: external?.issuer ?? 'https://identity.example.test/realms/learnstack',
+      LEARNSTACK_BFF_ISSUER: external?.issuer ?? fakeIssuer,
       KEYCLOAK_WEB_CLIENT_SECRET: external?.clientSecret ?? marker,
     },
     privateValues: {
@@ -418,7 +436,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     assert.ok(Date.now() < until, 'listener startup deadline');
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  return { app, server, advance, get, scanners };
+  return { app, server, advance, get, scanners, cookieCanaries };
 }
 export const jar = (response) =>
   (response.headers['set-cookie'] ?? [])

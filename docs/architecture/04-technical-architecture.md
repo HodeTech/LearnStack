@@ -148,7 +148,9 @@ Future options (deferred): schema-per-tenant for enterprise tenants, read replic
 - **Idempotency keys** for `POST` operations that have external side effects (payments, webhooks, send-notification).
 - **Optimistic concurrency** for any mutable entity, on an explicit `row_version bigint` column ([ADR-0039](../decisions/0039-optimistic-concurrency-token.md)). `xmin` is not used as a concurrency token.
 - **API versioning** via URL prefix: `/api/v1/...`. Breaking changes bump to `/api/v2/...`; non-breaking additions stay on the existing version. See [ADR-0024](../decisions/0024-api-versioning-policy.md), which fixed exactly this `/v1/` vs `/api/v1/` inconsistency.
-- **Authentication** via OIDC bearer tokens issued by Keycloak. Frontends use Auth.js to bridge.
+- **Authentication** via OIDC bearer tokens issued by Keycloak. The native web
+  BFF uses openid-client and owns server-side token custody under
+  [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md).
 - **Authorization** layered: tenant scope → role/permission → resource ownership where applicable.
 
 GraphQL is not in scope for the MVP. Revisit only when a frontend surface (e.g. studio query workload) demonstrably needs it.

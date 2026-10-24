@@ -61,10 +61,12 @@ export async function admitBffHttp(
     return Object.freeze({
       response: new NextResponse(response.body, { status: response.status, headers }),
       session: null,
+      cookies: [],
+      unavailable: false,
     });
   }
-  const session = await protocol.project(input, bffRequestOwner().activity(context));
+  const projected = await protocol.project(input, bffRequestOwner().activity(context));
   active();
-  bffRequestOwner().publish(context, session);
-  return Object.freeze({ response: null, session });
+  bffRequestOwner().publish(context, projected.session);
+  return Object.freeze({ response: null, ...projected });
 }

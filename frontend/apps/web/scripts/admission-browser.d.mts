@@ -48,6 +48,7 @@ export function waitForBrowserDevTools(options: {
   readonly assertActive: () => void;
   readonly isLive: () => boolean;
   readonly readPort: () => BrowserPortObservation;
+  readonly timeout?: number;
 }): Promise<number>;
 export function waitForBrowserPage(options: {
   readonly assertActive: () => void;

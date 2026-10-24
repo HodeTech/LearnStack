@@ -174,7 +174,7 @@ async function flush() {
   for (let i = 0; i < 12; ++i) await Promise.resolve();
 }
 
-describe('native BFF ownership and bounded projection', () => {
+describe('Bff_Session_Refresh_And_Revocation_Have_One_Owner', () => {
   it('stores credentials privately and projects only closed immutable display/deadline/CSRF fields', async () => {
     const f = fixture();
     expect(f.provider.begin).not.toHaveBeenCalled();
@@ -460,6 +460,73 @@ describe('browser elections and explicit replacement', () => {
 });
 
 describe('effective deadlines and one refresh owner', () => {
+  for (const reason of ['transport', 'deadline', 'response', 'provider_refused'] as const) {
+    it(
+      'denies a failed ordinary API read without revoking or touching the live session: ' + reason,
+      async () => {
+        const f = fixture();
+        const { binding } = await f.login();
+        const before = f.store.peek(binding);
+        f.advance(10_000);
+        f.account.mockRejectedValueOnce(new BffProviderError(reason));
+        await expect(f.store.admit(binding, source, 'read')).rejects.toMatchObject({ reason });
+        expect(f.store.peek(binding)).toEqual(before);
+        expect(f.store.counts()).toMatchObject({ owners: 1, subjects: 1, operations: 0 });
+        expect(f.provider.refresh).not.toHaveBeenCalled();
+        expect(f.diagnostics).toEqual([reason]);
+        await expect(f.store.admit(binding, source, 'read')).resolves.toMatchObject({
+          state: 'authenticated',
+        });
+        expect(f.store.peek(binding)).not.toBeNull();
+      },
+    );
+
+    it(
+      'revokes if the same API failure prevents validation of an already consumed refresh grant: ' +
+        reason,
+      async () => {
+        const f = fixture();
+        const { binding } = await f.login();
+        f.account.mockRejectedValueOnce(new BffProviderError(reason));
+        await expect(f.store.admit(binding, source, 'extend')).rejects.toMatchObject({ reason });
+        expect(f.provider.refresh).toHaveBeenCalledTimes(1);
+        expect(f.store.peek(binding)).toBeNull();
+        await expect(f.store.admit(binding, source, 'read')).rejects.toMatchObject({
+          reason: 'revoked',
+        });
+        expect(f.provider.refresh).toHaveBeenCalledTimes(1);
+      },
+    );
+  }
+
+  it('revokes an ordinary read on a proven API identity refusal', async () => {
+    const f = fixture();
+    const { binding } = await f.login();
+    f.account.mockRejectedValueOnce(new BffProviderError('identity'));
+    await expect(f.store.admit(binding, source, 'read')).rejects.toMatchObject({
+      reason: 'identity',
+    });
+    expect(f.store.peek(binding)).toBeNull();
+    expect(f.store.counts().owners).toBe(0);
+  });
+
+  it('uses the rotated refresh token for the next grant and preserves it only when replacement is omitted', async () => {
+    const f = fixture();
+    const { binding } = await f.login();
+    const rotated = privateCanary + '-rotated';
+    f.setTokens({ refreshToken: rotated });
+    await f.store.admit(binding, source, 'extend');
+    f.setTokens({ refreshToken: undefined });
+    await f.store.admit(binding, source, 'extend');
+    await f.store.admit(binding, source, 'extend');
+    expect(vi.mocked(f.provider.refresh).mock.calls.map((call) => call[0])).toEqual([
+      privateCanary,
+      rotated,
+      rotated,
+    ]);
+    expect(JSON.stringify(f.store.peek(binding))).not.toContain(rotated);
+  });
+
   it('passive reads do not touch idle or call API/provider, while access-expired live activity refreshes once', async () => {
     const f = fixture();
     const { binding } = await f.login();

@@ -22,7 +22,7 @@ const projection = () => ({
   limitedByAbsolute: false,
   csrfToken: bffOpaque(),
 });
-describe('native request projection boundary', () => {
+describe('Bff_Credentials_And_Projections_Are_Confined', () => {
   it('isolates overlapping equal bindings and closes escaped readers on actual response completion', async () => {
     const runtime = createBffRequestRuntime();
     const first = lifetime();
@@ -125,7 +125,7 @@ describe('native request projection boundary', () => {
       }),
     ).toBe('');
   });
-  it('the actual production Next middleware and RSC bundles preserve native session authority through HTTP', () => {
+  it('the minimal production-mode Next protocol harness preserves native session authority through HTTP', () => {
     const script = new URL('../../scripts/verify-bff-protocol.mjs', import.meta.url);
     expect(
       execFileSync(process.execPath, [script.pathname], {

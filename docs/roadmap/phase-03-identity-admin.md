@@ -145,7 +145,8 @@ the table it lives in and who may write it.
 
 | Attribute class | Owner | Storage | Writable by |
 |---|---|---|---|
-| Credentials, MFA factors, token material | Keycloak | Keycloak realm `learnstack` | Keycloak only |
+| Provider credentials, MFA factors, token issuance | Keycloak | Keycloak realm `learnstack` | Keycloak only |
+| BFF token custody | Native web session owner | Process-local store under [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) | The closed BFF owner only |
 | `sub`, canonical email, email-verified flag | Keycloak | mirrored onto `users` | The mirror handler only |
 | Global display name, avatar, preferred UI locale, global account status | The person | `users` | The person; platform admin under an audited `EnterPlatformAdminScope(reason)` |
 | Roles and permissions inside a tenant | Tenant | `memberships` | Tenant / organization admin of that tenant |
@@ -269,10 +270,10 @@ LearnStack session ledger; local-only expiry/outage acts retain that limitation.
 Keycloak owns credentials, password reset, email verification, and MFA. This phase
 wires LearnStack into that flow:
 
-- OIDC token validation against Keycloak's JWKS
-  ([Phase 02b](phase-02b-events-auth.md) configured the middleware).
-- BFF session handling for the Next.js Studio: HTTP-only cookies, silent refresh,
-  end-session at Keycloak on logout.
+- Consume the existing strict API token validation and native BFF session owner
+  from [Phase 02b](phase-02b-events-auth.md), including opaque HttpOnly cookies,
+  on-demand refresh and local-first provider logout. Extend its membership and
+  permission integration here rather than implementing session custody again.
 - Post-login membership lookup: resolve memberships for the authenticated user and
   surface the active tenant via a host + claim cross-check.
 - Tenant-specific Keycloak federation surface in Admin Studio (configure SAML / OIDC
@@ -280,7 +281,9 @@ wires LearnStack into that flow:
 - Mapping of Keycloak `sub` to LearnStack `UserId`; idempotent on first login.
 
 LearnStack does **not** implement password hashing, password reset email rendering,
-refresh token storage, or brute-force protection — those are Keycloak responsibilities.
+or provider brute-force protection; Keycloak owns those capabilities and token
+issuance/rotation. The native BFF owns custody of the issued access, refresh and
+ID tokens under ADR-0070; no application identity table stores them.
 
 ### Authorization
 

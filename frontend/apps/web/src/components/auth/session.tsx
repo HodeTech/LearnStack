@@ -17,6 +17,7 @@ export type SessionLabels = Readonly<{
   unchanged: string;
   maximum: string;
   failed: string;
+  expired: string;
   reauthenticate: string;
 }>;
 
@@ -71,7 +72,7 @@ export function SessionControls({
     if (focused !== document.body && !container.current?.contains(focused)) return;
     (ended ? alert.current : status.current)?.focus();
   }, [ended, recovery]);
-  const warning = session.expiresAt - now <= 120_000;
+  const warning = !ended && session.expiresAt - now <= 120_000;
   async function extend() {
     if (inFlight.current) return;
     inFlight.current = true;
@@ -95,7 +96,7 @@ export function SessionControls({
     <div data-bff-protected="true" ref={container}>
       <div aria-live="polite" aria-atomic="true">
         {warning && <p>{labels.warning}</p>}
-        {outcome === 'extended' && <p>{labels.extended}</p>}
+        {!ended && outcome === 'extended' && <p>{labels.extended}</p>}
       </div>
       <p>
         {labels.until}:{' '}
@@ -109,7 +110,8 @@ export function SessionControls({
       </p>
       {ended ? (
         <p role="alert" tabIndex={-1} ref={alert}>
-          {labels.failed} <a href="/api/auth/signin">{labels.reauthenticate}</a>
+          {expired ? labels.expired : labels.failed}{' '}
+          <a href="/api/auth/signin">{labels.reauthenticate}</a>
         </p>
       ) : (
         <>

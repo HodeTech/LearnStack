@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { bffFixture, bffHost, bffOpaque, bffRequest } from './bff-fixture';
 import { BFF_COOKIES, bffCookies } from '../server/auth/cookies';
 import { BffProviderError } from '../server/auth/provider-error';
+import { BffSessionError } from '../server/auth/session-contract';
 
 const fixtures: ReturnType<typeof bffFixture>[] = [];
 const fixture = () => {
@@ -21,6 +22,112 @@ const jar = (response: Response) =>
     .join('; ');
 
 describe('closed BFF routes with the actual owner', () => {
+  it('public authorization input stays anonymous without clearing a valid session or reaching its API', async () => {
+    const f = fixture();
+    const current = await f.login();
+    expect(
+      await f.http.project(
+        bffRequest('/en/courses', {
+          cookie: current.cookie,
+          headers: { authorization: 'Bearer private-header-canary', 'sec-fetch-dest': 'document' },
+        }),
+      ),
+    ).toEqual({ session: null, cookies: [], unavailable: false });
+    expect(f.account).toHaveBeenCalledTimes(1);
+    expect(f.store.peek(current.binding)).not.toBeNull();
+  });
+  it.each([
+    ['__Host-ls-csrf=private-malformed-canary', '__Host-ls-csrf'],
+    ['__Host-ls-session.0=private-malformed-canary', '__Host-ls-session.0'],
+    ['__Host-ls-login-invalid=private-malformed-canary', '__Host-ls-login-invalid'],
+    ['__Host-ls-csrf=private-one; __Host-ls-csrf=private-two', '__Host-ls-csrf'],
+  ])(
+    'public malformed cookie recovery clears only the invalid owned name: %s',
+    async (bad, name) => {
+      const f = fixture();
+      const current = await f.login();
+      const projected = await f.http.project(
+        bffRequest('/en/courses', {
+          cookie: current.cookie + '; foreign=private-foreign-canary; ' + bad,
+          headers: { 'sec-fetch-dest': 'document' },
+        }),
+      );
+      expect(projected).toEqual({
+        session: null,
+        cookies: [name + '=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax'],
+        unavailable: false,
+      });
+      expect(JSON.stringify(projected)).not.toContain('private-');
+      expect(f.store.peek(current.binding)).not.toBeNull();
+      expect(f.account).toHaveBeenCalledTimes(1);
+    },
+  );
+  it.each<{ method: string; headers: Record<string, string> }>([
+    { method: 'HEAD', headers: { 'sec-fetch-dest': 'document' } },
+    { method: 'GET', headers: { 'sec-fetch-dest': 'document', 'next-router-prefetch': '1' } },
+    { method: 'GET', headers: { accept: 'text/html' } },
+  ])('passive malformed-cookie input performs no recovery writes: %j', async (options) => {
+    const f = fixture();
+    const current = await f.login();
+    const before = f.store.peek(current.binding);
+    const calls = f.account.mock.calls.length;
+    expect(
+      await f.http.project(
+        bffRequest('/en/courses', {
+          ...options,
+          cookie: current.cookie + '; __Host-ls-csrf=private-malformed-canary',
+        }),
+      ),
+    ).toEqual({ session: null, cookies: [], unavailable: false });
+    expect(f.store.peek(current.binding)).toEqual(before);
+    expect(f.account).toHaveBeenCalledTimes(calls);
+    expect(f.provider.refresh).not.toHaveBeenCalled();
+  });
+
+  it.each(['transport', 'deadline', 'provider_refused', 'response'] as const)(
+    'a plain AccountSite %s failure preserves its owner but yields no authenticated projection',
+    async (reason) => {
+      const f = fixture();
+      const current = await f.login();
+      f.account.mockRejectedValueOnce(new BffSessionError(reason));
+      const request = bffRequest('/studio', {
+        cookie: current.cookie,
+        headers: { 'sec-fetch-dest': 'document' },
+      });
+      expect(await f.http.project(request)).toEqual({
+        session: null,
+        cookies: [],
+        unavailable: true,
+      });
+      expect(f.store.peek(current.binding)).not.toBeNull();
+      expect((await f.http.project(request)).session?.state).toBe('authenticated');
+      expect(f.provider.refresh).not.toHaveBeenCalled();
+    },
+  );
+  it('identity refusal revokes the owner instead of reporting a recoverable account outage', async () => {
+    const f = fixture();
+    const current = await f.login();
+    f.account.mockRejectedValueOnce(new BffSessionError('identity'));
+    expect(
+      await f.http.project(
+        bffRequest('/studio', {
+          cookie: current.cookie,
+          headers: { 'sec-fetch-dest': 'document' },
+        }),
+      ),
+    ).toEqual({ session: null, cookies: [], unavailable: false });
+    expect(f.store.peek(current.binding)).toBeNull();
+  });
+  it.each([
+    { cookie: '__Host-ls-csrf=private-malformed-canary' },
+    { headers: { authorization: 'Bearer private-header-canary' } },
+  ])('auth routes retain strict input refusal without cookie mutation: %j', async (options) => {
+    const f = fixture();
+    const response = await f.http.handle(bffRequest('/api/auth/signin', options));
+    expect(response!.status).toBe(400);
+    expect(response!.headers.getSetCookie()).toEqual([]);
+    expect(f.provider.begin).not.toHaveBeenCalled();
+  });
   it('keeps native form Origin usable while provider-directed redirects remain no-referrer', async () => {
     const f = fixture();
     const document = await f.http.handle(bffRequest('/api/auth/signin'), () => '<form></form>');
@@ -244,9 +351,11 @@ describe('closed BFF routes with the actual owner', () => {
     );
     expect(f.provider.refresh).not.toHaveBeenCalled();
     expect(
-      await f.http.project(
-        bffRequest('/studio', { cookie: current.cookie, headers: { rsc: '1' } }),
-      ),
+      (
+        await f.http.project(
+          bffRequest('/studio', { cookie: current.cookie, headers: { rsc: '1' } }),
+        )
+      ).session,
     ).not.toBeNull();
     expect(f.provider.refresh).toHaveBeenCalledTimes(1);
   });
@@ -256,9 +365,14 @@ describe('closed BFF routes with the actual owner', () => {
     f.advance(901_000);
     f.provider.refresh.mockRejectedValueOnce(new Error('secret-provider-canary'));
     expect(
-      await f.http.project(
-        bffRequest('/en/courses', { cookie: current.cookie, headers: { accept: 'text/html' } }),
-      ),
+      (
+        await f.http.project(
+          bffRequest('/en/courses', {
+            cookie: current.cookie,
+            headers: { 'sec-fetch-dest': 'document' },
+          }),
+        )
+      ).session,
     ).toBeNull();
     expect(f.store.peek(current.binding)).toBeNull();
   });

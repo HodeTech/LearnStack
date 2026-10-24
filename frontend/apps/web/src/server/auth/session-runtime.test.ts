@@ -4,11 +4,11 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { bffSessionOwner } from './session-owner';
+import { bffSessionProtocol } from './session-owner';
 
 describe('native BFF owner composition', () => {
   it('a bundled request lookup never creates a fallback owner', () => {
-    expect(() => bffSessionOwner()).toThrow('BFF session owner unavailable');
+    expect(() => bffSessionProtocol()).toThrow('BFF session owner unavailable');
   });
 
   it('the real compiled native module installs one immutable holder across independently loaded bundles', () => {
@@ -63,7 +63,7 @@ describe('native BFF owner composition', () => {
         Object.freeze({ version: 1, store: Object.freeze({ start: () => {} }) }),
       ]) {
         planted = { value, configurable: false, writable: false, enumerable: false };
-        expect(() => bffSessionOwner()).toThrow('BFF session owner unavailable');
+        expect(() => bffSessionProtocol()).toThrow('BFF session owner unavailable');
       }
     } finally {
       descriptor.mockRestore();

@@ -42,6 +42,9 @@ describe('session warning, truthful extension and safe expiry', () => {
       vi.advanceTimersByTime(120_000);
     });
     expect(screen.queryByText('Admitted account view')).toBeNull();
+    expect(screen.queryByText(en.session.warning)).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(en.session.expired);
+    expect(screen.queryByText(en.session.failed)).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole('alert'));
     expect(screen.getByRole('link', { name: en.session.reauthenticate })).toHaveAttribute(
       'href',

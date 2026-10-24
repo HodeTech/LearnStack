@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,672 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,844 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -231,6 +231,8 @@ each packet decided and delivered, as
   - [P02b-7 hosted causal-restart correction (2026-10-24)](#p02b-7-hosted-causal-restart-correction-2026-10-24) — 71 lines
   - [P02b-7 hosted BFF-browser diagnosis (2026-10-24)](#p02b-7-hosted-bff-browser-diagnosis-2026-10-24) — 53 lines
   - [P02b-7 implementation and hosted qualification closeout (2026-10-24)](#p02b-7-implementation-and-hosted-qualification-closeout-2026-10-24) — 72 lines
+  - [P02b-7 external review corrections and disposition (2026-10-24)](#p02b-7-external-review-corrections-and-disposition-2026-10-24) — 131 lines
+  - [P02b-7 correction reviews and local validation closeout (2026-10-24)](#p02b-7-correction-reviews-and-local-validation-closeout-2026-10-24) — 41 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19403,6 +19405,178 @@ current-head checks are still required before [PR #36](https://github.com/HodeTe
 leaves draft; maintainer review and merge follow separately. The
 [phase Status](phase-02b-events-auth.md) owns packet state; P02b-8 owns remaining
 exit enforcement and erasure inventory work.
+
+
+### P02b-7 external review corrections and disposition (2026-10-24)
+
+The correction baseline is `5fc18ce7`. Current-code inspection verifies the
+findings individually; mutation-survival totals and speculative scenarios are
+not treated as reproduced product failures. PR #36 returns to draft while the
+changed source is validated. Earlier source-bound receipts remain historical.
+
+#### Verified behavior and proof corrections
+
+- Enabled public projection treats unsupported Authorization and malformed BFF
+  cookies as anonymous. Qualifying GET documents clear only malformed owned
+  cookie names, with bounded deletion headers and no reflected values. HEAD,
+  prefetch and passive requests make no cookie writes. Auth routes retain their
+  strict input/Origin/CSRF checks.
+- A temporary ordinary AccountSite failure withholds the response's authenticated
+  projection, preserves the live owner and does not advance idle time. Protected
+  reads return 503; public pages render anonymously. Identity refusal or scope
+  conflict still revokes. Post-refresh authority failure still revokes under the
+  consumed-grant rule; no grant is retried. Owner and signed-provider controls
+  also prove replacement refresh-token use and omitted-token preservation.
+- The native sign-out response confines Location to the fixed provider logout
+  endpoint or the independently verified local root. It suppresses Next's 303
+  URL body, preserving separate cookies and write/end callbacks. Actual Next
+  canaries exercise the ID-token-hint Location exception without a body leak.
+- BFF responses and protected HTML gain frame denial. Accept alone no longer
+  qualifies activity. Header links have spacing; expired UI has its own message;
+  Studio/Portal gain localized document titles, retaining their existing h1s.
+  Institution display text is labelled as institution, not a person's name.
+- RP and SDK actor UUID validation matches the API's non-nil UUID contract rather
+  than requiring version 7. Configuration failures have six closed causes;
+  startup forces TLS verification before loading Next. Source agreement and
+  private-file validation remain unchanged.
+- Browser waiters attach rejection handlers before keyboard actions. Readiness
+  uses the shared atomic DevTools reader and checks failed spawn/exit/signal with
+  its original ten-second bound. Sign-in, extension and sign-out use Enter.
+  Protocol/session/browser proofs preserve first failure and separately mark
+  cleanup failure; the driver accepts only each matching closed two-line form.
+- Cookie diagnostics retain all output up to a fixed 256 KiB per child, recheck
+  subsequently learned canaries and refuse overflow. They do not silently lose
+  earlier text through a rolling window. CSRF's allowed form/JSON projection is
+  distinct from its prohibition in diagnostics. The default protocol harness is
+  labelled as a minimal harness; the separate UI mode copies product middleware.
+- Added planted CI controls reject missing durations, a foreign partition case
+  with matching surrounding evidence and false/ill-typed Docker-absence claims.
+  The four BFF catalogue names identify their existing executable owners; stale
+  extension statuses and phase ownership/flow illustrations are reconciled.
+
+The first real local run exposes two correction-fixture defects, not passing
+proof. Removing Accept-only activity correctly makes its synthetic document
+request passive, so the real-provider fixture supplies document fetch metadata
+and retains the exact seven-read expectation. The browser reaches the expected
+303 but its Playwright route does not intercept the redirected authorization
+request; a closed debug observation records `ERR_NAME_NOT_RESOLVED`. Pinned
+Playwright's redirect continuation bypasses that route interception. Authorization
+and logout now use actual endpoints on the proof's owned HTTPS provider stub;
+both authorization visits, wrong-host rejection and real callback navigation
+remain required. This does not establish the cause of the earlier hosted failure.
+
+The corrected real run passes all six BFF cases and three causal-restart variants,
+zero skips. The warm historical realm is automatically prepared/reconciled and
+then converges with zero writes before real native BFF/application-role API,
+refresh/logout and provider-event verification on both hosts. Chromium
+`156.0.8078.48` completes the separate fake-grant/API browser positive and history
+counter in 25.957 seconds. Natural persisted restores remain zero; the explicit
+history-event counter is not a natural BFCache claim. Real-provider evidence
+passes in 76.352 seconds; owned provider containers/network are independently
+absent after cleanup. TRX SHA-256:
+`d6ae73206ce7684af8f78a8aded3db302d6d9566b6e25e22933e9761dca77898`.
+
+#### Causal-restart assertion and evidence reconciliation
+
+Unforced paths with no observed runtime lease loss again require exactly one
+Reconcile, one finalizer and two ledger rows; the dirty report is applied once.
+Only observed lease loss or the explicit real-handler concurrency counter uses
+the legal retry ranges. Normal attempt, Execute, effects, final business write,
+reservation release and terminal audit retain their exact assertions. Closed
+counts are emitted on every successful qualification. This local run observes
+`1/1/2` Reconcile/finalizer/ledger in every unforced path with zero lease loss;
+the deliberate conflict observes `1/2/3` and different actually cleaned sources.
+
+The original successful A/B pair was the first complete successful pair for this
+packet. It followed six runs with a failed attempt:
+[40037549651](https://github.com/HodeTech/LearnStack/actions/runs/40037549651),
+[40040983884](https://github.com/HodeTech/LearnStack/actions/runs/40040983884),
+[40043096810](https://github.com/HodeTech/LearnStack/actions/runs/40043096810),
+[40045256382](https://github.com/HodeTech/LearnStack/actions/runs/40045256382),
+[40049101128](https://github.com/HodeTech/LearnStack/actions/runs/40049101128) and
+[40052155438](https://github.com/HodeTech/LearnStack/actions/runs/40052155438).
+The preceding dated records distinguish demonstrated fixture defects from
+historical source-contention, causal-restart and browser interleavings whose
+causes remain unproven. Passing later runs does not explain those interleavings.
+No claim that success assertions were unchanged is retained in the PR summary.
+
+Control accounting is also clarified: the former 67 combined assignment controls
+already included 26 aggregate controls. They are not additive totals. The current
+scripts pass 75 execution controls and 68 combined controls (41 assignment plus
+27 aggregate), in 17.404 and 3.020 seconds locally. No workflow ceiling changes.
+Original A-attempt producer artifacts were retained locally before rerunning all
+jobs for B; they are not claimed available from GitHub after replacement.
+
+#### Findings that do not justify another policy change
+
+| Concern | Current evidence and disposition |
+|---|---|
+| IPv6 addresses, NAT/proxy peers and capacity monopoly | The limit is per canonical verified IP, not per person or /64. Multiple addresses can spend multiple allowances; a shared proxy combines visitors. ADR-0070's dated clarification and the support guide state the limit; subnet fairness and production proxy qualification remain Phase 11's named trigger, not a new guarantee. |
+| Published development secret accepted by a production-mode Next build | Production-mode compilation is not a qualified production deployment. Existing single-process/development-provider support remains explicit; Phase 11 owns production credentials, provider events, host registrations and proxy/distributed qualification before activation. No unsupported production security claim is inferred. |
+| Conflicting root/web environment values; unsafe files in disabled mode | Source agreement and no-follow/bounded private loading are intentional. Guidance now teaches changing every present activation source and the launcher distinguishes closed failure causes. Silently overriding or ignoring an unsafe file would weaken the accepted boundary. |
+| Secret visible in Next server process; ambient proxy/CA settings | A local probe confirms server-process environment visibility, not browser export. Native and Next code share one server trust boundary; no public alias is emitted. The actual ambient TLS-disable bypass is closed. No exploit or forbidden endpoint was demonstrated from trusted operator proxy/CA configuration. |
+| JWKS fetched again per grant | Confirmed; each grant keeps its own finite transport owner. A shared mutable fetch callback would violate isolation. No measured fit failure justifies changing that ownership for an unmeasured cache optimization. |
+| Server monotonic sleep semantics and browser clock | The server, including its expiry and epoch checks, authorizes requests; the browser clock only drives display. A server-suspend exploit was not reproduced. Production clock/availability behavior is not established by this development proof. |
+| Five-minute transaction vs provider login timeout | The deliberately shorter local transaction refuses a late callback; it promises no provider-screen lifetime. Increasing it would change the accepted capacity/lifetime tradeoff. |
+| Real historical identity path, token rotation and full browser OIDC | The existing real-provider case executes historical preparation, zero-write convergence and authenticated BFF/API on both hosts; signed adapter/owner rotation controls are strengthened. The separate browser proof remains fake-grant/API. Full browser-driven provider login and Firefox/WebKit remain Phase 06's explicit scope. |
+| Different A/B co-membership and narrow CI timing margin | The guard compares method groups, rejecting shard renumbering; it does not promise a movement percentage. Earlier actual movement is quantified in the original closeout. Weights are advisory and measured hosted fit is source-bound; no automatic topology/budget expansion is introduced. |
+| Aggregate API failures and failed-only reruns | Fail-closed current-attempt ownership under ADR-0063 requires a complete rerun. Opportunistic evidence reuse or an unqualified retry policy is not added as a review shortcut. |
+| Duplicate standards, owner wording and bounded readers | Correct stale owners, terms and executable source references rather than broadly refactor independent protocol boundaries. No demonstrated shared-reader bug or obligation requiring a new generic abstraction was found. |
+
+ADR-0070 gains a dated delivered-owner/read-failure clarification without rewriting
+its Accepted decision or claiming future runtime was false when accepted. The
+Phase 03, Architecture 04/13, Security 11, Catalogue 21, glossary, web guide and
+review skill carry their current responsibilities. New tenant-host callback and
+post-logout registration is explicitly owned by Phase 11 before production
+activation. No new ADR, schema, role, grant, endpoint, token TTL, owner capacity,
+operation timeout, shard plan, execution VM or required-check name is introduced.
+
+The first fresh independent review pair finds and closes local-root fallback,
+passive cookie writes, late-learned canary retention and planned-vs-delivered
+proof-owner attribution. Final complete frontend/lint/typecheck, second fresh
+review and new source-bound hosted qualification are still required; none is
+inferred from the original green head. The phase Status owns current delivery.
+
+
+### P02b-7 correction reviews and local validation closeout (2026-10-24)
+
+Both fresh independent correction review pairs complete. The second pair
+confirms product authority/lifecycle behavior and closes two additional evidence
+paths: strict causal-count failures now emit their closed census before the
+assertions and enter the existing diagnostic catch; startup disposal always runs
+without replacing an earlier catchable startup error, including when a secondary
+observer throws. The original Accepted ADR table remains intact; its delivered
+owner clarification lives only in dated Amendment 1.
+
+Two actual Node children deliberately retain their own private trees after
+reporting a closed compile/cleanup failure. Startup must preserve that exact
+first stage, separately observe actual disposal failure and join child exit,
+with both ordinary and throwing observers. The counter independently confirms
+child absence, then removes only its validated owned retained tree. The existing
+parent-EOF/held-build case includes both controls; no new case row is added.
+Its final passing TRX SHA-256 is
+`58b74cc2188697e1f17bbcb8d65f54997b16022df4cbf28c1b81a89ba2420644`.
+The three causal-restart variants and the startup case also pass together, zero
+skips; TRX SHA-256 is
+`dfb794aa029a43c49eff28874374c2e8abadd6e048c4cbfdb4856b5039b2d22e`.
+Passed count output lives in these local raw TRXs; sanitized hosted receipts do
+not retain successful StdOut, and no contrary remote-retention claim is made.
+
+The complete guarded frontend passes 2,160 cases in two packages with zero
+skips/todos, including actual minimal Next protocol, actual product UI and
+negative diagnostic/activity/shutdown controls. Lint and typecheck pass. Backend
+Release compilation reports zero warnings/errors; all 2,616 Unit cases and five
+CorpusConsistency architecture cases pass. ADR parser controls pass seven cases;
+ADR-0070 remains Accepted. The separate nine-case real integration receipt,
+75 execution controls and 68 combined assignment/aggregate controls remain
+recorded above. Independent round-2 checks additionally pass 154 targeted
+runtime/security tests and 57 proof-support/DevTools tests; these are subsets,
+not additive populations.
+
+No service credentials, private review files or foreign worktrees are changed.
+The final working-tree receipts establish local validation, not immutable-source
+hosted qualification. Commit, complete new-source A/B execution and current-head
+required checks precede PR readiness; PR #36 remains draft meanwhile.
 
 
 ## Status archive

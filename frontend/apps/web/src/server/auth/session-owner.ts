@@ -43,9 +43,6 @@ function holder(): BffSessionHolder {
   return holder as BffSessionHolder;
 }
 
-export function bffSessionOwner(): BffSessionHolder['store'] {
-  return holder().store;
-}
 export function bffSessionProtocol(): BffSessionHolder['http'] {
   return holder().http;
 }
