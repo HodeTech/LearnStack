@@ -47,6 +47,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
         var root = Directory.CreateTempSubdirectory("learnstack-bff-start-counter-");
         var receiptPath = Path.Combine(root.FullName, "owned.json");
         string? retained = null;
+        var childAbsenceConfirmed = false;
         try
         {
             var scripts = Path.Combine(root.FullName, "frontend/apps/web/scripts");
@@ -89,6 +90,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                 absent = child.HasExited;
             }
             catch (ArgumentException) { absent = true; }
+            childAbsenceConfirmed = absent;
             absent.Should().BeTrue("the failed driver still joins its actual owned child before returning the original error");
             failure.Should().BeOfType<InvalidOperationException>().Which.Message.Should()
                 .Be("BFF native fixture did not reach the closed ready/compile_cleanup_failed phase.");
@@ -98,8 +100,11 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
         {
             // Only this counter's independently witnessed retained tree is removed.
             // Its presence must first make actual driver disposal fail.
-            if (retained is not null && Directory.Exists(retained)) Directory.Delete(retained, recursive: true);
-            root.Delete(recursive: true);
+            if (childAbsenceConfirmed)
+            {
+                if (retained is not null && Directory.Exists(retained)) Directory.Delete(retained, recursive: true);
+                root.Delete(recursive: true);
+            }
         }
     }
 

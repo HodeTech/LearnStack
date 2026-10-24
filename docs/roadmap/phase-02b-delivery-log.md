@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,860 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,878 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -234,6 +234,7 @@ each packet decided and delivered, as
   - [P02b-7 external review corrections and disposition (2026-10-24)](#p02b-7-external-review-corrections-and-disposition-2026-10-24) — 131 lines
   - [P02b-7 correction reviews and local validation closeout (2026-10-24)](#p02b-7-correction-reviews-and-local-validation-closeout-2026-10-24) — 41 lines
   - [P02b-7 correction source handoff (2026-10-24)](#p02b-7-correction-source-handoff-2026-10-24) — 16 lines
+  - [P02b-7 startup-counter cleanup confirmation (2026-10-24)](#p02b-7-startup-counter-cleanup-confirmation-2026-10-24) — 18 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19594,6 +19595,24 @@ CI job state. Required checks and exact-source A/B qualification still govern PR
 readiness; maintainer review and merge are separate. Recording live CI receipts
 in the PR avoids another documentation-only source change after qualification.
 No full provider/browser, production or historical failure-cause claim is added.
+
+
+### P02b-7 startup-counter cleanup confirmation (2026-10-24)
+
+A final focused inspection finds that the new startup counter's failure branch
+could delete its trees before independently confirming child absence. Recursive
+cleanup now requires that confirmation; unknown/alive child state retains both
+trees and fails. Both ordinary and throwing-observer actual Node controls, plus
+the held-build parent-EOF journey, pass again with no skips. Release compilation
+has zero warnings/errors. TRX SHA-256:
+`99532b0b06846d7ab0655e499cf6f42a34e2f6fcc8e812d34f08e7f3fe98c17a`.
+The independent reviewer confirms the focused delta before commit/push.
+
+Run [40070734838](https://github.com/HodeTech/LearnStack/actions/runs/40070734838)
+on the preceding source is intentionally cancelled for this test-hygiene
+correction and supplies no qualification. It is not a passing rerun or a waived
+failure. No further delivery-only commit is needed for live CI receipts: the
+PR records the final source and its complete new A/B attempts.
 
 
 ## Status archive
