@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 521 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 537 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -278,6 +278,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 2 — Independent asynchronous inventory coverage (2026-10-25)](#p02b-8-step-2--independent-asynchronous-inventory-coverage-2026-10-25) — 30 lines
   - [P02b-8 Step 2 review round 1 (2026-10-25)](#p02b-8-step-2-review-round-1-2026-10-25) — 36 lines
   - [P02b-8 Step 2 review round 2 (2026-10-25)](#p02b-8-step-2-review-round-2-2026-10-25) — 34 lines
+  - [P02b-8 Step 2 closeout (2026-10-25)](#p02b-8-step-2-closeout-2026-10-25) — 16 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21479,6 +21480,22 @@ regressions exercise these reviewed paths, with supported public-path/rename,
 trigger and grant positives. Inventory 5/5 and corpus 5/5 pass in Release, zero
 warnings/failures/skips. Scoped formatting and whitespace checks pass. Both
 second-round reviewers' bounded correction rechecks remain pending.
+
+### P02b-8 Step 2 closeout (2026-10-25)
+
+Both second-round reviewers independently recheck `c241301b..bfa6ec89` and
+approve the bounded corrections without a new actionable finding. The proof
+reviewer reruns the original counterexamples through the compiled complete
+checker; all now refuse. The contract reviewer reruns the five inventory cases;
+the proof reviewer runs inventory/corpus together, 10/10, zero failures/skips.
+No new provider, field-erasure or legal-compliance claim follows from these checks.
+
+Step 2 and both fresh implementation review rounds are complete. The canonical
+inventory is installed, its structural drift control is Implemented, and the
+independent existing live PostgreSQL census/control cases have passed. Step 3
+now reconciles remaining current-tense carriers, inherited catalogue obligations
+and the unchanged documentation-lint handoff. Step 4 retains final-source local
+and complete hosted A/B qualification; none is inferred from this closeout.
 
 ## Status archive
 
