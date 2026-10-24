@@ -338,6 +338,19 @@ not a request to add an unused module, adapter or port.
   IPv6 prefix fairness and multi-process continuity need explicit deployment
   decisions and proofs before promising those properties. P02b-7's two seed-host
   and controlled-issuer evidence supplies none of them.
+- **BFF operational signals.** Before production activation, qualify closed
+  lifecycle/failure visibility, session/pending/source/subject capacity pressure,
+  alert thresholds, and a recovery runbook for the native owner.
+  The current failure warnings are not capacity telemetry or a durable session
+  ledger. Decide bounded signals and safe deployment attribution without token,
+  actor, session-handle or arbitrary host labels; test actual exported privacy
+  and volume before relying on dashboards or alerts.
+- **Native BFF resource and clock qualification.** Qualify the deployment's
+  listener/header/body/connection limits, trusted outbound TLS/proxy path and
+  suspend/resume behavior before production activation. Current monotonic
+  lifetimes and finite Node/form defaults do not promise suspended-host wall-time
+  continuity or a production denial-of-service bound. Changing those semantics
+  requires explicit review of the existing lifetime and transport contract.
 - **Outage and key rotation.** Exercise cold start without metadata, a warmed known
   signing key during an outage, a new key while refresh fails, recovery, and rejection
   of a withdrawn unexpired key after the replacement set has been observed. Current

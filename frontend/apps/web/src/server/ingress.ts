@@ -221,6 +221,21 @@ export function admitIncomingRequest(
     !validTarget(target)
   )
     return false;
+  const path = target.split('?', 1)[0];
+  const bffAuthority =
+    path === '/api/auth' ||
+    path?.startsWith('/api/auth/') ||
+    path === '/studio' ||
+    path === '/portal';
+  // Public Host syntax normalization remains unchanged. Credential flows must
+  // use the actual native HTTPS authority, not a caller-selected callback port
+  // or a trailing-dot origin that cannot pass the exact POST Origin check.
+  if (
+    bffEnabled &&
+    bffAuthority &&
+    (hosts[0]?.toLowerCase() !== host || !host.endsWith(':' + PUBLIC_HTTPS_PORT))
+  )
+    return false;
   if (bffPostTarget(method, target)) {
     // Next may clone/buffer a middleware body before its route parser runs. Only
     // known-length bounded forms reach it; chunked/ambiguous bodies stay outside.

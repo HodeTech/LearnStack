@@ -70,6 +70,26 @@ describe('atomic optional native BFF configuration', () => {
       }),
     ).toEqual({ enabled: false });
   });
+  it.each(['absent', 'false'] as const)(
+    'keeps the regular bounded-file guard in %s public-only mode',
+    (mode) => {
+      const f = fixture(
+        mode === 'false' ? { LEARNSTACK_BFF_ENABLED: 'false' } : { PUBLIC_SETTING: 'value' },
+      );
+      const path = join(f.root, '.env');
+      // Public-only mode permits a regular non-private file, but never follows links.
+      chmodSync(path, 0o644);
+      expect(bffConfiguration(f.root, {})).toEqual({ enabled: false });
+      rmSync(path);
+      f.write('source', { PUBLIC_SETTING: 'value' });
+      symlinkSync(join(f.root, 'source'), path);
+      expect(() => bffConfiguration(f.root, {})).toThrowError(
+        expect.objectContaining({ reason: 'configuration', issue: 'source_file' }),
+      );
+      expect(lstatSync(path).isSymbolicLink()).toBe(true);
+      expect(readFileSync(join(f.root, 'source'), 'utf8')).toBe('PUBLIC_SETTING=value\n');
+    },
+  );
   it('accepts agreeing private sources without mutating files or contacting a provider', () => {
     const f = fixture(fields);
     f.write('frontend/apps/web/.env.local', fields);

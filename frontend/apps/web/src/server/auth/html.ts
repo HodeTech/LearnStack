@@ -24,17 +24,22 @@ const escape = (value: string) =>
 /** Closed middleware document, with every text/attribute escaped. No user HTML or script. */
 export function renderBffDocument(
   site: PublicSite,
-  page: BffPage | Readonly<{ kind: 'unavailable' | 'busy' }>,
+  page:
+    | BffPage
+    | Readonly<{ kind: 'unavailable' | 'busy' }>
+    | Readonly<{ kind: 'account_unavailable'; returnPath: '/studio' | '/portal' }>,
 ): string {
   const ui = createAuthTranslator(site.defaultLocale);
   const { t } = createPublicTranslator(site.defaultLocale);
   const copy = ui.copy;
   const title =
-    page.kind === 'signin'
-      ? copy('signin.title')
-      : page.kind === 'unavailable'
-        ? copy('signin.unavailable_title')
-        : copy('error.title');
+    page.kind === 'account_unavailable'
+      ? copy('session.unavailable_title')
+      : page.kind === 'signin'
+        ? copy('signin.title')
+        : page.kind === 'unavailable'
+          ? copy('signin.unavailable_title')
+          : copy('error.title');
   const content =
     page.kind === 'signin'
       ? `<p>${escape(site.displayName)}</p><p>${escape(copy('signin.description'))}</p>
@@ -45,11 +50,19 @@ export function renderBffDocument(
       : `<p>${escape(
           page.kind === 'busy'
             ? copy('error.busy')
-            : page.kind === 'unavailable'
-              ? copy('signin.unavailable')
-              : copy('error.description'),
+            : page.kind === 'account_unavailable'
+              ? copy('session.unavailable')
+              : page.kind === 'unavailable'
+                ? copy('signin.unavailable')
+                : copy('error.description'),
         )}</p>
-      ${page.kind === 'unavailable' ? '' : `<p><a href="/api/auth/signin">${escape(copy('error.retry'))}</a></p>`}
+      ${
+        page.kind === 'account_unavailable'
+          ? `<p><a href="${escape(page.returnPath)}">${escape(copy('session.retry'))}</a></p><p><a href="/api/auth/signin?returnTo=${encodeURIComponent(page.returnPath)}">${escape(copy('session.reauthenticate'))}</a></p>`
+          : page.kind === 'unavailable'
+            ? ''
+            : `<p><a href="/api/auth/signin">${escape(copy('error.retry'))}</a></p>`
+      }
       <p><a href="/${escape(site.defaultLocale)}/courses">${escape(copy('shell.catalog'))}</a></p>`;
   return `<!doctype html><html lang="${escape(ui.locale)}" dir="${escape(ui.direction)}">
     <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

@@ -254,12 +254,14 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
   Public pages remain anonymous; unavailable protected checked reads return 503.
   Passive projections describe local state only. Genuine 401 revocation can be
   delayed; retention does not extend the existing refresh threshold or deadline.
+  The [route failure classification](../decisions/0070-owned-tenant-bff-sessions.md#amendment-3--implementation-controls-and-diagnostic-scope-2026-10-24)
+  separates malformed input from unavailable upstream/server work; it does not
+  change grant-publication or revocation rules.
 - Return destinations are the closed local set `/`, `/studio` and `/portal`.
   No browser URL, unverified Host/forwarded header, provider error or callback
   query chooses the issuer, API origin, provider endpoint or post-logout authority.
   Callback/logout origins use only the independently verified native host/port.
-  Fixed
-  discovery/token/JWKS purposes use the private issuer, no redirects, one
+  Fixed discovery/token/JWKS purposes use the private issuer, no redirects, one
   operation-wide deadline through body consumption and a decoded-byte bound.
 - Only the native AccountSite caller attaches its owned bearer to the fixed
   authenticated endpoint. The public caller stays credential-free; neither

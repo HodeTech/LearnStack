@@ -523,3 +523,28 @@ grant replay rules, cookie/session lifetimes and capacity are unchanged.
 - [Better Auth announcement](https://better-auth.com/blog/authjs-joins-better-auth), [Auth.js team announcement](https://github.com/nextauthjs/next-auth/discussions/13252), [Auth.js security policy](https://authjs.dev/security), [Better Auth 1.7.12 memory adapter](https://github.com/better-auth/better-auth/blob/v1.7.12/packages/memory-adapter/src/memory-adapter.ts).
 - [Keycloak 26.6.2 event types](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/events/EventType.java), [event persistence](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/events/EventBuilder.java), [realm event update](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/managers/RealmManager.java), [token/refresh timing](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java).
 - [OIDC RP-Initiated Logout](https://openid.net/specs/openid-connect-rpinitiated-1_0.html), [OIDC Back-Channel Logout](https://openid.net/specs/openid-connect-backchannel-1_0.html).
+
+
+### Amendment 3 — Implementation controls and diagnostic scope (2026-10-24)
+
+The existing fixed native host/HTTPS-port clause is enforced before auth and
+protected-shell admission; anonymous public Host normalization remains intact.
+The native launcher suppresses raw development query/trace sinks under the
+existing diagnostic-privacy rule. Its proof exercises both streams and the
+unprotected counter; this creates no telemetry authority to publish credentials.
+
+The existing local lifecycle diagnostics include once-only `expired` when sweep
+retires an expired owner and `revoked` after successful local signout. Reasons
+remain closed and contain no host, actor, credential or request identifier.
+They are local observations; [Phase 11](../roadmap/phase-11-production-hardening.md)
+owns production capacity signals, alerting and the operational runbook.
+
+Malformed HTTP input remains 400. Invalid upstream response/configuration and
+unexpected server failures return a bounded 503; source/subject admission stays
+429, while existing transaction/identity/expired/revoked/invalid-grant refusals
+retain 400. Input parsing and server failure are exercised independently in the
+[route controls](../../frontend/apps/web/src/test/bff-session-routes.test.ts).
+This HTTP presentation does not alter publication, grant replay or revocation.
+The earlier Registered-until-shipped wording records acceptance-time status;
+the [catalogue](../standards/21-architecture-tests-catalogue.md#p02b-7-tenant-bff-obligations)
+owns current control status.

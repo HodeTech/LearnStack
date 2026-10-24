@@ -56,7 +56,11 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
     ]),
   );
   for (const [name, file] of files) {
-    if (/^apps\/web\/(?:app\/|pages\/|src\/pages\/|middleware\.)/.test(name))
+    if (
+      /^apps\/web\/(?:app\/|pages\/|src\/pages\/|middleware\.|(?:src\/)?instrumentation(?:-client)?\.)/.test(
+        name,
+      )
+    )
       findings.push(
         finding(
           file,
@@ -65,7 +69,7 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
       );
     if (
       name.startsWith('apps/web/src/app/') &&
-      /\/(?:page|route|default|robots|sitemap|manifest|icon|apple-icon|opengraph-image|twitter-image)\.[^.]+$/.test(
+      /\/(?:page|route|default|not-found|global-not-found|robots|sitemap|manifest|icon|apple-icon|opengraph-image|twitter-image)\.[^.]+$/.test(
         name,
       ) &&
       !entries.delete(name)
@@ -859,8 +863,8 @@ export function browserStorageFindings(graph: SourceGraph): Finding[] {
   for (const file of graph.files.values())
     walk(file, (node) => {
       if (
-        ['localStorage', 'sessionStorage', 'document.cookie'].some((name) =>
-          globalBuiltin(node, name, graph.checker),
+        ['localStorage', 'sessionStorage', 'indexedDB', 'cookieStore', 'document.cookie'].some(
+          (name) => globalBuiltin(node, name, graph.checker),
         )
       )
         findings.push(

@@ -232,3 +232,17 @@ Phase 11 owns production and distributed-session qualification.
 - [Session failure contract](../../frontend/apps/web/src/server/auth/session-contract.ts)
   and [provider failure taxonomy](../../frontend/apps/web/src/server/auth/provider-error.ts).
 - [Actual API authentication controls](../../backend/tests/LearnStack.Tests.Integration/TenantAuthenticationHttpTests.cs).
+
+
+### Amendment 1 — Acceptance evidence and delivered mapping (2026-10-24)
+
+The maintainer's conditional acceptance and implementation instruction is
+preserved verbatim in the [delivery receipt](../roadmap/phase-02b-delivery-log.md#p02b-7-review-correction-contracts-and-proof-controls-2026-10-24).
+Acceptance is committed at `e782f971073213b1029221d2c2f4544af8c45ec7`
+(2026-10-24 14:31:18 +03:00); the dependent mapping ships at
+`7133f8ad9b90988c4400d62cc4a95d6f7c7b5b9e` (14:44:18 +03:00).
+The Status block's pending-implementation wording describes acceptance time.
+The current public/protected API discovery-failure control is
+`Discovery_failure_on_actual_public_and_account_routes_is_401_and_never_anonymous`
+in the [HTTP tests](../../backend/tests/LearnStack.Tests.Integration/TenantAuthenticationHttpTests.cs).
+The original decision, metadata and source observations remain historical.

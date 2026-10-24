@@ -58,3 +58,13 @@ Any one of these is sufficient cause to revisit:
 - [Frontend Architecture](../architecture/14-frontend-architecture.md)
 - [Frontend Architecture Standards](../standards/07-frontend-architecture.md)
 - Superseded ADR file: [_redirects/0006-frontend-single-app-first.md](_redirects/0006-frontend-single-app-first.md) (kept for old links).
+
+
+### Amendment 1 — Native session ownership (2026-10-24)
+
+[ADR-0070](0070-owned-tenant-bff-sessions.md) supplies the subsequent session
+owner within the retained single web application. Its closed auth protocol runs
+in native ingress/middleware, with an app-local read-only `auth()` facade;
+`app/api/` is not a general backend proxy. The original target layout remains
+historical; [Architecture 14](../architecture/14-frontend-architecture.md) owns
+the current/target distinction. This adds no multi-app split or endpoint.

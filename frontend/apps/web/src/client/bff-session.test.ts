@@ -57,15 +57,21 @@ describe('fixed same-origin BFF browser action', () => {
     expect(fetch).not.toHaveBeenCalled();
     await expect(extendBffSession(token)).rejects.toThrow('Session unavailable');
   });
-  it('refuses a response beyond the finite projection budget', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response('x'.repeat(16385), { headers: { 'content-type': 'application/json' } }),
-        ),
-    );
-    await expect(extendBffSession(token)).rejects.toThrow('Session unavailable');
-  });
+  it.each([16_384, 16_385])(
+    'checks the %i-byte boundary independently of JSON validation',
+    async (size) => {
+      const json = JSON.stringify(value);
+      const body = json + ' '.repeat(size - new TextEncoder().encode(json).byteLength);
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            new Response(body, { headers: { 'content-type': 'application/json' } }),
+          ),
+      );
+      if (size === 16_384) await expect(extendBffSession(token)).resolves.toEqual(value);
+      else await expect(extendBffSession(token)).rejects.toThrow('Session unavailable');
+    },
+  );
 });

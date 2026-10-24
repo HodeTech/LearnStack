@@ -25,6 +25,13 @@ there is no general `/api/*` proxy or browser-to-backend bearer forwarding.
 
 ## Optional tenant sign-in
 
+First complete the root [HTTPS Quickstart](../../../README.md#quickstart), start
+the selected infrastructure with `make dev`, and converge it with `make seed`.
+Keep the API running through `make public-api`. On the default development
+stack, the BFF issuer is `http://localhost:8080/realms/learnstack`; it must exactly
+match the tenant API's configured issuer, including scheme, port and path. A
+different selected provider port needs the same explicit change in both owners.
+
 [ADR-0070](../../../docs/decisions/0070-owned-tenant-bff-sessions.md) selects a
 native openid-client session owner. Set `LEARNSTACK_BFF_ENABLED=true`, a canonical
 `LEARNSTACK_BFF_ISSUER` in `/realms/learnstack`, and the existing confidential
@@ -75,6 +82,11 @@ Fixture IPC carries private configuration and responses only between owning test
 processes; retained results contain closed outcomes, counts and timings. No
 application test route, provider transport override or system trust installation
 is added.
+
+To return to public-only operation, set `LEARNSTACK_BFF_ENABLED=false` in every
+supplied configuration source and restart the native web process. This removes
+the volatile sessions; it does not undo development provider-event storage or
+other reconciled realm settings.
 
 Restart signs users out. One native process owns the session store; deploying
 multiple web instances requires the distributed adapter and qualification owned

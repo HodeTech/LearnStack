@@ -32,8 +32,8 @@ export function PublicChrome({
         <p className="public-institution">{site.displayName}</p>
         <nav lang={uiLocale} dir={uiDirection} aria-label={t('chrome.catalog')}>
           <a href={catalogPath}>{t('chrome.catalog')}</a>
-          <SignInLink locale={contentLocale} />
         </nav>
+        <SignInLink locale={contentLocale} />
       </header>
       <main id="main-content" tabIndex={-1} className="public-main">
         {children}

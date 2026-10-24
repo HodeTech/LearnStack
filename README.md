@@ -66,12 +66,10 @@ items, rules, custom fields and notification templates; their delivery is tracke
 ## Where it is today
 
 **Phase 01, Phase 02a and Phase 02d are complete; Phase 02b is in progress.**
-Phase 02d, the two-tenant walking skeleton, merged through PR #28 on 2026-10-11. In
-Phase 02b, P02b-0 through P02b-5 are complete, P02b-1–5 merged through PRs #29–#33,
-and P02b-6's realm and identity implementation is merged through PR #34; BFF
-sessions and phase exit are governed by P02b-7–8.
-Packet state lives in the [Phase 02b](docs/roadmap/phase-02b-events-auth.md)
-document's Status block; the [roadmap](docs/roadmap/README.md) lists every phase.
+[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) owns the two-tenant walking
+skeleton. Current packet state lives in the
+[Phase 02b](docs/roadmap/phase-02b-events-auth.md) document's Status block; the
+[roadmap](docs/roadmap/README.md) lists every phase.
 
 | Area | Delivered now | Next milestone |
 |---|---|---|

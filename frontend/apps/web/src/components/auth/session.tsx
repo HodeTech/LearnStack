@@ -40,25 +40,30 @@ export function SessionControls({
   readonly recoveryActions?: ReactNode;
 }) {
   const [session, setSession] = useState(initial);
-  const [now, setNow] = useState(() => Date.now());
+  // The server already admitted this projection. The first client render must
+  // match its markup; evaluate the display clock after hydration, never as authority.
+  const [now, setNow] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [interactive, setInteractive] = useState(false);
   const [outcome, setOutcome] = useState<'extended' | 'unchanged' | 'failed' | null>(null);
+  const [failure, setFailure] = useState(0);
   const inFlight = useRef(false);
   const alive = useRef(true);
   const generation = useRef(0);
   const container = useRef<HTMLDivElement>(null);
   const alert = useRef<HTMLParagraphElement>(null);
   const status = useRef<HTMLParagraphElement>(null);
-  const expired = now >= session.expiresAt;
+  const extendButton = useRef<HTMLButtonElement>(null);
+  const expired = now !== null && now >= session.expiresAt;
   const ended = expired || outcome === 'failed';
   const recovery = session.limitedByAbsolute || outcome === 'unchanged';
-  const previousView = useRef({ ended, recovery });
+  const previousView = useRef({ ended, recovery, failure });
   useEffect(() => {
     ++generation.current;
     setSession(initial);
     setNow(Date.now());
     setOutcome(null);
+    setFailure(0);
   }, [initial]);
   useEffect(() => {
     alive.current = true;
@@ -71,16 +76,18 @@ export function SessionControls({
   }, []);
   useEffect(() => {
     const changed =
-      (ended && !previousView.current.ended) || (recovery && !previousView.current.recovery);
-    previousView.current = { ended, recovery };
+      ended !== previousView.current.ended ||
+      (ended && failure !== previousView.current.failure) ||
+      (recovery && !previousView.current.recovery);
+    previousView.current = { ended, recovery, failure };
     if (!changed) return;
     // A removed focused descendant falls back to body. Recover that focus, but
     // never interrupt a user who moved to another part of the document.
     const focused = document.activeElement;
     if (focused !== document.body && !container.current?.contains(focused)) return;
-    (ended ? alert.current : status.current)?.focus();
-  }, [ended, recovery]);
-  const warning = !ended && session.expiresAt - now <= 120_000;
+    (ended ? alert.current : recovery ? status.current : extendButton.current)?.focus();
+  }, [ended, recovery, failure]);
+  const warning = !ended && now !== null && session.expiresAt - now <= 120_000;
   const signin = '/api/auth/signin?returnTo=' + encodeURIComponent(returnTo);
   async function extend() {
     if (inFlight.current) return;
@@ -97,7 +104,10 @@ export function SessionControls({
       setSession(updated);
       setNow(Date.now());
     } catch {
-      if (alive.current && current === generation.current) setOutcome('failed');
+      if (alive.current && current === generation.current) {
+        setOutcome('failed');
+        setFailure((previous) => previous + 1);
+      }
     } finally {
       inFlight.current = false;
       if (alive.current) setBusy(false);
@@ -122,11 +132,11 @@ export function SessionControls({
       </p>
       {ended ? (
         <>
-          <p role="alert" tabIndex={-1} ref={alert}>
+          <p key={failure} role="alert" tabIndex={-1} ref={alert}>
             {expired ? labels.expired : labels.failed} <a href={signin}>{labels.reauthenticate}</a>
           </p>
           {interactive && !session.limitedByAbsolute && (
-            <button type="button" onClick={extend} disabled={busy} aria-busy={busy}>
+            <button type="button" onClick={extend} aria-disabled={busy} aria-busy={busy}>
               {busy ? labels.extending : labels.retry}
             </button>
           )}
@@ -140,7 +150,13 @@ export function SessionControls({
             </p>
           ) : (
             interactive && (
-              <button type="button" onClick={extend} disabled={busy} aria-busy={busy}>
+              <button
+                ref={extendButton}
+                type="button"
+                onClick={extend}
+                aria-disabled={busy}
+                aria-busy={busy}
+              >
                 {busy ? labels.extending : labels.extend}
               </button>
             )

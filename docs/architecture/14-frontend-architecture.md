@@ -63,6 +63,10 @@ it is not production security/lifecycle proof or runtime delivery.
 
 ## App Shape
 
+The tree combines current routes with target package/block locations. The notes
+below distinguish delivered route groups from Phase 06/07 targets; `packages/ui`
+is extracted only when duplication warrants it.
+
 ```text
 frontend/
   apps/

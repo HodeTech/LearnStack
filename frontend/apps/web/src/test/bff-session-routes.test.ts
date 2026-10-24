@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { bffFixture, bffHost, bffOpaque, bffRequest } from './bff-fixture';
 import { BFF_COOKIES, bffCookies } from '../server/auth/cookies';
@@ -13,6 +13,7 @@ const fixture = () => {
   return f;
 };
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(fixtures.splice(0).map((f) => f.store.stop()));
 });
 const jar = (response: Response) =>
@@ -20,6 +21,67 @@ const jar = (response: Response) =>
     .getSetCookie()
     .map((value) => value.split(';', 1)[0]!)
     .join('; ');
+
+it.each([
+  ['source_capacity', 429],
+  ['subject_capacity', 429],
+  ['pending_capacity', 503],
+  ['global_capacity', 503],
+  ['stopped', 503],
+  ['deadline', 503],
+  ['transport', 503],
+  ['provider_refused', 503],
+  ['configuration', 503],
+  ['response', 503],
+  ['transaction', 400],
+  ['expired', 400],
+  ['revoked', 400],
+  ['cancelled', 400],
+  ['identity', 400],
+  ['invalid_grant', 400],
+] as const)(
+  'distinguishes closed %s owner failures from malformed input (%i)',
+  async (reason, status) => {
+    const f = fixture();
+    vi.spyOn(f.store, 'start').mockRejectedValueOnce(new BffSessionError(reason));
+    const token = bffOpaque();
+    const response = await f.http.handle(
+      bffRequest('/api/auth/signin/keycloak', {
+        method: 'POST',
+        cookie: BFF_COOKIES.csrf + '=' + token,
+        form: 'csrfToken=' + token,
+      }),
+    );
+    expect(response!.status).toBe(status);
+    expect(await response!.json()).toEqual({ code: reason });
+    expect(response!.headers.getSetCookie()).toEqual([]);
+    expect(response!.headers.get('retry-after')).toBe(status === 400 ? null : '30');
+  },
+);
+
+it('withholds unexpected server failure details with 503 while malformed form remains 400', async () => {
+  const f = fixture();
+  const start = vi
+    .spyOn(f.store, 'start')
+    .mockRejectedValueOnce(new Error('private-server-canary'));
+  const token = bffOpaque();
+  const post = (form: string) =>
+    bffRequest('/api/auth/signin/keycloak', {
+      method: 'POST',
+      cookie: BFF_COOKIES.csrf + '=' + token,
+      form,
+    });
+  const badInput = await f.http.handle(post('csrfToken=' + token + '&unexpected=value'));
+  expect(badInput!.status).toBe(400);
+  expect(await badInput!.json()).toEqual({ code: 'invalid_request' });
+  expect(start).not.toHaveBeenCalled();
+  const unavailable = await f.http.handle(post('csrfToken=' + token));
+  expect(unavailable!.status).toBe(503);
+  expect(await unavailable!.json()).toEqual({ code: 'unavailable' });
+  expect(unavailable!.headers.getSetCookie()).toEqual([]);
+  expect(unavailable!.headers.get('retry-after')).toBe('30');
+  expect(start).toHaveBeenCalledTimes(1);
+});
 const expectCookies = (response: Response, expected: Record<string, number>) => {
   const cookies = response.headers.getSetCookie();
   expect(cookies.map((cookie) => cookie.split('=', 1)[0]!).sort()).toEqual(

@@ -64,19 +64,28 @@ async function observeWire(action: (response: ServerResponse) => void, protect =
 }
 
 describe('native logout redirect containment', () => {
-  it.each(['write', 'end'] as const)(
-    'suppresses actual wire bytes from %s, even when Content-Length tells fetch to ignore them',
-    async (method) => {
+  it.each(
+    (['write', 'end'] as const).flatMap((method) =>
+      (['explicit', 'implicit'] as const).map((publication) => ({ method, publication })),
+    ),
+  )(
+    'suppresses actual wire bytes from $method with $publication header publication',
+    async ({ method, publication }) => {
       const callback = vi.fn();
       const action = (response: ServerResponse) => {
-        response.writeHead(303, {
+        const headers = {
           location: destination,
           'content-length': '0',
           'set-cookie': [
             '__Host-one=; Max-Age=0; Path=/; Secure',
             '__Host-two=owned; Path=/; Secure',
           ],
-        });
+        };
+        if (publication === 'explicit') response.writeHead(303, headers);
+        else {
+          response.statusCode = 303;
+          for (const [name, value] of Object.entries(headers)) response.setHeader(name, value);
+        }
         if (method === 'write') {
           response.write(hint, callback);
           response.end();
@@ -131,6 +140,12 @@ describe('native logout redirect containment', () => {
 
   it.each([
     'https://foreign.example.test/logout?id_token_hint=' + hint,
+    'https://foreign.example.test/realms/learnstack/protocol/openid-connect/logout?id_token_hint=' +
+      hint,
+    'http://identity.example.test/realms/learnstack/protocol/openid-connect/logout?id_token_hint=' +
+      hint,
+    'https://identity.example.test:444/realms/learnstack/protocol/openid-connect/logout?id_token_hint=' +
+      hint,
     issuer + '/protocol/openid-connect/auth?id_token_hint=' + hint,
     destination + '#fragment',
     'https://user@identity.example.test/realms/learnstack/protocol/openid-connect/logout',

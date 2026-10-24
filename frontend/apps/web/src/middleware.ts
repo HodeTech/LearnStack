@@ -105,9 +105,19 @@ export async function middleware(request: NextRequest) {
     // unlocalized shell, exactly as in public entry admission.
     const protectedPath = entry.kind === 'continue' && entry.locale === null;
     const enabled = bffSessionEnabled();
-    const document = (kind: 'unavailable' | 'error' | 'busy', status: number) =>
+    const document = (
+      kind: 'unavailable' | 'error' | 'busy' | 'account_unavailable',
+      status: number,
+    ) =>
       new NextResponse(
-        request.method === 'HEAD' ? null : renderBffDocument(bootstrap.data, { kind }),
+        request.method === 'HEAD'
+          ? null
+          : renderBffDocument(
+              bootstrap.data,
+              kind === 'account_unavailable'
+                ? { kind, returnPath: path === '/studio' ? '/studio' : '/portal' }
+                : { kind },
+            ),
         {
           status,
           headers: {
@@ -152,7 +162,8 @@ export async function middleware(request: NextRequest) {
         }
         return bffResponse(bff.response);
       }
-      if (protectedPath && bff.unavailable) return bffResponse(document('unavailable', 503));
+      if (protectedPath && bff.unavailable)
+        return bffResponse(document('account_unavailable', 503));
       if (protectedPath && !bff.session) {
         const response = NextResponse.redirect(
           publicRedirect(context.host, '/api/auth/signin?returnTo=' + encodeURIComponent(path)),

@@ -15,6 +15,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Xunit;
 
@@ -49,11 +50,24 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
                 return Task.FromResult(Result.Ok(None.Value));
             },
         };
-        await using var host = RecipientHost(database, probe,
-            configure: services => services.AddSingleton<IAuditCatalogSource>(new RecurrenceFixtureAuditSource()));
+        // Keep a lost native hint's legal repair observable inside this case's
+        // unchanged 30-second wait. The actual control and DI executor share
+        // this validated case-owned configuration; production defaults stay intact.
+        var bounds = new BackgroundJobRuntimeOptions
+        {
+            ControlPoll = TimeSpan.FromMilliseconds(50),
+            FanoutPageSize = 2,
+            HandoffRepairGrace = TimeSpan.FromSeconds(15),
+        };
+        bounds.Validate();
+        await using var host = RecipientHost(database, probe, configure: services =>
+        {
+            services.RemoveAll<BackgroundJobRuntimeOptions>();
+            services.AddSingleton(bounds);
+            services.AddSingleton<IAuditCatalogSource>(new RecurrenceFixtureAuditSource());
+        });
         await using var source = Source(database);
         using var globals = new RecurrenceGlobalFilters();
-        var bounds = new BackgroundJobRuntimeOptions { ControlPoll = TimeSpan.FromMilliseconds(50), FanoutPageSize = 2 };
         var runtime = RecurrenceRuntime(host.Services, source, Fixture.Recurrences(manifest), bounds);
         using var metrics = new BackgroundJobMetricProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         long? completed = null;

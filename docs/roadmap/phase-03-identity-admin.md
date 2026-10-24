@@ -266,6 +266,11 @@ replay validation and provider-session indexing into `BffSessionStore`.
 It also owns authenticated provider event ingress/mirroring through the existing
 identity-event/audit path. Earlier development provider storage is not a durable
 LearnStack session ledger; local-only expiry/outage acts retain that limitation.
+If the API needs a distinct indeterminate-authentication outcome or trusted
+refusal witness, this phase owns that separate contract decision and its BFF
+consumer proofs. Until then, preserve
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md)'s status table;
+provider errors or challenge text cannot manufacture a trusted distinction.
 
 Keycloak owns credentials, password reset, email verification, and MFA. This phase
 wires LearnStack into that flow:

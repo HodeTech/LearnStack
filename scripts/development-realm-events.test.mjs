@@ -6,6 +6,33 @@ import { desired, manifest, secret, provider } from './development-realm-test-fi
 
 const plan = fixture => buildRealmPlan({ admin: fixture.admin, desired, manifest, webSecret: secret });
 const refused = error => error.stage === 'plan' && error.reason === 'event_policy_conflict';
+const requiredTypes = [
+  'LOGIN', 'LOGIN_ERROR', 'LOGOUT', 'LOGOUT_ERROR', 'CODE_TO_TOKEN',
+  'CODE_TO_TOKEN_ERROR', 'REFRESH_TOKEN', 'REFRESH_TOKEN_ERROR',
+];
+
+for (const [name, mutate] of [
+  ['disabled storage', value => { value.eventsEnabled = false; }],
+  ['missing storage flag', value => { delete value.eventsEnabled; }],
+  ['wrong retention', value => { value.eventsExpiration = 604801; }],
+  ['missing retention', value => { delete value.eventsExpiration; }],
+  ['nonarray selection', value => { value.enabledEventTypes = null; }],
+  ...requiredTypes.map(type => [`missing ${type}`, value => {
+    value.enabledEventTypes = value.enabledEventTypes.filter(current => current !== type);
+  }]),
+]) {
+  test(`the desired export rejects ${name} before ordinary or preparation reads`, async () => {
+    for (const build of [buildRealmPlan, buildRealmPreparation]) {
+      const fixture = provider();
+      const declaration = structuredClone(desired);
+      mutate(declaration);
+      await assert.rejects(build({ admin: fixture.admin, desired: declaration, manifest, webSecret: secret }),
+        error => error.stage === 'plan' && error.reason === 'unsupported');
+      assert.deepEqual(fixture.reads, []);
+      assert.deepEqual(fixture.writes, []);
+    }
+  });
+}
 
 test('a converged policy has no write and independently verifies listener/admin preservation', async () => {
   const fixture = provider();
@@ -94,6 +121,7 @@ for (const [name, mutate] of [
   ['lost listener', value => { value.eventsListeners = []; }],
   ['changed admin policy', value => { value.adminEventsEnabled = !value.adminEventsEnabled; }],
   ['changed retention', value => { value.eventsExpiration = 1209600; }],
+  ['disabled storage', value => { value.eventsEnabled = false; }],
 ]) {
   test(`independent policy readback rejects ${name}`, async () => {
     const fixture = provider();
@@ -107,6 +135,87 @@ for (const [name, mutate] of [
       if (removed) fixture.state.eventsConfig.enabledEventTypes = before.enabledEventTypes.filter(type => type !== removed);
       else mutate(fixture.state.eventsConfig);
       await assert.rejects(change.verify(), error => error.stage === 'readback' && error.reason === 'readback_conflict');
+    }
+    assert.deepEqual(fixture.writes, []);
+  });
+}
+
+for (const count of [256, 257]) {
+  test(`effective selection has an independent ${count}-type input boundary`, async () => {
+    const fixture = provider();
+    fixture.state.eventsConfig.enabledEventTypes = [
+      ...requiredTypes,
+      ...Array.from({ length: count - requiredTypes.length }, (_, index) => `CUSTOM_${index}`),
+    ];
+    if (count === 256) {
+      const change = await planRealmEvents(fixture.admin);
+      assert.equal(change.changed, false);
+      assert.equal(change.body.enabledEventTypes.length, 256);
+      await change.verify();
+    } else await assert.rejects(planRealmEvents(fixture.admin), refused);
+    assert.deepEqual(fixture.writes, []);
+  });
+}
+
+for (const count of [255, 256]) {
+  test(`adding the missing required type respects the ${count}-type post-union boundary`, async () => {
+    const fixture = provider();
+    fixture.state.eventsConfig.enabledEventTypes = [
+      ...requiredTypes.slice(1),
+      ...Array.from({ length: count - requiredTypes.length + 1 }, (_, index) => `CUSTOM_${index}`),
+    ];
+    if (count === 255) {
+      const change = await planRealmEvents(fixture.admin);
+      assert.equal(change.body.enabledEventTypes.length, 256);
+      assert.ok(change.body.enabledEventTypes.includes('LOGIN'));
+    } else await assert.rejects(planRealmEvents(fixture.admin),
+      error => error.stage === 'plan' && error.reason === 'body_limit');
+    assert.deepEqual(fixture.writes, []);
+  });
+}
+
+for (const overflow of [false, true]) {
+  test(`the normalized event document has its own exact decoded-byte boundary: overflow=${overflow}`, async () => {
+    const fixture = provider();
+    fixture.state.eventsConfig.padding = '';
+    const bytes = value => Buffer.byteLength(JSON.stringify(value));
+    fixture.state.eventsConfig.padding = 'x'.repeat(256 * 1024 - bytes(fixture.state.eventsConfig) + Number(overflow));
+    if (overflow) await assert.rejects(planRealmEvents(fixture.admin),
+      error => error.stage === 'plan' && error.reason === 'body_limit');
+    else {
+      const change = await planRealmEvents(fixture.admin);
+      assert.equal(bytes(change.body), 256 * 1024);
+      await change.verify();
+    }
+    assert.deepEqual(fixture.writes, []);
+  });
+}
+
+test('event readback independently rejects decoded-byte overflow before comparing state', async () => {
+  const fixture = provider();
+  fixture.state.eventsConfig.padding = '';
+  fixture.state.eventsConfig.padding = 'x'.repeat(256 * 1024 - Buffer.byteLength(JSON.stringify(fixture.state.eventsConfig)));
+  const change = await planRealmEvents(fixture.admin);
+  await change.verify();
+  fixture.state.eventsConfig.padding += 'x';
+  await assert.rejects(change.verify(), error => error.stage === 'readback' && error.reason === 'body_limit');
+  assert.deepEqual(fixture.writes, []);
+});
+
+for (const overflow of [false, true]) {
+  test(`event expansion independently enforces its own exact decoded-byte boundary: overflow=${overflow}`, async () => {
+    const fixture = provider();
+    Object.assign(fixture.state.eventsConfig, { enabledEventTypes: ['LOGIN'], padding: '' });
+    const projected = { ...fixture.state.eventsConfig, enabledEventTypes: [...requiredTypes].sort() };
+    const bytes = value => Buffer.byteLength(JSON.stringify(value));
+    fixture.state.eventsConfig.padding = 'x'.repeat(256 * 1024 - bytes(projected) + Number(overflow));
+    assert.ok(bytes(fixture.state.eventsConfig) < 256 * 1024);
+    if (overflow) await assert.rejects(planRealmEvents(fixture.admin),
+      error => error.stage === 'plan' && error.reason === 'body_limit');
+    else {
+      const change = await planRealmEvents(fixture.admin);
+      assert.equal(bytes(change.body), 256 * 1024);
+      assert.deepEqual(change.body.enabledEventTypes, [...requiredTypes].sort());
     }
     assert.deepEqual(fixture.writes, []);
   });

@@ -1146,61 +1146,94 @@ def command_failure_kind(stderr):
     return 'transport' if text.strip() == b'eof' else 'other'
 
 
-def command(argv, deadline, reason, *, cap=COMMAND_SECONDS, diagnose=False):
-    captured, failure, failure_kind = None, None, None
+def diagnostic_command(argv, deadline, reason, cap):
+    # Only fixed fixture pulls opt in. Drain both private pipes while the child
+    # runs: neither a flood nor a slow command can grow a disk spool or an
+    # unbounded communicate() buffer. A timeout is never a process-join witness.
+    process, selector, failure = None, None, None
+    stdout, stderr = bytearray(), bytearray()
+    effective_deadline = min(deadline, time.monotonic() + cap)
     try:
-        effective_deadline = min(deadline, time.monotonic() + cap) if diagnose else deadline
-        # Only the fixed fixture pulls opt in. The spool is unlinked/private,
-        # closed on every path, and read at most MAX_BYTES + 1 after actual join.
-        if diagnose:
-            captured = tempfile.TemporaryFile()
-            details = os.fstat(captured.fileno())
-            require(stat.S_ISREG(details.st_mode) and stat.S_IMODE(details.st_mode) == 0o600
-                    and details.st_nlink == 0 and details.st_uid == os.getuid(), reason + '_launch')
-        timeout = remaining(effective_deadline, cap)
+        selector = selectors.DefaultSelector()
+        remaining(effective_deadline)
         try:
-            result = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                    stderr=captured if diagnose else subprocess.DEVNULL, timeout=timeout,
-                                    env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8',
-                                         'LC_ALL': 'C.UTF-8', 'HOME': os.environ.get('HOME', ''),
-                                         'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'},
-                                    check=False)
-            stdout = result.stdout
-        except subprocess.TimeoutExpired as expired:
-            if not diagnose:
-                raise Refusal(reason) from None
-            failure_kind, stdout = 'timeout', expired.stdout or b''
+            process = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8',
+                     'LC_ALL': 'C.UTF-8', 'HOME': os.environ.get('HOME', ''),
+                     'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'})
         except OSError as error:
             kind = 'disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'launch'
-            raise Refusal(reason + '_' + kind if diagnose else reason) from None
-        if diagnose:
-            captured.seek(0)
-            stderr = captured.read(MAX_BYTES + 1)
-            require(len(stdout) <= MAX_BYTES and len(stderr) <= MAX_BYTES, reason + '_output_bound')
-            if failure_kind is None and result.returncode != 0:
-                failure_kind = command_failure_kind(stderr)
-                require(isinstance(failure_kind, str) and failure_kind in COMMAND_FAILURE_KINDS, reason + '_other')
-            if failure_kind is not None:
-                require(isinstance(failure_kind, str) and failure_kind in COMMAND_FAILURE_KINDS, reason + '_other')
-                raise Refusal(reason + '_' + failure_kind) from None
-        else:
-            require(result.returncode == 0 and len(stdout) <= MAX_BYTES, reason)
-    except Refusal as refused:
-        failure = Refusal(reason + '_deadline') if diagnose and refused.reason == 'deadline_exhausted' else refused
-    except OSError as error:
-        kind = failure_kind or ('disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'unavailable')
-        failure = Refusal(reason + '_' + kind if diagnose else reason)
-    finally:
-        if captured is not None:
+            raise Refusal(reason + '_' + kind) from None
+        selector.register(process.stdout, selectors.EVENT_READ, stdout)
+        selector.register(process.stderr, selectors.EVENT_READ, stderr)
+        while selector.get_map() or process.poll() is None:
             try:
-                captured.close()
+                budget = remaining(effective_deadline)
+            except Refusal as refused:
+                if refused.reason == 'deadline_exhausted':
+                    raise Refusal(reason + '_timeout') from None
+                raise
+            for key, _ in selector.select(min(POLL_SECONDS, budget)):
+                target = key.data
+                chunk = os.read(key.fd, min(65536, MAX_BYTES - len(target) + 1))
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                require(len(target) + len(chunk) <= MAX_BYTES, reason + '_output_bound')
+                target.extend(chunk)
+        process.wait()
+        if process.returncode != 0:
+            kind = command_failure_kind(stderr)
+            require(isinstance(kind, str) and kind in COMMAND_FAILURE_KINDS, reason + '_other')
+            raise Refusal(reason + '_' + kind)
+    except Refusal as refused:
+        failure = Refusal(reason + '_deadline') if refused.reason == 'deadline_exhausted' else refused
+    except OSError as error:
+        kind = 'disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'unavailable'
+        failure = Refusal(reason + '_' + kind)
+    finally:
+        # Reap the direct child even after overflow/cancellation. Its exit does
+        # not claim anything about other runner processes or Docker containers.
+        if process is not None:
+            try:
+                try:
+                    if process.poll() is None:
+                        process.kill()
+                finally:
+                    process.wait()
             except OSError as error:
                 if failure is None:
                     kind = 'disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'unavailable'
                     failure = Refusal(reason + '_' + kind)
+        for resource in (selector, process.stdout if process else None,
+                         process.stderr if process else None):
+            if resource is not None:
+                try:
+                    resource.close()
+                except OSError as error:
+                    if failure is None:
+                        kind = 'disk' if error.errno in (errno.ENOSPC, errno.EDQUOT) else 'unavailable'
+                        failure = Refusal(reason + '_' + kind)
     if failure is not None:
         raise failure from None
-    return stdout
+    return bytes(stdout)
+
+
+def command(argv, deadline, reason, *, cap=COMMAND_SECONDS, diagnose=False):
+    if diagnose:
+        return diagnostic_command(argv, deadline, reason, cap)
+    try:
+        result = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, timeout=remaining(deadline, cap),
+                                env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8',
+                                     'LC_ALL': 'C.UTF-8', 'HOME': os.environ.get('HOME', ''),
+                                     'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'},
+                                check=False)
+    except (subprocess.TimeoutExpired, OSError):
+        raise Refusal(reason) from None
+    require(result.returncode == 0 and len(result.stdout) <= MAX_BYTES, reason)
+    return result.stdout
 
 
 def identity(mode):

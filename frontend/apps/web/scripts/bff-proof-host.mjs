@@ -317,7 +317,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       `    const dependencies = {
       provider: createTenantProvider(bff, globalThis.fetch),
       account: createAccountSiteCaller(configuration, globalThis.fetch),
-      diagnostic: (reason) => console.warn('BFF session refused', { reason }),
+      diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
     };`,
       `    let now = 0; let refreshes = 0; let accounts = 0;
     process.on('message', async value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; await (await import('next/dist/trace/index.js')).flushAllTraces(); process.send?.({ kind: 'snapshot', now, refreshes, accounts }); } });
@@ -410,6 +410,10 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
   // qualify the native side while Next compiles different bundled sources.
   cpSync(join(source, 'tsconfig.server.json'), join(app, 'tsconfig.server.json'));
   mark('compile');
+  // The authenticated SDK subpath resolves to dist through the workspace link.
+  // Qualify standalone proof invocations too, not only callers that built it first.
+  const sdk = child([join(source, '../../packages/sdk/scripts/build-native.mjs')], env);
+  assert.equal((await sdk.completed).code, 0, 'owned current-source SDK compilation');
   const native = child(
     [join(source, 'node_modules/typescript/bin/tsc'), '--project', 'tsconfig.server.json'],
     env,

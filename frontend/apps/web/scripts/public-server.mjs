@@ -56,7 +56,7 @@ try {
     const dependencies = {
       provider: createTenantProvider(bff, globalThis.fetch),
       account: createAccountSiteCaller(configuration, globalThis.fetch),
-      diagnostic: (reason) => console.warn('BFF session refused', { reason }),
+      diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
     };
     bffRequests = installBffRequestRuntime();
     bffSessions = installBffSessionRuntime(dependencies);

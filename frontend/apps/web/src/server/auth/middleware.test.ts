@@ -110,6 +110,13 @@ describe('atomic host-first BFF middleware activation', () => {
       expect(response.headers.get('location')).toBeNull();
       expect(response.headers.getSetCookie()).toEqual([]);
       expect(response.headers.get('x-frame-options')).toBe('DENY');
+      if (path === '/studio') {
+        const html = await response.text();
+        expect(html).toContain('Hesap erişimi kullanılamıyor');
+        expect(html).toContain('href="/studio"');
+        expect(html).toContain('href="/api/auth/signin?returnTo=%2Fstudio"');
+        expect(html).not.toContain('csrfToken');
+      }
     },
   );
   it('unknown host refuses before mode selection, cookies, owner or provider work', async () => {

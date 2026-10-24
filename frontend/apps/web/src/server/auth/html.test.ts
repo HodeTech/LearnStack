@@ -12,6 +12,32 @@ const site = (): PublicSite => ({
 });
 
 describe('bounded localized BFF documents', () => {
+  it.each([
+    ['en', 'Account access unavailable'],
+    ['tr', 'Hesap erişimi kullanılamıyor'],
+  ] as const)(
+    'offers a closed checked retry and reauthentication in %s without exposing a retained session',
+    (locale, title) => {
+      for (const returnPath of ['/studio', '/portal'] as const) {
+        const document = new DOMParser().parseFromString(
+          renderBffDocument(
+            { ...site(), defaultLocale: locale },
+            { kind: 'account_unavailable', returnPath },
+          ),
+          'text/html',
+        );
+        expect(document.querySelector('h1')?.textContent).toBe(title);
+        expect([...document.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
+          '#main-content',
+          returnPath,
+          '/api/auth/signin?returnTo=' + encodeURIComponent(returnPath),
+          '/' + locale + '/courses',
+        ]);
+        expect(document.querySelector('script, form, input')).toBeNull();
+        expect(document.body.textContent).not.toContain('Institution');
+      }
+    },
+  );
   it.each(['en', 'tr'])(
     'renders a native form and complete %s UI without a client catalogue or local password',
     (locale) => {

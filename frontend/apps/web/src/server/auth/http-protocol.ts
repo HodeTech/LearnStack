@@ -267,6 +267,8 @@ export function createBffHttpProtocol(store: BffSessionStore) {
                   'deadline',
                   'transport',
                   'provider_refused',
+                  'configuration',
+                  'response',
                 ].includes(error.reason)
               ? 503
               : 400;
@@ -276,7 +278,9 @@ export function createBffHttpProtocol(store: BffSessionStore) {
             : [];
           return result(request, { code: error.reason }, status, edits);
         }
-        return result(request, { code: 'invalid_request' }, 400);
+        return error instanceof BffInputError
+          ? result(request, { code: 'invalid_request' }, 400)
+          : result(request, { code: 'unavailable' }, 503);
       }
     },
   });

@@ -5598,7 +5598,9 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   browser bodies/Flight/session projections, diagnostics and non-web environment
   projections contain none. Exact AccountSite validates actor/scope independently;
   native observation exposes scalar logical occupancy only, never credential
-  values, snapshots or a heap-zeroization claim.
+  values, snapshots or a heap-zeroization claim. Browser-storage controls cover
+  IndexedDB and Cookie Store; closed response-hook census includes not-found and
+  instrumentation entries.
 - **Source:** ADR-0070/0071; Security 11 § Tenant BFF sessions.
 - **Type:** frontend source/production canaries. **Kind:** structural.
 - **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and existing
@@ -5616,7 +5618,11 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   owners retain subject credit; full expired-state scans reclaim settled slots.
   Independent clocks/provider windows bind lifetime and activity. Ordinary
   uncertain 401 retains without idle touch, while callback and failed refreshed
-  package publication still refuse/revoke under ADR-0071.
+  package publication still refuse/revoke under ADR-0071. Independent long-provider
+  windows isolate every availability category's no-idle-touch rule; publication
+  clocks, caller cancellation and once-only local expiry/revocation diagnostics
+  have separate controls. Session CSRF and logout state/proof remain independently
+  random, rather than aliases of another capability.
 - **Source:** ADR-0070/0071; Security 11 § Tenant BFF sessions.
 - **Type:** unit and actual response-owning routes. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/server/auth/session-store.test.ts` and
@@ -5635,13 +5641,17 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   no session/provider work. Read-only RSC, HEAD, assets/prefetch/passive reads
   perform no idle/refresh/cookie writes. Independent negatives reach real guards.
   The exact matcher/config/framework entry set, Origin for every POST and raw
-  logout body suppression have independent dirty controls.
+  logout body suppression have independent dirty controls, including implicit
+  write/end and a foreign origin with the same logout path. Fixed native port,
+  POST return paths and exact provider/PKCE/logout wire parameters have isolated
+  controls; fake-transport assertions run outside production exception conversion.
 - **Source:** ADR-0070; ADR-0054 dated auth extension; Security 11 § CSRF.
 - **Type:** native listener and actual Next route controls. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/test/bff-auth-admission.test.ts` and
   `frontend/apps/web/src/test/bff-session-routes.test.ts`, with source census in
   `public-boundaries.test.ts` and raw TCP observation in
-  `src/server/auth/logout-response.test.ts`.
+  `src/server/auth/logout-response.test.ts`, plus `src/server/ingress.test.ts`
+  and `src/server/auth/provider.test.ts`.
 - **Status:** **Implemented** — native input/route controls above and the actual browser
   form/Origin and no-network startup cases in `TenantBffSessionTests`.
 - **Phase:** P02b-7 Steps 3–5.

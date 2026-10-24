@@ -8,7 +8,14 @@ import { describe, expect, it } from 'vitest';
 import { verifyHmrAdmission } from '../../scripts/admission-hmr.mjs';
 
 describe('development admission proof controls', () => {
-  it.each(['clean', 'old-site', 'old-source', 'active-context', 'retained-snapshot', 'bad-status'])(
+  it.each([
+    'clean',
+    'old-site',
+    'old-source',
+    'active-context',
+    'retained-snapshot',
+    'bad-status',
+  ] as const)(
     '%s observes the intended freshness/lifetime boundary and restores owned source',
     async (mode) => {
       const app = mkdtempSync(join(tmpdir(), 'learnstack-hmr-control-'));
@@ -70,7 +77,25 @@ describe('development admission proof controls', () => {
           expect(checkpoints).toEqual(['hmr-before', 'hmr-change', 'hmr-after', 'hmr-restore']);
           expect(calls).toBe(2);
           expect(watcherClosed).toBe(true);
-        } else await expect(run).rejects.toThrow();
+        } else {
+          const stage = {
+            'old-site': 'hmr-refresh-site',
+            'old-source': 'hmr-refresh-source',
+            'active-context': 'hmr-initial-release',
+            'retained-snapshot': 'hmr-initial-release',
+            'bad-status': 'hmr-initial-status',
+          }[mode as Exclude<typeof mode, 'clean'>];
+          await expect(run).rejects.toMatchObject({
+            message: 'Development admission proof failed',
+            admissionStage: stage,
+          });
+          const changed = mode === 'old-site' || mode === 'old-source';
+          expect(calls).toBe(changed ? 2 : 1);
+          expect(checkpoints).toEqual(
+            changed ? ['hmr-before', 'hmr-change', 'hmr-restore'] : ['hmr-before'],
+          );
+          expect(watcherClosed).toBe(changed);
+        }
         expect(stopped).toBe(true);
         expect(readFileSync(page, 'utf8')).toBe('original disposable catalog source');
       } finally {

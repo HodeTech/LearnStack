@@ -170,7 +170,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     {
         var lastStage = "input";
         using var responseBudget = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
-        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase == "ready" ? 90 : phase == "browser_result" ? 150 : 40));
+        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" ? 90 : phase == "browser_result" ? 150 : 40));
         try
         {
             for (var count = 0; count < 8; ++count)

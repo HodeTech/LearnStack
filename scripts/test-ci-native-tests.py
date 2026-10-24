@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import stat
 import subprocess
 import sys
@@ -386,16 +387,43 @@ except launcher.Refusal as failure:
             for path in directory.iterdir(): path.unlink()
             directory.rmdir()
 
-        actual_spool, captures = tempfile.TemporaryFile, []
-        def private_spool():
-            captured = actual_spool()
-            details = os.fstat(captured.fileno())
-            self.assertEqual(0o600, details.st_mode & 0o777)
-            self.assertEqual(0, details.st_nlink)
-            self.assertEqual(os.getuid(), details.st_uid)
-            captured.read = mock.Mock(wraps=captured.read)
-            captures.append(captured)
-            return captured
+    @contextlib.contextmanager
+    def capture_diagnostic_owners(self):
+        actual_process = subprocess.Popen
+        actual_selector = self.owner.selectors.DefaultSelector
+        processes, selectors, launches = [], [], []
+        def start(*args, **kwargs):
+            process = actual_process(*args, **kwargs)
+            processes.append(process)
+            launches.append((args, kwargs))
+            return process
+        def select():
+            selector = actual_selector()
+            selectors.append(selector)
+            return selector
+        try:
+            with mock.patch.object(self.owner.subprocess, 'Popen', side_effect=start), \
+                    mock.patch.object(self.owner.selectors, 'DefaultSelector', side_effect=select), \
+                    mock.patch.object(self.owner.tempfile, 'TemporaryFile') as spool:
+                yield processes, selectors, launches
+                spool.assert_not_called()
+        finally:
+            for process in processes:
+                self.assertIsNotNone(process.returncode, 'Actual direct child must be reaped')
+                self.assertTrue(process.stdout.closed)
+                self.assertTrue(process.stderr.closed)
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(process.pid, 0)
+            for selector in selectors:
+                self.assertIsNone(selector.get_map(), 'Selector fd must be closed on every path')
+
+    def diagnostic_child(self, body):
+        path = self.bin / 'diagnostic-child'
+        path.write_text('#!' + sys.executable + '\nimport os, sys, time\n' + body)
+        path.chmod(0o700)
+        return [str(path)]
+
+    def test_diagnostic_pipes_preserve_closed_categories_and_private_launch_environment(self):
         labels = {
             'rate_limit': 'toomanyrequests: You have reached your pull rate limit',
             'auth': 'unauthorized: authentication required',
@@ -410,8 +438,9 @@ except launcher.Refusal as failure:
         }
         self.assertEqual(set(labels) | {'launch', 'deadline', 'output_bound'}, self.owner.COMMAND_FAILURE_KINDS)
         console = io.StringIO()
-        with mock.patch.object(self.owner.tempfile, 'TemporaryFile', side_effect=private_spool), \
-                contextlib.redirect_stdout(console), contextlib.redirect_stderr(console):
+        with self.capture_diagnostic_owners() as (_, _, launches), \
+                contextlib.redirect_stdout(console), contextlib.redirect_stderr(console), \
+                mock.patch.dict(os.environ, {'PRIVATE_CANARY': 'PRIVATE-CANARY', 'DOCKER_CONFIG': 'PRIVATE-CANARY'}):
             for kind, diagnostic in labels.items():
                 self.configure(status={'docker': 7}, docker='PRIVATE-CANARY',
                                stderr=diagnostic + ' PRIVATE-CANARY https://private.invalid/token password=private')
@@ -420,109 +449,136 @@ except launcher.Refusal as failure:
             self.assertEqual('other', self.owner.command_failure_kind(b'\xffPRIVATE-CANARY'))
             self.configure(status={'docker': 0}, docker='ok', stderr='unauthorized PRIVATE-CANARY')
             with mock.patch.object(self.owner.time, 'monotonic', return_value=500), \
-                    mock.patch.object(self.owner.subprocess, 'run', wraps=actual_run) as run:
+                    mock.patch.object(self.owner, 'remaining', wraps=self.owner.remaining) as remaining:
                 self.assertEqual(b'ok', self.owner.command([self.owner.DOCKER, 'pull', 'fixed-image'],
                                                          610, 'pull', cap=55, diagnose=True))
-            self.assertEqual(([self.owner.DOCKER, 'pull', 'fixed-image'],), run.call_args.args)
-            self.assertEqual(55, run.call_args.kwargs['timeout'])
-            self.assertEqual(expected_environment, run.call_args.kwargs['env'])
-            self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stdin'])
-            self.assertEqual(subprocess.PIPE, run.call_args.kwargs['stdout'])
-            self.assertFalse(run.call_args.kwargs['check'])
-            self.assertIs(captures[-1], run.call_args.kwargs['stderr'])
-            self.assertTrue(captures[-1].closed)
+            self.assertTrue(remaining.call_args_list)
+            self.assertTrue(all(call.args == (555,) for call in remaining.call_args_list))
+            args, launch = launches[-1]
+            self.assertEqual(([self.owner.DOCKER, 'pull', 'fixed-image'],), args)
+            self.assertEqual({'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
+                'HOME': os.environ.get('HOME', ''), 'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'}, launch['env'])
+            self.assertEqual(subprocess.DEVNULL, launch['stdin'])
+            self.assertEqual(subprocess.PIPE, launch['stdout'])
+            self.assertEqual(subprocess.PIPE, launch['stderr'])
+            self.assertNotIn('shell', launch)
+            self.assertIsNone(self.calls()[-1]['secret'])
             self.configure(status={'docker': 7}, docker='PRIVATE-CANARY', stderr='unknown PRIVATE-CANARY')
             for unknown in ('PRIVATE-CANARY', {'private': 'PRIVATE-CANARY'}, None, 4):
                 with mock.patch.object(self.owner, 'command_failure_kind', return_value=unknown):
                     self.refuses('pull_other', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
                                  time.monotonic() + 2, 'pull', diagnose=True)
-            with mock.patch.object(self.owner, 'MAX_BYTES', 64):
-                for stdout, stderr in (('x' * 65, ''), ('', 'x' * 65)):
-                    self.configure(status={'docker': 0}, docker=stdout, stderr=stderr)
-                    self.refuses('pull_output_bound', self.owner.command,
-                                 [self.owner.DOCKER, 'pull', 'fixed-image'], time.monotonic() + 2, 'pull', diagnose=True)
-            self.refuses('pull_launch', self.owner.command, [str(self.bin / 'missing-command')],
+        self.assertEqual('', console.getvalue())
+
+    def test_diagnostic_streams_accept_each_exact_limit_and_kill_at_its_first_excess_byte(self):
+        with mock.patch.object(self.owner, 'MAX_BYTES', 64), self.capture_diagnostic_owners() as (processes, _, _):
+            child = self.diagnostic_child('os.write(1, b"x" * 64)\nos.write(2, b"y" * 64)\n')
+            self.assertEqual(b'x' * 64, self.owner.command(child, time.monotonic() + 2, 'pull', diagnose=True))
+            for descriptor in (1, 2):
+                with self.subTest(descriptor=descriptor):
+                    child = self.diagnostic_child(f'os.write({descriptor}, b"x" * 65)\ntime.sleep(10)\n')
+                    self.refuses('pull_output_bound', self.owner.command, child,
+                                 time.monotonic() + 2, 'pull', diagnose=True)
+                    self.assertEqual(-signal.SIGKILL, processes[-1].returncode)
+            child = self.diagnostic_child('while True:\n os.write(1, b"x" * 32)\n os.write(2, b"y" * 32)\n')
+            self.refuses('pull_output_bound', self.owner.command, child,
                          time.monotonic() + 2, 'pull', diagnose=True)
-            with mock.patch.object(self.owner.subprocess, 'run') as run:
+            self.assertEqual(-signal.SIGKILL, processes[-1].returncode)
+
+    def test_diagnostic_deadline_cancellation_launch_and_slow_child_remain_closed(self):
+        with self.capture_diagnostic_owners() as (processes, selectors, _):
+            with mock.patch.object(self.owner.subprocess, 'Popen') as start:
                 self.refuses('pull_deadline', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
                              time.monotonic() - 1, 'pull', diagnose=True)
-                run.assert_not_called()
-            with mock.patch.object(self.owner, 'CANCELLED', True), \
-                    mock.patch.object(self.owner.subprocess, 'run') as run:
-                self.refuses('cancelled', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
-                             time.monotonic() + 2, 'pull', diagnose=True)
-                run.assert_not_called()
-            timeout_child = self.bin / 'timeout-child'
-            pid_path = self.bin / 'timeout-child.pid'
-            timeout_child.write_text('#!' + sys.executable + '\nimport os, pathlib, sys, time\n'
-                + 'pathlib.Path(sys.argv[1]).write_text(str(os.getpid()))\n'
-                + 'print("PRIVATE-CANARY", flush=True)\n'
-                + 'print("PRIVATE-CANARY", file=sys.stderr, flush=True)\ntime.sleep(5)\n')
-            timeout_child.chmod(0o700)
-            self.refuses('pull_timeout', self.owner.command, [str(timeout_child), str(pid_path)],
-                         time.monotonic() + 2, 'pull', cap=0.5, diagnose=True)
-            with self.assertRaises(ProcessLookupError):
-                os.kill(int(pid_path.read_text()), 0)
-        self.assertEqual('', console.getvalue())
-        self.assertTrue(all(captured.closed for captured in captures))
-
-        class CloseFailure:
-            def __init__(self, captured): self.captured = captured
-            def __getattr__(self, name): return getattr(self.captured, name)
-            def close(self):
-                self.captured.close()
-                raise OSError(errno.ENOSPC, 'PRIVATE-CANARY https://private.invalid/credential')
-        with mock.patch.object(self.owner.tempfile, 'TemporaryFile', side_effect=lambda: CloseFailure(private_spool())):
-            self.configure(status={'docker': 7}, docker='PRIVATE-CANARY', stderr='unauthorized PRIVATE-CANARY')
-            self.refuses('pull_auth', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
-                         time.monotonic() + 2, 'pull', diagnose=True)
+                start.assert_not_called()
+                with mock.patch.object(self.owner, 'CANCELLED', True):
+                    self.refuses('cancelled', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                                 time.monotonic() + 2, 'pull', diagnose=True)
+                start.assert_not_called()
             self.refuses('pull_launch', self.owner.command, [str(self.bin / 'missing-command')],
                          time.monotonic() + 2, 'pull', diagnose=True)
-            self.configure(status={'docker': 0}, docker='ok', stderr='')
-            self.refuses('pull_disk', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
-                         time.monotonic() + 2, 'pull', diagnose=True)
-            with mock.patch.object(self.owner.subprocess, 'run', side_effect=subprocess.TimeoutExpired(
-                    'PRIVATE-CANARY', 55, output=b'PRIVATE-CANARY')):
-                self.refuses('pull_timeout', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+            child = self.diagnostic_child('os.write(1, b"PRIVATE-CANARY")\nos.write(2, b"PRIVATE-CANARY")\ntime.sleep(10)\n')
+            self.refuses('pull_timeout', self.owner.command, child,
+                         time.monotonic() + 2, 'pull', cap=0.5, diagnose=True)
+            self.assertEqual(-signal.SIGKILL, processes[-1].returncode)
+            # Even EOF on both pipes is not process completion.
+            child = self.diagnostic_child('os.close(1)\nos.close(2)\ntime.sleep(10)\n')
+            self.refuses('pull_timeout', self.owner.command, child,
+                         time.monotonic() + 2, 'pull', cap=0.5, diagnose=True)
+            self.assertEqual(-signal.SIGKILL, processes[-1].returncode)
+            # Cancellation after spawn must settle the same actual child too.
+            actual_remaining = self.owner.remaining
+            previous = len(processes)
+            def cancelled_after_spawn(deadline, cap=None):
+                if len(processes) > previous:
+                    raise self.owner.Refusal('cancelled')
+                return actual_remaining(deadline, cap)
+            with mock.patch.object(self.owner, 'remaining', side_effect=cancelled_after_spawn):
+                self.refuses('cancelled', self.owner.command, child,
                              time.monotonic() + 2, 'pull', diagnose=True)
-        self.assertTrue(all(captured.closed for captured in captures))
-        for global_deadline, after_spool in ((610, 556), (510, 511)):
+            self.assertEqual(-signal.SIGKILL, processes[-1].returncode)
+            for error, kind in ((errno.ENOSPC, 'disk'), (errno.EIO, 'launch')):
+                with mock.patch.object(self.owner.subprocess, 'Popen', side_effect=OSError(error, 'PRIVATE-CANARY')):
+                    self.refuses('pull_' + kind, self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                                 time.monotonic() + 2, 'pull', diagnose=True)
+
+    def test_diagnostic_setup_spends_the_same_absolute_budget_before_launch(self):
+        for global_deadline, after_setup in ((610, 556), (510, 511)):
             clock = {'now': 500}
-            def delayed_spool():
-                captured = private_spool()
-                clock['now'] = after_spool
-                return captured
+            original = self.owner.selectors.DefaultSelector
+            captures = []
+            def delayed_selector():
+                selector = original()
+                captures.append(selector)
+                clock['now'] = after_setup
+                return selector
             with mock.patch.object(self.owner.time, 'monotonic', side_effect=lambda: clock['now']), \
-                    mock.patch.object(self.owner.tempfile, 'TemporaryFile', side_effect=delayed_spool), \
-                    mock.patch.object(self.owner.subprocess, 'run') as run:
+                    mock.patch.object(self.owner.selectors, 'DefaultSelector', side_effect=delayed_selector), \
+                    mock.patch.object(self.owner.subprocess, 'Popen') as start:
                 self.refuses('pull_deadline', self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
                              global_deadline, 'pull', cap=55, diagnose=True)
-                run.assert_not_called()
-                self.assertTrue(captures[-1].closed)
-        for captured in captures:
-            self.assertLessEqual(captured.read.call_count, 1)
-            for call in captured.read.call_args_list:
-                self.assertIn(call.args, ((65,), (self.owner.MAX_BYTES + 1,)))
+                start.assert_not_called()
+                self.assertIsNone(captures[-1].get_map())
         for error, kind in ((errno.ENOSPC, 'disk'), (errno.EIO, 'unavailable')):
-            with mock.patch.object(self.owner.tempfile, 'TemporaryFile',
-                    side_effect=OSError(error, 'PRIVATE-CANARY')):
-                self.refuses('pull_' + kind, self.owner.command,
-                             [self.owner.DOCKER, 'pull', 'fixed-image'], time.monotonic() + 2, 'pull', diagnose=True)
+            with mock.patch.object(self.owner.selectors, 'DefaultSelector',
+                    side_effect=OSError(error, 'PRIVATE-CANARY')), \
+                    mock.patch.object(self.owner.subprocess, 'Popen') as start:
+                self.refuses('pull_' + kind, self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             time.monotonic() + 2, 'pull', diagnose=True)
+                start.assert_not_called()
 
-    def test_private_diagnostic_spool_refuses_each_unsafe_stat_before_launch_and_closes(self):
-        original = tempfile.TemporaryFile
-        for field, value in (('st_mode', stat.S_IFDIR | 0o600), ('st_mode', stat.S_IFREG | 0o640),
-                             ('st_nlink', 1), ('st_uid', os.getuid() + 1)):
-            with self.subTest(field=field, value=value), original() as spool:
-                details = dict(st_mode=stat.S_IFREG | 0o600, st_nlink=0, st_uid=os.getuid())
-                details[field] = value
-                with mock.patch.object(self.owner.tempfile, 'TemporaryFile', return_value=spool), \
-                        mock.patch.object(self.owner.os, 'fstat', return_value=types.SimpleNamespace(**details)), \
-                        mock.patch.object(self.owner.subprocess, 'run') as run:
-                    self.refuses('pull_launch', self.owner.command,
-                                 [self.owner.DOCKER, 'pull', 'fixed-image'], time.monotonic() + 2, 'pull', diagnose=True)
-                    run.assert_not_called()
-                    self.assertTrue(spool.closed)
+    def test_diagnostic_io_and_cleanup_failures_join_child_and_preserve_first_closed_reason(self):
+        actual_read = os.read
+        with self.capture_diagnostic_owners() as (processes, _, _):
+            child = self.diagnostic_child('os.write(1, b"PRIVATE-CANARY")\ntime.sleep(10)\n')
+            def broken_pipe(fd, count):
+                if processes and fd in (processes[-1].stdout.fileno(), processes[-1].stderr.fileno()):
+                    raise OSError(errno.EIO, 'PRIVATE-CANARY https://private.invalid/credential')
+                return actual_read(fd, count)
+            with mock.patch.object(self.owner.os, 'read', side_effect=broken_pipe):
+                self.refuses('pull_unavailable', self.owner.command, child,
+                             time.monotonic() + 2, 'pull', diagnose=True)
+            self.assertEqual(-signal.SIGKILL, processes[-1].returncode)
+        for status, diagnostic, reason in ((7, 'unauthorized PRIVATE-CANARY', 'auth'), (0, '', 'disk')):
+            actual_process = subprocess.Popen
+            captures = []
+            def broken_close(*args, **kwargs):
+                process = actual_process(*args, **kwargs)
+                captures.append(process)
+                original_close = process.stdout.close
+                def close():
+                    original_close()
+                    raise OSError(errno.ENOSPC, 'PRIVATE-CANARY https://private.invalid/credential')
+                process.stdout.close = close
+                return process
+            self.configure(status={'docker': status}, docker='ok', stderr=diagnostic)
+            with mock.patch.object(self.owner.subprocess, 'Popen', side_effect=broken_close):
+                self.refuses('pull_' + reason, self.owner.command, [self.owner.DOCKER, 'pull', 'fixed-image'],
+                             time.monotonic() + 2, 'pull', diagnose=True)
+            self.assertTrue(captures[-1].stdout.closed)
+            self.assertTrue(captures[-1].stderr.closed)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(captures[-1].pid, 0)
 
     def test_docker_socket_access_failure_is_not_registry_authentication(self):
         for diagnostic in (

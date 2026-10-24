@@ -254,6 +254,53 @@ describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
     }
     expect(f.provider.begin).not.toHaveBeenCalled();
   });
+  it.each([
+    'https://foreign.example/studio',
+    '//foreign.example/studio',
+    'javascript:alert(1)',
+    '/studio/nested',
+    '/studio?next=https://foreign.example',
+    '/studio#section',
+    '/%2f%2fforeign.example',
+    '/%73tudio',
+    '/\\foreign.example',
+    '\r\nhttps://foreign.example',
+  ])('POST sign-in rejects returnTo %j after valid Origin and CSRF', async (destination) => {
+    const f = fixture();
+    const token = bffOpaque();
+    const counts = f.store.counts();
+    const response = await f.http.handle(
+      bffRequest('/api/auth/signin/keycloak', {
+        method: 'POST',
+        cookie: BFF_COOKIES.csrf + '=' + token,
+        form: new URLSearchParams({ csrfToken: token, returnTo: destination }).toString(),
+      }),
+    );
+    expect(response!.status).toBe(400);
+    expect(await response!.json()).toEqual({ code: 'invalid_request' });
+    expect(response!.headers.has('location')).toBe(false);
+    expect(response!.headers.getSetCookie()).toEqual([]);
+    expect(f.store.counts()).toEqual(counts);
+    expect(f.provider.begin).not.toHaveBeenCalled();
+    expect(f.account).not.toHaveBeenCalled();
+  });
+  it.each(['/', '/studio', '/portal'])(
+    'POST sign-in accepts only the exact local returnTo %s with valid Origin and CSRF',
+    async (destination) => {
+      const f = fixture();
+      const token = bffOpaque();
+      const response = await f.http.handle(
+        bffRequest('/api/auth/signin/keycloak', {
+          method: 'POST',
+          cookie: BFF_COOKIES.csrf + '=' + token,
+          form: new URLSearchParams({ csrfToken: token, returnTo: destination }).toString(),
+        }),
+      );
+      expect(response!.status).toBe(303);
+      expect(f.provider.begin).toHaveBeenCalledOnce();
+      expect(f.store.counts().pending).toBe(1);
+    },
+  );
   it('all emitted cookies are single opaque host cookies without credentials, Domain or chunks', () => {
     const token = bffOpaque();
     for (const name of [

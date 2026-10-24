@@ -76,7 +76,8 @@ public sealed class TenantRealmEventTests(KeycloakFixture fresh)
         var after = await admin.GetAsync("events/config");
         after.GetProperty("eventsEnabled").GetBoolean().Should().BeTrue();
         after.GetProperty("eventsExpiration").GetInt64().Should().Be(604800);
-        Types(after).Should().Contain(Required).And.Contain("UPDATE_PROFILE");
+        Types(after).Should().BeEquivalentTo(Types(before).Union(Required, StringComparer.Ordinal),
+            "reconciliation adds only the required types and preserves the exact prior selection");
         foreach (var field in new[] { "eventsListeners", "adminEventsEnabled", "adminEventsDetailsEnabled" })
             after.GetProperty(field).GetRawText().Should().Be(before.GetProperty(field).GetRawText());
         (await admin.GetAsync("users/profile")).GetRawText().Should().Be(profile);

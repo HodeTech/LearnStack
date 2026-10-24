@@ -54,6 +54,7 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
   let accounting: ReturnType<typeof deferred<void>> | undefined;
   const tokens = new Map<string, ProviderIdentity>();
   const diagnostics: SessionFailure[] = [];
+  const diagnostic = vi.fn((reason: SessionFailure) => diagnostics.push(reason));
   function credentials(): ProviderCredentials {
     const accessToken = privateCanary + '-' + ++sequence;
     const result = {
@@ -101,7 +102,7 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
       monotonic: () => now,
       utc: () => 1_800_000_000_000 + now + (options.utcJitter?.() ?? 0),
     },
-    diagnostic: (reason) => diagnostics.push(reason),
+    diagnostic,
   });
   stores.push(store);
   async function start(extra: Partial<Parameters<typeof store.start>[0]> = {}) {
@@ -111,6 +112,7 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
     login: Awaited<ReturnType<typeof start>>,
     atHost = host,
     callbackSource = source,
+    signal?: AbortSignal,
   ) {
     return store.complete({
       host: atHost,
@@ -124,6 +126,7 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
         '/api/auth/callback/keycloak?state=' +
         login.state +
         '&code=owned-code',
+      signal,
     });
   }
   async function login(extra: Partial<Parameters<typeof store.start>[0]> = {}) {
@@ -140,6 +143,7 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
     provider,
     account,
     diagnostics,
+    diagnostic,
     start,
     complete,
     login,
@@ -178,6 +182,84 @@ async function flush() {
 }
 
 describe('Bff_Session_Refresh_And_Revocation_Have_One_Owner', () => {
+  it('keeps session CSRF and logout proofs independent from handles and all other opaque values', async () => {
+    const f = fixture();
+    const values: string[] = [];
+    for (let i = 0; i < 2; ++i) {
+      const { started, binding, finished } = await f.login();
+      const logout = f.store.signout(binding, finished.session.csrfToken);
+      values.push(
+        started.state,
+        started.proof,
+        binding.browser,
+        binding.handle,
+        finished.session.csrfToken,
+        logout.state,
+        logout.proof,
+      );
+    }
+    for (const value of values) expect(value).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(new Set(values).size).toBe(14);
+  });
+
+  it('propagates cancelled sign-in to the actual provider owner and retains credit until settlement', async () => {
+    const f = fixture();
+    const held = deferred<void>();
+    releases.push(() => held.resolve());
+    const begin = vi.mocked(f.provider.begin).getMockImplementation()!;
+    vi.mocked(f.provider.begin).mockImplementationOnce(async (...args) => {
+      await held.promise;
+      return begin(...args);
+    });
+    const controller = new AbortController();
+    const pending = f.start({ signal: controller.signal });
+    const refused = expect(pending).rejects.toMatchObject({ reason: 'cancelled' });
+    await vi.waitFor(() => expect(f.provider.begin).toHaveBeenCalledTimes(1));
+    const owner = vi.mocked(f.provider.begin).mock.calls[0]![1]!;
+    expect(owner.aborted).toBe(false);
+    controller.abort();
+    expect(owner.aborted).toBe(true);
+    expect(f.store.counts()).toMatchObject({ owners: 1, pending: 1, operations: 1 });
+    expect(f.provider.redeem).not.toHaveBeenCalled();
+    held.resolve();
+    await refused;
+    expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+  });
+
+  it.each(['redeem', 'account'] as const)(
+    'propagates callback cancellation during %s without publishing or releasing unfinished work',
+    async (stage) => {
+      const f = fixture();
+      const started = await f.start();
+      const held = stage === 'redeem' ? f.blockRedeem() : f.blockAccount();
+      const controller = new AbortController();
+      const pending = f.complete(started, host, source, controller.signal);
+      const refused = expect(pending).rejects.toMatchObject({
+        reason: 'cancelled',
+        clearTransaction: started.state,
+      });
+      await vi.waitFor(() =>
+        expect(stage === 'redeem' ? f.provider.redeem : f.account).toHaveBeenCalledTimes(1),
+      );
+      const owner =
+        stage === 'redeem'
+          ? vi.mocked(f.provider.redeem).mock.calls[0]![2]!
+          : f.account.mock.calls[0]![2];
+      expect(owner.aborted).toBe(false);
+      controller.abort();
+      expect(owner.aborted).toBe(true);
+      expect(f.store.counts()).toMatchObject({
+        owners: 1,
+        pending: 1,
+        operations: 1,
+        credentialRecords: 0,
+      });
+      held.resolve();
+      await refused;
+      expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+    },
+  );
+
   it('stores credentials privately and projects only closed immutable display/deadline/CSRF fields', async () => {
     const f = fixture();
     expect(f.provider.begin).not.toHaveBeenCalled();
@@ -675,6 +757,22 @@ describe('effective deadlines and one refresh owner', () => {
 });
 
 describe('logout, actual settlement and shutdown', () => {
+  it('reports one closed local signout transition without logging invalid or repeated attempts', async () => {
+    const f = fixture();
+    const { binding, finished } = await f.login();
+    expect(() => f.store.signout(binding, secret())).toThrow(BffSessionError);
+    expect(f.diagnostic).not.toHaveBeenCalled();
+    const logout = f.store.signout(binding, finished.session.csrfToken);
+    expect(f.diagnostic.mock.calls).toEqual([['revoked']]);
+    expect(f.store.counts()).toMatchObject({ credentialRecords: 0, logoutStates: 1 });
+    expect(() => f.store.signout(binding, finished.session.csrfToken)).toThrow(BffSessionError);
+    expect(f.store.consumeLogout({ ...binding, ...logout })).toBe(true);
+    expect(f.store.consumeLogout({ ...binding, ...logout })).toBe(false);
+    f.advance(BFF_LIMITS.transactionMs);
+    f.store.sweep();
+    expect(f.diagnostic.mock.calls).toEqual([['revoked']]);
+  });
+
   it('retains logout-return subject credit through aborted refresh, return consumption and actual settlement', async () => {
     const f = fixture();
     const { binding } = await f.login();
@@ -720,7 +818,7 @@ describe('logout, actual settlement and shutdown', () => {
     const output = f.store.signout(binding, f.store.peek(binding)!.csrfToken);
     expect(output.redirectUrl).toBeNull();
     expect(f.store.peek(binding)).toBeNull();
-    expect(f.diagnostics).toEqual(['response']);
+    expect(f.diagnostics).toEqual(['response', 'revoked']);
     expect(f.store.counts()).toMatchObject({ owners: 1, pending: 0, subjects: 1 });
   });
 
@@ -821,8 +919,46 @@ describe('refusal and expiry boundaries', () => {
       f.advance(BFF_LIMITS.transactionMs);
       await vi.advanceTimersByTimeAsync(BFF_LIMITS.sweepMs);
       expect(f.store.counts()).toMatchObject({ owners: 0, pending: 0, groups: 0 });
+      expect(f.diagnostic.mock.calls).toEqual(Array.from({ length: 16 }, () => ['expired']));
+      await vi.advanceTimersByTimeAsync(BFF_LIMITS.sweepMs * 2);
+      expect(f.diagnostic).toHaveBeenCalledTimes(16);
       await f.store.stop();
       expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('the maintenance tick reports expired once while actual work retains its closing owner', async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture();
+      f.setTokens({ accessExpiresAt: 86_400_000, refreshExpiresAt: 86_400_000 });
+      const { binding } = await f.login();
+      f.advance(BFF_LIMITS.idleMs - 1);
+      const held = f.blockAccount();
+      const work = f.store.admit(binding, source, 'read');
+      const refused = expect(work).rejects.toMatchObject({ reason: 'revoked' });
+      await flush();
+      expect(f.account).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(BFF_LIMITS.sweepMs);
+      expect(f.diagnostic).not.toHaveBeenCalled();
+      f.advance(1);
+      await vi.advanceTimersByTimeAsync(BFF_LIMITS.sweepMs);
+      expect(f.diagnostic.mock.calls).toEqual([['expired']]);
+      expect(f.store.counts()).toMatchObject({
+        owners: 1,
+        operations: 1,
+        credentialRecords: 0,
+      });
+      await vi.advanceTimersByTimeAsync(BFF_LIMITS.sweepMs * 2);
+      expect(f.diagnostic.mock.calls).toEqual([['expired']]);
+      held.resolve();
+      await refused;
+      await flush();
+      expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+      // Keep the independent failed-read observation as well as the transition.
+      expect(f.diagnostic.mock.calls).toEqual([['expired'], ['revoked']]);
     } finally {
       vi.useRealTimers();
     }
@@ -898,7 +1034,7 @@ describe('independent lifetime and logical custody controls', () => {
     f.advance(1);
     expect(f.store.peek(binding)).toBeNull();
   });
-  it.each(['passive', 'peek', 'denied read'] as const)(
+  it.each(['passive', 'peek', 'transport', 'deadline', 'response', 'provider_refused'] as const)(
     '%s never advances the independent idle deadline',
     async (activity) => {
       const f = longProvider();
@@ -907,15 +1043,56 @@ describe('independent lifetime and logical custody controls', () => {
       if (activity === 'peek') f.store.peek(binding);
       else if (activity === 'passive') await f.store.admit(binding, source, 'passive');
       else {
-        f.account.mockRejectedValueOnce(new BffProviderError('provider_refused'));
+        f.account.mockRejectedValueOnce(new BffProviderError(activity));
         await expect(f.store.admit(binding, source, 'read')).rejects.toMatchObject({
-          reason: 'provider_refused',
+          reason: activity,
         });
       }
       f.advance(10 * 60_000);
       expect(f.store.peek(binding)).toBeNull();
     },
   );
+  it('anchors both idle and absolute lifetime at successful publication after delayed provider/API work', async () => {
+    const f = fixture();
+    f.setTokens({ accessExpiresAt: 24 * hour, refreshExpiresAt: 24 * hour });
+    const started = await f.start();
+    f.advance(120_000);
+    const held = f.blockAccount();
+    const pending = f.complete(started);
+    await vi.waitFor(() => expect(f.account).toHaveBeenCalledTimes(1));
+    f.advance(60_000);
+    held.resolve();
+    const finished = await pending;
+    const binding = { host, browser: finished.browser, handle: finished.handle };
+    const publishedAt = 180_000;
+    expect(finished.session.expiresAt).toBe(1_800_000_000_000 + publishedAt + 1_800_000);
+    for (let i = 0; i < 31; ++i) {
+      f.advance(15 * 60_000);
+      await f.store.admit(binding, source, 'read');
+    }
+    expect(f.store.peek(binding)).toMatchObject({
+      expiresAt: 1_800_000_000_000 + publishedAt + 28_800_000,
+      limitedByAbsolute: true,
+    });
+    expect(f.provider.refresh).not.toHaveBeenCalled();
+    f.advance(15 * 60_000);
+    expect(f.store.peek(binding)).toBeNull();
+  });
+
+  it('passes the current refreshed ID token, exact root return and independent state to logout', async () => {
+    const f = fixture();
+    f.setTokens({ idToken: 'initial-id-token' });
+    const { binding } = await f.login();
+    f.setTokens({ idToken: 'current-id-token', refreshToken: 'current-refresh-token' });
+    const projection = await f.store.admit(binding, source, 'extend');
+    const logout = f.store.signout(binding, projection.csrfToken);
+    expect(f.provider.logoutUrl).toHaveBeenCalledExactlyOnceWith(
+      'current-id-token',
+      'https://' + host + '/',
+      logout.state,
+    );
+    expect(f.store.counts()).toMatchObject({ credentialRecords: 0, logoutStates: 1 });
+  });
   it('successful ordinary authority admission advances idle without refreshing fresh credentials', async () => {
     const f = longProvider();
     const { binding } = await f.login();

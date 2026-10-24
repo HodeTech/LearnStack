@@ -73,6 +73,26 @@ test('the actual core applies one mutation, verifies full state, and makes an ex
   assert.equal(recording.requests.filter(request => request.path === '/admin/realms/learnstack/' && !request.method).length, 6);
 });
 
+test('a successful independent readback still requires an empty final fresh plan', async () => {
+  const state = provider();
+  const recording = providerTransport(state);
+  let realmReads = 0;
+  const transport = async (url, options) => {
+    const response = await recording.transport(url, options);
+    if (url.pathname === '/admin/realms/learnstack/' && !options.method && ++realmReads === 3) {
+      assert.equal(options.stage, 'readback');
+      const value = JSON.parse(response.bytes.toString('utf8'));
+      value.accessTokenLifespan = 1800;
+      return { ...response, bytes: Buffer.from(JSON.stringify(value)) };
+    }
+    return response;
+  };
+  await assert.rejects(reconcileRealm(memoryInput(transport)), refusal('readback', 'readback_conflict'));
+  assert.equal(realmReads, 3, 'planning and its independent verification completed before the final fresh-plan control');
+  assert.deepEqual(state.writes, [], 'the remaining change is refused, never automatically applied');
+  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+});
+
 for (const stage of ['apply', 'readback']) {
   test(`an unexpected ${stage} fault preserves its closed stage and a committed mutation resumes from fresh state`, async () => {
     const state = provider(); state.state.realm.accessTokenLifespan = 1800;

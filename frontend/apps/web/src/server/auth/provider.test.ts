@@ -1,9 +1,10 @@
 // @vitest-environment node
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import http from 'node:http';
 
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createTenantProvider } from './provider';
 import { BffProviderError } from './provider-error';
@@ -16,13 +17,45 @@ const actorId = '019a154b-0000-7000-8000-000000000011';
 const tenantId = '10000000-0000-4000-8000-000000000001';
 let keys: Awaited<ReturnType<typeof generateKeyPair>>;
 let otherKeys: Awaited<ReturnType<typeof generateKeyPair>>;
+type WireCall = Readonly<{
+  url: string;
+  method: string;
+  body: URLSearchParams;
+  redirect: RequestRedirect | undefined;
+  credentials: RequestCredentials | undefined;
+  cache: RequestCache | undefined;
+}>;
+const wires: { issuer: string; calls: WireCall[] }[] = [];
+
+afterEach(() => {
+  // Assertions outside customFetch cannot be mistaken for an expected transport
+  // rejection by the production adapter's closed error conversion.
+  for (const { issuer, calls } of wires.splice(0))
+    for (const call of calls) {
+      expect(call.redirect).toBe('error');
+      expect(call.credentials).toBe('omit');
+      expect(call.cache).toBe('no-store');
+      const token = `${issuer}/protocol/openid-connect/token`;
+      expect([
+        `${issuer}/.well-known/openid-configuration`,
+        `${issuer}/protocol/openid-connect/certs`,
+        token,
+      ]).toContain(call.url);
+      expect(call.method).toBe(call.url === token ? 'POST' : 'GET');
+      if (call.url === token) {
+        expect(call.body.getAll('client_id')).toEqual(['learnstack-web']);
+        expect(call.body.getAll('client_secret')).toEqual([privateCanary]);
+      } else expect([...call.body]).toEqual([]);
+    }
+});
 beforeAll(async () => {
   keys = await generateKeyPair('RS256');
   otherKeys = await generateKeyPair('RS256');
 });
 
 async function fixture(issuer = 'https://identity.example.test/realms/learnstack') {
-  const calls: { url: string; method: string; body: URLSearchParams }[] = [];
+  const calls: WireCall[] = [];
+  wires.push({ issuer, calls });
   let nonce: string | undefined;
   let claims: Record<string, unknown> = {};
   let tokenPatch: Record<string, unknown> = {};
@@ -35,9 +68,14 @@ async function fixture(issuer = 'https://identity.example.test/realms/learnstack
   const transport: typeof fetch = vi.fn(async (input, init) => {
     const url = String(input);
     const body = new URLSearchParams(String(init?.body ?? ''));
-    calls.push({ url, method: init?.method ?? 'GET', body });
-    expect(init?.redirect).toBe('error');
-    expect(init?.credentials).toBe('omit');
+    calls.push({
+      url,
+      method: init?.method ?? 'GET',
+      body,
+      redirect: init?.redirect,
+      credentials: init?.credentials,
+      cache: init?.cache,
+    });
     if (failedPath && url.endsWith(failedPath)) throw new Error(privateCanary);
     if (response) return response();
     if (url.endsWith('/.well-known/openid-configuration'))
@@ -53,9 +91,6 @@ async function fixture(issuer = 'https://identity.example.test/realms/learnstack
       return Response.json({
         keys: [{ ...publicKey, kid: 'owned-key', use: 'sig', alg: 'RS256' }],
       });
-    expect(url).toBe(`${issuer}/protocol/openid-connect/token`);
-    expect(body.get('client_id')).toBe('learnstack-web');
-    expect(body.get('client_secret')).toBe(privateCanary);
     if (refused)
       return Response.json(
         { error: 'invalid_grant', error_description: privateCanary },
@@ -136,9 +171,29 @@ describe('inactive tenant RP boundary', () => {
     const afterGrant = performance.now();
     const authorization = new URL(redirectUrl);
     expect(authorization.origin).toBe(new URL(issuer).origin);
+    expect(authorization.pathname).toBe('/realms/learnstack/protocol/openid-connect/auth');
+    expect([...authorization.searchParams.keys()].sort()).toEqual([
+      'client_id',
+      'code_challenge',
+      'code_challenge_method',
+      'nonce',
+      'redirect_uri',
+      'response_type',
+      'scope',
+      'state',
+    ]);
+    expect(authorization.searchParams.get('client_id')).toBe('learnstack-web');
+    expect(authorization.searchParams.get('redirect_uri')).toBe(callback);
+    expect(authorization.searchParams.get('response_type')).toBe('code');
+    expect(authorization.searchParams.get('scope')).toBe('openid profile email');
     expect(authorization.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(authorization.searchParams.get('code_challenge')).toBe(
+      createHash('sha256').update(transaction.verifier).digest('base64url'),
+    );
+    expect(authorization.searchParams.get('code_challenge')).not.toBe(transaction.verifier);
     expect(authorization.searchParams.get('nonce')).toBe(transaction.nonce);
     expect(authorization.searchParams.get('state')).toBe(transaction.state);
+    expect(redirectUrl).not.toContain(privateCanary);
     expect(result.identity).toEqual({
       issuer,
       subject: 'external-subject',
@@ -161,15 +216,53 @@ describe('inactive tenant RP boundary', () => {
     expect(refreshed.identity).toEqual(result.identity);
     expect(f.calls.filter((call) => call.url.endsWith('/token'))).toHaveLength(2);
     expect(f.calls.filter((call) => call.url.endsWith('/certs')).length).toBeGreaterThan(0);
-    expect(f.calls.find((call) => call.url.endsWith('/token'))?.body.get('code_verifier')).toBe(
-      transaction.verifier,
-    );
+    const tokenCalls = f.calls.filter((call) => call.url.endsWith('/token'));
+    expect([...tokenCalls[0]!.body]).toHaveLength(6);
+    expect(Object.fromEntries(tokenCalls[0]!.body)).toEqual({
+      client_id: 'learnstack-web',
+      client_secret: privateCanary,
+      code: 'owned-code',
+      code_verifier: transaction.verifier,
+      grant_type: 'authorization_code',
+      redirect_uri: callback,
+    });
+    expect(Object.fromEntries(tokenCalls[1]!.body)).toEqual({
+      client_id: 'learnstack-web',
+      client_secret: privateCanary,
+      grant_type: 'refresh_token',
+      refresh_token: result.refreshToken,
+    });
+    expect([...tokenCalls[1]!.body]).toHaveLength(4);
     const before = f.calls.length;
     const logout = new URL(
       f.provider.logoutUrl(result.idToken, 'https://school.example.test/', 'owned-return'),
     );
-    expect(logout.searchParams.get('id_token_hint')).toBe(result.idToken);
+    expect(logout.origin).toBe(new URL(issuer).origin);
+    expect(logout.pathname).toBe('/realms/learnstack/protocol/openid-connect/logout');
+    expect(Object.fromEntries(logout.searchParams)).toEqual({
+      client_id: 'learnstack-web',
+      id_token_hint: result.idToken,
+      post_logout_redirect_uri: 'https://school.example.test/',
+      state: 'owned-return',
+    });
+    expect([...logout.searchParams]).toHaveLength(4);
+    expect(logout.href).not.toContain(privateCanary);
     expect(f.calls).toHaveLength(before);
+  });
+
+  it('creates independent unpredictable state, nonce and verifier values per transaction', async () => {
+    const f = await fixture();
+    const transactions = await Promise.all([
+      f.provider.begin(callback),
+      f.provider.begin(callback),
+    ]);
+    const values = transactions.flatMap(({ transaction }) => [
+      transaction.state,
+      transaction.nonce,
+      transaction.verifier,
+    ]);
+    for (const value of values) expect(value).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(new Set(values).size).toBe(6);
   });
 
   it('accepts a nonnil actor UUID independently of its version, matching the API profile', async () => {

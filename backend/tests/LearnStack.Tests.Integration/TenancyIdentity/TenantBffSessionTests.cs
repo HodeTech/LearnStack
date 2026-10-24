@@ -330,19 +330,23 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                 await AnonymousAsync(native, tenant, failedCookies);
 
                 // Case-owned real provider policy compresses time, not a fake BFF
-                // clock or transport. Two actual refreshes would exceed max without
-                // Keycloak's clamp. The committed 1800/36000 settings stay unchanged.
-                (await admin.PutAsync("", new { ssoSessionIdleTimeout = 15, ssoSessionMaxLifespan = 30 }))
+                // clock or transport. A 22-second idle leaves room around each
+                // 10-second step; the second refresh exceeds the 35-second maximum
+                // without Keycloak's clamp. Committed 1800/36000 settings stay intact.
+                const int clampIdleSeconds = 22;
+                const int clampMaximumSeconds = 35;
+                (await admin.PutAsync("", new { ssoSessionIdleTimeout = clampIdleSeconds, ssoSessionMaxLifespan = clampMaximumSeconds }))
                     .Should().Be(HttpStatusCode.NoContent);
                 using var maximumBrowser = provider.Browser();
                 var maximumCookies = new BffWireCookies();
                 var maximumSession = await LoginAsync(native, maximumBrowser, identity, password, maximumCookies, api.Observed);
                 var providerSessions = await admin.GetAsync(userPath + "/sessions");
                 providerSessions.GetArrayLength().Should().Be(1);
-                var maximum = providerSessions[0].GetProperty("start").GetInt64() + 30_000;
+                var providerStart = providerSessions[0].GetProperty("start").GetInt64();
+                var maximum = providerStart + clampMaximumSeconds * 1000L;
                 for (var round = 0; round < 2; ++round)
                 {
-                    await WaitForProviderClockAsync(provider, maximum - 30_000 + (round + 1) * 10_000);
+                    await WaitForProviderClockAsync(provider, providerStart + (round + 1) * 10_000);
                     var next = await ExtendAsync(native, tenant, maximumCookies, maximumSession, api.Observed);
                     next.GetProperty("expiresAt").GetDouble().Should().BeLessThanOrEqualTo(maximum + 1000,
                         "real refresh never widens the actual provider SSO maximum (integer-second rounding only)");

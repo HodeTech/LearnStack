@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { hydrateRoot } from 'react-dom/client';
+import { renderToStaticMarkup, renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionControls } from './session';
@@ -75,7 +76,8 @@ describe('session warning, truthful extension and safe expiry', () => {
     const button = screen.getByRole('button', { name: en.session.extend });
     fireEvent.click(button);
     fireEvent.click(button);
-    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).toBeEnabled();
     expect(button).toHaveAttribute('aria-busy', 'true');
     expect(extendBffSession).toHaveBeenCalledExactlyOnceWith(value.csrfToken);
     await act(async () => {
@@ -197,14 +199,61 @@ describe('session warning, truthful extension and safe expiry', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: en.session.extend }));
     });
-    fireEvent.click(screen.getByRole('button', { name: en.session.retry }));
+    const retry = screen.getByRole('button', { name: en.session.retry });
+    retry.focus();
+    fireEvent.click(retry);
     expect(screen.queryByText('Admitted account view')).toBeNull();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: en.session.extending })).toBeDisabled();
+    expect(screen.getByRole('button', { name: en.session.extending })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     await act(async () => {
       complete({ ...value, expiresAt: value.expiresAt + 60_000 });
     });
     expect(screen.getByText('Admitted account view')).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: en.session.extend }));
+  });
+  it('announces and focuses a fresh notice after each failed retry', async () => {
+    vi.mocked(extendBffSession).mockRejectedValue(new Error('unavailable'));
+    view();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: en.session.extend }));
+    });
+    const first = screen.getByRole('alert');
+    screen.getByRole('button', { name: en.session.retry }).focus();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: en.session.retry }));
+    });
+    expect(screen.getByRole('alert')).not.toBe(first);
+    expect(document.activeElement).toBe(screen.getByRole('alert'));
+    expect(screen.queryByText('Admitted account view')).toBeNull();
+  });
+  it('hydrates the admitted projection without a clock-dependent markup mismatch', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(2_000_000_000_000);
+    const element = (
+      <SessionControls initial={initial()} labels={en.session} locale="en" returnTo="/studio">
+        <p>Admitted account view</p>
+      </SessionControls>
+    );
+    const container = document.createElement('div');
+    container.innerHTML = renderToString(element);
+    document.body.append(container);
+    vi.setSystemTime(2_000_000_200_000);
+    const recoverable = vi.fn();
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, element, { onRecoverableError: recoverable });
+      });
+      expect(recoverable).not.toHaveBeenCalled();
+      expect(container.textContent).toContain(en.session.expired);
+      expect(container.textContent).not.toContain('Admitted account view');
+    } finally {
+      await act(async () => root?.unmount());
+      container.remove();
+    }
   });
   it('drops the earlier success announcement when the next warning window begins', async () => {
     vi.useFakeTimers();

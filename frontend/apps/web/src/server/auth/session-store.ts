@@ -286,7 +286,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     for (const entry of this.#owners.values()) {
       const expired =
         entry.phase === 'active' ? now >= this.#effective(entry) : now >= entry.deadline;
-      if (expired && entry.phase !== 'closing') this.#close(entry);
+      if (expired && entry.phase !== 'closing') {
+        this.#close(entry);
+        this.#diagnostic('expired');
+      }
       this.#release(entry);
     }
   }
@@ -622,6 +625,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       entry.credentials = undefined;
       entry.account = undefined;
     }
+    this.#diagnostic('revoked');
     return Object.freeze({ state: entry.logoutState, proof: entry.logoutProof, redirectUrl });
   }
 

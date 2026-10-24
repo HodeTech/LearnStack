@@ -77,16 +77,17 @@ function productionSources(): SourceCensus {
     }
   };
   visit(join(frontend, 'apps/web/src'));
-  // Next also discovers root app/pages and root middleware; none may bypass src's census.
+  // Next also discovers root routes, middleware and instrumentation hooks.
   for (const directory of ['app', 'pages']) {
     const path = join(frontend, 'apps/web', directory);
     if (existsSync(path)) visit(path);
   }
-  for (const extension of ['ts', 'tsx', 'js', 'jsx', 'mts', 'cts', 'mjs', 'cjs']) {
-    const name = 'apps/web/middleware.' + extension;
-    const path = join(frontend, name);
-    if (existsSync(path)) sources[name] = readFileSync(path, 'utf8');
-  }
+  for (const hook of ['middleware', 'instrumentation', 'instrumentation-client'])
+    for (const extension of ['ts', 'tsx', 'js', 'jsx', 'mts', 'cts', 'mjs', 'cjs']) {
+      const name = 'apps/web/' + hook + '.' + extension;
+      const path = join(frontend, name);
+      if (existsSync(path)) sources[name] = readFileSync(path, 'utf8');
+    }
   for (const entry of readdirSync(join(frontend, 'packages'), { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name === 'config') continue;
     visit(join(frontend, 'packages', entry.name, 'src'));
@@ -182,6 +183,19 @@ describe('ADR-0053 production public boundaries', () => {
       ['apps/web/pages/api/relay.ts', 'export default function handler() {}'],
       ['apps/web/src/pages/api/relay.ts', 'export default function handler() {}'],
       ['apps/web/middleware.ts', sources[MIDDLEWARE]!],
+      ['apps/web/instrumentation.ts', 'export function register() {}'],
+      ['apps/web/src/instrumentation.ts', 'export function register() {}'],
+      ['apps/web/instrumentation-client.ts', 'console.log("browser hook");'],
+      ['apps/web/src/instrumentation-client.ts', 'console.log("browser hook");'],
+      ['apps/web/src/app/not-found.tsx', 'export default function NotFound() { return null; }'],
+      [
+        'apps/web/src/app/global-not-found.tsx',
+        'export default function NotFound() { return null; }',
+      ],
+      [
+        'apps/web/src/app/(studio)/not-found.tsx',
+        'export default function NotFound() { return null; }',
+      ],
       ['apps/web/src/app/extra/page.tsx', 'export default function Page() { return null; }'],
       ['apps/web/src/app/sitemap.ts', 'export default function sitemap() { return []; }'],
       [
@@ -271,13 +285,19 @@ describe('ADR-0053 production public boundaries', () => {
       'const storage = globalThis.localStorage; storage.setItem("token", "value");',
       'document.cookie = "token=value";',
       'const doc = document; export const cookie = doc["cookie"];',
+      'indexedDB.open("credentials");',
+      'globalThis.indexedDB.deleteDatabase("credentials");',
+      'const storage = window.indexedDB; storage.open("credentials");',
+      'cookieStore.set("token", "value");',
+      'window.cookieStore.get("token");',
+      'const { cookieStore: storage } = globalThis; storage.set("token", "value");',
     ])
       expect(browserStorageFindings(buildSourceGraph({ [probe]: source }))).not.toEqual([]);
     clean(
       browserStorageFindings(
         buildSourceGraph({
           [probe]:
-            'export function read(document: {cookie: string}, localStorage: Map<string, string>) { return document.cookie + localStorage.get("safe"); }',
+            'export function read(document: {cookie: string}, localStorage: Map<string, string>, indexedDB: Map<string, string>, cookieStore: Map<string, string>) { return document.cookie + localStorage.get("safe") + indexedDB.get("safe") + cookieStore.get("safe"); }',
         }),
       ),
       'Local, explicitly injected data is not browser storage.',
