@@ -333,9 +333,12 @@ public sealed class CrossCuttingFoundationTests
 
         foreach (var project in AnalyzerReport.Projects())
         {
-            WiresTheAnalyzer(File.ReadAllText(project)).Should().BeTrue(
+            var wiring = await AnalyzerProjectWiring.ReadAsync(project, "Release");
+            wiring.HasAnalyzer(AnalyzerProjectWiring.AnalyzerPath).Should().BeTrue(
                 $"{Path.GetFileName(project)} runs the LS0001 analyzer in its own build "
                 + "(ADR-0032 Amendment 1), or the discipline holds only in this test");
+            wiring.DomainRule.Should().BeTrue("the evaluated compiler scope must enable LS0001");
+            wiring.VisibleScope.Should().BeTrue("the compiler must expose the evaluated rule scope");
 
             runs.Add(await AnalyzerReport.RunAsync(project));
         }

@@ -36,10 +36,13 @@ public sealed class PlatformDbContextFactory : IDesignTimeDbContextFactory<Platf
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
+            // This const is the public environment key name, never its credential value.
+#pragma warning disable LS0002
             throw new InvalidOperationException(
                 $"{ConnectionStringVariable} is not set in the environment. "
                 + "Migrations run as learnstack_migration, which owns every table; "
                 + "`make migrate` is its sanctioned carrier.");
+#pragma warning restore LS0002
         }
 
         var options = new DbContextOptionsBuilder<PlatformDbContext>()

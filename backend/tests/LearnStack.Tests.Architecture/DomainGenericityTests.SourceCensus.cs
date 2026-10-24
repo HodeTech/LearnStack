@@ -94,7 +94,7 @@ public sealed partial class DomainGenericityTests
     {
         "AnalysisLevel", "AnalysisMode", "AssemblyName", "EnforceCodeStyleInBuild",
         "EnforceExtendedAnalyzerRules", "GenerateDocumentationFile", "ImplicitUsings", "IsPackable",
-        "LangVersion", "ManagePackageVersionsCentrally", "NoWarn", "NuGetAuditLevel", "NuGetAuditMode",
+        "LangVersion", "LearnStackAnalyzeDomainExceptionThrow", "ManagePackageVersionsCentrally", "NoWarn", "NuGetAuditLevel", "NuGetAuditMode",
         "Nullable", "OutputType", "RootNamespace", "TargetFramework", "TreatWarningsAsErrors",
         "UserSecretsId", "WarningsNotAsErrors"
     };

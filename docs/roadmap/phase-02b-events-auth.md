@@ -28,7 +28,7 @@
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
 > | P02b-7 | BFF session | ✅ complete and merged — PR #36, 2026-10-25; [merge closeout](phase-02b-delivery-log.md#p02b-7-merge-and-closeout-2026-10-25) |
-> | P02b-8 | Exit enforcement | Decisions Accepted — [acceptance](phase-02b-delivery-log.md#p02b-8-acceptance-2026-10-25); four implementation steps pending |
+> | P02b-8 | Exit enforcement | Decisions Accepted — [acceptance](phase-02b-delivery-log.md#p02b-8-acceptance-2026-10-25); Step 1 implementation in progress; subsequent steps/reviews pending |
 
 ## Goal
 
@@ -749,41 +749,26 @@ and coverage matrix against it. See
 
 ### Compile-time secret leakage (carried out of Phase 02a Packet 3)
 
-Packet 3 shipped runtime redaction — the Serilog enricher and the local error tracker
-both scrub the same set through the single `SensitiveTokenCatalog`. It covers logs, OTLP
-and error-tracker tags. It does not cover a value already interpolated into an exception
-**message**, and this phase adds three durable sinks for one: an outbox row's
-`last_error`, a subscriber-side failure record, and a job's persisted failure state.
-Those sinks, not a Problem Details body, are the threat this phase's diagnostic answers
-— the response factory builds no free text from an exception message.
+Runtime property/tag redaction and compile-time exception-message checking are
+complementary. Property redaction does not scrub arbitrary exception messages;
+producer, delivery and job stores separately retain only their accepted closed,
+bounded failure descriptors rather than raw exception text.
 
-`LS0002` is planned, not shipped; its initial Warning severity does not itself
-make a build fail. A roadmap document is not its diagnostic registry.
-**G16** records it the way ADR-0032 Amendment 1 recorded `LS0001`: its
-`LearnStackException-<Topic>` rule name, the project trees it runs over, what it
-inspects, its `AnalyzerReleases` row, its catalogue entry, and the condition that
-escalates it from Warning to Error. Two things the record has to settle rather than
-inherit:
+[ADR-0032 Amendment 6](../decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25)
+defines `LS0002`; its canonical rule and proof owners are in the
+[catalogue](../standards/21-architecture-tests-catalogue.md#learnstackexception-sensitiveexceptionmessage-roslyn-analyzer).
+The rule covers every production C# project, preserving `LS0001`'s narrower
+Domain/Application scope. Both runtime and analyzer compile the same internal
+word matcher and complete token sets. Synthetic compilations, loaded token
+parity, a two-word-only source mutation, evaluated project wiring and actual
+CI-warning builds prove their respective boundaries. Initial Warning severity
+does not fail the build; Phase 03 exit promotes both rules to Error.
 
-- **Its scope.** `LS0001`'s `Domain` + `Application` reference set excludes the
-  assemblies where this phase handles tokens and provider errors, which is where the
-  sinks are.
-- **Its token source.** The analyzer targets a different framework from the assembly
-  that holds `SensitiveTokenCatalog`, whose own remark says new tokens land there and
-  not in consuming projects, and the catalogue's public accessor exposes only part of
-  the set. A drift test is what makes "matches `SensitiveTokenCatalog`" true rather than
-  aspirational.
-
-Its own tests assert the positive case, a clean case staying clean, a sensitive name
-outside a `throw` staying clean, no `AD0001` crash — the failure mode ADR-0032 Amendment
-1 records for `LS0001` — and that the analyzer's token set equals the catalogue's.
-
-P02b-2 bounds the durable failure descriptor under **G18** to closed stage,
-reason and category codes, with only allowlisted SQLSTATE where applicable;
-exception text/type, trace identity and payload are not persisted there. The
-canonical DDL owns the byte bound. Step 1 implements the migration beside the
-lease columns, including redaction of legacy descriptors without rewriting
-event facts/state; Steps 2–3 implement transitions and bounded diagnostics.
+The diagnostic is name-based, with bounded expression forms. It does not prove
+secret absence, trace earlier assignments or cover TypeScript/JavaScript. Review,
+closed diagnostic contracts and durable failure-descriptor bounds remain
+necessary. [Error Handling](../standards/09-error-handling.md#sensitive-exception-messages)
+owns the ongoing exception-message rule and its limits.
 
 ### Architecture tests
 
@@ -948,7 +933,7 @@ command. The phase retains zero skips, per assembly.
   and both visible to the trait sweep.
 - `LS0002` shipping as a Warning under its catalogued rule name, with its ADR-0032
   amendment, its catalogue entry, its `AnalyzerReleases` row, its linked token source
-  and its four tests.
+  and compiler, token-parity, mutation, wiring and real-build proofs.
 - **Carrier reconciliation**, in the change that lands each mechanism:
   [Events and Outbox](../architecture/15-event-and-outbox.md) (§ Inbox table, §
   Subscriber side, § Ordering, § Dead-letter — producer side, whose pushed-out

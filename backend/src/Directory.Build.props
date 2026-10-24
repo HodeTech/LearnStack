@@ -1,0 +1,19 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- ADR-0032 Amendment 6: LS0002 covers every production C# project here.
+       Loading the same assembly must not expand LS0001's Domain/Application scope. -->
+  <PropertyGroup>
+    <LearnStackAnalyzeDomainExceptionThrow>false</LearnStackAnalyzeDomainExceptionThrow>
+    <LearnStackAnalyzeDomainExceptionThrow Condition="$(MSBuildProjectName.EndsWith('.Domain')) Or $(MSBuildProjectName.EndsWith('.Application'))">true</LearnStackAnalyzeDomainExceptionThrow>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="LearnStackAnalyzeDomainExceptionThrow" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../analyzers/LearnStack.Analyzers/LearnStack.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

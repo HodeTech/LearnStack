@@ -23,13 +23,18 @@ namespace LearnStack.Analyzers;
 /// help text; the wire-level id is <c>LS0001</c>. See ADR-0032 Amendment 1.
 /// </para>
 /// <para>
-/// Severity: <see cref="DiagnosticSeverity.Warning"/> in Phase 02a. Per
+/// Severity: <see cref="DiagnosticSeverity.Warning"/> until Phase 03 exit. Per
 /// ADR-0032 the severity escalates to <see cref="DiagnosticSeverity.Error"/>
 /// after Phase 03 exit when every existing call site has been migrated.
 /// Until then <c>LS0001</c> is listed in <c>WarningsNotAsErrors</c>
 /// (Directory.Build.props) so a legitimate aggregate-invariant throw does
 /// not break CI under <c>TreatWarningsAsErrors</c> before the documented
 /// escalation point.
+/// </para>
+/// <para>
+/// The assembly also carries LS0002 and is loaded by every production project.
+/// The compiler-visible LearnStackAnalyzeDomainExceptionThrow property keeps
+/// this rule scoped to Domain / Application (ADR-0032 Amendment 6).
 /// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -71,8 +76,18 @@ public sealed class DomainExceptionThrowAnalyzer : DiagnosticAnalyzer
         if (context is null) throw new System.ArgumentNullException(nameof(context));
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSyntaxNodeAction(AnalyzeThrowExpression, SyntaxKind.ThrowExpression);
-        context.RegisterSyntaxNodeAction(AnalyzeThrowStatement, SyntaxKind.ThrowStatement);
+        context.RegisterCompilationStartAction(start =>
+        {
+            if (start.Options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue(
+                    "build_property.LearnStackAnalyzeDomainExceptionThrow", out var enabled)
+                && string.Equals(enabled, "false", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            start.RegisterSyntaxNodeAction(AnalyzeThrowExpression, SyntaxKind.ThrowExpression);
+            start.RegisterSyntaxNodeAction(AnalyzeThrowStatement, SyntaxKind.ThrowStatement);
+        });
     }
 
     private static void AnalyzeThrowStatement(SyntaxNodeAnalysisContext context)

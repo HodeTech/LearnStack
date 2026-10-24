@@ -62,6 +62,8 @@ public sealed class TenancyDbContextFactory : IDesignTimeDbContextFactory<Tenanc
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
+            // This const is the public environment key name, never its credential value.
+#pragma warning disable LS0002
             throw new InvalidOperationException(
                 $"{ConnectionStringVariable} is not set in the environment. "
                 + "Migrations run as learnstack_migration, which owns every table; the value "
@@ -70,6 +72,7 @@ public sealed class TenancyDbContextFactory : IDesignTimeDbContextFactory<Tenanc
                 + "factory returns. Do not point this at ConnectionStrings__Default — that "
                 + "role cannot CREATE in schema public, and granting it that is the ownership "
                 + "mistake the four-role split exists to prevent.");
+#pragma warning restore LS0002
         }
 
         var options = new DbContextOptionsBuilder<TenancyDbContext>()

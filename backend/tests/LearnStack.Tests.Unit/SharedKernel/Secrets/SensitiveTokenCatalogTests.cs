@@ -11,6 +11,30 @@ namespace LearnStack.Tests.Unit.SharedKernel.Secrets;
 /// </summary>
 public sealed class SensitiveTokenCatalogTests
 {
+    [Fact]
+    public void DefaultTokens_Is_The_Complete_Immutable_Union()
+    {
+        string[] expected =
+        [
+            "apikey", "authenticationheader", "authorization", "authheader", "cardnumber",
+            "connectionstring", "cookie", "credential", "creditcard", "cvc", "cvv", "dsn",
+            "encryptionkey", "hmac", "iban", "jwt", "otp", "pan", "passwd", "password", "pin",
+            "privatekey", "pwd", "secret", "setcookie", "signature", "signingkey", "ssn", "tckn",
+            "token", "vkn",
+        ];
+
+        var snapshot = SensitiveTokenCatalog.DefaultTokens;
+        snapshot.Should().BeEquivalentTo(expected);
+        snapshot.Should().OnlyHaveUniqueItems();
+        snapshot.Should().BeSameAs(SensitiveTokenCatalog.DefaultTokens, "the complete union is cached");
+        snapshot.Should().NotBeOfType<string[]>();
+        var collection = snapshot.Should().BeAssignableTo<ICollection<string>>().Subject;
+        collection.IsReadOnly.Should().BeTrue();
+        Action mutate = () => collection.Add("invented");
+        mutate.Should().Throw<NotSupportedException>();
+        SensitiveTokenCatalog.DefaultTokens.Should().BeEquivalentTo(expected);
+    }
+
     [Theory]
     [InlineData("Password")]
     [InlineData("UserPassword")]

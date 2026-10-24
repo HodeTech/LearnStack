@@ -17,10 +17,13 @@ public sealed class EducationDbContextFactory : IDesignTimeDbContextFactory<Educ
         var connectionString = Environment.GetEnvironmentVariable(ConnectionStringVariable);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
+            // This const is the public environment key name, never its credential value.
+#pragma warning disable LS0002
             throw new InvalidOperationException(
                 $"{ConnectionStringVariable} is not set in the environment. "
                 + "Migrations run as learnstack_migration; use `make migrate`. "
                 + "Runtime connection strings are never a migration fallback.");
+#pragma warning restore LS0002
         }
 
         var options = new DbContextOptionsBuilder<EducationDbContext>()

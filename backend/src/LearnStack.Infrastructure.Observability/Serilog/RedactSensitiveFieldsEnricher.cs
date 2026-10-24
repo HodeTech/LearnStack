@@ -37,15 +37,13 @@ namespace LearnStack.Infrastructure.Observability.Serilog;
 /// exception messages) so the boundary stays honest.
 /// </para>
 /// <para>
-/// The compile-time half of this rule is <c>LS0002</c> in
-/// <c>LearnStack.Analyzers</c>, which flags string-interpolated or concatenated
-/// <c>throw new ...Exception($"...{token}...")</c> patterns in <c>Domain</c> +
-/// <c>Application</c>. It ships as a Warning in
+/// <c>LS0002</c> in <c>LearnStack.Analyzers</c> checks direct sensitive string
+/// references, interpolation and concatenation in directly thrown exceptions
+/// across production C# projects (ADR-0032 Amendment 6). It ships as a Warning in
 /// <see href="../../../../docs/roadmap/phase-02b-events-auth.md">Phase 02b</see>
-/// and escalates to Error at Phase 03 exit. Today the
-/// "no secrets in exception messages" rule rests on Standards 11 review
-/// discipline; promoting it to a compile-time check closes the last
-/// gap the runtime redactor cannot.
+/// and escalates to Error at Phase 03 exit. It is a bounded name guard, not
+/// taint analysis or a replacement for review and closed diagnostic controls.
+/// Runtime redaction still leaves exception messages and stack traces intact.
 /// </para>
 /// </remarks>
 public sealed class RedactSensitiveFieldsEnricher : ILogEventEnricher

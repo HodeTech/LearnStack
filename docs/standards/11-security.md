@@ -903,6 +903,11 @@ and the edge has no way to know it.
 
 ## Error Messages
 
+- Exception strings contain no credentials or sensitive personal values. Runtime property
+  redaction does not scrub arbitrary exception messages; the bounded compile-time
+  guard and its limits are in
+  [Error Handling § Sensitive Exception Messages](09-error-handling.md#sensitive-exception-messages),
+  under ADR-0032 Amendment 6. Review and closed diagnostic controls still apply.
 - Server-side messages explain what happened; client-facing messages avoid disclosure.
 - 404 used to hide cross-tenant existence.
 - Stack traces never reach clients.

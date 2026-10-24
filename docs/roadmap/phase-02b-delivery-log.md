@@ -266,12 +266,13 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 331 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 374 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
     - [Correction verification (2026-10-25)](#correction-verification-2026-10-25) — 10 lines
   - [P02b-8 acceptance (2026-10-25)](#p02b-8-acceptance-2026-10-25) — 27 lines
+  - [P02b-8 Step 1 — Sensitive exception analysis and compiler scope (2026-10-25)](#p02b-8-step-1--sensitive-exception-analysis-and-compiler-scope-2026-10-25) — 43 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21283,6 +21284,49 @@ Step 1 changes any code:
 The four approved implementation steps follow on `development`, each with its
 commit, two fresh independent review rounds and committed verified corrections.
 No implementation or final-source CI/phase exit is claimed by this acceptance.
+
+### P02b-8 Step 1 — Sensitive exception analysis and compiler scope (2026-10-25)
+
+The acceptance commit is `4b29ea70`. This step implements `LS0002` under
+ADR-0032 Amendment 6 without changing runtime exception handling or widening
+`LS0001`'s Domain/Application scope.
+
+- An internal netstandard-compatible word matcher supplies runtime redaction and
+  analyzer source; the public facade retains matching behavior and returns the
+  cached immutable complete union. Loaded-assembly parity and all-token samples
+  complement an isolated two-word-only source propagation proof.
+- Semantic throw analysis covers the accepted direct string, interpolation and
+  concatenation forms with fixed diagnostics. Compiler-clean positive/negative
+  cases exercise base/derived/aliased/target-typed exceptions, constants,
+  argument position, generated code and the declared exclusions.
+- `backend/src/Directory.Build.props` supplies the analyzer automatically to all
+  production projects. Sixteen local references are removed. The compiler-visible
+  scope property keeps `LS0001` on its former project set; evaluated Debug/Release
+  wiring, a planted new nested project and actual builds verify both rules.
+- Disposable builds use actual copied props, source and local package archives:
+  `CI=true` still allows `LS0002` Warning, while an unrelated CS0219 warning fails.
+  This local-cache restore is not a production vulnerability-audit claim.
+- Behavioral samples reject unsuppressed compiler warnings/errors. Recompiling
+  the real analyzer for source propagation separately uses its evaluated SDK
+  references and NoWarn settings, including SDK assembly-version unification;
+  no new sample-warning exemption or runtime dependency is introduced.
+- Five design-time factory sites suppress only the public environment-key-name
+  constant false positive, with a local explanation. Credential values are not
+  interpolated; the rule is never disabled for a project. Standards 09/11/21 and
+  the redactor comment now describe the bounded guard rather than a secrecy proof.
+
+Validation after formatting: full Release solution build with `CI=true`, zero
+warnings/errors; all 2,665 Unit cases, 298 Docker-free integration cases and five
+Contract cases pass, zero skips. Eleven relevant architecture cases pass,
+including corpus, actual project wiring, domain-exception dirty controls and
+the production compiler-input/genericity census. The new controls include real
+SDK builds, not only synthetic compiler invocation. Documentation fragment,
+structure/index and whitespace checks pass.
+
+The diagnostic catalogue row is Implemented; the inventory drift row remains
+Registered for Step 2. Full final-source A/B/Docker/phase-exit qualification is
+Step 4, not inferred from these local results. Both fresh implementation review
+rounds remain pending before Step 2 begins.
 
 ## Status archive
 

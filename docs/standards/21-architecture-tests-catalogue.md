@@ -147,7 +147,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**263 test methods run in
+**265 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -188,8 +188,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**235 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
-The other 102 are no less binding, and most could not live there. The table says where
+**236 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
+The other 103 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -442,12 +442,11 @@ otherwise).
   Phase 03 escalation, and a pragma is the sanctioned way to keep a genuine invariant throw —
   so the test compiles each project's sources itself, sets the severity, and reports
   suppressed diagnostics. It parses with the symbols the build defines, so an `#if` region is
-  read rather than skipped, and it fails loudly on a source it cannot parse, because a compiler
-  behind the SDK reads a new language feature as a syntax error and a scan that cannot read a
-  file sees nothing in it. The wiring leg reads the reference as an element rather than as a
-  line: the attributes may be written in either order, a commented-out reference is not a
-  reference, and a `Condition` is refused outright — a conditional analyzer does not run in the
-  configuration the condition excludes, and this rule cannot tell which that is. Its companion,
+  read rather than skipped, and fails loudly on an unparseable source. The wiring
+  leg evaluates actual MSBuild imports and analyzer-reference metadata rather than
+  assuming each project spells out its own reference. It also verifies the
+  compiler-visible `LS0001` scope flag; shared assembly wiring for `LS0002` must
+  not broaden the older rule. Its companion,
   `The_Domain_Exception_Report_Can_Actually_Fail`, plants all four shapes — thrown from a
   `Result` method, the same one silenced by a pragma, a pragma-silenced invariant guard, and
   an unsuppressed throw — and requires exactly the three the rule refuses. Mutation-checked:
@@ -503,8 +502,9 @@ otherwise).
   JavaScript/TypeScript coverage is claimed.
 - **Source:** [ADR-0032 Amendment 6](../decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25).
 - **Kind:** compile-time.
-- **Status:** **Registered** — P02b-8 Step 1; analyzer and proof owners must ship
-  before this becomes Implemented.
+- **Status:** **Implemented** — analyzer, `SensitiveExceptionMessageAnalyzerTests`
+  and `AnalyzerBuildTests` in `LearnStack.Tests.Unit`; supporting evaluated
+  production wiring and dirty controls run in the architecture suite.
 - **Phase:** 02b (P02b-8).
 
 #### `Durable_Async_Store_Inventory_Covers_The_Storage_Census`

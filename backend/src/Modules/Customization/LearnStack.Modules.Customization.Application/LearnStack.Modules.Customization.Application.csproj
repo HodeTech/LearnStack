@@ -9,9 +9,6 @@
     <ProjectReference Include="..\LearnStack.Modules.Customization.Domain\LearnStack.Modules.Customization.Domain.csproj" />
     <ProjectReference Include="..\LearnStack.Modules.Customization.Application.Contracts\LearnStack.Modules.Customization.Application.Contracts.csproj" />
     <ProjectReference Include="..\..\Tenancy\LearnStack.Modules.Tenancy.Application.Contracts\LearnStack.Modules.Tenancy.Application.Contracts.csproj" />
-    <ProjectReference Include="..\..\..\..\analyzers\LearnStack.Analyzers\LearnStack.Analyzers.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
