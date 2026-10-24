@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,451 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,475 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -250,6 +250,7 @@ each packet decided and delivered, as
   - [P02b-7 policy, UI and evidence first review (2026-10-24)](#p02b-7-policy-ui-and-evidence-first-review-2026-10-24) — 27 lines
   - [P02b-7 real-provider clock and HTML negative correction (2026-10-24)](#p02b-7-real-provider-clock-and-html-negative-correction-2026-10-24) — 37 lines
   - [P02b-7 second review and final SDK proof census (2026-10-24)](#p02b-7-second-review-and-final-sdk-proof-census-2026-10-24) — 27 lines
+  - [P02b-7 SDK first review and counterfactual qualification (2026-10-24)](#p02b-7-sdk-first-review-and-counterfactual-qualification-2026-10-24) — 24 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20201,6 +20202,30 @@ population is recorded separately, not relabeled as a new full frontend run.
 All 2,616 unit cases and five corpus controls pass with no skip. The SDK-only
 correction is committed for its own two fresh focused review rounds before the
 final implementation source is frozen for complete hosted qualification.
+
+
+### P02b-7 SDK first review and counterfactual qualification (2026-10-24)
+
+Two fresh focused first-round reviewers inspect `4b7f01a3` against the actual
+authenticated/public SDK and shared response policy. The mapping reviewer
+approves without a finding. The cancellation reviewer raises a possible signal
+identity gap in the call matcher. A private four-state control does not reproduce
+that gap on pinned Vitest 4.1.12: the original signal passes with/without an extra
+identity assertion; a fresh signal fails the existing call matcher even when
+that assertion is removed. A composed signal is rejected too. No redundant
+assertion or production change is retained for that unverified finding.
+
+A private actual-source baseline passes all 31 authenticated cases. Five isolated
+signal/post-header-abort/post-JSON-abort/SyntaxError/Retry-After mutations each
+fail the intended behavioral case, not setup or TypeScript. Only temporary
+copies are mutated and removed. The unchanged committed SDK passes all 103 cases,
+lint and TypeScript. The complete guarded workspace at `4b7f01a3` passes 2,314
+frontend cases in two packages, with zero skips/todos. This replaces neither
+the real-provider proof nor the required hosted current-source checks.
+
+The next fresh focused pair reviews the SDK-only correction. All earlier general
+correction/foundation review rounds remain complete; their conclusions are not
+used to skip this separately identified proof population.
 
 
 ## Status archive
