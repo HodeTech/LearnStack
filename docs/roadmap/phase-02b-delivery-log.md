@@ -266,8 +266,9 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 226 lines
-  - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 224 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 256 lines
+  - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 230 lines
+  - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21006,16 +21007,17 @@ body, acceptance metadata, pipeline and `LS0001` decision remain unchanged.
   Analyzer/test projects and generated code are excluded. Wiring must reach
   future production projects automatically. Broadening the assembly reference
   must not broaden `LS0001` beyond its existing Domain/Application projects.
-- **Thrown forms:** direct construction of a type semantically derived from
-  `System.Exception` in a throw statement or throw expression, including aliases,
-  target-typed construction, parentheses and conversions. A type-name suffix
-  does not establish exception identity.
+- **Thrown forms:** direct construction of `System.Exception` itself or a type
+  transitively derived from it in a throw statement or throw expression,
+  including aliases, target-typed construction, parentheses and conversions.
+  A type-name suffix does not establish exception identity.
 - **Expressions:** inspect string-valued constructor arguments for direct
   sensitive value references, interpolation holes and built-in string `+`
   concatenation, after unwrapping parentheses/conversions. Other root expression
   forms are outside the initial rule. Within these forms, inspect evaluated
-  local, parameter, field and property names
-  through the canonical word matcher. Argument position is irrelevant; the
+  local, parameter, field and property names through the canonical word matcher.
+  Named constant locals/fields are not exempt when their names match; literal
+  text is not inspected for secret contents. Argument position is irrelevant; the
   provider exception's message is not its first parameter. `nameof`, `typeof`,
   method/type names and literal text are not sensitive value references.
 - **Token source:** extract the existing token sets and word matcher into one
@@ -21046,9 +21048,11 @@ arguments. The proposed bounded forms cover those without tracing prior values.
 **Required proofs:** compiler-clean positive/negative compilations, exact Warning
 ID/name/location and no `AD0001`; throw statement/expression, aliases, argument
 order, members, direct references, interpolation and string concatenation;
-non-sensitive names, constants/`nameof`, sensitive expressions outside a throw
-and fixed messages with a cancellation-token argument remaining clean. Prove
-the complete single/two-word union independently, including a two-word-only
+both `System.Exception` itself and a derived exception; sensitive and ordinary
+named constants. Non-sensitive names, literal text/`nameof`/`typeof`, sensitive
+expressions outside a throw and fixed messages with a cancellation-token argument
+remain clean. Prove the complete single/two-word union independently, including a
+two-word-only
 addition that exposes a stale or single-set-only analyzer view. Do not mutate
 global static token sets during concurrent tests. Evaluated MSBuild wiring must
 include API/infrastructure and a planted new project, while preserving `LS0001`.
@@ -21101,11 +21105,14 @@ disappearing from coverage. Provider storage is separate from LearnStack's DB.
   and `changes`. Correct Architecture 23's broader actor-anonymisation wording
   against this existing contract. This inventory does not declare that complete
   anonymisation already works.
-- Phase 03 owns identity mapping, tenant-versus-global request authority and the
-  audit-redaction entry boundary. Phase 11 owns the complete export/erasure,
-  retained-copy reconciliation, purge/principal/retention and backup workflows.
-  Their plans link this inventory and retain these preconditions before a writer
-  ships; ordinary SystemActor delivery or dispatcher credentials are no substitute.
+- Phase 03 retains its tenant-scoped DSAR export/erasure and separate global
+  account-closure implementation, identity mapping, request authority, and audit
+  redaction after its required bounded decision. This inventory transfers none
+  of those deliverables. Phase 11 completes the workflows across later modules
+  and retained copies, with purge/principal/retention, backup and operational
+  reconciliation. Both plans link this inventory and retain these preconditions
+  before a writer ships; ordinary SystemActor delivery or dispatcher credentials
+  are no substitute.
 - Volatile BFF custody is explicitly distinguished from durable provider events.
   Its local invalidation is not a claim to erase provider events or log archives.
 
@@ -21174,6 +21181,30 @@ The first acceptance commit carries the gate answers, dated amendment and
 Registered catalogue rows. Every extension stays Registered until its owner and
 controls ship; existing Implemented obligations do not become Registered merely
 because this packet reviews them. No code has been changed by this proposal.
+
+### P02b-8 proposal review round 1 (2026-10-25)
+
+Two independent readers review `c0261cab` against `0d0696ac`: a
+`gpt-6.1-sol`/xhigh analyzer/security reviewer and a `gpt-6-astra`/high
+data/governance reviewer. Both inspect the proposed package and verify findings
+against the governing code/DDL/records; neither modifies files or runs provider
+tests. There is no runtime implementation to qualify yet.
+
+Three findings are verified and corrected before the next review:
+
+- Preserve Phase 03's existing DSAR export/erasure, global closure and audit
+  redaction implementation; Phase 11's retained-copy/operational work does not
+  acquire or defer those deliverables.
+- Include `System.Exception` itself, not only derived types, in the proposed
+  diagnostic boundary and its positive tests.
+- Distinguish clean literal text from named sensitive constants; named
+  const-local/field references remain subject to the same name matcher.
+
+The baseline Release checks additionally pass all 65 existing LS0001/token
+catalogue unit cases and all five corpus cases, zero skips. Documentation
+fragment/structure/index and whitespace checks pass. These are baseline and
+proposal checks, not evidence that `LS0002` or an erasure workflow is implemented.
+Acceptance and the fresh second proposal review remain pending.
 
 ## Status archive
 
