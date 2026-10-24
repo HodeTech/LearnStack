@@ -101,8 +101,7 @@ internal static class AsyncStoreInventoryCensus
                     if (selecting && Is(index, "INTO"))
                         throw new FormatException("SELECT INTO table creation requires an explicit census reader decision.");
                 }
-                if (Is(index, "EXECUTE") && !Is(index + 1, "FUNCTION")
-                    && !Is(index + 1, "PROCEDURE") && !Is(index + 1, "ON"))
+                if (Is(index, "EXECUTE") && !IsStaticExecuteClause(index))
                     RequirePinnedExecute(index + 1);
 
                 // Dynamic table DDL cannot be resolved by this reader. Refuse it rather than
@@ -110,13 +109,26 @@ internal static class AsyncStoreInventoryCensus
                 if (tokens[index].Literal && DynamicTableDeclaration.IsMatch(tokens[index].Text))
                     throw new FormatException("Dynamic table DDL requires an explicit census reader decision.");
 
-                // Function-level SET clauses do not change migration name resolution.
-                if ((index == 0 || At(index - 1).Text == ";")
-                    && Is(index, "SET") && Is(index + 1, "search_path"))
+                // Function-header SET clauses are distinct from statements, including those
+                // in DO bodies. Resolve only the pinned public path; refuse aliases elsewhere.
+                if (Is(index, "SET") && (index == 0 || At(index - 1).Text == ";"
+                    || Is(index - 1, "BEGIN") || Is(index - 1, "THEN") || Is(index - 1, "ELSE") || Is(index - 1, "LOOP")))
                 {
-                    var path = At(index + 3).Text.Trim('\'');
-                    if (path != "public")
-                        throw new FormatException("The table census does not assume a non-public search path.");
+                    var cursor = index + 1;
+                    if (Is(cursor, "LOCAL") || Is(cursor, "SESSION")) cursor++;
+                    if (IdentifierIs(cursor, "search_path") || IdentifierIs(cursor, "schema"))
+                    {
+                        var schemaAlias = IdentifierIs(cursor++, "schema");
+                        if (!schemaAlias)
+                        {
+                            if (At(cursor).Text != "=" && !Is(cursor, "TO"))
+                                throw new FormatException("Unsupported search-path assignment.");
+                            cursor++;
+                        }
+                        var path = At(cursor++).Text.Trim('\'', '"');
+                        if (path != "public" || (cursor < tokens.Length && At(cursor).Text != ";"))
+                            throw new FormatException("The table census does not assume a non-public search path.");
+                    }
                 }
 
                 if (Is(index, "CREATE"))
@@ -163,9 +175,20 @@ internal static class AsyncStoreInventoryCensus
             }
             if (dollarBody is not null) throw new FormatException("Unterminated SQL dollar body.");
 
-            SqlToken At(int index) => index < tokens.Length ? tokens[index] : default;
+            SqlToken At(int index) => index >= 0 && index < tokens.Length ? tokens[index] : default;
             bool Is(int index, string word) => At(index).Word
                 && string.Equals(At(index).Text, word, StringComparison.OrdinalIgnoreCase);
+            bool IdentifierIs(int index, string name) => Is(index, name)
+                || (At(index).Quoted && At(index).Text == "\"" + name + "\"");
+            bool IsStaticExecuteClause(int index)
+            {
+                if (dollarBody is not null) return false;
+                var start = index;
+                while (start > 0 && At(start - 1).Text != ";") start--;
+                if (Is(index + 1, "ON")) return Is(start, "GRANT") || Is(start, "REVOKE");
+                return (Is(index + 1, "FUNCTION") || Is(index + 1, "PROCEDURE")) && Is(start, "CREATE")
+                    && (Is(start + 1, "TRIGGER") || (Is(start + 1, "CONSTRAINT") && Is(start + 2, "TRIGGER")));
+            }
             void Require(int index, string word)
             {
                 if (!Is(index, word)) throw new FormatException("Malformed table declaration.");
@@ -212,8 +235,8 @@ internal static class AsyncStoreInventoryCensus
         }
     }
 
-    private static string Name(string? schema, string table) =>
-        schema is null or "public" ? table : schema + "." + table;
+    private static string Name(string? schema, string table) => schema is null or "public" ? table
+        : throw new FormatException("Non-public table storage requires an explicit census reader decision.");
 
     private readonly record struct SqlToken(string Text, bool Word, bool Quoted, bool Literal, bool Dollar);
 }

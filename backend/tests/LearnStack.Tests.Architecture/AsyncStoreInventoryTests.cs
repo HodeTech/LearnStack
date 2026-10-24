@@ -44,6 +44,22 @@ public sealed class AsyncStoreInventoryTests
             Check(subject.Document, [.. subject.Platform, addition], subject.Audit).Should().NotBeEmpty(
                 "an added table is discovered without a name-prefix or inventory whitelist filter");
 
+        var resolutionBypasses = new[]
+        {
+            "CREATE SCHEMA inventory_probe; SET LOCAL search_path = inventory_probe; CREATE TABLE IF NOT EXISTS background_jobs(id int);",
+            "CREATE SCHEMA inventory_probe; SET SESSION \"search_path\" TO inventory_probe; CREATE TABLE IF NOT EXISTS background_jobs(id int);",
+            "CREATE SCHEMA inventory_probe; SET SCHEMA 'inventory_probe'; CREATE TABLE IF NOT EXISTS background_jobs(id int);",
+            "DO $$ BEGIN SET LOCAL search_path = inventory_probe; CREATE TABLE IF NOT EXISTS background_jobs(id int); END $$;",
+            "DO $$ BEGIN IF true THEN SET LOCAL search_path = inventory_probe; CREATE TABLE IF NOT EXISTS background_jobs(id int); END IF; END $$;",
+            "DO $$ BEGIN IF false THEN NULL; ELSE SET SESSION search_path = inventory_probe; CREATE TABLE IF NOT EXISTS background_jobs(id int); END IF; END $$;",
+            "DO $$ DECLARE function text := 'CRE' || 'ATE TABLE public.inventory_probe(id int)'; BEGIN EXECUTE function; END $$;",
+            "DO $$ DECLARE procedure text := 'CRE' || 'ATE TABLE public.inventory_probe(id int)'; BEGIN EXECUTE procedure; END $$;",
+            "CREATE SCHEMA inventory_probe; DROP TABLE public.background_jobs CASCADE; CREATE TABLE inventory_probe.before_name(id int); ALTER TABLE inventory_probe.before_name RENAME TO background_jobs;",
+        };
+        foreach (var sql in resolutionBypasses)
+            Check(subject.Document, [.. subject.Platform, new SqlOperation { Sql = sql }], subject.Audit)
+                .Should().NotBeEmpty("unsupported path resolution, dynamic names and schema-qualified renames must fail closed");
+
         Check(subject.Document, [.. subject.Platform, new DropTableOperation { Name = "background_jobs" }], subject.Audit)
             .Should().NotBeEmpty("a removed actual table leaves a stale inventory row");
         Check(subject.Document, [.. subject.Platform, new RenameTableOperation { Name = "background_jobs", NewName = "renamed_jobs" }], subject.Audit)
@@ -112,6 +128,10 @@ public sealed class AsyncStoreInventoryTests
             new SqlOperation { Sql = "DO $$ DECLARE selected_id int; BEGIN SELECT id INTO selected_id FROM final_table; "
                 + "EXECUTE 'CREATE SCHEMA \"public\";'; "
                 + "EXECUTE ('ALTER SEQUENCE \"' || 'public' || '\".job_id_seq AS bigint MAXVALUE 9223372036854775807'); END $$;" },
+            new SqlOperation { Sql = "SET LOCAL \"search_path\" TO 'public'; SET SESSION search_path = public; SET SCHEMA 'public'; "
+                + "ALTER TABLE public.final_table RENAME TO renamed_table; ALTER TABLE public.renamed_table RENAME TO final_table; "
+                + "CREATE TRIGGER census_trigger BEFORE INSERT ON final_table FOR EACH ROW EXECUTE FUNCTION public.census_guard(); "
+                + "GRANT EXECUTE ON FUNCTION public.census_guard() TO PUBLIC;" },
         ];
         AsyncStoreInventoryCensus.Tables(operations).Should().BeEquivalentTo(["final_table"]);
         var unsupported = new[]
@@ -126,6 +146,7 @@ public sealed class AsyncStoreInventoryTests
             "CREATE TABLE IF absent_table (id int);", "CREATE TABLE (id int);",
             "SET search_path = other; CREATE TABLE hidden_table (id int);",
             "CREATE TABLE previous (id int); ALTER TABLE previous SET SCHEMA other;",
+            "CREATE TABLE other.before_name(id int); ALTER TABLE other.before_name RENAME TO after_name;",
         };
         foreach (var sql in unsupported)
         {

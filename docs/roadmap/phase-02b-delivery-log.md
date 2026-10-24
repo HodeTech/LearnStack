@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 487 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 521 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -277,6 +277,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 1 review round 2 and closeout (2026-10-25)](#p02b-8-step-1-review-round-2-and-closeout-2026-10-25) — 21 lines
   - [P02b-8 Step 2 — Independent asynchronous inventory coverage (2026-10-25)](#p02b-8-step-2--independent-asynchronous-inventory-coverage-2026-10-25) — 30 lines
   - [P02b-8 Step 2 review round 1 (2026-10-25)](#p02b-8-step-2-review-round-1-2026-10-25) — 36 lines
+  - [P02b-8 Step 2 review round 2 (2026-10-25)](#p02b-8-step-2-review-round-2-2026-10-25) — 34 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21444,6 +21445,40 @@ installer positives exercise that boundary. The five inventory and five corpus
 Release cases pass together, zero warnings/failures/skips; scoped formatting,
 documentation and whitespace checks pass. The fresh second review remains
 pending.
+
+### P02b-8 Step 2 review round 2 (2026-10-25)
+
+Two new independent readers review `fa56aac3..c241301b`: a
+`gpt-6-astra`/high contract/data reviewer and a `gpt-6.1-sol`/xhigh proof reviewer.
+Each reruns the five Release inventory cases with zero skips. The first confirms
+actual compiled migration/vendor discovery, independent contract reconciliation,
+canonical row controls and authority limits without an actionable finding.
+
+The second confirms R1's corrections and independently reproduces three further
+false passes through the compiled complete checker: SET LOCAL/SESSION search-path
+and SET SCHEMA aliases can hide a colliding non-public table; a dynamic variable
+named `function` or `procedure` is wrongly treated as trigger syntax; and SQL
+RENAME loses the source schema, mistaking a non-public table for a public one.
+The reviewer verifies the SQL semantics in rollback transactions on an owned,
+unpublished `postgres:18.4-alpine` container and removes that exact container.
+No production/developer database or private environment is used.
+
+These are bounded reader defects, not changes to storage or erasure authority.
+They require supported name resolution or explicit refusal, genuine trigger-only
+exemptions, and complete-checker controls. Correction and both second-round
+reviewers' bounded rechecks remain pending before Step 2 closes.
+
+#### Correction verification
+
+The reader now explicitly refuses non-public table storage rather than inferring
+schema-qualified renames. Search-path handling covers LOCAL/SESSION, quoted names,
+SCHEMA aliases and DO-body statement starts; only the supported singleton public
+path passes. Trigger EXECUTE exemptions require actual top-level trigger syntax;
+GRANT/REVOKE clauses remain separate from dynamic commands. Nine complete-checker
+regressions exercise these reviewed paths, with supported public-path/rename,
+trigger and grant positives. Inventory 5/5 and corpus 5/5 pass in Release, zero
+warnings/failures/skips. Scoped formatting and whitespace checks pass. Both
+second-round reviewers' bounded correction rechecks remain pending.
 
 ## Status archive
 
