@@ -194,6 +194,23 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
   for (const file of [middleware, nextFile])
     if (file)
       walk(file, (node) => {
+        const owner = file === nextFile ? 'nextConfig' : 'config';
+        const declaration = (file === nextFile ? nextConfig : config)?.parent;
+        const declarationName =
+          declaration && ts.isVariableDeclaration(declaration) ? declaration.name : undefined;
+        const pluginArgument =
+          file === nextFile && exported && ts.isCallExpression(exported)
+            ? exported.arguments[0]
+            : undefined;
+        if (
+          ts.isIdentifier(node) &&
+          node.text === owner &&
+          node !== declarationName &&
+          node !== pluginArgument
+        )
+          findings.push(
+            finding(node, 'Fix: keep the checked configuration private until its approved export.'),
+          );
         const name = ts.isPropertyAccessExpression(node)
           ? node.name.text
           : ts.isElementAccessExpression(node) && ts.isStringLiteral(node.argumentExpression)

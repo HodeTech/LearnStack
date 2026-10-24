@@ -196,8 +196,23 @@ describe('ADR-0053 production public boundaries', () => {
         current[config]!.replace('reactStrictMode: true,', '...routing, reactStrictMode: true,'),
       ],
       [config, current[config]! + '\nnextConfig.rewrites = async () => [];'],
+      [
+        config,
+        current[config]!.replace(
+          'export default',
+          'Object.assign(nextConfig, { rewrites: async () => [] });\nexport default',
+        ),
+      ],
+      [
+        config,
+        current[config]!.replace(
+          'export default',
+          'const alias = nextConfig; alias.rewrites = async () => [];\nexport default',
+        ),
+      ],
       [config, current[config]!.replace('(nextConfig);', '({ ...nextConfig, ...routing });')],
       [MIDDLEWARE, sources[MIDDLEWARE]! + '\nconfig.matcher = ["/studio"];'],
+      [MIDDLEWARE, sources[MIDDLEWARE]! + '\nObject.assign(config, { matcher: ["/studio"] });'],
       [MIDDLEWARE, sources[MIDDLEWARE]!.replace('export const config', 'const config')],
       [probe, '"use server"; export async function write() {}'],
       [probe, 'export async function write() { "use server"; return 1; }'],

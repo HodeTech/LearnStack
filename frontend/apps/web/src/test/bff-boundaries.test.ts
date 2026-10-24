@@ -223,9 +223,16 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       );
       expect(new Set(versions)).toEqual(new Set([version]));
     }
+    const locked = (source: string, name: string) =>
+      source
+        .split('\n')
+        .some((line) => ['', "'", '"'].some((quote) => line.startsWith('  ' + quote + name + '@')));
     for (const name of ['next-auth', '@auth/core', 'better-auth']) {
-      expect(declared.dependencies).not.toHaveProperty(name);
-      expect(lock).not.toMatch(new RegExp('^  ' + name + '@', 'm'));
+      for (const section of [declared.dependencies, declared.devDependencies])
+        expect(section).not.toHaveProperty(name);
+      expect(locked(lock, name)).toBe(false);
+      for (const quote of ['', "'", '"'])
+        expect(locked(lock + '\n  ' + quote + name + '@0.41.3' + quote + ':\n', name)).toBe(true);
     }
   });
   it('the actual separately compiled native module and pinned NextRequest share only the immutable projection', () => {

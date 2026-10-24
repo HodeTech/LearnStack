@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,171 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,189 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -241,6 +241,7 @@ each packet decided and delivered, as
   - [P02b-7 second correction package and ADR-0071 proposal (2026-10-24)](#p02b-7-second-correction-package-and-adr-0071-proposal-2026-10-24) — 63 lines
   - [ADR-0071 acceptance and review corrections (2026-10-24)](#adr-0071-acceptance-and-review-corrections-2026-10-24) — 33 lines
   - [P02b-7 correction foundation implementation (2026-10-24)](#p02b-7-correction-foundation-implementation-2026-10-24) — 48 lines
+  - [P02b-7 foundation first review corrections (2026-10-24)](#p02b-7-foundation-first-review-corrections-2026-10-24) — 18 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19912,6 +19913,24 @@ fails its intended assertion. No shared source is mutated by those controls.
 The package is committed for its two independent review rounds. Full build,
 browser/provider and complete hosted qualification remain required after the
 remaining correction packages settle; focused success is not a completion claim.
+
+
+### P02b-7 foundation first review corrections (2026-10-24)
+
+Two fresh independent reviewers inspect committed foundation `0fa1afe9`, one
+covering the closed surface and one the owner/provider/cancellation boundaries.
+Neither finds a production behavior defect. They identify two proof gaps:
+post-declaration configuration mutation can evade the new source census, and a
+quoted scoped pnpm key can evade the forbidden-library check.
+
+The configuration binding may now appear only at its declaration and approved
+plugin argument; independent `Object.assign` and alias-escape counterexamples
+exercise that restriction, including middleware configuration. The dependency
+control checks bare/single-/double-quoted lock keys and both manifest dependency
+sections, with independently planted forbidden entries. The current clean
+configuration and reachable dependency graph remain passing twins. All 284
+public-boundary controls pass; the targeted graph control passes. These fixes
+are committed before the fresh second review pair.
 
 
 ## Status archive
