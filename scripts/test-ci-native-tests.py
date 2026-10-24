@@ -506,6 +506,16 @@ except launcher.Refusal as failure:
         for detail in self.owner.PUBLIC_FAILURE_DETAILS:
             text = 'Public admission fixture failed during browser 429 ' + detail + '.'
             self.assertEqual({'stage': 'browser 429', 'detail': detail}, parse(case, {'ErrorMessage': text}))
+        for stage in ('browser 429', 'browser 503'):
+            for kind in self.owner.PUBLIC_DEVTOOLS_KINDS:
+                text = 'Public admission fixture failed during ' + stage + ' browser-devtools ' + kind + '.'
+                self.assertEqual({'stage': stage, 'detail': 'browser-devtools', 'kind': kind},
+                                 parse(case, {'ErrorMessage': text}))
+        for suffix in ('browser 429 browser-devtools PRIVATE-CANARY',
+                       'browser 429 browser-launch deadline-missing',
+                       'production build browser-devtools deadline-missing',
+                       'browser 429 browser-devtools deadline-missing PRIVATE-CANARY'):
+            self.assertIsNone(parse(case, {'ErrorMessage': 'Public admission fixture failed during ' + suffix + '.'}))
         for text in (None, {}, 'Public admission fixture failed during PRIVATE-CANARY.',
                      'Public admission fixture failed during browser 429 PRIVATE-CANARY.',
                      'x' * 65536 + 'Public admission fixture failed during production build.'):

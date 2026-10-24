@@ -135,6 +135,9 @@ PUBLIC_FAILURE_DETAILS = {'browser-' + name for name in (
     'setup initial-request initial-status initial-source initial-site initial-release watch-connect change '
     'source-barrier refresh-request refresh-status refresh-type refresh-source refresh-site refresh-release after'
 ).split()}
+PUBLIC_DEVTOOLS_KINDS = {
+    'owner-inactive', 'port-unreadable', 'deadline-missing', 'deadline-empty', 'deadline-malformed',
+}
 KEYCLOAK_FAILURE_CLASSES = {
     'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
     'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
@@ -556,6 +559,10 @@ def closed_failure_details(case, raw):
             stage = match[1]
             if stage in PUBLIC_FAILURE_STAGES:
                 return {'stage': stage}
+            parts = stage.rsplit(' ', 2)
+            if (len(parts) == 3 and parts[0] in {'browser 429', 'browser 503'}
+                    and parts[1] == 'browser-devtools' and parts[2] in PUBLIC_DEVTOOLS_KINDS):
+                return {'stage': parts[0], 'detail': parts[1], 'kind': parts[2]}
             stage, _, detail = stage.rpartition(' ')
             if stage in PUBLIC_FAILURE_STAGES and detail in PUBLIC_FAILURE_DETAILS:
                 return {'stage': stage, 'detail': detail}

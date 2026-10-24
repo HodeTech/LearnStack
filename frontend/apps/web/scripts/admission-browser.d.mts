@@ -40,10 +40,14 @@ export type BrowserPhase =
   | 'browser-shutdown';
 export function browserFailureDetail(error: unknown): string;
 export function atBrowserPhase<T>(phase: BrowserPhase, operation: () => T | Promise<T>): Promise<T>;
+export type BrowserPortObservation =
+  | { readonly kind: 'missing' | 'empty' | 'malformed' | 'unreadable' }
+  | { readonly kind: 'ready'; readonly port: number };
+export function readBrowserDevToolsPort(path: string): BrowserPortObservation;
 export function waitForBrowserDevTools(options: {
   readonly assertActive: () => void;
   readonly isLive: () => boolean;
-  readonly readPort: () => number | null;
+  readonly readPort: () => BrowserPortObservation;
 }): Promise<number>;
 export function waitForBrowserPage(options: {
   readonly assertActive: () => void;

@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,380 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 1,423 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -226,6 +226,7 @@ each packet decided and delivered, as
   - [P02b-7 hosted frontend ingress correction (2026-10-24)](#p02b-7-hosted-frontend-ingress-correction-2026-10-24) — 31 lines
   - [P02b-7 first hosted A — fixture corrections (2026-10-24)](#p02b-7-first-hosted-a--fixture-corrections-2026-10-24) — 56 lines
   - [P02b-7 second hosted A — remaining handoff precondition (2026-10-24)](#p02b-7-second-hosted-a--remaining-handoff-precondition-2026-10-24) — 46 lines
+  - [P02b-7 third hosted A — closed browser-readiness evidence (2026-10-24)](#p02b-7-third-hosted-a--closed-browser-readiness-evidence-2026-10-24) — 43 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -19107,6 +19108,49 @@ not a claim to have reproduced the hosted failure's exact causal interleaving.
 A new complete source-bound A/B qualification follows these corrections. The
 failed runs and their independent component evidence remain in this log; PR #36
 stays draft until qualification succeeds.
+
+### P02b-7 third hosted A — closed browser-readiness evidence (2026-10-24)
+
+The [A run on `1784507c`](https://github.com/HodeTech/LearnStack/actions/runs/40043096810)
+finishes with 25 successful jobs and two failures. Meta and both corrected
+native worker populations pass; all six BFF cases, 31 native cases, backend
+aggregation and stopped-provider public demo pass. The ordinary-9 producer
+fails only the existing public-admission browser fallback case; integration
+aggregation correctly refuses it. This is not complete source qualification.
+
+The case lasts 59.507 seconds. Its retained location is the child exit assertion;
+the closed detail is `browser 429` / `browser-devtools`. The first value names the
+intended scenario, not an observed HTTP failure. Existing attribution cannot
+distinguish owner closure, unreadable/incomplete port-file state and the live
+browser readiness deadline. The VM memory peak is not evidence of OOM, and the
+phase alone does not prove a timeout. The exact real case passes locally before
+the correction, so the hosted cause remains unproven.
+
+The test-only readiness observer now retains five branded closed kinds:
+`owner-inactive`, `port-unreadable`, `deadline-missing`, `deadline-empty` and
+`deadline-malformed`. A single file read replaces the existence-check/read pair;
+ENOENT remains incomplete readiness within the existing poll. This closes a
+structural check/read race without claiming it occurred in CI. The original
+20-second/50-millisecond readiness budget/poll stays intact; final owner/liveness
+observation adds no wait and keeps observed child death distinct. There is no
+browser launch retry, security-flag change, skipped case or timeout enlargement.
+Raw exceptions, file bytes/paths, ports and browser output remain private.
+
+Only the exact public-admission case and its two browser scenarios may export
+the five kinds through the existing parser. Plain forged diagnostic objects do
+not gain the JavaScript brand. Both independent round-2 reviewers inspect the
+applied change and approve its privacy, timing and positive/counter controls;
+this is focused confirmation of the material diagnostic refinement.
+
+All 51 focused browser-observation controls and 2,097 guarded frontend cases
+pass, zero skipped/todo. Lint/typecheck pass. The actual Docker/browser case
+passes with the correction in 36.294 seconds; TRX SHA-256 is
+`91453c18f5af9927f743f357408e817c65b2da1e812b5ebd555f28edd98c7df5`.
+Actual file states, partial publication, private exceptions, unchanged deadline,
+boundary death, eventual readiness and forged diagnostics have reachable
+controls. All 65 execution-protocol and 26 aggregate controls pass. Passing local
+observations do not label the old failure harmless or prove its cause. Complete
+same-source hosted A/B qualification remains pending.
 
 ## Status archive
 
