@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,387 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,424 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -248,6 +248,7 @@ each packet decided and delivered, as
   - [P02b-7 CI and real-provider proof corrections (2026-10-24)](#p02b-7-ci-and-real-provider-proof-corrections-2026-10-24) — 41 lines
   - [P02b-7 current carrier reconciliation (2026-10-24)](#p02b-7-current-carrier-reconciliation-2026-10-24) — 49 lines
   - [P02b-7 policy, UI and evidence first review (2026-10-24)](#p02b-7-policy-ui-and-evidence-first-review-2026-10-24) — 27 lines
+  - [P02b-7 real-provider clock and HTML negative correction (2026-10-24)](#p02b-7-real-provider-clock-and-html-negative-correction-2026-10-24) — 37 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20135,6 +20136,43 @@ index/phase Status; it must identify P explicitly and prove no executable,
 plan, toolchain or fixture-lifetime change. C then receives one complete current
 assignment under ADR-0063's normal-future-push rule. No A/B result is attributed
 to C and no earlier sibling is substituted into an aggregate.
+
+
+### P02b-7 real-provider clock and HTML negative correction (2026-10-24)
+
+The ten selected real BFF/native-job cases at `4ead28c5` produce nine passes and
+one failure, with no skip. All three causal restart rows pass without an
+observed lease-loss escape: the ordinary rows have one reconcile/finalizer and
+two ledger rows; the deliberately forced sub-run has two finalizers and three
+ledger rows. NativeHandoff and the other BFF lifecycle/browser cases pass.
+
+The warm BFF case disproves the new test's assumption that the provider realm
+GET has a Date header. No rerun is used to dismiss it. The replacement observes
+only `iat` from a fresh isolated-master issuance through the existing fixed
+private TLS authentication path. Keycloak's pinned
+[`issuedNow()` clock](https://github.com/keycloak/keycloak/blob/26.6.2/core/src/main/java/org/keycloak/representations/JsonWebToken.java)
+provides the integer-second observation. The fixture returns one unique positive
+integral DateTime-range scalar, never the credential or identity authority.
+The existing five-second request, 256 KiB response and 15-second combined wait
+bounds remain; polling is at most once per second, without transport retry or
+host-clock fallback. Extra master sessions/credentials are confined to the
+owned fixture and its actual destruction; tenant/BFF SSO is untouched.
+
+The next targeted run passes that clock boundary and reaches a second new test
+assumption: the real browser asks for HTML, so its masked 400 has no JSON `code`.
+The test now requires the actual HTML projection, no admitted render, no-store,
+no new session cookie, no authenticated reader, anonymous replay and the exact
+one-row defended-tenant security audit. The JSON taxonomy remains independently
+covered by the composed caller/protocol controls. Runtime policy is unchanged.
+
+The corrected actual warm case passes both hosts in 75.210 seconds, with seven
+authenticated API witnesses per host, real refresh/maximum/logout/error/events
+and a zero-write rerun. Joined cleanup takes 0.502 seconds and independently
+confirms both containers and the network absent. These targeted results are
+not relabeled a new complete ten-case run. The failed receipts remain retained.
+The first-round CI/provider reviewer independently confirms this focused source
+correction without a remaining finding. Fresh round 2 and full hosted
+qualification remain required.
 
 
 ## Status archive

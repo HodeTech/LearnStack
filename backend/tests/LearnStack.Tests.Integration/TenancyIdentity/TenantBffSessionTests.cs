@@ -360,7 +360,12 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                     passwords.GetValueOrDefault(opposite.Username) ?? KeycloakFixture.DemoPassword);
                 var oppositeCompleted = await native.RequestAsync(Host(tenant), oppositeCallback.PathAndQuery, oppositeCookies.Header);
                 oppositeCompleted.Status.Should().Be(400);
-                oppositeCompleted.Data.GetProperty("code").GetString().Should().Be("identity");
+                oppositeCompleted.Data.ValueKind.Should().Be(JsonValueKind.Null,
+                    "the real browser request asks for HTML; closed JSON reason mapping is covered separately");
+                oppositeCompleted.Rendered.Should().BeFalse("refusal cannot render the admitted institution view");
+                oppositeCompleted.Cache.Should().Contain("no-store");
+                oppositeCompleted.Cookies.Should().NotContain(value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal),
+                    "the mismatched grant cannot publish a new session handle");
                 oppositeCompleted.PrivateFree.Should().BeTrue();
                 await AnonymousAsync(native, tenant, oppositeCookies.Header);
                 api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(beforeOppositeReads,
@@ -453,15 +458,11 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
 
     private static async Task WaitForProviderClockAsync(KeycloakFixture provider, long targetMilliseconds)
     {
-        using var client = KeycloakHttp.Create(provider.BaseAddress, provider.RootCertificate);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         while (true)
         {
-            using var response = await KeycloakHttp.SendAsync(client, HttpMethod.Get, "realms/learnstack", cancellationToken: deadline.Token);
-            response.StatusCode.Should().Be(HttpStatusCode.OK);
-            response.Headers.Date.Should().NotBeNull("the actual provider clock, not a blind delay, gates the real expiry observation");
-            if (response.Headers.Date!.Value.ToUnixTimeMilliseconds() >= targetMilliseconds) return;
-            await Task.Delay(100, deadline.Token);
+            if (await provider.ObserveProviderUtcAsync(deadline.Token) >= targetMilliseconds) return;
+            await Task.Delay(TimeSpan.FromSeconds(1), deadline.Token);
         }
     }
 
