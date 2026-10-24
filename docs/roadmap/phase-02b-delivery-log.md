@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,956 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 2,999 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -260,7 +260,8 @@ each packet decided and delivered, as
   - [P02b-7 final correction qualification (2026-10-24)](#p02b-7-final-correction-qualification-2026-10-24) — 84 lines
   - [P02b-7 review correction contracts and proof controls (2026-10-24)](#p02b-7-review-correction-contracts-and-proof-controls-2026-10-24) — 116 lines
   - [P02b-7 correction review round 1 — ownership and proof (2026-10-24)](#p02b-7-correction-review-round-1--ownership-and-proof-2026-10-24) — 27 lines
-  - [P02b-7 correction review round 2 — independent recheck (2026-10-24)](#p02b-7-correction-review-round-2--independent-recheck-2026-10-24) — 30 lines
+  - [P02b-7 correction review round 2 — independent recheck (2026-10-24)](#p02b-7-correction-review-round-2--independent-recheck-2026-10-24) — 31 lines
+  - [P02b-7 hosted observer argument failure and deterministic control (2026-10-24)](#p02b-7-hosted-observer-argument-failure-and-deterministic-control-2026-10-24) — 42 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20717,6 +20718,49 @@ No verified finding requires a second-round fix. Implementation and both review
 rounds are locally complete. This final source, including the dated receipts and
 pending Status, now requires complete same-source hosted A/B qualification;
 older passing assignments and local selected checks cannot supply it.
+
+
+
+### P02b-7 hosted observer argument failure and deterministic control (2026-10-24)
+
+[Run 40118767190](https://github.com/HodeTech/LearnStack/actions/runs/40118767190),
+source `806d6ba9`, is not a passing assignment. Frontend job `120945546090` fails
+its owned-child stderr observer: the child returns exit 9, while the control
+requires 0. Web completes 2,272 passing cases and one failure; the workspace guard
+refuses before running SDK tests. Other job outcomes cannot supply frontend
+success or a complete A/B qualification.
+
+The observer passes a valid opaque cookie as a positional argument to Node's
+`-e` child. That alphabet permits an initial `-`; the command omits the option
+terminator. Forcing that legal prefix deterministically produces exit 9 in both
+stdout and stderr controls before the intended late-cookie scanner assertion.
+Adding `--` preserves the payload as `process.argv[1]`; both controls then reach
+and distinguish their clean/leaking observations. The ten-case owner/support
+file passes after the fix. The original random CI value was intentionally not
+retained, so this records the reproduced matching fault mechanism without
+claiming recovery of its private input.
+
+Only the test's argument framing and deterministic boundary canary change.
+Shipping credential handling, child ownership, scanner behavior, deadlines,
+case population and the passing runtime/realm controls are unchanged. Fresh
+source reviews and full qualification follow this correction; a failed-only
+rerun does not substitute for them.
+
+**Additional scope checks.** Native proof cancellation can report no diagnostic
+line, or an unobserved input-stage deadline, when no later IPC stage is received;
+it remains a failed proof with actual cleanup requirements. The current harness
+qualifies cleanup and closed observations, not complete stage progress on every
+stall. The shipping launcher correctly restores TLS verification and passes its
+BFF opt-in into POST admission; primitive disabled-mode controls and enabled
+native flows do not independently kill every launcher-wiring mutation. These
+are disclosed witness limits, not an observed TLS bypass or public POST grant.
+The controlled-browser fake provider deliberately does not prove full OIDC;
+exact wire/store controls and the separate real-provider chain own that proof.
+Historical timing ratios alone do not establish a timeout defect or justify
+raising ceilings; the full corrected local frontend run completes its web
+population in 47.18 seconds; the failed hosted web population takes 151.30
+seconds. Its observed failure is exit 9, not a timeout. Neither measurement
+promises future timing fit.
 
 
 ## Status archive

@@ -89,11 +89,12 @@ describe('BFF proof observation ownership', () => {
         const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-bff-observer-')));
         try {
           for (const leaking of [false, true]) {
-            const cookie = randomBytes(32).toString('base64url');
+            // A valid opaque cookie may begin with a Node option prefix.
+            const cookie = '-' + randomBytes(32).toString('base64url').slice(1);
             const cookieCanaries = [];
             const scanners = [];
             const child = ownBffProofChild({ owner, app: root, env: fixtureEnvironment({ root }),
-              args: ['-e', 'process.${stream}.write(process.argv[1]);', leaking ? cookie : 'clean child output'],
+              args: ['-e', 'process.${stream}.write(process.argv[1]);', '--', leaking ? cookie : 'clean child output'],
               privateValues: [], cookieCanaries, scanners });
             assert.deepEqual(await child.completed, { code: 0, signal: null });
             assert.doesNotThrow(() => assertBffPrivateOutput(scanners));
