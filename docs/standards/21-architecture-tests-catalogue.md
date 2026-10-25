@@ -56,8 +56,9 @@ owns source-bound validation, reviews and hosted qualification),
 (Accepted 2026-10-21; formalizes the existing issuance obligation's authority
 without adding a rule or changing its implementation status).
 Identity foundation registration additionally derives from Accepted
-[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
-[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
+[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
 Step 1 registers obligations; Steps 2–5 own implementation and qualification.
 Existing Implemented statuses do not qualify their pending Identity extensions.
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
@@ -2603,11 +2604,27 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   observe a real competing commit through fresh post-wait reads; wrong isolation,
   forbidden upgrades, incomplete first-admin state and closure/final-admin races
   refuse. Scope/reference/lifecycle controls cover tenant and branch variants.
+  Creation, Suspended-to-Active and every assignment addition require the actual
+  target User fence and a fresh actual-trigger eligibility check even when the
+  complete plan is preheld. Missing/wrong/shared-only/foreign-backend fences
+  refuse as fixed internal plan faults, distinct from uniform unknown/nonadmitting
+  target refusals. Exact current-backend heldness is observed without an
+  acquisition probe; `pg_locks` does not prove transaction ownership or history.
+  Closed caller/source/receipt controls reject session-lock APIs and actual
+  transaction-end tests prove lifetime; a session-only fixture exposes the
+  observation limit. Profile edits and assignment removals take no User fence
+  solely for admission. Fixed C#/SQL User/Tenant key vectors agree. Disposable
+  fixture-only closure competitors temporarily accommodate only the User update
+  guard and owner CHECK policy, restore both in `finally`, and prove the policy/guard/
+  body/ACL census afterward, with independent dirty and clean controls; they
+  introduce no production closure writer.
 - **Source:** [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
+  [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md);
   [Database lock contract](05-database.md#lock-snapshot-and-adoption-conditions).
-- **Type:** real app-role PostgreSQL mutation/concurrency controls.
-  **Kind:** behavioural.
-- **Test owner:** `IdentityMembershipTests` (planned).
+- **Type:** real app-role PostgreSQL mutation/concurrency controls and closed
+  transaction-only acquisition/caller census. **Kind:** structural and behavioural.
+- **Test owners:** `IdentityMembershipTests`, `IdentityFoundationConventionTests`
+  (planned).
 - **Status:** **Registered** — implementation pending.
 - **Phase:** P03-1 Step 4.
 

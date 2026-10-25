@@ -46,9 +46,11 @@ ownership and closed refusal/fault signals derive from
 owns independent reviews and final-source CI qualification.
 The bound grants no throughput entitlement.
 Identity admission/owner contracts additionally derive from Accepted
-[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
-[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
-their P03-1 implementation is pending.
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
+[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md);
+global internal storage/common audit is implemented; contextual and live
+execution remain their owning steps.
 Bounded authenticated assertion recording derives from
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
 implementation and local proofs are delivered in the
@@ -1054,8 +1056,9 @@ Security-relevant durability rules:
 **Status: Global internal storage/common audit implemented in Step 3; API
 existing-binding activation remains Step 5 and contextual execution remains
 Steps 4 / P03-2.** Derived from
-[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
-[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
+[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
 The bounded global owner below is implemented; this does not activate HTTP
 creation or live membership. The current authentication surface, eight tenant
 setters and deny-all membership reader remain until their owning steps. The
@@ -1216,6 +1219,15 @@ no second allocation/reconciliation algorithm is defined here. The canonical
 closed labels. Phase 11 owns production alert thresholds and capacity tuning;
 bounded acquisition and cancellation are P03-1 prerequisites.
 
+ADR-0074's contextual admission contract requires the actual mutation trigger's
+fresh target check even when the complete ordered lock plan is preheld. Its
+heldness observation does not establish session-versus-transaction ownership,
+acquisition history or the CLR caller. Standard 05's closed caller/source and
+transaction-lifetime controls supply those separate obligations. Internal
+lock-plan faults and expected unknown/nonadmitting target refusals have distinct
+closed classifications and the same outward fixed refusal, without a User-state
+oracle. Standard 05 owns the exact checks; no general User probe is admitted.
+
 P03-1 qualification covers actorless API credentials for an existing adopted
 binding, unknown/conflicting/closed bindings without allocation, quota before
 every binding read, unchanged anonymous/AccountSite method behavior and uniform
@@ -1230,8 +1242,11 @@ plans, representative before/after local latency, bounded pool checkout and
 cancellation/connection cleanup under contention and outage. A lock timeout alone
 does not establish pool capacity or a complete request deadline. No measured
 production p95 or extension of ADR-0047's qualified capacity follows; Phase 11
-retains production sizing. These are pending controls, not evidence of provider,
-database or application qualification or shipped owners/setters/functions.
+retains production sizing. Step 4 separately qualifies the actual Membership
+trigger's `pg_locks` observation under
+[Standard 15's p95 budgets](15-performance.md#initial-budgets), as specified by
+the lock signal contract. These pending controls do not qualify contextual
+runtime or later live admission; implemented global proofs retain their scope.
 
 ## Incident Response
 

@@ -40,8 +40,9 @@ Actual runtime/source ownership additionally derives from
 [ADR-0059](../decisions/0059-owned-hangfire-server-generations.md), qualified by
 [ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md).
 Identity storage and global audit authority additionally derive from Accepted
-[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
-[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
+[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -4221,8 +4222,9 @@ production capacity and PgBouncer.
 
 **Status: Global storage/common audit implemented in Step 3; contextual storage
 pending Step 4.** Derived from
-[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
-[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
+[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
 The active clauses above adopt the bounded exceptions below. Current applied
 global tables, grants and three global owner functions are locally qualified;
 the two contextual functions and five contextual tables remain Step 4. The four
@@ -4439,7 +4441,7 @@ Step 3 migration installs only its qualified global subset.
 | `fn_identity_user_creation_audit_guard()` | Deferred User INSERT trigger; reads only the exact creation audit key and verifies the complete global discriminator/subject/target/outcome. Returns no audit row. |
 | `fn_identity_audit_creation_guard()` | Deferred global audit INSERT trigger; verifies the exact User creation reference for success, or the captured subject/target and non-success class for reconciliation. Returns no User/profile row. |
 | `fn_identity_audit_evidence(id, timestamp, authority_id, subject_key, target_id, source, outcome)` | Central duplicate checker only; all inputs come from its captured intent and must agree with the transaction's announced authority/key. Returns a Boolean exact match of the complete audit key, discriminator, subject, target, source and outcome, never metadata/profile/list data. |
-| `fn_identity_membership_admission_guard()` | Membership INSERT, Suspended-to-Active and every assignment-addition trigger; target comes from the actual Membership or its tenant-composite parent. Locks/rechecks that User before the tenant lock. Returns no User fields. |
+| `fn_identity_membership_admission_guard()` | Membership INSERT, Suspended-to-Active and every assignment-addition trigger; target comes from the actual Membership or its tenant-composite parent. Verifies its already-held exclusive User fence and freshly checks eligibility before mutation, including after the complete ordered plan holds tenant fences. Acquires no User key; returns no User fields. |
 | `fn_identity_admin_admission_state(user_id, tenant_id)` | Last-admin guard only; target must be a candidate Membership in the already admitted tenant invariant check. Returns one admission Boolean; takes no second User lock while holding the tenant lock. |
 
 These functions have fixed `search_path = pg_catalog`, schema-qualified relations,
@@ -4530,6 +4532,19 @@ key beneath it. Ambiguous or post-wait changed classification refuses, rather
 than upgrading. A multi-write owner acquires its strongest complete lock set
 before mutation. Last-admin checks acquire no further User key.
 
+Closed seed authority and scope lifecycle are checked before lock acquisition;
+P03-2 owns live permission checks. Revalidate actual scope/Role/parent facts in
+a separate fresh post-wait read before mutation. For the admission operations
+above, the real BEFORE trigger freshly checks global eligibility while the
+complete ordered User/tenant plan is preheld. The exclusive User fence remains
+held transactionally through check and completion. Profile-only updates,
+suspension/revocation and assignment removals do not automatically acquire a
+User fence; their required tenant mode still follows actual protected changes.
+Exclusive User mode retains the adopted per-User admission serialization, rather
+than merely excluding closure. A shared admission alternative needs a separate
+decision. No additional callable User reader or synthetic preparation trigger is
+admitted by this read-timing change under ADR-0074.
+
 Both modes freshly verify the total eligible tenant-wide-admin invariant for
 every Membership/child mutation and protected post-initialization Role change.
 The finite first Role-creation acts have their separate SHARED-lock exception:
@@ -4538,8 +4553,10 @@ admitted initial manifest/source is being created. Existing Role edits, grant
 upgrades and repairs cannot use that exception. First-admin creation takes
 EXCLUSIVE mode and establishes the total invariant. A shared nonadmin Membership
 write cannot enter an incomplete tenant. Later closure/
-status writers take the same User fence and affected exclusive tenant keys in
-stable order. They cannot make the final administrator ineligible without a
+status writers take the same target User fence first and every affected exclusive
+tenant key next, in stable order, retaining them through the status change and
+completion. P03-10 owns and proves that production workflow. They cannot make
+the final administrator ineligible without a
 separately accepted recovery/termination contract; closure and Archived status
 are not implicit exceptions.
 
@@ -4551,6 +4568,59 @@ command/cancellation deadline within the existing ten-second native API budget.
 Timeout/cancellation refuses without partial grants or allocation retry. Lost
 commit responses remain uncertain; cleanup and central reconciliation retain
 their independent bounded ownership after caller cancellation.
+
+#### Membership fence checks
+
+The trigger observes `pg_catalog.pg_locks` using all of these predicates:
+
+| Predicate | Required value |
+|---|---|
+| `pid` | `pg_catalog.pg_backend_pid()` |
+| `database` | OID from `pg_catalog.pg_database` for `pg_catalog.current_database()` |
+| `locktype`, `granted`, `mode` | `advisory`, true, `ExclusiveLock` |
+| `objsubid` | 1: the single-bigint namespace, not the two-integer overload |
+| `(classid::bigint << 32) \| objid::bigint` | Exact signed canonical User key derived from the actual target |
+
+Missing, wrong-key, shared-only, foreign-backend/database or wrong-namespace
+observations refuse. The trigger makes no acquisition call, including no
+`pg_try_advisory_xact_lock`: a try-lock can acquire a missing key and is not an
+ownership observation. Any tenant-fence mode observation uses the corresponding
+actual canonical tenant key and strongest required mode.
+
+This proves current backend heldness and mode only. `pg_locks` cannot distinguish
+session-level from transaction-level advisory ownership, reconstruct historical
+order, prove future lifetime or authenticate a CLR caller. Session-only ownership
+can satisfy the SQL predicate; it is not an admitted writer substitute. Closed
+production helper/caller censuses require transaction-level APIs, an actual
+owning unit/connection/transaction/generation and a lock plan completed before
+data-mutating statements. Session acquisition/unlock APIs and out-of-order
+production calls fail those controls. Actual commit/rollback/savepoint and pool-
+reuse controls qualify continuous lifetime. SQL cannot retroactively validate
+arbitrary lock calls made through a compromised application SQL credential.
+
+The view is not a frozen cluster snapshot. Qualification verifies own-backend
+observations under contention and the wrong-key/backend/database/namespace cases;
+it does not infer ownership from another process's row. Per-admission-row view
+collection can affect lock-manager contention and is included in actual
+trigger-path/query/pool measurements under the existing write-p95 budget.
+
+Missing or insufficient fencing is a fixed internal **plan fault**, distinct
+from an expected **target refusal** for unknown/Closing/Closed User. Adapters
+translate both to the same fixed outward refusal without constraint/target
+details; unknown and nonadmitting targets remain indistinguishable. Plan faults
+emit the existing closed lock-refusal `fault` signal once per operation; target
+refusals do not pretend lock acquisition failed. Fixed internal descriptors,
+not provider exception text or identity labels, retain diagnostic distinction.
+
+Step 4's closure competitors are explicit fixture accommodations in disposable
+databases: preserve original guard/policy definitions, narrowly disable only
+`tg_users_no_update` and add an owner-only fixture WITH CHECK arm for the fixed
+transition. The fixture migration owner obeys the same User-then-affected-tenant
+order; it supplies no isolation proof. Actual Membership mutations still run as
+`learnstack_app`. Restore guard/policy in `finally` and verify exact restored
+body/ACL/trigger/policy census plus owner UPDATE refusal. Dirty/clean controls
+prove both the accommodation and restoration. No production status writer or
+grant follows; eligibility is otherwise immutable in this foundation.
 
 <a id="proposed-adoption-text-and-qualification"></a>
 
@@ -4579,6 +4649,16 @@ lookup before/after latency, pool occupancy and cancellation/cleanup under load;
 P03-3 separately qualifies the new-user HTTP/BFF transport. Update architecture
 obligations as pending extensions; implementation applies forward migrations under
 the Accepted contract. Documentation checks establish none of these runtime proofs.
+
+Step 4 includes exact backend/database/bigint-key and mode observations, both
+signed User/Tenant C#/SQL vectors, wrong/shared/foreign/missing ownership and
+transaction-end/pool-reuse controls. A session-only fixture demonstrates the
+observation limit; actual writer/caller controls reject session APIs. The actual
+first-seed-admin command succeeds under its complete plan; second-admin subjects
+remain fixture-local. Profile/removal controls prove no automatic User lock.
+Representative trigger-path p95/query/pool measurements include repeated view
+collection and contention. Complete-graph constraint preflight and forced central
+MUST failure prove rollback without reclassifying unknown physical COMMITs.
 
 ## Backups
 

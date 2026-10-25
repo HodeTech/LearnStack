@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,014 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,066 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -42,6 +42,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0074 proposal review round 1 (2026-10-26)](#adr-0074-proposal-review-round-1-2026-10-26) — 12 lines
   - [P03-1 Step 3 review round 2 and local closeout (2026-10-26)](#p03-1-step-3-review-round-2-and-local-closeout-2026-10-26) — 40 lines
   - [ADR-0074 proposal review round 2 and readiness (2026-10-26)](#adr-0074-proposal-review-round-2-and-readiness-2026-10-26) — 16 lines
+  - [ADR-0074 maintainer review correction and acceptance (2026-10-26)](#adr-0074-maintainer-review-correction-and-acceptance-2026-10-26) — 52 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1141,3 +1142,55 @@ function/grant count, Accepted body or dependent runtime. The existing six-step
 plan receives only its explicit Step 4 timing delta on approval. The actual
 app-role race/negative/timeout/snapshot controls remain implementation closure
 conditions, not evidence supplied by documentation review.
+
+### ADR-0074 maintainer review correction and acceptance (2026-10-26)
+
+The maintainer authorizes acceptance and continued implementation after verifying
+and fixing the supplied review findings, without another approval request. Two
+read-only verifiers (GPT-6 Astra / GPT-6.1 Sol, xhigh) independently check the
+findings against `c4569ad5`, actual global DDL and canonical contracts. The
+substantive gaps are valid; no additional product/authority choice is required.
+Earlier scoped proposal verdicts remain history rather than a claim that this
+later review contains no actionable findings.
+
+| Verified finding | Disposition |
+|---|---|
+| Missing ownership mechanism and limits | Standard 05 now names the exact current-PID/database/advisory/granted/exclusive/single-bigint observation and canonical signed key. The trigger uses no acquisition or try-lock probe. Historical order, transaction kind/lifetime and CLR admission are separate closed caller/source/receipt and completion controls. |
+| Session-only SQL rejection | Not adopted as a claim: the view cannot distinguish it. An actual session hold satisfies the same predicate. Source/caller controls reject session APIs; dedicated observations expose the limit and real transaction-end tests prove lifetime. |
+| Broad “Membership writers” and inconsistent optional checks | User fences are required for creation, Suspended-to-Active and all assignment additions. Fresh target checking is mandatory; profile-only/removal paths take no automatic User fence. “Before data-mutating statements” replaces ambiguous SQL-dispatch wording. |
+| Fault versus target refusal | Fixed internal plan faults use the existing identity-free lock-refusal `fault` signal; expected unknown/nonadmitting target refusals do not invent acquisition faults. Both preserve the same fixed outward refusal. |
+| Impossible closure competitor | Disposable fixtures explicitly accommodate both unconditional `tg_users_no_update` and owner CHECK policy, perform the fixed owner transition under User→affected-exclusive-Tenant order, restore in `finally`, and verify restored body/ACL/policy/trigger plus owner UPDATE denial. No production closure writer/grant is added. |
+| First-admin example and confined alternative | The admitted `CreateFirstSeedAdminMembership` is explicit; second-admin subjects remain fixture-local. Candidate-only `fn_identity_admin_admission_state` cannot become an arbitrary new-target reader. |
+| Exclusive mode, snapshots, keys and costs | Preserve existing per-User serialization rather than claiming shared locks cannot exclude closure. Cite VOLATILE query snapshots. Step 4 requires User/Tenant C#/SQL vectors, foreign/wrong/shared/namespace observations, profile/removal negatives and actual trigger-path p95/query/pool/contention qualification. |
+| Acceptance carriers and instruments | ADR-0072/0073 receive navigation Amendments; their bodies/status/dates stay intact. ADR-0074 owns the bounded canonical Standard 05 timing change. Headers, index, phase Status/G3/P03-10, signals/security/spec and catalogue Source/Asserts are reconciled. Registered remains Registered. |
+
+A bounded mechanism probe uses the exact fixture pin `postgres:18.4-alpine`,
+image digest `sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15`,
+actual version `180004`, with `learnstack_app` verified NOSUPERUSER/NOBYPASSRLS.
+All fourteen checked predicate observations pass: positive/negative bigint keys,
+wrong/shared-only/two-integer exclusions, foreign backend without acquisition,
+transaction commit/rollback release, and the session hold surviving transaction
+end. The owned socket-only/no-network container and foreign worker are cleaned
+and joined; preexisting containers remain untouched. This is a mechanism probe,
+not contextual schema/guard/race/performance qualification. Its source baseline
+is `c4569ad51e8b52a2f89ce502abf20c9f5b10299f`; contextual code does not exist yet.
+
+ADR-0074 is Accepted on 2026-10-26 under that conditional authority. Its timing
+delta is incorporated before dependent Step 4 code. The original six steps and
+two fresh independent runtime review rounds per step remain: Step 4 implements
+the five contextual tables, finite manifests, actual guards/commands and owned
+provider-witness seed handoff. Step 5 activates existing-session binding; Step 6
+owns complete source-bound/shard/native A/B qualification and PR preparation.
+HTTP/new-user BFF entry remains P03-3; production first-admin/rebind remains
+P03-9 and closure fulfillment remains P03-10.
+
+Two independent read-only reviewers (GPT-6 Astra / GPT-6.1 Sol, xhigh) inspect
+the complete eleven-file acceptance diff and approve without actionable findings.
+They verify the precise predicate, its limits, narrowed admission scope, fixture
+prerequisites/restoration, append-only navigation Amendments and complete carriers.
+Neither review runs contextual tests or independently reruns the mechanism probe.
+The five existing CorpusConsistencyTests pass in Release with zero skips;
+document/index/fragment checks resolve 2,556 links, the seven ADR-status parser
+tests pass, and whitespace, added relative targets and private-reference scans
+are clean. No prior proposal/readiness/review record is rewritten and no
+contextual control is promoted on the strength of this document or probe.

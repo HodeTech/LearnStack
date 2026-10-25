@@ -226,3 +226,22 @@ and a planted unclassified neutral-name property required in Step 2.
   [ADR-0044](0044-audit-write-path.md), [ADR-0072](0072-application-owned-identity-bootstrap.md).
 - [Permissions](../standards/19-permissions.md), [Database](../standards/05-database.md),
   [Data Protection](../architecture/23-data-protection.md), [Phase 03](../roadmap/phase-03-identity-admin.md).
+
+## Amendments
+
+### Amendment 1 — Ordered Membership admission timing (2026-10-26)
+
+[ADR-0074](0074-membership-admission-under-ordered-locks.md) owns the bounded
+canonical Membership eligibility-read timing change. This is navigation to the
+delegated algorithm, without changing this ADR's decision. Complete Membership/child
+plans retain User-before-tenant acquisition, actual-row classification,
+strongest pre-mutation tenant mode, no upgrades and the total eligible-admin
+invariant. Creation, Suspended-to-Active and every assignment addition require
+the actual target's exclusive User fence. The actual mutation trigger must
+freshly verify target eligibility even when the complete ordered plan is
+preheld; it cannot first acquire a missing User key beneath tenant authority.
+
+[Standard 05](../standards/05-database.md#lock-snapshot-and-adoption-conditions)
+owns the current algorithm, heldness limits and pending Step 4 proofs. No new
+scope, grant, Role variant, generic User reader or live endpoint follows. All
+other decisions and the Accepted body, status and date above remain unchanged.

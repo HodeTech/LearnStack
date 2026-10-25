@@ -296,3 +296,26 @@ provider subjects and credentials survive; ordinary HTTP cannot invoke adoption.
   [isolation](https://www.postgresql.org/docs/18/transaction-iso.html),
   [function snapshots](https://www.postgresql.org/docs/18/xfunc-volatility.html).
 - [PostgreSQL 18 constraint timing](https://www.postgresql.org/docs/18/sql-set-constraints.html).
+
+## Amendments
+
+### Amendment 1 — Ordered Membership admission timing (2026-10-26)
+
+[ADR-0074](0074-membership-admission-under-ordered-locks.md) owns the bounded
+canonical Membership eligibility-read timing change in
+[Standard 05](../standards/05-database.md#lock-snapshot-and-adoption-conditions).
+This is navigation to that change: this ADR delegates the algorithm and its
+decision remains unchanged.
+Creation, Suspended-to-Active and every assignment addition acquire the actual
+target's exclusive User fence before tenant fences and retain the transaction
+hold through completion. The actual mutation trigger must freshly verify that
+target's eligibility even when the complete ordered plan is preheld. No missing
+User key is first acquired beneath tenant authority.
+
+P03-10's separately admitted closure/status owner must acquire the same User
+fence, then all affected exclusive Tenant keys in canonical order, before making
+the User nonadmitting. The final-admin recovery/termination gate remains. The
+global subject owner, five-function confinement, absence of a generic User
+reader and all other decisions remain unchanged. The Accepted body, status and
+date above remain historical; ADR-0074 and Standard 05 own the current timing
+contract and its pending Step 4 proofs.

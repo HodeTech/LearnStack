@@ -116,13 +116,13 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0071 | [Uncertain AccountSite Refusals](0071-uncertain-account-site-refusals.md) | Accepted 2026-10-24: explicit ordinary-read AccountSite status decision and ratification; ambiguous 401 retains local ownership without granting checked authority, while callback/post-refresh failures still refuse/revoke. [ADR-0070 Amendment 2](0070-owned-tenant-bff-sessions.md#amendment-2--explicit-accountsite-status-decision-2026-10-24) preserves its original history; the [acceptance record](../roadmap/phase-02b-delivery-log.md#adr-0071-acceptance-and-review-corrections-2026-10-24) owns the authorized correction plan and proof status. [Amendment 2: P03-1 identity authority](0071-uncertain-account-site-refusals.md#amendment-2--binding-uncertainty-preserves-ordinary-read-refusals-2026-10-25). |
 | 0072 | [Application-Owned Identity Bootstrap](0072-application-owned-identity-bootstrap.md) | Accepted jointly with ADR-0073 on 2026-10-25: stable authority/digest binding, prepared common global creation/audit and route-independent existing-binding admission. New-user HTTP/BFF activation remains P03-3; implementation and qualification are pending. |
 | 0073 | [Scoped Membership and Identity Data Foundation](0073-scoped-membership-and-identity-data-foundation.md) | Accepted jointly with ADR-0072 on 2026-10-25: contained Membership state, tenant-wide Role templates, finite manifests, fresh administration invariants and semantic PII census. No live authorization or production first-admin path is activated by acceptance. |
+| 0074 | [Membership Admission Under Ordered Locks](0074-membership-admission-under-ordered-locks.md) | Accepted 2026-10-26: creation/reactivation and every assignment addition retain User-before-tenant fences; the real mutation trigger freshly verifies eligibility under the complete preheld plan. No reader, scope or grant is added; contextual implementation and proofs remain P03-1 Step 4. |
 
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0074 | [Membership Admission Under Ordered Locks](0074-membership-admission-under-ordered-locks.md) | Preserve User-before-tenant fences; permit the real trigger's fresh eligibility read under the preheld complete plan | P03-1 Step 4 before contextual writers; maintainer approval required |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

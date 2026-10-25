@@ -1,10 +1,11 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
 > **Status (2026-10-26).** Entry preparation and P03-1's joint ADR approval
-> are complete. Steps 1–2 completed both review rounds; Step 3 global storage
-> and common audit are implemented and under review. Contextual foundation
-> remains Step 4, existing-binding API activation Step 5, and final qualification
-> Step 6. This is the current critical-path phase after
+> are complete. Steps 1–3 are locally complete with both review rounds. The
+> [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md)
+> is Accepted; contextual foundation remains Step 4, existing-binding API
+> activation Step 5, and final qualification Step 6. This is the current
+> critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md).
 > The [decision register](#the-decision-register) owns gate state;
 > the [P03-1 acceptance](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25)
@@ -14,7 +15,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Steps 1–3 locally complete with both review rounds ([Step 3 closeout](phase-03-delivery-log.md#p03-1-step-3-review-round-2-and-local-closeout-2026-10-26)); Step 4 awaits [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md) approval; existing-binding API activation pending Step 5; HTTP/new-user BFF activation belongs to P03-3 |
+> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Steps 1–3 locally complete with both review rounds ([Step 3 closeout](phase-03-delivery-log.md#p03-1-step-3-review-round-2-and-local-closeout-2026-10-26)); [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md) timing delta Accepted, Step 4 contextual implementation/proofs pending; existing-binding API activation pending Step 5; HTTP/new-user BFF activation belongs to P03-3 |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
@@ -125,7 +126,7 @@ named part, and the register links each explicit acceptance and vehicle.
 |---|---|---|---|---|---|
 | G1 | Who establishes issuer + opaque `sub` → stable `UserId` and proves actor association before an accepted login? | Preserve seeded/provider IDs, reject substitution/email merging, name trusted pre-membership admission, first User-writer audit attribution, concurrency and cross-system reconciliation; self-registration alone grants no membership/session; new-user HTTP activation also requires provider registration and durable creation budgets | P03-1 storage/seed; P03-3 activation | Identity authority ADR; bounded ADR-0064/0070 disclosures if affected; Identity spec | Accepted foundation; P03-3 activation Open |
 | G2 | How do membership and permission readers reach data before resolved tenant SQL exists, and how does authorized `app.scope` reach EF/RLS? | Decide exact principal, grants, candidate-scope read and transaction/setter ownership before schema; implement step-5/step-6 handoff later; rows 6/9 still need live authorization; qualify rows 7/10/14 and successful claim-only header-mismatch evidence separately from host-tenant budgets | P03-1 contract; P03-2 execution | ADR-0036/0040 authority; Security/Database standards and closed-set tests | Accepted contract; P03-2 execution Open |
-| G3 | What are membership/profile/role-binding boundaries, nullable natural keys, lifecycle and global-user projections? | Decide active uniqueness, tenant/org grant composition, profile granularity, archive/reinvite and last-admin/org invariants, same-module composite FKs and Tenancy lifecycle contracts; no cross-module Organization FK/join | P03-1 | Identity module spec; ADR for aggregate/ownership changes; database class declaration | Accepted foundation; [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md) Proposed before Step 4; implementation/archive proofs pending |
+| G3 | What are membership/profile/role-binding boundaries, nullable natural keys, lifecycle and global-user projections? | Decide active uniqueness, tenant/org grant composition, profile granularity, archive/reinvite and last-admin/org invariants, same-module composite FKs and Tenancy lifecycle contracts; no cross-module Organization FK/join | P03-1 | Identity module spec; ADR for aggregate/ownership changes; database class declaration | Accepted foundation and [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md); Step 4 implementation/archive proofs pending |
 | G4 | How are active tenant/org claims issued per session, discovered and switched safely? | Current mappers use user-global attributes and ordinary BFF refresh preserves scope; decide storage implications first, then token reissue, callbacks/hosts, no-membership entry and switch/logout/refresh races | P03-1 implications; P03-3 transition | Provider/session ADR and applicable ADR-0070 disclosure; auth architecture | Accepted storage boundary; P03-3 transition Open |
 | G5 | What identifies a scoped permission, who may delegate it, and when do revocations take effect? | Reconcile disabled-default versus Tenant Admin seed expansion; decide registry shape, closed-role defaults, bootstrap/recovery, grant ceilings, last-admin concurrency, finite SystemActor permissions, anonymous Portal Public and API/UI freshness | P03-1 schema/bootstrap; P03-2 enforcement; P03-3 UI | ADR-0017/0064-derived permission contract; Standard 19 and module matrices | Accepted foundation; P03-2 enforcement Open |
 | G6 | Which protected endpoint/application policies and native web/SDK operations are admitted? | Decide denial precedence/resource lookup first; then exact routes/methods, Origin/CSRF, input/deadline/no-store bounds, ETag/conflict, actor/scope-bound idempotent replay and cache cleanup; no generic proxy or Server Action implied | P03-2 policy ordering; P03-3 transport | API/BFF contract; ADR-0064/0070/0071 disclosures if affected; Standards 04/07 | Accepted P03-3 staging; policy/transport decisions Open |
@@ -730,6 +731,10 @@ remain their respective authorities.
   recreation, settles the last-membership case, reconciles all participants and
   performs one final provider-account transition. Distinguish requesting person,
   human approver where required, service actor and privileged executor.
+  Before making a User nonadmitting, P03-10 takes the canonical User fence, then
+  all affected exclusive Tenant keys, and retains them through completion under
+  [Standard 05](../standards/05-database.md#lock-snapshot-and-adoption-conditions).
+  Final-admin recovery/termination still requires its separately accepted contract.
 - Implement `IUserReferenceLocator` registration for applicable modules, exact
   privileged result-audit access, idempotent result identity and inbox/commit
   reconciliation. A crash after platform commit must not duplicate result audit.

@@ -8,6 +8,9 @@ and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundati
 and central creation owner exist. Contextual tables/commands/manifests below
 remain planned for Step 4; API existing-binding activation remains Step 5. New
 HTTP/native-user activation remains P03-3.
+The ordered admission timing/observation contract additionally derives from
+[ADR-0074](../../decisions/0074-membership-admission-under-ordered-locks.md),
+Accepted 2026-10-26; contextual implementation/proofs remain Step 4.
 
 ## Overview
 
@@ -118,6 +121,11 @@ Profile/nonadmin/organization mutations use its shared tenant invariant mode;
 first-admin and tenant-admin eligibility/assignment/kernel transitions use its
 exclusive mode. Actual affected rows bind the mode before acquisition; no
 shared-to-exclusive upgrade or caller-declared nonadmin exemption is admitted.
+Only the admission operations above automatically require the User fence;
+profile-only changes and assignment removals retain their existing tenant-lock
+requirements. Standard 05 also owns backend-heldness limits, fixed internal plan
+fault versus target refusal, and the identical outward refusal. No algorithm or
+new User reader is defined here.
 
 Every Membership mutation, in either lock mode, leaves an Active, globally
 eligible, tenant-wide Tenant Admin with both kernel pairs. The first mutation
@@ -170,7 +178,8 @@ Organization pair; no cross-module transaction or further exception is admitted.
    there are no per-organization Role rows or organization-initialization step.
 3. `CreateFirstSeedAdminMembership` atomically writes the declared admin,
    contained Profile/Assignment and central MUST audit, referencing an existing
-   Tenant Admin template. User/tenant/last-admin guards apply.
+   Tenant Admin template. Its complete root/child plan precedes mutation;
+   User/tenant/last-admin guards apply.
 4. `CreateSeedMembership` writes each learner and contained state separately.
    `SetSeedMembershipProfile` changes bounded fields through Membership. No
    command writes another root merely because its transaction is available.

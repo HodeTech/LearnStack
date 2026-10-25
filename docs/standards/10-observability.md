@@ -26,8 +26,9 @@ Subject-admission refusal and cleanup-fault signals derive from
 [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns independent reviews and final-source CI qualification.
 Identity lock/admission observation derives from Accepted
-[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
-[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
+[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md);
 P03-1 instrumentation and qualification remain pending.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
@@ -450,15 +451,26 @@ backend treat business rejections as system failures.
 
 ### Identity lock signals
 
-Accepted ADR-0072/0073 require `lock_kind` closed to `subject`, `user`, `tenant`;
+Accepted ADR-0072/0073/0074 require `lock_kind` closed to `subject`, `user`, `tenant`;
 wait `outcome` closed to `acquired`, `timeout`, `cancelled`, `fault`; and refusal
 `reason` closed to `timeout`, `cancelled`, `fault`. No tenant, actor, subject,
 digest, raw issuer, SQL, correlation or exception text is a label. Typed closed
 binding diagnostic reasons remain separate from public Problem Details and are
-not trusted identity-refusal witnesses. Steps 3/4 implement lock signals; Step 5
-qualifies ordinary binding lookup plans, local latency and pool/cancellation
-behavior. No measured p95 or extension of ADR-0047 capacity is established.
-Phase 11 owns production alert thresholds and sizing.
+not trusted identity-refusal witnesses. A contextual lock-plan fault increments
+the existing refusal counter exactly once with `reason=fault`. An expected
+unknown/nonadmitting target refusal is a separate closed internal classification,
+not a lock fault. Both preserve the same outward fixed refusal; no new metric
+label or reason is introduced. The
+[database contract](05-database.md#lock-snapshot-and-adoption-conditions) owns
+their classification and heldness limits.
+
+Steps 3/4 implement lock signals. Step 4 qualifies `pg_locks` observation on the
+actual Membership trigger path: representative before/after local write p95
+against [Standard 15's budgets](15-performance.md#initial-budgets), query cost,
+pool occupancy and cancellation/cleanup under ordinary load and contention.
+Step 5 separately qualifies ordinary binding lookup plans, local latency and
+pool/cancellation behavior. No measured production p95 or extension of ADR-0047
+capacity follows; Phase 11 owns production alert thresholds and sizing.
 
 ### Delivered metric populations
 
