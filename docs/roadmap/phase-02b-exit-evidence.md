@@ -5,11 +5,13 @@ Criteria and 11 Phase Exit Decision obligations in [Phase 02b](phase-02b-events-
 The abbreviated locators below do not replace, weaken or omit the canonical bullet's
 subordinate conditions. Each row refers to its entire canonical bullet.
 
-This is an ownership index. **Hosted qualification is pending.** The forthcoming
-P02b-8 Step 4 record in the [delivery log](phase-02b-delivery-log.md) owns
-exact-source A/B and final-head CI/artifact receipts, skip counts, the dated live
-required-check read-back and closure. This index asserts no new execution result;
-earlier green runs do not qualify later source.
+This is an ownership index. The
+[P02b-8 Step 4 closeout](phase-02b-delivery-log.md#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25)
+records completed exact-source A/B, artifact/skip/cleanup evidence and the dated
+live required-check read-back. The review PR's live checks own qualification of
+its actual current head. The frozen-source receipt does not imply a passing
+result for a later documentation-only commit; maintainer review and merge remain
+separate gates.
 
 Evidence lanes: **B** = backend base/unit/architecture and non-Docker HTTP tests;
 **I** = real Docker/PostgreSQL/Keycloak/native-HTTPS integration; **F** = frontend
@@ -167,9 +169,3 @@ The G18 inventory is coverage/governance evidence only: `AsyncStoreInventoryTest
 and the canonical Data Protection inventory do not implement field erasure, DSAR
 or legal-compliance certification. Phase 03 owns the identity/DSAR integration;
 Phase 11 owns later-module/retained-copy and purge/retention reconciliation.
-
-The source ownership index is complete; hosted qualification remains pending. The
-Step 4 record must qualify the new direct delivery-count/clear assertions, the
-complete required lanes and the live required-check configuration before asserting
-phase exit. No full authenticated browser OIDC journey, DSAR implementation or
-field-level erasure result follows from this index.

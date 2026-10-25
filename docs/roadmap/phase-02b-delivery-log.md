@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 717 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 826 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -285,6 +285,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 4 — Individual exit ownership and source freeze (2026-10-25)](#p02b-8-step-4--individual-exit-ownership-and-source-freeze-2026-10-25) — 42 lines
   - [P02b-8 Step 4 review round 1 — source (2026-10-25)](#p02b-8-step-4-review-round-1--source-2026-10-25) — 22 lines
   - [P02b-8 Step 4 review round 2 — source (2026-10-25)](#p02b-8-step-4-review-round-2--source-2026-10-25) — 31 lines
+  - [P02b-8 Step 4 — Completed-source qualification and review closeout (2026-10-25)](#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25) — 109 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21682,6 +21683,115 @@ and matching archives supply that evidence, not continued downloadability.
 This remains source and A-only approval. Full same-source B, the completed-pair
 review follow-up and actual final PR-head qualification remain pending. No
 earlier run, source-only approval or passing A result is counted as phase exit.
+
+### P02b-8 Step 4 — Completed-source qualification and review closeout (2026-10-25)
+
+All four implementation steps and both fresh independent review rounds per step
+are complete. The Step 4 source reviews above are supplemented by completed-pair
+reviews: the round-1 `gpt-6-astra`/high reviewer and both fresh round-2 reviewers
+(`gpt-6-astra`/high and `gpt-6.1-sol`/xhigh) independently verify the actual A/B
+receipts and approve frozen-source qualification without an actionable finding.
+They keep the later receipt-only commit and its actual PR-head result separate.
+
+**Qualified implementation source:**
+`6224bd9eba807b56b477ee57d6abba7b9caaa1b8`, tree
+`274599e096854e8f0332e8f894596fc45e082fe9`.
+[Run 40145581317](https://github.com/HodeTech/LearnStack/actions/runs/40145581317)
+uses two complete attempts: [A/1](https://github.com/HodeTech/LearnStack/actions/runs/40145581317/attempts/1)
+and [B/2](https://github.com/HodeTech/LearnStack/actions/runs/40145581317/attempts/2).
+Both use that exact source and unchanged plan. Neither is a failed-only rerun,
+an older P7 receipt or a union of successful siblings from different attempts.
+
+| Completed proof | A / attempt 1 | B / attempt 2 |
+|---|---:|---:|
+| Successful jobs / required contexts | 27 / 7 | 27 / 7 |
+| Unique Passed .NET cases; skipped cases | 5,992; 0 | 5,992; 0 |
+| Non-Docker / Docker cases | 3,413 / 2,579 | 3,413 / 2,579 |
+| Unit / Architecture / HTTP / Contract | 2,669 / 441 / 298 / 5 | 2,669 / 441 / 298 / 5 |
+| Ordinary / native Docker cases | 2,548 / 31 | 2,548 / 31 |
+| Natural producer ownership and cleanup | 20 / 20 | 20 / 20 |
+| Verified artifact archive digests | 25 / 25 | 25 / 25 |
+| Frontend cases; skips/todos | 2,376; 0/0 | 2,376; 0/0 |
+| Maximum producer whole-job seconds | 984 | 852 |
+| Backend / integration aggregate seconds | 14 / 28 | 17 / 35 |
+| Meta whole-job seconds | 108 | 84 |
+| Public pages / Lighthouse report pairs | 9 / 27 | 9 / 27 |
+| Natural demo cleanup milliseconds | 12,298 | 10,545 |
+
+Independent checks hash every archive against authenticated API metadata, match
+the extracted bytes and source identity, recompute selector assignments from
+the full discovery and reviewed plan, and validate exact case IDs/raw TRX
+unions, zero skips, toolchain/resources and natural cleanup. The 35 delivery
+cases include both lost-COMMIT variants; the actual C27 store proof also passes.
+Frontend job logs independently state 2,376 passes in two packages with zero
+skips/todos. Public receipts match source/tree, all nine URLs and 27 JSON/HTML
+digests, passed budgets and confirmed process/Compose/private-file cleanup.
+
+Before starting B, all A archives and complete attempt-1 API metadata are
+retained and their hashes verified. A's remote artifacts were unavailable on
+readback after B started. This corrects the round-2 source receipt's causal
+wording: the observed timing does not establish the cause of removal. A's
+artifact IDs identify the captured provenance; this record promises no continued
+remote downloadability. B is independently verified against its completed API
+snapshot and all 25 archives.
+
+Actual co-membership changes, rather than renamed bins: Architecture moves 221
+methods / 359 cases; ordinary moves 1,074 / 2,256. Across the declared
+fixture-bearing classes, 1,071 methods / 2,253 cases move. Both grouping sets
+differ under the independent shared-fixture check. Two assignments do not prove
+absence of every possible ordering dependency.
+
+Both attempts capture the same .NET SDK `10.0.402`, console
+`18.7.0-release-26505-111`, console/dependency hashes and xUnit adapter `2.8.2.0`
+hashes. Runner receipts identify Ubuntu 24.04 image `20261023.334.3`, kernel
+`6.17.0-1022-azure` and four CPUs. Both demos record Node `v22.23.1`, Playwright
+`1.64.0`, Chromium revision `1248`, Lighthouse `13.5.0` and the same configuration
+digest. These are observed identities, not claims that moving runner labels or
+the SDK roll-forward policy pin those binaries indefinitely.
+
+- Manifest digest:
+  `a3244565e6b1842821760e919e1c3e6e1eeec3ed151d8ed9f6981199288cd7e4`.
+- Plan digest:
+  `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b`.
+- A assignment digest:
+  `8933afb7ec87353cecdeed094abdd6ba2c691ae515a6a13c48c7a45a9c927374`.
+- B assignment digest:
+  `1a90b01a179388c0e4509a71928ede67b490c3acaabfb5961ecfb42773b36075`.
+- Independent pair audit SHA-256:
+  `bed7f4cb97bfba59cd60473cb85a3cc0e4f733899ff74ff81c60d1c43912f64f`.
+- A/B supplementary audit SHA-256:
+  `996c10658fa9880c4f8d978513ee39f65411ce02c0093b20e6516db0baefe68e` /
+  `833338062f12b8f40baadc0324d209c053ca83112770a45bb7561f3d09f73b4b`.
+
+**Live protection, read back 2026-10-25:** strict up-to-date protection retains
+all seven exact contexts, each bound to GitHub Actions app `15368`: backend,
+frontend, secret scan, meta, backend integration, OpenAPI diff and public demo +
+Lighthouse. Their complete names remain canonical in
+[Contributing](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main).
+Only `cemililik` has write access; `hodesis` is read-only. The documentation-lint
+trigger requiring a second collaborator with write access has not fired; Phase
+03 retains its unchanged named owner. Required reviews remain zero and admin
+enforcement is false under the documented single-contributor deferral; no
+settings change is made by this packet.
+
+The [individual exit index](phase-02b-exit-evidence.md) maps all 26 deliverables,
+60 completion criteria and eleven exit obligations, plus exclusions and
+transport boundaries. All 45 explicit Phase 02b catalogue obligations and
+nineteen inherited job obligations are Implemented with real proof owners.
+No erasure, legal-compliance or full browser-driven OIDC guarantee follows from
+this index or the structural store census. Phase 03 retains the accepted
+severity/authorization/privileged erasure work; Phase 11 retains production
+operations; Phase 06 retains its full browser journeys. Phase 02c starts on its
+own billing/plan-gating trigger and does not gate Phase 02b exit.
+
+This closeout changes only the delivery receipt/generated index, phase Status
+and exit-index qualification notes. No executable, plan, toolchain or fixture
+lifetime changes. Under ADR-0063's normal-future-push rule it still requires one
+complete current-head assignment before PR readiness, including the PR-only
+meta gates omitted by `workflow_dispatch`. The review PR's live checks record
+that result. A/B remains attributed to the frozen implementation above, never
+to this later receipt-only commit. Maintainer review and merge remain separate
+acts; Phase 02b stays in progress until that merge closeout.
 
 ## Status archive
 
