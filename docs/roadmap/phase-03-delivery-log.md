@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 716 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 734 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -32,6 +32,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 1 review round 2 and closeout (2026-10-25)](#p03-1-step-1-review-round-2-and-closeout-2026-10-25) — 16 lines
   - [P03-1 Step 2 implementation and local qualification (2026-10-25)](#p03-1-step-2-implementation-and-local-qualification-2026-10-25) — 36 lines
   - [P03-1 Step 2 review round 1 (2026-10-25)](#p03-1-step-2-review-round-1-2026-10-25) — 20 lines
+  - [P03-1 Step 2 review round 2 and closeout (2026-10-25)](#p03-1-step-2-review-round-2-and-closeout-2026-10-25) — 18 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -833,3 +834,21 @@ recursion is structurally reviewed, not claimed as a separate production complex
 property proof: no current production complex mapping exists. No verified runtime
 finding remains within these review scopes. A second fresh review round follows
 the correction commit.
+
+### P03-1 Step 2 review round 2 and closeout (2026-10-25)
+
+**Reviewed source:** `eccf2dff`. Two new read-only reviewers independently review
+the model/finalization boundary (GPT-6 Astra, xhigh) and semantic declarations/
+corpus (GPT-6.1 Sol, xhigh). Both approve within Step 2's scope, without actionable
+findings. Each independently passes the eleven focused Release classification
+cases with zero skips; the census and all four relational comparisons agree.
+They verify the earlier mutable-status correction and leave Accepted bodies
+unchanged. Their focused proof does not claim a new full-suite/provider run.
+
+Step 2 is complete after both fresh review rounds. Explicit classification and
+the missing-declaration counterexample precede the first Identity model/writer.
+Steps 3/4 must add their actual properties to this complete census and retain
+separate snapshot/diagnostic controls. Step 3 now proceeds automatically: global
+User/authority persistence, the prepared common owner and central creation/
+reconciliation seams, with real app-role/function/outcome proofs before closeout.
+No new HTTP or native new-user flow is activated.

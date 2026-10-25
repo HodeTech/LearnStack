@@ -1,8 +1,8 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
 > **Status (2026-10-25).** Entry preparation complete; P03-1's joint ADR
-> approval and Step 1 authority adoption are complete; Step 2 classification is
-> implemented and under review; Identity runtime
+> approval and Steps 1–2 are complete after both review rounds; Step 3 global
+> persistence/audit is in progress; Identity runtime
 > implementation **not started**. This is
 > the next critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md). Begin with the identity foundation's
@@ -14,7 +14,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Step 1 complete; [Step 2 implementation](phase-03-delivery-log.md#p03-1-step-2-implementation-and-local-qualification-2026-10-25) under review, Identity runtime pending; HTTP/new-user BFF activation belongs to P03-3 |
+> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Steps 1–2 complete; [Step 2 closeout](phase-03-delivery-log.md#p03-1-step-2-review-round-2-and-closeout-2026-10-25); Step 3 global persistence/audit in progress, Identity runtime pending; HTTP/new-user BFF activation belongs to P03-3 |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
