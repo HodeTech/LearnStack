@@ -2,15 +2,16 @@
 
 ## Status
 
-Proposed — maintainer approval required before acceptance or dependent code.
+Accepted — jointly with ADR-0072 on 2026-10-25. Implementation and runtime
+qualification remain pending.
 
 **Date:** 2026-10-25
 **Deciders:** @cemil
 
 **Relationship:** Joint acceptance with [ADR-0072](0072-application-owned-identity-bootstrap.md)
-is required. Complete G3/G19 and the foundation portions of G2/G4/G5/G8/G16;
-later execution gates remain Open. This record and its Proposed module contract
-introduce no current schema, grant, route or authorization capability.
+is complete. The decisions cover G3/G19 and the foundation portions of
+G2/G4/G5/G8/G16; later execution gates remain Open. This record and its accepted
+module contract authorize implementation, not current runtime capability.
 
 ## Decision Drivers
 
@@ -58,7 +59,7 @@ template becomes effective only through an exact-organization Membership
 assignment. Organization creation writes no Identity rows. Learner has Tenant
 and Organization variants: an explicit scope extension, not a new role name.
 
-The [Proposed permission annex](../standards/19-permissions.md#proposed-identity-foundation-contract)
+The [permission contract](../standards/19-permissions.md#proposed-identity-foundation-contract)
 owns the exact five foundation permission pairs, version-1 grant manifest and
 two-pair immutable Tenant Admin kernel. One versioned compiled manifest generates
 the SQL guard artifact, checked for equivalence; Role data cannot redefine it.
@@ -100,7 +101,7 @@ nondeletion, not lifecycle eligibility. Tenant creation starts Trial; public
 eligibility admits Trial and Active. These facts are inputs, not Identity proof.
 
 SeedData declares four authentication actors, two tenants and two organizations
-per tenant, without application memberships. The Proposed [seed sequence](../modules/identity/README.md#first-admin-and-seed-sequence)
+per tenant, without application memberships. The accepted [seed sequence](../modules/identity/README.md#first-admin-and-seed-sequence)
 preserves bindings/credentials and declares exact assignments. Role templates
 are tenant-wide even for Organization capabilities; only Membership/Profile/
 Assignment rows carry branch scope. Yoga admin keeps its provider branch claim;
@@ -117,13 +118,13 @@ proof populations are fixture-local, preserving the exact four-person manifest.
 | ADR-0017 | Preserve tenant grants plus matching-org grants; clarify contained Membership data and tenant-wide Role storage | Dated clarification on acceptance, preserving Accepted body; P03-1 Step 1 |
 | ADR-0042 | Preserve its only exception: Tenancy's Tenant/default Organization pair | No replacement or new exception; external seed owner commits Role/Membership commands separately |
 | ADR-0040 / Security 11 | Candidate reader needs an explicitly enumerated owner/setter | Dated Amendment and exact registration before execution; P03-1 contract, P03-2 adapter |
-| Standard 19 | Resolve scoped identity, stored templates versus assignments and finite initial/upgrade grants; extend Learner capability scope | Adopt Proposed replacements only with both ADRs; P03-1 Step 1, live enforcement/grant adoption P03-2 |
+| Standard 19 | Resolve scoped identity, stored templates versus assignments and finite initial/upgrade grants; extend Learner capability scope | Jointly adopted canonical replacements; P03-1 Step 1, live enforcement/grant adoption P03-2 |
 | ADR-0044 / Standards 18/21 | Child capture, personal-data declarations and actual proof subjects need named owners | Applicable dated navigation/registered extensions, then actual backfill; P03-1 Steps 1–4 |
 
-No current Accepted ADR body, privilege or runtime surface changes through this
-Proposed record. The [revised P03-1 package](../roadmap/phase-03-delivery-log.md#p03-1-second-maintainer-review-and-revised-package-2026-10-25)
-owns approval/implementation sequencing. This revised proposal's exact manifest
-and module contracts are part of the joint approval surface.
+Earlier Accepted bodies remain historical; dated Amendments disclose the bounded
+authority changes. No runtime surface is activated by acceptance. The [revised P03-1 package](../roadmap/phase-03-delivery-log.md#p03-1-second-maintainer-review-and-revised-package-2026-10-25)
+owns authorized implementation sequencing. Its exact manifest and module
+contracts are part of this joint acceptance.
 
 ### Later execution boundaries
 
@@ -187,7 +188,7 @@ global-profile editor, dormant custom-fields blob or retention change is implied
 
 ## Implementation Notes
 
-The Proposed [module specification](../modules/identity/README.md), [permissions](../modules/identity/permissions.md)
+The accepted [module specification](../modules/identity/README.md), [permissions](../modules/identity/permissions.md)
 and [audit matrix](../modules/identity/audit.md) assign current/planned subjects
 without calling an empty census implemented. Do not copy canonical tenant RLS
 or ADR-0072's global SQL into this ADR.
@@ -201,8 +202,9 @@ global canonical-profile disclosure or dynamic-field diagnostic capture.
 Existing canonical controls retain their current implementation status; Identity
 extensions await subjects/backfill. Planned coverage includes marker/filter/RLS,
 tenant-composite FK/mirror/unique/aggregate/audit rules and nonempty scoped
-definitions. The semantic property census is planned for Step 2, with a planted
-unclassified neutral-name property; it is not yet a catalogue registration.
+definitions. The semantic property census is Registered as
+`Mapped_Properties_Have_Explicit_Personal_Data_Classification`, with implementation
+and a planted unclassified neutral-name property required in Step 2.
 
 ## Behavioral Proofs
 

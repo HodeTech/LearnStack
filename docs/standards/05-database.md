@@ -39,6 +39,9 @@ Vendor-maintenance configuration and source deadlines derive from
 Actual runtime/source ownership additionally derives from
 [ADR-0059](../decisions/0059-owned-hangfire-server-generations.md), qualified by
 [ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md).
+Identity storage and global audit authority additionally derive from Accepted
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -49,11 +52,13 @@ PostgreSQL schema, EF Core, and migration conventions.
 - One `DbContext` per module (not one global).
 - Schema migrations live with the owning module.
 
-Five migration chains exist: Tenancy, Platform, Customization, Audit and
+Five migration chains currently exist: Tenancy, Platform, Customization, Audit and
 Education. The complete applied-table census, including job and pinned vendor
 storage, is checked independently from `pg_catalog` by
 [`SchemaTableClasses`](../../backend/tests/LearnStack.Tests.Integration/Database/SchemaTableClasses.cs).
 Its reviewed classes cover every data table and the five migration-history tables.
+The [adopted Identity contract](#identity-storage-contract) adds a sixth chain in
+P03-1 Step 3; acceptance applies no migration or additional grant.
 
 ## Naming
 
@@ -275,7 +280,15 @@ with row security bypassed and a single-column child FK could point at another
 tenant's row. Here the referencing column *is* `tenant_id`, so pointing
 elsewhere would be pointing at a different tenant by definition, which the
 child's own `WITH CHECK` already refuses. The exception is exactly one table
-wide; a second one is a decision, not a convenience.
+wide among tenant-owned parents.
+
+**Tenant-owned to global self-identity is the third relationship shape.** Under
+ADR-0072/0073, same-module `memberships.user_id` references global `users.id`,
+indexed with `ON DELETE RESTRICT`, without a tenant composite: User has no tenant
+key. The [Identity storage contract](#identity-storage-contract) owns its exact
+admission guard, which refuses unknown/nonadmitting targets before FK diagnostics.
+Audit actor columns gain no User FK. This accepted shape awaits implementation;
+every other tenant-owned parent retains the composite or self-keyed shape above.
 
 **`ON DELETE RESTRICT` on every foreign key whose parent is an aggregate root,
 until a phase owns deprovisioning.** A cascade from `tenants` or `organizations`
@@ -356,8 +369,9 @@ Rules:
   correction to the existing `tenant_settings` and `audit_log` policies by forward
   migrations; Step 2 applies it to all four Education tables. Applied migrations
   are not rewritten.
-- The session variable names `app.tenant_id`, `app.organization_id`, `app.scope` and
-  `app.resolving_host` are canonical and the set is closed; do not invent alternatives
+- The session variable names `app.tenant_id`, `app.organization_id`, `app.scope`,
+  `app.resolving_host`, `app.identity_authority_id` and `app.identity_subject_key`
+  are canonical and the six-name set is closed; do not invent alternatives
   (`app.current_tenant_id`, `learnstack.tenant_id`, …). `app.tenant_id` and
   `app.organization_id` are set inside the ambient transaction — by
   `TransactionBehavior` in the general case, and by each of the out-of-band setters on
@@ -374,6 +388,10 @@ Rules:
   the second argument `true` (missing-OK), and always wrap the result in `NULLIF(…, '')`,
   so an unset context yields `NULL` and the predicate filters the row out rather than
   raising inside a pooled connection.
+  Only the [enumerated global owners](#global-owners-and-privileges) set the last
+  two, transaction-locally from verified facts. Missing/reset/malformed identity
+  values fail closed; identity announcements add no tenant-context setter. Their
+  implementation remains P03-1 Step 3.
 - The application sets `app.tenant_id` and `app.organization_id` with `SET LOCAL`
   **inside the ambient transaction**, after it opens. These settings are
   transaction-local: set before the transaction begins — in a MediatR behavior that
@@ -552,17 +570,24 @@ hole the composite key exists to close.
 ### Table classes
 
 Not every table in the tenancy schema is tenant-owned, and applying the template above
-to all of them produces a deadlock rather than isolation. Six classes exist, and every
-migration states which one its table is.
+to all of them produces a deadlock rather than isolation. Seven classes are
+adopted, and every migration states which one its table is. The applied schema
+currently contains the first six; Identity's classified tables await Steps 3/4.
 
 | Class | Rule | Tables |
 |---|---|---|
 | **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — `event_deliveries` (P02b-3 Step 1), `background_jobs`, `background_job_attempts`, `background_job_recipients` (P02b-4 Step 2), and `audit_log`, which Packet 9 added ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)); P02d-1 Step 2 adds `courses`, `lessons` and both translation tables |
 | **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `inbox_messages` (P02b-3 Step 1), `background_job_capacity`, `background_job_reservations` (P02b-4 Step 2), `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)) |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
-| **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes are either tenant-keyed or reserved to `learnstack_platform` | `platform_host_to_tenant`, `platform_killswitches` |
+| **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes have exact declared owners | `platform_host_to_tenant`, `platform_killswitches`; adopted `identity_authority` awaits Step 3 |
 | **Infrastructure control** | `ENABLE` + `FORCE`, no app policy or privilege; enumerated confined bypass control access under ADR-0047 | `background_job_recurrences`, `background_job_occurrences` |
 | **Vendor control** | Pinned stock schema with exact confined role grants and metadata guards under ADR-0047; no tenant payload or app access | The twelve Hangfire schema-23 tables; canonical vendor contract below |
+| **Global self-identity** | `ENABLE` + `FORCE`, DbContext-parameterized self filter and exact role-qualified policies/guards in the [Identity storage contract](#identity-storage-contract) | Adopted `users`, awaiting Step 3 |
+
+The adopted contextual population adds `memberships`, `membership_profiles` and
+`membership_role_assignments` to tenant-owned org-scoped, and `roles` and
+`role_permission_grants` to tenant-owned tenant-wide in Step 4. `audit_log` retains
+its tenant/org semantics with the [named global branch](#global-central-audit-branch).
 
 **The EF query filter follows the class.** It is the second layer, not a restatement of
 the policy: the filter is what a handler's `IQueryable` meets, the policy is what still
@@ -581,15 +606,20 @@ drops the other tenants' rows when the filter is missing.
   `TenantId` property and still takes no filter — the property is not the test, the
   class is. `platform_killswitches` takes none either, and could not: it carries no
   tenant column for a filter to key on.
+- **Global self-identity** — the immutable verified authority/subject-key filter
+  specified in the [Identity contract](#global-class-and-authority-anchor), never
+  a tenant predicate or UserId-only filter.
 
-**A table is platform-scoped only when no tenant predicate can isolate it.** Two tables
-qualify, in two shapes. `platform_host_to_tenant` is read **before the tenant is known**,
+**A table is platform-scoped only when no tenant predicate can isolate it.** Two
+shipped tables qualify. `platform_host_to_tenant` is read **before the tenant is known**,
 so a tenant-keyed policy returns nothing on the path that decides the tenant.
 `platform_killswitches` is read inside a tenant request and still has no tenant of its
 own — [ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md) is the
 decision this rule asked for, and the class fits for the stated reason rather than by
 analogy: the rows belong to no tenant, so there is nothing for a tenant predicate to
-isolate. A third platform-scoped table is still a decision, not a convenience. ADR-0047
+isolate. Accepted ADR-0072 adds the third, `identity_authority`, as a singleton
+deployment authority anchor with no tenant/person content; installation is pending.
+Another platform-scoped table requires a decision. ADR-0047
 separately accepts the infrastructure-control and vendor-control classes above;
 these carry neither tenant content nor general Platform-role access.
 
@@ -639,7 +669,7 @@ security bypassed, so a duplicate-slug insert reveals that *some* tenant already
 the slug. That is accepted here because slugs appear in hostnames and are public by
 construction.
 
-**Exactly two columns carry that cost.** The second is `tenant_domains.host`, and for
+**Two public hostname columns carry that cost.** The second is `tenant_domains.host`, and for
 the same reason stated the other way round: a host resolving to two tenants is
 unresolvable no matter who owns it, so global uniqueness is not a convenience but the
 constraint the resolver depends on. Its index is **partial** —
@@ -648,15 +678,20 @@ soft-deleted claim hold a hostname forever, and
 [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) contemplates a
 released-then-re-registered domain.
 
-Adding a third is a decision, not a convenience. Every other tenant-owned natural key
-is `UNIQUE (tenant_id, …)`.
+ADR-0072 adds only the authority anchor's permanent `authority_id` and global
+User's permanent `(authority_id, subject_key)` binding as identity uniqueness
+exceptions. Their [canonical contract](#global-class-and-authority-anchor) awaits
+Step 3 and never releases a binding through a partial index. Every other
+tenant-owned natural key is `UNIQUE (tenant_id, …)`; another exception needs a decision.
 
 #### `audit_log` and `audit_config` — one chain, two classes
 
-`audit_log` is **tenant-owned, org-scoped** and takes the template above
-**unmodified** — `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term
-with the organization term, an explicit `WITH CHECK`, and both `AS RESTRICTIVE` guards.
-It carries `organization_id`, and the class follows the column.
+`audit_log` is **tenant-owned, org-scoped**. Its ordinary tenant/org predicate
+semantics, ENABLE/FORCE, explicit WITH CHECK and restrictive guards remain.
+Accepted ADR-0072 adds only the [global identity policy/insertion/evidence
+branch](#global-central-audit-branch); it no longer takes the template unmodified.
+The reusable tenant template above is unchanged. This extension awaits Step 3;
+the applied policy currently contains only the existing branches.
 
 `audit_config` is **tenant-owned, tenant-wide**. It has no `organization_id` column —
 its overrides are keyed `(tenant_id, module, operation)`, and nothing asks a tenant to
@@ -666,10 +701,10 @@ class gives, no restrictive write guards.
 [ADR-0044 § 9](../decisions/0044-audit-write-path.md) put both tables in the org-scoped
 class; its Amendment 1 corrects that, and this is the corrected reading.
 
-Both take their policy from the class, so none is restated here: a template copied for
-one more table is how the corpus last shipped a broken policy into four files at once.
+The reusable class policy and the named Identity exception each have one canonical
+owner in this document; neither is copied here.
 
-`audit_log` takes the class's **policy** unmodified and deliberately not the template's
+`audit_log` deliberately omits the template's
 `ix_<table>_tenant_id_organization_id`: its readers are tenant-scope, so the arm that
 fires is `app.scope = 'tenant'`, which no index serves, and a fifth index on a
 high-volume append-only table is a write cost paid on every row for a predicate arm
@@ -915,6 +950,12 @@ closed; a fifth role requires an ADR.
 | `learnstack_platform` | `ConnectionStrings:PlatformAdmin` | API host, worker host | `EnterPlatformAdminScope(reason)` and nothing else | `BYPASSRLS` |
 | `learnstack_outbox_admin` | `ConnectionStrings:OutboxDispatcher` | API host only; never Seeder or web | confined dispatcher infrastructure only | `BYPASSRLS` |
 
+Migration **credentials** remain deploy-only. The five [enumerated Identity
+SECURITY DEFINER contracts](#confined-owner-functions) deliberately add runtime
+execution as the migration owner on an app transaction under FORCE RLS. Exact
+owner-policy, guard, body, privilege and caller confinement replaces any claim
+that owner execution is absent. Installation and qualification await Step 3.
+
 **Passwords arrive from the environment, through `\getenv`.** The four
 `:'name'` placeholders below are **psql client variables**, and the
 `docker-entrypoint-initdb.d` runner binds none of them: measured, the script as
@@ -1005,7 +1046,9 @@ that bound.
 #### GRANT matrix
 
 `—` means no privilege. `learnstack_migration` owns every table, which carries all
-privileges implicitly.
+privileges implicitly. The matrix records current applied grants; the adopted
+[Identity grants/functions](#global-owners-and-privileges) are pending Step 3/4
+extensions and are not current privileges.
 
 | Table | `learnstack_app` | `learnstack_platform` | `learnstack_outbox_admin` |
 |---|---|---|---|
@@ -1366,13 +1409,17 @@ changes `xmin` while leaving `row_version` intact.
   `WHERE deleted_at IS NULL`.** A table-wide one lets a deleted row hold its key forever,
   and where soft delete is the only way to change a row — `audit_config` has no setter, so
   an override changes by deleting it and declaring a fresh one — the second write fails
-  `23505` for good. Two shapes are exempt, and the rule
-  [`Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`](21-architecture-tests-catalogue.md#unique_indexes_on_soft_deletable_tables_exclude_deleted_rows)
-  names both: an index containing the whole primary key, which is a foreign-key target
+  `23505` for good. The recorded exceptions are named by
+  [`Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`](21-architecture-tests-catalogue.md#unique_indexes_on_soft_deletable_tables_exclude_deleted_rows):
+  an index containing the whole primary key, which is a foreign-key target
   rather than a natural key and can never collide with a successor; and
   `ux_tenants_slug`, held table-wide **by decision** — a tenant slug is a hostname, and
   whether a terminated tenant's slug may ever be reissued is
   [Phase 02c](../roadmap/phase-02c-hub-foundation.md)'s call.
+  ADR-0072 additionally holds the global User binding permanently under its
+  [Identity contract](#global-class-and-authority-anchor): closure leaves the
+  inherited deletion fields NULL, and the binding index has no partial predicate.
+  Its convention-test extension awaits Step 3.
 - Scheduled purge job removes rows past retention.
 
 ## Migrations
@@ -1410,6 +1457,10 @@ changes `xmin` while leaving `row_version` intact.
   still uses it is not a valid
   rollback order. Fresh application, reversed application and reapplication belong
   to the migration-chain integration proof.
+- Accepted ADR-0072's sixth Identity chain additionally requires Audit before
+  invoking the [central creation-witness installer](#lock-snapshot-and-adoption-conditions).
+  Step 3 extends recipe/fixture ordering and applied-schema proof; current five-chain
+  coverage is not proof of that pending dependency.
 
 ## Data Migrations
 
@@ -4161,22 +4212,25 @@ simultaneously busy connections or a tight empirical minimum.
 Later SQL lanes require a new census and requalification; Phase 11 owns measured
 production capacity and PgBouncer.
 
-## Proposed P03-1 identity storage annex
+<a id="proposed-p03-1-identity-storage-annex"></a>
 
-**Status: Proposed; inactive.** This annex derives from Proposed
+## Identity storage contract
+
+**Status: Adopted — Accepted 2026-10-25; implementation pending.** Derived from
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
-It specifies their approval target, not an additional current grant or migration.
-Both ADRs must be Accepted before dependent implementation. The six current table
-classes, current four roles and applied policies above remain the shipped baseline.
-The [Identity specification](../modules/identity/README.md) owns the proposed
+The active clauses above adopt the bounded exceptions below. Current applied
+tables, grants, functions and four login roles remain the shipped baseline until
+their implementation steps. The [Identity specification](../modules/identity/README.md) owns the adopted
 Membership, profile, Role and assignment shapes; this annex owns their database
 authority boundary and the global exceptions.
 P03-1 delivers the internal creation core, seed adoption and ordinary
 existing-binding lookup. New-user HTTP/native-BFF activation belongs to P03-3;
 this annex adds no P03-1 HTTP endpoint.
 
-### Proposed global class and authority anchor
+<a id="proposed-global-class-and-authority-anchor"></a>
+
+### Global class and authority anchor
 
 `users` belongs to a seventh, **global self-identity**, class. It has no tenant or
 organization column. ENABLE/FORCE RLS and a DbContext-parameterized EF filter
@@ -4185,7 +4239,7 @@ key. Missing, reset or malformed authority cannot select a row. The filter uses
 the current scoped values, never a model-cache literal, raw caller input or only
 UserId. The global class is not an exemption from transaction/capture guards.
 
-| Relation / field | Proposed storage contract |
+| Relation / field | Adopted storage contract; implementation pending |
 |---|---|
 | `identity_authority` | Platform-scoped singleton, `id = 1` primary key and CHECK; immutable unique `authority_id uuid`; one current exact issuer URI. No tenant filter and no User/person fields. |
 | `users.id` | Permanent UserId UUIDv7 primary key, allocated through the existing injected ID source only after serialized absence is established. |
@@ -4221,7 +4275,9 @@ refuses as a collision, without aliasing, repair or a new actor. A Closed key
 always refuses even though its raw subject is gone. The digest remains linkable
 personal data; it is neither anonymisation nor authentication authority.
 
-### Proposed global owners and privileges
+<a id="proposed-global-owners-and-privileges"></a>
+
+### Global owners and privileges
 
 The four login roles remain unchanged. Global runtime owners connect as
 `learnstack_app`, NOBYPASSRLS. Each transaction announces only its verified
@@ -4283,7 +4339,9 @@ app grants do not constrain the owner. DDL-capable disabling/dropping of guards
 is outside this trust boundary; no admitted definer body performs such DDL.
 Later lifecycle/profile writers need separately accepted grants and guards.
 
-### Proposed global central-audit branch
+<a id="proposed-global-central-audit-branch"></a>
+
+### Global central-audit branch
 
 `TenantId.PlatformSentinel` gains a second explicitly named attribution class:
 global identity creation, including its failed/indeterminate attempts. It remains
@@ -4300,7 +4358,7 @@ creation reference. Central composition generates the metadata for both success
 and reconciliation; no arbitrary metadata/draft port is exposed. Bootstrap's
 authenticated audit actor is NULL; seed adoption uses its fixed SystemActor.
 
-This is an explicit proposed departure from `audit_log` taking the tenant
+This is the adopted bounded departure from `audit_log` taking the tenant
 template **unmodified**, not a change to the reusable tenant template:
 
 - Keep one permissive isolation policy. Its USING retains the ordinary tenant/org
@@ -4353,16 +4411,18 @@ No blanket SQLSTATE-to-rollback inference is introduced.
 Global classification reads the central baseline catalogue directly; no tenant
 AuditConfig lookup or suppression allowance applies. Ordinary binding reads make
 no mutation intent. P03-9/G13 owns privileged global audit consumption; this
-proposal adds no user or tenant endpoint for those rows. Existing retention and
+contract adds no user or tenant endpoint for those rows. Existing retention and
 permitted redaction remain separate from insertion-time witness validation.
 
-### Proposed confined owner functions
+<a id="proposed-confined-owner-functions"></a>
+
+### Confined owner functions
 
 The following names are planned contracts, not shipped functions. All execute as
 `learnstack_migration`, NOBYPASSRLS, under FORCE RLS, on the caller's existing
 physical transaction. No migration credential enters runtime configuration.
-SECURITY DEFINER nevertheless adds runtime owner execution authority; approval
-must name that exception, not describe it as ordinary app isolation.
+SECURITY DEFINER adds the explicitly accepted runtime owner-execution exception;
+it is not ordinary app isolation. No function is installed by acceptance.
 
 | Planned function | Bound input / permitted result |
 |---|---|
@@ -4399,12 +4459,14 @@ privileges: this is confinement of function projections and call sites, not a
 claim that column grants restrict the owner to those columns.
 
 The historical host-lookup definer rejection above remains its historical
-decision: that table's policies grant the owner no read. This proposal instead
+decision: that table's policies grant the owner no read. This contract instead
 explicitly admits narrow owner reads for a new class and the global audit branch.
 It adds neither BYPASSRLS nor a fifth login role, and changes no existing host
 lookup. The alternatives and their trade-offs belong to ADR-0072.
 
-### Proposed lock, snapshot and adoption conditions
+<a id="proposed-lock-snapshot-and-adoption-conditions"></a>
+
+### Lock, snapshot and adoption conditions
 
 The in-memory enrollment marker is checked by the common transaction/capture
 coordinator and central writer against the actual connection/generation. SQL
@@ -4480,25 +4542,17 @@ Timeout/cancellation refuses without partial grants or allocation retry. Lost
 commit responses remain uncertain; cleanup and central reconciliation retain
 their independent bounded ownership after caller cancellation.
 
-### Proposed adoption text and qualification
+<a id="proposed-adoption-text-and-qualification"></a>
 
-On joint acceptance, replace the named active clauses with these bounded rules;
-until then the active clauses and applied census remain unchanged:
+### Applied census and pending qualification
 
-| Carrier | Adoption-ready replacement |
-|---|---|
-| Closed GUC list | The canonical set is `app.tenant_id`, `app.organization_id`, `app.scope`, `app.resolving_host`, `app.identity_authority_id`, `app.identity_subject_key`. Only the named global owners set the last two, transaction-locally; missing/reset/malformed values fail closed. Identity announcements do not increase the tenant-setter census. |
-| Table classes | Seven classes exist. Add **Global self-identity**: `users`, ENABLE/FORCE RLS plus parameterized self filter, exact role-qualified policy/guards in this annex. Add `identity_authority` to platform-scoped, `memberships`, `membership_profiles`, `membership_role_assignments` to tenant-owned org-scoped, and `roles`, `role_permission_grants` to tenant-owned tenant-wide. |
-| Global uniqueness / partial indexes | Existing global host/slug uniqueness remains. Add only the authority anchor's permanent `authority_id` and User's permanent `(authority_id,subject_key)` binding as named identity exceptions. The binding index is never partial: inherited `deleted_*` fields remain NULL and closure cannot make a key reusable. Ordinary soft-deletable business uniqueness remains partial. |
-| Audit template | `audit_log` retains ordinary tenant/org predicate semantics and restrictive guards, with only this annex's named global identity USING/WITH CHECK additions and central insertion/evidence guards; it no longer takes the tenant template unmodified. The reusable tenant template is unchanged. |
-| Owner privilege | Migration credentials remain deploy-only. Exactly the five enumerated Identity SECURITY DEFINER contracts add runtime owner execution on the existing app transaction under FORCE RLS; neither owner column privilege nor USING is described as SELECT-only authority. |
-| Foreign-key shape | Add the third canonical relationship shape: tenant-owned `memberships.user_id` references same-module global `users.id`, indexed and ON DELETE RESTRICT. It has no tenant composite because User has no tenant key. The BEFORE admission guard refuses unknown/nonadmitting targets uniformly before FK diagnostics; audit actor columns gain no User FK. Other tenant parents retain composite references and the self-keyed `tenants` exception. |
-
-The current census is **six table classes, 42 data tables plus five history
+The current applied census is **six table classes, 42 data tables plus five history
 tables, five migration chains, six central audit write seams and zero shipped
-Identity SECURITY DEFINER functions**. The proposed completed P03-1 census is
+Identity SECURITY DEFINER functions**: 47 tables total. Seven classes are adopted;
+the projected completed P03-1 census is
 **seven classes, 49 data tables plus six history tables, six chains, eight central
-audit write seams and exactly five Identity SECURITY DEFINER functions**. The
+audit write seams and exactly five Identity SECURITY DEFINER functions**: 55
+tables total. The
 seven additional data tables are those classified above; Identity adds the sixth
 history table/chain. The two global seams extend the existing six without a new
 INSERT owner. These are projected counts, not applied-schema or runtime readiness.
@@ -4513,8 +4567,8 @@ without contention do not qualify. Include shared/exclusive blocking, forbidden
 upgrade and final-admin/closure races. Step 5 qualifies ordinary existing-binding
 lookup before/after latency, pool occupancy and cancellation/cleanup under load;
 P03-3 separately qualifies the new-user HTTP/BFF transport. Update architecture
-obligations as pending extensions and apply forward migrations only after
-acceptance; documentation checks establish none of these runtime proofs.
+obligations as pending extensions; implementation applies forward migrations under
+the Accepted contract. Documentation checks establish none of these runtime proofs.
 
 ## Backups
 

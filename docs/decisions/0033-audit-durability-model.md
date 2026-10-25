@@ -801,3 +801,30 @@ The two closed callers are app-role failure finalization and confined bypass
 terminalization. Uncertain COMMIT is durably reconciled before retry. Existing five
 write contracts, standalone restrictions, MUST durability and classification remain.
 P02b-4 implements/proves the seam; acceptance claims no terminal-audit runtime.
+
+## Amendment 11 — Prepared global identity audit ownership (2026-10-25)
+
+**Status: Accepted.** [ADR-0072](0072-application-owned-identity-bootstrap.md)
+extends central MUST creation and reconciliation to exact prepared global
+identity owners without a resolved tenant context. This population does not
+inherit the ordinary unresolved path's silent no-intent outcome. The canonical
+owner, capture and creation-reference contract is in
+[Database Standards](../standards/05-database.md).
+
+Serialized subject lookup precedes allocation and intent declaration. Only
+absence opens the common audit frame and its immutable creation-reference
+handoff; an existing binding returns without a creation intent. The original
+prepared owner completes the User and central success audit on one transaction.
+The common coordinator and composer own captured global attribution and every
+outcome; no Identity-owned audit writer or provider transaction is added.
+
+After final writes, precommit constraint validation precedes commit admission.
+Known precommit refusal follows rollback and failed reconciliation; a lost
+physical COMMIT acknowledgement remains uncertain. Non-success reconciliation
+preserves captured attribution and intent ID with a fresh standalone timestamp.
+It requires no User witness and proves neither User absence nor business success.
+Existing MUST durability, refusal posture and independently owned cleanup remain.
+
+Joint ADR-0072/0073 acceptance grants this bounded authority. P03-1 Step 3 still
+must prove same-transaction success, precommit refusal, unknown COMMIT and exact
+evidence under the actual app role.

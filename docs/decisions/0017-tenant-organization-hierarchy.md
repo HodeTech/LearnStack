@@ -437,3 +437,21 @@ TenantWide retains a NULL organization, Organization retains its exact organizat
 and neither grants all-organization or platform authority. The hierarchy, normal
 composite point lookups and canonical tenant/org RLS remain. P02b-4 implementation
 and isolation proofs remain pending.
+
+### Amendment 4 — Membership roots and scoped capability templates (2026-10-25)
+
+**Status: Accepted.** [ADR-0073](0073-scoped-membership-and-identity-data-foundation.md)
+defines Membership as the root of one scoped profile and its assignments, and
+Role as a tenant-wide capability template. The
+[Identity specification](../modules/identity/README.md) owns the model;
+[Permission Standards](../standards/19-permissions.md) owns scope compatibility.
+
+Organization grants apply only through an exact Organization Membership.
+Tenant-wide storage of a template confers neither cross-branch authority nor
+authoring rights. Effective tenant grants plus matching-organization grants
+retain this ADR's hierarchy; another organization's grants do not contribute.
+Tenancy continues to own Organization lifecycle.
+
+Joint ADR-0072/0073 approval accepts the foundation contract. P03-1 Step 4 owns
+schema, seed, lifecycle and scope proofs; P03-2 owns live membership/permission
+consumption. This amendment supplies no evidence of those runtime deliveries.

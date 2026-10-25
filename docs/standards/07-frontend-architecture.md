@@ -17,6 +17,9 @@ single-bootstrap ownership derives from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md);
 page composition follows the
 [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
+The existing-session Identity foundation boundary derives from Accepted
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md); implementation
+of its P03-1 additions remains pending.
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
 tenant-facing `apps/web` application in *this* repository. See
@@ -257,6 +260,12 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
 - Server Components use the app-local read-only `auth()` projection. Response
   owners perform refresh/idle/cookie updates before streaming. Never expose
   credentials to Client Components; no Server Action is admitted by P02b-7.
+- Accepted ADR-0072 preserves complete native actor/tenant identity, independent
+  ID-token verification and the matching positive AccountSite witness. P03-1 only
+  aligns native opaque subject validation to the API's 255-character bound; it
+  adds no SDK operation or `LoginCompletion` variant. P03-3/G1/G6 owns new-user
+  HTTP/bootstrap association and typed session/no-session completion decisions
+  under the [Security activation gate](11-security.md#p03-3-new-user-http-and-native-activation-gate).
 
 ## Routing
 

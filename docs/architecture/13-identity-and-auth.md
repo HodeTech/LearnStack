@@ -100,31 +100,42 @@ The cost is one more service to operate. That is acceptable: self-hosted infrast
 | BFF access/refresh/ID-token custody | no | native web session owner ([ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)) |
 | Federation with social/SAML/OIDC providers | yes | no |
 | Email verification, password reset emails | yes (or LearnStack via SMTP delegation) | no |
-| Global `User` record (canonical identity, email) | mirrored | source for application data |
+| Global `User` binding | provider subject/credentials | stable authority/subject-key → typed UserId under Accepted ADR-0072; implementation pending P03-1, no email mirror |
 | `Membership` (per-tenant role, permissions) | no | yes |
 | Roles, permissions inside a tenant | no | yes |
 | Invitations | no | yes |
 | Audit log of identity events | yes (own) | yes (mirrored for cross-events) |
-| Profile (display name, photo, bio, preferences) | minimal | yes |
+| Contextual profile | provider-owned account fields | MembershipProfile under Accepted ADR-0073; implementation pending P03-1, dynamic values P03-5 |
 
 The split keeps Keycloak focused on authentication (knowing who you are) and LearnStack focused on authorisation and domain context (what you can do in which tenant).
 
 ## Multi-Tenant Identity Model
 
-A user is **global**. A user has a `Membership` in zero or more tenants. The same email can be a learner in tenant A and an instructor in tenant B without two accounts.
+A User binding is **global**. One provider subject can have Memberships in
+multiple tenants and organizations; email never identifies or merges bindings.
+The following is the Accepted target model, pending P03-1 implementation:
 
 ```mermaid
 flowchart LR
-    U[User in Keycloak realm 'learnstack'] --> MA[Membership tenant=A role=learner]
-    U --> MB[Membership tenant=B role=instructor]
-    U --> MC[Membership tenant=C role=admin]
+    P[Verified provider subject in learnstack realm] --> U[Global User binding: typed UserId]
+    U --> MA[Membership tenant=A: contained Profile and assignments]
+    U --> MB[Membership tenant=B: contained Profile and assignments]
+    MA --> RA[Tenant A Role templates: scoped grants]
+    MB --> RB[Tenant B Role templates: scoped grants]
 ```
+
+Text fallback: the verified provider subject maps permanently to one global
+User; contextual Memberships contain Profiles and assignments to tenant-owned
+Role templates. Roles confer capability only through eligible assignments.
 
 Two realm strategies were considered:
 
 - **Single tenant realm, scalar active scope** (chosen). The `learnstack` realm
-  is the required issuer for the ADR-0064 profile: opaque `sub`, stable UUID `user_id`, optional
-  scalar UUID `tenant_id` and optional scalar UUID `organization_id`. It carries
+  is the required issuer. The shipped P02b-5/P02b-6 profile requires opaque `sub`
+  and UUID `user_id`, with optional scalar UUID `tenant_id` / `organization_id`.
+  Accepted ADR-0072 makes API `user_id` optional at the verified-provider stage,
+  resolving the stored actor before normal identity admission. The complete native
+  BFF profile still requires actor/tenant and its AccountSite witness. It carries
   no authoritative membership array or application-role grant. P02b-6 supplies
   admin-controlled attributes/mappers and real issuance proof; the committed realm
   export issues that profile. Phase 03 owns live memberships.
@@ -137,14 +148,25 @@ decision before its first consumer.
 
 ### Application identity preparation
 
-[Phase 03's decision register](../roadmap/phase-03-identity-admin.md#the-decision-register)
-owns the first-writer questions. G1 establishes actor provisioning before the
-accepted API/BFF callback already requires `user_id`; an idempotent post-login
-mirror alone cannot bootstrap it. G2/G3 establish the pre-context membership read,
-schema/grant boundaries and global-user projection. G4 decides session-specific
-scope issuance: the current seed user-attribute mappers do not prove independent
-tenant scope for one person's simultaneous sessions. Ordinary refresh remains
-scope-preserving until its bounded transition contract ships.
+Jointly Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) /
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
+settle the P03-1 binding/storage contract; implementation remains pending.
+`VerifiedProviderSubject` carries verified issuer/sub and optional actor/scope
+evidence. Subject quota precedes binding SQL; an uncached committed binding
+lookup resolves the nonnullable actor in `ValidatedTenantIdentity`. Missing,
+conflicting, Closing/Closed or unavailable bindings refuse ordinary admission
+with the existing uniform 401; no lookup allocates, adopts or repairs a User.
+Anonymous reads perform no identity lookup. This adds a binding-store dependency
+to authenticated admission, separately from provider-key caching.
+
+P03-1 admits fixed witnessed seed creation/adoption and existing-session binding
+only. It adds no POST, SDK operation or native no-session completion. P03-3 owns
+new-user HTTP/BFF entry and independently validated orgless/branch reissue. The
+shipped complete native profile and AccountSite host ceiling remain; optional API
+actor evidence does not publish a tenantless native session. G2 execution remains
+P03-2. G4 scope transitions remain P03-3; current provider user-global attributes
+do not prove independent simultaneous session scopes. Ordinary refresh remains
+scope-preserving until that bounded transition contract ships.
 
 No missing profile is repaired by email merging, a new per-login actor, a client
 tenant selector or a permissive membership default. Existing seed/provider IDs
@@ -249,8 +271,9 @@ Mechanism:
 - Resource-scoped checks limit `education.course.write` to the actor's own course
   where applicable; they live in application policy classes.
 
-The API uses opaque `sub` for external identity/subject accounting and UUID
-`user_id` for actor attribution, with scalar active-scope claims. Email and
+The API uses opaque `sub` for verified-provider subject accounting and the
+resolved typed UserId for actor attribution, checking any supplied UUID `user_id`
+against that binding under ADR-0072. Scalar scope claims remain assertions. Email and
 realm/client roles grant no application authority. Phase 03 owns permission
 resolution; P02b-5 exposes only its closed nonsensitive read while application
 authorization is still pass-through.

@@ -7,15 +7,18 @@
 (realm roles and provider scope do not grant application authority),
 [01-architecture-standards.md](01-architecture-standards.md),
 [18-audit-coverage.md](18-audit-coverage.md).
+Identity foundation definitions, manifests and role ownership derive from Accepted
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 
 LearnStack uses permission-based RBAC layered on top of tenant membership. This standard pins the **naming convention**, **closed action set**, **registration pattern**, **enforcement points**, and the **per-module matrix template** that every module must produce.
 
 **Implementation boundary.** No permission registry/grants are shipped yet.
-[Phase 03 G3/G5/G13](../roadmap/phase-03-identity-admin.md#the-decision-register)
-settle scoped key identity, role-binding/delegation, seed defaults, revocation and
-operator admission before their first consumers. Examples below describe target
-shape, not existing interfaces, an admitted Platform credential or implicit grants.
-The closed key/action/scope rules remain binding.
+Accepted ADR-0073 settles scoped definition identity, tenant-wide templates and
+the finite initial seed manifests in the [Identity foundation contract](#identity-foundation-contract).
+P03-1 Step 4 implements them; P03-2 owns live enforcement/delegation/adoption and
+P03-9/G13 owns operator admission. Adoption of this standard grants no runtime
+authority. The closed key/action/scope rules remain binding.
 
 ## Naming Convention
 
@@ -67,9 +70,11 @@ This rule prevents permission sprawl and keeps the matrix template stable.
 
 ## Scope: Platform / Tenant / Organization
 
-Permissions carry a **scope** at registration time per
-[ADR-0017](../decisions/0017-tenant-organization-hierarchy.md). The registries are
-disjoint and validated at seed time.
+Permissions are identified by **`(PermissionScope, PermissionKey)`** at
+registration time under ADR-0017/0073. Tenant and Organization can register the
+same key as distinct definitions. Platform definitions are never assignable to
+tenant Roles. Unknown/inactive pairs authorize nothing; Step 4 implements the
+nonempty foundation registry.
 
 | Scope | Examples | Granted to |
 |-------|----------|------------|
@@ -83,49 +88,32 @@ tenant-wide variant of the same role). Platform permissions bypass tenant scope 
 require platform-admin authentication and write a `platform-admin` audit entry (see
 [18-audit-coverage.md](18-audit-coverage.md)).
 
-Architecture test
-`Permission_Scope_Matches_Resource_Scope` ensures permissions registered as
+Registered architecture obligation
+`Permission_Scope_Matches_Resource_Scope` requires permissions registered as
 `Organization`-scope are only checked against `[OrganizationScoped]` resources, and
 that `Tenant`-scope permissions never gain `OrganizationId` filtering at runtime
 without an explicit `organization-scope` role binding.
 
 ## Module-Driven Registration
 
-Permissions are declared in code, not configured in a database. Each module exposes its permissions at startup; the platform registry composes them and seeds the database.
-
-The code below is a registration sketch. `IModule` and `IPermissionRegistry` do
-not currently exist; G5 chooses their actual composition contract. Registering a
-key does not itself decide grants or make the current authorization shell safe.
-
-```csharp
-public sealed class EnrollmentModule : IModule
-{
-    public void RegisterPermissions(IPermissionRegistry registry)
-    {
-        registry.Tenant("enrollment.enrollment.read",   "View enrollments");
-        registry.Tenant("enrollment.enrollment.write",  "Create or update enrollments");
-        registry.Tenant("enrollment.enrollment.delete", "Cancel enrollments");
-        registry.Tenant("enrollment.course_access.read",  "View course access");
-        registry.Tenant("enrollment.course_access.write", "Grant or revoke course access");
-        registry.Tenant("enrollment.cohort.read",       "View cohorts");
-        registry.Tenant("enrollment.cohort.write",      "Create or update cohorts");
-        registry.Tenant("enrollment.cohort.delete",     "Delete cohorts");
-    }
-}
-```
+Permissions are declared in code. Module definition sources compose the available
+scoped capabilities; registration grants nothing to existing Roles. The accepted
+[manifest composition contract](#immutable-admin-kernel-and-one-manifest-source)
+supplies finite initial grants and the admin kernel from one versioned source.
+Its named types await Step 4; no `IModule` interface is introduced.
 
 Rules:
 
 - Renaming a permission key is a breaking change. Add the new key, dual-write during migration, drop the old key in a separate release. Renaming under the radar breaks every role assignment.
 - Removing a permission requires an ADR + grace period (one minor release with a deprecation log).
-- Adding a permission is non-breaking; it ships disabled-by-default in seeded roles until a tenant admin enables it.
+- Adding a permission grants nothing to existing Roles. New-tenant initialization
+  selects an explicit finite initial manifest version; later grant adoption is a
+  separately admitted audited act under P03-2.
 
-The earlier Tenant Admin target assumed automatic new-key expansion on a later
-provisioning cycle, conflicting with the disabled-default rule above. G5 resolves
-the exact bootstrap/upgrade contract and its accepted vehicle before the first
-seed/grant writer; neither an existing seed rerun nor a historical example
-authorizes automatic expansion. Changes to the closed role/delegation contract
-need the corresponding decision, not an implicit registry implementation choice.
+Seed/registry reruns preserve adopted grants and never perform upgrades. A
+legitimate later manifest adoption takes precedence over fixed-v1 seed state;
+that seed refuses a differing adopted version instead of repairing it. Changes
+to the closed role/delegation contract require their owning decision.
 
 ## Enforcement Points
 
@@ -175,22 +163,31 @@ Every module ships this matrix as part of its module spec under
 
 Legend: ✓ = permission exists; – = does not apply (the closed action set means some cells are intentionally empty).
 
-The "Default role grants" column declares which built-in roles receive which permissions on tenant provisioning.
+The "Default role grants" column documents the owning operation's approved finite
+initial manifest. Illustrative example bundles do not register or grant keys;
+P03-1's exact manifest below takes precedence for the foundation population.
 
 ## Built-in Roles
 
-| Role | Scope | Auto-provisioned | Notes |
-|------|-------|------------------|-------|
-| `Platform Admin` | Platform | At platform install | Superset of platform permissions; never a tenant role. |
-| `Tenant Admin` | Tenant | On tenant creation | Tenant administrative bundle; G5 settles initial/new-key grants and upgrades before the first seed writer. |
-| `Instructor` | Tenant | Module-defined seeds | Read/write on courses, lessons, sessions, attendances where they are the owner/host. |
-| `Learner` | Tenant | Module-defined seeds | Read on published catalog; write on own attempts, bookings, profile. |
-| `Guardian` | Tenant | Off by default | Read on linked learner's progress and recordings (per consent). |
-| `Editor` | Tenant | Module-defined seeds | Read/write on content, pages, media; no enrollment / billing access. |
-| `Portal Public` | Tenant | Anonymous | Read on published public surfaces only. |
-| `Org Admin` | Organization | Off by default | Tenant-admin permissions limited to the actor's organization. Typical for branch managers / campus heads. |
-| `Org Instructor` | Organization | Off by default | Instructor permissions limited to the actor's organization. |
-| `Hub Operator` | Platform | Off by default — provisioned by Hub | G13 selects the exact registered Platform permission and authenticated actor chain. Each admitted action against a tenant resource records trusted `actor.hubOperator = true`; a Hub token alone grants no tenant-route admission. |
+| Role | Capability scope | Template / assignment contract |
+|---|---|---|
+| `Platform Admin` | Platform | No tenant template; production admission remains P03-9/G13. |
+| `Tenant Admin` | Tenant | Tenant-wide template; finite v1 initial grants and immutable kernel below. |
+| `Instructor` | Tenant | Tenant-wide template; v1 grants empty. |
+| `Learner` | Tenant and Organization | Two tenant-wide templates with separate scoped grants and compatible Membership assignments. |
+| `Guardian` | Tenant | Tenant-wide template; v1 grants empty and no initial assignment. |
+| `Editor` | Tenant | Tenant-wide template; v1 grants empty. |
+| `Portal Public` | Tenant | Virtual anonymous capability; no stored Membership or template. |
+| `Org Admin` | Organization | Tenant-wide template; compatible branch Membership supplies organization authority, with no initial assignment. |
+| `Org Instructor` | Organization | Tenant-wide template; v1 grants empty and no initial assignment. |
+| `Hub Operator` | Platform | No tenant template; authenticated chain/exact permissions remain P03-9/G13. A Hub token grants no tenant-route authority. |
+
+P03-1 stores all eight tenant templates in Step 4. Template existence supplies no
+authority: only eligible Membership assignments and active registered scoped
+grants contribute. Off-by-default means no initial assignment, not an omitted
+template. Capability scope never selects storage/authoring scope; Role has no
+OrganizationId. The exact [v1 manifest](#version-1-built-in-grant-manifest) replaces
+the earlier broad built-in examples and never expands automatically.
 
 Tenant-driven customization **does not add roles**. Tenants extend behavior through
 customization data; they configure role grants by composing the closed set above.
@@ -242,25 +239,22 @@ Permission grants and revocations are MUST-audit security-events ([18-audit-cove
 - [13-identity-and-auth.md](../architecture/13-identity-and-auth.md) — Keycloak vs LearnStack identity split (Keycloak does authentication, LearnStack does authorization).
 - [01-architecture-standards.md](01-architecture-standards.md) — module layout for `IPermissionRegistry`.
 
-## Proposed Identity foundation contract
+<a id="proposed-identity-foundation-contract"></a>
 
-**Status: Proposed — outside the Adopted runtime baseline above.** Derived from
-Proposed [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+## Identity foundation contract
+
+**Status: Adopted — Accepted 2026-10-25; implementation pending.** Derived from
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
-Both require joint acceptance before this annex is adopted/implemented. Current
-source has no registry, Role/Membership model or commands below. No route,
+Current source has no registry, Role/Membership model or commands below. No route,
 operator admission, grant or live permission is activated.
 
-### Adoption replacements
+<a id="adoption-replacements"></a>
 
-At joint acceptance, apply these replacements to the corresponding clauses
-above. Until then the Adopted prefix remains active; this annex grants nothing.
+### Adopted scope and grant boundary
 
-| Existing clause | Adopted replacement on joint approval |
-|---|---|
-| Scope: disjoint registries | Definitions are identified by `(PermissionScope, PermissionKey)`. Tenant and Organization may register the same key as distinct definitions; Platform definitions remain unassignable to tenant Roles. |
-| Module-driven registration/defaults | Registration defines available capabilities. New keys grant nothing to existing Roles. New-tenant initialization chooses an explicit finite initial manifest version; later grant adoption is a separately admitted audited act. |
-| Built-in Roles: auto-provisioned/off-by-default and broad example grants | P03-1 stores the eight templates below. Stored template existence grants no authority: only eligible Membership assignments and active registered scoped grants contribute. Off-by-default means no initial assignment, not omission of a required template. The finite owning phase's manifest replaces illustrative broad bundles. |
+The active Scope, Module-Driven Registration and Built-in Roles sections above
+adopt this contract. Implementation and the grants it guards remain pending.
 
 P03-1's five pairs and version-1 grants below are the complete foundation set.
 P03-2 owns the separately admitted finite live-authorization/grant-adoption
@@ -340,7 +334,7 @@ outside that minimum, and P03-2 may remove it through an explicitly admitted
 audited grant change. Role-admin is reserved to Tenant Admin template/eligible
 actors; an arbitrary grant or renamed Role cannot delegate template authorship.
 
-One versioned compiled `IdentityFoundationManifest` supplies proposed
+One versioned compiled `IdentityFoundationManifest` supplies the adopted
 `PermissionDefinitionSource`, `BuiltInRoleGrantManifest` and
 `TenantAdminKernelManifest` composition. These are not current interfaces or an
 `IModule` API. It generates the immutable SQL guard artifact; an equivalence
@@ -370,7 +364,8 @@ BFF activation, protected UI and explicit scope transitions;
 P03-9/G13 owns production first-admin/recovery before its production provisioner.
 The development seed capability is not that future authority.
 
-Canonical tests keep current status; Identity subjects await backfill. New
-controls are planned until registered and Registered until actual clean/dirty
-controls ship. The semantic property census is planned in Step 2 and is not yet
-a catalogue entry. Empty censuses/stored Roles/diagrams are not implementation proof.
+Canonical tests keep current status with explicit pending Identity extensions.
+The [catalogue](21-architecture-tests-catalogue.md) registers the semantic property
+census for Step 2 and foundation/manifests/scope controls for Step 4. Registered
+controls remain unimplemented until actual clean/dirty subjects ship. Empty
+censuses, stored Roles and diagrams are not implementation proof.

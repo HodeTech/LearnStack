@@ -1,7 +1,7 @@
 # Identity — Audit Coverage Matrix
 
-**Status: Proposed.** No request/catalogue/model below exists yet. Derived from
-Proposed [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md),
+**Status: Accepted contract — runtime implementation pending.** No request/catalogue/model
+below exists yet. Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md)
 and [Standard 18](../../standards/18-audit-coverage.md). Part of the [module spec](README.md).
 

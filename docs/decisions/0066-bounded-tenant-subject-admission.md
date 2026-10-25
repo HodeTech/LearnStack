@@ -384,3 +384,20 @@ Original Accepted body and metadata remain intact. The decision index,
 - [Current limiter](../../backend/src/LearnStack.Api/Authentication/TenantSubjectRateLimiter.cs)
   and [middleware](../../backend/src/LearnStack.Api/Authentication/TenantSubjectAdmissionMiddleware.cs);
   [Common 503 retry policy](../../backend/src/LearnStack.Api/Common/RetryAfter.cs).
+
+### Amendment 3 — Verified-subject input before application binding (2026-10-25)
+
+**Status: Accepted.** [ADR-0072](0072-application-owned-identity-bootstrap.md)
+changes the input stage to admit stock-verified provider subjects before
+application-binding access. The population can include a subject with no wire
+actor or existing User; passing quota establishes neither binding nor permission.
+
+The issuer/sub key, numeric bounds, once-per-request debit, reexecution behavior,
+cleanup/fault ownership and non-reset contract remain unchanged. The registry
+bounds retained limiter state; it bounds neither permanent Users nor audit rows.
+No binding lookup or allocation resets a subject's allowance. New-user HTTP
+creation is not activated by this broader admission population.
+
+Joint ADR-0072/0073 approval accepts this input-stage change. P03-1 Step 5 retains
+actual admission, failure, cancellation and load qualification; prior limiter
+proofs do not establish the new integration by themselves.

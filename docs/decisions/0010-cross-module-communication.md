@@ -182,3 +182,22 @@ The four cross-module mechanisms and own-module scheduling boundary remain.
 Validated tenant/org context precedes business construction/execution. The named
 submission/restoration catalogue replacements and their enforcement land in
 P02b-4; this acceptance claims no runtime or test delivery.
+
+## Amendment 5 — Confined identity creation witness SQL (2026-10-25)
+
+**Status: Accepted.** [ADR-0072](0072-application-owned-identity-bootstrap.md)
+admits the enumerated `IdentityCreationWitnessInstaller` persistence contract:
+reciprocal User/central-audit creation guards and exact evidence reads over the
+declared creation-key and discriminator fields. Its canonical boundary is in
+[Database Standards](../standards/05-database.md).
+
+Central infrastructure contains that fixed SQL without module entity or assembly
+imports. The Identity migration invokes the central installer without copying
+audit SQL into Identity migration or handler source. This is the only new
+structural SQL exception to the Decision's cross-module SQL prohibition;
+business cross-module joins and a fifth application communication mechanism
+remain forbidden. The central audit store remains the row writer.
+
+Joint ADR-0072/0073 approval accepts this authority, not its implementation.
+P03-1 Step 3 must prove the exact installer, function bodies, table references,
+grants and call sites, with controls that detect widening.

@@ -45,6 +45,10 @@ ownership and closed refusal/fault signals derive from
 [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns independent reviews and final-source CI qualification.
 The bound grants no throughput entitlement.
+Identity admission/owner contracts additionally derive from Accepted
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
+their P03-1 implementation is pending.
 Bounded authenticated assertion recording derives from
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
 implementation and local proofs are delivered in the
@@ -360,7 +364,7 @@ tenant-facing endpoints. Per [ADR-0019](../decisions/0019-learnstack-hub.md) and
 
 ## Authorization
 
-Every write use case checks, in order:
+Every ordinary tenant write use case checks, in order:
 
 1. **Authentication** (valid token).
 2. **Tenant membership** (user has a Membership in the resolved tenant).
@@ -368,6 +372,9 @@ Every write use case checks, in order:
 4. **Resource scope** (e.g. instructor can only edit their own courses).
 
 A failure at any step returns a Problem Details response with the right code (`unauthorized`, `tenant_mismatch`, `forbidden`, `resource_scope_violation`).
+The exact internal global-identity creation class instead uses the
+[adopted subject-confined owner](#identity-admission-contract), with no tenant
+selection or membership authority. It is not a routed HTTP write in P03-1.
 
 ## Tenant + Organization Isolation
 
@@ -536,8 +543,9 @@ context writer, factory privilege or tenant retargeting authority.
 ### The out-of-band setters
 
 `TransactionBehavior` delegates the general announcement path to
-`TransactionExecutionCoordinator`. Eight logical setter paths exist in
-total and the set is closed
+`TransactionExecutionCoordinator`. Eight logical setter paths currently exist.
+The adopted [candidate-reader extension](#owner-and-setter-census) registers a
+ninth for P03-2 implementation; no ninth setter is shipped. The current set is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
 with its Amendments 3 and 7, is the authority; it is reproduced here because this section
 is the placement authority). Two set it on the **ambient** transaction; six own a **short
@@ -1036,19 +1044,23 @@ Security-relevant durability rules:
   cannot be retrofitted, audit scale can. Phase 02a ships `audit_log` as a single plain
   table ([ADR-0028 Amendment, 2026-09-07](../decisions/0028-audit-log-partition-management.md)).
 
-## Proposed P03-1 identity admission annex
+<a id="proposed-p03-1-identity-admission-annex"></a>
 
-**Status: Proposed; inactive.** This annex derives from Proposed
+## Identity admission contract
+
+**Status: Adopted — Accepted 2026-10-25; implementation pending.** Derived from
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
-Both require maintainer acceptance before dependent code or grants. The current
+Acceptance admits the bounded contract below, not implemented code or grants. The current
 authentication surface, eight tenant setters and deny-all membership reader above
 remain the implemented baseline. The
-[proposed database contract](05-database.md#proposed-p03-1-identity-storage-annex)
+[adopted database contract](05-database.md#identity-storage-contract)
 owns the global class, authority anchor, subject-key encoding, exact policies,
 owner functions and lock/snapshot rules; they are not duplicated here.
 
-### Proposed credential, quota and binding order
+<a id="proposed-credential-quota-and-binding-order"></a>
+
+### Credential, quota and binding order
 
 Stock cryptographic/provider validation creates an immutable
 `VerifiedProviderSubject` projection. It carries the exact validated subject and
@@ -1082,9 +1094,11 @@ retirement/fault protocol, early quotas and refusal precedence. Re-entry consume
 no second permit. A changed actor, tenant, host or bearer never resets the quota;
 no application actor is required to debit it.
 
-### Proposed ordinary outcomes and source handoffs
+<a id="proposed-ordinary-outcomes-and-source-handoffs"></a>
 
-| Observation | Proposed response / database work |
+### Ordinary outcomes and source handoffs
+
+| Observation | Adopted response / database work; implementation pending |
 |---|---|
 | Credential-free public GET/HEAD | Existing anonymous behavior; no binding lookup or allocation. |
 | AccountSite, absent bearer | Existing masked 404; no binding lookup. This is not the rule for anonymous public reads. |
@@ -1150,21 +1164,23 @@ The necessary ADR-0053/0064/0070 changes and G1/G6 authority acceptance precede
 that activation. Standard 05 remains the canonical prepared global owner/audit
 contract; its existence admits no HTTP endpoint or native caller.
 
-### Proposed owner and setter census
+<a id="proposed-owner-and-setter-census"></a>
+
+### Owner and setter census
 
 Standard 05's global self lookup, prepared creation, trusted seed adoption and
 central reconciliation owners announce verified subject authority only. Their
 immutable connection/transaction marker is a separate mode of the common guard,
 not a table-name exemption or a tenant context. Only their enumerated setters may
-announce the identity variables;
-the setter derives them from verified/captured facts, never payload or headers.
+announce identity variables derived from verified/captured facts, never payload
+or headers.
 Missing markers, foreign subject reuse, nested tenant/global ownership and pooled
 authority leakage refuse. Ordinary tenant setters, factories and audit writers
 must hard-refuse `TenantId.PlatformSentinel` and global owner mode. Ordinary
 pending gains its missing explicit refusal before admitting the global branch;
 the source-bound requirements are in Standard 05.
 
-The proposed global audit methods and confined definer functions are enumerated
+The adopted global audit methods and confined definer functions are enumerated
 in Standard 05. Their bounded target/operation/subject evidence is the only new
 authority. Sentinel attribution conveys neither PlatformAdminScope nor operator
 permission. Runtime never receives a migration credential; the new functions do
@@ -1180,21 +1196,20 @@ announces only that candidate scope, and closes before the request owner opens.
 It installs no `ITenantContext` and returns no profile or member directory.
 Candidate scope remains a question; validated identity and the confined reader
 contract supply input authority. P03-1 specifies the port/storage contract only.
-Its ADR-0040 disclosure and this census extension must be accepted before P03-2
-implements or registers it; the eight current tenant setters are unchanged while
-this annex remains Proposed. The global subject owners do not add tenant setters.
+Accepted ADR-0040's disclosure and this census admit only that ninth logical path;
+P03-2 must implement/register/qualify its actual adapter before activation. The
+eight current tenant setters remain the implemented set. The global subject
+owners do not add tenant setters or ITenantContext writers.
 
-### Proposed bounded contention and proof
+<a id="proposed-bounded-contention-and-proof"></a>
+
+### Bounded contention and pending proof
 
 Use Standard 05's canonical owner, lock, snapshot, deadline and cleanup contracts;
-no second allocation/reconciliation algorithm is defined here. Record histogram
-`learnstack_identity_lock_wait_seconds{lock_kind,outcome}`, with `lock_kind`
-closed to `subject`, `user`, `tenant` and `outcome` closed to `acquired`, `timeout`,
-`cancelled`, `fault`. Record refusal counter
-`learnstack_identity_lock_refusals_total{lock_kind,reason}`, with `reason` closed
-to `timeout`, `cancelled`, `fault`. No actor, tenant, subject, digest, SQL or
-exception text appears in labels. Phase 11 owns measured alert thresholds and
-capacity tuning; bounded acquisition and cancellation are P03-1 prerequisites.
+no second allocation/reconciliation algorithm is defined here. The canonical
+[lock signal contract](10-observability.md#identity-lock-signals) owns names and
+closed labels. Phase 11 owns production alert thresholds and capacity tuning;
+bounded acquisition and cancellation are P03-1 prerequisites.
 
 P03-1 qualification covers actorless API credentials for an existing adopted
 binding, unknown/conflicting/closed bindings without allocation, quota before

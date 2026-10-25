@@ -146,8 +146,13 @@ LearnStack mirrors the host→tenant mapping but does not own the issuance flow
 [21-feature-flags.md](21-feature-flags.md).
 
 ### Identity
-Owns users, memberships (triple-keyed on `(user_id, tenant_id, organization_id)`),
-roles, permissions (Platform / Tenant / Organization per ADR-0017) and invitations.
+The Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) /
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
+foundation contract owns permanent global User bindings using the existing typed
+`UserId`, contextual Membership/Profile/assignments and tenant-wide Role templates.
+Current Identity packages still contain assembly markers; storage and commands
+remain pending P03-1 implementation. The [module specification](../modules/identity/README.md)
+owns exact scope, lifecycle and seed targets; invitations remain P03-4.
 Wraps the auth provider (Keycloak today — see
 [Authentication Strategy](13-identity-and-auth.md)). Native credential/session
 custody belongs to the BFF owner under
@@ -156,7 +161,13 @@ Identity mutation audit uses the central same-transaction write path under
 [ADR-0044](../decisions/0044-audit-write-path.md). Provider-event mirroring is the
 separate [Phase 03 G10](../roadmap/phase-03-identity-admin.md#the-decision-register)
 ingress contract; integration events do not replace MUST mutation durability.
-Identity owns no audit table.
+Identity owns no audit table. Its global creation owner uses the common prepared
+transaction/audit extension under ADR-0072, never a mixed tenant/global owner or
+a private writer. Tenancy supplies bounded lifecycle facts through application
+contracts; no cross-module Organization FK/join is admitted. The
+[Database standard](../standards/05-database.md#proposed-p03-1-identity-storage-annex)
+owns canonical global SQL and evidence functions. P03-3 owns new-user HTTP/BFF
+activation; accepting this foundation opens no route.
 
 ### Tenant Customization
 Owns the customization aggregates per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):

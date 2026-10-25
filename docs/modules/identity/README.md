@@ -1,10 +1,11 @@
 # Identity — Module Specification
 
-**Status: Proposed.** Derived from Proposed [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
+**Status: Accepted contract — runtime implementation pending.** Derived from
+jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
 and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md),
-which require joint acceptance. At `92117893`, Identity has assembly-marker
-packages only. Every new type, table, command, manifest and proof below is
-planned; none is a current runtime implementation or granted capability.
+2026-10-25. Identity still has assembly-marker packages only. Every new type,
+table, command, manifest and proof below remains planned until its owning step
+ships; acceptance grants no current runtime capability.
 
 ## Overview
 
@@ -17,7 +18,7 @@ navigation or database join. Branch-specific Role configuration is not selected.
 ### Aggregate and storage contract
 
 User's authority is [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md);
-the [canonical Proposed database annex](../../standards/05-database.md#proposed-p03-1-identity-storage-annex)
+the [canonical accepted database annex](../../standards/05-database.md#proposed-p03-1-identity-storage-annex)
 owns its exact global SQL, grants and guards.
 
 | Planned table | Class / owner | Keys, scope and lifecycle |
@@ -61,7 +62,7 @@ Each migration declares exact grants: a privilege never identifies a code path.
 
 Permission definitions remain compiled code, without a new global Permission
 table. Persisted grants select `(scope,key)` from the registry; unknown/inactive
-entries never authorize. [Standard 19's Proposed annex](../../standards/19-permissions.md#proposed-identity-foundation-contract)
+entries never authorize. [Standard 19's accepted foundation contract](../../standards/19-permissions.md#proposed-identity-foundation-contract)
 owns the exact registry, version-1 grants and generated kernel artifact.
 
 ### Lifecycle, profile and admission
@@ -84,7 +85,7 @@ dynamic fields/revisions. No dormant custom-fields column lands in the foundatio
 
 Creation, Suspended→Active and **all** assignment additions recheck the target
 User fence, including additions of currently empty/inactive templates.
-[Standard 05's Proposed lock contract](../../standards/05-database.md#proposed-lock-snapshot-and-adoption-conditions)
+[Standard 05's accepted lock contract](../../standards/05-database.md#proposed-lock-snapshot-and-adoption-conditions)
 alone owns the algorithm, ordering, fresh reads, deadlines and database guards.
 Profile/nonadmin/organization mutations use its shared tenant invariant mode;
 first-admin and tenant-admin eligibility/assignment/kernel transitions use its
@@ -280,7 +281,7 @@ framework domain-event dispatch does not imply a published contract.
 ## Permission matrix
 
 [Identity permissions](permissions.md) binds planned production seed commands to
-the exact [Proposed Standard 19 manifest](../../standards/19-permissions.md#proposed-identity-foundation-contract).
+the exact [accepted Standard 19 manifest](../../standards/19-permissions.md#proposed-identity-foundation-contract).
 They compile in Step 4; current source has none. Capability metadata activates
 neither live permission behavior nor HTTP routes.
 
@@ -310,12 +311,12 @@ closure/locators. These are named later writers, not implicit foundation authori
 |---|---|---|
 | Models, commands and registry | Assembly markers; no subjects | P03-1 Steps 3/4, actual models/production commands and five-pair registry |
 | Canonical marker/filter/RLS/FK/unique/aggregate/audit controls | Existing implemented controls unchanged; Identity extensions Awaiting backfill | P03-1 Step 4, real app-role positive/dirty controls |
-| `Permission_Definitions_DeclareScope` | Existing control; Identity Awaiting backfill | P03-1 Step 4 nonempty actual commands; broader enforcement P03-2 |
-| Semantic mapped-property classification census | Planned, not yet in catalogue | P03-1 Step 2; planned `DataProtectionConventionTests.cs`, actual complete census and planted neutral-name omission |
-| Kernel manifest/SQL equivalence | Planned, unregistered; no artifact | P03-1 Steps 1/4, register and qualify equality before grants |
-| Lifecycle/null uniqueness/admin/closure-reactivation races | Planned behavioral proof | P03-1 Step 4, separate real app-role connections and independent guard removals |
+| `Permission_Definitions_DeclareScope` | Registered; Identity implementation pending | P03-1 Step 4, `IdentityFoundationConventionTests` and actual commands; broader enforcement P03-2 |
+| `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Registered; implementation pending | P03-1 Step 2, `DataProtectionConventionTests`; actual complete census and planted neutral-name omission |
+| `Identity_Seed_Uses_Finite_Adopted_Manifests` | Registered; no runtime artifact | P03-1 Step 4, `IdentityFoundationConventionTests` / `SeederTests`; exact manifests, kernel equivalence and no-write reruns |
+| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Registered; implementation pending | P03-1 Step 4, `IdentityMembershipTests`; separate real app-role connections and independent guard removals |
 | Per-sink PII canaries/child audit/MUST rollback | Planned behavioral proof | P03-1 Steps 2/4, positive sink events and actual snapshots |
-| Nonseed/native/global identity | Proposed ADR-0072 obligations | P03-1 storage/audit/seed/existing-session binding; P03-3 HTTP/new-user BFF activation |
+| `Global_Identity_Storage_Is_Subject_Confined` / `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Registered; implementation pending | P03-1 Step 3, `GlobalIdentitySchemaTests`, `IdentityAuditConventionTests` / `GlobalIdentityBootstrapTests`; P03-3 owns HTTP/new-user BFF activation |
 
 Registered means an actual catalogue entry exists. Until then a new control is
 planned/unregistered; later Registered is not Implemented. No empty census,

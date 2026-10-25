@@ -6,6 +6,8 @@
 [ADR-0044](../decisions/0044-audit-write-path.md),
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md),
 [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md),
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md),
 [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md). For the
 day-to-day rules read [09-error-handling.md](../standards/09-error-handling.md),
 [10-observability.md](../standards/10-observability.md), and
@@ -132,8 +134,19 @@ endpoint and structural dispatch/Off/persistence controls; Education eligibility
 and contract proof remain Steps 3–4. The eight-stage order, normal writer
 ownership and independent rejected-assertion audits are unchanged.
 
+Accepted ADR-0072/0073 add a common prepared global-identity owner in P03-1
+Step 3; implementation remains pending. It uses distinct authority-kind
+enrollment, serializes the subject before a typed creation intent and consumes
+one prepared physical owner through the common transaction/capture coordinator.
+Global and tenant owners cannot join or retarget one another. The central audit
+composer alone emits the typed global metadata/creation reference; successful
+User/audit reciprocity and exact non-success evidence use the canonical
+[Database contract](../standards/05-database.md#proposed-global-central-audit-branch).
+This extension adds no MediatR stage or HTTP/new-user BFF route. P03-3 owns that
+activation; the current complete native profile and ordinary pipeline remain.
+
 [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
-binds the order. Reading bottom-most as innermost:
+binds the ordinary pipeline order. Reading bottom-most as innermost:
 
 ```text
 Request
@@ -227,9 +240,11 @@ Why this order:
   asserts, or, for a provisioning request, from the request itself — which is safe
   for that reason rather than in spite of it: it is the same value that drove the
   session variable, so the database refuses the write when the two disagree.
-  [ADR-0044 § 2](../decisions/0044-audit-write-path.md) tabulates all four shapes,
-  including the platform-scope row's `TenantId.PlatformSentinel` and the unresolved
-  non-provisioning request, which writes no row at all. `TenantContextBehavior`
+  [ADR-0044 § 2](../decisions/0044-audit-write-path.md) tabulates the four original shapes,
+  including the platform-scope row's `TenantId.PlatformSentinel` and the ordinary
+  unresolved non-provisioning request, which writes no row. The separately
+  admitted global creation owner carries typed attribution under ADR-0072,
+  never a synthetic tenant context or ordinary sentinel writer. `TenantContextBehavior`
   *only* validates the context — it asserts the middleware populated it.
   It does **not** set the PostgreSQL session variables: `SET LOCAL` is
   transaction-local and step 4 runs before any transaction exists, so the

@@ -548,3 +548,19 @@ This HTTP presentation does not alter publication, grant replay or revocation.
 The earlier Registered-until-shipped wording records acceptance-time status;
 the [catalogue](../standards/21-architecture-tests-catalogue.md#p02b-7-tenant-bff-obligations)
 owns current control status.
+
+### Amendment 4 — Existing-session identity foundation navigation (2026-10-25)
+
+**Status: Accepted.** Jointly accepted
+[ADR-0072](0072-application-owned-identity-bootstrap.md) preserves P03-1's complete
+native identity, ID-token/AccountSite association and publication/refresh fences.
+Native opaque-subject validation aligns with the API's 255-character bound,
+without trimming or case folding. Optional API wire-actor evidence does not make
+a tenantless or actorless native session complete.
+
+The current native operations and authenticated AccountSite seam remain. An
+optional pre-session identity, new-user bootstrap association and truthful
+no-session completion remain unaccepted P03-3 changes; no new HTTP/BFF operation
+is activated here. P03-1 Step 5 still owns the subject-bound and existing-session
+integration proofs. This navigation and bounded validation alignment supply no
+new session authority or runtime receipt.

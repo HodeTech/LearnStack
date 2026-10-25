@@ -22,12 +22,30 @@ two scopes (tenant + organization):
   `AS RESTRICTIVE` write guards when the table is org-scoped. Never a second permissive
   policy — PostgreSQL combines those with `OR`, which is the defect
   [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)
-  corrects. Platform-scoped tables — the ones read *before* the tenant is known — follow
+  corrects. Platform-scoped tables — whose rows no tenant predicate can isolate — follow
   a different rule; see
   [Database Standards § Table classes](../standards/05-database.md).
 - Architecture tests that detect unprotected tenant-owned / org-scoped entities.
 - Explicit platform-admin paths for cross-tenant operations (Hub-driven, audited).
 - Tenant- and org-aware storage, cache, search, analytics, audit, and logs.
+
+## Global self-identity boundary
+
+Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md)
+adds the global self-identity class alongside tenant and platform classes. Its
+`users` reads require independently scoped EF filtering and FORCE RLS over the
+verified authority/subject key, not a tenant context or a guessed UserId. The
+platform-scoped authority anchor is deployment-installed and app-read-only.
+The [Database standard](../standards/05-database.md#proposed-p03-1-identity-storage-annex)
+alone owns exact policies, privileges and confined owner functions. These
+contracts are Accepted; schema/guards remain pending P03-1 implementation.
+
+Global and tenant owners cannot join or retarget one another. Identity-only
+announcements never announce PlatformSentinel as a tenant. The sentinel has two
+named audit populations: existing platform-scope standalone operations and
+accepted global identity-creation attempts. The second is storage attribution,
+not a Platform permission or general audit-read capability. P03-1 adds no HTTP
+creation route; P03-2 owns live membership and P03-3 new-user/BFF activation.
 
 ## Defense-in-depth layers
 
@@ -187,7 +205,9 @@ provisioning. Tenants without explicit org structures:
 
 - Have one default org.
 - Org switcher is hidden in UI.
-- `organization_id` defaults to the default-org id when context is set.
+- The default organization is an explicit selection target; it never silently
+  replaces NULL tenant-wide scope. Tenant-wide writes require their admitted
+  orgless context; `app.scope` remains a read-only hatch.
 - Tenant-wide entities (`organization_id IS NULL`) still exist for things that don't fit
   in a single org (tenant-level content catalog, brand tokens).
 

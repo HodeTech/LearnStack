@@ -1,9 +1,9 @@
 # Identity — Permission Matrix
 
-**Status: Proposed.** Derived from Proposed [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
+**Status: Accepted contract — runtime implementation pending.** Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
 and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 No permission, route or runtime admission is implemented. The [module spec](README.md)
-owns storage/lifecycle; [Standard 19's Proposed annex](../../standards/19-permissions.md#proposed-identity-foundation-contract)
+owns storage/lifecycle; [Standard 19's accepted foundation contract](../../standards/19-permissions.md#proposed-identity-foundation-contract)
 owns the exact registry, grant manifests and kernel without a second copy here.
 
 ## Foundation operation bindings

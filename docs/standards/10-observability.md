@@ -25,6 +25,10 @@ Subject-admission refusal and cleanup-fault signals derive from
 2026-10-20. Their implementation and local exported proofs are delivered; the
 [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns independent reviews and final-source CI qualification.
+Identity lock/admission observation derives from Accepted
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
+P03-1 instrumentation and qualification remain pending.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -439,8 +443,24 @@ backend treat business rejections as system failures.
 | `learnstack_cache_factory_duration_seconds` | histogram | `cache.name`, `outcome` |
 | `learnstack_audit_standalone_write_failures_total` | counter | `operation` |
 | `learnstack_audit_standalone_duplicates_total` | counter | `operation` |
+| `learnstack_identity_lock_wait_seconds` | histogram; adopted, pending P03-1 | `lock_kind`, `outcome` |
+| `learnstack_identity_lock_refusals_total` | counter; adopted, pending P03-1 | `lock_kind`, `reason` |
 | `learnstack_entitlement_source_total` | counter | `source` |
 | `learnstack_entitlement_unresolved_total` | counter | — |
+
+### Identity lock signals
+
+Accepted ADR-0072/0073 require `lock_kind` closed to `subject`, `user`, `tenant`;
+wait `outcome` closed to `acquired`, `timeout`, `cancelled`, `fault`; and refusal
+`reason` closed to `timeout`, `cancelled`, `fault`. No tenant, actor, subject,
+digest, raw issuer, SQL, correlation or exception text is a label. Typed closed
+binding diagnostic reasons remain separate from public Problem Details and are
+not trusted identity-refusal witnesses. Steps 3/4 implement lock signals; Step 5
+qualifies ordinary binding lookup plans, local latency and pool/cancellation
+behavior. No measured p95 or extension of ADR-0047 capacity is established.
+Phase 11 owns production alert thresholds and sizing.
+
+### Delivered metric populations
 
 Outbox metrics above are implemented in P02b-2 Step 3 under ADR-0046;
 both independent review rounds are complete. The subscriber/inbox inventory is

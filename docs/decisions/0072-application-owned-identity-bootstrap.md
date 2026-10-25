@@ -2,14 +2,15 @@
 
 ## Status
 
-Proposed — joint approval with ADR-0073 is required before acceptance or code.
+Accepted — jointly with ADR-0073 on 2026-10-25. Runtime qualification remains
+pending the six implementation steps.
 
 **Date:** 2026-10-25
 **Deciders:** @cemil
 
 **Bounded supersession:** The carrier table identifies each changed rule. This
-is a new decision, not an ADR-0041 factual correction. Today only proposals
-change; acceptance replaces named rules through dated Amendments pointing here.
+is a new decision, not an ADR-0041 factual correction. Joint acceptance replaces
+only the named rules through dated Amendments pointing here.
 Existing Accepted bodies, statuses and dates remain historical.
 
 ## Decision Drivers
@@ -74,7 +75,8 @@ Existing Accepted bodies, statuses and dates remain historical.
 At `92117893`, TenantTokenProfile requires actor; ValidatedTenantIdentity has a
 nonnullable actor; quota consumes that type through TenantCredentialFeature.
 Its key is issuer/sub, but the shipped path cannot accept actorless tokens.
-Identity remains scaffolded. The following is a proposed replacement.
+Identity remains scaffolded at that source. The following is the accepted
+replacement contract; implementation and database qualification are pending.
 
 New API-owned `VerifiedProviderSubject` contains the stock-verified issuer/sub,
 optional actor and optional scalar tenant/org claims. TenantCredentialFeature
@@ -133,7 +135,7 @@ caller and publication changes wait for that package. Refresh never allocates.
 ### Authority, retention and concurrency
 
 [Database Standards](../standards/05-database.md#proposed-p03-1-identity-storage-annex)
-is the proposed canonical owner of columns, GUCs, digest encoding, grants,
+is the canonical owner of columns, GUCs, digest encoding, grants,
 policy/function signatures, lock deadlines and evidence predicates. Do not copy SQL.
 
 `identity_authority` is a singleton platform-scoped registration installed once
@@ -219,10 +221,11 @@ purge/backup operations; it does not own missing Phase 03 fulfillment.
 
 ### Acceptance vehicle and carriers
 
-Both ADRs are accepted together or neither closes gates. The
+Both ADRs are accepted together. The
 [revised package](../roadmap/phase-03-delivery-log.md#p03-1-second-maintainer-review-and-revised-package-2026-10-25)
-contains append-ready Amendment drafts and proof owners. Those drafts are not
-inserted as Accepted changes before approval.
+records the approved scope, Amendment texts and proof owners. The dated
+Amendments and canonical contract adoption accompany acceptance; they do not
+claim that schema, runtime grants or their proofs are implemented.
 
 | Carrier / clause | Named adoption instrument |
 |---|---|
@@ -236,7 +239,7 @@ inserted as Accepted changes before approval.
 | ADR-0066 subject admission population | Dated clarification for verified-subject input before binding; numeric/ownership/fault semantics unchanged |
 | ADR-0065 and ADR-0070 | Dated navigation only: host mismatch allowance never covers global MUST; native complete identity/AccountSite publication remain unchanged |
 | ADR-0071 | Dated navigation Amendment only; ordinary-read status table unchanged |
-| Standards 04/05/07/10/11/18/19/21; Architecture 09/13/23/31/33 | Promote approved Proposed contracts and authority headers; no duplicate SQL |
+| Standards 04/05/07/10/11/18/19/21; Architecture 09/13/23/31/33 | Adopt the approved canonical contracts and authority headers; no duplicate SQL |
 | CLAUDE, glossary, IAuditStore/PostgresAuditStore XML and guard census | Reconcile sole-population/writer and method-count claims before dependent code; default refusal stays |
 
 Reopen before issuer rebind, another producer, global profile disclosure,
@@ -271,7 +274,7 @@ writer preempts P03-9 rebind/privileged reads or P03-10 retained-reference workf
 ## Implementation Notes
 
 The revised package owns six steps, exact proof/status and required controls.
-These authorities are not implemented by this proposal. Four seed actors,
+Acceptance authorizes these authorities; it does not implement them. Four seed actors,
 provider subjects and credentials survive; ordinary HTTP cannot invoke adoption.
 
 ## References

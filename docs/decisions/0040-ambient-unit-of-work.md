@@ -767,3 +767,28 @@ The original body, metadata and prior amendments remain verbatim. Updated
 acceptance carriers are this amendment, ADR-0052's own amendment and Standards 11;
 ADR-0064 and the package own the full register. Implementation/proofs remain
 P02b-5, including physical write refusal on the authenticated query's actual path.
+
+### Amendment 14 — Prepared global owners and candidate-reader registration (2026-10-25)
+
+**Status: Accepted.** [ADR-0072](0072-application-owned-identity-bootstrap.md)
+adds common global read, prepared creation, fixed seed-adoption and reconciliation
+owners. Exact identity announcements bind the real connection, transaction and
+generation; one-shot prepared completion retains the original physical owner.
+The common audit/capture and transaction coordinators own those lifetimes.
+
+Tenant/global authority kinds cannot join or retarget, including same
+ReadOnly/ReadWrite modes. The new transaction-local
+`app.identity_authority_id` and `app.identity_subject_key` form a separate
+identity-announcement census; neither is a sentinel tenant announcement.
+[Database Standards](../standards/05-database.md) owns preparation, declaration,
+completion and cleanup ordering.
+
+[ADR-0073](0073-scoped-membership-and-identity-data-foundation.md) registers the
+planned ninth logical tenant setter, `PreContextIdentityAuthorizationReader`.
+It executes only with the P03-2 live candidate reader: exact candidate tenant/org,
+a fresh physically READ ONLY app transaction and no ambient `ITenantContext`.
+The current eight tenant setters are not made nine implemented setters by this
+registration. [Security Standards](../standards/11-security.md) owns that census.
+
+Joint approval accepts the authority. P03-1 Steps 3/5 retain the global owner and
+existing-binding runtime proofs; P03-2 retains the ninth setter's live proofs.

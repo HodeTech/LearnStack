@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 582 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 623 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -27,6 +27,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 second maintainer review and revised package (2026-10-25)](#p03-1-second-maintainer-review-and-revised-package-2026-10-25) — 99 lines
   - [P03-1 second revision review round 1 (2026-10-25)](#p03-1-second-revision-review-round-1-2026-10-25) — 23 lines
   - [P03-1 second revision review round 2 and approval readiness (2026-10-25)](#p03-1-second-revision-review-round-2-and-approval-readiness-2026-10-25) — 28 lines
+  - [P03-1 joint acceptance and Step 1 (2026-10-25)](#p03-1-joint-acceptance-and-step-1-2026-10-25) — 41 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -694,3 +695,44 @@ provider change has occurred. Steps 3/4 still require real owner-function/body/
 privilege/caller and held-lock competing-commit proofs; metadata scans cannot
 close them. No new approval is inferred from a review verdict or the staging
 answer. Acceptance must be the first implementation step before dependent code.
+
+### P03-1 joint acceptance and Step 1 (2026-10-25)
+
+The maintainer explicitly approves revised ADR-0072, ADR-0073 and the complete
+six-step second-maintainer package after `06b36199`. This is joint acceptance,
+not an inference from the earlier review verdicts or HTTP-staging answer.
+The approved P03-3 HTTP/new-user BFF boundary remains: P03-1 adds no new route.
+
+Step 1 adopts the named authority before dependent code. Both ADR statuses
+become Accepted; the decision index moves their rows to Active. Actual dated
+Amendments append to ADR-0003/0010/0017/0033/0036/0040/0044/0064/0065/0066/0070/
+0071, without changing predecessor bodies or metadata. Standards adopt their
+exact canonical replacements and register proof owners; architecture, glossary
+and module contracts distinguish approved obligations from runtime capability.
+No runtime grant, Identity table, provider mutation or live authorization is
+claimed by this acceptance commit.
+
+G1/G3/G19 and foundation portions of G2/G4/G5/G7/G16 are decided to the scope
+named in the register. Invitation acceptance remains G8/Open; this foundation
+adds no Invitation table or ADR-0042 exception. Candidate-reader execution,
+new-user HTTP/native transport, production first-admin, controlled issuer rebind
+and closure remain their named later gates. Current deny-all live membership,
+complete native identity and AccountSite operation union persist until their
+respective qualified implementation steps.
+
+The six approved steps retain the reviewed order and two new independent review
+rounds per committed step. Step 1's authority diff receives both rounds before
+Step 2 adds classification code. Steps 3/4 cannot close on schema metadata alone:
+actual function/body/owner/privilege/caller controls, real held-lock competing
+commits, exact duplicate/outcome evidence and first/final-admin behavior remain
+mandatory. Lookup latency/pool/cancellation qualification belongs to Step 5;
+full source-bound qualification and the reviewable PR belong to Step 6.
+
+Step 1 parent validation passes all 37 existing Python documentation controls and
+20 compiled corpus/audit-matrix controls, with zero skips. Both new ADRs parse
+Accepted. A byte-prefix comparison proves all twelve predecessor bodies and
+metadata are unchanged; only the new dated entries append. The changed-file
+sweep resolves 2,705 relative file targets and contains Markdown only. Whole-tree
+fragment/roadmap/index and whitespace checks run after the last edit. Registered
+Identity obligations are not reported as implemented by those checks. The
+acceptance commit is followed by two fresh independent Step 1 review rounds.

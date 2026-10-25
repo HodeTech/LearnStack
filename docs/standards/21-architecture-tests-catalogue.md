@@ -55,6 +55,11 @@ owns source-bound validation, reviews and hosted qualification),
 [ADR-0067 Development Tenant Access-Token Issuance](../decisions/0067-development-tenant-access-token-issuance.md)
 (Accepted 2026-10-21; formalizes the existing issuance obligation's authority
 without adding a rule or changing its implementation status).
+Identity foundation registration additionally derives from Accepted
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+Step 1 registers obligations; Steps 2–5 own implementation and qualification.
+Existing Implemented statuses do not qualify their pending Identity extensions.
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -2526,10 +2531,129 @@ because the filters hold, and removing both turns all five red.
   `TenantCustomFieldDef`, never as a column on the global aggregate. The reviewer's
   version of the same question is "which tenant authored this value?".
 - **Source:** [Phase 03 § Attribute ownership](../roadmap/phase-03-identity-admin.md);
-  [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md).
+  [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md);
+  [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 - **Type:** xUnit + EF model inspection. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 03.
+- **Test owner:** `IdentityFoundationConventionTests` (planned).
+- **Status:** **Registered** — implementation pending.
+- **Phase:** P03-1 Step 4.
+
+### Accepted Identity foundation obligations
+
+These names are Registered under ADR-0072/0073. Named owners are planned classes,
+not existing files or passing controls. Promotion to Implemented requires actual
+nonempty production subjects and dirty/clean controls.
+
+#### `Mapped_Properties_Have_Explicit_Personal_Data_Classification`
+
+- **Asserts:** the coordinator compares every real mapped EF property with its
+  module's explicit personal-data declaration, including inherited keys, raw
+  subjects and stable linkage. Missing/conflicting declarations and a planted
+  neutral-name omission fail the same complete census. Diagnostics reveal no
+  values; snapshot/redaction and sink canaries remain independent controls.
+- **Source:** [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
+  [Data Protection](../architecture/23-data-protection.md).
+- **Type:** complete EF model/declaration comparison and planted omissions.
+  **Kind:** structural.
+- **Test owner:** `DataProtectionConventionTests` (planned).
+- **Status:** **Registered** — implementation pending.
+- **Phase:** P03-1 Step 2, before the first Identity personal-data writer.
+
+#### `Global_Identity_Storage_Is_Subject_Confined`
+
+- **Asserts:** actual app-role reads expose only the announced verified subject;
+  missing/reset/malformed/foreign authority refuses. EF filters, applied
+  policies/grants/functions, owner DELETE/TRUNCATE refusal and pooled cleanup
+  match the sole [Database contract](05-database.md#identity-storage-contract),
+  with positive and planted-widening controls. The current 47-table/five-chain
+  schema remains distinct from the projected 55-table/six-chain population.
+- **Source:** [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md);
+  [Database Standards](05-database.md#identity-storage-contract).
+- **Type:** PostgreSQL catalogue, app-role isolation and owner controls.
+  **Kind:** behavioural, with structural companions.
+- **Test owner:** `GlobalIdentitySchemaTests` (planned).
+- **Status:** **Registered** — implementation pending.
+- **Phase:** P03-1 Step 3.
+
+#### `Global_Identity_Creation_Uses_The_Common_Audit_Owner`
+
+- **Asserts:** exact prepared global authority uses the common coordinators,
+  typed creation reference and sole central SQL writer. Success/User reciprocity,
+  failure/unknown-COMMIT reconciliation, exact duplicate evidence and precommit
+  refusal preserve distinct outcomes. Missing/foreign/stale/reused owners,
+  ordinary/global crossover, metadata substitution and copied audit SQL fail.
+  The exact migration installer adds no runtime module/entity dependency or writer.
+- **Source:** [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md);
+  [Database Standards](05-database.md#global-central-audit-branch);
+  [Audit Coverage](18-audit-coverage.md#global-identity-creation).
+- **Type:** production owner/installer census and actual app-role creation,
+  reconciliation and fault controls. **Kind:** behavioural and structural.
+- **Test owners:** `IdentityAuditConventionTests`, `GlobalIdentityBootstrapTests`
+  (planned).
+- **Status:** **Registered** — implementation pending; six audit write seams
+  currently ship, while eight is the accepted projected population.
+- **Phase:** P03-1 Step 3; no HTTP creation route is admitted.
+
+#### `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks`
+
+- **Asserts:** actual Membership/child and protected Role mutations preserve the
+  total eligible-admin invariant under canonical ordered locks. Held-lock races
+  observe a real competing commit through fresh post-wait reads; wrong isolation,
+  forbidden upgrades, incomplete first-admin state and closure/final-admin races
+  refuse. Scope/reference/lifecycle controls cover tenant and branch variants.
+- **Source:** [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
+  [Database lock contract](05-database.md#lock-snapshot-and-adoption-conditions).
+- **Type:** real app-role PostgreSQL mutation/concurrency controls.
+  **Kind:** behavioural.
+- **Test owner:** `IdentityMembershipTests` (planned).
+- **Status:** **Registered** — implementation pending.
+- **Phase:** P03-1 Step 4.
+
+#### `Identity_Seed_Uses_Finite_Adopted_Manifests`
+
+- **Asserts:** one versioned compiled source and generated SQL kernel agree on
+  complete scope/key/version/fingerprint. Finite templates/grants, ordered seed
+  acts and interrupted/no-write/conflict reruns preserve actors/credentials and
+  later adopted state. Registry additions grant nothing to existing Roles; seed
+  authority is default-denied in API composition.
+- **Source:** [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
+  [Permissions foundation](19-permissions.md#identity-foundation-contract);
+  [Identity seed sequence](../modules/identity/README.md#first-admin-and-seed-sequence).
+- **Type:** actual manifest/command census, generated-artifact equality and seed/rerun
+  controls. **Kind:** structural and behavioural.
+- **Test owners:** `IdentityFoundationConventionTests`, `SeederTests` (planned).
+- **Status:** **Registered** — implementation pending.
+- **Phase:** P03-1 Step 4.
+
+#### `Permission_Definitions_DeclareScope`
+
+- **Asserts:** each definition declares Platform, Tenant or Organization scope;
+  identity is `(PermissionScope, PermissionKey)`. The actual nonempty foundation
+  registry equals the accepted finite five-pair manifest; missing/duplicate/wrong-
+  scope definitions and inconsistent consumers fail.
+- **Source:** [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md);
+  [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
+  [Permissions Standards](19-permissions.md#identity-foundation-contract).
+- **Type:** compiled definitions/consumers with planted controls. **Kind:** structural.
+- **Test owner:** `IdentityFoundationConventionTests` (planned).
+- **Status:** **Registered** — moved from Awaiting backfill; implementation pending.
+- **Phase:** P03-1 Step 4.
+
+### Pending Identity extensions to Implemented rules
+
+The following rules retain **Implemented** for their shipped populations. Their
+current named owners must add these controls in the stated step; extensions are
+pending and published implemented-method counts do not change.
+
+| Existing canonical rule(s) | Pending accepted extension |
+|---|---|
+| [`ModuleInfrastructure_References_Only_Its_Own_Layers_And_Core_Infrastructure`](#moduleinfrastructure_references_only_its_own_layers_and_core_infrastructure), [`CoreInfrastructure_DoesNotDependOn_AnyModule`](#coreinfrastructure_doesnotdependon_anymodule), [`Modules_Do_Not_Write_AuditLog_Directly`](#modules_do_not_write_auditlog_directly) | Step 3: exact migration-only installer/body/caller exception; no copied audit SQL, core module/entity reference or new SQL writer. |
+| [`Migrate_Target_Covers_Every_Migration_Chain`](#migrate_target_covers_every_migration_chain), [`Every_Module_With_A_Schema_Is_Swept`](#every_module_with_a_schema_is_swept), [`Every_TenantOwned_Entity_HasFilterAndRlsPolicy`](#every_tenantowned_entity_hasfilterandrlspolicy) | Steps 3/4: sixth Identity chain/Audit prerequisite and complete seven-class population, retaining tenant predicates. |
+| [`Every_TenantOwned_Foreign_Key_Includes_TenantId`](#every_tenantowned_foreign_key_includes_tenantid), [`Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`](#unique_indexes_on_soft_deletable_tables_exclude_deleted_rows) | Steps 3/4: exact Membership-to-global-User FK and permanent binding index. Other tenant references retain composite/self-keyed shape. |
+| [`AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands`](#allowsunresolvedtenantcontext_only_on_provisioning_commands), [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](#tenant_context_guard_fires_only_on_an_unmarked_transaction) | Step 3: closed global authority mode and crossover refusal; provisioning marker/current four context writers do not grow. P03-2 separately implements the accepted ninth candidate setter. |
+| [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly), [`MustClass_Audit_Writes_Share_The_Business_Transaction`](#mustclass_audit_writes_share_the_business_transaction) | Step 3: ordinary pending sentinel/global-owner refusal, typed global composition and two new central seams with independent failure/uncertainty/duplicate proof. Six writes remain current. |
+| [`Tenant_Authentication_Profile_Is_Closed`](#tenant_authentication_profile_is_closed), [`Keycloak_Roles_Are_Not_Application_Authority`](#keycloak_roles_are_not_application_authority), [`Authenticated_Rate_Limits_Use_Validated_Subject`](#authenticated_rate_limits_use_validated_subject), [`Authentication_Middleware_Order_Is_Enforced`](#authentication_middleware_order_is_enforced) | Step 5: verified subject before quota/binding SQL, optional actor evidence, normalized existing binding, uniform 401 and immutable feature/caller census. Numeric quota/fault/once-per-request semantics remain. |
+| [`Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`](#authenticated_http_surface_is_enumerated_and_readonly) | Step 5: existing-binding read, unchanged endpoint/SDK union, AccountSite404/405 and native publication. No POST or tenantless completion; P03-3 owns transport activation. |
 
 #### `Every_TenantCustomFieldDef_Declares_PiiCategory`
 
@@ -3094,8 +3218,10 @@ which decides identity, multiplicity, capture and classification;
   `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes
   it must catch and the shapes it must not, because with no offending statement anywhere
   the sweep passes whether it works or matches nothing; and a reflection check,
-  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly five write
-  methods and no update (the additive fifth terminal seam ships in P02b-2 Step 2). None
+  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly six current
+  write methods and no update (the fifth event and sixth job seams ship in Phase
+  02b). ADR-0072's two global seams remain pending Step 3; eight is projected, not
+  current enforcement. None
   of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase
   11 — so the exemption set ships with the rule **empty**, as exact paths: the first
   site to land adds its own path, so it is exempted by name rather than the pattern
@@ -3934,7 +4060,6 @@ implements it.
 | `Cert_PrivateKey_NeverLeavesVault_To_Logs` | The log redaction filter strips a PEM private-key block before a line is emitted, in every deployment mode | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md) on the Hub side, per ADR-0022, which applies it in every mode; on the LearnStack side [Phase 11](../roadmap/phase-11-production-hardening.md), with the TLS automation — the first LearnStack code that handles certificate material, and a Self-Hosted air-gapped deployment has no Hub | ADR-0022; [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
 | `Frontend_Has_Only_The_OperatorPortal_App` | The Hub repository ships exactly one frontend application, the operator portal | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), owned and run by the `learnstack-hub` repository | [ADR-0019](../decisions/0019-learnstack-hub.md) |
 | `Customization_Reference_Resolution_Is_Batched` | Resolving an entry's references costs a small constant number of queries, not one per reference | behavioural | [Phase 05](../roadmap/phase-05-education-learning-content.md), with the batched reference walk — Phase 02d's lesson body carries its fields inline and resolves no reference | [Tenant Customization Model](../architecture/32-tenant-customization-model.md); [Phase 05](../roadmap/phase-05-education-learning-content.md) |
-| `Permission_Definitions_DeclareScope` | Every registered permission declares its `PermissionScope` — Platform, Tenant or Organization | structural | [Phase 03](../roadmap/phase-03-identity-admin.md), with the permission registry | [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md) |
 | `Permission_Scope_Matches_Resource_Scope` | An `Organization`-scope permission is checked only against an `[OrganizationScoped]` resource, and a `Tenant`-scope permission never gains organization filtering | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
 | `Permission_Keys_Match_Convention` | Every registered key parses as `{module}.{resource}.{action}` with an action from the closed set | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
 | `Permission_Registry_Has_DeniedTest` | Every registered key has at least one test that is denied it | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
