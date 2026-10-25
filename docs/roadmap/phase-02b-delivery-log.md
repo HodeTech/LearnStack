@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 664 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 686 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -283,6 +283,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 3 review round 1 (2026-10-25)](#p02b-8-step-3-review-round-1-2026-10-25) — 19 lines
   - [P02b-8 Step 3 review round 2 and closeout (2026-10-25)](#p02b-8-step-3-review-round-2-and-closeout-2026-10-25) — 22 lines
   - [P02b-8 Step 4 — Individual exit ownership and source freeze (2026-10-25)](#p02b-8-step-4--individual-exit-ownership-and-source-freeze-2026-10-25) — 42 lines
+  - [P02b-8 Step 4 review round 1 — source (2026-10-25)](#p02b-8-step-4-review-round-1--source-2026-10-25) — 22 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21627,6 +21628,28 @@ The full local Release architecture suite remains in progress. Earlier Step 3
 local receipts cover unchanged production/frontend source; final hosted complete
 same-source A/B and all actual lanes remain pending. Both fresh Step 4 review
 rounds and the review PR follow those receipts; this record claims no phase exit.
+
+### P02b-8 Step 4 review round 1 — source (2026-10-25)
+
+Two fresh independent readers review `63a4b523..6224bd9e`: a
+`gpt-6.1-sol`/xhigh source/proof reviewer and a `gpt-6-astra`/high index/governance
+reviewer. Both approve the source without an actionable finding. They verify
+all 26/60/11 source-ordered requirement mappings and eleven/two exclusion
+boundaries, exact method owners and partial-file distinctions, the real capture
+observer/subject identity, row-bound app-role indeterminate count, existing C27
+composition rule and unchanged authority/retention boundaries. The index reviewer
+also verifies the content-preserving merge ancestry and passes documentation/
+whitespace checks.
+
+This is source approval only. The frozen code/test source is
+`6224bd9eba807b56b477ee57d6abba7b9caaa1b8`, tree
+`274599e096854e8f0332e8f894596fc45e082fe9`.
+[Run 40145581317](https://github.com/HodeTech/LearnStack/actions/runs/40145581317)
+is the first complete assignment A, still in progress when this entry is made;
+complete same-source B, final-head checks and the full local architecture receipt
+remain pending. Both reviewers require the actual completed receipts before
+qualification approval. Later documentation-only records do not relabel this
+source or any earlier run as a later source's proof.
 
 ## Status archive
 
