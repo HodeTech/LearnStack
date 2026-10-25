@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 963 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 987 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -288,6 +288,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 4 — Completed-source qualification and review closeout (2026-10-25)](#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25) — 109 lines
   - [P02b-8 PR correction verification (2026-10-25)](#p02b-8-pr-correction-verification-2026-10-25) — 93 lines
   - [P02b-8 correction review round 2 and source freeze (2026-10-25)](#p02b-8-correction-review-round-2-and-source-freeze-2026-10-25) — 44 lines
+  - [P02b-8 CI fixture-witness reconciliation (2026-10-25)](#p02b-8-ci-fixture-witness-reconciliation-2026-10-25) — 24 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21931,6 +21932,30 @@ Current correction-source hosted qualification is still pending. Freeze the
 code here before collecting its complete assignments; never relabel earlier
 5992-case receipts as proof of the new population. Conversation resolution,
 maintainer review and merge remain separate release gates.
+
+### P02b-8 CI fixture-witness reconciliation (2026-10-25)
+
+[Run 40174825328](https://github.com/HodeTech/LearnStack/actions/runs/40174825328),
+head `0d9dea4f`, fails the meta job's
+`test_shared_fixture_witness_matches_actual_source_classes`. The newly added
+`StorageRelationCensusTests : IClassFixture<PostgresFixture>` is absent from
+`ci-test-shards-plan.json`'s fixture witness list. The local pre-push selection
+omitted this relevant offline control; a passing Unit/database run did not
+establish plan consistency. This is an implementation bookkeeping omission,
+not a passing qualification or an unexplained infrastructure incident.
+
+Add exactly that sorted class entry. Counts, weights, algorithm, salt, bounds
+and job topology remain unchanged; the list changes the fixture witness
+population, not assignment membership. The plan digest changes. The fresh
+`pr37_fix_r2_contracts` reviewer independently verifies this single-line delta
+against the actual fixture declaration and approves it without selecting new
+policy. Both offline selections pass: 72 plan controls and 30 result controls.
+
+The reviewed application/test code remains at `5da6bab3`. Collect fresh complete
+A/B attempts for the corrected plan, with exact current test identities and
+actual cleanup; the failed run and all earlier receipts remain source-bound
+history. No omitted case, disabled control or increased ceiling is used to
+recover the result.
 
 ## Status archive
 

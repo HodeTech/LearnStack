@@ -8585,6 +8585,7 @@
     "LearnStack.Tests.Integration.Database.PublicServerRenderingTests",
     "LearnStack.Tests.Integration.Database.PublicSiteHttpTests",
     "LearnStack.Tests.Integration.Database.SeederTests",
+    "LearnStack.Tests.Integration.Database.StorageRelationCensusTests",
     "LearnStack.Tests.Integration.Database.TenancySchemaTests",
     "LearnStack.Tests.Integration.Database.TenancyWriterTests",
     "LearnStack.Tests.Integration.Database.TenantAssertionAuditTests",
