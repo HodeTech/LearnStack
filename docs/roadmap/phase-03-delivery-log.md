@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 907 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 958 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -38,6 +38,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 3 retained-subject pre-commit correction (2026-10-26)](#p03-1-step-3-retained-subject-pre-commit-correction-2026-10-26) — 12 lines
   - [P03-1 Step 3 existing-adoption scope correction (2026-10-26)](#p03-1-step-3-existing-adoption-scope-correction-2026-10-26) — 24 lines
   - [P03-1 Step 3 review round 1 and corrections (2026-10-26)](#p03-1-step-3-review-round-1-and-corrections-2026-10-26) — 46 lines
+  - [P03-1 Step 4 ordered-lock timing proposal (2026-10-26)](#p03-1-step-4-ordered-lock-timing-proposal-2026-10-26) — 39 lines
+  - [ADR-0074 proposal review round 1 (2026-10-26)](#adr-0074-proposal-review-round-1-2026-10-26) — 12 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1030,3 +1032,54 @@ with zero warnings/errors, 2,727 Unit cases and 147 focused Architecture cases,
 all with zero skips. Documentation/index checks and whitespace checks also pass.
 The focused set does not claim the interrupted closed-census controls passed;
 their corrected execution remains part of the complete rerun below.
+
+### P03-1 Step 4 ordered-lock timing proposal (2026-10-26)
+
+[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md) proposes
+a bounded read-timing replacement before contextual writers. Step 4 feasibility
+inspection exposes a literal conflict between the trigger-only User reader and
+the complete pre-mutation lock plan for a parent with future administrator
+assignments. A separate read-only analysis confirms the conflict and
+the continuous-User-fence safety argument. This is design analysis, not runtime
+qualification; no contextual table/function/writer is implemented.
+
+The proposed delta retains User-before-tenant lock order, strongest complete
+plans, fresh trigger admission, five definers and the existing grant boundary.
+Only the requirement that the eligibility read itself precedes tenant acquisition
+changes. A closed target can occupy a tenant fence until its check refuses.
+Dependent code waits for the maintainer's explicit approval; Step 3 is unaffected.
+
+On approval, append these dated Amendments at the next available heading and
+actual acceptance date, preserving Accepted bodies/status/dates:
+
+| Carrier | Append-ready bounded text |
+|---|---|
+| ADR-0072 | ADR-0074 narrowly replaces the delegated Membership eligibility-read timing: an admitted complete plan acquires the actual target's exclusive User fence before tenant fences and retains it through mutation/completion; the actual admission trigger may freshly verify eligibility after those fences are preheld. No missing User key is first acquired beneath tenant authority. The global subject owner, five-function confinement and absence of a generic User reader remain. |
+| ADR-0073 | ADR-0074 separates fence acquisition from eligibility-read timing for complete Membership/child plans. User-before-tenant order, actual-row classification, strongest pre-mutation tenant mode, no upgrades and total eligible-admin invariants remain. The actual mutation trigger verifies the preheld target User fence and freshly refuses unknown/nonadmitting targets before mutation. No new scope, grant, Role variant or live endpoint follows. |
+
+Standard 05's `fn_identity_membership_admission_guard()` row replaces its final
+timing sentence with: “Requires the actual target's exclusive User fence already
+held when tenant authority is held; freshly verifies eligibility before permitting
+mutation. A missing User key beneath tenant authority refuses; no User fields are
+returned.” Its lock section adds that complete plans may prehold both ordered
+families before the fresh actual-trigger check, while retaining continuous
+transaction ownership. Add ADR-0074 to the derivation header only on acceptance.
+The canonical algorithm stays in Standard 05; other carriers keep references.
+
+The existing Registered ordered-lock rule keeps that status until Step 4 delivers
+actual app-role second-admin/shared-learner, held-lock closure/creation, missing-
+fence, no-upgrade, isolation, timeout and rollback controls. No new Implemented
+count or policy activation follows from this proposal. Independent proposal
+reviews and mechanical checks are recorded below when actually completed.
+
+### ADR-0074 proposal review round 1 (2026-10-26)
+
+Two fresh read-only reviewers independently inspect the proposed four-document
+package based on `111ca113`: ordered-lock safety (GPT-6 Astra, xhigh) and corpus/
+authority/proof ownership (GPT-6.1 Sol, xhigh). Both approve for maintainer
+consideration without actionable findings. They verify the conflicting canonical
+clauses, the continuous-fence argument, actual unimplemented contextual boundary
+and PostgreSQL 18 locking/snapshot documentation. No build, suite or contextual
+runtime proof is attributed to these reviews. The existing rule remains Registered;
+no dependent code or Accepted authority changes. A second fresh proposal round
+follows this documentation commit before requesting the maintainer's decision.
