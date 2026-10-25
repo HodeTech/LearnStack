@@ -4378,8 +4378,11 @@ their independent bounded ownership after caller cancellation.
 
 Acceptance must update the six-class census, the two-global-unique-columns
 statement, the `audit_log` unmodified-policy claim, the grant/owner-function
-census and the partial-unique-index rule. Only the permanent User identity key
-and authority anchor receive the named global uniqueness exemptions; inherited
+census, the closed canonical GUC-name list and the partial-unique-index rule.
+Add only `app.identity_authority_id` and `app.identity_subject_key` to that list;
+identity-only announcements do not change the tenant setter census. Only the
+permanent User identity key and authority anchor receive the named global
+uniqueness exemptions; inherited
 `deleted_*` columns do not make a closed User reusable. Update the corresponding
 architecture obligations with pending extensions, not claims of implementation.
 Apply forward migrations only after acceptance; qualify actual app-role reads,

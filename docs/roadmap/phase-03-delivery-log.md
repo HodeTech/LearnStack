@@ -15,13 +15,14 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 384 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 402 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
   - [P03-1 proposal readiness (2026-10-25)](#p03-1-proposal-readiness-2026-10-25) — 35 lines
   - [P03-1 maintainer review disposition (2026-10-25)](#p03-1-maintainer-review-disposition-2026-10-25) — 34 lines
-  - [P03-1 revised decision package (2026-10-25)](#p03-1-revised-decision-package-2026-10-25) — 112 lines
+  - [P03-1 revised decision package (2026-10-25)](#p03-1-revised-decision-package-2026-10-25) — 114 lines
+  - [P03-1 revised proposal review round 1 (2026-10-25)](#p03-1-revised-proposal-review-round-1-2026-10-25) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -453,13 +454,15 @@ alone does not amend the old authority. No future number is reserved here.
 | ADR-0017 | ADR-0073 clarifies Membership's contained profile/assignments and tenant-wide Role templates: template capability scope is not storage/authoring scope. Organization authority derives only from exact Membership binding; tenant grants plus matching-org grants remain. Organization aggregate/CRUD stays Tenancy-owned. |
 | ADR-0033 | ADR-0072 extends central decide/write/reconcile to global identity creation under the named app-role owners, including failed/indeterminate attempts. Success shares the User transaction; fresh standalone timestamps/indeterminate pairs and required failure signals remain. Amendment 5's old platform-only routing does not authorize or substitute for these new global seams. |
 | ADR-0044 | ADR-0072 narrowly supersedes the sole sentinel population/writer and unresolved-no-row rules for identity.user.create MUST/SecurityEvent. Exact new app INSERT, owner evidence reads, central pending/reconcile seams and insertion-time witnesses are required. Tenant setters/ordinary writers still reject sentinel; platform entry remains its separate standalone owner. No metadata UPDATE or broad sentinel capability is granted. |
+| ADR-0053 | ADR-0072 extends Amendment 11's confined authenticated BFF seam with exact pre-session POST /api/v1/account/bootstrap using the independently verified provider grant and host/visitor hop. The result establishes only matching actor association; AccountSite still witnesses ordinary session scope. No browser credential forwarding, general proxy or change to anonymous public wrappers follows. |
 | ADR-0064 | ADR-0072 narrowly replaces required wire actor with verified provider-subject plus existing-binding normalization, and extends GET/HEAD-only surface with exact global-self POST. Quota source moves before binding; actor optionality is no anonymous fallback. Absent-bearer 404 and other strict validation remain. No ordinary permission route or scope authority follows. |
 | ADR-0070 | ADR-0072 adds pre-session provider projection with 255-character subject and optional actor/tenant, followed by explicit bootstrap association. Only matching AccountSite publishes ordinary scope. Refresh resolves existing identity without allocation and preserves original claim presence/values and session fences. Actor-only entry publishes no tenant session. |
 | ADR-0071 | Navigation only: ADR-0072 preserves the ordinary-read table and uniform 401 despite the additional binding-store uncertainty source. Bootstrap has separate initial storage failures; no new refusal witness, retry or refresh policy is inferred. |
 
 Before dependent code, reconcile Standard 05's six-class, global-index exceptions,
-unmodified-audit and migration-never-runtime-execution statements; Standard 11's
-owner/census; Standard 19's scoped identity/manifests; CLAUDE/glossary sentinel
+closed GUC-name list, unmodified-audit and migration-never-runtime-execution
+statements; Standard 11's owner/census; Standard 19's scoped identity/manifests;
+CLAUDE/glossary sentinel
 population and IAuditStore XML/method counts. Preserve source-bound current
 history; do not edit Accepted bodies as though these decisions were factual
 corrections. All new catalogue obligations are planned until actual registration.
@@ -491,3 +494,19 @@ handoff, generated manifest/kernel equality, staged seed recovery, derived first
 admin predicate and exact predecessor Amendments. Run fragment/file/status/
 structure/index/whitespace/private-reference checks after the **last** edit.
 Static checks qualify only the proposal; no runtime proof is claimed here.
+
+### P03-1 revised proposal review round 1 (2026-10-25)
+
+**Reviewed source:** `6bff3fe0`. Two fresh read-only reviewers independently
+inspect the revised package and current source: global SQL/authentication and
+authority instruments (GPT-6 Astra, xhigh), and model/permissions/lifecycle/
+privacy (GPT-6.1 Sol, xhigh). Both approve within their stated scopes; neither
+claims runtime proof or maintainer approval.
+
+The SQL review identifies two acceptance-carrier omissions. The current closed
+GUC list must explicitly adopt the two identity announcements, and ADR-0053
+Amendment 11's authenticated AccountSite seam needs an Amendment for the exact
+bootstrap caller. The revision above adds both obligations and the proposed
+ADR-0053 text; Accepted predecessor text remains untouched. No other actionable
+proposal contradiction is reproduced. Database/provider/application tests are
+not run or inferred from this documentation review.

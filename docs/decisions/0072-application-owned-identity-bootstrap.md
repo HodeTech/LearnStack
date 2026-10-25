@@ -226,6 +226,7 @@ inserted as Accepted changes before approval.
 | ADR-0036 HTTP resolution/marker boundary | Dated bounded-supersession Amendment for exact global-self surface, no fifth TenantContext writer |
 | ADR-0040 owners/nesting/setters | Dated Amendment for subject owners and separately registered candidate reader; no tenant/global join |
 | ADR-0044 §§1/2/9/10 | Dated bounded-supersession Amendment for second sentinel population, app INSERT/evidence reads and new central seams |
+| ADR-0053 Amendment 11 | Dated Amendment extending the confined authenticated BFF seam to exact pre-session bootstrap; public wrappers stay anonymous |
 | ADR-0064 actor/GET-HEAD-only/no-unresolved-endpoint | Dated bounded-supersession Amendment for optional actor/global POST; absent-token 404 preserved |
 | ADR-0070 association/publication | Dated bounded-supersession Amendment for pre-session/bootstrap proof; session custody unchanged |
 | ADR-0071 | Dated navigation Amendment only; ordinary-read status table unchanged |
@@ -271,6 +272,7 @@ provider subjects and credentials survive; ordinary HTTP cannot invoke adoption.
 
 - [ADR-0033](0033-audit-durability-model.md), [ADR-0036](0036-tenant-resolution-trusted-inputs.md),
   [ADR-0040](0040-ambient-unit-of-work.md), [ADR-0044](0044-audit-write-path.md),
+  [ADR-0053](0053-trusted-public-server-rendering.md),
   [ADR-0064](0064-tenant-api-authentication-boundary.md),
   [ADR-0070](0070-owned-tenant-bff-sessions.md),
   [ADR-0071](0071-uncertain-account-site-refusals.md).
