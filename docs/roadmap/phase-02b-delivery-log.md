@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,120 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,164 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -293,6 +293,7 @@ each packet decided and delivered, as
   - [P02b-8 CI corrections, review round 2 and source freeze (2026-10-25)](#p02b-8-ci-corrections-review-round-2-and-source-freeze-2026-10-25) — 21 lines
   - [P02b-8 native completion qualification correction, review round 1 (2026-10-25)](#p02b-8-native-completion-qualification-correction-review-round-1-2026-10-25) — 43 lines
   - [P02b-8 native completion correction, review round 2 and freeze (2026-10-25)](#p02b-8-native-completion-correction-review-round-2-and-freeze-2026-10-25) — 17 lines
+  - [P02b-8 browser artifact ownership correction, review round 1 (2026-10-25)](#p02b-8-browser-artifact-ownership-correction-review-round-1-2026-10-25) — 44 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -22093,6 +22094,50 @@ counterfactual and byte-identical restoration. Both review rounds are complete.
 This freeze changes no production implementation, plan or timing bounds. Fresh
 complete hosted A/B qualification remains required before current-source
 readiness; the failed earlier attempts remain failed.
+
+### P02b-8 browser artifact ownership correction, review round 1 (2026-10-25)
+
+[Run 40180307903](https://github.com/HodeTech/LearnStack/actions/runs/40180307903),
+attempt 1 at `d6462dc7`, finishes 24/27 jobs successfully. The repaired backlog
+case passes in 64.556 seconds. Native proof refuses before test launch with
+`unexpected_crash_artifact_docker_overlay_dump_binary_data_image_metadata_unavailable`;
+its runner reports image `20261012.334.1`, while the earlier passing native job
+reports `20261023.334.3`. This difference does not establish the metadata
+failure's cause. The fail-closed native prerequisite is unchanged.
+
+The separate actual browser case fails during counter-journey cleanup with
+`retained_tree`: the C# driver's private temporary parent is not empty. The
+receipt does not identify its retained entry, so historical causation remains
+unproven. Source inspection nevertheless exposes a reproducible ownership gap.
+Pinned Playwright 1.64.0 creates CDP artifacts under its cached process temporary
+directory, outside the nested root the fixture owns. Its removal helper collects
+filesystem errors without making the CDP close fail.
+
+A disposable actual-SDK probe uses stock Chromium `156.0.8078.48` on Darwin and
+an exact-path, process-local removal refusal. Default CDP creates one unowned
+sibling; browser close, joined browser shutdown and fixture disposal succeed
+while the parent remains nonempty. An explicit private artifact directory under
+the owned root leaves no sibling, and owner disposal removes the marker/root
+after actual browser shutdown. Both process groups join without force; the
+scoped filesystem hook is restored and the owned outer root removed. The
+receipt SHA-256 is
+`51fa1cadb45987bedb2662aae843e9265e3884c26d2d2f6943cc469babfd5e8c`.
+This is a controlled ownership proof, not an identification of the hosted residue.
+
+The fixture now creates that `0700` directory and passes it as `artifactsDir`.
+Browser/history assertions, process joins, privacy checks and the parent's
+nonrecursive empty-root guard are unchanged. Actual removal failures still fail.
+The parent runs the full native HTTPS browser positive/history-counter case:
+1/1 passes in 28.845 seconds, zero skips. Existing fixture/observer controls pass
+37/37; Prettier and whitespace checks pass. No application behavior, test
+population, native prerequisite, deadline or shard plan changes.
+
+Two independent first-round source reviewers approve without findings:
+`pr37_browser_cleanup_analysis` (GPT-6-astra/xhigh) executes the isolated SDK
+counterexample and reviews resource ownership; `pr37_browser_r1_isolation`
+(GPT-6.1-sol/high) independently checks source, isolation and cleanup without
+execution. Second-round source review and fresh hosted qualification remain
+pending. Failed runs provide no passing siblings to that qualification.
 
 ## Status archive
 
