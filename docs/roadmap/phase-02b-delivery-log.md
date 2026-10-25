@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,103 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,120 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -292,6 +292,7 @@ each packet decided and delivered, as
   - [P02b-8 CI witness and SQL-literal corrections, review round 1 (2026-10-25)](#p02b-8-ci-witness-and-sql-literal-corrections-review-round-1-2026-10-25) — 52 lines
   - [P02b-8 CI corrections, review round 2 and source freeze (2026-10-25)](#p02b-8-ci-corrections-review-round-2-and-source-freeze-2026-10-25) — 21 lines
   - [P02b-8 native completion qualification correction, review round 1 (2026-10-25)](#p02b-8-native-completion-qualification-correction-review-round-1-2026-10-25) — 43 lines
+  - [P02b-8 native completion correction, review round 2 and freeze (2026-10-25)](#p02b-8-native-completion-correction-review-round-2-and-freeze-2026-10-25) — 17 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -22075,6 +22076,23 @@ handoff, cleanup and progress contracts; `pr37_handoff_r1_test`
 (GPT-6.1-sol/high) checks fixture isolation and regression non-vacuity. They do
 not claim independent test execution. A second fresh source-review round and
 complete current-source hosted A/B qualification remain pending.
+
+### P02b-8 native completion correction, review round 2 and freeze (2026-10-25)
+
+**Reviewed code:** `0d609804f97bacaeefde5545f868fe6ff89e4f68`, tree
+`c079613a472d02b41d5d5ccfc45b298624272209`, against `ec038610`.
+Two fresh read-only reviewers approve without verified findings:
+`pr37_handoff_r2_protocol` (GPT-6-astra/high) verifies the protocol and cleanup
+fences; `pr37_handoff_r2_witness` (GPT-6.1-sol/high) verifies the regression,
+fixture and documentation claims. Neither reviewer executes tests.
+
+After commit hooks, the parent rebuilds the exact committed source: both locked
+generation cases pass 2/2, zero skips, and the Docker trait control passes 1/1.
+The first-round record above owns the three-case positive run, wrong-generation
+counterfactual and byte-identical restoration. Both review rounds are complete.
+This freeze changes no production implementation, plan or timing bounds. Fresh
+complete hosted A/B qualification remains required before current-source
+readiness; the failed earlier attempts remain failed.
 
 ## Status archive
 
