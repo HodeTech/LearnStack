@@ -1578,8 +1578,10 @@ the [erasure first-writer prerequisites](23-data-protection.md#erasure-authority
 before its redaction handler ships.
 
 Every module that stores user references in audit payloads registers an
-`IUserReferenceLocator`. It lands in [Phase 03](../roadmap/phase-03-identity-admin.md)
-with the handler above and the `users` table both depend on, and
+`IUserReferenceLocator`. [Phase 03 P03-10](../roadmap/phase-03-identity-admin.md#inherited-architecture-obligations)
+owns its applicable-module census and the handler above; P03-1 supplies their
+global User prerequisite. Neither creating that table nor its PII census grants
+the privileged redaction writer. The rule
 `Every_PII_Module_RegistersUserReferenceLocator` is registered in
 [the catalogue](../standards/21-architecture-tests-catalogue.md) against that phase —
 unasserted until then, because a rule naming a phase's absent types would only fail.
@@ -1743,8 +1745,8 @@ update it constrains.
 
 `Every_PII_Module_RegistersUserReferenceLocator` is registered in the catalogue against
 [Phase 03](../roadmap/phase-03-identity-admin.md) and is deliberately **unasserted** until
-then: `IUserReferenceLocator` and the `users` table land there with the erasure handler,
-and a rule naming types no phase has built could only fail. It is absent from the Packet 9
+P03-10 supplies the locators and erasure handler, consuming P03-1's User foundation.
+A rule naming types no packet has built could only fail. It is absent from the Packet 9
 list above for that reason and no other — the catalogue row, not this list, is where its
 status lives.
 

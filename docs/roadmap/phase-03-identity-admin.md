@@ -1,7 +1,7 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-10-25).** Entry preparation complete; runtime implementation
-> **not started**. This is the next critical-path phase after
+> **Status (2026-10-25).** Entry preparation complete; P03-1 decision review in
+> progress; runtime implementation **not started**. This is the next critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md). Begin with the identity foundation's
 > decision pass. The [decision register](#the-decision-register) owns gate state;
 > no implementation decision package is Accepted by this preparation.
@@ -10,7 +10,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | Not started |
+> | P03-1 | Identity authority and membership foundation | Proposed — [decision package and six-step plan](phase-03-delivery-log.md#p03-1-proposed-decision-package-2026-10-25); ADR-0072/0073 await approval |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |

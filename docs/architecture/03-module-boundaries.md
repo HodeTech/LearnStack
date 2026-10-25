@@ -146,12 +146,17 @@ LearnStack mirrors the host→tenant mapping but does not own the issuance flow
 [21-feature-flags.md](21-feature-flags.md).
 
 ### Identity
-Owns users, memberships (triple-keyed on `(user_id, tenant_id, organization_id)`), roles,
-permissions (with scope: Platform / Tenant / Organization per ADR-0017), invitations,
-and sessions. Wraps the auth provider (Keycloak today — see
-[Authentication Strategy](13-identity-and-auth.md)). Security-relevant operations
-publish integration events that the Audit module consumes; Identity does **not** own its
-own audit table.
+Owns users, memberships (triple-keyed on `(user_id, tenant_id, organization_id)`),
+roles, permissions (Platform / Tenant / Organization per ADR-0017) and invitations.
+Wraps the auth provider (Keycloak today — see
+[Authentication Strategy](13-identity-and-auth.md)). Native credential/session
+custody belongs to the BFF owner under
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md), not an Identity token table.
+Identity mutation audit uses the central same-transaction write path under
+[ADR-0044](../decisions/0044-audit-write-path.md). Provider-event mirroring is the
+separate [Phase 03 G10](../roadmap/phase-03-identity-admin.md#the-decision-register)
+ingress contract; integration events do not replace MUST mutation durability.
+Identity owns no audit table.
 
 ### Tenant Customization
 Owns the customization aggregates per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):

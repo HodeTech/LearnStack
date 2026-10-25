@@ -254,7 +254,13 @@ The inventory also covers these distinct copies and custody boundaries:
 
 ### Right to Restriction of Processing
 
-A learner can request that processing be paused while a dispute is resolved. Implementation: a tenant-scoped flag on the user that gates analytics ingestion and notifications. Reads continue (the user can still log in and see their own data) but no new events are processed.
+A learner can request that processing be paused while a dispute is resolved.
+The restriction belongs to the tenant/membership context, never a tenant-authored
+column on global `User`. [Phase 03 G3/G15/G16](../roadmap/phase-03-identity-admin.md#the-decision-register)
+settle its storage, authority and fulfillment before the writer. The intended
+restriction gates analytics ingestion and notifications while preserving the
+person's authorized access to their data; this paragraph claims no implemented
+restriction mechanism.
 
 ### Right to Object
 

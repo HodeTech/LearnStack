@@ -3114,10 +3114,14 @@ which decides identity, multiplicity, capture and classification;
   actor columns centrally and delegates the payload columns to the module that knows
   which JSON paths in its own snapshots name a user
   ([31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md)).
-- **Registered here, asserted in Phase 03.** `IUserReferenceLocator` and
-  `UserGdprDeletedIntegrationEventHandler` land with the `users` table they need
-  ([ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md)), so
-  until then there is no locator to count and no module obliged to have one. Reserving the
+- **Registered here, asserted in Phase 03.** The
+  [packet plan](../roadmap/phase-03-identity-admin.md#inherited-architecture-obligations)
+  assigns the applicable locator census and privileged redaction handler to
+  P03-10. P03-1's User foundation supplies their identity prerequisite; it does
+  not itself deliver the erasure workflow. This refines the phase-level timing in
+  [ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md),
+  without granting a redaction writer. Until that implementation there is no
+  locator population to count. Reserving the
   name now is what [§ How to add an entry](#how-to-add-an-entry) prescribes for a rule
   that is agreed and not yet written: the row carries **Registered** and the phase that
   owes the code, and the alternative — a rule that lives only in an architecture

@@ -15,6 +15,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 130 lines
+  - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 128 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -100,3 +102,133 @@ decision needs its correct disclosure or successor before implementation.
 **Preparation versus delivery.** The document plan is ready for that decision
 pass. Nonseed bootstrap, live authorization, operator admission and DSAR runtime
 proof remain required implementation work; this entry claims none of them passed.
+
+## P03-1 — Identity authority and membership foundation
+
+### P03-1 proposed decision package (2026-10-25)
+
+**Status: Proposed.** The maintainer requested P03-1 on `development`, with a
+complete prior-document review, upfront decisions, approval before a new ADR is
+implemented, and two fresh independent review rounds after each committed step.
+No gate is Accepted here. No runtime, realm, schema, permission or grant changes.
+
+**Source.** Review starts at `46da68132987759b7ca6a19230b525b5485c7441`, the
+existing Phase 03 entry-preparation commit. Its predecessor closes merged Phase
+02b. Preserve both commits and the unrelated untracked worktree directory.
+
+**Problem and scope.** Establish durable application identity and contextual
+membership/role foundations before live authorization. Existing strict bearer
+validation and native BFF custody are inputs, not bootstrap or grant mechanisms.
+P03-1 supplies D01/D08 and the foundation portions of C01/C02/C03/C10. P03-2 owns
+live resolver/permission execution; P03-3 owns administration and usable scope
+discovery/switching. This package does not accept their still-open policies.
+
+#### Documentation and source review
+
+Read the working agreement and `implement-task`/`start-task`, product vision,
+MVP/roadmap/principles/glossary, current phase/entry record, identity and module
+boundaries, database/tenant/permission/audit/privacy authorities and related
+Accepted decisions. Trace current API/BFF/seed, transaction/filter/RLS, audit
+capture/error sinks and architecture-test seams. Three independent read-only
+audits separately cover G1/G2, schema/lifecycle/delegation and G19/privacy.
+These are static design reviews, not provider/database/runtime qualifications.
+
+| Verified fact | First-writer consequence |
+|---|---|
+| Identity's four packages contain assembly markers only | No existing identity schema/grant behavior decides the model |
+| API and BFF require an actor claim; only four development personas receive one | A nonseed actor needs an explicit bootstrap contract before accepted login |
+| Membership is asked before tenant context; permission behavior precedes transaction | No ordinary repository, hidden setter or Platform bypass can fill this gap |
+| Four login roles and eight logical tenant setters are closed | New subject owners/candidate reader need explicit authority and census |
+| Global User has no tenant; current global audit rejects this write shape | Decide global self RLS and same-transaction central audit, not a fake tenant |
+| Tenant filters do not exclude deleted rows or carry app.scope; org validation checks belonging | Lifecycle predicates and eligibility cannot be inferred from those mechanisms |
+| SeedData preserves four actor identities; it declares no application memberships | Adopt actual provider bindings explicitly, then create only declared grants |
+| Snapshot PII markers/name redaction/LS0002 have bounded distinct scopes | Add a semantic mapped-property census and fixed writer diagnostics |
+| Existing audit/event references survive six-column redaction | Decide anti-recreation/fence now; do not claim completed anonymisation |
+
+Four current non-ADR carrier ambiguities are corrected in this preparation:
+Module Boundaries now distinguishes native BFF custody from Identity and central
+mutation audit from provider mirroring; Data Protection places tenant restriction
+in membership context, never User; Audit architecture/catalogue distinguish
+P03-1's User prerequisite from P03-10's locator/privileged erasure delivery.
+Accepted ADR bodies and all historical delivery entries remain untouched.
+
+#### Proposed answers and exact split gates
+
+| Gate/part | Proposed answer / vehicle | Remaining named obligation |
+|---|---|---|
+| G1 | ADR-0072: application allocates one permanent actor from verified issuer/opaque sub; explicit bootstrap; trusted seed adoption | P03-4 completes real invitation enrollment; no email merge/provider Admin write |
+| G2 storage/reader contract | ADR-0072 global self owner; ADR-0073 app-role candidate read owner, new enumerated setter and step-5/6 handoff | P03-2 execution, live rows 7/10/14 and protected 6/9; claim-only mismatch evidence before activation |
+| G3 | ADR-0073: Membership contains one contextual profile and multiple assignments; null-safe natural key, lifecycle/successor and finite role scopes | P03-3 field/HTTP/admin/organization operations; P03-5 dynamic fields |
+| G4 shared implications | No global active-scope column; actor-only bootstrap does not publish a tenant BFF session | P03-3 usable discovery, per-session issuance, switch/refresh/logout races and real A/B proof |
+| G5 schema/bootstrap | Scoped permission identity; code definitions, finite initial grants, disabled later additions, last-admin serialization | P03-2 permission enforcement/delegation/denial and revocation execution; P03-3 UI |
+| G7 only new global mutation | ADR-0072: first User and its central MUST row share one app-role transaction, exact row-bound global exception | P03-2 normal HTTP/application denial/enrichment; no general standalone budget |
+| G8 shared shape | No Invitation table/implicit multi-root exception; Membership natural key supports later reconciliation | P03-4 acceptance/delivery/aggregate atomicity decision before writer |
+| G16 shared invariants | Permanent binding/tombstone, global admission lock, no implicit global closure on tenant erasure | P03-10 authority, holds, participants, transformations, artifacts, provider finalization and completion |
+| G19 | ADR-0073: explicit mapped-property classification, fixed diagnostics and sink/capture canaries | P03-5 revision-aware dynamic values; P03-10 locator/erasure fulfillment |
+
+The new global mutation slice replaces an audit restriction through its named
+ADR. It adds no operator population, Platform permission, Hub crossing or provider
+ingress; G10/G13 need not move into bootstrap under this selected design. If
+implementation discovers such a dependency, its affected gate closes before code.
+
+#### Maintainer decisions requested together
+
+1. Adopt ADR-0072, knowingly replacing the required provider `user_id` with an
+   application-owned binding and an optional consistency claim. Keep all other
+   strict token checks; ordinary reads never create Users. This changes the API/
+   BFF contract and introduces authenticated binding-store availability cost.
+2. Admit the exact global-self POST and transactional global User/audit class,
+   subject RLS and confined owner-read closure guard. No fifth login/bypass,
+   operator grant, public directory or tenant authority is implied.
+3. Adopt ADR-0073's contained membership/profile/grant model, null-safe lifecycle,
+   scoped finite permission manifests and concurrent last-admin invariant.
+4. Approve permanent anti-recreation binding retention as a first-schema choice.
+   It retains linkable identifiers; P03-10 still owes the separate privacy/
+   transformation decision. Approve no automatic new-permission grants on rerun.
+5. Adopt the complete classification/diagnostic boundary and six implementation
+   steps below. The two ADRs and this package are the approval surface; no
+   separate runtime policy is hidden in a review receipt.
+
+#### Six implementation steps
+
+| Step | Concrete result | Main surfaces | Required validation before closure |
+|---|---|---|---|
+| 1 | Accept decisions, append exact dated disclosures, register obligations and reconcile canonical authorities | ADR-0003/0017/0036/0040/0044/0064/0070; Standards 05/11/18/19/21; Identity spec and applicable architecture/glossary | Parser/status, exact clauses/carrier audit, whole-tree docs lint, no Accepted-body rewrite |
+| 2 | Complete typed property classification census and safe diagnostic boundary before identity PII writes | SharedKernel metadata; production EF models; module PII/audit specs; observability/error tests | Nonempty model census; planted omission; real sink/capture positive and canary controls; existing redaction remains |
+| 3 | Global User/binding storage, confined self owner, atomic central audit and closure guard | Identity Domain/Infrastructure; common transaction/audit contracts; migration chain and fixtures | Real app-role RLS and uniqueness races; missing/mismatched audit commit refusal; owner/pooled/cancellation/fence controls |
+| 4 | Membership/Profile/Role foundation and semantic identity/member seed adoption | Identity packages/contracts; Tenancy lifecycle contract; Seeder/shared seed-demo handoff; role/PII matrices | Null-key/scope/child/audit/lifecycle and last-admin races; real warm provider seed readback, preserved credentials and no-write rerun |
+| 5 | Explicit bootstrap HTTP, binding-based ordinary identity and coordinated native BFF/SDK activation | API authentication/global-self surface; generated SDK; native provider/session response owners; OpenAPI | Real actorless Keycloak tokens/native HTTPS; binding matrix; unknown-host/quota/body/protocol/late-publication controls; unchanged anonymous flow |
+| 6 | Complete integrated qualification, corpus/CI assignment and source-bound closeout | Actual test owners; bounded shard plan if discovery changes; phase Status/log; reviewable PR description | Relevant complete backend/frontend suites, real provider/browser slice, full complementary A/B CI under existing ceilings/names, no skips/empty proof |
+
+Each step is committed on `development`, receives two independent fresh review
+rounds, and commits fixes only for verified findings. New reviewers inspect the
+fixed source; receipts name commits, scope, commands/results and limitations.
+Continue automatically between accepted steps. A new architectural decision or
+verified blocker is surfaced before its dependent work. No historical review
+claim is silently rewritten and no passing suite substitutes for the other round.
+
+Implementation dispatches `add-tenant-owned-entity` only for contextual tables,
+`add-ef-migration`, `add-mediatr-handler`, `add-audit-coverage`, `add-permission`,
+`add-architecture-test`, `add-integration-test`, `seed-tenant` and the relevant
+native/SDK workflow. Global User follows its accepted class, not a tenant template.
+`run-tests-locally`, `standards-check` and `commit-and-pr` supply verification and
+commit gates. No runtime provider SDK is needed by the selected binding strategy;
+its conditional backfill is not claimed complete.
+
+#### Proof boundaries and carry-forward
+
+Foundation proof must use real PostgreSQL with `learnstack_app` for ordinary
+isolation, pinned Keycloak for actual actorless/seed issuance and native HTTPS
+for BFF publication. Structural checks have planted dirty/clean controls;
+behavioral failures must identify the mechanism they exercise. Register actual
+production model/route/adoption subjects, not test-only placeholders.
+
+No generic protected route is admitted while AuthorizationBehavior remains a
+shell. No invite, federation, operator, DSAR, global-profile editor, full Studio,
+dynamic-field schema or distributed session store is delivered by this package.
+Their first-writer contracts remain assigned in the phase register; no required
+P03-1 prerequisite is relabeled as a later production-hardening task.
+
+**Current validation.** Pending on the proposed documentation source. There has
+been no backend/frontend/provider execution or implementation qualification in
+this decision pass; review and mechanical results are appended after completion.
