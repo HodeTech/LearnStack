@@ -1432,6 +1432,12 @@ changes `xmin` while leaving `row_version` intact.
 
 ## Read Models
 
+Every new durable asynchronous table or stored projection must be reconciled
+with the [canonical copy inventory](../architecture/23-data-protection.md#durable-asynchronous-store-inventory)
+and its explicit scope classifications (ADR-0046/0047/0057). Update the census
+and planted controls before introducing an unsupported DDL form; inventory
+coverage grants no erasure or purge authority.
+
 Public read models consumed by other modules:
 
 - Live in the producing module's migrations.

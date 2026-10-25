@@ -43,7 +43,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// </remarks>
 public sealed class TenancyDbContextFactory : IDesignTimeDbContextFactory<TenancyDbContext>
 {
-    private const string ConnectionStringVariable = "ConnectionStrings__Migration";
+    private const string MigrationEnvironmentKey = "ConnectionStrings__Migration";
 
     /// <summary>
     /// The migration history table for this chain.
@@ -58,21 +58,18 @@ public sealed class TenancyDbContextFactory : IDesignTimeDbContextFactory<Tenanc
 
     public TenancyDbContext CreateDbContext(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable(ConnectionStringVariable);
+        var connectionString = Environment.GetEnvironmentVariable(MigrationEnvironmentKey);
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            // This const is the public environment key name, never its credential value.
-#pragma warning disable LS0002
             throw new InvalidOperationException(
-                $"{ConnectionStringVariable} is not set in the environment. "
+                $"{MigrationEnvironmentKey} is not set in the environment. "
                 + "Migrations run as learnstack_migration, which owns every table; the value "
                 + "is in .env.example and `make migrate` is its sanctioned carrier. "
                 + "`dotnet ef --connection` does not help here — EF applies it after this "
                 + "factory returns. Do not point this at ConnectionStrings__Default — that "
                 + "role cannot CREATE in schema public, and granting it that is the ownership "
                 + "mistake the four-role split exists to prevent.");
-#pragma warning restore LS0002
         }
 
         var options = new DbContextOptionsBuilder<TenancyDbContext>()

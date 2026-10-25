@@ -1,3 +1,4 @@
+using System.Globalization;
 using FluentAssertions;
 using LearnStack.SharedKernel.Secrets;
 using Xunit;
@@ -115,5 +116,39 @@ public sealed class SensitiveTokenCatalogTests
     public void IsSensitive_False_For_Ordinary_Names(string name)
     {
         SensitiveTokenCatalog.IsSensitive(name).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("api.key")]
+    [InlineData("api-key")]
+    [InlineData("api/key")]
+    [InlineData("api key")]
+    [InlineData("api::key")]
+    [InlineData("__auth..header--")]
+    [InlineData("request2Token")]
+    [InlineData("HTTPAuthorization")]
+    public void IsSensitive_Preserves_Separator_And_Acronym_Boundaries(string name) =>
+        SensitiveTokenCatalog.IsSensitive(name).Should().BeTrue();
+
+    [Fact]
+    public void IsSensitive_Is_Ordinal_Under_Turkish_Culture_And_Handles_Null()
+    {
+        var previous = CultureInfo.CurrentCulture;
+        var previousUi = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("tr-TR");
+            CultureInfo.CurrentUICulture = CultureInfo.CurrentCulture;
+            SensitiveTokenCatalog.IsSensitive("SIGNING_KEY").Should().BeTrue();
+            SensitiveTokenCatalog.IsSensitive("PRIVATE_KEY").Should().BeTrue();
+            SensitiveTokenCatalog.IsSensitive("ClassName").Should().BeFalse();
+            SensitiveTokenCatalog.IsSensitive("---").Should().BeFalse();
+            SensitiveTokenCatalog.IsSensitive(null!).Should().BeFalse();
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+            CultureInfo.CurrentUICulture = previousUi;
+        }
     }
 }

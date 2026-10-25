@@ -81,7 +81,7 @@ internal sealed class AnalyzerBuildSandbox : IDisposable
         }
     }
 
-    public string CreateProductionProject(string layer)
+    public string CreateProductionProject(string layer, bool violation = true)
     {
         var name = "LearnStack.BuildProof." + layer;
         var parent = layer is "Domain" or "Application"
@@ -93,6 +93,23 @@ internal sealed class AnalyzerBuildSandbox : IDisposable
         // No TargetFramework, warning policy, scope property or analyzer reference is
         // restated here: the copied production hierarchy must supply all of them.
         var project = Path.Combine(directory, name + ".csproj");
+        File.WriteAllText(project, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        File.WriteAllText(Path.Combine(directory, "Probe.cs"), violation ? ProbeSource : """
+            namespace BuildProof;
+            internal static class Probe
+            {
+                internal static void FixedMessage(string className) => throw new System.InvalidOperationException(className);
+            }
+            """);
+        File.WriteAllText(Path.Combine(directory, "DomainException.g.cs"), DomainExceptionSource);
+        return project;
+    }
+
+    public string CreateExcludedProject(string tree)
+    {
+        var directory = Path.Combine(_backend, tree, "LearnStack.BuildProof." + tree);
+        Directory.CreateDirectory(directory);
+        var project = Path.Combine(directory, "LearnStack.BuildProof." + tree + ".csproj");
         File.WriteAllText(project, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
         File.WriteAllText(Path.Combine(directory, "Probe.cs"), ProbeSource);
         File.WriteAllText(Path.Combine(directory, "DomainException.g.cs"), DomainExceptionSource);
@@ -179,6 +196,7 @@ internal sealed class AnalyzerBuildSandbox : IDisposable
         start.Environment["DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE"] = "true";
         start.Environment["DOTNET_NOLOGO"] = "1";
         start.Environment["MSBUILDDISABLENODEREUSE"] = "1";
+        start.Environment["MSBUILDTERMINALLOGGER"] = "off";
 
         using var process = Process.Start(start)
             ?? throw new InvalidOperationException("The disposable dotnet process did not start.");

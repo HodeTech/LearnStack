@@ -31,7 +31,7 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// </para>
 /// <para>
 /// <b>Entry is audited, and an entry that cannot be recorded does not happen.</b> Every
-/// <c>EnterAsync</c> writes one <c>platform.admin_scope.enter</c> row — the slug the
+/// permitted entry writes one <c>platform.admin_scope.enter</c> row — the slug the
 /// Tenancy catalogue source declares off-path at MUST / <c>SecurityEvent</c> — through
 /// <c>IAuditStore.WritePlatformScopeAsync</c>, as <c>learnstack_platform</c>, on the
 /// scope's own connection and in a transaction of its own that <b>commits before</b> the
@@ -42,6 +42,8 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// ride the handle's transaction, so rolling the work back erased the only record that
 /// privileged access had happened; the review of Packet 9 measured it, and an entry is now
 /// recorded whatever the work then does.
+/// The permission gate runs first; a refused attempt opens no privileged connection and
+/// writes no entry row.
 /// </para>
 /// <para>
 /// <b>The <c>Warning</c> log line stays, and it is not the record.</b> The row is what a

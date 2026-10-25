@@ -33,12 +33,15 @@ internal static class SchemaTableClasses
     public static readonly string[] Data = [.. Existing, .. JobTenant, .. Control, .. Vendor];
     public static bool AppSelectDenied(string table) => Control.Contains(table) || Vendor.Contains(table);
 
+    internal static Task<List<string>> ReadAsync(DbConnection connection, DbTransaction? transaction = null) =>
+        SchemaQueries.ReadStringsAsync(connection, """
+            SELECT relname FROM pg_class
+            WHERE relnamespace = 'public'::regnamespace AND relkind IN ('r', 'p', 'm') ORDER BY relname
+            """, transaction);
+
     public static async Task AssertCompleteAsync(DbConnection connection, DbTransaction? transaction = null)
     {
-        var discovered = await SchemaQueries.ReadStringsAsync(connection, """
-            SELECT relname FROM pg_class
-            WHERE relnamespace = 'public'::regnamespace AND relkind = 'r' ORDER BY relname
-            """, transaction);
+        var discovered = await ReadAsync(connection, transaction);
         discovered.Should().BeEquivalentTo(Data.Concat(MigrationChains.HistoryTables),
             "every public table must have an exact reviewed class, including the five history tables; "
             + "Fix: classify a new table under Standards 05 rather than excluding it from discovery");

@@ -60,6 +60,7 @@ public sealed class SensitiveExceptionMessageAnalyzerTests
     [InlineData("public void Run() { string setCookie = \"example\"; throw new Exception(setCookie); }")]
     [InlineData("public void Run(string accessToken) => throw new ProviderFailure(\"provider\", accessToken);")]
     [InlineData("public void Run(string accessToken) => throw new ProviderFailure(message: accessToken, provider: \"provider\");")]
+    [InlineData("public void Run(string accessToken) => throw new ProviderFailure((dynamic)\"provider\", accessToken);")]
     [InlineData("public void Run(string accessToken) => throw new ProviderFailure(accessToken, \"fixed\");")]
     [InlineData("public void Run(string accessToken) => throw new ProviderFailure(accessToken, $\"{ClientSecret}\");")]
     public async Task Reports_One_Fixed_Warning_At_The_Thrown_Creation(string member)
@@ -100,10 +101,46 @@ public sealed class SensitiveExceptionMessageAnalyzerTests
     [InlineData("public void Run(string accessToken) => throw new Exception($\"{((Func<string>)(() => accessToken))()}\");")]
     [InlineData("public void Run(System.Threading.CancellationToken accessToken) => throw new OperationCanceledException(\"fixed\", accessToken);")]
     [InlineData("public void Run(System.Collections.Generic.Dictionary<string, string> values) => throw new Exception($\"{values[\"token\"]}\");")]
+    [InlineData("public void Run() { try { throw new Exception(\"fixed\"); } catch { throw; } }")]
     public async Task Keeps_Excluded_Forms_And_Ordinary_References_Clean(string member)
     {
         var diagnostics = await AnalyzerCompilation.RunAsync(Preamble + member + "\n}", new SensitiveExceptionMessageAnalyzer());
         diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Descriptor_And_Null_Context_Keep_The_Public_Contract()
+    {
+        var analyzer = new SensitiveExceptionMessageAnalyzer();
+        var descriptor = analyzer.SupportedDiagnostics.Should().ContainSingle().Subject;
+        descriptor.Id.Should().Be("LS0002");
+        descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Warning);
+        descriptor.IsEnabledByDefault.Should().BeTrue();
+        descriptor.Category.Should().Be("Security");
+        descriptor.MessageFormat.ToString(CultureInfo.InvariantCulture).Should().Be(FixedMessage);
+        descriptor.Description.ToString(CultureInfo.InvariantCulture).Should().Contain("ADR-0032 Amendment 6");
+        descriptor.HelpLinkUri.Should().EndWith("#amendment-6--sensitive-exception-message-diagnostic-2026-10-25");
+        Action initialize = () => analyzer.Initialize(null!);
+        initialize.Should().Throw<ArgumentNullException>().WithParameterName("context");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Walks_Deep_Concatenation_Without_An_Analyzer_Crash(bool sensitive)
+    {
+        // Bounded so the compiler's own parser/binder remains a safe prerequisite.
+        var expression = (sensitive ? "accessToken" : "ordinary")
+            + string.Concat(Enumerable.Repeat(" + ordinary", 1024));
+        var source = $$"""
+            public static class Sample
+            {
+                public static void Run(string accessToken, string ordinary) =>
+                    throw new System.Exception({{expression}});
+            }
+            """;
+        var diagnostics = await AnalyzerCompilation.RunAsync(source, new SensitiveExceptionMessageAnalyzer());
+        diagnostics.Count(diagnostic => diagnostic.Id == "LS0002").Should().Be(sensitive ? 1 : 0);
     }
 
     [Fact]

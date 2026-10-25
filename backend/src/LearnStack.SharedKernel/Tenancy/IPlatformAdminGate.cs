@@ -54,9 +54,7 @@ public sealed class DenyAllPlatformAdminGate : IPlatformAdminGate
 public sealed class PlatformAdminScopeDeniedException : Exception
 {
     public PlatformAdminScopeDeniedException(string reason)
-        : base($"Platform-admin scope entry was refused for reason '{reason}'. "
-            + "No principal in this deployment holds a platform-scope permission; "
-            + "platform permissions arrive in Phase 03.") =>
+        : base($"Platform-admin scope entry was refused for reason '{reason}'.") =>
         Reason = reason;
 
     public PlatformAdminScopeDeniedException()

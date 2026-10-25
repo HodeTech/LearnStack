@@ -54,10 +54,10 @@ public sealed record AuditEntryDraft
     public required OrganizationId? OrganizationId { get; init; }
 
     /// <summary>
-    /// Who acted. Deliberately <b>never redacted</b>: once the <c>users</c> row is erased
-    /// it is an orphan surrogate with no path back to a natural person, which is what
-    /// keeps the row's existence auditable after erasure and the probe-detection queries
-    /// answerable.
+    /// Who acted. Deliberately retained for audit continuity and probe detection after
+    /// the <c>users</c> row is erased. This pseudonymous identifier may still be linked
+    /// to a person through other retained records; deleting that row does not establish
+    /// anonymization.
     /// </summary>
     public required UserId? ActorUserId { get; init; }
 

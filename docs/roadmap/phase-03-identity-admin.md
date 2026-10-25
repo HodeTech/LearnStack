@@ -210,7 +210,7 @@ immutable facts, dependency/deletion order, replay/deduplication floors and
 durable completion. Ordinary app-role/SystemActor delivery or dispatcher
 credentials authorize no privileged erasure. The existing inbox, delivery and
 job grants provide no generic Platform purge; operator authority and erasure
-prove no external quiescence or reservation release.
+do not prove external quiescence or reservation release.
 
 [Phase 11](phase-11-production-hardening.md#data-operations) extends these
 workflows across later modules and retained copies, with purge/retention,
@@ -384,6 +384,25 @@ Authorization is the third layer, not the first. A permission check that passes 
 runs under the tenant's `ITenantContext` and under Row Level Security; a deny is a
 better error message, not the isolation boundary.
 
+### Operator recovery and dashboard admission
+
+Phase 02b supplies internal targeted subscriber replay and no operator route.
+This phase owns the operator outbox/dead-letter/subscriber-replay and job-recovery
+surface. Before its first writer, settle the URL space under ADR-0036, exact
+Platform-scope permission, reason, fenced transition and MUST audit/runbook;
+producer reset is not an implied power of targeted subscriber replay.
+
+This phase also owns the application `/admin/hangfire*` mapping and its
+Platform-scope permission. Append the dated ADR-0015 disclosure before replacing
+its historical realm-role gate. Keycloak roles are not LearnStack authority.
+Keep the route absent until the application gate and denied-route controls ship.
+Phase 11 owns APISIX defense in depth and gateway activation.
+
+The first Platform-admin consumer must decide denied-entry evidence and enforce
+connection lifetime: a connection retained after scope completion must not permit
+an autocommit bypass. The current deny-all gate exposes no privileged consumer;
+an admitted scope's entry row is not evidence of a denied attempt.
+
 ### Gateway Configuration Corrections
 
 The APISIX gateway **adapter** is demand-gated to
@@ -552,6 +571,9 @@ Redacting the six columns alone does not establish complete anonymisation.
   the first permission-sensitive route, with real denied-dispatch controls.
 - The Platform-scope permission gate replacing `DenyAllPlatformAdminGate`, with the
   killswitch toggle command, its permission key and its runbook.
+- Operator recovery and Hangfire dashboard admission under the
+  [bounded first-writer decisions](#operator-recovery-and-dashboard-admission),
+  including denied-route, fencing, reason and audit controls.
 - Admin login, tenant switcher and organization switcher via OIDC PKCE.
 - Tenant- and organization-aware user management screens.
 - Invitation flow end to end, tenant and organization bound.
@@ -593,6 +615,10 @@ Redacting the six columns alone does not establish complete anonymisation.
   rejection (Tenant vs Organization) returns the correct Problem Details code.
 - Unauthorized users cannot reach admin endpoints, and a denied command returns
   `Result.Fail(forbidden)` rather than throwing.
+- Dashboard and recovery routes remain absent until their application permission
+  and dated decisions ship. Cross-scope/unauthorized recovery cannot reset producer
+  state, bypass subscriber deduplication, release uncertain job capacity or reuse
+  a completed privileged connection.
 - The [runtime authorization gate](#authorization) refuses an unclassified protected
   endpoint and a valid principal lacking its permission before handler execution;
   explicit public routes still work anonymously. Updating the static route census
@@ -616,6 +642,10 @@ Redacting the six columns alone does not establish complete anonymisation.
   `internal-api-hmac-key` appears nowhere in it.
 
 ## Risks
+
+- **Redaction mistaken for anonymisation.** Retained actor/entity/causation IDs
+  and metadata survive six-column redaction. The bounded first-writer decision
+  and durable-copy controls are exit requirements, not a later operations waiver.
 
 - **Re-implementing what Keycloak owns** — password hashing, reset emails, token
   rotation. If a capability appears in the Keycloak vs LearnStack split table in
@@ -658,6 +688,8 @@ Redacting the six columns alone does not establish complete anonymisation.
   integration test running as `learnstack_app`.
 - A tenant-scoped erasure in one tenant leaves that person's access to the other tenant
   intact, and no tenant-admin path can reach the global account.
+- The bounded DSAR/redaction decision and applicable durable-copy controls above
+  are implemented; surviving immutable references are explicitly reconciled.
 - Every `TenantCustomFieldDef` carries a PII category, and export, redaction and
   retention are driven by the definitions rather than by the JSONB blob.
 - `AuthorizationBehavior` is a real implementation and every write endpoint carries an

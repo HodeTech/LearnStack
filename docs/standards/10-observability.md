@@ -677,7 +677,11 @@ In addition to system metrics, business KPIs:
   tenant id, organization id, user id, request path).
 - Provider events are tagged with `tenant_id` (and `organization_id` where
   applicable) to allow per-tenant inspection.
-- PII redaction applied before the provider receives the event.
+- The adapters redact matching `AdditionalTags` property names before provider
+  egress. Exception messages/stacks and unrelated values are not scrubbed; use
+  fixed messages and closed descriptors under
+  [Sensitive Exception Messages](09-error-handling.md#sensitive-exception-messages).
+  Phase 11 qualifies provider egress and retained diagnostic copies before production.
 - Sentry release tags match the deployed git sha.
 - The capture boundary — which exceptions go to the provider and which only
   to OTel — is in

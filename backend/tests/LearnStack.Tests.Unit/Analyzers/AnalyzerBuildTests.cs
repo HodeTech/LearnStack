@@ -15,6 +15,9 @@ public sealed class AnalyzerBuildTests
         ("Application", true),
         ("Api", false),
         ("Infrastructure", false),
+        ("Application.Contracts", false),
+        ("SharedKernel", false),
+        ("Seeder", false),
     ];
 
     [Fact]
@@ -61,5 +64,24 @@ public sealed class AnalyzerBuildTests
             "the unused-local warning must be promoted by the actual CI props: {0}", control.Summary);
         control.HasDiagnostic("warning", "LS0002").Should().BeTrue(control.Summary);
         control.HasDiagnostic("error", "LS0002").Should().BeFalse(control.Summary);
+    }
+
+    [Fact]
+    public async Task Clean_Production_And_Excluded_Project_Trees_Stay_Diagnostic_Free()
+    {
+        using var build = new AnalyzerBuildSandbox();
+        var projects = new[]
+        {
+            build.CreateProductionProject("Api", violation: false),
+            build.CreateExcludedProject("tests"),
+            build.CreateExcludedProject("analyzers"),
+        };
+        foreach (var project in projects)
+        {
+            await build.RestoreAsync(project);
+            var result = await build.BuildAsync(project);
+            result.ExitCode.Should().Be(0, result.Summary);
+            result.Diagnostics.Should().BeEmpty("clean production code and excluded trees must stay clean: {0}", result.Summary);
+        }
     }
 }

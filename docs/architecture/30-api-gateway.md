@@ -294,7 +294,7 @@ routes:
     # a per-environment decision here; the application serves both everywhere,
     # because the document is the contract the SDK generates from.
 
-  # Hangfire dashboard — defense-in-depth: gateway BasicAuth + backend role check
+  # Hangfire dashboard — gateway BasicAuth + backend Platform-scope permission
   - id: 3
     uri: /admin/hangfire*
     priority: 400
@@ -392,8 +392,8 @@ routes:
 ```
 
 The corrections in Rules 1–3 land in the shipped `infra/apisix/apisix.yaml` in
-[Phase 03](../roadmap/phase-03-identity-admin.md), alongside uncommenting the
-`openid-connect` block against the realm that exists by then. APISIX becomes a real
+[Phase 03](../roadmap/phase-03-identity-admin.md). The `openid-connect` block stays
+disabled until its qualification and gateway activation in Phase 11. APISIX becomes a real
 gateway — TLS termination, consumer-keyed limits, WAF — in
 [Phase 11](../roadmap/phase-11-production-hardening.md).
 
@@ -535,7 +535,9 @@ Phase 11 deliverables:
 - [ ] Per-tenant rate-limit override (consumer keys; requires etcd mode).
 - [ ] `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` for Keycloak issuer split (Docker network vs
       browser); document in 13-identity-and-auth.md.
-- [ ] Hangfire dashboard route gated by both BasicAuth (gateway) and `IsInRole("platform-admin")`
+- [ ] Hangfire dashboard route gated by BasicAuth at the gateway and the
+  application's Platform-scope permission; Phase 03 owns the dated ADR-0015
+  disclosure before mapping, and Phase 11 owns gateway qualification.
       (backend).
 - [ ] Production CORS allow-list (no `localhost`).
 - [ ] OpenAPI dev route gated by environment (404 in prod).

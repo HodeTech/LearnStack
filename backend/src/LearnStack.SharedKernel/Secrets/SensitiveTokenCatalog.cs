@@ -19,9 +19,9 @@ namespace LearnStack.SharedKernel.Secrets;
 /// <c>UserPassword</c> → <c>["user", "password"]</c> still matches
 /// <c>password</c>. Two-word tokens (<c>api_key</c>, <c>card_number</c>) match
 /// either the joined form (<c>apikey</c>) or adjacent segments
-/// (<c>Api</c>+<c>Key</c>). Standards 11 § Sensitive Data Exposure is
-/// authoritative for what counts as sensitive; this list is the runtime
-/// expression of that rule.
+/// (<c>Api</c>+<c>Key</c>). Standards 11 § Logging Hygiene forbids sensitive disclosure. This
+/// bounded matcher implements name-based filtering, not complete PII discovery.
+/// Plurals, numeric suffixes and arbitrary unsplit compounds are not inferred.
 /// </para>
 /// <para>
 /// New tokens land in the shared internal matcher, so a future addition

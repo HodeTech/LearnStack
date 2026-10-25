@@ -5,6 +5,8 @@
 Public accessibility enforcement additionally derives from
 [ADR-0027](../decisions/0027-frontend-i18n.md) and
 [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
+Exception diagnostic review additionally derives from
+[ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md#amendment-7--diagnostic-wiring-and-proof-clarifications-2026-10-25).
 
 How LearnStack reviews pull requests. The goal is faster, safer ship — not gatekeeping.
 
@@ -58,6 +60,9 @@ Before requesting reviews, run the relevant checklist on your own diff:
 - [ ] Strongly-typed ids are used; no raw `Guid` on the public surface — except a module-local id in a cross-module contract, which is [ADR-0023 Amendment 8](../decisions/0023-strongly-typed-id-source-generator.md)'s bounded exception.
 - [ ] No `DateTime.UtcNow` / `DateTime.Now` in domain or application code (use `IClock` / `TimeProvider`).
 - [ ] Architecture tests still pass locally.
+- [ ] Exception messages use fixed text; the bounded LS0002 corpus/build guard
+  passes with no project-wide suppression. Review values outside its
+  [name-based scope](09-error-handling.md#sensitive-exception-messages) separately.
 - [ ] Tenant-isolation test added for the new surface.
 
 ### Frontend self-review

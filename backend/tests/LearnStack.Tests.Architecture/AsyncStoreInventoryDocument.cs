@@ -5,17 +5,18 @@ namespace LearnStack.Tests.Architecture;
 
 internal static class AsyncStoreInventoryDocument
 {
-    internal static readonly string[] Sections = ["first-party", "vendor", "exclusions", "custody"];
+    internal static readonly string[] Sections = ["first-party", "vendor", "exclusions", "module-exclusions", "custody"];
     private static readonly string[] CustodyNames =
     [
         "Existing `audit_log`", "Development Keycloak user events, `EVENT_ENTITY`",
-        "External diagnostics", "Database, WAL and backups", "Native BFF session custody",
+        "External diagnostics and local error files", "Database, WAL and backups", "Native BFF session custody",
     ];
     private static readonly Regex TableIdentifier = new(@"^`[a-z_][a-z_0-9]*`$", RegexOptions.CultureInvariant);
     private static readonly Regex Separator = new(@"^:?-{3,}:?$", RegexOptions.CultureInvariant);
 
     internal static string[] Check(string document, IReadOnlyList<MigrationOperation> platform,
-        IReadOnlyList<MigrationOperation> audit, IEnumerable<string> vendorContract)
+        IReadOnlyList<MigrationOperation> audit, IEnumerable<string> vendorContract,
+        IReadOnlyDictionary<string, MigrationOperation[]> modules)
     {
         try
         {
@@ -23,6 +24,7 @@ internal static class AsyncStoreInventoryDocument
             var firstParty = Read(document, "first-party", "Store", "Copies and subject linkage", "Existing constraint");
             var vendor = Read(document, "vendor", "Vendor table", "Copy or control classification");
             var exclusions = Read(document, "exclusions", "Excluded table", "Scope boundary");
+            var moduleExclusions = Read(document, "module-exclusions", "Excluded table", "Scope boundary");
             var custody = Read(document, "custody", "Store or custody boundary", "Subject linkage and limit");
             var firstNames = Names(firstParty);
             var vendorNames = Names(vendor);
@@ -33,14 +35,18 @@ internal static class AsyncStoreInventoryDocument
             Compare(custody.Select(row => row[0]), CustodyNames, "audit/provider/external/volatile custody");
             Compare(vendorNames, vendorContract, "vendor contract classifications");
 
-            var allInventoryNames = firstNames.Concat(vendorNames).Concat(excludedNames).ToArray();
+            var allInventoryNames = firstNames.Concat(vendorNames).Concat(excludedNames)
+                .Concat(Names(moduleExclusions)).Append("audit_log").ToArray();
             if (allInventoryNames.Distinct(StringComparer.Ordinal).Count() != allInventoryNames.Length)
                 failures.Add("A table appears in more than one inventory class.");
             // No actual-table prefix or inventory membership filter: a newly introduced table
             // must appear in the reviewed inventory or its explicit, bounded exclusion.
-            Compare(AsyncStoreInventoryCensus.Tables(platform), allInventoryNames, "complete Platform migration census");
-            if (!AsyncStoreInventoryCensus.Tables(audit).Contains("audit_log"))
-                failures.Add("The independently discovered Audit migration census has no audit_log.");
+            var discovered = AsyncStoreInventoryCensus.Tables(platform)
+                .Concat(AsyncStoreInventoryCensus.Tables(audit))
+                .Concat(modules.Values.SelectMany(AsyncStoreInventoryCensus.Tables)).ToArray();
+            if (discovered.Distinct(StringComparer.Ordinal).Count() != discovered.Length)
+                failures.Add("A table is declared by more than one migration chain.");
+            Compare(discovered, allInventoryNames, "complete five-chain migration census");
             return failures.ToArray();
 
             void Count(IReadOnlyCollection<string[]> rows, int expected, string label)

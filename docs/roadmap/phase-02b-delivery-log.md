@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 826 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 919 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -286,6 +286,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 4 review round 1 — source (2026-10-25)](#p02b-8-step-4-review-round-1--source-2026-10-25) — 22 lines
   - [P02b-8 Step 4 review round 2 — source (2026-10-25)](#p02b-8-step-4-review-round-2--source-2026-10-25) — 31 lines
   - [P02b-8 Step 4 — Completed-source qualification and review closeout (2026-10-25)](#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25) — 109 lines
+  - [P02b-8 PR correction verification (2026-10-25)](#p02b-8-pr-correction-verification-2026-10-25) — 93 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21792,6 +21793,99 @@ meta gates omitted by `workflow_dispatch`. The review PR's live checks record
 that result. A/B remains attributed to the frozen implementation above, never
 to this later receipt-only commit. Maintainer review and merge remain separate
 acts; Phase 02b stays in progress until that merge closeout.
+
+### P02b-8 PR correction verification (2026-10-25)
+
+This pass starts from PR #37 head `141592fa`. Its historical qualification stays
+attributed to that source and the earlier frozen implementation; none of those
+receipts qualifies the corrections below.
+
+**Verified corrections.**
+
+- Add the LS0002 Debug/Release production corpus guard, including suppressed
+  diagnostics; prove unconditional analyzer-reference ancestry and evaluated
+  execution/severity settings. Target-time ProjectReference removal/update and
+  editorconfig/targets suppression have planted controls. An explicit operation
+  stack replaces recursive analyzer traversal without changing its expression,
+  token, type or generated-code scope.
+- Remove the five broad LS0002 factory pragmas through accurate constant names,
+  preserving their environment keys and messages. Add compiler-clean descriptor,
+  dynamic-argument, rethrow, culture and clean-build controls.
+- Reconcile all five compiled migration chains with inventory classifications
+  and explicit synchronous/module exclusions. Unsupported stored projections,
+  opaque procedural DDL, adjacent dollar terminators, search-path manipulation
+  and schema mutation fail closed with origin-specific reasons. A separate
+  PostgreSQL control discovers ordinary/partitioned/materialized relations.
+- Observe the unmodified production audit capture and its subject alias, real
+  population and empty terminal state; prove cross-scope isolation and no
+  indeterminate row after acknowledged success. Retained call-count behavior
+  tests and real delivery state tests cover different aspects of cleanup.
+- Correct stale purge grants, pending job-runtime wording, owner omissions,
+  pseudonymity and whole-payload redaction claims. Phase 03 owns application
+  recovery/dashboard and first-writer authority; Phase 11 owns gateway/purge
+  qualification. The exit index names the actual row-8 and Contract-lane proofs.
+  Its mode-boundary test now composes every DeploymentMode value in a Development
+  test host; it does not qualify production deployments.
+- ADR-0032 Amendment 7 clarifies the already-approved severity/wiring/scope
+  contract. It leaves Amendment 6 and earlier Accepted text unchanged.
+
+**Bounded dispositions.**
+
+- Runtime matcher plural/digit/compound expansion, type-based analyzer
+  exclusions and non-thrown/factory coverage would change the approved contract;
+  they are not introduced by a regression fix. The documented name-based limits
+  remain mandatory review considerations at Phase 03's Error gate. A proposed
+  EF-only generated-source/no-throw restriction was rejected and removed;
+  Roslyn's general generated-code exclusion remains explicit.
+- C27's historical criterion delegates its outcome to G6. ADR-0044 Amendment 5
+  selects captures matching declared EntityType, while ADR-0057 separately
+  refuses unregistered mutating handlers. The index proves that existing filter;
+  it does not select arbitrary extra-root rejection or certify every possible
+  direct write. No new erasure, purge, privilege or retention decision is made.
+- Exact vendor columns already have the independent applied-schema
+  `HangfireSchemaShape.Verify` proof. The structural inventory does not duplicate
+  it or claim to discover personal data hidden in values.
+- Foreign worktrees and existing history are untouched. In particular, the
+  append-only earlier artifact-removal sentence is superseded by the explicit
+  observed-timing correction in the Step 4 closeout, not silently rewritten.
+
+**First correction review round.** Three fresh automated sessions inspect
+bounded, disjoint primary surfaces against this baseline working tree:
+
+| Session | Model / effort | Scope and verified result |
+|---|---|---|
+| `pr37_fix_r1_storage` | GPT-6-astra / high | Inventory, live census and real capture proof; approve with stated structural/runtime limits |
+| `pr37_fix_r1_analyzer` | GPT-6.1-sol / xhigh | Analyzer/build/corpus/suppression; real MSBuild-only probes expose target-time reference mutation; corrected controls pass review; unsupported generated restriction removed |
+| `pr37_fix_r1_docs` | GPT-6-astra / high | Accepted scope, carriers and exit ownership; no Blocker/Major; missing Contract executor labels corrected |
+
+“Independent” here means separate fresh-context automated review sessions with
+shared repository access, not human approval or separately administered hosts.
+These records preserve scope, model, finding and disposition; full provider
+transcripts are not committed or claimed as a permanent audit archive.
+
+**Local validation.** Release solution build: zero warnings/errors. All 2,692
+unit cases pass, zero skips. Focused architecture validates 94/95 initially;
+the single catalogue-owner classification error is corrected, and the complete
+five-case CorpusConsistency group then passes. The published census is 279 test
+methods and 237 Implemented rules (134 architecture, 103 other owners).
+Inventory controls pass 40/40, live relation-kind PostgreSQL controls 3/3, and
+final capture/delivery/all-mode integration controls 40/40, all without skips.
+Removing the owner Clear kills all seven targeted delivery paths; changing its
+capture to singleton kills the scoped-root control. Both mutations are restored
+byte-for-byte and the normal binaries rebuilt before the final passing run.
+Documentation fragment/structure/index checks and seven ADR parser controls pass.
+
+Second-round review and current correction-source hosted qualification remain
+pending. GitHub's required conversation resolution is a separate merge gate,
+alongside the seven required checks and maintainer review. The two corrected
+threads must be resolved after their changes are published and verified.
+
+**Evidence lifetime.** Existing workflow artifacts have finite seven-day
+retention. The earlier archive hashes and supplementary audit hashes identify
+the evidence read at qualification time; they do not promise permanent remote
+availability or committed copies of those audit aids. Retained local receipts
+are not a substitute for source attribution or a public permanent archive.
+Future operational retention remains Phase 11's responsibility.
 
 ## Status archive
 

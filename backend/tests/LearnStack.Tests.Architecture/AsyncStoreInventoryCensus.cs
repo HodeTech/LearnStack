@@ -36,8 +36,13 @@ internal static class AsyncStoreInventoryCensus
     {
         var assembly = context.GetService<IMigrationsAssembly>();
         return assembly.Migrations.OrderBy(pair => pair.Key, StringComparer.Ordinal)
-            .SelectMany(pair => assembly.CreateMigration(pair.Value, context.Database.ProviderName!).UpOperations)
-            .ToArray();
+            .SelectMany(pair =>
+            {
+                var operations = assembly.CreateMigration(pair.Value, context.Database.ProviderName!).UpOperations;
+                foreach (var operation in operations)
+                    operation["InventoryOrigin"] = $"{context.GetType().Name}/{pair.Key}";
+                return operations;
+            }).ToArray();
     }
 
     internal static HashSet<string> Tables(IEnumerable<MigrationOperation> operations)
@@ -45,22 +50,32 @@ internal static class AsyncStoreInventoryCensus
         var tables = new HashSet<string>(StringComparer.Ordinal);
         foreach (var operation in operations)
         {
-            switch (operation)
+            try
             {
-                case CreateTableOperation create:
-                    Create(Name(create.Schema, create.Name), false);
-                    break;
-                case DropTableOperation drop:
-                    Drop(Name(drop.Schema, drop.Name), false);
-                    break;
-                case RenameTableOperation rename:
-                    var previous = Name(rename.Schema, rename.Name);
-                    Drop(previous, false);
-                    Create(Name(rename.NewSchema ?? rename.Schema, rename.NewName ?? rename.Name), false);
-                    break;
-                case SqlOperation sql:
-                    ReadSql(sql.Sql);
-                    break;
+                switch (operation)
+                {
+                    case CreateTableOperation create:
+                        Create(Name(create.Schema, create.Name), false);
+                        break;
+                    case DropSchemaOperation:
+                        throw new FormatException("Schema mutation requires an explicit census reader decision.");
+                    case DropTableOperation drop:
+                        Drop(Name(drop.Schema, drop.Name), false);
+                        break;
+                    case RenameTableOperation rename:
+                        var previous = Name(rename.Schema, rename.Name);
+                        Drop(previous, false);
+                        Create(Name(rename.NewSchema ?? rename.Schema, rename.NewName ?? rename.Name), false);
+                        break;
+                    case SqlOperation sql:
+                        ReadSql(sql.Sql);
+                        break;
+                }
+            }
+            catch (FormatException exception)
+            {
+                throw new FormatException($"{operation["InventoryOrigin"] ?? "Planted migration"} "
+                    + $"({operation.GetType().Name}): {exception.Message}", exception);
             }
         }
         return tables;
@@ -79,10 +94,7 @@ internal static class AsyncStoreInventoryCensus
 
         void ReadSql(string sql)
         {
-            var tokens = SqlTokens.Matches(sql.TrimStart('\uFEFF')).Where(match => !match.Groups["comment"].Success)
-                .Select(match => new SqlToken(match.Value, match.Groups["word"].Success,
-                    match.Groups["quoted"].Success, match.Groups["literal"].Success,
-                    match.Groups["dollar"].Success)).ToArray();
+            var tokens = Tokenize(sql.TrimStart('\uFEFF'));
             string? dollarBody = null;
             var selecting = false;
             for (var index = 0; index < tokens.Length; index++)
@@ -101,6 +113,23 @@ internal static class AsyncStoreInventoryCensus
                     if (selecting && Is(index, "INTO"))
                         throw new FormatException("SELECT INTO table creation requires an explicit census reader decision.");
                 }
+                if (Is(index, "DO") && !Is(index + 1, "NOTHING") && !Is(index + 1, "UPDATE"))
+                {
+                    var body = index + 1;
+                    if (Is(body, "LANGUAGE")) body += 2;
+                    if (!At(body).Dollar)
+                        throw new FormatException("Non-dollar procedural bodies require an explicit census reader decision.");
+                }
+                if (IdentifierIs(index, "set_config") && At(index + 1).Text == "("
+                    && (!At(index + 2).Literal || At(index + 3).Text != ","
+                        || string.Equals(At(index + 2).Text, "'search_path'", StringComparison.OrdinalIgnoreCase)))
+                    throw new FormatException("set_config search-path resolution requires an explicit census reader decision.");
+                if (((Is(index, "DROP") || Is(index, "ALTER")) && Is(index + 1, "SCHEMA"))
+                    || (Is(index, "IMPORT") && Is(index + 1, "FOREIGN") && Is(index + 2, "SCHEMA")))
+                    throw new FormatException("Schema mutation requires an explicit census reader decision.");
+                if ((Is(index, "CREATE") || Is(index, "ALTER") || Is(index, "DROP"))
+                    && Is(index + 1, "MATERIALIZED"))
+                    throw new FormatException("Materialized view storage requires an explicit census reader decision.");
                 if (Is(index, "EXECUTE") && !IsStaticExecuteClause(index))
                     RequirePinnedExecute(index + 1);
 
@@ -233,6 +262,44 @@ internal static class AsyncStoreInventoryCensus
                 return Name(first, Identifier(ref cursor));
             }
         }
+    }
+
+    private static SqlToken[] Tokenize(string sql)
+    {
+        var tokens = new List<SqlToken>();
+        var offset = 0;
+        string? delimiter = null;
+        var closing = -1;
+        while (offset < sql.Length)
+        {
+            // A body's closing delimiter is lexical, even in END$$. Do not let the
+            // ordinary identifier token consume it and hide subsequent SELECT INTO.
+            if (delimiter is not null && offset == closing)
+            {
+                tokens.Add(new SqlToken(delimiter, false, false, false, true));
+                offset += delimiter.Length;
+                delimiter = null;
+                continue;
+            }
+            var match = SqlTokens.Match(sql, offset, (delimiter is null ? sql.Length : closing) - offset);
+            if (!match.Success)
+            {
+                if (delimiter is null) break;
+                offset = closing;
+                continue;
+            }
+            offset = match.Index + match.Length;
+            if (match.Groups["comment"].Success) continue;
+            tokens.Add(new SqlToken(match.Value, match.Groups["word"].Success,
+                match.Groups["quoted"].Success, match.Groups["literal"].Success, match.Groups["dollar"].Success));
+            if (delimiter is null && match.Groups["dollar"].Success)
+            {
+                delimiter = match.Value;
+                closing = sql.IndexOf(delimiter, offset, StringComparison.Ordinal);
+                if (closing < 0) throw new FormatException("Unterminated SQL dollar body.");
+            }
+        }
+        return tokens.ToArray();
     }
 
     private static string Name(string? schema, string table) => schema is null or "public" ? table

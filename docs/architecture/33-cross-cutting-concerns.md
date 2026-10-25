@@ -380,9 +380,11 @@ is "scope inherits" — the `LoggingBehavior` opens the scope once at the start
 of the request; nested calls (handlers, EF interceptor logs, Dapr-emitted
 logs through the auto-instrumentation) inherit it without per-call work.
 
-Redaction (passwords, tokens, full PII payloads) happens in an enricher
-**before** the formatter so neither console nor OTLP sink ever sees the
-plaintext.
+The enricher redacts structured properties whose names match the shared token
+matcher before formatting. It does not inspect arbitrary values, literal message
+text or exception messages/stacks. Error trackers redact matching additional-tag
+names only. Fixed messages and closed descriptors remain necessary; the exact
+boundary is [Sensitive Exception Messages](../standards/09-error-handling.md#sensitive-exception-messages).
 
 ## 6. Tracing Stack
 

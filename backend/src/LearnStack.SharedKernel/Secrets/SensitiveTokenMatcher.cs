@@ -44,7 +44,7 @@ internal static class SensitiveTokenMatcher
             "ssn",     // national ID (US SSN / TR shorthand)
             "tckn",    // Turkish national ID
             "token",
-            "vkn",     // Turkish corporate tax number (Vergi Kimlik Numarası)
+            "vkn",     // Turkish corporate tax number
         };
 
     /// <summary>

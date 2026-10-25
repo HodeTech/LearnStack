@@ -6,4 +6,4 @@
 Rule ID | Category | Severity | Notes
 --------|----------|----------|------------
 LS0001 | Design | Warning | Rule "LearnStackException-DomainExceptionThrow" (ADR-0032 § Sub-decision 4 + Amendment 1). DomainException is reserved for programmer errors; expected business-rule violations return Result.Fail(business_rule_violation, ...). Roslyn diagnostic ids must be valid identifiers, so the wire id is LS0001; the hyphenated string is the human-readable rule name. Severity escalates to Error after Phase 03 exit.
-LS0002 | Security | Warning | Rule "LearnStackException-SensitiveExceptionMessage" (ADR-0032 Amendment 6). Bounded sensitive-name checks on directly thrown exception string arguments across production C# projects. Implemented by P02b-8 Step 1 with compiler, token and real-build controls. Severity escalates to Error after Phase 03 exit.
+LS0002 | Security | Warning | Rule "LearnStackException-SensitiveExceptionMessage" (ADR-0032 Amendment 6). Bounded sensitive-name checks on directly thrown exception string arguments across production C# projects. Severity escalates to Error after Phase 03 exit.

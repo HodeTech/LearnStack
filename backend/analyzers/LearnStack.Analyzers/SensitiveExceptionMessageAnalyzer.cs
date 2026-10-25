@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using LearnStack.SharedKernel.Secrets;
@@ -140,27 +141,33 @@ public sealed class SensitiveExceptionMessageAnalyzer : DiagnosticAnalyzer
 
     private static bool ContainsSensitiveReference(IOperation operation)
     {
-        // These operands name values or deferred bodies without evaluating them.
-        if (operation is INameOfOperation or ITypeOfOperation or ILiteralOperation
-            or IAnonymousFunctionOperation or ILocalFunctionOperation)
+        var pending = new Stack<IOperation>();
+        pending.Push(operation);
+        while (pending.Count > 0)
         {
-            return false;
-        }
+            var current = pending.Pop();
+            // These operands name values or deferred bodies without evaluating them.
+            if (current is INameOfOperation or ITypeOfOperation or ILiteralOperation
+                or IAnonymousFunctionOperation or ILocalFunctionOperation)
+            {
+                continue;
+            }
 
-        var name = operation switch
-        {
-            ILocalReferenceOperation local => local.Local.Name,
-            IParameterReferenceOperation parameter => parameter.Parameter.Name,
-            IFieldReferenceOperation field => field.Field.Name,
-            IPropertyReferenceOperation property => property.Property.Name,
-            _ => null,
-        };
+            var name = current switch
+            {
+                ILocalReferenceOperation local => local.Local.Name,
+                IParameterReferenceOperation parameter => parameter.Parameter.Name,
+                IFieldReferenceOperation field => field.Field.Name,
+                IPropertyReferenceOperation property => property.Property.Name,
+                _ => null,
+            };
 
-        if (name is not null && SensitiveTokenMatcher.IsSensitive(name)) return true;
+            if (name is not null && SensitiveTokenMatcher.IsSensitive(name)) return true;
 
-        foreach (var child in operation.ChildOperations)
-        {
-            if (ContainsSensitiveReference(child)) return true;
+            foreach (var child in current.ChildOperations)
+            {
+                pending.Push(child);
+            }
         }
 
         return false;

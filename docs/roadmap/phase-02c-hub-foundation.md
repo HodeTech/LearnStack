@@ -262,7 +262,8 @@ first status-transition or termination writer, its decision pass selects the
 hold, drop or dead-letter policy for already queued or in-flight outbox,
 delivery and job work. This is the owner named by
 [Phase 02b's asynchronous-status exclusion](phase-02b-events-auth.md#explicitly-not-in-this-phase);
-no policy is selected here. The decision preserves the existing lease fences,
+Phase 02b selects no policy; Phase 02c decides before that first writer.
+The decision preserves the existing lease fences,
 actual-quiescence requirements and reservation ownership under
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) and
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md). A tenant
@@ -452,6 +453,9 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
 
 ## Completion Criteria
 
+- The status/termination decision and its queued/in-flight work controls ship
+  before the first affected writer. A status transition alone neither releases
+  an unresolved reservation nor establishes external quiescence.
 - A tenant created through `POST /api/internal/tenants` exists in LearnStack with its
   default organization, resolves at `{slug}.{platform-domain}` through
   `platform_host_to_tenant`, and its entitlement projection is populated.

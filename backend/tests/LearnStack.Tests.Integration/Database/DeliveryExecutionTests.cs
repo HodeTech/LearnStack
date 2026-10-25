@@ -68,11 +68,10 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         try
         {
             var gate = new DeliveryCommitGate();
-            var clearsBefore = fixture.Observation.AuditClearCount;
             var result = await fixture.Executor.ExecuteAsync(claim, gate, cancellation.Token);
 
             result.Should().Be(new DeliveryExecutionResult(DeliveryExecutionOutcome.Completed, true, false));
-            (fixture.Observation.AuditClearCount - clearsBefore).Should().Be(1);
+            AssertCaptureCleared(fixture.Observation.Captures.Should().ContainSingle().Subject);
             gate.CommitAcknowledged.Should().BeTrue();
             fixture.Observation.Constructions.Should().Be(1);
             fixture.Observation.Executions.Should().Be(1);
@@ -86,6 +85,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             state.Inbox.Should().Be(1);
             state.Outbox.Should().Be(1);
             state.SuccessAudit.Should().Be(1);
+            state.IndeterminateAudit.Should().Be(0, "an acknowledged commit has no indeterminate reconcile row");
             state.Processed.Should().BeTrue();
             state.OutboxCausation.Should().Be(fact.EventId);
             state.OutboxActor.Should().Be(CausalActor);
@@ -171,12 +171,12 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         fixture.Observation.Fault = fault;
         var previous = new ProbeContext(SchemaFixture.TenantB, null);
         fixture.Accessor.Current = previous;
-        var clearsBefore = fixture.Observation.AuditClearCount;
         var result = await fixture.Executor.ExecuteAsync(claim, new DeliveryCommitGate());
 
         result.CommitAcknowledged.Should().BeFalse();
         result.Outcome.Should().Be(DeliveryExecutionOutcome.Failed);
-        (fixture.Observation.AuditClearCount - clearsBefore).Should().Be(1);
+        var firstCapture = fixture.Observation.Captures.Should().ContainSingle().Subject;
+        AssertCaptureCleared(firstCapture);
         fixture.Accessor.Current.Should().BeSameAs(previous);
         fixture.Logs.Text.Should().NotContain(SensitiveCanary).And.NotContain(PayloadCanary.ToString()).And.NotContain(typeof(Handler).FullName!);
         (await fixture.StateAsync(fact)).Should().Match<DurableState>(state =>
@@ -192,6 +192,10 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         var retry = await fixture.Executor.ExecuteAsync(claim, new DeliveryCommitGate());
         retry.Outcome.Should().Be(DeliveryExecutionOutcome.Completed);
         retry.CommitAcknowledged.Should().BeTrue();
+        fixture.Observation.Captures.Should().HaveCount(2);
+        var retryCapture = fixture.Observation.Captures.Last();
+        retryCapture.Should().NotBeSameAs(firstCapture, "a retry owns a fresh DI scope");
+        AssertCaptureCleared(retryCapture);
         (await fixture.StateAsync(fact)).Business.Should().Be(1);
         fixture.Accessor.Current.Should().BeSameAs(previous);
         fixture.Accessor.Current = null;
@@ -400,7 +404,6 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         await using var proxy = new CommitResponseDroppingProxy(fixture.Database.AppConnectionString);
         await using var uncertain = fixture.ForConnection(proxy.ConnectionString);
         var gate = new DeliveryCommitGate();
-        var clearsBefore = uncertain.Observation.AuditClearCount;
         var result = await uncertain.Executor.ExecuteAsync(claim, gate);
 
         result.Outcome.Should().Be(DeliveryExecutionOutcome.Indeterminate);
@@ -408,8 +411,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         gate.CommitStarted.Should().BeTrue();
         proxy.DroppedCommitResponses.Should().Be(1);
         uncertain.Observation.ObservedSavedWork.Should().BeTrue();
-        (uncertain.Observation.AuditClearCount - clearsBefore).Should().Be(1,
-            "the outer delivery audit owner clears the real capture exactly once after reconciliation");
+        AssertCaptureCleared(uncertain.Observation.Captures.Should().ContainSingle().Subject);
         var state = await fixture.StateAsync(fact);
         state.Business.Should().Be(1);
         state.Inbox.Should().Be(1);
@@ -418,11 +420,10 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         state.IndeterminateAudit.Should().Be(1);
         state.Processed.Should().BeTrue();
 
-        var retryClearsBefore = fixture.Observation.AuditClearCount;
         var retry = await fixture.Executor.ExecuteAsync(claim, new DeliveryCommitGate());
         retry.Outcome.Should().Be(DeliveryExecutionOutcome.LostClaim);
-        (fixture.Observation.AuditClearCount - retryClearsBefore).Should().Be(0,
-            "durable completion refuses the retry before another audit frame can clear");
+        fixture.Observation.Captures.Should().BeEmpty(
+            "durable completion refuses the retry before another business audit frame opens");
         fixture.Observation.Constructions.Should().Be(0, "durable completion excludes every subsequent execution");
         (await fixture.StateAsync(fact)).Should().BeEquivalentTo(state);
         uncertain.Logs.Text.Should().NotContain(SensitiveCanary).And.NotContain(PayloadCanary.ToString());
@@ -683,7 +684,13 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                 inbox.ExecuteScalar().Should().Be(1L, "the transport claimed inbox before entering the business constructor");
                 observation.InboxObservedAtConstruction = true;
             }
-            services.GetRequiredService<IAuditStateCapture>().HasOpenFrame.Should().BeTrue();
+            var capture = services.GetRequiredService<AuditStateCapture>();
+            services.GetRequiredService<IAuditStateCapture>().Should().BeSameAs(capture);
+            services.GetRequiredService<IAuditSubject>().Should().BeSameAs(capture);
+            capture.HasOpenFrame.Should().BeTrue();
+            capture.Intents.Should().ContainSingle(intent => intent.Operation == Operation,
+                "the actual delivery audit frame declared its intent before handler construction");
+            observation.Captures.Enqueue(capture);
             services.GetRequiredService<ProducerExecution>().RequireAnnouncement().TenantId.Value.Should().Be(SchemaFixture.TenantA);
             if (observation.Fault == "constructor") throw new InvalidOperationException(SensitiveCanary);
         }
@@ -706,6 +713,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                 LocalizedText.From(("en", "Delivery execution proof")), """{"type":"object"}""", "default-card",
                 _services.GetRequiredService<IClock>(), UserId.SystemActor);
             _observation.Source = source;
+            _services.GetRequiredService<IAuditSubject>().Designate(source);
             if (_observation.EmitDomainEvent)
             {
                 typeof(Entity<TenantContentTypeId>).GetMethod("RaiseDomainEvent", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -716,6 +724,12 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             }
             db.Add(source);
             await db.SaveChangesAsync(cancellationToken);
+            var capture = _services.GetRequiredService<AuditStateCapture>();
+            var intent = capture.Intents.Single(intent => intent.Operation == Operation);
+            intent.SubjectId.Should().Be(fact.SubjectId.ToString());
+            capture.ChangesOf(intent).Should().Contain(change =>
+                change.EntityType == nameof(TenantContentType) && change.EntityId == fact.SubjectId.ToString(),
+                "the real module interceptor filled the same capture and frame the delivery owner reconciles");
             _observation.OutgoingActivity = Activity.Current?.Id;
             _observation.OutgoingAnnouncement = unit.GetTenantContextAnnouncement(unit.Transaction);
             await _services.GetRequiredService<IOutbox>().EnqueueAsync(fact with { EventId = Guid.CreateVersion7() }, cancellationToken);
@@ -755,11 +769,8 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
 
     public sealed class Observation
     {
-        private int _auditClearCount;
-
         public int Constructions { get; set; }
-        public int AuditClearCount => Volatile.Read(ref _auditClearCount);
-        public void RecordAuditClear() => Interlocked.Increment(ref _auditClearCount);
+        public ConcurrentQueue<AuditStateCapture> Captures { get; } = new();
         public bool InboxObservedAtConstruction { get; set; }
         public bool ObserveBareUnit { get; set; }
         public bool BareUnitObserved { get; set; }
@@ -870,26 +881,13 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             builder.MustAudit<Handler>(Operation, OperationType.Create, typeof(TenantContentType));
     }
 
-    private sealed class ObservedCapture(IAuditStateCapture actual, Observation observation) : IAuditStateCapture
+    private static void AssertCaptureCleared(AuditStateCapture capture)
     {
-        public IReadOnlyList<CapturedEntityChange> Changes => actual.Changes;
-        public IReadOnlyList<AuditIntent> Intents => actual.Intents;
-        public AuditIntentState State => actual.State;
-        public bool HasOpenFrame => actual.HasOpenFrame;
-        public void Add(CapturedEntityChange change) => actual.Add(change);
-        public IReadOnlyList<CapturedEntityChange> ChangesOf(AuditIntent intent) => actual.ChangesOf(intent);
-        public void OpenFrame() => actual.OpenFrame();
-        public void CloseFrame(AuditIntentResult result) => actual.CloseFrame(result);
-        public void DeclareIntent(AuditIntent intent) => actual.DeclareIntent(intent);
-        public void MarkWrittenInTransaction() => actual.MarkWrittenInTransaction();
-        public void MarkCommitted() => actual.MarkCommitted();
-        public void MarkRolledBack() => actual.MarkRolledBack();
-        public void MarkIndeterminate(Exception cause) => actual.MarkIndeterminate(cause);
-        public void Clear()
-        {
-            actual.Clear();
-            observation.RecordAuditClear();
-        }
+        capture.State.Should().Be(AuditIntentState.None);
+        capture.Intents.Should().BeEmpty();
+        capture.Changes.Should().BeEmpty();
+        capture.HasOpenFrame.Should().BeFalse();
+        capture.IndeterminateCause.Should().BeNull();
     }
 
     private sealed class ProbeContext(Guid tenant, Guid? organization) : ITenantContext
@@ -937,9 +935,6 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                     services.RemoveAll<IntegrationEventHandlerRegistry>();
                     services.AddSingleton(handlers);
                     services.AddSingleton(Observation);
-                    services.RemoveAll<IAuditStateCapture>();
-                    services.AddScoped<IAuditStateCapture>(provider =>
-                        new ObservedCapture(provider.GetRequiredService<AuditStateCapture>(), Observation));
                     services.RemoveAll<IUnitOfWork>();
                     services.AddScoped<IUnitOfWork>(provider =>
                     {

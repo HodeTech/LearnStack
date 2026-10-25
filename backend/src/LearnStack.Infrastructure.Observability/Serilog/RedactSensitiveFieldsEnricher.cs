@@ -9,14 +9,14 @@ namespace LearnStack.Infrastructure.Observability.Serilog;
 /// formatter touches them. Per
 /// <see href="../../../../docs/standards/10-observability.md">Standards 10
 /// § Logging Rules</see> and
-/// <see href="../../../../docs/standards/11-security.md">Standards 11 § Sensitive Data Exposure</see>:
+/// <see href="../../../../docs/standards/11-security.md">Standards 11 § Logging Hygiene</see>:
 /// passwords, tokens, DSNs, JWTs, API keys, national / corporate identifiers,
 /// authorization headers, full payment payloads must never reach the
 /// console or the OTLP sink.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The token list lives in
+/// The token list is exposed by
 /// <see cref="LearnStack.SharedKernel.Secrets.SensitiveTokenCatalog"/> —
 /// the canonical source the air-gapped <c>LocalFileErrorTracker</c> shares
 /// so the two redaction surfaces cannot drift. Adding a token there lights
@@ -28,7 +28,7 @@ namespace LearnStack.Infrastructure.Observability.Serilog;
 /// field nested inside a non-sensitive top-level property
 /// (e.g. <c>User.Password</c>) is scrubbed too. Reconstruction is lazy —
 /// a value with no sensitive descendant is returned by reference, so the
-/// common (clean) event allocates nothing.
+/// clean value needs no reconstruction. Name matching can still allocate.
 /// </para>
 /// <para>
 /// Stack traces and exception messages are NOT redacted — they ride
@@ -61,7 +61,7 @@ public sealed class RedactSensitiveFieldsEnricher : ILogEventEnricher
         // Collect first, mutate after — never mutate logEvent.Properties
         // while enumerating it. The list materialises only when a top-level
         // property needs rewriting (its name is sensitive, or a sensitive
-        // value lives nested inside it), so a clean event allocates nothing.
+        // value lives nested inside it), so a clean event needs no rewrite list.
         List<LogEventProperty>? rewrites = null;
 
         foreach (var (name, value) in logEvent.Properties)

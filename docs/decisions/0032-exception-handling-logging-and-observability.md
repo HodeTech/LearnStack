@@ -913,3 +913,37 @@ unrelated-warning failure control are required proofs. The package specifies
 the four implementation steps and their independent review rounds. Standards
 09/11/21, Phase 03's escalation reference and the analyzer comments carry this
 contract; no existing Accepted body or earlier amendment is rewritten.
+
+### Amendment 7 — Diagnostic wiring and proof clarifications (2026-10-25)
+
+This clarification preserves the maintainer-approved
+[G16 package](../roadmap/phase-02b-delivery-log.md#g16-proposal--additive-adr-0032-amendment)
+at `486588d9`; it selects no new diagnostic or redaction policy.
+
+- Amendment 6's “through Phase 02b” describes that packet's severity, not an
+  earlier promotion. Both diagnostics remain Warning until the Phase 03 exit
+  gate named in its next sentence. Standards 09/11/21, Phase 03 and compiler
+  wiring use that same gate.
+- Automatic `backend/src/Directory.Build.props` wiring replaces Amendment 1's
+  per-project reference mechanism, while preserving its Domain/Application-only
+  `LS0001` scope. The reference and its importing item group are unconditional;
+  `ReferenceOutputAssembly="false"` keeps the analyzer out of runtime references.
+- Inside supported message roots, inspect evaluated descendants but skip
+  `nameof`, `typeof`, literals and deferred lambda/local-function bodies.
+  A formatting-helper invocation as the root stays outside coverage; the same
+  evaluated reference inside an interpolation is within coverage. `params`
+  arrays, non-string inner exceptions, object initializers and constructor
+  `base(...)` initializers are not directly thrown string arguments.
+- Production corpus checks include suppressed reports. A justified local
+  public-metadata exception must be reviewed at its exact site; project-wide
+  `NoWarn`, disabled analyzer execution or reduced editorconfig severity cannot
+  replace the rule. The current production corpus needs no local exception.
+- Generated code keeps Amendment 6's exclusion. Roslyn generation conventions
+  are not a confidentiality boundary. Name matching remains conservative about
+  value types and does not expand plural, numeric-suffix or unsplit compound
+  matching. Runtime matching behavior is unchanged. Review must cover these
+  limits before Phase 03's Error promotion.
+
+The catalogue names the compiler, corpus, build-settings and planted controls.
+Carrier corrections in Standards 02/09/11/17/21, the backend-module/foundation
+skills and the phase-exit index make that unchanged contract discoverable.

@@ -162,16 +162,16 @@ idempotency/reconciliation must separately prevent duplicate external delivery.
 
 ### Background Jobs
 
-**P02b-4 acceptance update — 2026-10-15.** The maintainer accepts expanded H1:
-stock Hangfire wakeups with LearnStack-owned submission, retries/audit, external
+The inherited runtime uses stock Hangfire wakeups with LearnStack-owned
+submission, retries/audit, external
 stages, capacity and recurrence/fan-out under
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
-P02b-4 implementation remains pending. This phase supplies notification/expiry
+This phase supplies notification/expiry
 definitions and chooses declared queues/profiles, not a second retry policy or
 activator. Provider sends require stable logical-operation idempotency and known
 effect reconciliation; inbox/event dedup alone cannot prove an email was sent once.
 The accepted typed job obligations replace the old payload/base-class spellings;
-P02b-4 still owes their runtime enforcement.
+the inherited runtime enforces them.
 
 Additions to the existing host, not a new one:
 
@@ -184,8 +184,9 @@ Additions to the existing host, not a new one:
 Typed transactional submission, exact tenant/org restoration, profile/capacity
 admission and the replacement BackgroundJob_* obligations are accepted by
 [P02b-4](phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15).
-Their implementation/proofs remain pending; this phase depends on that completed
-foundation and adds no runner.
+Their implementation/proofs are recorded in the
+[P02b-4 merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19);
+this phase consumes that foundation and adds no runner.
 
 ## Deliverables
 

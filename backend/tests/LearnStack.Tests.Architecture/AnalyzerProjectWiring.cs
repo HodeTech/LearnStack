@@ -1,13 +1,19 @@
 using System.Diagnostics;
+using System.IO.Enumeration;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>Reads the compiler's evaluated references and rule scope, including imports.</summary>
 internal static class AnalyzerProjectWiring
 {
+    private static readonly char[] WarningSeparators = [';', ','];
+    private static readonly string[] ExecutionProperties = ["RunAnalyzers", "RunAnalyzersDuringBuild"];
     internal sealed record Reference(string FullPath, string OutputItemType, string ReferenceOutputAssembly);
-    internal sealed record Evaluation(Reference[] References, bool DomainRule, bool VisibleScope, string[] Exemptions)
+    internal sealed record Evaluation(Reference[] References, bool DomainRule, bool VisibleScope, string[] Exemptions,
+        string[] Suppressions, bool RunsAnalyzers)
     {
         public bool HasAnalyzer(string analyzerPath)
         {
@@ -31,13 +37,15 @@ internal static class AnalyzerProjectWiring
                 {
                     "msbuild", project, "-nologo", "-property:Configuration=" + configuration,
                     "-getItem:ProjectReference,CompilerVisibleProperty",
-                    "-getProperty:LearnStackAnalyzeDomainExceptionThrow,WarningsNotAsErrors",
+                    "-getProperty:LearnStackAnalyzeDomainExceptionThrow,WarningsNotAsErrors,NoWarn,RunAnalyzers,RunAnalyzersDuringBuild",
                 },
                 WorkingDirectory = Path.GetDirectoryName(project)!,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             },
         };
+        child.StartInfo.Environment["MSBUILDTERMINALLOGGER"] = "off";
+        child.StartInfo.Environment["CI"] = "true";
         child.Start();
         var output = child.StandardOutput.ReadToEndAsync();
         var error = child.StandardError.ReadToEndAsync();
@@ -75,6 +83,53 @@ internal static class AnalyzerProjectWiring
             items.GetProperty("CompilerVisibleProperty").EnumerateArray().Any(item =>
                 item.GetProperty("Identity").GetString() == "LearnStackAnalyzeDomainExceptionThrow"),
             properties.GetProperty("WarningsNotAsErrors").GetString()!
-                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            properties.GetProperty("NoWarn").GetString()!
+                .Split(WarningSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            !ExecutionProperties.Any(name =>
+                properties.GetProperty(name).GetString()!.Equals("false", StringComparison.OrdinalIgnoreCase)));
     }
+
+    /// <summary>Evaluation on one OS cannot prove an analyzer reference is unconditional.</summary>
+    internal static bool HasUnconditionalReference(XDocument props)
+    {
+        var references = props.Descendants("ProjectReference").Where(element =>
+            ((string?)element.Attribute("Include"))?.Replace('\\', '/')
+                .EndsWith("/LearnStack.Analyzers/LearnStack.Analyzers.csproj", StringComparison.Ordinal) == true).ToArray();
+        return references.Length == 1
+            && (string?)references[0].Attribute("OutputItemType") == "Analyzer"
+            && (string?)references[0].Attribute("ReferenceOutputAssembly") == "false"
+            && !references[0].AncestorsAndSelf().Any(element =>
+                element.Attribute("Condition") is not null || element.Name.LocalName is "Choose" or "When" or "Otherwise");
+    }
+
+    /// <summary>Also inspects settings inside targets that evaluation alone would not execute.</summary>
+    internal static bool SuppressesSensitiveRule(XDocument build) => build.Descendants().Any(element =>
+        element.Name.LocalName == "NoWarn" && Regex.IsMatch(element.Value, @"\bLS0002\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+        || element.Name.LocalName is "RunAnalyzers" or "RunAnalyzersDuringBuild"
+            && element.Value.Trim().Equals("false", StringComparison.OrdinalIgnoreCase)
+        || ChangesAnalyzerItem(element));
+
+    private static bool ChangesAnalyzerItem(XElement element)
+    {
+        var selector = element.Name.LocalName switch
+        {
+            "Analyzer" => element.Attribute("Remove"),
+            "ProjectReference" => element.Attribute("Remove") ?? element.Attribute("Update"),
+            _ => null,
+        };
+        var fileName = element.Name.LocalName == "Analyzer" ? "LearnStack.Analyzers.dll" : "LearnStack.Analyzers.csproj";
+        return selector is not null
+            && selector.Value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Any(pattern =>
+                {
+                    var selectedName = Path.GetFileName(pattern.Replace('\\', '/'));
+                    return selectedName.Contains("$(", StringComparison.Ordinal) || selectedName.Contains("@(", StringComparison.Ordinal)
+                        || FileSystemName.MatchesSimpleExpression(selectedName, fileName, ignoreCase: true);
+                });
+    }
+
+    internal static bool SuppressesSensitiveRule(string editorConfig) => Regex.IsMatch(editorConfig,
+        @"^\s*dotnet_(?:diagnostic\.LS0002|analyzer_diagnostic(?:\.category-Security)?)\.severity\s*=\s*(?:none|silent|suggestion)\s*(?:[#;].*)?$",
+        RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 }

@@ -17,7 +17,7 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </remarks>
 public sealed class PlatformDbContextFactory : IDesignTimeDbContextFactory<PlatformDbContext>
 {
-    private const string ConnectionStringVariable = "ConnectionStrings__Migration";
+    private const string MigrationEnvironmentKey = "ConnectionStrings__Migration";
 
     /// <summary>
     /// The migration history table for this chain — its own, so the two chains
@@ -32,17 +32,14 @@ public sealed class PlatformDbContextFactory : IDesignTimeDbContextFactory<Platf
 
     public PlatformDbContext CreateDbContext(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable(ConnectionStringVariable);
+        var connectionString = Environment.GetEnvironmentVariable(MigrationEnvironmentKey);
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            // This const is the public environment key name, never its credential value.
-#pragma warning disable LS0002
             throw new InvalidOperationException(
-                $"{ConnectionStringVariable} is not set in the environment. "
+                $"{MigrationEnvironmentKey} is not set in the environment. "
                 + "Migrations run as learnstack_migration, which owns every table; "
                 + "`make migrate` is its sanctioned carrier.");
-#pragma warning restore LS0002
         }
 
         var options = new DbContextOptionsBuilder<PlatformDbContext>()

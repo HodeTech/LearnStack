@@ -72,6 +72,11 @@ backend/src/Modules/<Name>/
     LearnStack.Modules.<Name>.Infrastructure.csproj
 ```
 
+All four projects inherit the analyzer from `backend/src/Directory.Build.props`;
+do not duplicate its project reference or add `LS0001`/`LS0002` to `NoWarn`.
+[The catalogue](../../../docs/standards/21-architecture-tests-catalogue.md#learnstackexception-sensitiveexceptionmessage-roslyn-analyzer)
+owns their distinct scopes and escalation contract.
+
 Project references follow the strict graph in
 [01-architecture-standards.md § Dependency Direction](../../../docs/standards/01-architecture-standards.md):
 

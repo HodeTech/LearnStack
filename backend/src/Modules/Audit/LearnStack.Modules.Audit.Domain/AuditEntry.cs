@@ -66,11 +66,10 @@ public sealed class AuditEntry
 
     /// <summary>Who acted, when there was a principal.</summary>
     /// <remarks>
-    /// <b>Never redacted</b>, unlike <see cref="ActorEmail"/>. Once the <c>users</c> row is
-    /// erased this is an orphan surrogate with no path back to a natural person, which is
-    /// what keeps the row's existence auditable after erasure and the probe-detection
-    /// queries answerable. Redacting it would collapse every erased user's history into
-    /// one indistinguishable bucket.
+    /// Retained, unlike <see cref="ActorEmail"/>, for audit continuity and probe detection
+    /// after the <c>users</c> row is erased. This pseudonymous identifier may remain
+    /// linkable through other retained records; deleting that row does not establish
+    /// anonymization.
     /// </remarks>
     public UserId? ActorUserId { get; private set; }
 

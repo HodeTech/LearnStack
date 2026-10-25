@@ -8,6 +8,8 @@ Tenant API authentication additions derive from
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md).
 Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+Exception diagnostic wiring derives from
+[ADR-0032 Amendments 6–7](../decisions/0032-exception-handling-logging-and-observability.md#amendment-7--diagnostic-wiring-and-proof-clarifications-2026-10-25).
 
 C# / .NET conventions for LearnStack backend code.
 
@@ -20,6 +22,10 @@ C# / .NET conventions for LearnStack backend code.
 - `ImplicitUsings` enabled in modern projects.
 - `LangVersion` = `latest`.
 - File-scoped namespaces everywhere.
+- Production C# projects inherit analyzer wiring from
+  `backend/src/Directory.Build.props`; do not duplicate references or silence
+  `LS0002` project-wide. The [canonical catalogue](21-architecture-tests-catalogue.md#learnstackexception-sensitiveexceptionmessage-roslyn-analyzer)
+  owns its bounded expression scope, severity and proof obligations.
 
 ## Naming
 

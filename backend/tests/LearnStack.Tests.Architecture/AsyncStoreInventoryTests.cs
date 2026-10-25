@@ -2,6 +2,9 @@ using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Education.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -19,7 +22,7 @@ public sealed class AsyncStoreInventoryTests
     public void Durable_Async_Store_Inventory_Covers_The_Storage_Census()
     {
         var subject = Subject();
-        Check(subject.Document, subject.Platform, subject.Audit).Should().BeEmpty(
+        Check(subject.Document, subject.Platform, subject.Audit, subject.Modules).Should().BeEmpty(
             "Architecture 23 inventories actual compiled Up operations, including all vendor installer tables; "
             + "Fix: reconcile the inventory and its explicit exclusions against the storage definition");
     }
@@ -28,7 +31,7 @@ public sealed class AsyncStoreInventoryTests
     public void Inventory_coverage_rejects_added_removed_and_reclassified_storage()
     {
         var subject = Subject();
-        Check(subject.Document, subject.Platform, subject.Audit).Should().BeEmpty("the unchanged control must pass");
+        Check(subject.Document, subject.Platform, subject.Audit, subject.Modules).Should().BeEmpty("the unchanged control must pass");
 
         // Both operation carriers matter: raw SQL is current Platform storage, typed table
         // operations are used by Audit and must not silently bypass the census in a new migration.
@@ -36,61 +39,59 @@ public sealed class AsyncStoreInventoryTests
         [
             new SqlOperation { Sql = "CREATE TABLE public.inventory_probe (id uuid);" },
             new CreateTableOperation { Name = "inventory_probe" },
-            new CreateTableOperation { Schema = "other", Name = "background_jobs" },
-            new SqlOperation { Sql = "SELECT * INTO public.inventory_probe FROM public.background_jobs;" },
-            new SqlOperation { Sql = "DO $$ BEGIN EXECUTE 'CREATE ' || 'TABLE public.inventory_probe (id int)'; END $$;" },
         ];
         foreach (var addition in additions)
-            Check(subject.Document, [.. subject.Platform, addition], subject.Audit).Should().NotBeEmpty(
-                "an added table is discovered without a name-prefix or inventory whitelist filter");
-
-        var resolutionBypasses = new[]
         {
-            "CREATE SCHEMA inventory_probe; SET LOCAL search_path = inventory_probe; CREATE TABLE IF NOT EXISTS background_jobs(id int);",
-            "CREATE SCHEMA inventory_probe; SET SESSION \"search_path\" TO inventory_probe; CREATE TABLE IF NOT EXISTS background_jobs(id int);",
-            "CREATE SCHEMA inventory_probe; SET SCHEMA 'inventory_probe'; CREATE TABLE IF NOT EXISTS background_jobs(id int);",
-            "DO $$ BEGIN SET LOCAL search_path = inventory_probe; CREATE TABLE IF NOT EXISTS background_jobs(id int); END $$;",
-            "DO $$ BEGIN IF true THEN SET LOCAL search_path = inventory_probe; CREATE TABLE IF NOT EXISTS background_jobs(id int); END IF; END $$;",
-            "DO $$ BEGIN IF false THEN NULL; ELSE SET SESSION search_path = inventory_probe; CREATE TABLE IF NOT EXISTS background_jobs(id int); END IF; END $$;",
-            "DO $$ DECLARE function text := 'CRE' || 'ATE TABLE public.inventory_probe(id int)'; BEGIN EXECUTE function; END $$;",
-            "DO $$ DECLARE procedure text := 'CRE' || 'ATE TABLE public.inventory_probe(id int)'; BEGIN EXECUTE procedure; END $$;",
-            "CREATE SCHEMA inventory_probe; DROP TABLE public.background_jobs CASCADE; CREATE TABLE inventory_probe.before_name(id int); ALTER TABLE inventory_probe.before_name RENAME TO background_jobs;",
-        };
-        foreach (var sql in resolutionBypasses)
-            Check(subject.Document, [.. subject.Platform, new SqlOperation { Sql = sql }], subject.Audit)
-                .Should().NotBeEmpty("unsupported path resolution, dynamic names and schema-qualified renames must fail closed");
+            Check(subject.Document, [.. subject.Platform, addition], subject.Audit, subject.Modules)
+                .Should().Contain(failure => failure.Contains("unexpected [inventory_probe]", StringComparison.Ordinal));
+            Check(subject.Document, subject.Platform, [.. subject.Audit, addition], subject.Modules)
+                .Should().Contain(failure => failure.Contains("unexpected [inventory_probe]", StringComparison.Ordinal));
+            foreach (var module in subject.Modules.Keys)
+            {
+                var dirtyModules = new Dictionary<string, MigrationOperation[]>(subject.Modules)
+                {
+                    [module] = [.. subject.Modules[module], addition],
+                };
+                Check(subject.Document, subject.Platform, subject.Audit, dirtyModules)
+                    .Should().Contain(failure => failure.Contains("unexpected [inventory_probe]", StringComparison.Ordinal),
+                        $"the {module} chain must independently expose newly added storage");
+            }
+        }
 
-        Check(subject.Document, [.. subject.Platform, new DropTableOperation { Name = "background_jobs" }], subject.Audit)
-            .Should().NotBeEmpty("a removed actual table leaves a stale inventory row");
-        Check(subject.Document, [.. subject.Platform, new RenameTableOperation { Name = "background_jobs", NewName = "renamed_jobs" }], subject.Audit)
-            .Should().NotBeEmpty("a renamed actual table cannot hide behind the old documented name");
-        Check(subject.Document, subject.Platform, [.. subject.Audit, new DropTableOperation { Name = "audit_log" }])
-            .Should().NotBeEmpty("existing audit storage is checked independently of the Platform census");
+        Check(subject.Document, [.. subject.Platform, new DropTableOperation { Name = "background_jobs" }], subject.Audit, subject.Modules)
+            .Should().Contain(failure => failure.Contains("missing [background_jobs]", StringComparison.Ordinal));
+        Check(subject.Document, [.. subject.Platform, new RenameTableOperation { Name = "background_jobs", NewName = "renamed_jobs" }], subject.Audit, subject.Modules)
+            .Should().Contain(failure => failure.Contains("unexpected [renamed_jobs]; missing [background_jobs]", StringComparison.Ordinal));
+        Check(subject.Document, subject.Platform, [.. subject.Audit, new DropTableOperation { Name = "audit_log" }], subject.Modules)
+            .Should().Contain(failure => failure.Contains("missing [audit_log]", StringComparison.Ordinal));
         AsyncStoreInventoryDocument.Check(subject.Document, subject.Platform, subject.Audit,
-            HangfireStorageContract.Columns.Keys.Append("new_vendor_table")).Should().NotBeEmpty(
-                "a changed vendor contract is independently reconciled, rather than defining actual storage");
+            HangfireStorageContract.Columns.Keys.Append("new_vendor_table"), subject.Modules).Should().Contain(failure => failure.Contains(
+                "vendor contract classifications: unexpected []; missing [new_vendor_table]", StringComparison.Ordinal));
     }
 
     [Fact]
     public void Inventory_coverage_rejects_every_removed_row_and_blank_vendor_classification()
     {
         var subject = Subject();
-        Check(subject.Document, subject.Platform, subject.Audit).Should().BeEmpty("the unchanged control must pass");
+        Check(subject.Document, subject.Platform, subject.Audit, subject.Modules).Should().BeEmpty("the unchanged control must pass");
         foreach (var section in AsyncStoreInventoryDocument.Sections)
         {
             foreach (var row in DataLines(subject.Document, section))
             {
                 var removed = subject.Document.Replace(row + "\n", "", StringComparison.Ordinal);
                 removed.Should().NotBe(subject.Document, "the planted control must actually remove its row");
-                Check(removed, subject.Platform, subject.Audit).Should().NotBeEmpty(
-                    $"every {section} row is required, including schema/counters and non-DB custody boundaries");
+                var reason = section == "custody" ? "audit/provider/external/volatile custody" : "complete five-chain migration census";
+                Check(removed, subject.Platform, subject.Audit, subject.Modules)
+                    .Should().Contain(failure => failure.Contains(reason, StringComparison.Ordinal));
 
                 var duplicated = subject.Document.Replace(row, row + "\n" + row, StringComparison.Ordinal);
-                Check(duplicated, subject.Platform, subject.Audit).Should().NotBeEmpty("duplicate rows must not collapse into a set");
+                Check(duplicated, subject.Platform, subject.Audit, subject.Modules)
+                    .Should().Contain($"Duplicate {section} inventory row.");
                 if (section != "vendor") continue;
                 var withoutClassification = row[..(row.IndexOf('|', 1) + 1)] + " |";
                 var dirty = subject.Document.Replace(row, withoutClassification, StringComparison.Ordinal);
-                Check(dirty, subject.Platform, subject.Audit).Should().NotBeEmpty("a table name alone is not a classification");
+                Check(dirty, subject.Platform, subject.Audit, subject.Modules)
+                    .Should().Contain("Missing vendor classification or malformed row.");
             }
         }
     }
@@ -102,20 +103,25 @@ public sealed class AsyncStoreInventoryTests
         var row = DataLines(subject.Document, "first-party")[0];
         var dirtyDocuments = new[]
         {
-            subject.Document.Replace("<!-- async-store-vendor:start -->", "", StringComparison.Ordinal),
-            subject.Document.Replace("<!-- async-store-vendor:end -->", "<!-- async-store-vendor:end -->\n<!-- async-store-vendor:end -->", StringComparison.Ordinal),
-            subject.Document.Replace("| Vendor table |", "| Unrecognised header |", StringComparison.Ordinal),
-            subject.Document.Replace(row, row.TrimEnd('|'), StringComparison.Ordinal),
+            (subject.Document.Replace("<!-- async-store-vendor:start -->", "", StringComparison.Ordinal),
+                "Missing, repeated or reversed vendor census markers."),
+            (subject.Document.Replace("<!-- async-store-vendor:end -->", "<!-- async-store-vendor:end -->\n<!-- async-store-vendor:end -->", StringComparison.Ordinal),
+                "Missing, repeated or reversed vendor census markers."),
+            (subject.Document.Replace("| Vendor table |", "| Unrecognised header |", StringComparison.Ordinal),
+                "Malformed vendor table header."),
+            (subject.Document.Replace(row, row.TrimEnd('|'), StringComparison.Ordinal), "Malformed first-party table row."),
             // Keeping a removed row in nearby prose must not satisfy the canonical table.
-            subject.Document.Replace(row + "\n", "", StringComparison.Ordinal) + "\n" + row,
-            subject.Document.Replace("| `idempotency_keys` |", "| `unreviewed_exclusion` |", StringComparison.Ordinal),
+            (subject.Document.Replace(row + "\n", "", StringComparison.Ordinal) + "\n" + row,
+                "Expected 10 first-party rows; found 9."),
+            (subject.Document.Replace("| `idempotency_keys` |", "| `unreviewed_exclusion` |", StringComparison.Ordinal),
+                "explicit scope exclusion: unexpected [unreviewed_exclusion]; missing [idempotency_keys]."),
         };
-        foreach (var document in dirtyDocuments)
-            Check(document, subject.Platform, subject.Audit).Should().NotBeEmpty("malformed or unbounded coverage cannot pass");
+        foreach (var (document, reason) in dirtyDocuments)
+            Check(document, subject.Platform, subject.Audit, subject.Modules).Should().Contain(reason);
     }
 
     [Fact]
-    public void Migration_census_tracks_ordered_literal_and_typed_table_lifecycle_and_refuses_unsupported_ddl()
+    public void Migration_census_tracks_ordered_literal_and_typed_table_lifecycle()
     {
         MigrationOperation[] operations =
         [
@@ -131,34 +137,73 @@ public sealed class AsyncStoreInventoryTests
             new SqlOperation { Sql = "SET LOCAL \"search_path\" TO 'public'; SET SESSION search_path = public; SET SCHEMA 'public'; "
                 + "ALTER TABLE public.final_table RENAME TO renamed_table; ALTER TABLE public.renamed_table RENAME TO final_table; "
                 + "CREATE TRIGGER census_trigger BEFORE INSERT ON final_table FOR EACH ROW EXECUTE FUNCTION public.census_guard(); "
-                + "GRANT EXECUTE ON FUNCTION public.census_guard() TO PUBLIC;" },
+                + "GRANT EXECUTE ON FUNCTION public.census_guard() TO PUBLIC; "
+                + "INSERT INTO final_table(id) VALUES(1) ON CONFLICT DO NOTHING; "
+                + "SELECT set_config('app.tenant_id', 'probe', true);" },
         ];
         AsyncStoreInventoryCensus.Tables(operations).Should().BeEquivalentTo(["final_table"]);
-        var unsupported = new[]
-        {
-            "CREATE TEMP TABLE hidden_table (id int);", "CREATE UNLOGGED TABLE hidden_table (id int);",
-            "CREATE GLOBAL TEMP TABLE hidden_table (id int);",
-            "DO $$ BEGIN EXECUTE 'CREATE TABLE hidden_table (id int)'; END $$;",
-            "DO $$ BEGIN EXECUTE 'CREATE ' || 'TABLE hidden_table (id int)'; END $$;",
-            "DO $$ BEGIN EXECUTE format('%s %s', 'CREATE', 'TABLE hidden_table (id int)'); END $$;",
-            "DO $$ BEGIN EXECUTE dynamic_sql; END $$;",
-            "SELECT * INTO public.hidden_table FROM public.background_jobs;",
-            "CREATE TABLE IF absent_table (id int);", "CREATE TABLE (id int);",
-            "SET search_path = other; CREATE TABLE hidden_table (id int);",
-            "CREATE TABLE previous (id int); ALTER TABLE previous SET SCHEMA other;",
-            "CREATE TABLE other.before_name(id int); ALTER TABLE other.before_name RENAME TO after_name;",
-        };
-        foreach (var sql in unsupported)
-        {
-            var read = () => AsyncStoreInventoryCensus.Tables([new SqlOperation { Sql = sql }]);
-            read.Should().Throw<FormatException>("unsupported or ambiguous table declarations must fail closed");
-        }
     }
 
-    private static string[] Check(string document, IReadOnlyList<MigrationOperation> platform, IReadOnlyList<MigrationOperation> audit) =>
-        AsyncStoreInventoryDocument.Check(document, platform, audit, HangfireStorageContract.Columns.Keys);
+    [Theory]
+    [InlineData("CREATE TEMP TABLE hidden_table (id int);", "Unsupported table persistence declaration.")]
+    [InlineData("CREATE UNLOGGED TABLE hidden_table (id int);", "Unsupported table persistence declaration.")]
+    [InlineData("CREATE GLOBAL TEMP TABLE hidden_table (id int);", "Unsupported table persistence declaration.")]
+    [InlineData("CREATE MATERIALIZED VIEW hidden_table AS SELECT 1 AS id;", "Materialized view storage")]
+    [InlineData("DO $$ BEGIN EXECUTE 'CREATE TABLE hidden_table (id int)'; END $$;", "Dynamic EXECUTE is outside")]
+    [InlineData("DO $$ BEGIN EXECUTE 'CREATE ' || 'TABLE hidden_table (id int)'; END $$;", "Dynamic EXECUTE is outside")]
+    [InlineData("DO $$ BEGIN EXECUTE format('%s %s', 'CREATE', 'TABLE hidden_table (id int)'); END $$;", "Unresolved dynamic EXECUTE")]
+    [InlineData("DO $$ BEGIN EXECUTE dynamic_sql; END $$;", "Unresolved dynamic EXECUTE")]
+    [InlineData("DO $$ DECLARE function text := 'CRE' || 'ATE TABLE hidden_table(id int)'; BEGIN EXECUTE function; END $$;", "Unresolved dynamic EXECUTE")]
+    [InlineData("DO $$ DECLARE procedure text := 'CRE' || 'ATE TABLE hidden_table(id int)'; BEGIN EXECUTE procedure; END $$;", "Unresolved dynamic EXECUTE")]
+    [InlineData("SELECT * INTO public.hidden_table FROM public.background_jobs;", "SELECT INTO table creation")]
+    [InlineData("DO $$BEGIN NULL; END$$; SELECT * INTO public.hidden_table FROM public.background_jobs;", "SELECT INTO table creation")]
+    [InlineData("DO $body$BEGIN NULL; END$body$; SELECT 1 INTO public.hidden_table;", "SELECT INTO table creation")]
+    [InlineData("DO 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE hidden_table(id int)''; END';", "Non-dollar procedural bodies")]
+    [InlineData("DO E'BEGIN EXECUTE ''CRE'' || ''ATE TABLE hidden_table(id int)''; END';", "Non-dollar procedural bodies")]
+    [InlineData("DO LANGUAGE plpgsql 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE hidden_table(id int)''; END';", "Non-dollar procedural bodies")]
+    [InlineData("CREATE TABLE IF absent_table (id int);", "Malformed table declaration.")]
+    [InlineData("CREATE TABLE (id int);", "Malformed table identifier.")]
+    [InlineData("SET search_path = other; CREATE TABLE hidden_table (id int);", "non-public search path")]
+    [InlineData("SET LOCAL search_path = other;", "non-public search path")]
+    [InlineData("SET SESSION \"search_path\" TO other;", "non-public search path")]
+    [InlineData("SET SCHEMA 'other';", "non-public search path")]
+    [InlineData("DO $$ BEGIN SET LOCAL search_path = other; END $$;", "non-public search path")]
+    [InlineData("DO $$ BEGIN IF true THEN SET LOCAL search_path = other; END IF; END $$;", "non-public search path")]
+    [InlineData("DO $$ BEGIN IF false THEN NULL; ELSE SET SESSION search_path = other; END IF; END $$;", "non-public search path")]
+    [InlineData("SELECT set_config('search_path', 'other', true); CREATE TABLE IF NOT EXISTS background_jobs(id int);", "set_config search-path resolution")]
+    [InlineData("SELECT pg_catalog.\"set_config\"('search_path', 'other', true);", "set_config search-path resolution")]
+    [InlineData("SELECT set_config('search_' || 'path', 'other', true);", "set_config search-path resolution")]
+    [InlineData("SELECT set_config('SEARCH_PATH', 'other', true);", "set_config search-path resolution")]
+    [InlineData("DROP SCHEMA public CASCADE;", "Schema mutation")]
+    [InlineData("ALTER SCHEMA public RENAME TO previous;", "Schema mutation")]
+    [InlineData("IMPORT FOREIGN SCHEMA remote FROM SERVER probe INTO public;", "Schema mutation")]
+    [InlineData("CREATE TABLE previous (id int); ALTER TABLE previous SET SCHEMA other;", "Table schema moves")]
+    [InlineData("CREATE TABLE other.before_name(id int); ALTER TABLE other.before_name RENAME TO after_name;", "Non-public table storage")]
+    public void Migration_census_refuses_unsupported_ddl_for_the_expected_reason(string sql, string reason)
+    {
+        var operation = new SqlOperation { Sql = sql };
+        operation["InventoryOrigin"] = "ProbeDbContext/20261025_unsupported";
+        var read = () => AsyncStoreInventoryCensus.Tables([operation]);
+        read.Should().Throw<FormatException>()
+            .WithMessage($"ProbeDbContext/20261025_unsupported (SqlOperation): *{reason}*");
+    }
 
-    private static (string Document, MigrationOperation[] Platform, MigrationOperation[] Audit) Subject()
+    [Fact]
+    public void Typed_migration_operations_cannot_hide_non_public_storage_or_schema_removal()
+    {
+        var nonPublic = () => AsyncStoreInventoryCensus.Tables(
+            [new CreateTableOperation { Schema = "other", Name = "background_jobs" }]);
+        nonPublic.Should().Throw<FormatException>().WithMessage("*Non-public table storage*");
+        var dropSchema = () => AsyncStoreInventoryCensus.Tables([new DropSchemaOperation { Name = "public" }]);
+        dropSchema.Should().Throw<FormatException>().WithMessage("*Schema mutation*");
+    }
+
+    private static string[] Check(string document, IReadOnlyList<MigrationOperation> platform,
+        IReadOnlyList<MigrationOperation> audit, IReadOnlyDictionary<string, MigrationOperation[]> modules) =>
+        AsyncStoreInventoryDocument.Check(document, platform, audit, HangfireStorageContract.Columns.Keys, modules);
+
+    private static (string Document, MigrationOperation[] Platform, MigrationOperation[] Audit,
+        Dictionary<string, MigrationOperation[]> Modules) Subject()
     {
         // Build migration services only. No design-time factory, environment credential or
         // database connection is consulted; UpOperations expands the pinned installer resources.
@@ -166,12 +211,25 @@ public sealed class AsyncStoreInventoryTests
             .UseNpgsql("Host=unused").Options);
         using var audit = new AuditDbContext(new DbContextOptionsBuilder<AuditDbContext>()
             .UseNpgsql("Host=unused").Options, new StaticTenantContextAccessor(null));
+        using var tenancy = new TenancyDbContext(new DbContextOptionsBuilder<TenancyDbContext>()
+            .UseNpgsql("Host=unused").Options, StaticTenantContextAccessor.Unresolved);
+        using var customization = new CustomizationDbContext(new DbContextOptionsBuilder<CustomizationDbContext>()
+            .UseNpgsql("Host=unused").Options, StaticTenantContextAccessor.Unresolved);
+        using var education = new EducationDbContext(new DbContextOptionsBuilder<EducationDbContext>()
+            .UseNpgsql("Host=unused").Options, StaticTenantContextAccessor.Unresolved);
+        var modules = new Dictionary<string, MigrationOperation[]>
+        {
+            ["Tenancy"] = AsyncStoreInventoryCensus.Operations(tenancy),
+            ["Customization"] = AsyncStoreInventoryCensus.Operations(customization),
+            ["Education"] = AsyncStoreInventoryCensus.Operations(education),
+        };
+        modules.Values.Should().OnlyContain(operations => operations.Length > 0);
         var platformOperations = AsyncStoreInventoryCensus.Operations(platform);
         var auditOperations = AsyncStoreInventoryCensus.Operations(audit);
         platformOperations.Should().HaveCountGreaterThan(20, "the root must discover the real migration chain");
         auditOperations.Should().NotBeEmpty("audit discovery must independently reach its migration chain");
         return (File.ReadAllText(Path.Combine(RepositoryPaths.RepoRoot(), "docs", "architecture", "23-data-protection.md")),
-            platformOperations, auditOperations);
+            platformOperations, auditOperations, modules);
     }
 
     private static string[] DataLines(string document, string section)

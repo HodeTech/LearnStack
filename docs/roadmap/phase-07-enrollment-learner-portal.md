@@ -177,6 +177,10 @@ Built on the Studio shell, permission system, and typed SDK from
 
 ### Progress Tracking
 
+Before the first learner-behaviour writer, integrate its records with Phase 03's
+DSAR export/erasure workflow and preserve the
+[durable-copy prerequisites](../architecture/23-data-protection.md#erasure-authority-and-first-writer-prerequisites).
+
 - Lesson progress.
 - Module progress.
 - Course progress.

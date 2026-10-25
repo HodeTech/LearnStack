@@ -75,8 +75,7 @@ internal sealed class SentryErrorTracker : IErrorTrackingProvider
                     // process — Sentry is external egress. Uses the same
                     // SensitiveTokenCatalog the Serilog enricher + the
                     // air-gapped LocalFileErrorTracker share so the three
-                    // surfaces cannot drift (Standards 11 § Sensitive Data
-                    // Exposure).
+                    // surfaces cannot drift (Standards 11 § Logging Hygiene).
                     scope.SetTag(
                         key,
                         SensitiveTokenCatalog.IsSensitive(key)

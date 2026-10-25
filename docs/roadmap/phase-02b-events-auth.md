@@ -10,8 +10,12 @@
 > final PR-head qualification. P02b-8's G16/G18 decisions are Accepted; all four
 > implementation steps and both review rounds per step are complete. Its
 > [source-bound qualification closeout](phase-02b-delivery-log.md#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25)
-> records the complete A/B proof. The review PR's current-head checks, maintainer
-> review and merge remain release gates; this phase is not yet marked merged.
+> records the complete A/B proof. [PR #37](https://github.com/HodeTech/LearnStack/pull/37)
+> is under correction review; the
+> [correction record](phase-02b-delivery-log.md#p02b-8-pr-correction-verification-2026-10-25)
+> distinguishes those changes from earlier qualified source. Current-head checks,
+> conversation resolution, maintainer review and merge remain release gates;
+> this phase is not yet marked merged.
 > The [individual exit index](phase-02b-exit-evidence.md) names each criterion's
 > owner.
 >
@@ -157,9 +161,10 @@ Each item below is named somewhere as adjacent to this phase's work. Each has an
 - **Purging processed outbox rows and aged inbox rows.**
   [Phase 11 § Data Operations](phase-11-production-hardening.md#data-operations) owns
   it. This phase is the one that starts filling both tables, so it records the
-  constraint — the `DELETE` grant belongs to `learnstack_platform`, whose only entry
-  takes a reason and no actor, so a recurring job has no principal to present — and G18
-  registers the question.
+  constraint: only outbox currently grants Platform SELECT/DELETE. Inbox,
+  delivery and LearnStack job tables do not. Phase 11 must decide the exact
+  principal, minimum grants, interval and retention/replay floor before its first
+  writer; G18's inventory grants no purge authority.
 - **Cross-instance L1 cache invalidation** (`learnstack.cache.invalidation`). Port
   `ICacheService`, default implementation `InMemoryCacheService`, owning phase
   [Phase 11](phase-11-production-hardening.md), trigger "more than one application
@@ -793,10 +798,11 @@ so "the architecture suite is green" does not reach them. `backend integration
 (Testcontainers)` is already a required check; the
 [P02b-0 receipt](phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12) verifies all seven current
 required contexts with strict up-to-date protection. `P02b-8` re-verifies those
-live settings under the exact reported names. `scripts/assert-tests-ran.py`
-already rejects a missing assembly, zero executed tests and any unexecuted test
-in the required assemblies; test failures additionally fail the `dotnet test`
-command. The phase retains zero skips, per assembly.
+live settings under the exact reported names. The current
+`scripts/ci-test-shards.py aggregate-*` owners validate complete current-attempt
+case identities and zero skips through `ci-test-shard-results.py`; they reject
+missing assemblies, unexecuted cases and non-passing outcomes. The phase retains
+zero skips, per assembly.
 
 ## Deliverables
 
@@ -918,8 +924,8 @@ command. The phase retains zero skips, per assembly.
   Hangfire dashboard route behind the Platform-scope permission with its ADR-0015
   amendment, the operator recovery surface, and this phase's stale in-code messages;
   [Phase 11 § Data Operations](phase-11-production-hardening.md#data-operations), which
-  acquires the processed-outbox and aged-inbox purge under the `learnstack_platform`
-  `DELETE` grant with the no-principal constraint **G9** carries;
+  owns purge decisions against the actual per-store grants and immutable-fact
+  boundaries, including G9's absent recurring-maintenance principal;
   [Phase 08a](phase-08a-assessment-notifications.md), which credits
   `OutboxFlushBehavior` to Phase 02a and books the queue two ways; and
   `infra/apisix/README.md`, which dates the dashboard's gateway gating to Phase 08a. Two
@@ -1176,8 +1182,8 @@ CI and merge verification; its dated local receipts retain their original scope.
   non-sensitive interpolation and on a sensitive name outside a `throw`, produces no
   `AD0001`, and its token set equals the union of the catalogue's single- and two-word
   sets — proved by a token added only to the two-word set failing the drift case — with
-  its rule name, catalogue entry and `AnalyzerReleases` row in the same commit as the
-  analyzer.
+  its rule name, catalogue entry and `AnalyzerReleases` row accepted before the
+  analyzer implementation, as the approved decision sequence requires.
 - The phase's authenticated endpoint appears in the generated OpenAPI document and in
   the regenerated SDK surface.
 - Every event metric uses the literal name and bounded dimensions in
@@ -1292,8 +1298,10 @@ CI and merge verification; its dated local receipts retain their original scope.
 - An authenticated request answers on a named `/api/v1/*` endpoint on `demo-english`,
   the organization host's documented outcome is asserted, and a `learnstack-hub` token
   is 401.
-- The host-vs-JWT cross-check returns 404 and writes one row under Packet 9's existing
-  operation key with a non-null actor and `metadata.assertionSource = jwt-claim`.
+- The host-vs-JWT disagreement returns 404 and writes one admitted row under
+  Packet 9's existing operation key with a non-null actor and
+  `metadata.assertionSource = jwt-claim`. ADR-0065's audit allowance and
+  ADR-0064's no-trusted-tenant/no-row exceptions remain authoritative.
 - The sample integration event flows enqueue → outbox → dispatch → idempotent
   consumption. Forced interleaving proves one live producer owner; publication
   stays at least once. **Forced redelivery** produces one committed business
@@ -1308,9 +1316,11 @@ CI and merge verification; its dated local receipts retain their original scope.
   restored from its real durable row; opaque transport hints carry no tenant payload.
 - Both Phase 02d sites still render anonymously with Keycloak stopped.
 - `LS0002` ships as a Warning with its record, its catalogue entry and its release row.
-- No catalogue row whose Phase names 02b is still Registered or Awaiting backfill; both
-  CI checks are green with no skipped case in the assemblies this phase touches; and the
-  behavioural job is a required check, with the branch-protection date recorded.
+- No catalogue row whose Phase names 02b is still Registered or Awaiting backfill.
+  Every required backend, integration, frontend, meta, OpenAPI and public-demo
+  owner passes its actual population with no skips. `backend integration
+  (Testcontainers)` remains a required check, verified by dated live protection
+  readback under its exact name.
 
 [Phase 02c](phase-02c-hub-foundation.md) is unblocked by this phase but does not gate
 it. Phase 02c hangs off the spine and starts only when its own trigger fires — a tenant

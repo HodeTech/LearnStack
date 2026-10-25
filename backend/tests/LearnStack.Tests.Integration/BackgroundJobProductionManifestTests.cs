@@ -9,6 +9,7 @@ using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Jobs;
+using LearnStack.SharedKernel.Hosting;
 using LearnStack.Tests.Integration.Database;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -30,6 +31,26 @@ public sealed class BackgroundJobProductionManifestTests
     [Fact]
     public async Task BackgroundJob_Runtime_Has_No_Production_Definitions_Or_Dashboard()
     {
+        // ASPNETCORE_ENVIRONMENT remains Development to avoid production adapters;
+        // the independently selected Deployment:Mode still reaches Program's early
+        // composition branch. Route absence must hold for every declared mode.
+        foreach (var mode in Enum.GetNames<DeploymentMode>())
+        {
+            await using var modeFactory = new ManifestFactory(mode: mode);
+            var modeServices = modeFactory.Services;
+            try
+            {
+                modeServices.GetRequiredService<IConfiguration>()["Deployment:Mode"].Should().Be(mode);
+                AssertRoot(modeServices, modeFactory.ProductionDescriptors);
+                ManifestOffenders(modeServices).Should().BeEmpty();
+                AssertRoutes(modeServices);
+                using var client = modeFactory.CreateClient();
+                using var response = await client.GetAsync("/admin/hangfire");
+                response.StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
+            }
+            finally { await CompleteUnstartedOwnersAsync(modeServices); }
+        }
+
         await using var factory = new ManifestFactory();
         var services = factory.Services;
         try
@@ -205,12 +226,20 @@ public sealed class BackgroundJobProductionManifestTests
         await services.GetRequiredService<BackgroundJobRuntime>().Completion.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
-    private sealed class ManifestFactory(Action<IServiceCollection>? configure = null) : ConstructionOnlyApiFactory
+    private sealed class ManifestFactory(Action<IServiceCollection>? configure = null,
+        string mode = nameof(DeploymentMode.Development)) : ConstructionOnlyApiFactory
     {
+        private readonly string _errorDirectory = Path.Combine(Path.GetTempPath(), "learnstack-manifest-" + Guid.NewGuid().ToString("N"));
         internal ServiceDescriptor[] ProductionDescriptors { get; private set; } = [];
         protected override void ConfigureTestHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Development);
+            // UseSetting is required before Program reads the minimal-host builder;
+            // deferred ConfigureAppConfiguration is too late for deployment selection.
+            builder.UseSetting("Deployment:Mode", mode);
+            builder.UseSetting("ErrorTracking:Sentry:Dsn", "https://0123456789abcdef@example.invalid/1");
+            builder.UseSetting("Authentication:Tenant:Issuer", "https://issuer.invalid/realms/learnstack");
+            builder.UseSetting("ErrorTracking:LocalFile:Directory", _errorDirectory);
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Default"] = "Host=localhost;Port=1;Database=learnstack;Username=learnstack_app;Maximum Pool Size=32",
@@ -221,6 +250,12 @@ public sealed class BackgroundJobProductionManifestTests
                 configure?.Invoke(collection);
                 ProductionDescriptors = collection.ToArray();
             });
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await base.DisposeAsync();
+            if (Directory.Exists(_errorDirectory)) Directory.Delete(_errorDirectory, recursive: true);
         }
     }
 

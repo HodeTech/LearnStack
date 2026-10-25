@@ -71,6 +71,7 @@ internal static class AnalyzerCompilation
                 WorkingDirectory = Path.GetDirectoryName(project)!,
             },
         };
+        process.StartInfo.Environment["MSBUILDTERMINALLOGGER"] = "off";
         process.Start();
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();

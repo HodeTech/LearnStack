@@ -147,7 +147,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**270 test methods run in
+**279 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -464,11 +464,13 @@ otherwise).
   reviewer-dependent. Genuine aggregate-invariant throws (the sanctioned
   use) are the rare sites that suppress with justification
   (`#pragma warning disable LS0001`). The analyzer ships in
-  `backend/analyzers/LearnStack.Analyzers` and is referenced by every
-  module's `Domain` + `Application` project (and the core `LearnStack.Domain`
-  / `LearnStack.Application`) via
-  `<ProjectReference ... OutputItemType="Analyzer" ReferenceOutputAssembly="false" />`
-  (NOT a PackageReference — the analyzer is built in-tree, not packed).
+  `backend/analyzers/LearnStack.Analyzers`. The unconditional reference in
+  `backend/src/Directory.Build.props` loads it as an in-tree analyzer, with
+  `ReferenceOutputAssembly="false"`; the compiler-visible
+  `LearnStackAnalyzeDomainExceptionThrow` property preserves its exact
+  Domain/Application scope. The same reference loads
+  [LS0002](#learnstackexception-sensitiveexceptionmessage-roslyn-analyzer) in all
+  production projects. Do not duplicate per-project references.
 - **Severity:** Warning in Phase 02a; listed in `WarningsNotAsErrors`
   (Directory.Build.props) so it does not break CI under
   `TreatWarningsAsErrors` before the documented escalation. Flipped to Error
@@ -503,8 +505,14 @@ otherwise).
 - **Source:** [ADR-0032 Amendment 6](../decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25).
 - **Kind:** compile-time.
 - **Status:** **Implemented** — analyzer, `SensitiveExceptionMessageAnalyzerTests`
-  and `AnalyzerBuildTests` in `LearnStack.Tests.Unit`; supporting evaluated
-  production wiring and dirty controls run in the architecture suite.
+  and `AnalyzerBuildTests` in `LearnStack.Tests.Unit`.
+- **Supporting architecture proofs:**
+  `SensitiveExceptionMessageTests.Production_Exception_Messages_Do_Not_Contain_Sensitive_References`
+  checks both production configurations, including suppressed reports;
+  `The_Sensitive_Report_Sees_Suppressed_And_Conditional_Violations` plants them.
+  `AnalyzerWiringTests` checks evaluated settings and unconditional reference
+  ancestry, with OS/CI/Choose and editorconfig/targets suppression controls.
+  These are supporting proofs of this rule, not additional catalogue rules.
 - **Phase:** 02b (P02b-8).
 
 #### `Durable_Async_Store_Inventory_Covers_The_Storage_Census`
@@ -520,13 +528,18 @@ otherwise).
 - **Type:** storage-definition and documentation census with dirty controls.
 - **Kind:** structural.
 - **Status:** **Implemented** — `AsyncStoreInventoryTests` reads the ordered,
-  compiled Platform/Audit `UpOperations`, including expanded vendor installer SQL;
-  it reconciles the complete Platform table set with the canonical inventory and
-  its explicit request-idempotency exclusion. Vendor rows independently match
+  compiled `UpOperations` for Platform, Audit, Tenancy, Customization and Education,
+  including expanded vendor installer SQL. It reconciles every table with the
+  canonical inventory or an explicit synchronous/module exclusion. Opaque
+  procedural DDL, stored projections and unsupported schema/path changes fail
+  closed with their origin; planted controls assert the intended reason.
+  Vendor rows independently match
   `HangfireStorageContract.Columns`. Added/dropped/renamed storage, every removed
   row, duplicate/malformed tables and blank vendor classifications fail the
   controls. Audit/provider/diagnostic/backup/volatile custody entries are required;
-  the independent live PostgreSQL schema census remains a separate backstop.
+  the independent live PostgreSQL `r`/`p`/`m` relation census remains a separate
+  backstop, with `StorageRelationCensusTests` checking each kind. Exact vendor
+  column shape remains the independent `HangfireSchemaShape.Verify` runtime proof.
 - **Phase:** 02b (P02b-8).
 
 #### `Handlers_Return_Result`
@@ -2739,9 +2752,12 @@ which decides identity, multiplicity, capture and classification;
 - **Type:** xUnit over the behavior and the scoped capture, with a nested-dispatch case.
   **Kind:** behavioural.
 - **Status:** **Implemented** (`AuditLogBehaviorTests`, Packet 9 step 8). A theory over three endings — success, refusal, handler exception — because each leaves the behaviour by a different door and only the `finally` is common to them; plus the nested case, so the pair pins "exactly once, by the outermost" rather than merely "at least once".
-  `DeliveryExecutionTests` additionally observes the real scoped capture's single
-  clear on successful, faulted and lost-COMMIT delivery. An already-completed
-  retry clears no new frame; the concrete `IAuditSubject` binding is preserved.
+  `DeliveryExecutionTests` additionally observes the unmodified production capture
+  populated by real saves, then empty on successful, faulted and lost-COMMIT
+  delivery. A completed retry produces no new frame or indeterminate row.
+  `AuditCaptureWiringTests` checks the real `IAuditStateCapture`/`IAuditSubject`
+  aliases and cross-scope isolation. `AuditStateCaptureTests` exercises cleared
+  nested state independently; the behavior tests retain exactly-once call proof.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_Shipped_Request_Is_Registered`
@@ -5120,9 +5136,9 @@ structural test proves — and what it does not.
   behavioural and asserted in `PlatformAdminGateTests`; a structural rule cannot see it.
 
   *Subject, vacuous:* there is no permission to hold. `AuthorizationBehavior.Handle` is
-  `return next()`, authentication arrives in
-  [Phase 02b](../roadmap/phase-02b-events-auth.md), and the Platform-scope permission
-  with the Identity module in [Phase 03](../roadmap/phase-03-identity-admin.md). So
+  `return next()`. API authentication is delivered under ADR-0064; the
+  Platform-scope permission remains Identity work in
+  [Phase 03](../roadmap/phase-03-identity-admin.md). So
   nothing exercises a *permitted* entry, and the gate refusing everyone blocks nothing
   this packet ships. Packet 9 gives the scope its first real work and inherits the gate:
   the platform-scope `security-event` row the scope writes on entry through

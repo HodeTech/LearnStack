@@ -11,8 +11,8 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>
-/// Runs an in-tree analyzer over a project's real sources and reports what it found, for
-/// <c>Domain_Methods_Do_Not_Throw_For_Expected_Cases</c>.
+/// Runs the in-tree exception analyzers over real project sources, independently of
+/// build severity and local suppressions.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -119,6 +119,8 @@ internal static class AnalyzerReport
 
         if (configuration is not null)
             msbuild.StartInfo.ArgumentList.Add("-property:Configuration=" + configuration);
+        msbuild.StartInfo.Environment["MSBUILDTERMINALLOGGER"] = "off";
+        msbuild.StartInfo.Environment["CI"] = "true";
         msbuild.Start();
 
         var output = msbuild.StandardOutput.ReadToEndAsync();
@@ -159,12 +161,37 @@ internal static class AnalyzerReport
     /// </summary>
     public static async Task<Run> RunAsync(string projectPath, params string[] planted)
     {
+        var (compilation, trees, diagnostics) = await AnalyzeAsync(
+            projectPath, new DomainExceptionThrowAnalyzer(), DomainExceptionThrowAnalyzer.DiagnosticId, null, planted);
+        return new Run(
+            Path.GetFileNameWithoutExtension(projectPath),
+            [.. diagnostics.Select(diagnostic => Locate(diagnostic, compilation))],
+            trees.Sum(tree => ResultReturningMembers(tree, compilation).Count));
+    }
+
+    /// <summary>
+    /// Runs LS0002 independently of build severity and reports even locally suppressed sites.
+    /// Findings contain locations and member names, never source expressions or values.
+    /// </summary>
+    public static async Task<IReadOnlyList<Finding>> SensitiveAsync(
+        string projectPath, string configuration, params string[] planted)
+    {
+        var (compilation, _, diagnostics) = await AnalyzeAsync(
+            projectPath, new SensitiveExceptionMessageAnalyzer(), SensitiveExceptionMessageAnalyzer.DiagnosticId,
+            configuration, planted);
+        return [.. diagnostics.Select(diagnostic => Locate(diagnostic, compilation))];
+    }
+
+    private static async Task<(CSharpCompilation Compilation, List<SyntaxTree> Trees, ImmutableArray<Diagnostic> Diagnostics)>
+        AnalyzeAsync(string projectPath, DiagnosticAnalyzer analyzer, string diagnosticId,
+            string? configuration, string[] planted)
+    {
         var name = Path.GetFileNameWithoutExtension(projectPath);
         var directory = Path.GetDirectoryName(projectPath)!;
         // The symbols the build defines, so an `#if` region is parsed rather than skipped: code
         // inside one the parser drops is code this rule cannot see, and the rule is the gate.
         var parse = new CSharpParseOptions(LanguageVersion.Latest, DocumentationMode.None)
-            .WithPreprocessorSymbols(EvaluatedSymbols(projectPath));
+            .WithPreprocessorSymbols(EvaluatedSymbols(projectPath, configuration));
 
         var trees = Sources(directory)
             .Select(file => CSharpSyntaxTree.ParseText(File.ReadAllText(file), parse, file))
@@ -197,21 +224,23 @@ internal static class AnalyzerReport
                 nullableContextOptions: NullableContextOptions.Enable,
                 specificDiagnosticOptions: new Dictionary<string, ReportDiagnostic>(StringComparer.Ordinal)
                 {
-                    [DomainExceptionThrowAnalyzer.DiagnosticId] = ReportDiagnostic.Warn,
+                    [diagnosticId] = ReportDiagnostic.Warn,
                 }));
 
-        var kernel = compilation.GetTypeByMetadataName("LearnStack.SharedKernel.Errors.DomainException");
+        var requiredType = diagnosticId == DomainExceptionThrowAnalyzer.DiagnosticId
+            ? "LearnStack.SharedKernel.Errors.DomainException" : "System.Exception";
+        var kernel = compilation.GetTypeByMetadataName(requiredType);
 
         if (kernel is null)
         {
             throw new InvalidOperationException(
-                $"{name}'s compilation cannot resolve DomainException, so the analyzer has "
+                $"{name}'s compilation cannot resolve {requiredType}, so the analyzer has "
                 + "nothing to recognise and would report nothing whatever the code did.");
         }
 
         var diagnostics = await compilation
             .WithAnalyzers(
-                ImmutableArray.Create<DiagnosticAnalyzer>(new DomainExceptionThrowAnalyzer()),
+                ImmutableArray.Create(analyzer),
                 new CompilationWithAnalyzersOptions(
                     new AnalyzerOptions([]),
                     onAnalyzerException: null,
@@ -229,12 +258,7 @@ internal static class AnalyzerReport
                 $"The analyzer crashed on {name}: {crashed[0].GetMessage(CultureInfo.InvariantCulture)}");
         }
 
-        return new Run(
-            name,
-            [.. diagnostics
-                .Where(diagnostic => diagnostic.Id == DomainExceptionThrowAnalyzer.DiagnosticId)
-                .Select(diagnostic => Locate(diagnostic, compilation))],
-            trees.Sum(tree => ResultReturningMembers(tree, compilation).Count));
+        return (compilation, trees, [.. diagnostics.Where(diagnostic => diagnostic.Id == diagnosticId)]);
     }
 
     /// <summary>The member a diagnostic sits in, and whether that member returns a result.</summary>

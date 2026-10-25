@@ -51,7 +51,7 @@ routes:
     priority: 100
     plugins:
       cors: {}
-      # openid-connect realm discovery is wired in Phase 03 against the
+      # Phase 11 qualifies openid-connect before gateway activation against the
       # learnstack Keycloak realm. Placeholder kept so the route schema
       # validates today.
       # openid-connect:

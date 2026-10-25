@@ -262,6 +262,13 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
 
 ### Security
 
+- Qualify the APISIX `openid-connect` block against the tenant realm before
+  gateway activation. Phase 03 corrects the route table; it does not activate
+  the gateway. Adopt that corrected file rather than the older architecture
+  sketch.
+- Gate `/admin/hangfire*` at APISIX in addition to Phase 03's application
+  Platform-scope permission and dated ADR-0015 disclosure. Prove both denied
+  layers; a realm role alone grants no application authority.
 - Secure headers (HSTS, CSP with nonces, COOP/CORP, Permissions-Policy).
 - CORS policy enforced at APISIX (`cors` plugin) + per-handler ASP.NET layer.
 - CSRF strategy for non-Action mutating routes.
@@ -612,20 +619,22 @@ new erasure permission.
   the integration suite passes against it.
 - Retained database/WAL/backup, provider-event and diagnostic-copy reconciliation,
   including a post-restore control that does not reintroduce erased references.
-  Source-row deletion and local BFF invalidation prove no removal from these
+  Source-row deletion and local BFF invalidation do not prove removal from these
   copies. Qualify the actual retention/deletion and operational evidence here.
 - Migration strategy, including the two-step plan every destructive change requires.
 - Seed data strategy.
 - Data retention policy.
 - Soft delete and purge jobs.
 - Processed outbox, delivery, inbox and job-history purge decisions against the
-  inventory. Among the ten first-party asynchronous tables, only
+  inventory. Among its first-party asynchronous tables, only
   `outbox_messages` currently grants Platform SELECT/DELETE;
   inbox, delivery and LearnStack job tables grant Platform no access. Immutable
   completion/execution facts and no-delete guards remain effective even with
   `BYPASSRLS`. Before the first purge writer, a bounded decision names the exact
   principal, minimum grants and required migration, eligible facts, dependency
-  order and retention/replay floor. A recurring job cannot borrow the
+  order, purge interval and retention/replay floor. Reuse Phase 03's established
+  DSAR/redaction authority; any extension for later stores or purge requires its
+  own bounded decision before its writer. A recurring job cannot borrow the
   dispatcher's credential or treat ordinary SystemActor delivery as authority.
   Retention must preserve deduplication throughout the maximum redelivery window;
   erasure cannot release unresolved reservations or prove external quiescence.

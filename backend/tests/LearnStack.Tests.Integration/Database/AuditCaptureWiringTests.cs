@@ -204,6 +204,22 @@ public sealed class AuditCaptureWiringTests
         scope.ServiceProvider.GetServices<ISaveChangesInterceptor>()
             .Should().ContainSingle(interceptor => interceptor is AuditChangeTrackerInterceptor,
                 "the audit capture survives a second interceptor registered ahead of it");
+
+        var capture = scope.ServiceProvider.GetRequiredService<AuditStateCapture>();
+        scope.ServiceProvider.GetRequiredService<IAuditStateCapture>().Should().BeSameAs(capture);
+        scope.ServiceProvider.GetRequiredService<IAuditSubject>().Should().BeSameAs(capture,
+            "designation and EF capture must address the same real scoped buffer");
+        capture.OpenFrame();
+        capture.HasOpenFrame.Should().BeTrue();
+
+        await using var other = provider.CreateAsyncScope();
+        var otherCapture = other.ServiceProvider.GetRequiredService<AuditStateCapture>();
+        other.ServiceProvider.GetRequiredService<IAuditStateCapture>().Should().BeSameAs(otherCapture);
+        other.ServiceProvider.GetRequiredService<IAuditSubject>().Should().BeSameAs(otherCapture);
+        otherCapture.Should().NotBeSameAs(capture, "a second execution needs its own capture");
+        otherCapture.HasOpenFrame.Should().BeFalse("one scope cannot inherit another scope's audit owner");
+        capture.HasOpenFrame.Should().BeTrue("resolving another scope cannot close the first owner's frame");
+        capture.CloseFrame(AuditIntentResult.Succeeded);
     }
 
     /// <summary>An interceptor that does nothing, registered only to get in the way.</summary>
