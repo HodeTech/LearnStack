@@ -15,8 +15,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 130 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 165 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 128 lines
+  - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -158,7 +159,7 @@ Accepted ADR bodies and all historical delivery entries remain untouched.
 |---|---|---|
 | G1 | ADR-0072: application allocates one permanent actor from verified issuer/opaque sub; explicit bootstrap; trusted seed adoption | P03-4 completes real invitation enrollment; no email merge/provider Admin write |
 | G2 storage/reader contract | ADR-0072 global self owner; ADR-0073 app-role candidate read owner, new enumerated setter and step-5/6 handoff | P03-2 execution, live rows 7/10/14 and protected 6/9; claim-only mismatch evidence before activation |
-| G3 | ADR-0073: Membership contains one contextual profile and multiple assignments; null-safe natural key, lifecycle/successor and finite role scopes | P03-3 field/HTTP/admin/organization operations; P03-5 dynamic fields |
+| G3 | ADR-0073: Membership contains one contextual profile and multiple assignments; null-safe natural key, lifecycle/successor and finite role scopes, including the explicit Organization Learner variant | P03-3 field/HTTP/admin/organization operations; P03-5 dynamic fields |
 | G4 shared implications | No global active-scope column; actor-only bootstrap does not publish a tenant BFF session | P03-3 usable discovery, per-session issuance, switch/refresh/logout races and real A/B proof |
 | G5 schema/bootstrap | Scoped permission identity; code definitions, finite initial grants, disabled later additions, last-admin serialization | P03-2 permission enforcement/delegation/denial and revocation execution; P03-3 UI |
 | G7 only new global mutation | ADR-0072: first User and its central MUST row share one app-role transaction, exact row-bound global exception | P03-2 normal HTTP/application denial/enrichment; no general standalone budget |
@@ -232,3 +233,38 @@ P03-1 prerequisite is relabeled as a later production-hardening task.
 **Current validation.** Pending on the proposed documentation source. There has
 been no backend/frontend/provider execution or implementation qualification in
 this decision pass; review and mechanical results are appended after completion.
+
+### P03-1 proposal review round 1 (2026-10-25)
+
+**Reviewed source:** `8cf352f40e57766206ea81ec2a1dd803242cbf46`. Two fresh,
+independent reviewers use GPT-6 Astra / xhigh for authority/global SQL/audit and
+GPT-6.1 Sol / xhigh for the membership/privacy/step model. Both run read-only
+reviews, inspect current source and Accepted authorities, and execute no runtime
+tests or provider writes. This records their actual scope, not implementation
+qualification or maintainer acceptance.
+
+Two Major proposal gaps are verified and corrected before the next round:
+
+- The BFF currently rejects missing tenant before bootstrap. ADR-0072 now
+  explicitly admits a strict pre-session provider-subject projection with actor
+  and tenant optional. It requires the ordinary positive AccountSite scope
+  witness before session publication and a real actorless/tenantless control.
+- The declared Yoga learner has organization scope, but the role proposal had
+  no explicit Organization Learner shape. ADR-0073 now selects that finite
+  scope variant, exact assignment compatibility and other-branch denial, without
+  silently making the learner a tenant-wide member.
+
+Two design ambiguities are also resolved, without claiming observed runtime
+defects: creation-audit reciprocity is an insertion-time deferred witness, not a
+perpetual cross-module FK blocking retention purge; the User fence uses a named
+transaction advisory lock and exact owner-policy read, not an unspecified row
+lock requiring a second policy. A separate state-only Boolean read supports
+last-admin eligibility; later closure joins the same tenant invariant locks.
+The canonical new proof names and planned owners are now explicit.
+
+Mechanical checks on the initial proposal pass: `make lint-docs` resolves 2,408
+fragment links, roadmap structure and three generated indexes; the changed-doc
+file sweep resolves 1,013 relative targets; both ADRs parse Proposed. Existing
+ADR/parser/fragment/roadmap/index controls pass 37 tests in total. No application
+suite is rerun for this documentation-only review. Corrected-source checks and
+a second independent round remain required before requesting approval.

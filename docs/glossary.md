@@ -24,6 +24,8 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | Term | Definition |
 |------|------------|
 | **User** | A person known to LearnStack at the global level. Identified by a stable user id. |
+| **Identity subject binding** | Proposed permanent mapping from a verified issuer and opaque subject to one application actor under [ADR-0072](decisions/0072-application-owned-identity-bootstrap.md). It is not yet implemented or an Accepted replacement for the current claim contract. |
+| **Global-self bootstrap** | Proposed exact authenticated operation that establishes only the requesting provider subject's application identity, with no tenant membership or permission. Its authority and audit boundary await [ADR-0072](decisions/0072-application-owned-identity-bootstrap.md) approval. |
 | **Membership** | The relationship between a user, a tenant, and (optionally) an organization. Triple-keyed `(user_id, tenant_id, organization_id)` per [ADR-0017](decisions/0017-tenant-organization-hierarchy.md). A user can have memberships in multiple tenants and multiple organizations within one tenant. |
 | **MembershipProfile** | Tenant-owned, organization-scoped contextual profile attached to a membership, including its custom-field values. Global identity stays on `User`; [Phase 03 G3/G9](roadmap/phase-03-identity-admin.md#the-decision-register) settle profile granularity, editable fields and revision-aware values before their first writers. Consent evidence follows [Data Protection](architecture/23-data-protection.md#consent-management). |
 | **Role** | A named bundle of permissions. Scope: `Platform` / `Tenant` / `Organization`. Examples: `tenant-admin`, `editor`, `instructor`, `learner`, `org-admin`. |

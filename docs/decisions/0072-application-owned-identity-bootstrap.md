@@ -149,9 +149,15 @@ standalone write. Its one P03-1 mutation operation is `identity.user.create`, MU
 `TenantId.PlatformSentinel` identifies this global row's storage attribution only;
 it is never request authority or a value passed to a tenant setter.
 
-- Bind the row to the actual User/actor and an immutable, unique creation-audit
-  reference. Database constraints validate both directions at commit: no first
-  User without its matching row, no claimed bootstrap row without that User.
+- Bind the row to the actual User/actor and an immutable creation-audit reference
+  containing its complete `(id, timestamp)` key. Insertion-time deferred guards
+  validate both directions at that commit: no first User without its matching
+  row, no claimed bootstrap row without that User. These are not cross-module
+  foreign keys or perpetual existence constraints. Authorized later audit purge
+  may leave the historical surrogate reference on the permanent User tombstone;
+  it does not change retention or recreate the deleted audit. Confine the exact
+  cross-store witness to central audit infrastructure, never a module join or
+  independent writer. No arbitrary audit-row reuse passes the creation guard.
   RLS/write guards admit only this named global operation and subject. They do
   not widen the existing tenant audit policy or admit arbitrary sentinel INSERTs.
 - Record the verified requesting subject's normalized actor as actor, and the
@@ -171,8 +177,11 @@ not a new Identity audit table and not an extension of the standalone refusal bu
 
 ### BFF association and publication
 
-The BFF independently validates its ID token, permitting an absent actor claim but
-rejecting malformed/reserved values. During initial callback, the fixed server
+The BFF independently validates its ID token into a pre-session provider-subject
+projection. At this stage actor and tenant may be absent; supplied values retain
+the strict UUID/reserved/duplicate checks, and organization still requires tenant.
+This changes pre-session admission only: an actorless/tenantless grant cannot be
+used as an ordinary session identity. During initial callback, the fixed server
 bootstrap request uses that grant's exact access token. Compare returned issuer/sub
 with the independently validated ID token and every present actor claim. Then
 AccountSite must positively witness the same normalized actor and admitted scope
@@ -215,14 +224,27 @@ and fulfillment before its workflow. Tenant erasure/last membership removal neve
 closes the global account or provider implicitly.
 
 All membership-creation paths serialize against the same User admission fence.
-The narrow database guard may lock/test one target User through a schema-qualified
-SECURITY DEFINER function owned by `learnstack_migration`, NOBYPASSRLS, with an
-explicit owner read policy, fixed search path, no dynamic SQL, no identity-setting
-side effect and no returned PII. Revoke PUBLIC execution; grant only the exact
-app capability. Its transaction-held lock linearizes against global closure.
+The narrow database guard takes a transaction-scoped advisory lock for one target
+User, then rechecks admission through a schema-qualified SECURITY DEFINER read
+owned by `learnstack_migration`, NOBYPASSRLS, with an explicit owner SELECT policy,
+fixed search path, no dynamic SQL, no identity-setting side effect and no returned
+profile. It does not use SELECT FOR UPDATE/SHARE or require an owner UPDATE policy.
+Use a separate lock namespace from tenant invariant locks; hash collisions may
+serialize unrelated work but never substitute for an exact UserId predicate.
+Revoke PUBLIC execution; grant only the exact app capability. A separately named
+state-only Boolean read of one target supports the tenant last-admin check; it
+cannot lock a second User after the tenant lock. These exact functions return no
+email, subject or other profile fields. The transaction-held User lock and recheck
+linearize new membership against closure. Closure/status writers must also join
+the affected tenant invariant locks before making a last admin ineligible, in
+ADR-0073's order, before their later writer is admitted.
 This function is a declared confined owner read, not ordinary app-role User
 isolation. Direct app global SELECT, arbitrary target projection and generic
 definer functions remain forbidden. Closure's privileged writer remains P03-10.
+The lock lifetime follows PostgreSQL 18's
+[transaction advisory-lock contract](https://www.postgresql.org/docs/18/explicit-locking.html#ADVISORY-LOCKS).
+The SELECT-only choice avoids the additional row-lock policy requirements in
+[CREATE POLICY](https://www.postgresql.org/docs/18/sql-createpolicy.html).
 
 ## Context
 
@@ -248,8 +270,10 @@ From ADR-0070:
 > match the validated ID token's protected `user_id`/`tenant_id` to its actor/
 > tenant.
 
-The actor association gains the explicit bootstrap/binding proof above; tenant
-scope, cookie, refresh, capacity and late-publication fences remain.
+The actor association gains the explicit bootstrap/binding proof above. A
+tenantless pre-session projection is newly admitted only to bootstrap; required
+tenant authority at ordinary publication, cookies, refresh, capacity and late-
+publication fences remain.
 
 From ADR-0064's pipeline:
 
@@ -316,8 +340,12 @@ dependent schema/adapter, including a dormant one. No code is qualified here.
 
 Extend named existing catalogue owners for context writers/setters, transaction
 ownership, app-role isolation, audit append-only/durability, HTTP surface and BFF
-publication. Register new global-binding/audit obligations with actual owners in
-the acceptance commit; mark them Registered until their controls land. Do not
+publication. Register `Global_Identity_Is_Subject_Confined`, owned by the planned
+`LearnStack.Tests.Integration/Identity/IdentitySubjectIsolationTests.cs`, with
+actual app-role/HTTP global-binding controls in Step 3/5. Extend
+`MustClass_Audit_Writes_Share_The_Business_Transaction` for the creation witness.
+Record the planned owners in the acceptance commit; new rules stay Registered
+until their controls land. Do not
 claim a provider SDK backfill from direct HTTP.
 
 ## Tests and Proofs
@@ -333,7 +361,9 @@ claim a provider SDK backfill from direct HTTP.
   precedence and preactor confinement. Scope/header input cannot select identity.
 - Real seed adoption preserves all four actors/subjects/passwords/MFA, completed
   no-write rerun, conflicting readback refusal and no seed HTTP impersonation.
-- Actual native callback/refresh through fixed SDK calls, wrong-subject proof,
+- Actual native callback/refresh through fixed SDK calls, including a real
+  actorless/tenantless provider grant that creates its User but no tenant session;
+  wrong-subject proof,
   claim-presence conflict, lost/late callback and closed-account controls;
   no tenant session from actor-only bootstrap.
 - Membership-versus-closure lock races and definer privilege/search-path/method

@@ -68,6 +68,10 @@ and diagnostic representations are declared before their first writes.
 | Assignments | Multiple contained role assignments; exact parent tenant/org mirror, no duplicate role reference |
 | Global User | Stable reference; no cascading global deletion and no email-based relation |
 
+The nullable-key behavior follows PostgreSQL 18's
+[unique-constraint contract](https://www.postgresql.org/docs/18/ddl-constraints.html#DDL-CONSTRAINTS-UNIQUE-CONSTRAINTS);
+the partial index still determines which lifecycle rows participate.
+
 The profile initially carries optional contextual display/contact fields and a
 locale preference, with bounded validated values. Absence uses an explicit safe
 UI fallback; it never copies or overwrites a global person field on an ordinary
@@ -98,6 +102,13 @@ semantics. A child repository is not an independent write boundary.
   roles have NULL organization; organization role definitions are independently
   scoped to their exact organization. Platform Admin/Hub Operator have no rows
   in these tables. Portal Public remains a virtual anonymous capability.
+- The closed Learner key has both Tenant and Organization variants. This is an
+  explicit extension of Standard 19's Tenant-only Learner example, not a custom
+  role name. An organization Membership can reference only role definitions of
+  that exact organization; a tenant-wide Membership only Tenant definitions.
+  The Organization Learner holds only Organization permission identities and
+  grants no other-branch or Tenant capability. Other built-ins retain Standard
+  19's listed scopes. Adoption updates that canonical scope table explicitly.
 - A role definition's tenant, organization, built-in key and scope are immutable.
   Permission-grant changes belong to that Role root. Assignment changes belong
   to Membership; neither operation writes the other root implicitly.
@@ -161,7 +172,12 @@ Each Membership creation also acquires ADR-0072's User admission lock before the
 tenant lock. Global closure takes the User lock before changing its admission
 state; membership creation then observes Active or refuses. Role and membership
 writers use this fixed lock order; future closure cannot acquire tenant first
-and invert it. Tenant erasure or removal of the last membership never closes the
+and invert it. Last-admin eligibility uses the separately confined Boolean User
+state read, not a global User SELECT or a second User lock while holding tenant.
+Later global closure/status writers must acquire the affected tenant locks in
+stable order before changing eligibility, and resolve the final-admin exception
+under G16/G13 before activation. Tenant erasure or removal of the last membership
+never closes the
 global provider account. Last/default-organization archive remains Tenancy-owned
 and cannot strand this invariant; its concurrency contract ships before P03-3's
 organization endpoint, not as a foreign-key shortcut here.
@@ -264,8 +280,11 @@ status. SeedData has four authentication personas and two organizations in each
 tenant; no application memberships or permission grants exist.
 
 The first seeds preserve all four personas and give the declared administrators
-tenant-wide Tenant Admin memberships. Learners retain their host-appropriate
-scope. A separately declared cross-tenant/multi-org proof subject exercises one
+tenant-wide Tenant Admin memberships. The English learner has a tenant-wide
+Learner membership; Yoga's learner has an Organization Learner membership in the
+host's default organization, with an explicit other-branch denial. No role scope
+is inferred from the Keycloak role name. A separately declared cross-tenant/
+multi-org proof subject exercises one
 person in both tenants and two organizations, alongside another same-tenant
 person; it is not an email merge or mutation of a legacy identity.
 
@@ -288,7 +307,8 @@ Identity tables or all User indexes.
 
 Standard 19's disabled-default additions prevail over the historical automatic
 Tenant Admin expansion; the finite initial/upgrade manifests make that choice
-explicit. Acceptance updates that standard's authority and examples, not grants.
+explicit. The scoped Learner variant is also a new named extension. Acceptance
+updates that standard's authority and examples, not grants.
 The P03-1 package identifies closed gate parts and keeps later execution Open.
 
 Acceptance adds a dated ADR-0017 clarification for contained membership data and
@@ -353,9 +373,11 @@ Extend the canonical existing rules rather than inventing alternate spellings:
   and unique-index owners gain actual Identity subjects and isolated controls.
 - `Permission_Definitions_DeclareScope` covers the nonempty foundation registry;
   broader resource-scope/denied enforcement remains P03-2's implementation.
-- Register the complete mapped-property classification census with an actual
-  structural owner and planted unclassified neutral-name property. Keep diagnostic
-  and database behavioral controls separate from a structural proof.
+- Register `Mapped_Properties_Have_Explicit_Personal_Data_Classification`, owned
+  by `LearnStack.Tests.Architecture/DataProtectionConventionTests.cs`, with the
+  complete mapped-property census and a planted unclassified neutral-name
+  property. This planned owner lands in Step 2; registration alone is not an
+  Implemented status. Diagnostic and database controls are behavioral proof.
 
 ## Behavioral Proofs
 
