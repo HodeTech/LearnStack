@@ -82,8 +82,10 @@ for the next identity, membership and authorization work; the
 | **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs, the closed tenant bearer/AccountSite boundary and development realm reconciliation | Membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md); current exit state in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke, generated typed SDK and optional bounded native BFF session scaffolds | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
-**Four modules contain domain implementations:** Tenancy, Customization, Audit and
-Education. Identity, Content and Media remain scaffolded.
+**Five modules contain domain implementations:** Tenancy, Customization, Audit,
+Education and Identity. Identity's [module specification](docs/modules/identity/README.md)
+distinguishes implemented global bindings/common audit from contextual and live
+admission work. Content and Media remain scaffolded.
 
 The subsequent product milestones are CMS and media ([04](docs/roadmap/phase-04-cms-media-pages.md)),
 the full course catalog ([05](docs/roadmap/phase-05-education-learning-content.md)),

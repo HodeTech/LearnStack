@@ -150,9 +150,10 @@ The Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.m
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
 foundation contract owns permanent global User bindings using the existing typed
 `UserId`, contextual Membership/Profile/assignments and tenant-wide Role templates.
-Current Identity packages still contain assembly markers; storage and commands
-remain pending P03-1 implementation. The [module specification](../modules/identity/README.md)
-owns exact scope, lifecycle and seed targets; invitations remain P03-4.
+Identity implements global User/authority storage and internal binding/common-audit
+consumers. The [module specification](../modules/identity/README.md) owns current
+contextual/admission delivery boundaries, exact scope, lifecycle and seed targets;
+invitations remain P03-4.
 Wraps the auth provider (Keycloak today — see
 [Authentication Strategy](13-identity-and-auth.md)). Native credential/session
 custody belongs to the BFF owner under

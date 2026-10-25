@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 958 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,014 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -40,6 +40,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 3 review round 1 and corrections (2026-10-26)](#p03-1-step-3-review-round-1-and-corrections-2026-10-26) — 46 lines
   - [P03-1 Step 4 ordered-lock timing proposal (2026-10-26)](#p03-1-step-4-ordered-lock-timing-proposal-2026-10-26) — 39 lines
   - [ADR-0074 proposal review round 1 (2026-10-26)](#adr-0074-proposal-review-round-1-2026-10-26) — 12 lines
+  - [P03-1 Step 3 review round 2 and local closeout (2026-10-26)](#p03-1-step-3-review-round-2-and-local-closeout-2026-10-26) — 40 lines
+  - [ADR-0074 proposal review round 2 and readiness (2026-10-26)](#adr-0074-proposal-review-round-2-and-readiness-2026-10-26) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1083,3 +1085,59 @@ and PostgreSQL 18 locking/snapshot documentation. No build, suite or contextual
 runtime proof is attributed to these reviews. The existing rule remains Registered;
 no dependent code or Accepted authority changes. A second fresh proposal round
 follows this documentation commit before requesting the maintainer's decision.
+
+### P03-1 Step 3 review round 2 and local closeout (2026-10-26)
+
+**Reviewed source:** `111ca113`, whole Step 3 diff from `e4a8a0a1`. Two new
+read-only reviewers inspect the common owner/audit/security boundary (GPT-6 Astra,
+xhigh) and foundation/schema/DI/deployment/corpus (GPT-6.1 Sol, xhigh). Both
+approve their assigned runtime scopes without further actionable runtime
+findings. The latter identifies two stale mutable descriptions: repository README
+and Architecture 03 still call Identity marker-only. They now point to the
+implemented global foundation and the module specification's remaining scope.
+These reviews inspect real controls, but execute no suites; qualification below
+is the parent's evidence.
+
+The complete Architecture rerun executes 559 cases: 558 pass, one fails, zero
+skipped. The four prior job/delivery census failures are green. The remaining
+failure correctly detects that IUserBindingStore is not counted by the existing
+typed aggregate-port convention. It now derives from the existing
+`IAggregateWriteStore<User,UserId>` instead of adding an exemption. Add remains
+its inherited creation operation; an explicit default UpdateAsync refuses with
+a fixed diagnostic before touching a payload or persistence. No User mutation
+grant or lifecycle writer is introduced. The foundation reviewer separately
+checks this exact follow-up diff and its production-store/generic-interface
+control, approving without additional findings.
+
+The final Release solution builds with zero warnings/errors. All 2,728 Unit
+cases pass, including that additional refusal control. All 65 affected
+Architecture cases pass, including the formerly failing aggregate census;
+the real production creation/read/MUST-audit integration case passes again.
+All have zero skips. The complete run remains recorded as 558/559 followed by
+this narrow correction/requalification; it is not relabelled a complete green
+rerun on a different tree. Earlier 362 distinct native cases and five Contract
+cases remain their recorded results. Final source-bound full/shard/native A/B
+qualification belongs to Step 6 after all implementation steps.
+
+Step 3 is locally complete after both fresh review rounds and verified fixes.
+Step 4's contextual code has not started: the separately Proposed ADR-0074
+timing delta requires the maintainer's decision first. Global owners, storage and
+audit need no reversal; no new HTTP/native-user activation or production
+membership/closure authority is claimed. Scoped formatting and document/index/
+relative-link/whitespace checks run before the closeout commit.
+
+### ADR-0074 proposal review round 2 and readiness (2026-10-26)
+
+**Reviewed proposal:** `1c3fb969`. Two new read-only reviewers independently
+inspect safety/viability (GPT-6 Astra, xhigh) and corpus/acceptance/proof ownership
+(GPT-6.1 Sol, xhigh). Both approve for maintainer consideration without actionable
+findings. They independently check the exact contradictory clauses and the
+second-administrator case, PostgreSQL advisory-lock/snapshot primitives, actual
+unimplemented contextual source, and the bounded acceptance instruments.
+No edit, build, suite or contextual runtime qualification is attributed to them.
+
+The proposal is review-ready, remains Proposed and changes no active lock rule,
+function/grant count, Accepted body or dependent runtime. The existing six-step
+plan receives only its explicit Step 4 timing delta on approval. The actual
+app-role race/negative/timeout/snapshot controls remain implementation closure
+conditions, not evidence supplied by documentation review.
