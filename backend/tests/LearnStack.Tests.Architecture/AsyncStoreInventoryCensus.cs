@@ -145,9 +145,9 @@ internal static class AsyncStoreInventoryCensus
                 {
                     var cursor = index + 1;
                     if (Is(cursor, "LOCAL") || Is(cursor, "SESSION")) cursor++;
-                    if (IdentifierIs(cursor, "search_path") || IdentifierIs(cursor, "schema"))
+                    if (SettingIs(cursor, "search_path") || SettingIs(cursor, "schema"))
                     {
-                        var schemaAlias = IdentifierIs(cursor++, "schema");
+                        var schemaAlias = SettingIs(cursor++, "schema");
                         if (!schemaAlias)
                         {
                             if (At(cursor).Text != "=" && !Is(cursor, "TO"))
@@ -169,8 +169,46 @@ internal static class AsyncStoreInventoryCensus
                         // A quoted routine body is opaque to this declaration reader,
                         // just like a quoted DO body. Split EXECUTE text can hide table
                         // DDL until a later SELECT/CALL executes the routine.
-                        while (cursor < tokens.Length && At(cursor).Text != ";" && !Is(cursor, "AS")) cursor++;
-                        if (!Is(cursor, "AS") || !At(cursor + 1).Dollar)
+                        var parentheses = 0;
+                        string? headerDollar = null;
+                        var hasDollarBody = false;
+                        for (; cursor < tokens.Length; cursor++)
+                        {
+                            var token = At(cursor);
+                            if (token.Dollar)
+                            {
+                                if (headerDollar is null) headerDollar = token.Text;
+                                else if (headerDollar == token.Text) headerDollar = null;
+                                continue;
+                            }
+                            if (headerDollar is not null) continue;
+                            if (token.Text == "(") parentheses++;
+                            else if (token.Text == ")") parentheses--;
+                            if (parentheses == 0 && Is(cursor, "SET") && SettingIs(cursor + 1, "search_path"))
+                            {
+                                var path = cursor + 2;
+                                if (At(path).Text != "=" && !Is(path, "TO"))
+                                    throw new FormatException("Unresolved routine search path requires an explicit census reader decision.");
+                                do
+                                {
+                                    path++;
+                                    if (!IdentifierIs(path, "public") && !IdentifierIs(path, "pg_catalog")
+                                        && At(path).Text is not "'public'" and not "'pg_catalog'")
+                                        throw new FormatException("Non-pinned routine search path requires an explicit census reader decision.");
+                                    path++;
+                                } while (At(path).Text == ",");
+                                cursor = path - 1;
+                                continue;
+                            }
+                            if (parentheses == 0 && Is(cursor, "AS"))
+                            {
+                                if (!At(cursor + 1).Dollar)
+                                    throw new FormatException("Non-dollar procedural bodies require an explicit census reader decision.");
+                                hasDollarBody = true;
+                            }
+                            if (parentheses == 0 && token.Text == ";") break;
+                        }
+                        if (!hasDollarBody)
                             throw new FormatException("Non-dollar procedural bodies require an explicit census reader decision.");
                         continue;
                     }
@@ -220,6 +258,8 @@ internal static class AsyncStoreInventoryCensus
                 && string.Equals(At(index).Text, word, StringComparison.OrdinalIgnoreCase);
             bool IdentifierIs(int index, string name) => Is(index, name)
                 || (At(index).Quoted && At(index).Text == "\"" + name + "\"");
+            bool SettingIs(int index, string name) => Is(index, name)
+                || (At(index).Quoted && string.Equals(At(index).Text, "\"" + name + "\"", StringComparison.OrdinalIgnoreCase));
             bool IsStaticExecuteClause(int index)
             {
                 if (dollarBody is not null) return false;

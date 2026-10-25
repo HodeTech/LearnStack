@@ -140,8 +140,8 @@ public sealed class AsyncStoreInventoryTests
                 + "GRANT EXECUTE ON FUNCTION public.census_guard() TO PUBLIC; "
                 + "INSERT INTO final_table(id) VALUES(1) ON CONFLICT DO NOTHING; "
                 + "SELECT set_config('app.tenant_id', 'probe', true);" },
-            new SqlOperation { Sql = "CREATE FUNCTION public.census_function() RETURNS void LANGUAGE plpgsql AS $$ BEGIN NULL; END; $$; "
-                + "CREATE OR REPLACE PROCEDURE public.census_procedure() AS $body$ BEGIN NULL; END; $body$ LANGUAGE plpgsql;" },
+            new SqlOperation { Sql = "CREATE FUNCTION public.census_function(probe text DEFAULT $arg$)AS$arg$) RETURNS void LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$ BEGIN NULL; END; $$; "
+                + "CREATE OR REPLACE PROCEDURE public.census_procedure() AS $body$ BEGIN NULL; END; $body$ LANGUAGE plpgsql SET search_path TO 'public';" },
         ];
         AsyncStoreInventoryCensus.Tables(operations).Should().BeEquivalentTo(["final_table"]);
     }
@@ -167,11 +167,20 @@ public sealed class AsyncStoreInventoryTests
     [InlineData("CREATE OR REPLACE FUNCTION public.inventory_probe() RETURNS void AS E'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.hidden_table(id int)''; END;' LANGUAGE plpgsql; SELECT public.inventory_probe();", "Non-dollar procedural bodies")]
     [InlineData("CREATE PROCEDURE public.inventory_probe() LANGUAGE plpgsql AS 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.hidden_table(id int)''; END;'; CALL public.inventory_probe();", "Non-dollar procedural bodies")]
     [InlineData("CREATE OR REPLACE PROCEDURE public.inventory_probe() AS E'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.hidden_table(id int)''; END;' LANGUAGE plpgsql; CALL public.inventory_probe();", "Non-dollar procedural bodies")]
+    [InlineData("CREATE FUNCTION public.inventory_probe(probe text DEFAULT $$AS$$) RETURNS void LANGUAGE plpgsql AS 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.hidden_table(id int)''; END;'; SELECT public.inventory_probe();", "Non-dollar procedural bodies")]
+    [InlineData("CREATE FUNCTION public.inventory_probe(probe text DEFAULT $arg$)AS$arg$) RETURNS void LANGUAGE plpgsql AS 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.hidden_table(id int)''; END;'; SELECT public.inventory_probe();", "Non-dollar procedural bodies")]
+    [InlineData("CREATE FUNCTION public.inventory_probe() RETURNS void SET search_path = other AS $$ BEGIN CREATE TABLE IF NOT EXISTS background_jobs(id int); END; $$ LANGUAGE plpgsql; SELECT public.inventory_probe();", "Non-pinned routine search path")]
+    [InlineData("CREATE FUNCTION public.inventory_probe() RETURNS void SET search_path = pg_catalog, other AS $$ BEGIN NULL; END; $$ LANGUAGE plpgsql;", "Non-pinned routine search path")]
+    [InlineData("CREATE FUNCTION public.inventory_probe() RETURNS void SET search_path FROM CURRENT AS $$ BEGIN NULL; END; $$ LANGUAGE plpgsql;", "Unresolved routine search path")]
+    [InlineData("CREATE FUNCTION public.inventory_probe() RETURNS void SET search_path = \"PUBLIC\" AS $$ BEGIN NULL; END; $$ LANGUAGE plpgsql;", "Non-pinned routine search path")]
+    [InlineData("CREATE FUNCTION public.inventory_probe() RETURNS void SET \"SEARCH_PATH\" = other AS $$ BEGIN NULL; END; $$ LANGUAGE plpgsql;", "Non-pinned routine search path")]
+    [InlineData("CREATE FUNCTION public.inventory_probe() RETURNS void AS $$ BEGIN CREATE TABLE IF NOT EXISTS background_jobs(id int); END; $$ LANGUAGE plpgsql SET search_path = other; SELECT public.inventory_probe();", "Non-pinned routine search path")]
     [InlineData("CREATE TABLE IF absent_table (id int);", "Malformed table declaration.")]
     [InlineData("CREATE TABLE (id int);", "Malformed table identifier.")]
     [InlineData("SET search_path = other; CREATE TABLE hidden_table (id int);", "non-public search path")]
     [InlineData("SET LOCAL search_path = other;", "non-public search path")]
     [InlineData("SET SESSION \"search_path\" TO other;", "non-public search path")]
+    [InlineData("SET SESSION \"SEARCH_PATH\" TO other;", "non-public search path")]
     [InlineData("SET SCHEMA 'other';", "non-public search path")]
     [InlineData("DO $$ BEGIN SET LOCAL search_path = other; END $$;", "non-public search path")]
     [InlineData("DO $$ BEGIN IF true THEN SET LOCAL search_path = other; END IF; END $$;", "non-public search path")]

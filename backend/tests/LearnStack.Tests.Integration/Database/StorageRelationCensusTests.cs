@@ -13,6 +13,7 @@ public sealed class StorageRelationCensusTests : IClassFixture<PostgresFixture>
 
     [Theory]
     [InlineData("CREATE TABLE census_probe (id integer)", "DROP TABLE census_probe")]
+    [InlineData("SET LOCAL \"SEARCH_PATH\" TO public; CREATE TABLE census_probe (id integer)", "DROP TABLE census_probe")]
     [InlineData("CREATE TABLE census_probe (id integer) PARTITION BY RANGE (id)", "DROP TABLE census_probe")]
     [InlineData("CREATE MATERIALIZED VIEW census_probe AS SELECT 1 AS id", "DROP MATERIALIZED VIEW census_probe")]
     [InlineData("CREATE FUNCTION public.census_creator() RETURNS void LANGUAGE plpgsql AS 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.census_probe(id int)''; END;'; SELECT public.census_creator();",
