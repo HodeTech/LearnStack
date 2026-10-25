@@ -30,7 +30,7 @@ This document describes the first domain shape. It is intentionally conceptual a
 >    `LicenseKey`, `CustomDomain`, `CompliancePolicy`) live in the `learnstack-hub`
 >    repository, **not in this domain model**. See [24-learnstack-hub.md](24-learnstack-hub.md).
 >    The LearnStack core mirrors only a minimal `Tenant` row + `platform_entitlement_cache`.
-> 5. **`User`, `Course`, `Enrollment`, `LiveSession`** etc. extend their schema with
+> 5. **`MembershipProfile`, `Course`, `Enrollment`, `LiveSession`** etc. extend their schema with
 >    `custom_fields jsonb` column populated from `TenantCustomFieldDef` definitions.
 
 ## Aggregate Roots and Modules
@@ -50,7 +50,7 @@ flowchart LR
 
   subgraph identity["Identity"]
     User
-    UserProfile
+    MembershipProfile
     Membership
     Role
     Permission
@@ -236,11 +236,11 @@ carry a composite natural key and no id at all, and therefore cannot be
 
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
-| `User` | Yes | Global; identifies a person across tenants. Keycloak `sub` is the stable id. |
-| `UserProfile` | Inside User | Personal details. Tenant-specific profile fields live on `Membership`. |
-| `Membership` | Yes | Per-tenant + per-org relationship. Triple key `(user_id, tenant_id, organization_id)`. Carries role assignments. A user can have memberships in multiple tenants and multiple orgs within one tenant. |
-| `Role` | Yes | Tenant-scoped (most) or platform-scoped (Hub realm only). May be Tenant-scoped or Organization-scoped (org-scoped roles apply only within one org). |
-| `Permission` | Inside Role | Fine-grained capability key `{module}.{resource}.{action}`. Permission scope: Platform / Tenant / Organization (ADR-0017). |
+| `User` | Yes | Global application UUIDv7 actor, bound to stable authority/subject digest under [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md). Provider `sub` is opaque, never the actor UUID. No tenant-authored fields or global profile mirror land in P03-1. |
+| `MembershipProfile` | Inside Membership | Contextual display/contact/preferences; no global UserProfile. Exact accepted shape and later custom-field boundary are in the [Identity specification](../modules/identity/README.md). |
+| `Membership` | Yes | Contextual root with stable ID, null-safe current `(tenant_id,user_id,organization_id)` uniqueness, contained profile and assignments; revoked rows retire and a rejoin is a successor. [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) owns the accepted boundary. |
+| `Role` | Yes | Tenant-wide template with Tenant/Organization capability scope, no OrganizationId. Exact Membership binding confines Organization grants. Platform/operator authority remains separate under P03-9. |
+| `Permission` | Code-owned definition; grant inside Role | Scoped `(PermissionScope,PermissionKey)` identity and finite manifests from [Permission Standards](../standards/19-permissions.md#identity-foundation-contract); template existence alone grants nothing. |
 | `Invitation` | Yes | Pending membership offer; bound to email; expires; revocable. |
 
 `AuditLog` previously listed here moved to its own [Audit module section](#audit) per ADR-0016.
@@ -433,7 +433,7 @@ module owns these aggregates:
 | `TenantLevelTaxonomy` | Yes | Flat list of level items with metadata (sort, color, …). Examples: CEFR, yoga-difficulty, coding-difficulty. |
 | `TenantScoringRule` | Yes | DSL expression for assessment scoring (sandboxed; engine choice pending ADR). |
 | `TenantCompletionRule` | Yes | Boolean DSL expression for lesson/module/course completion. |
-| `TenantCustomFieldDef` | Yes | Field definition added to built-in entities (`User`, `Course`, `Enrollment`, …). Stored in the entity's `custom_fields jsonb` column. |
+| `TenantCustomFieldDef` | Yes | Field definition added to contextual/business entities (`MembershipProfile`, `Course`, `Enrollment`, …). Stored in the entity's `custom_fields jsonb` column. |
 | `TenantTemplateLibrary` | Yes | Notification templates (email, SMS, WhatsApp, in-app) authored as Liquid / Handlebars, per locale. |
 
 Org-scoping: most customization aggregates are tenant-wide, but some
@@ -455,7 +455,7 @@ classified.
 
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
-| `AuditEntry` | Yes (append-only — inherits `Entity<TId>` NOT `AuditableEntity<T>`) | One row per audited `(resource, operation)`: a command, sensitive query or security event may declare several on one transaction (`ProvisionTenantCommand` declares two). Tenant-owned and organization-scoped — it implements `ITenantOwned`, through `IOrganizationScoped` since the row carries an organization — and takes that class's canonical policy from [Database Standards § Table classes](../standards/05-database.md) unmodified. Fields: `id` (`AuditEntryId`, minted app-side by `AuditLogBehavior` so a commit-in-doubt pair shares one identity — [ADR-0023 Amendment 9](../decisions/0023-strongly-typed-id-source-generator.md)), `tenant_id` (`TenantId`; the tenant the ambient transaction announced, or `TenantId.PlatformSentinel` for a platform-scope row — and **no foreign key** to `tenants`, because the sentinel has no row there and the record outlives the tenant), `organization_id?` (`OrganizationId?`), `actor_user_id?` (`UserId?`), `actor_email?`, `module`, `operation` (the dotted slug `{module}.{resource}.{verb}`), `operation_type`, `operation_class`, `entity_type?`, `entity_id?`, `outcome` (`success` \| `denied` \| `failed` \| `indeterminate`), `error_key?`, `before_state` (jsonb), `after_state` (jsonb), `changes` (jsonb), `correlation_id?`, `ip_address?`, `user_agent?`, `reason?`, `timestamp`, `metadata?`. Stored in the `audit_log` table — a single plain table with the composite key `(id, timestamp)` in Phase 02a; partitioned by month from [Phase 11](../roadmap/phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). |
+| `AuditEntry` | Yes (append-only — inherits `Entity<TId>` NOT `AuditableEntity<T>`) | One row per audited `(resource, operation)`: a command, sensitive query or security event may declare several on one transaction (`ProvisionTenantCommand` declares two). Tenant-owned and organization-scoped — it implements `ITenantOwned`, through `IOrganizationScoped` since the row carries an organization — and takes the ordinary tenant policy plus ADR-0072's accepted global-identity departure from [Database Standards](../standards/05-database.md#global-central-audit-branch), pending Step 3. Fields: `id` (`AuditEntryId`, minted app-side by `AuditLogBehavior` so a commit-in-doubt pair shares one identity — [ADR-0023 Amendment 9](../decisions/0023-strongly-typed-id-source-generator.md)), `tenant_id` (`TenantId`; the tenant the ambient transaction announced, or `TenantId.PlatformSentinel` for the distinct platform/global-identity populations — and **no foreign key** to `tenants`, because the sentinel has no row there and the record outlives the tenant), `organization_id?` (`OrganizationId?`), `actor_user_id?` (`UserId?`), `actor_email?`, `module`, `operation` (the dotted slug `{module}.{resource}.{verb}`), `operation_type`, `operation_class`, `entity_type?`, `entity_id?`, `outcome` (`success` \| `denied` \| `failed` \| `indeterminate`), `error_key?`, `before_state` (jsonb), `after_state` (jsonb), `changes` (jsonb), `correlation_id?`, `ip_address?`, `user_agent?`, `reason?`, `timestamp`, `metadata?`. Stored in the `audit_log` table — a single plain table with the composite key `(id, timestamp)` in Phase 02a; partitioned by month from [Phase 11](../roadmap/phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). |
 | `AuditConfig` | Yes | Per-tenant override of per-(module, operation) audit enablement, keyed `(tenant_id, module, operation)`. Tenant-owned and **tenant-wide** — it carries no `organization_id`, so it takes the tenant term only and none of the restrictive write guards ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)); `audit_log` is the org-scoped half of the pair. Tenant-overridable within MUST/SHOULD/MAY classification. Classification overrides only: it carries no retention column, and retention arrives with the purge job in [Phase 11](../roadmap/phase-11-production-hardening.md). Packet 9 ships the aggregate, the table and the read path, but **no writer**: `learnstack_app` and `learnstack_platform` hold `SELECT` and nothing else, so the table stays empty until the Studio tenant-settings editor in [Phase 06](../roadmap/phase-06-renderer-admin-studio.md) lands it together with the DML grant, gated by a permission key the audit registry Phase 03 brings from the audit permission registry [Phase 03](../roadmap/phase-03-identity-admin.md) owns. |
 
 `AuditEntry`, `AuditConfig` and `AuditDbContext` live in the Audit module, in a

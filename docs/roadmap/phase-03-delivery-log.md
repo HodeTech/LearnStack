@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 623 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 644 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -28,6 +28,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 second revision review round 1 (2026-10-25)](#p03-1-second-revision-review-round-1-2026-10-25) — 23 lines
   - [P03-1 second revision review round 2 and approval readiness (2026-10-25)](#p03-1-second-revision-review-round-2-and-approval-readiness-2026-10-25) — 28 lines
   - [P03-1 joint acceptance and Step 1 (2026-10-25)](#p03-1-joint-acceptance-and-step-1-2026-10-25) — 41 lines
+  - [P03-1 Step 1 review round 1 (2026-10-25)](#p03-1-step-1-review-round-1-2026-10-25) — 21 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -736,3 +737,24 @@ sweep resolves 2,705 relative file targets and contains Markdown only. Whole-tre
 fragment/roadmap/index and whitespace checks run after the last edit. Registered
 Identity obligations are not reported as implemented by those checks. The
 acceptance commit is followed by two fresh independent Step 1 review rounds.
+
+### P03-1 Step 1 review round 1 (2026-10-25)
+
+**Reviewed source:** `e6272082`. Two fresh read-only reviewers inspect authority
+adoption (GPT-6 Astra, xhigh) and corpus/model carriers (GPT-6.1 Sol, xhigh).
+Both request documentation corrections; neither claims runtime qualification.
+
+Both verify Architecture 31 incorrectly infers User absence from a non-success
+row. The authority reviewer also verifies stale unmodified-audit-policy and sole
+sentinel-population claims, plus Audit module status counting five rather than
+six existing methods. These mutable carriers now distinguish current schema,
+the accepted pending global extension and exact non-success evidence. A parent
+sibling sweep also corrects Domain Model's provider-sub-as-actor, global-profile/
+custom-field and audit-policy shorthand to the accepted canonical contracts.
+No Accepted ADR body changes in this correction.
+
+The corpus reviewer considers the ADR-0073 G8 shorthand and reproduces no separate
+finding: its later invitation paragraph and the authoritative register expressly
+leave G8 Open. Do not rewrite the now-Accepted body merely to restyle that
+boundary. Both reviewers confirm predecessor-byte preservation, legitimate joint
+approval, planned control statuses and the unchanged P03-3 transport boundary.

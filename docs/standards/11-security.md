@@ -1018,9 +1018,12 @@ Security-relevant durability rules:
   tenant-owned and tenant-wide** — it has no `organization_id`, so it carries the tenant
   term only and no restrictive write guards
   ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)). Both take the
-  canonical RLS template for their class from
-  [05-database.md § Table classes](05-database.md) unmodified — it is not repeated
-  here, or anywhere else. A tenant admin's read is bounded by the policy, not by the
+  canonical RLS template for their class in the current applied schema.
+  [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) accepts the
+  exact global-identity departure for `audit_log`, pending Step 3; `audit_config`
+  remains unmodified. [Database Standards](05-database.md#global-central-audit-branch)
+  owns that policy, without a second template here. A tenant admin's read is
+  bounded by the policy, not by the
   query. `audit_log` carries no foreign key to `tenants`: the record of what happened
   to a tenant has to outlive the tenant.
 - **Append-only holds in three layers, and each stops a different actor.**

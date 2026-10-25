@@ -138,8 +138,9 @@ receive no arbitrary metadata/draft writer. Reciprocal User/success witnesses
 are forced before commit; evidence APIs return only an exact Boolean match, and
 a duplicate-key error proves neither matching evidence nor business commitment.
 Unknown acknowledgement keeps the possible indeterminate pair and independent
-bounded reconciliation; non-success proves no User committed. Bootstrap actor is
-NULL, seed adoption uses SystemActor, and proposed target remains distinct.
+bounded reconciliation. A non-success row proves only its own durability, never
+User absence or business success. Bootstrap actor is NULL, seed adoption uses
+SystemActor, and proposed target remains distinct.
 
 The sentinel global class is exactly `identity.user.create`, MUST/SecurityEvent,
 with NULL organization and closed source; it never announces a tenant sentinel.
@@ -256,8 +257,9 @@ Five components, separated concerns:
    `platform.admin_scope.enter` through `IAuditStore.WritePlatformScopeAsync`, on the
    scope's own platform-role connection and transaction, **before** the operation runs
    (§ 7 and [ADR-0044 § 10](../decisions/0044-audit-write-path.md)). It is not four
-   components but five, and this one is listed here because it is the only class of row
-   carrying `TenantId.PlatformSentinel`.
+   components but five in the shipped tenant/platform lifecycle. This platform
+   population carries `TenantId.PlatformSentinel`; the separately accepted global
+   identity population and its prepared owner remain pending Step 3 above.
 
 ## 3. The interceptor
 

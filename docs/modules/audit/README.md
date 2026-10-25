@@ -3,7 +3,7 @@
 **Status:** Design stable, write path implemented. Shipped today: the two tables and
 their isolation, the three append-only layers, the SharedKernel ports and value types,
 `AuditDbContext`, and — in `LearnStack.Infrastructure.Audit` — `AuditStateCapture`,
-`AuditChangeTrackerInterceptor`, `PostgresAuditStore` with all five write methods, the
+`AuditChangeTrackerInterceptor`, `PostgresAuditStore` with six write methods, the
 merged `AuditCatalog` and `AuditConfigService`, registered at both composition roots and
 attached to every module's `DbContext`. The pipeline is lit: `AuditLogBehavior`
 classifies and parks intents at step 3 and reconciles in its `finally`,
@@ -14,6 +14,10 @@ fail-closed rule ships with it — the `audit` health check, the two counters, a
 `Critical` line ([ADR-0033 Amendment 3](../../decisions/0033-audit-durability-model.md)).
 `AuditingTenantAssertionRecorder` ships with them, so both
 `tenancy.tenant_assertion.*` slugs are written rather than declared.
+Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
+adds two confined global-identity seams, pending P03-1 Step 3. They do not make
+eight methods implemented today; the common prepared owner, exact evidence and
+runtime proofs remain implementation obligations.
 The entitlement socket of
 [ADR-0045](../../decisions/0045-entitlement-and-feature-flag-socket.md) shipped in the same
 packet. Rows marked
