@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 734 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 861 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -33,6 +33,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 2 implementation and local qualification (2026-10-25)](#p03-1-step-2-implementation-and-local-qualification-2026-10-25) — 36 lines
   - [P03-1 Step 2 review round 1 (2026-10-25)](#p03-1-step-2-review-round-1-2026-10-25) — 20 lines
   - [P03-1 Step 2 review round 2 and closeout (2026-10-25)](#p03-1-step-2-review-round-2-and-closeout-2026-10-25) — 18 lines
+  - [P03-1 Step 3 global storage and common audit implementation (2026-10-26)](#p03-1-step-3-global-storage-and-common-audit-implementation-2026-10-26) — 66 lines
+  - [P03-1 Step 3 final local pre-review controls (2026-10-26)](#p03-1-step-3-final-local-pre-review-controls-2026-10-26) — 25 lines
+  - [P03-1 Step 3 retained-subject pre-commit correction (2026-10-26)](#p03-1-step-3-retained-subject-pre-commit-correction-2026-10-26) — 12 lines
+  - [P03-1 Step 3 existing-adoption scope correction (2026-10-26)](#p03-1-step-3-existing-adoption-scope-correction-2026-10-26) — 24 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -852,3 +856,130 @@ separate snapshot/diagnostic controls. Step 3 now proceeds automatically: global
 User/authority persistence, the prepared common owner and central creation/
 reconciliation seams, with real app-role/function/outcome proofs before closeout.
 No new HTTP or native new-user flow is activated.
+
+### P03-1 Step 3 global storage and common audit implementation (2026-10-26)
+
+Step 3 implements the internal global foundation under ADR-0072/0073. One new
+Identity migration chain creates User and the deployment authority singleton;
+the applied population is 44 data tables plus six history tables, seven table
+classes and three Identity SECURITY DEFINER functions. Five contextual tables
+and two Membership owner functions remain Step 4. The 17 global mapped scalars
+join the complete classification census: six contexts, 21 entities, 218 scalars.
+No unused email mirror or global profile/custom-field storage is added.
+
+The admitted internal source qualifies the fixed authority/issuer pair, opens a
+fresh global app-role transaction, announces only its immutable subject scope,
+locks/rechecks and returns an existing binding without mutation intent. Only
+serialized absence enters the common typed audit frame. The centrally minted
+creation reference binds target, original audit key, actual connection,
+transaction and generation; handler construction remains deferred. The existing
+common completion path writes the User and MUST audit together, validates all
+deferred constraints before commit admission and retains known rollback versus
+physical COMMIT uncertainty. Global and ordinary owners cannot join or retarget.
+Exact context/connection/transaction capture admission precedes snapshot reads.
+A non-allocating scoped enrollment reader preserves the lazy application-source
+boundary for ordinary/platform audit entry.
+
+PostgresAuditStore remains the sole audit INSERT owner, with eight closed seams.
+The central migration installer owns the reciprocal/evidence SQL; Identity copies
+no audit SQL. Actual applied body/signature/return/owner/ACL/caller inspection
+compares the compiled migration contract, including three global definers and
+their exact trigger callers. Committed disposable faults independently widen
+RLS/function results, grant PUBLIC execution, remove callers/immutability or
+introduce an unrelated definer; clean twins establish the effective boundaries.
+Ordinary writers refuse global enrollment even before an intent exists.
+
+A dedicated deployment child installs or verifies the configured authority on
+the migration connection; it never repairs/rebinds. Make's explicit order applies
+Audit before Identity, passes the credential only to no-build deployment children
+and rejects partial authority configuration before migration writes. Runtime
+qualification is read-only and installation is not registered in API DI. API
+composition denies seed adoption; the ordinary seed/demo handoff remains Step 4,
+existing-binding HTTP activation Step 5 and new-user HTTP/native entry P03-3.
+
+Local Release qualification passes 2,727 Unit cases with zero skips. The affected
+Architecture run passes 228 cases; after canonical status/model-name reconciliation,
+114 focused corpus/model/owner cases also pass. The first affected run's five
+failures identify assertion-overload, nested/generic IL-inspection and mutable
+catalogue/matrix bookkeeping; exact controls are corrected without weakening
+closed sets. The asynchronous inventory now consumes every mapped module's
+compiled migration chain, explicitly classifying global synchronous stores.
+
+The first global integration run has 30 passes and 16 failures before business
+execution: the test provider omits the real cache needed by AuditConfigService.
+The corrected fixture registers production InMemoryCacheService and propagates
+early race-participant failures instead of hiding them behind a timeout. Rebuilt
+qualification passes all 49 cases with zero skips: 23 schema/control cases,
+16 production-service/provider/evidence cases, eight global unit-of-work cases,
+one actual deployment-child case and the complete WITH CHECK proof census. The
+other 303 requested schema/audit/rollback regressions pass; their earlier sole
+census failure passes in that rebuilt global run. Thus all 352 distinct requested
+integration cases pass. Owned real Keycloak/HTTPS evidence establishes signed
+seed subject/actor and authenticated readback; no actorless/new-user transport is
+claimed. Original failed TRX receipts remain separate from successful retries.
+
+Final exact-evidence read-only hardening, full-solution/Contract/format/document
+checks and the complete Architecture run are recorded with their actual results
+below. No hosted source-bound qualification or step closeout is inferred here.
+The implementation commit precedes both fresh independent review rounds.
+
+### P03-1 Step 3 final local pre-review controls (2026-10-26)
+
+The clean exact-evidence transaction now establishes physical READ ONLY before
+announcing the captured subject. The existing native duplicate case instruments
+its owned evidence function: production reconciliation sees read-only mode, a
+direct writable control refuses with SQLSTATE 25006, and exact read-only plus
+fresh-creation controls remain successful. All four evidence cases pass again,
+zero skipped; no production function/policy or test-count change follows.
+
+The complete Release solution builds with zero warnings/errors. The final Unit
+run passes all 2,727 cases, zero skips, including sixteen issuer-registration
+cases aligned with the existing API address grammar. Contract qualification
+passes five cases, zero skips. Post-promotion corpus/model/owner qualification
+passes 114 Architecture cases; the earlier broader affected set passes 228.
+The implemented catalogue population is 241 rules (137 in Architecture), with
+297 Architecture method declarations. User's global-only canonical rule now has
+its actual model owner; contextual controls remain Registered. These counts do
+not substitute for the complete Architecture run, which follows the commit.
+
+The scoped formatter, document/index and whitespace checks run after the final
+edit. The default-deny seed capability, two-global-table/three-definer staged
+population and P03-3 HTTP boundary remain explicit. No Accepted ADR body changes,
+new erasure authority, migration credential in runtime, or hosted/PR qualification
+is claimed. Both fresh independent review rounds remain required before Step 4.
+
+### P03-1 Step 3 retained-subject pre-commit correction (2026-10-26)
+
+The unshipped initial Identity migration and its model/snapshot now match the
+Accepted retained-subject lifecycle: Closing permits a NULL subject; a retained
+subject remains bounded and nonempty. Active requires a subject and Closed
+requires NULL. The applied PostgreSQL CHECK is evaluated over all fifteen
+status/NULL/length controls, without introducing a lifecycle writer or widening
+UPDATE grants. All 24 schema/control cases pass with zero skips; the three
+global model/snapshot controls also pass. The distinct requested integration
+population is now 353 successful cases, including this additional CHECK proof.
+The prior failed runs and earlier 352-case successful population remain history.
+
+### P03-1 Step 3 existing-adoption scope correction (2026-10-26)
+
+Pre-commit inspection finds that a no-write seed adoption of an existing binding
+disposes an unresolved prepared frame, poisoning its otherwise successful scope.
+The owner now completes that no-intent transaction after constraint validation.
+The new real app-role control also exposes a second-generation context enrollment
+refusal; the confined binding lookup explicitly enrolls its scoped context in
+the current owner before reading. It never repairs a detached mutation context:
+the existing pre-snapshot detached-context refusal remains effective.
+
+Rebuilt production-consumer qualification passes all seventeen cases with zero
+skips, including two repeated existing adoptions and a subsequent tenant frame
+in the same scope. User and success-audit counts remain one each, and repeat
+adoptions declare no intent. The first control run (sixteen passes, one failure)
+is retained separately. This adds one distinct integration proof, bringing the
+requested successful population to 354. Formatting, final build and affected
+owner/model controls run again before the implementation commit.
+
+Final scoped formatting passes. The complete Release solution builds with zero
+warnings/errors; all 2,727 Unit cases and seven focused owner/model Architecture
+cases pass again, zero skipped. The complete Architecture run and both fresh
+review rounds follow the implementation commit; neither is claimed complete by
+these focused results.

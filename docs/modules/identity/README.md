@@ -1,11 +1,13 @@
 # Identity — Module Specification
 
-**Status: Accepted contract — runtime implementation pending.** Derived from
+**Status: Global storage/common audit implemented in Step 3; contextual
+foundation, seed handoff and live admission remain their owning steps.** Derived from
 jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
 and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md),
-2026-10-25. Identity still has assembly-marker packages only. Every new type,
-table, command, manifest and proof below remains planned until its owning step
-ships; acceptance grants no current runtime capability.
+2026-10-25. The global User/authority model, internal binding/adoption consumers
+and central creation owner exist. Contextual tables/commands/manifests below
+remain planned for Step 4; API existing-binding activation remains Step 5. New
+HTTP/native-user activation remains P03-3.
 
 ## Overview
 
@@ -14,6 +16,31 @@ assignments and tenant-wide Role templates. Keycloak owns credentials/provider
 authentication; Tenancy owns Tenant/Organization lifecycle; Audit owns audit rows.
 Cross-module facts use application contracts, without an Organization FK,
 navigation or database join. Branch-specific Role configuration is not selected.
+
+### Global implementation and deployment
+
+P03-1 Step 3 implements one global User/authority model and migration chain,
+the common prepared creation owner and eight central audit seams. API composition
+denies seed adoption; the ordinary seed/demo handoff arrives in Step 4. Existing
+API binding activation remains Step 5. No creation route is exposed here.
+
+Set both `Identity__AuthorityId` and `Authentication__Tenant__Issuer` in the
+selected private deployment environment before `make migrate` installs/verifies
+the authority. The ID is deployment-pinned and never derived from an issuer URL.
+The dedicated deployment child receives the migration credential only in its
+environment; restore/build and API processes receive no migration credential.
+An exact existing registration is a no-write verification. A conflicting pair
+refuses without repair/rebind. With both keys absent, migrations create the
+schema only; missing authority cannot admit a binding. A partially configured
+pair refuses before migration writes. See [the environment example](../../../.env.example)
+and the [canonical authority contract](../../standards/05-database.md#global-class-and-authority-anchor).
+
+The internal binding service uses explicit startup qualification and fresh,
+physically read-only existing-binding transactions; it never creates a missing
+binding. Fixed seed adoption separately requires its confined admission port.
+Real provider/app-role, schema/body/ACL/caller and physical outcome controls are
+implemented; step review remains in progress. Closure, directory access,
+production first-admin and issuer rebind remain their named later owners.
 
 ### Aggregate and storage contract
 
@@ -309,14 +336,14 @@ closure/locators. These are named later writers, not implicit foundation authori
 
 | Subject/control | Current state | Planned owner / timing |
 |---|---|---|
-| Models, commands and registry | Assembly markers; no subjects | P03-1 Steps 3/4, actual models/production commands and five-pair registry |
+| Models, commands and registry | Global User/authority implemented; contextual models/commands/registry pending | P03-1 Steps 3/4, actual models/production commands and five-pair registry |
 | Canonical marker/filter/RLS/FK/unique/aggregate/audit controls | Existing implemented controls unchanged; Identity extensions Awaiting backfill | P03-1 Step 4, real app-role positive/dirty controls |
 | `Permission_Definitions_DeclareScope` | Registered; Identity implementation pending | P03-1 Step 4, `IdentityFoundationConventionTests` and actual commands; broader enforcement P03-2 |
-| `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Implemented for current production models; Identity model backfill pending | P03-1 Step 2, `DataProtectionConventionTests`; complete census and neutral-name omission; Steps 3/4 add their actual Identity mappings |
+| `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Implemented for all current models, including global Identity; contextual backfill pending | P03-1 Step 2, `DataProtectionConventionTests`; complete census and neutral-name omission; Steps 3/4 add their actual Identity mappings |
 | `Identity_Seed_Uses_Finite_Adopted_Manifests` | Registered; no runtime artifact | P03-1 Step 4, `IdentityFoundationConventionTests` / `SeederTests`; exact manifests, kernel equivalence and no-write reruns |
 | `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Registered; implementation pending | P03-1 Step 4, `IdentityMembershipTests`; separate real app-role connections and independent guard removals |
 | Per-sink PII canaries/child audit/MUST rollback | Planned behavioral proof | P03-1 Steps 2/4, positive sink events and actual snapshots |
-| `Global_Identity_Storage_Is_Subject_Confined` / `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Registered; implementation pending | P03-1 Step 3, `GlobalIdentitySchemaTests`, `IdentityAuditConventionTests` / `GlobalIdentityBootstrapTests`; P03-3 owns HTTP/new-user BFF activation |
+| `Global_Identity_Storage_Is_Subject_Confined` / `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Implemented global proofs; step review in progress | P03-1 Step 3, `GlobalIdentitySchemaTests`, `IdentityAuditConventionTests` / `GlobalIdentityBootstrapTests`; P03-3 owns HTTP/new-user BFF activation |
 
 Registered means an actual catalogue entry exists. Until then a new control is
 planned/unregistered; later Registered is not Implemented. No empty census,

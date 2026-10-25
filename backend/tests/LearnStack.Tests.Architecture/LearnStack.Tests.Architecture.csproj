@@ -31,6 +31,7 @@
          a tool that could write across an aggregate boundary or set the tenant
          itself is exactly what these rules exist to see. -->
     <ProjectReference Include="..\..\src\LearnStack.Tools.Seeder\LearnStack.Tools.Seeder.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Tools.IdentityAuthorityInstaller\LearnStack.Tools.IdentityAuthorityInstaller.csproj" />
 
     <!-- Modules: Tenancy -->
     <ProjectReference Include="..\..\src\Modules\Tenancy\LearnStack.Modules.Tenancy.Domain\LearnStack.Modules.Tenancy.Domain.csproj" />

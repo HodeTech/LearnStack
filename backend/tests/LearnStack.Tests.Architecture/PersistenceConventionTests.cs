@@ -6,6 +6,7 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Application.Persistence;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Domain;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.CodeAnalysis;
@@ -58,7 +59,7 @@ public sealed partial class PersistenceConventionTests
         // Standards 21 and ADR-0039 both describe it as covering every entity that
         // implements IOptimisticConcurrency. Measured — the forbidden IsRowVersion()
         // form passed on both new aggregates.
-        var contexts = Modules.Scoped.Select(module => module.Context()).ToList();
+        var contexts = Modules.Mapped.Select(module => module.Context()).ToList();
 
         try
         {
@@ -174,13 +175,14 @@ public sealed partial class PersistenceConventionTests
         // SET LOCAL, so every read through it returns zero rows under the
         // corrected policy — silently.
         //
-        // Nine files under backend/src may reach for a connection at all: the five
+        // Eleven files under backend/src may reach for a connection at all: the six
         // design-time factories, where a connection string is the point — one per
         // migration chain, and a module that ships a schema ships one; the shared
         // module helper, which passes a connection rather than a string; the API's
         // separately guarded platform-role builder; and the shared application-role
         // builder used by both runtime hosts; and ADR-0046's confined dispatcher
-        // builder. Another site requires a new decision, not a wildcard exemption.
+        // builder; and the explicit deployment-only authority installer. Another site
+        // requires a new decision, not a wildcard exemption.
         //
         // The scan covers the raw constructors as well as `UseNpgsql` and
         // `AddDbContext`, because a call site that opened its own
@@ -209,12 +211,14 @@ public sealed partial class PersistenceConventionTests
             "Persistence/TenancyDbContextFactory.cs",
 
             // One design-time factory per migration chain. Customization's is the
-            // third, Audit's the fourth and Education's the fifth. All are here
+            // third, Audit's the fourth, Education's the fifth and Identity's the sixth. All are here
             // rather than exempted: the list makes the next connection site a
             // reviewed diff.
             "Persistence/CustomizationDbContextFactory.cs",
             "Persistence/AuditDbContextFactory.cs",
             "Persistence/EducationDbContextFactory.cs",
+            "Persistence/IdentityDbContextFactory.cs",
+            "LearnStack.Tools.IdentityAuthorityInstaller/Program.cs",
 
             // Both runtime hosts delegate application-role construction to this
             // shared guard; the API retains its separate platform-role builder.
@@ -740,7 +744,7 @@ public sealed partial class PersistenceConventionTests
         // Declare, which the unfiltered index refused with 23505 (the fifth review of
         // Packet 9). Per-table schema cases had pinned the others; nothing swept for the
         // shape, so a new table repeated the omission and every case stayed green.
-        var contexts = Modules.Scoped.Select(module => module.Context()).ToList();
+        var contexts = Modules.Mapped.Select(module => module.Context()).ToList();
 
         try
         {
@@ -751,6 +755,14 @@ public sealed partial class PersistenceConventionTests
 
             soft.Should().NotBeEmpty("a sweep over no soft-deletable table passes vacuously");
 
+            var user = soft.Single(entity => entity.ClrType == typeof(User));
+            var permanentBinding = user.GetIndexes().Single(index =>
+                index.GetDatabaseName() == "ux_users_authority_id_subject_key");
+            permanentBinding.Properties.Select(property => property.Name)
+                .Should().Equal([nameof(User.AuthorityId), nameof(User.SubjectKey)],
+                    "ADR-0072 exempts exactly the permanent authority/subject binding key");
+            permanentBinding.IsUnique.Should().BeTrue();
+            permanentBinding.GetFilter().Should().BeNull("a closed binding remains reserved permanently");
             var counting = UniqueIndexesCountingDeletedRows(soft);
 
             counting.Except(HeldByDecision.Keys).Should().BeEmpty(
@@ -792,6 +804,8 @@ public sealed partial class PersistenceConventionTests
         // with tenant termination, in Phase 02c, not by an index filter.
         ["Tenant.ux_tenants_slug"] =
             "a tenant slug is a hostname; its reissue is Phase 02c's decision",
+        ["User.ux_users_authority_id_subject_key"] =
+            "ADR-0072 retains the exact authority/subject binding after closure to refuse recreation",
     };
 
     private static bool IsSoftDeletable(IReadOnlyEntityType entity) =>
@@ -1338,33 +1352,40 @@ public sealed partial class PersistenceConventionTests
         var order = MigrateChainOrder(ReadMigrateRecipe());
         MigrationDependencyOffenders(order).Should().BeEmpty(
             "Fix: apply Tenancy before Audit (tenants FK) and Education "
-            + "(the shared organization immutability function), per Standards 05 § Migrations");
+            + "(the shared organization immutability function), and Audit before Identity "
+            + "(the central creation-witness installer), per Standards 05 § Migrations");
     }
 
     [Theory]
     [InlineData("Audit")]
     [InlineData("Education")]
+    [InlineData("Identity")]
     public void The_Migration_Order_Guard_Rejects_Each_Dependent_Chain_First(string module)
     {
-        var dependent = module == "Audit" ? AuditChain : EducationChain;
+        var dependent = module switch { "Audit" => AuditChain, "Education" => EducationChain, _ => IdentityChain };
         var glob = "backend/src/Modules/*/LearnStack.Modules.*.Infrastructure";
-        var bad = MigrateChainOrder($"{dependent} {TenancyChain} {glob}");
+        var bad = MigrateChainOrder(module == "Identity"
+            ? $"{TenancyChain} {IdentityChain} {AuditChain} {glob}"
+            : $"{dependent} {TenancyChain} {glob}");
         MigrationDependencyOffenders(bad).Should().ContainSingle().Which.Should().Be(dependent);
         MigrationDependencyOffenders(MigrateChainOrder($"{TenancyChain} {glob}"))
             .Should().BeEmpty("the same glob expansion and detector must accept the repaired order");
     }
 
     private static List<string> MigrationDependencyOffenders(List<string> order) =>
-        new[] { AuditChain, EducationChain }
-            .Where(chain => !order.Contains(TenancyChain) || !order.Contains(chain)
-                || order.IndexOf(TenancyChain) >= order.IndexOf(chain))
-            .ToList();
+        new[] { (TenancyChain, AuditChain), (TenancyChain, EducationChain), (AuditChain, IdentityChain) }
+            .Where(edge => !order.Contains(edge.Item1) || !order.Contains(edge.Item2)
+                || order.IndexOf(edge.Item1) >= order.IndexOf(edge.Item2))
+            .Select(edge => edge.Item2).Distinct(StringComparer.Ordinal).ToList();
 
     private const string TenancyChain =
         "backend/src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure";
 
     private const string AuditChain =
         "backend/src/Modules/Audit/LearnStack.Modules.Audit.Infrastructure";
+
+    private const string IdentityChain =
+        "backend/src/Modules/Identity/LearnStack.Modules.Identity.Infrastructure";
 
     private const string EducationChain =
         "backend/src/Modules/Education/LearnStack.Modules.Education.Infrastructure";

@@ -114,12 +114,11 @@ for that second stage and withdrawn for the first.
 
 Jointly Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) /
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
-extend the common owner; implementation remains P03-1 Step 3. The current
-`IAuditStore` exposes six implemented writes: pending, standalone, best-effort,
-platform scope, event terminal and job terminal. The two approved central seams,
-`WriteGlobalIdentityPending` and `ReconcileGlobalIdentity`, are pending that
-same code commit, including port/implementation XML, exact method controls and
-positive/planted proofs. Acceptance does not claim eight implemented methods.
+extend the common owner in P03-1 Step 3. `IAuditStore` exposes eight implemented
+writes: pending, standalone, best-effort, platform scope, event terminal, job
+terminal, `WriteGlobalIdentityPending` and `ReconcileGlobalIdentity`. Exact
+method/call-site controls and actual app-role positive/planted proofs qualify
+the global extension; step review remains in progress.
 
 `PreparedGlobalIdentityOwner` binds the verified authority/subject, source and
 physical connection/transaction/generation under a distinct global authority
@@ -150,9 +149,10 @@ alone owns canonical typed fields, metadata, grants, policy/function/evidence
 predicates and global writer signatures. The [Identity matrix](../modules/identity/audit.md)
 owns the one operation row. Subject keys/targets remain linkable personal data;
 P03-10 owns locators and truthful retained-copy fulfillment, not this schema step.
-Registered `Global_Identity_Creation_Uses_The_Common_Audit_Owner` is assigned to
-`IdentityAuditConventionTests` / `GlobalIdentityBootstrapTests` in Step 3;
-registration does not qualify its runtime controls.
+`Global_Identity_Creation_Uses_The_Common_Audit_Owner` is implemented in
+`IdentityAuditConventionTests` / `GlobalIdentityBootstrapTests`. Physical
+COMMIT fault twins, reciprocal preflight refusal and exact duplicate evidence
+remain separate from source inspection.
 
 ### Confined event-terminal audit
 
@@ -259,7 +259,7 @@ Five components, separated concerns:
    (§ 7 and [ADR-0044 § 10](../decisions/0044-audit-write-path.md)). It is not four
    components but five in the shipped tenant/platform lifecycle. This platform
    population carries `TenantId.PlatformSentinel`; the separately accepted global
-   identity population and its prepared owner remain pending Step 3 above.
+   identity population uses its qualified prepared owner in Step 3 above.
 
 ## 3. The interceptor
 
@@ -1304,7 +1304,7 @@ guards are specified only in the Database standard:
 | Resolved context | `ITenantContext.TenantId` | `ITenantContext.OrganizationId` — `NULL` when the request targets a tenant-wide resource, which is what makes the row's scope follow the resource's |
 | `IProvisionsTenant` under an unresolved context | `IProvisionsTenant.ProvisioningTenantId` — the value the common transaction coordinator announced | `NULL`, and not by choice: `SetProvisioningTenantContextAsync` announces `app.organization_id` as the empty string, so any other value fails the org-scoped `WITH CHECK` |
 | No transaction and no resolvable tenant (`EnterPlatformAdminScope`) | `TenantId.PlatformSentinel` | `NULL` — the sentinel has no organizations |
-| Admitted global identity creation/reconciliation owner (Accepted; Step 3 pending) | `TenantId.PlatformSentinel`, fixed by central typed composition, never a tenant announcement | `NULL`; exact `identity.user.create` discriminator |
+| Admitted global identity creation/reconciliation owner (implemented in Step 3) | `TenantId.PlatformSentinel`, fixed by central typed composition, never a tenant announcement | `NULL`; exact `identity.user.create` discriminator |
 | Ordinary unresolved context, not provisioning/global identity | no row — there is no admitted attribution owner | — |
 
 **The third row has exactly one user in Packet 9**: entry into
@@ -1338,8 +1338,8 @@ refuses it in every aggregate factory — and `StronglyTypedId.IsAssigned` repor
 unassigned. Both named sentinel populations are invisible to ordinary tenant
 readers. Platform-scope access remains its separate platform path; global
 identity evidence is exposed only through the exact owner functions, with no
-app self-audit read or user/tenant endpoint. These Accepted global additions
-remain pending Step 3; the tenant announcement guards remain in force.
+app self-audit read or user/tenant endpoint. These global additions are
+implemented in Step 3; the tenant announcement guards remain in force.
 
 **The sentinel's invariant has an enforcer, and it is not the CHECK.** Packet 9 puts the
 guard where the value enters: `SetProvisioningTenantContextAsync` refuses

@@ -140,6 +140,12 @@ public sealed class SchemaFixture : IAsyncLifetime
 
     static SchemaFixture()
     {
+        RowsVisibleToTenantA["users"] = 0;
+        RowsVisibleToTenantB["users"] = 0;
+        // The schema fixture does not install a deployment authority. Independent
+        // global tests install its fixed authority and verify the read policy.
+        RowsVisibleToTenantA["identity_authority"] = 0;
+        RowsVisibleToTenantB["identity_authority"] = 0;
         foreach (var table in SchemaTableClasses.JobTenant)
         {
             RowsVisibleToTenantA[table] = table == "background_job_reservations" ? 3 : 1;

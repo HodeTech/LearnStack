@@ -17,6 +17,14 @@ namespace LearnStack.Tests.Integration.Database;
 /// </remarks>
 internal sealed class NoOpAuditStore : IAuditStore
 {
+    public Task WriteGlobalIdentityPendingAsync(LearnStack.SharedKernel.Persistence.IUnitOfWork unit,
+        GlobalIdentityCreationReference creation, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Global identity has its own cases.");
+
+    public Task ReconcileGlobalIdentityAsync(AuditIntent intent, IReadOnlyList<CapturedEntityChange> changes,
+        AuditIntentState state, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Global identity has its own cases.");
+
     public int PendingWrites { get; private set; }
 
     public Task WritePendingAsync(IUnitOfWork unitOfWork, CancellationToken cancellationToken = default)

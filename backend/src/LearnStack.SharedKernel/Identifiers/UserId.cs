@@ -7,12 +7,12 @@ namespace LearnStack.SharedKernel.Identifiers;
 /// Lives in <see cref="LearnStack.SharedKernel"/> (per ADR-0023's
 /// cross-cutting value-object placement) so audit metadata and other
 /// kernel surfaces can reference users without depending on the Identity
-/// module whose domain lands in Phase 03. The Identity module consumes the same
-/// type once it ships; there is exactly one <c>UserId</c> shape.
+/// module. The Identity module consumes the same type; there is exactly one
+/// <c>UserId</c> shape.
 /// </summary>
 /// <remarks>
 /// There is no <c>UserId.New()</c> convenience: new <see cref="UserId"/>
-/// values are minted by aggregate methods through the injected
+/// values are minted by admitted owners through the injected
 /// <c>IGuidFactory</c> (<c>UserId.From(guidFactory.NewUuidV7())</c>) so
 /// tests can pin the value deterministically — see Standards 02 § Time.
 /// </remarks>
@@ -43,13 +43,14 @@ public readonly partial record struct UserId : IStronglyTypedId<Guid>
     /// <b>It is not a foreign key, and needs no <c>users</c> row.</b>
     /// <c>created_by</c>, <c>updated_by</c>, <c>deleted_by</c> and
     /// <c>audit_log.actor_user_id</c> carry no referential constraint anywhere in
-    /// the schema, so an actor identifier can remain after the user row is erased.
+    /// the schema, so an actor identifier can remain independently of account closure.
+    /// ADR-0072 retains the global binding/tombstone rather than deleting that row.
     /// It preserves audit continuity but remains pseudonymous and may be linked to
     /// a person through other retained records; erasing the user row alone does not
     /// establish anonymization. An enforced foreign key would require an explicit
     /// deletion policy for these retained references. See
     /// <see href="../../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md">ADR-0038
-    /// Amendment 1</see>; the <c>users</c> table itself is owned by Phase 03.
+    /// Amendment 1</see>; the <c>users</c> table itself is owned by Identity.
     /// </para>
     /// </remarks>
     public static UserId SystemActor { get; } =

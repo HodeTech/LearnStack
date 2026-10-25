@@ -80,7 +80,7 @@ public sealed class AsyncStoreInventoryTests
             {
                 var removed = subject.Document.Replace(row + "\n", "", StringComparison.Ordinal);
                 removed.Should().NotBe(subject.Document, "the planted control must actually remove its row");
-                var reason = section == "custody" ? "audit/provider/external/volatile custody" : "complete five-chain migration census";
+                var reason = section == "custody" ? "audit/provider/external/volatile custody" : "complete migration census";
                 Check(removed, subject.Platform, subject.Audit, subject.Modules)
                     .Should().Contain(failure => failure.Contains(reason, StringComparison.Ordinal));
 
@@ -283,18 +283,12 @@ public sealed class AsyncStoreInventoryTests
             .UseNpgsql("Host=unused").Options);
         using var audit = new AuditDbContext(new DbContextOptionsBuilder<AuditDbContext>()
             .UseNpgsql("Host=unused").Options, new StaticTenantContextAccessor(null));
-        using var tenancy = new TenancyDbContext(new DbContextOptionsBuilder<TenancyDbContext>()
-            .UseNpgsql("Host=unused").Options, StaticTenantContextAccessor.Unresolved);
-        using var customization = new CustomizationDbContext(new DbContextOptionsBuilder<CustomizationDbContext>()
-            .UseNpgsql("Host=unused").Options, StaticTenantContextAccessor.Unresolved);
-        using var education = new EducationDbContext(new DbContextOptionsBuilder<EducationDbContext>()
-            .UseNpgsql("Host=unused").Options, StaticTenantContextAccessor.Unresolved);
-        var modules = new Dictionary<string, MigrationOperation[]>
+        var modules = new Dictionary<string, MigrationOperation[]>(StringComparer.Ordinal);
+        foreach (var module in Modules.Mapped.Where(module => module.Domain != typeof(LearnStack.Modules.Audit.Domain.AuditEntry).Assembly))
         {
-            ["Tenancy"] = AsyncStoreInventoryCensus.Operations(tenancy),
-            ["Customization"] = AsyncStoreInventoryCensus.Operations(customization),
-            ["Education"] = AsyncStoreInventoryCensus.Operations(education),
-        };
+            using var context = module.Context();
+            modules.Add(module.Domain.GetName().Name!, AsyncStoreInventoryCensus.Operations(context));
+        }
         modules.Values.Should().OnlyContain(operations => operations.Length > 0);
         var platformOperations = AsyncStoreInventoryCensus.Operations(platform);
         var auditOperations = AsyncStoreInventoryCensus.Operations(audit);

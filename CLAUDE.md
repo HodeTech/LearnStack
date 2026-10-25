@@ -63,8 +63,8 @@ the foundation ports — is recorded packet by packet in
 frozen history, together with the 2026-08-08 restructure that moved correctness
 earlier, additive infrastructure later and proof earlier.
 
-**Four modules hold domain code:** Tenancy, Customization, Audit and Education.
-Content, Identity and Media remain scaffolded. Module-level references in the docs
+**Five modules hold domain code:** Tenancy, Customization, Audit, Education and
+Identity. Content and Media remain scaffolded. Module-level references in the docs
 to types such as `ILiveClassProvider` or `ITenantSearch` describe intended shape
 owned by their named phases.
 
@@ -304,8 +304,8 @@ rules:
 - **Announce `TenantId.PlatformSentinel` as a request's tenant.** Exactly two named
   classes of audit row may carry it: platform-scope standalone operations and
   ADR-0072 global `identity.user.create` attempts under its confined common
-  owner. The global path is Accepted but not implemented; neither class grants
-  tenant authority or permits a tenant setter to announce the sentinel.
+  owner. Neither class grants tenant authority or permits a tenant setter to
+  announce the sentinel.
   Packet 9 puts the guard where the value
   enters: `SetProvisioningTenantContextAsync` refuses the sentinel exactly as it
   already refuses `Guid.Empty`, and `Tenant.Create` refuses it in the factory

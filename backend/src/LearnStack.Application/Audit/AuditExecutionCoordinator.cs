@@ -5,6 +5,8 @@ using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
+using LearnStack.SharedKernel.Persistence;
+using LearnStack.Application.Persistence;
 using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Application.Audit;
@@ -35,7 +37,8 @@ public sealed class AuditExecutionCoordinator(
     ITenantContext tenantContext,
     IClock clock,
     IGuidFactory guidFactory,
-    ILogger<AuditExecutionCoordinator> logger)
+    ILogger<AuditExecutionCoordinator> logger,
+    IUnitOfWork unitOfWork)
 {
     /// <summary>
     /// Classifies the declared operation before invoking its deferred work. A direct
@@ -51,7 +54,7 @@ public sealed class AuditExecutionCoordinator(
     {
         ArgumentNullException.ThrowIfNull(operationType);
         ArgumentNullException.ThrowIfNull(next);
-        var jobSourceOwner = JobApplicationSourceOwner.Current;
+        TransactionExecutionCoordinator.RefuseGlobalIdentityEntry(unitOfWork);
 
         // Unregistered is the rejection, and it happens BEFORE the handler runs: an
         // operation nobody classified is a deployment defect, and letting it commit while
@@ -70,6 +73,65 @@ public sealed class AuditExecutionCoordinator(
             return Result.FailFor<TResponse>(AuditErrors.UnclassifiedOperation);
         }
 
+        return await ExecuteDeclaredAsync(
+            () => DeclareAsync(provisioning, registration, cancellationToken), next, false).ConfigureAwait(false);
+    }
+
+    /// <summary>Declares the one central MUST intent only after the prepared owner admitted serialized absence.</summary>
+    public async Task<TResponse> ExecuteGlobalIdentityAsync<TResponse>(
+        TransactionExecutionCoordinator.PreparedGlobalIdentityOwner owner,
+        Func<GlobalIdentityCreationReference, Task<TResponse>> next,
+        CancellationToken cancellationToken = default) where TResponse : IResultBase
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(next);
+        cancellationToken.ThrowIfCancellationRequested();
+        owner.RequireCreationEntry(capture);
+        if (!ReferenceEquals(owner.Unit, unitOfWork) || tenantContext.IsResolved
+            || tenantContext is EventTenantContext or JobTenantContext || JobApplicationSourceOwner.Current is not null)
+            throw new InvalidOperationException("Global audit requires its fresh identity owner and unresolved context.");
+        if (!catalog.TryGetOffPath(GlobalIdentityCreationReference.Operation, out var entry)
+            || entry.ModuleName != "identity" || entry.OperationClass != OperationClass.Must
+            || entry.OperationType != OperationType.SecurityEvent || entry.EntityType != owner.Descriptor.EntityType)
+            return Result.FailFor<TResponse>(AuditErrors.UnclassifiedOperation);
+
+        GlobalIdentityCreationReference? creation = null;
+        return await ExecuteDeclaredAsync(() =>
+        {
+            creation = GlobalCreationSource.Create(owner.Unit, owner.Announcement,
+                owner.Descriptor.SeedActor ?? UserId.From(guidFactory.NewUuidV7()),
+                AuditEntryId.From(guidFactory.NewUuidV7()), clock.UtcNow);
+            capture.DeclareIntent(new AuditIntent(creation.AuditId, TenantId.PlatformSentinel, null,
+                creation.ActorUserId, tenantContext.CorrelationId, entry.ModuleName, entry.Operation,
+                entry.OperationType, entry.OperationClass, entry.EntityType, creation.Timestamp)
+            {
+                GlobalIdentity = creation,
+                SubjectId = creation.TargetUserId.Value.ToString("D"),
+            });
+            return Task.CompletedTask;
+        }, async () =>
+        {
+            try
+            {
+                var response = await next(creation!).ConfigureAwait(false);
+                if (!owner.HasBeenConsumed)
+                    throw new InvalidOperationException("Global creation must consume its prepared common owner.");
+                return response;
+            }
+            finally
+            {
+                if (!owner.HasBeenConsumed)
+                {
+                    try { await owner.FailBeforeConsumptionAsync().ConfigureAwait(false); }
+                    catch { /* Preserve the original deferred-entry failure; cleanup must not replace it. */ }
+                }
+            }
+        }, true).ConfigureAwait(false);
+    }
+
+    private async Task<TResponse> ExecuteDeclaredAsync<TResponse>(Func<Task> declare, Func<Task<TResponse>> next,
+        bool globalIdentity) where TResponse : IResultBase
+    {
         var outermost = !capture.HasOpenFrame;
 
         // A frame per invocation, outermost or nested, so each intent belongs to the
@@ -84,8 +146,8 @@ public sealed class AuditExecutionCoordinator(
 
         try
         {
-            await DeclareAsync(provisioning, registration, cancellationToken).ConfigureAwait(false);
-            jobSourceOwner?.RequireBusinessReady();
+            await declare().ConfigureAwait(false);
+            JobApplicationSourceOwner.Current?.RequireBusinessReady();
 
             var response = await next().ConfigureAwait(false);
 
@@ -94,7 +156,7 @@ public sealed class AuditExecutionCoordinator(
             // cancelled COMMIT, which reaches neither the catch nor this line, is covered
             // by the same code as the other two (ADR-0033 Amendment 4 § 2).
             result = response.IsFailure
-                ? AuditIntentResult.Refused(OutcomeOf(response.Error!), response.Error!.Message.Key)
+                ? AuditIntentResult.Refused(globalIdentity ? AuditOutcome.Failed : OutcomeOf(response.Error!), response.Error!.Message.Key)
                 : AuditIntentResult.Succeeded;
 
             return response;
@@ -205,8 +267,8 @@ public sealed class AuditExecutionCoordinator(
                 // A FRESH clock reading, not the intent's DeclaredAt: the in-transaction row
                 // that may already exist under this id carries that, and the composite
                 // primary key is what makes the pair legal rather than a 23505.
-                draft = AuditDraftComposer.Reconciled(
-                    intent, capture.ChangesOf(intent), state, clock.UtcNow);
+                draft = AuditDraftComposer.Reconciled(intent, capture.ChangesOf(intent), state,
+                    intent.GlobalIdentity?.ReconciliationTimestamp(clock.UtcNow) ?? clock.UtcNow);
             }
             catch (Exception refused)
             {
@@ -237,7 +299,12 @@ public sealed class AuditExecutionCoordinator(
                 // abandoned by what it is cleaning up after. Unbounded only in the sense
                 // that this token is — Npgsql's own connection and command timeouts still
                 // bound the write, so a wedged database cannot hold the request forever.
-                if (intent.OperationClass == OperationClass.Must)
+                if (intent.GlobalIdentity is not null)
+                {
+                    await store.ReconcileGlobalIdentityAsync(intent, capture.ChangesOf(intent), state,
+                        draft.Timestamp, CancellationToken.None).ConfigureAwait(false);
+                }
+                else if (intent.OperationClass == OperationClass.Must)
                 {
                     await store.WriteStandaloneAsync(draft, CancellationToken.None).ConfigureAwait(false);
                 }
@@ -272,7 +339,8 @@ public sealed class AuditExecutionCoordinator(
     // A nested command shares this context, so its failure cannot leak payloads
     // through a provider/composer exception before the transport sees the fault.
     private Exception? DiagnosticException(Exception failure) =>
-        AsyncExecutionDiagnostics.IsTrusted(tenantContext) ? null : failure;
+        capture.Intents.Any(intent => intent.GlobalIdentity is not null)
+            || AsyncExecutionDiagnostics.IsTrusted(tenantContext) ? null : failure;
 
     /// <summary>
     /// Parks one intent per audited <c>(resource, operation)</c>.
@@ -384,6 +452,13 @@ public sealed class AuditExecutionCoordinator(
         "forbidden" or "resource_scope_violation" or "feature_disabled" or "limit_exceeded" => AuditOutcome.Denied,
         _ => AuditOutcome.Failed,
     };
+
+    private sealed class GlobalCreationSource : GlobalIdentityCreationReference.MintingSource
+    {
+        internal static GlobalIdentityCreationReference Create(IGlobalIdentityUnitOfWork unit,
+            LearnStack.SharedKernel.Identity.GlobalIdentityContextAnnouncement announcement,
+            UserId target, AuditEntryId id, DateTimeOffset timestamp) => Mint(unit, announcement, target, id, timestamp);
+    }
 
     private static readonly Action<ILogger, string, Exception?> LogUnclassified =
         LoggerMessage.Define<string>(

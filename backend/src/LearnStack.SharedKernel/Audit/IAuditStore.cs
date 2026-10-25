@@ -4,7 +4,7 @@ using LearnStack.SharedKernel.Persistence;
 namespace LearnStack.SharedKernel.Audit;
 
 /// <summary>
-/// The only sanctioned way to put a row in <c>audit_log</c>. Six writes, and
+/// The only sanctioned way to put a row in <c>audit_log</c>. Eight writes, and
 /// <b>no update</b>.
 /// </summary>
 /// <remarks>
@@ -34,6 +34,14 @@ namespace LearnStack.SharedKernel.Audit;
 /// </remarks>
 public interface IAuditStore
 {
+    /// <summary>Writes the enrolled global creation intent on its original live owner.</summary>
+    Task WriteGlobalIdentityPendingAsync(IUnitOfWork unitOfWork, GlobalIdentityCreationReference creation,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Reconciles only captured failed/indeterminate global creation in a fresh bounded transaction.</summary>
+    Task ReconcileGlobalIdentityAsync(AuditIntent intent, IReadOnlyList<CapturedEntityChange> changes,
+        AuditIntentState state, DateTimeOffset timestamp, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Writes every pending MUST-class intent on the <b>ambient</b> transaction,
     /// immediately before <c>COMMIT</c>. A no-op when nothing is pending.

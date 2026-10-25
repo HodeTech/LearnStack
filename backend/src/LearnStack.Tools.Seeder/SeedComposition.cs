@@ -95,6 +95,9 @@ public static class SeedComposition
             provider.GetRequiredService<ITenantContextAccessor>().Current
             ?? UnresolvedTenantContext.Instance);
 
+        services.TryAddScoped<GlobalIdentityEnrollment>();
+        services.TryAddScoped<LearnStack.SharedKernel.Identity.IGlobalIdentityEnrollment>(provider =>
+            provider.GetRequiredService<GlobalIdentityEnrollment>());
         services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
         services.AddModuleDbContext<TenancyDbContext>();
         services.AddTenantSettingsReads();

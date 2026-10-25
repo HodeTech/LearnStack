@@ -358,8 +358,8 @@ Rules:
   tenant/org policy semantics come from
   [Database Standards § Tenant-Owned and Organization-Scoped Tables](05-database.md)
   with the accepted [global identity branch](05-database.md#global-central-audit-branch),
-  pending Step 3. The reusable template stays unchanged; the applied audit policy
-  currently lacks that new branch. `audit_config` is **tenant-owned, tenant-wide**: it has
+  implemented in Step 3. The reusable template stays unchanged; the applied audit
+  policy includes only the qualified global extension. `audit_config` is **tenant-owned, tenant-wide**: it has
   no `organization_id`, so it takes the same shape with the organization half omitted and
   no restrictive guards — there is no organization to guard
   ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)). No document
@@ -621,7 +621,7 @@ table above is the policy those deliverables implement, not a description of tod
 
 ## Global identity creation
 
-**Adopted under ADR-0072; implementation pending P03-1 Step 3.**
+**Implemented under ADR-0072 in P03-1 Step 3; step review is in progress.**
 `identity.user.create` is MUST/SecurityEvent under the central baseline catalogue,
 independent of tenant AuditConfig and ADR-0065's host-tenant assertion allowance.
 Ordinary existing-binding reads declare no mutation intent. The exact
@@ -637,15 +637,15 @@ is separate; seed adoption attributes its fixed SystemActor. Raw issuer/subject,
 credentials and token values enter neither metadata nor snapshots. Retained
 subject-key metadata remains linkable personal data under existing retention.
 
-`WriteGlobalIdentityPending` and `ReconcileGlobalIdentity` extend the **six current
-central write seams to eight projected seams**, without another SQL INSERT owner.
+`WriteGlobalIdentityPending` and `ReconcileGlobalIdentity` extend the earlier six
+central write seams to **eight implemented seams**, without another SQL INSERT owner.
 Success shares the first User's physical transaction; non-success reconciliation
 uses captured evidence and preserves failure/unknown-COMMIT semantics. Ordinary
-pending must gain explicit sentinel/global-intent/global-owner refusal before the
-new branch is admitted. Platform, event and job seams keep their distinct scopes.
+pending explicitly refuses sentinel/global intents and global enrollment. A
+scoped read-only enrollment reader preserves the lazy application-source boundary. Platform, event and job seams keep their distinct scopes.
 No global audit read endpoint or P03-1 HTTP creation route follows. Registered
-Identity audit controls remain unimplemented until actual clean/dirty and app-role
-proof ships; acceptance is no assertion of enforced global durability.
+Identity audit controls now exercise actual app-role, clean/dirty and physical
+COMMIT-boundary paths. Later contextual writers and HTTP activation remain separate.
 
 ## Architecture and Integration Tests
 

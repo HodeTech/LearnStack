@@ -52,7 +52,7 @@ public sealed class DataProtectionConventionTests(ITestOutputHelper output)
 
         covered.Should().BeEquivalentTo(discovered,
             "Fix: add every new production DbContext to the census; no module or non-module context may disappear");
-        covered.Count.Should().BeGreaterThan(4, "the sweep includes all four module contexts and the empty Platform context");
+        covered.Count.Should().BeGreaterThan(4, "the sweep includes every mapped module and the empty Platform context");
         properties.Should().Contain(property => property.Name == "CreatedBy",
             "inherited actor references are part of the real mapped population");
         properties.Should().Contain(property => property.Name == "DeletedBy");
@@ -144,7 +144,7 @@ public sealed class DataProtectionConventionTests(ITestOutputHelper output)
     [Fact]
     public void Classification_annotations_introduce_no_relational_schema_changes()
     {
-        foreach (var create in Modules.Scoped.Select(module => module.Context))
+        foreach (var create in Modules.Mapped.Select(module => module.Context))
         {
             using var context = create();
             var snapshot = context.GetService<IMigrationsAssembly>().ModelSnapshot;
@@ -158,7 +158,7 @@ public sealed class DataProtectionConventionTests(ITestOutputHelper output)
     }
 
     private static IEnumerable<Func<DbContext>> ModelFactories() =>
-        Modules.Scoped.Select(module => module.Context).Append(() => new PlatformDbContext(
+        Modules.Mapped.Select(module => module.Context).Append(() => new PlatformDbContext(
             new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(ModelConnection).Options));
 
     private static TenancyDbContext ModifiedTenancy<TCustomizer>() where TCustomizer : class, IModelCustomizer =>

@@ -399,6 +399,13 @@ public sealed class ModuleDependencyTests
                 break;
             case "Infrastructure":
                 allowed.Add("LearnStack.Infrastructure");
+                if (moduleName == "Identity")
+                {
+                    // ADR-0072's exact common coordinator/central installer edges are
+                    // member/type-confined by IdentityAuditConventionTests, not a general adapter dependency.
+                    allowed.Add("LearnStack.Application");
+                    allowed.Add("LearnStack.Infrastructure.Audit");
+                }
                 allowed.Add(Own("Domain"));
                 allowed.Add(Own("Application"));
                 allowed.Add(Own("Application.Contracts"));

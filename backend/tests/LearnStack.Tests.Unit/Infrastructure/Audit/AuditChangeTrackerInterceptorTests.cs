@@ -49,7 +49,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             Nickname = "n",
         });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var change = capture.Changes.Should().ContainSingle().Subject;
         change.EntityType.Should().Be(nameof(Person));
@@ -75,7 +75,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         context.Attach(person);
         person.DisplayName = "Ada Lovelace";
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var change = capture.Changes.Should().ContainSingle().Subject;
         change.Fields.Select(field => field.Path).Should().Equal("/Person/7/DisplayName");
@@ -96,7 +96,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         context.Attach(person);
         context.Remove(person);
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var change = capture.Changes.Should().ContainSingle().Subject;
         change.BeforeJson.Should().NotBeNull();
@@ -112,7 +112,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         context.Attach(new Person { Id = 9, DisplayName = "Ada", Password = "p", Notes = "n", Nickname = "n" });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         capture.Changes.Should().BeEmpty();
     }
@@ -130,7 +130,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         context.Attach(person);
         person.Nickname = "new";
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var field = capture.Changes.Single().Fields.Should().ContainSingle().Subject;
         field.Path.Should().Be("/Person/1/Nickname");
@@ -159,7 +159,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             Nickname = "n",
         });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var change = capture.Changes.Single();
         change.AfterJson.Should().NotContain("hunter2");
@@ -191,7 +191,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             Inherited = "personal",
         });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var change = capture.Changes.Single();
         change.AfterJson.Should().NotContain("personal");
@@ -221,7 +221,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             Payload = "p",
         });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         capture.Changes.Single().Fields.Select(field => field.Path).Should().BeEquivalentTo(
             "/Bookkept/1/Id", "/Bookkept/1/DeletedAt", "/Bookkept/1/Payload");
@@ -239,7 +239,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         context.Add(new Documented { Id = 1, Document = "{\"a\":1}", Text = "[1,2,3]" });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var fields = capture.Changes.Single().Fields;
         fields.Single(field => field.Path == "/Documented/1/Document")
@@ -259,7 +259,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         context.Add(new Documented { Id = 2, Document = "{}", Text = "t", Status = Grade.Second });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         capture.Changes.Single().Fields
             .Single(field => field.Path == "/Documented/2/Status")
@@ -287,7 +287,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             Grade = Grade.Second,
         });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var fields = capture.Changes.Single().Fields;
 
@@ -321,7 +321,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         context.Add(Activator.CreateInstance(excluded)!);
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         capture.Changes.Should().BeEmpty("{0} is excluded by name", excluded.Name);
     }
@@ -337,7 +337,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         context.Add(new Band { TenantId = "t", Taxonomy = "proficiency", Key = "beginner" });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         capture.Changes.Single().EntityId.Should().Be("t/proficiency/beginner");
 
@@ -362,7 +362,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             Nickname = "n",
         });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         using var after = JsonDocument.Parse(capture.Changes.Single().AfterJson!);
         after.RootElement.ValueKind.Should().Be(JsonValueKind.Object,
@@ -377,7 +377,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         // exactly why the row is composed later, once, by the frame that owns the commit.
         using var context = new ProbeContext();
         var capture = new AuditStateCapture();
-        var interceptor = new AuditChangeTrackerInterceptor(capture);
+        var interceptor = new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>());
 
         context.People.Add(new Person { Id = 1, DisplayName = "A", Password = "p", Notes = "n", Nickname = "n" });
         interceptor.Capture(context);
@@ -418,7 +418,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             new FixedClock(DateTimeOffset.UnixEpoch),
             UserId.From(Guid.CreateVersion7())));
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         capture.Changes.Single().Fields
             .Single(field => field.Path.EndsWith("/DisplayName", StringComparison.Ordinal))
@@ -468,7 +468,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         context.Entry(contentType).Properties.Select(property => property.Metadata.Name)
             .Should().Contain("Version");
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var paths = capture.Changes.Single().Fields.Select(field => field.Path).ToList();
         var at = $"/TenantContentType/{contentType.Id.Value}/";
@@ -501,7 +501,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         context.Add(hidden);
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var change = capture.Changes.Single();
         change.AfterJson.Should().NotContain("private-personal-data");
@@ -523,7 +523,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         context.Add(new Keyed { Code = new Code("abc"), Payload = "p" });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         capture.Changes.Single().EntityId.Should().Be(
             "CODE:ABC",
@@ -544,7 +544,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         folder.Leaves.Add(new Leaf { FolderId = 1, Key = "a", Label = "Lower" });
         context.Add(folder);
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var change = capture.Changes.Should().ContainSingle(
             "the members are part of their root's capture, not captures of their own").Subject;
@@ -588,7 +588,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         folder.Leaves.RemoveAt(1);
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var change = capture.Changes.Should().ContainSingle().Subject;
         change.EntityType.Should().Be(nameof(Folder), "an unchanged root is still what the row is about");
@@ -619,7 +619,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         context.Attach(folder);
         folder.Title = "Grades";
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         using var after = JsonDocument.Parse(capture.Changes.Single().AfterJson!);
         after.RootElement.GetProperty("Title").GetString().Should().Be("Grades");
@@ -635,7 +635,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         // trusted IsLoaded alone would drop every member from the capture that matters.
         using var context = new ProbeContext();
         var capture = new AuditStateCapture();
-        var interceptor = new AuditChangeTrackerInterceptor(capture);
+        var interceptor = new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>());
 
         var folder = new Folder { Id = 4, Title = "Levels" };
         folder.Leaves.Add(new Leaf { FolderId = 4, Key = "a", Label = "Lower" });
@@ -664,7 +664,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         // the database kept three bands and the row's after_state listed one.
         using var context = new ProbeContext();
         var capture = new AuditStateCapture();
-        var interceptor = new AuditChangeTrackerInterceptor(capture);
+        var interceptor = new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>());
 
         var folder = new Folder { Id = 6, Title = "Levels" };
         folder.Leaves.Add(new Leaf { FolderId = 6, Key = "a", Label = "Lower" });
@@ -700,7 +700,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         // known — and still complete without it.
         using var context = new ProbeContext();
         var capture = new AuditStateCapture();
-        var interceptor = new AuditChangeTrackerInterceptor(capture);
+        var interceptor = new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>());
 
         var folder = new Folder { Id = 7, Title = "Levels" };
         folder.Leaves.Add(new Leaf { FolderId = 7, Key = "a", Label = "Lower" });
@@ -732,7 +732,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         context.Add(new Leaf { FolderId = 9, Key = "a", Label = "Lower" });
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var change = capture.Changes.Should().ContainSingle().Subject;
         change.EntityType.Should().Be(nameof(Leaf));
@@ -752,7 +752,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         holder.Children.Add(new Rooted { Id = new ProbeId(Guid.CreateVersion7()), HolderId = 1, Name = "n" });
         context.Add(holder);
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         capture.Changes.Select(change => change.EntityType).Should().BeEquivalentTo(
             [nameof(Holder), nameof(Rooted)]);
@@ -783,7 +783,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         taxonomy.AddItem("b2", LocalizedText.From(("en", "Vantage")), 2, null, clock, actor);
         context.Add(taxonomy);
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
 
         var change = capture.Changes.Should().ContainSingle().Subject;
         change.EntityType.Should().Be(nameof(TenantLevelTaxonomy));
@@ -835,7 +835,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             UserId.From(Guid.CreateVersion7()));
         context.Add(contentType);
 
-        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        new AuditChangeTrackerInterceptor(capture, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>()).Capture(context);
         capture.Designate(contentType);
 
         capture.Intents.Single().SubjectId.Should().Be(capture.Changes.Single().EntityId);

@@ -104,6 +104,14 @@ public sealed class TenantAssertionAuditAdmissionTests
 
     private sealed class GatedAuditStore : IAuditStore
     {
+        public Task WriteGlobalIdentityPendingAsync(LearnStack.SharedKernel.Persistence.IUnitOfWork unit,
+            GlobalIdentityCreationReference creation, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Global identity has its own cases.");
+
+        public Task ReconcileGlobalIdentityAsync(AuditIntent intent, IReadOnlyList<CapturedEntityChange> changes,
+            AuditIntentState state, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Global identity has its own cases.");
+
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _attempts;
         private int _completed;

@@ -4,6 +4,7 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using MediatR;
@@ -817,7 +818,7 @@ public sealed class AuditLogBehaviorTests
             new HarnessTenantContext(resolved: false),
             new HarnessClock(DateTimeOffset.UnixEpoch),
             new HarnessGuidFactory(),
-            NullLogger<AuditExecutionCoordinator>.Instance));
+            NullLogger<AuditExecutionCoordinator>.Instance, NSubstitute.Substitute.For<IUnitOfWork>()));
 
         var result = await behavior.Handle(
             new DummyCommand(),
@@ -1232,7 +1233,7 @@ public sealed class AuditLogBehaviorTests
             new HarnessTenantContext(),
             new HarnessClock(DateTimeOffset.UnixEpoch),
             new HarnessGuidFactory(),
-            logger ?? NullLogger<AuditExecutionCoordinator>.Instance);
+            logger ?? NullLogger<AuditExecutionCoordinator>.Instance, NSubstitute.Substitute.For<IUnitOfWork>());
 
     /// <summary>Every log line the behavior writes, by level.</summary>
     private sealed class CapturingLogger : ILogger<AuditExecutionCoordinator>

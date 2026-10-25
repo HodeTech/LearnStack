@@ -1,7 +1,8 @@
 # Identity — Audit Coverage Matrix
 
-**Status: Accepted contract — runtime implementation pending.** No request/catalogue/model
-below exists yet. Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md),
+**Status: Global creation/adoption implementation under review; contextual writers pending.**
+The User off-path catalogue and global persistence exist; planned markers below
+identify the remaining contextual operations. Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md)
 and [Standard 18](../../standards/18-audit-coverage.md). Part of the [module spec](README.md).
 
@@ -12,7 +13,7 @@ additional permission keys.
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
-| User/global immutable subject | `identity.user.create` `(planned)` `(off-path)` | **MUST** (`security-event`) | ADR-0072's confined creation/adoption owner and central non-success reconciliation; success shares the User transaction. Exact global witness, source and retention contract stays there. |
+| User/global immutable subject | `identity.user.create` `(off-path)` | **MUST** (`security-event`) | ADR-0072's confined creation/adoption owner and central non-success reconciliation; success shares the User transaction. Exact global witness, source and retention contract stays there. |
 | Role including grants | `identity.role.initialize` `(planned)` | **MUST** (`security-event`) | `InitializeSeedRole`; one Role transaction, with contained grants. |
 | Membership including Profile/Assignments | `identity.membership.create_first_seed_admin` `(planned)` | **MUST** (`security-event`) | `CreateFirstSeedAdminMembership`; one Membership transaction. |
 | Membership including Profile/Assignments | `identity.membership.create_seed` `(planned)` | **MUST** (`security-event`) | `CreateSeedMembership`; one Membership transaction. |

@@ -87,6 +87,11 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
     {
         ArgumentNullException.ThrowIfNull(change);
 
+        var identity = _intents.SingleOrDefault(intent => intent.GlobalIdentity is not null)?.GlobalIdentity;
+        if (identity is not null && (change.EntityType != identity.Descriptor.EntityType.Name
+            || change.EntityId != identity.TargetUserId.Value.ToString("D") || change.BeforeJson is not null))
+            throw new InvalidOperationException("Global capture admits only its one new identity target.");
+
         _changes.Add(change);
         _changeFrames.Add(CurrentFrame);
     }
@@ -121,7 +126,12 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
     }
 
     /// <inheritdoc />
-    public void OpenFrame() => _openFrames.Add(++_framesOpened);
+    public void OpenFrame()
+    {
+        if (_intents.Any(intent => intent.GlobalIdentity is not null))
+            throw new InvalidOperationException("A global creation capture cannot contain a nested audit frame.");
+        _openFrames.Add(++_framesOpened);
+    }
 
     /// <inheritdoc />
     public void CloseFrame(AuditIntentResult result)
@@ -151,6 +161,15 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
     public void DeclareIntent(AuditIntent intent)
     {
         ArgumentNullException.ThrowIfNull(intent);
+
+        if (intent.GlobalIdentity is { } identity)
+        {
+            identity.RequireIntent(intent);
+            if (_openFrames.Count != 1 || _intents.Count != 0 || _changes.Count != 0 || State != AuditIntentState.None)
+                throw new InvalidOperationException("Global creation requires one fresh central audit frame.");
+        }
+        else if (_intents.Any(existing => existing.GlobalIdentity is not null))
+            throw new InvalidOperationException("An ordinary intent cannot join global identity creation.");
 
         _intents.Add(intent);
         _intentFrames.Add(CurrentFrame);

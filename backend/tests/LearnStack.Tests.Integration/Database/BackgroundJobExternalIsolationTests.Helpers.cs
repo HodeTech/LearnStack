@@ -46,7 +46,7 @@ public sealed partial class BackgroundJobExternalIsolationTests
         var overlay = new KillswitchOverlay(lazy, cache, NullLogger<KillswitchOverlay>.Instance);
         var flags = new FeatureFlags(context, new NullEntitlementProvider(), overlay, lazy, cache, NullLogger<FeatureFlags>.Instance);
         var store = new PostgresAuditStore(new AuditStateCapture(), lazy, NullLogger<PostgresAuditStore>.Instance,
-            meterFactory, new AuditHealth(), new AuditCatalog([]), new StaticTenantContextAccessor(context));
+            meterFactory, new AuditHealth(), new AuditCatalog([]), new StaticTenantContextAccessor(context), new LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment());
         var draft = HelperDraft();
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Task inherited;

@@ -77,6 +77,14 @@ public sealed partial class TenantAuthenticationDiagnosticsTests
 
     private sealed class SuppressionMetricsStore : IAuditStore
     {
+        public Task WriteGlobalIdentityPendingAsync(LearnStack.SharedKernel.Persistence.IUnitOfWork unit,
+            GlobalIdentityCreationReference creation, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Global identity has its own cases.");
+
+        public Task ReconcileGlobalIdentityAsync(AuditIntent intent, IReadOnlyList<CapturedEntityChange> changes,
+            AuditIntentState state, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Global identity has its own cases.");
+
         internal int Calls { get; private set; }
 
         private Task Refuse()

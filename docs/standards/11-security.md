@@ -1020,7 +1020,7 @@ Security-relevant durability rules:
   ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)). Both take the
   canonical RLS template for their class in the current applied schema.
   [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) accepts the
-  exact global-identity departure for `audit_log`, pending Step 3; `audit_config`
+  exact global-identity departure for `audit_log`, implemented in Step 3; `audit_config`
   remains unmodified. [Database Standards](05-database.md#global-central-audit-branch)
   owns that policy, without a second template here. A tenant admin's read is
   bounded by the policy, not by the
@@ -1051,12 +1051,14 @@ Security-relevant durability rules:
 
 ## Identity admission contract
 
-**Status: Adopted — Accepted 2026-10-25; implementation pending.** Derived from
+**Status: Global internal storage/common audit implemented in Step 3; API
+existing-binding activation remains Step 5 and contextual execution remains
+Steps 4 / P03-2.** Derived from
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
-Acceptance admits the bounded contract below, not implemented code or grants. The current
-authentication surface, eight tenant setters and deny-all membership reader above
-remain the implemented baseline. The
+The bounded global owner below is implemented; this does not activate HTTP
+creation or live membership. The current authentication surface, eight tenant
+setters and deny-all membership reader remain until their owning steps. The
 [adopted database contract](05-database.md#identity-storage-contract)
 owns the global class, authority anchor, subject-key encoding, exact policies,
 owner functions and lock/snapshot rules; they are not duplicated here.

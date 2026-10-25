@@ -248,6 +248,14 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
     private sealed class CombinedTerminalAuditStore(PostgresAuditStore inner, CombinedTerminalHold outbox,
         CombinedTerminalHold delivery) : IAuditStore, IAsyncDisposable
     {
+        public Task WriteGlobalIdentityPendingAsync(LearnStack.SharedKernel.Persistence.IUnitOfWork unit,
+            GlobalIdentityCreationReference creation, CancellationToken cancellationToken = default) =>
+            inner.WriteGlobalIdentityPendingAsync(unit, creation, cancellationToken);
+
+        public Task ReconcileGlobalIdentityAsync(AuditIntent intent, IReadOnlyList<CapturedEntityChange> changes,
+            AuditIntentState state, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+            inner.ReconcileGlobalIdentityAsync(intent, changes, state, timestamp, cancellationToken);
+
         private CombinedTerminalHold? _hold;
         public Task WritePendingAsync(IUnitOfWork unit, CancellationToken token = default) => inner.WritePendingAsync(unit, token);
         public Task WriteStandaloneAsync(AuditEntryDraft entry, CancellationToken token = default) => inner.WriteStandaloneAsync(entry, token);

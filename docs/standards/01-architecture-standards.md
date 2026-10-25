@@ -95,9 +95,9 @@ enumerated `IdentityCreationWitnessInstaller` call on its migration connection
 after Audit exists. The [Database contract](05-database.md#lock-snapshot-and-adoption-conditions)
 owns its exact central Audit SQL/guard installation boundary. Identity copies no
 audit SQL, gains no direct audit writer or general cross-module join, and core
-Infrastructure gains no module assembly/entity reference. Step 3 must extend the
-installer/body/caller censuses before installation; acceptance supplies no runtime
-exception to the module dependency graph.
+Infrastructure gains no module assembly/entity reference. Step 3 implements the
+exact installer/body/caller census and the Identity-only common Application
+coordinator dependency. Other module/core edges remain forbidden.
 
 Forbidden edges:
 - Domain → Application
@@ -219,7 +219,7 @@ Rules:
   one and takes no marker.
 - Global self-identity `users` takes no `[TenantOwned]` marker or tenant column.
   Its adopted subject-confined EF/RLS/owner contract is specified once in
-  [Database Standards](05-database.md#identity-storage-contract), pending Step 3.
+  [Database Standards](05-database.md#identity-storage-contract), implemented in Step 3.
   Its common transaction/capture admission is an exact authority mode, not a
   table-name exemption or a fifth cross-module communication mechanism.
 - `[TenantOwned]` entities must have a configured EF global query filter and a PostgreSQL RLS policy (see [Database Standards](05-database.md)).

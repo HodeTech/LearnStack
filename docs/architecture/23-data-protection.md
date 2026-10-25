@@ -26,12 +26,13 @@ implemented mapped-property census requires explicit semantics; it does not infe
 
 ### Identity foundation and classification ownership
 
-**Classification implemented in P03-1 Step 2; Identity storage and fulfillment
-remain pending their implementation steps.** Jointly Accepted
+**Classification implemented in P03-1 Step 2; global Identity storage/common
+audit implemented in Step 3; contextual storage and fulfillment remain pending.** Jointly Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
-require these controls before the first identity writer. Acceptance creates no
-current storage, grant or fulfilled erasure capability.
+require these controls before the first identity writer. Step 3 adds 17 reviewed
+global scalars, bringing the census to six contexts, 21 entities and 218 scalar
+properties. Neither classification nor storage fulfills an erasure request.
 
 P03-1 Step 2 implements reviewed declarations in each module's EF mappings and
 `PersonalDataModelCensus` in common Infrastructure. Each module owns declarations
@@ -216,7 +217,7 @@ Exclusion from this asynchronous inventory is not an erasure exemption.
 <!-- async-store-exclusions:end -->
 
 Other module tables remain explicit scope exclusions, so a new table cannot
-silently escape the five-chain migration census. Their own module specifications
+silently escape the complete migration census. Their own module specifications
 govern personal data; exclusion here grants no erasure exemption.
 
 <!-- async-store-module-exclusions:start -->
@@ -240,6 +241,8 @@ govern personal data; exclusion here grants no erasure exemption.
 | `course_translations` | Education localized content |
 | `lesson_translations` | Education localized content |
 | `audit_config` | Audit coverage configuration |
+| `users` | Synchronous global identity binding/tombstone; retained raw subject, digest and creation-audit linkage follow the Identity contract and P03-10 closure owner |
+| `identity_authority` | Deployment-owned stable authority registration, not a per-person profile; installation and rebind remain separately confined |
 <!-- async-store-module-exclusions:end -->
 
 LearnStack job-table no-delete triggers also bind the owner; BYPASSRLS is not

@@ -3,6 +3,7 @@ using System.Data.Common;
 using LearnStack.Application.Messaging;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -14,7 +15,7 @@ namespace LearnStack.Application.Persistence;
 /// Shared transaction entry and owner completion for requests and direct work.
 /// The outer audit coordinator retains classification/reconciliation ownership.
 /// </summary>
-public sealed class TransactionExecutionCoordinator(
+public sealed partial class TransactionExecutionCoordinator(
     IUnitOfWork unitOfWork,
     ITenantContext tenantContext,
     IAuditStore auditStore,
@@ -52,6 +53,7 @@ public sealed class TransactionExecutionCoordinator(
     {
         ArgumentNullException.ThrowIfNull(next);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
+        RefuseGlobalIdentityEntry(unitOfWork);
         BackgroundJobExecutionAdmission.RequireContext(tenantContext, provisioning);
         BackgroundJobExecutionAdmission.RequireOperation(operationType);
         var jobCompletion = BackgroundJobExecutionAdmission.RequireOwnerEntry(unitOfWork, mode, operationType, tenantContext);
@@ -92,6 +94,7 @@ public sealed class TransactionExecutionCoordinator(
         CancellationToken cancellationToken = default)
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
+        RefuseGlobalIdentityEntry(unitOfWork);
         return PreparedDeliveryOwner.CreateAsync(unitOfWork, routingContext, cancellationToken);
     }
 
@@ -105,6 +108,7 @@ public sealed class TransactionExecutionCoordinator(
         where TResponse : IResultBase
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
+        RefuseGlobalIdentityEntry(unitOfWork);
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(completion);
         ArgumentNullException.ThrowIfNull(next);
@@ -131,7 +135,9 @@ public sealed class TransactionExecutionCoordinator(
         RecordBackgroundJobCapacityCleanupCommand? capacityCleanup,
         BackgroundJobExternalCheckpointOwner? externalCheckpoint,
         SubmitBackgroundJobRecipientCommand? recipient,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        PreparedGlobalIdentityOwner? globalOwner = null,
+        GlobalIdentityCreationReference? creation = null)
         where TResponse : IResultBase
     {
         var committing = false;
@@ -142,7 +148,13 @@ public sealed class TransactionExecutionCoordinator(
             BackgroundJobExecutionAdmission.RequireContext(tenantContext, provisioning);
             // Provisioning changes SQL authority only; the ambient accessor stays
             // unresolved. A resolved caller cannot announce another tenant here.
-            if (preparedOwner is not null)
+            if (globalOwner is not null)
+            {
+                globalOwner.RequireLive(unitOfWork, capture);
+                creation!.RequireLive(unitOfWork);
+                collector.RefreshTrackedSources();
+            }
+            else if (preparedOwner is not null)
             {
                 preparedOwner.RequireLive(unitOfWork, tenantContext);
                 collector.RefreshTrackedSources();
@@ -204,7 +216,16 @@ public sealed class TransactionExecutionCoordinator(
 
                 await collector.DrainAsync(invocation, cancellationToken);
                 if (invocation.HasProducedWork) _ = producer.RequireAnnouncement();
-                await auditStore.WritePendingAsync(unitOfWork, cancellationToken);
+                if (globalOwner is not null)
+                {
+                    await auditStore.WriteGlobalIdentityPendingAsync(unitOfWork, creation!, cancellationToken);
+                    await ((IGlobalIdentityUnitOfWork)unitOfWork).ValidateGlobalIdentityConstraintsAsync(
+                        globalOwner.Descriptor, cancellationToken);
+                }
+                else
+                {
+                    await auditStore.WritePendingAsync(unitOfWork, cancellationToken);
+                }
             }
 
             if (recipient is not null)
@@ -294,7 +315,7 @@ public sealed class TransactionExecutionCoordinator(
             catch (Exception rollbackFailure)
             {
                 LogRollbackFailure(logger, operationName,
-                    AsyncExecutionDiagnostics.IsTrusted(tenantContext) ? null : rollbackFailure);
+                    globalOwner is not null || AsyncExecutionDiagnostics.IsTrusted(tenantContext) ? null : rollbackFailure);
             }
 
             if (scope.IsOwner && capture.State != AuditIntentState.Indeterminate)
@@ -311,8 +332,15 @@ public sealed class TransactionExecutionCoordinator(
         }
         finally
         {
+            globalOwner?.RecordOutcome(capture.State);
             await CleanupFrameAsync(scope, failed);
         }
+    }
+
+    internal static void RefuseGlobalIdentityEntry(IUnitOfWork unit)
+    {
+        if (unit is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true })
+            throw new InvalidOperationException("A global identity owner cannot enter an ordinary execution.");
     }
 
     private async ValueTask CleanupFrameAsync(IUnitOfWorkScope scope, bool failed)

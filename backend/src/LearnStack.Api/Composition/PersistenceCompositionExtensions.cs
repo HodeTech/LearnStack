@@ -17,6 +17,8 @@ using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Education.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Infrastructure.Bindings;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Persistence;
@@ -160,6 +162,9 @@ public static class PersistenceCompositionExtensions
 
         // Scoped: one connection per request, owned by this, shared by every
         // context resolved in the scope (ADR-0040).
+        services.TryAddScoped<GlobalIdentityEnrollment>();
+        services.TryAddScoped<LearnStack.SharedKernel.Identity.IGlobalIdentityEnrollment>(provider =>
+            provider.GetRequiredService<GlobalIdentityEnrollment>());
         services.TryAddScoped<IUnitOfWork>(CreateUnitOfWork);
 
         // Every module context goes through the helper. A registration that built
@@ -180,6 +185,17 @@ public static class PersistenceCompositionExtensions
         // through the same helper is what keeps it on the ambient connection — a context
         // that opened its own would never see the SET LOCAL the audit insert depends on.
         services.AddModuleDbContext<AuditDbContext>();
+        IdentityAuthorityRegistration? identityAuthority = null;
+        if (configuration["Identity:AuthorityId"] is { } authority)
+        {
+            if (!Guid.TryParseExact(authority, "D", out var authorityId) || authorityId == Guid.Empty)
+                throw new InvalidOperationException("Identity:AuthorityId requires an explicit nonempty authority UUID.");
+            identityAuthority = new IdentityAuthorityRegistration(IdentityAuthorityId.From(authorityId),
+                configuration["Authentication:Tenant:Issuer"] ?? "");
+        }
+        // Internal services only. Step 5 qualifies the anchor at startup before
+        // existing-binding admission; Step 3 activates no request or seed writer.
+        services.AddIdentityGlobalFoundation(identityAuthority);
 
         // ── The audit write path ─────────────────────────────────────────────
         //
@@ -326,7 +342,8 @@ public static class PersistenceCompositionExtensions
 
     private static IUnitOfWork CreateUnitOfWork(IServiceProvider services) => new NpgsqlUnitOfWork(
         services.GetRequiredService<Lazy<NpgsqlDataSource>>().Value,
-        services.GetRequiredService<ILogger<NpgsqlUnitOfWork>>());
+        services.GetRequiredService<ILogger<NpgsqlUnitOfWork>>(),
+        services.GetRequiredService<GlobalIdentityEnrollment>());
 
     /// <summary>
     /// Validates <c>ConnectionStrings:Default</c> and builds the application data

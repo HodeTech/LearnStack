@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.Extensions.Logging;
@@ -44,14 +45,23 @@ namespace LearnStack.Infrastructure.Persistence;
 /// that a later <c>BEGIN</c> clears is not.
 /// </para>
 /// </remarks>
-public sealed class NpgsqlUnitOfWork(
-    NpgsqlDataSource dataSource, ILogger<NpgsqlUnitOfWork> logger) : IUnitOfWork
+public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
 {
-    private readonly NpgsqlDataSource _dataSource =
-        dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+    private readonly NpgsqlDataSource _dataSource;
 
-    private readonly ILogger<NpgsqlUnitOfWork> _logger =
-        logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly ILogger<NpgsqlUnitOfWork> _logger;
+    private readonly GlobalIdentityEnrollment _enrollment;
+
+    public NpgsqlUnitOfWork(NpgsqlDataSource dataSource, ILogger<NpgsqlUnitOfWork> logger,
+        GlobalIdentityEnrollment? enrollment = null)
+    {
+        _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _enrollment = enrollment ?? new GlobalIdentityEnrollment();
+        _enrollment.Attach(this);
+    }
+
+    public IGlobalIdentityEnrollment GlobalIdentityEnrollment => _enrollment;
 
     private readonly JobApplicationSourceOwner? _jobSourceOwner = JobApplicationSourceOwner.Current;
     private bool _jobMainBound;
@@ -85,6 +95,13 @@ public sealed class NpgsqlUnitOfWork(
 
     private bool _tenantContextIssued;
     private TenantContextAnnouncement? _tenantContextAnnouncement;
+    private GlobalIdentityOwnerDescriptor? _globalIdentityDescriptor;
+    private GlobalIdentityContextAnnouncement? _globalIdentityAnnouncement;
+    private object? _globalIdentityContext;
+    private bool _openingGlobalIdentity;
+    private bool _resolvingGlobalIdentity;
+    private bool _globalIdentityLocked;
+    private bool _globalIdentitySealed;
     private bool _disposed;
 
     public DbConnection Connection
@@ -125,11 +142,21 @@ public sealed class NpgsqlUnitOfWork(
     public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
         BeginTransactionAsync(TransactionMode.ReadWrite, cancellationToken);
 
-    public async Task<IUnitOfWorkScope> BeginTransactionAsync(
-        TransactionMode mode, CancellationToken cancellationToken = default)
+    public Task<IUnitOfWorkScope> BeginTransactionAsync(
+        TransactionMode mode, CancellationToken cancellationToken = default) =>
+        BeginTransactionCoreAsync(mode, globalIdentity: false, cancellationToken);
+
+    private async Task<IUnitOfWorkScope> BeginTransactionCoreAsync(
+        TransactionMode mode, bool globalIdentity, CancellationToken cancellationToken)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (!globalIdentity && IsGlobalIdentityTransaction)
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("An ordinary transaction cannot join a global identity owner.");
+        }
 
         if (_rollbackOnly)
         {
@@ -171,7 +198,7 @@ public sealed class NpgsqlUnitOfWork(
                     await _connection.OpenAsync(cancellationToken);
                 }
 
-                _transaction = mode == TransactionMode.ReadOnly
+                _transaction = mode == TransactionMode.ReadOnly || globalIdentity
                     ? await _connection.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken)
                     : await _connection.BeginTransactionAsync(cancellationToken);
                 _jobSourceOwner?.HoldMainTransaction(this, _transaction);
@@ -218,12 +245,122 @@ public sealed class NpgsqlUnitOfWork(
         return new Frame(this, ++_depth, _generation);
     }
 
+    public bool IsGlobalIdentityTransaction => _openingGlobalIdentity || _resolvingGlobalIdentity
+        || _globalIdentityDescriptor is not null;
+
+    public async Task<IUnitOfWorkScope> BeginGlobalIdentityTransactionAsync(
+        GlobalIdentityOwnerDescriptor descriptor, TransactionMode mode, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (HasActiveTransaction || IsGlobalIdentityTransaction || _jobSourceOwner is not null
+            || JobApplicationSourceOwner.Current is not null
+            || (descriptor.Kind == GlobalIdentityOwnerKind.Lookup
+                ? mode != TransactionMode.ReadOnly : mode != TransactionMode.ReadWrite))
+        {
+            if (HasActiveTransaction) MarkRollbackOnly();
+            throw new InvalidOperationException("Global identity admission requires a fresh, correctly typed owner.");
+        }
+
+        _openingGlobalIdentity = true;
+        IUnitOfWorkScope? scope = null;
+        try
+        {
+            scope = await BeginTransactionCoreAsync(mode, globalIdentity: true, cancellationToken);
+            _globalIdentityDescriptor = descriptor;
+            await ExecuteAsync("SELECT set_config('app.tenant_id', '', true), "
+                + "set_config('app.organization_id', '', true), set_config('app.scope', '', true), "
+                + "set_config('app.resolving_host', '', true), "
+                + "set_config('app.identity_authority_id', @authority, true), "
+                + "set_config('app.identity_subject_key', @subject, true)", cancellationToken,
+                ("authority", descriptor.Subject.AuthorityId.Value.ToString("D")),
+                ("subject", descriptor.Subject.SubjectKey.Hex));
+            _globalIdentityAnnouncement = new GlobalIdentityContextAnnouncement(_generation, descriptor);
+            return scope;
+        }
+        catch
+        {
+            MarkRollbackOnly();
+            try { await RollbackCoreAsync(); }
+            catch { LogSetupCleanupFailure(_logger, null); }
+            if (scope is not null)
+            {
+                try { await scope.DisposeAsync(); }
+                catch { LogSetupCleanupFailure(_logger, null); }
+            }
+            throw;
+        }
+        finally
+        {
+            _openingGlobalIdentity = false;
+        }
+    }
+
+    public GlobalIdentityContextAnnouncement? GetGlobalIdentityAnnouncement(DbTransaction? transaction) =>
+        transaction is not null && ReferenceEquals(transaction, _transaction)
+            ? _globalIdentityAnnouncement : null;
+
+    public async Task AcquireGlobalIdentitySubjectLockAsync(GlobalIdentityOwnerDescriptor descriptor,
+        CancellationToken cancellationToken = default)
+    {
+        RequireGlobalIdentityOwner(descriptor);
+        if (_mode != TransactionMode.ReadWrite || _globalIdentityLocked || _globalIdentitySealed)
+            throw new InvalidOperationException("The global identity subject lock belongs only to its fresh creation owner.");
+        await ExecuteAsync("SET LOCAL lock_timeout = '2s'", cancellationToken);
+        await ExecuteAsync("SELECT pg_catalog.pg_advisory_xact_lock(@key)", cancellationToken,
+            ("key", IdentityAdvisoryLockKey.ForSubject(descriptor.Subject)));
+        _globalIdentityLocked = true;
+    }
+
+    public void EnrollGlobalIdentityContext(object context, GlobalIdentityOwnerDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        RequireGlobalIdentityOwner(descriptor);
+        if (context.GetType() != descriptor.ContextType || _globalIdentitySealed
+            || (_mode == TransactionMode.ReadWrite && !_globalIdentityLocked)
+            || (_globalIdentityContext is not null && !ReferenceEquals(_globalIdentityContext, context)))
+            throw new InvalidOperationException("The context does not belong to this global identity owner.");
+        _globalIdentityContext = context;
+    }
+
+    public bool IsGlobalIdentityContextEnrolled(object context, DbTransaction? transaction) =>
+        !_globalIdentitySealed && !_rollbackOnly && _globalIdentityContext is not null
+        && ReferenceEquals(_globalIdentityContext, context)
+        && GetGlobalIdentityAnnouncement(transaction) is not null;
+
+    public async Task ValidateGlobalIdentityConstraintsAsync(GlobalIdentityOwnerDescriptor descriptor,
+        CancellationToken cancellationToken = default)
+    {
+        RequireGlobalIdentityOwner(descriptor);
+        if (_mode != TransactionMode.ReadWrite || !_globalIdentityLocked || _globalIdentitySealed)
+            throw new InvalidOperationException("Global constraint validation requires the live unsealed creation owner.");
+        await ExecuteAsync("SET CONSTRAINTS ALL IMMEDIATE", cancellationToken);
+        _globalIdentitySealed = true;
+    }
+
+    private void RequireGlobalIdentityOwner(GlobalIdentityOwnerDescriptor descriptor)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_transaction is null || _depth != 1 || _rollbackOnly
+            || !ReferenceEquals(_globalIdentityDescriptor, descriptor)
+            || _globalIdentityAnnouncement is not { Generation: > 0 } announcement
+            || announcement.Generation != _generation)
+            throw new InvalidOperationException("The global identity owner no longer matches its live transaction.");
+    }
+
     public async Task SetTenantContextAsync(
         ITenantContext context, CancellationToken cancellationToken = default)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(context);
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (IsGlobalIdentityTransaction)
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("A tenant setter cannot announce a global identity transaction.");
+        }
 
         if (_transaction is null)
         {
@@ -306,7 +443,8 @@ public sealed class NpgsqlUnitOfWork(
 
         await ExecuteAsync(
             "SELECT set_config('app.tenant_id', @tenant, true), "
-            + "set_config('app.organization_id', @organization, true)",
+            + "set_config('app.organization_id', @organization, true), "
+            + "set_config('app.identity_authority_id', '', true), set_config('app.identity_subject_key', '', true)",
             cancellationToken,
             ("tenant", tenant),
             ("organization", organization));
@@ -326,6 +464,12 @@ public sealed class NpgsqlUnitOfWork(
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (IsGlobalIdentityTransaction)
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("Provisioning cannot announce a global identity transaction.");
+        }
 
         if (_transaction is null)
         {
@@ -384,7 +528,8 @@ public sealed class NpgsqlUnitOfWork(
         // into a provisioning write.
         await ExecuteAsync(
             "SELECT set_config('app.tenant_id', @tenant, true), "
-            + "set_config('app.organization_id', '', true)",
+            + "set_config('app.organization_id', '', true), "
+            + "set_config('app.identity_authority_id', '', true), set_config('app.identity_subject_key', '', true)",
             cancellationToken,
             ("tenant", tenantId.Value.ToString()));
 
@@ -406,6 +551,11 @@ public sealed class NpgsqlUnitOfWork(
     {
         _tenantContextIssued = false;
         _tenantContextAnnouncement = null;
+        _globalIdentityDescriptor = null;
+        _globalIdentityAnnouncement = null;
+        _globalIdentityContext = null;
+        _globalIdentityLocked = false;
+        _globalIdentitySealed = false;
     }
 
     private static readonly Action<ILogger, string, Exception?> LogResolvedWithoutTenant =
@@ -463,6 +613,7 @@ public sealed class NpgsqlUnitOfWork(
             return;
         }
 
+        _resolvingGlobalIdentity = IsGlobalIdentityTransaction;
         _disposed = true;
         ClearTenantContextAnnouncement();
 
@@ -526,6 +677,12 @@ public sealed class NpgsqlUnitOfWork(
 
     private async Task CommitFrameAsync(CancellationToken cancellationToken)
     {
+        if (_globalIdentityDescriptor is not null && _mode == TransactionMode.ReadWrite && !_globalIdentitySealed)
+        {
+            MarkRollbackOnly();
+            await RollbackCoreAsync();
+            throw new InvalidOperationException("A global identity creation cannot commit before final constraint validation.");
+        }
         _commitRequested = true;
 
         if (--_depth > 0)
@@ -544,6 +701,7 @@ public sealed class NpgsqlUnitOfWork(
         }
 
         var transaction = _transaction!;
+        _resolvingGlobalIdentity = _resolvingGlobalIdentity || _globalIdentityDescriptor is not null;
         _transaction = null;
         _mode = null;
         ClearTenantContextAnnouncement();
@@ -567,6 +725,10 @@ public sealed class NpgsqlUnitOfWork(
                 // Connection cleanup remains owned by this unit.
             }
             throw;
+        }
+        finally
+        {
+            _resolvingGlobalIdentity = false;
         }
 
         // The caller can now record definitive durability before awaiting cleanup.
@@ -623,6 +785,7 @@ public sealed class NpgsqlUnitOfWork(
     private async Task RollbackCoreAsync()
     {
         var transaction = _transaction;
+        _resolvingGlobalIdentity = _resolvingGlobalIdentity || _globalIdentityDescriptor is not null;
         _transaction = null;
         _mode = null;
         _depth = 0;
@@ -630,6 +793,7 @@ public sealed class NpgsqlUnitOfWork(
 
         if (transaction is null)
         {
+            _resolvingGlobalIdentity = false;
             return;
         }
 
@@ -657,6 +821,7 @@ public sealed class NpgsqlUnitOfWork(
                 _jobSourceOwner?.ReportMainTransactionCleanup(this, transaction, succeeded: false);
                 cleanupFailure ??= ExceptionDispatchInfo.Capture(failure);
             }
+            _resolvingGlobalIdentity = false;
         }
         cleanupFailure?.Throw();
     }
@@ -675,6 +840,7 @@ public sealed class NpgsqlUnitOfWork(
         string sql, CancellationToken cancellationToken, params (string Name, object Value)[] parameters)
     {
         await using var command = _connection!.CreateCommand();
+        if (IsGlobalIdentityTransaction) command.CommandTimeout = 10;
         command.CommandText = sql;
         command.Transaction = (NpgsqlTransaction?)_transaction;
 

@@ -263,7 +263,7 @@ public sealed partial class TenancyConventionTests
     /// must write.
     /// </summary>
     private static readonly string[] WritingSetters =
-        ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs"];
+        ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs", "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs"];
 
     /// <summary>
     /// The readers, each in a short read-only transaction of its own: the host resolver, the
@@ -422,7 +422,7 @@ public sealed partial class TenancyConventionTests
 
         Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
-            .Where(file => ScopeSetter().IsMatch(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Where(file => ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(file, "app.scope")))
             .Select(file => Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'))
             .Where(file => !ScopeSetterSites.Contains(file))
             .Should().BeEmpty(
@@ -439,10 +439,36 @@ public sealed partial class TenancyConventionTests
         ScopeSetter().IsMatch("set session app.scope to 'tenant'").Should().BeTrue();
         ScopeSetter().IsMatch("OR current_setting('app.scope', true) = 'tenant'").Should().BeFalse(
             "a policy reading the variable is its subject, not a setter");
+
+        const string GlobalUnit = "LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.cs";
+        const string Empty = "SELECT set_config('app.scope', '', true)";
+        ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(GlobalUnit, Empty, "app.scope")).Should().BeFalse();
+        ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(GlobalUnit,
+            "SELECT set_config('app.scope', @scope, true)", "app.scope")).Should().BeTrue();
+        ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(GlobalUnit,
+            "SELECT set_config('app.scope', 'tenant', true)", "app.scope")).Should().BeTrue();
+        ScopeSetter().IsMatch(WithoutGlobalAuthorityClears("Unlisted.cs", Empty, "app.scope")).Should().BeTrue();
     }
 
     /// <summary>Files allowed to set <c>app.scope</c>, by path under <c>backend/src</c>. Empty until Phase 03.</summary>
     private static readonly HashSet<string> ScopeSetterSites = new(StringComparer.Ordinal);
+
+    private static string WithoutGlobalAuthorityClears(string file, string variable)
+    {
+        var source = SourceText.WithoutComments(File.ReadAllText(file));
+        var relative = Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/');
+        return WithoutGlobalAuthorityClears(relative, source, variable);
+    }
+
+    private static string WithoutGlobalAuthorityClears(string relative, string source, string variable)
+    {
+        // These exact empty resets remove authority; neither site may acquire
+        // tenant scope or host-lookup provenance. Nonempty/parameterized setters still fail.
+        return relative is "LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.cs"
+            or "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs"
+            ? source.Replace("set_config('" + variable + "', '', true)", string.Empty, StringComparison.Ordinal)
+            : source;
+    }
 
     [GeneratedRegex(
         @"set_config\s*\(\s*'app\.scope'|\bSET\s+(?:LOCAL\s+|SESSION\s+)?app\.scope\b",
@@ -971,7 +997,7 @@ public sealed partial class TenancyConventionTests
                 Path.GetRelativePath(RepositoryPaths.BackendSrc(), file),
                 SoleSetter,
                 StringComparison.Ordinal))
-            .Where(file => SourceText.WithoutComments(File.ReadAllText(file))
+            .Where(file => WithoutGlobalAuthorityClears(file, "app.resolving_host")
                 .Contains(Setter, StringComparison.Ordinal))
             .Select(file => Path.GetRelativePath(RepositoryPaths.BackendSrc(), file))
             .ToList();

@@ -417,6 +417,14 @@ public sealed partial class BackgroundJobControlTests
     private sealed class JobAuditDecorator(IAuditStore inner,
         Func<AuditEntryDraft, JobTerminalTransition, DbConnection, DbTransaction, CancellationToken, Task> terminal) : IAuditStore
     {
+        public Task WriteGlobalIdentityPendingAsync(LearnStack.SharedKernel.Persistence.IUnitOfWork unit,
+            GlobalIdentityCreationReference creation, CancellationToken cancellationToken = default) =>
+            inner.WriteGlobalIdentityPendingAsync(unit, creation, cancellationToken);
+
+        public Task ReconcileGlobalIdentityAsync(AuditIntent intent, IReadOnlyList<CapturedEntityChange> changes,
+            AuditIntentState state, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+            inner.ReconcileGlobalIdentityAsync(intent, changes, state, timestamp, cancellationToken);
+
         public Task WritePendingAsync(IUnitOfWork unit, CancellationToken token = default) => inner.WritePendingAsync(unit, token);
         public Task WriteStandaloneAsync(AuditEntryDraft entry, CancellationToken token = default) => inner.WriteStandaloneAsync(entry, token);
         public Task WriteBestEffortAsync(AuditEntryDraft entry, CancellationToken token = default) => inner.WriteBestEffortAsync(entry, token);

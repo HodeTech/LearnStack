@@ -572,17 +572,17 @@ hole the composite key exists to close.
 Not every table in the tenancy schema is tenant-owned, and applying the template above
 to all of them produces a deadlock rather than isolation. Seven classes are
 adopted, and every migration states which one its table is. The applied schema
-currently contains the first six; Identity's classified tables await Steps 3/4.
+contains all seven after P03-1 Step 3. Identity contextual tables remain Step 4.
 
 | Class | Rule | Tables |
 |---|---|---|
 | **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — `event_deliveries` (P02b-3 Step 1), `background_jobs`, `background_job_attempts`, `background_job_recipients` (P02b-4 Step 2), and `audit_log`, which Packet 9 added ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)); P02d-1 Step 2 adds `courses`, `lessons` and both translation tables |
 | **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `inbox_messages` (P02b-3 Step 1), `background_job_capacity`, `background_job_reservations` (P02b-4 Step 2), `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)) |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
-| **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes have exact declared owners | `platform_host_to_tenant`, `platform_killswitches`; adopted `identity_authority` awaits Step 3 |
+| **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes have exact declared owners | `platform_host_to_tenant`, `platform_killswitches`, `identity_authority` (P03-1 Step 3) |
 | **Infrastructure control** | `ENABLE` + `FORCE`, no app policy or privilege; enumerated confined bypass control access under ADR-0047 | `background_job_recurrences`, `background_job_occurrences` |
 | **Vendor control** | Pinned stock schema with exact confined role grants and metadata guards under ADR-0047; no tenant payload or app access | The twelve Hangfire schema-23 tables; canonical vendor contract below |
-| **Global self-identity** | `ENABLE` + `FORCE`, DbContext-parameterized self filter and exact role-qualified policies/guards in the [Identity storage contract](#identity-storage-contract) | Adopted `users`, awaiting Step 3 |
+| **Global self-identity** | `ENABLE` + `FORCE`, DbContext-parameterized self filter and exact role-qualified policies/guards in the [Identity storage contract](#identity-storage-contract) | `users` (P03-1 Step 3) |
 
 The adopted contextual population adds `memberships`, `membership_profiles` and
 `membership_role_assignments` to tenant-owned org-scoped, and `roles` and
@@ -680,8 +680,8 @@ released-then-re-registered domain.
 
 ADR-0072 adds only the authority anchor's permanent `authority_id` and global
 User's permanent `(authority_id, subject_key)` binding as identity uniqueness
-exceptions. Their [canonical contract](#global-class-and-authority-anchor) awaits
-Step 3 and never releases a binding through a partial index. Every other
+exceptions. Their [canonical contract](#global-class-and-authority-anchor) is
+implemented in Step 3 and never releases a binding through a partial index. Every other
 tenant-owned natural key is `UNIQUE (tenant_id, …)`; another exception needs a decision.
 
 #### `audit_log` and `audit_config` — one chain, two classes
@@ -690,8 +690,8 @@ tenant-owned natural key is `UNIQUE (tenant_id, …)`; another exception needs a
 semantics, ENABLE/FORCE, explicit WITH CHECK and restrictive guards remain.
 Accepted ADR-0072 adds only the [global identity policy/insertion/evidence
 branch](#global-central-audit-branch); it no longer takes the template unmodified.
-The reusable tenant template above is unchanged. This extension awaits Step 3;
-the applied policy currently contains only the existing branches.
+The reusable tenant template above is unchanged. P03-1 Step 3 installs and
+qualifies the exact applied global branch and reciprocal evidence guards.
 
 `audit_config` is **tenant-owned, tenant-wide**. It has no `organization_id` column —
 its overrides are keyed `(tenant_id, module, operation)`, and nothing asks a tenant to
@@ -1046,12 +1046,14 @@ that bound.
 #### GRANT matrix
 
 `—` means no privilege. `learnstack_migration` owns every table, which carries all
-privileges implicitly. The matrix records current applied grants; the adopted
-[Identity grants/functions](#global-owners-and-privileges) are pending Step 3/4
-extensions and are not current privileges.
+privileges implicitly. The matrix records current applied grants. Global
+[Identity grants/functions](#global-owners-and-privileges) are implemented in
+Step 3; contextual Membership/Role extensions remain Step 4.
 
 | Table | `learnstack_app` | `learnstack_platform` | `learnstack_outbox_admin` |
 |---|---|---|---|
+| `identity_authority` | `SELECT` | — | — |
+| `users` | `SELECT` and only the [initial INSERT columns](#global-owners-and-privileges); no UPDATE/DELETE/TRUNCATE | — | — |
 | `tenants` | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `organizations` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `tenant_domains` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
@@ -1419,7 +1421,7 @@ changes `xmin` while leaving `row_version` intact.
   ADR-0072 additionally holds the global User binding permanently under its
   [Identity contract](#global-class-and-authority-anchor): closure leaves the
   inherited deletion fields NULL, and the binding index has no partial predicate.
-  Its convention-test extension awaits Step 3.
+  Its model convention and applied-schema controls are implemented in Step 3.
 - Scheduled purge job removes rows past retention.
 
 ## Migrations
@@ -1459,8 +1461,8 @@ changes `xmin` while leaving `row_version` intact.
   to the migration-chain integration proof.
 - Accepted ADR-0072's sixth Identity chain additionally requires Audit before
   invoking the [central creation-witness installer](#lock-snapshot-and-adoption-conditions).
-  Step 3 extends recipe/fixture ordering and applied-schema proof; current five-chain
-  coverage is not proof of that pending dependency.
+  Step 3 implements recipe/fixture ordering and applied-schema proof. Disposable
+  reversal removes Identity before Audit; live recovery stays forward-only.
 
 ## Data Migrations
 
@@ -4216,12 +4218,14 @@ production capacity and PgBouncer.
 
 ## Identity storage contract
 
-**Status: Adopted — Accepted 2026-10-25; implementation pending.** Derived from
+**Status: Global storage/common audit implemented in Step 3; contextual storage
+pending Step 4.** Derived from
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 The active clauses above adopt the bounded exceptions below. Current applied
-tables, grants, functions and four login roles remain the shipped baseline until
-their implementation steps. The [Identity specification](../modules/identity/README.md) owns the adopted
+global tables, grants and three global owner functions are locally qualified;
+the two contextual functions and five contextual tables remain Step 4. The four
+login roles are unchanged. The [Identity specification](../modules/identity/README.md) owns the adopted
 Membership, profile, Role and assignment shapes; this annex owns their database
 authority boundary and the global exceptions.
 P03-1 delivers the internal creation core, seed adoption and ordinary
@@ -4239,7 +4243,7 @@ key. Missing, reset or malformed authority cannot select a row. The filter uses
 the current scoped values, never a model-cache literal, raw caller input or only
 UserId. The global class is not an exemption from transaction/capture guards.
 
-| Relation / field | Adopted storage contract; implementation pending |
+| Relation / field | Implemented global storage contract |
 |---|---|
 | `identity_authority` | Platform-scoped singleton, `id = 1` primary key and CHECK; immutable unique `authority_id uuid`; one current exact issuer URI. No tenant filter and no User/person fields. |
 | `users.id` | Permanent UserId UUIDv7 primary key, allocated through the existing injected ID source only after serialized absence is established. |
@@ -4418,11 +4422,13 @@ permitted redaction remain separate from insertion-time witness validation.
 
 ### Confined owner functions
 
-The following names are planned contracts, not shipped functions. All execute as
+The first three functions are installed in Step 3; the two Membership functions
+remain Step 4 contracts. All execute as
 `learnstack_migration`, NOBYPASSRLS, under FORCE RLS, on the caller's existing
 physical transaction. No migration credential enters runtime configuration.
 SECURITY DEFINER adds the explicitly accepted runtime owner-execution exception;
-it is not ordinary app isolation. No function is installed by acceptance.
+it is not ordinary app isolation. Acceptance alone installed no function; the
+Step 3 migration installs only its qualified global subset.
 
 | Planned function | Bound input / permitted result |
 |---|---|
@@ -4546,16 +4552,16 @@ their independent bounded ownership after caller cancellation.
 
 ### Applied census and pending qualification
 
-The current applied census is **six table classes, 42 data tables plus five history
-tables, five migration chains, six central audit write seams and zero shipped
-Identity SECURITY DEFINER functions**: 47 tables total. Seven classes are adopted;
-the projected completed P03-1 census is
-**seven classes, 49 data tables plus six history tables, six chains, eight central
-audit write seams and exactly five Identity SECURITY DEFINER functions**: 55
-tables total. The
-seven additional data tables are those classified above; Identity adds the sixth
-history table/chain. The two global seams extend the existing six without a new
-INSERT owner. These are projected counts, not applied-schema or runtime readiness.
+The applied Step 3 census is **seven table classes, 44 data tables plus six
+history tables, six migration chains, eight central audit write seams and three
+Identity SECURITY DEFINER functions**: 50 tables total. The projected completed
+P03-1 census is **seven classes, 49 data tables plus six history tables, six
+chains, eight central audit write seams and exactly five Identity SECURITY DEFINER
+functions**: 55 tables total. The five remaining data tables and two remaining
+owner functions arrive in Step 4.
+The global pair and sixth history table/chain are applied in Step 3. The two
+global seams extend the earlier six without a new INSERT owner. The final
+55-table/five-function target is not the current applied population.
 
 Steps 3/4 must qualify actual app-role positive/negative paths, owner DELETE/
 TRUNCATE refusal, exact definer bodies/ownership/grants/projections/call sites,

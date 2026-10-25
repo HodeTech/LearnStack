@@ -1,12 +1,12 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-10-25).** Entry preparation complete; P03-1's joint ADR
-> approval and Steps 1–2 are complete after both review rounds; Step 3 global
-> persistence/audit is in progress; Identity runtime
-> implementation **not started**. This is
-> the next critical-path phase after
-> [Phase 02b](phase-02b-events-auth.md). Begin with the identity foundation's
-> decision pass. The [decision register](#the-decision-register) owns gate state;
+> **Status (2026-10-26).** Entry preparation and P03-1's joint ADR approval
+> are complete. Steps 1–2 completed both review rounds; Step 3 global storage
+> and common audit are implemented and under review. Contextual foundation
+> remains Step 4, existing-binding API activation Step 5, and final qualification
+> Step 6. This is the current critical-path phase after
+> [Phase 02b](phase-02b-events-auth.md).
+> The [decision register](#the-decision-register) owns gate state;
 > the [P03-1 acceptance](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25)
 > authorizes its six-step implementation.
 > Dated records live in the [delivery log](phase-03-delivery-log.md).
@@ -14,7 +14,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Steps 1–2 complete; [Step 2 closeout](phase-03-delivery-log.md#p03-1-step-2-review-round-2-and-closeout-2026-10-25); Step 3 global persistence/audit in progress, Identity runtime pending; HTTP/new-user BFF activation belongs to P03-3 |
+> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Steps 1–2 complete; [Step 2 closeout](phase-03-delivery-log.md#p03-1-step-2-review-round-2-and-closeout-2026-10-25); [Step 3 global implementation](phase-03-delivery-log.md#p03-1-step-3-global-storage-and-common-audit-implementation-2026-10-26) under review; existing-binding API activation pending Step 5; HTTP/new-user BFF activation belongs to P03-3 |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
@@ -141,7 +141,7 @@ named part, and the register links each explicit acceptance and vehicle.
 | G16 | How do exports, closure and privileged redaction finish durably? | Decide artifact delivery/reauthorization/expiry, job/storage prerequisites, participant inventory/write fence, last-membership case and provider finalization; exact erasure grants/order/immutable references, user-reference locators and result-audit/inbox reconciliation | P03-1 only for shared closure-fence invariants; P03-10 workflow | Data Protection and ADR-0044/0046 privileged contract; migrations, module participation and phase package | Accepted shared fence; P03-10 workflow Open |
 | G17 | Which real production subjects and product journeys prove complete phase exit? | All deliverables/criteria, inherited catalogue clauses, no skips/empty censuses, real provider/native/app-role paths, manual accessibility and complete source-bound CI; analyzer escalation stays at exit | P03-11; packets retain their own proof | Phase package, evidence index, catalogue and existing test owners | Open |
 | G18 | Which gateway scaffold corrections ship without activating the gateway? | Apply Architecture 30 Rules 1–3: explicit version paths/priorities and separated credentials; retain disabled OIDC; reviewed per-public-read allowlist, lint and activation stay Phase 11 | P03-11 config writer | Phase package and Architecture 30; ADR-0035 trigger unchanged | Open |
-| G19 | How is personal-data classification and diagnostic redaction established before the first identity writer? | Census current PII-bearing subjects and missing-annotation control; distinguish snapshot markers from logs/errors; fixed descriptors and value canaries, including arbitrary nested values; custom-field history remains G9 | P03-1 first personal-data writer; P03-5 extends it | Data Protection, ADR-0044/0057 boundaries and module PII/audit specs | Accepted; current-model classification implemented in Step 2; Identity model backfill and writer diagnostic proofs pending |
+| G19 | How is personal-data classification and diagnostic redaction established before the first identity writer? | Census current PII-bearing subjects and missing-annotation control; distinguish snapshot markers from logs/errors; fixed descriptors and value canaries, including arbitrary nested values; custom-field history remains G9 | P03-1 first personal-data writer; P03-5 extends it | Data Protection, ADR-0044/0057 boundaries and module PII/audit specs | Accepted; current/global model classification implemented; contextual model and diagnostic backfill remain Step 4 |
 
 ### Entry and activation boundaries
 

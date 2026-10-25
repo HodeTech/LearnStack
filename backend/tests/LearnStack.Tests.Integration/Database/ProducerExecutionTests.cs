@@ -597,7 +597,7 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
             services.GetRequiredService<ITenantContext>(),
             services.GetRequiredService<IClock>(),
             services.GetRequiredService<IGuidFactory>(),
-            NullLogger<AuditExecutionCoordinator>.Instance);
+            NullLogger<AuditExecutionCoordinator>.Instance, services.GetRequiredService<IUnitOfWork>());
 
     private static void AssertClean(IServiceProvider services)
     {

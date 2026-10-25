@@ -433,7 +433,7 @@ public sealed partial class AuditingTenantAssertionRecorderTests : IDisposable
             storeLogger,
             meterFactory,
             health,
-            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved, new LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment());
 
         var counted = 0L;
         using var listener = new MeterListener();
@@ -682,6 +682,14 @@ public sealed partial class AuditingTenantAssertionRecorderTests : IDisposable
     /// <summary>Records the drafts, and fails on demand.</summary>
     private sealed class RecordingStore : IAuditStore
     {
+        public Task WriteGlobalIdentityPendingAsync(LearnStack.SharedKernel.Persistence.IUnitOfWork unit,
+            GlobalIdentityCreationReference creation, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Global identity has its own cases.");
+
+        public Task ReconcileGlobalIdentityAsync(AuditIntent intent, IReadOnlyList<CapturedEntityChange> changes,
+            AuditIntentState state, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Global identity has its own cases.");
+
         public List<AuditEntryDraft> Written { get; } = [];
 
         /// <summary>Every write attempted, whether or not it failed.</summary>

@@ -179,6 +179,16 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 			| tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$$//"); \
 	fi; \
 	role=$$(printf '%s' "$$migration_cs" | awk -f scripts/connection-string.awk -v field=user); \
+	identity_authority="$${Identity__AuthorityId:-}"; \
+	identity_issuer="$${Authentication__Tenant__Issuer:-}"; \
+	if [ -f "$$migration_env" ]; then \
+		if [ -z "$$identity_authority" ]; then identity_authority=$$(sed -n "s/^Identity__AuthorityId=//p" "$$migration_env" | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$$//"); fi; \
+		if [ -z "$$identity_issuer" ]; then identity_issuer=$$(sed -n "s/^Authentication__Tenant__Issuer=//p" "$$migration_env" | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$$//"); fi; \
+	fi; \
+	if { [ -n "$$identity_authority" ] && [ -z "$$identity_issuer" ]; } || { [ -z "$$identity_authority" ] && [ -n "$$identity_issuer" ]; }; then \
+		echo "Identity authority installation requires both Identity__AuthorityId and Authentication__Tenant__Issuer; no migration was attempted."; \
+		exit 1; \
+	fi; \
 	redacted=$$(printf '%s' "$$migration_cs" | awk -f scripts/connection-string.awk -v field=redacted); \
 	if [ -z "$$migration_cs" ]; then \
 		echo "ConnectionStrings__Migration is not set."; \
@@ -200,11 +210,16 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 	fi; \
 	(cd backend && dotnet tool restore >/dev/null) || exit $$?; \
 	(cd backend && dotnet build src/LearnStack.Api --configuration Release --nologo) || exit $$?; \
+	if [ -n "$$identity_authority" ]; then \
+		(cd backend && dotnet build src/LearnStack.Tools.IdentityAuthorityInstaller --configuration Release --nologo) || exit $$?; \
+	fi; \
 	found=0; \
 	failed=0; \
 	applied=" "; \
 	for proj in backend/src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure \
 	            backend/src/LearnStack.Infrastructure \
+	            backend/src/Modules/Audit/LearnStack.Modules.Audit.Infrastructure \
+	            backend/src/Modules/Identity/LearnStack.Modules.Identity.Infrastructure \
 	            backend/src/Modules/*/LearnStack.Modules.*.Infrastructure; do \
 		test -d "$$proj/Persistence/Migrations" || continue; \
 		case "$$applied" in *" $$proj "*) continue;; esac; \
@@ -218,6 +233,11 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 	done; \
 	if [ "$$found" = "0" ]; then \
 		echo "No project carries Persistence/Migrations yet — the first lands with the Tenancy schema in Phase 02a Packet 6."; \
+	fi; \
+	if [ "$$failed" = "0" ] && [ -n "$$identity_authority" ]; then \
+		ConnectionStrings__Migration="$$migration_cs" Identity__AuthorityId="$$identity_authority" \
+			Authentication__Tenant__Issuer="$$identity_issuer" \
+			dotnet backend/src/LearnStack.Tools.IdentityAuthorityInstaller/bin/Release/net10.0/LearnStack.Tools.IdentityAuthorityInstaller.dll || failed=1; \
 	fi; \
 	exit "$$failed"
 

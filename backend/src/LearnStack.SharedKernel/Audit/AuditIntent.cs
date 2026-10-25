@@ -100,6 +100,9 @@ public sealed record AuditIntent(
     Type? EntityType,
     DateTimeOffset DeclaredAt)
 {
+    /// <summary>Closed creation attribution minted by the common global audit entry.</summary>
+    public GlobalIdentityCreationReference? GlobalIdentity { get; init; }
+
     /// <summary>The trusted incoming event identity for delivery-originated work.</summary>
     public Guid? CausationId { get; init; }
 

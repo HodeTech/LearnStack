@@ -29,7 +29,7 @@ public sealed class DeliveryAuditDiagnosticsTests
         var create = () => new PostgresAuditStore(
             new AuditStateCapture(),
             new Lazy<NpgsqlDataSource>(() => throw new InvalidOperationException("No database is needed.")),
-            new CaptureLogger<PostgresAuditStore>(), meters, new AuditHealth(), new AuditCatalog([]), null!);
+            new CaptureLogger<PostgresAuditStore>(), meters, new AuditHealth(), new AuditCatalog([]), null!, new LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment());
 
         create.Should().Throw<ArgumentNullException>().WithParameterName("tenantAccessor");
     }
@@ -86,7 +86,7 @@ public sealed class DeliveryAuditDiagnosticsTests
                 sourceAttempts++;
                 throw failure;
             }),
-            logger, meters, health, new AuditCatalog([]), Accessor(tenant, delivery));
+            logger, meters, health, new AuditCatalog([]), Accessor(tenant, delivery), new LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment());
         var measurements = new List<(long Count, KeyValuePair<string, object?>[] Tags)>();
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, active) =>

@@ -317,7 +317,7 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
         capture, new Lazy<NpgsqlDataSource>(services.GetRequiredService<NpgsqlDataSource>),
         NullLogger<PostgresAuditStore>.Instance,
         services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>(), new AuditHealth(), new AuditCatalog([]),
-        services.GetRequiredService<ITenantContextAccessor>());
+        services.GetRequiredService<ITenantContextAccessor>(), new LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment());
 
     private static async Task AssertRoleAsync(IUnitOfWork unit)
     {

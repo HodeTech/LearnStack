@@ -152,7 +152,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**290 test methods run in
+**297 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -193,8 +193,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**238 rules in this catalogue are Implemented, and 135 of them are in that assembly.**
-The other 103 are no less binding, and most could not live there. The table says where
+**241 rules in this catalogue are Implemented, and 137 of them are in that assembly.**
+The other 104 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -2534,9 +2534,9 @@ because the filters hold, and removing both turns all five red.
   [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md);
   [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 - **Type:** xUnit + EF model inspection. **Kind:** structural.
-- **Test owner:** `IdentityFoundationConventionTests` (planned).
-- **Status:** **Registered** — implementation pending.
-- **Phase:** P03-1 Step 4.
+- **Test owner:** `GlobalIdentityModelTests`.
+- **Status:** **Implemented** (`GlobalIdentityModelTests`) — actual global User model, exact scalar population and independent self filter.
+- **Phase:** P03-1 Step 3; contextual ownership extends in Step 4.
 
 ### Accepted Identity foundation obligations
 
@@ -2569,14 +2569,14 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   missing/reset/malformed/foreign authority refuses. EF filters, applied
   policies/grants/functions, owner DELETE/TRUNCATE refusal and pooled cleanup
   match the sole [Database contract](05-database.md#identity-storage-contract),
-  with positive and planted-widening controls. The current 47-table/five-chain
-  schema remains distinct from the projected 55-table/six-chain population.
+  with positive and planted-widening controls. The applied Step 3 schema has 50 tables, six chains and three
+  Identity definer functions; Step 4 owns the final 55-table/five-function target.
 - **Source:** [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md);
   [Database Standards](05-database.md#identity-storage-contract).
 - **Type:** PostgreSQL catalogue, app-role isolation and owner controls.
   **Kind:** behavioural, with structural companions.
-- **Test owner:** `GlobalIdentitySchemaTests` (planned).
-- **Status:** **Registered** — implementation pending.
+- **Test owner:** `GlobalIdentitySchemaTests`.
+- **Status:** **Implemented** (`GlobalIdentitySchemaTests`, integration assembly) — actual self reads/writes, compiled/applied body/ACL/caller census, committed widening/removal controls and owner mutation refusal.
 - **Phase:** P03-1 Step 3.
 
 #### `Global_Identity_Creation_Uses_The_Common_Audit_Owner`
@@ -2592,10 +2592,8 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   [Audit Coverage](18-audit-coverage.md#global-identity-creation).
 - **Type:** production owner/installer census and actual app-role creation,
   reconciliation and fault controls. **Kind:** behavioural and structural.
-- **Test owners:** `IdentityAuditConventionTests`, `GlobalIdentityBootstrapTests`
-  (planned).
-- **Status:** **Registered** — implementation pending; six audit write seams
-  currently ship, while eight is the accepted projected population.
+- **Test owners:** `IdentityAuditConventionTests`, `GlobalIdentityBootstrapTests`.
+- **Status:** **Implemented** (`IdentityAuditConventionTests`; `GlobalIdentityBootstrapTests`, integration assembly) — closed actual owner/call sites, real PostgreSQL/provider/COMMIT fault twins and exact evidence controls; all eight central seams ship.
 - **Phase:** P03-1 Step 3; no HTTP creation route is admitted.
 
 #### `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks`
@@ -3222,10 +3220,9 @@ which decides identity, multiplicity, capture and classification;
   `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes
   it must catch and the shapes it must not, because with no offending statement anywhere
   the sweep passes whether it works or matches nothing; and a reflection check,
-  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly six current
-  write methods and no update (the fifth event and sixth job seams ship in Phase
-  02b). ADR-0072's two global seams remain pending Step 3; eight is projected, not
-  current enforcement. None
+  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly eight
+  write methods and no update: the event/job seams ship in Phase 02b, and
+  ADR-0072's two global seams ship in P03-1 Step 3. None
   of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase
   11 — so the exemption set ships with the rule **empty**, as exact paths: the first
   site to land adds its own path, so it is exempted by name rather than the pattern
