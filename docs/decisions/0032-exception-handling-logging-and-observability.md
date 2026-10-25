@@ -858,3 +858,92 @@ uses fixed bounded descriptors, below-filter vendor guards and a bounded log
 provider. Pipeline order, HTTP/event origins and the full W3C traceparent contract
 remain. P02b-4 supplies implementation and dirty/clean proof controls; none is
 claimed delivered by acceptance.
+
+### Amendment 6 — Sensitive exception-message diagnostic (2026-10-25)
+
+**Status: Accepted.** The maintainer approved the revised
+[P02b-8 package](../roadmap/phase-02b-delivery-log.md#p02b-8-decision-package-2026-10-25)
+at `486588d9`. This additive diagnostic leaves the original Decision, acceptance
+metadata, pipeline and `LS0001` contract intact. Acceptance precedes code and
+claims no analyzer implementation or phase-exit qualification.
+
+- **Identity:** `LS0002`, rule name
+  `LearnStackException-SensitiveExceptionMessage`, category `Security`, enabled
+  by default. Diagnostic text is fixed remediation, without a secret value or
+  rendered expression.
+- **Scope:** all production C# projects recursively under `backend/src`,
+  including API, SharedKernel, module layers, infrastructure and Seeder, with
+  automatic coverage for new production projects. Analyzer/test projects and
+  generated code are excluded. Loading the shared analyzer assembly outside
+  Domain/Application must not broaden `LS0001`'s existing scope.
+- **Thrown forms:** direct construction of `System.Exception` itself or a
+  transitively derived type in a throw statement/expression; aliases,
+  target-typed construction, parentheses and conversions are covered. Exception
+  identity is semantic, not a type-name suffix.
+- **Expressions:** inspect string-valued constructor arguments, regardless of
+  argument position, for direct sensitive references, interpolation holes and
+  built-in string concatenation, after unwrapping parentheses/conversions.
+  Within those forms, evaluated local/parameter/field/property names use the
+  canonical word matcher; named constants are not exempt. Literal text,
+  `nameof`, `typeof` and method/type names are not sensitive value references.
+  Other root expression forms are outside this initial contract.
+- **One token source:** an internal framework-compatible helper under
+  SharedKernel/Secrets owns both token sets and the existing word matcher; its
+  source is compiled into runtime and analyzer. The public runtime facade keeps
+  its matching behavior and exposes an immutable complete union snapshot.
+  The analyzer acquires neither a net10 runtime dependency nor a duplicate
+  public type.
+- **Severity:** Warning, including `CI=true`, through Phase 02b. `LS0002` joins
+  `WarningsNotAsErrors`, never `NoWarn`. At Phase 03 exit both `LS0001` and
+  `LS0002` become Errors and leave that exemption after their scoped call sites
+  and the solution build satisfy that exit gate.
+
+This name-based guard is not taint analysis: prior assignments, exception
+factories, rethrows of existing objects, formatting helpers, literal secrets and
+dictionary string keys are outside coverage. Renaming a value can evade it;
+derived metadata such as `token.Length` inside interpolation may warn. It
+covers no TypeScript/JavaScript tooling or BFF code. Existing runtime redaction,
+closed diagnostics and bounded durable descriptors remain necessary.
+
+Acceptance registers the catalogue and analyzer release row before code.
+Compiler-clean positive/negative cases, diagnostic severity/location and no
+`AD0001`, complete single/two-word union and a two-word-only mutation, evaluated production/new
+project wiring, preserved `LS0001` scope, and an actual CI-warning build with an
+unrelated-warning failure control are required proofs. The package specifies
+the four implementation steps and their independent review rounds. Standards
+09/11/21, Phase 03's escalation reference and the analyzer comments carry this
+contract; no existing Accepted body or earlier amendment is rewritten.
+
+### Amendment 7 — Diagnostic wiring and proof clarifications (2026-10-25)
+
+This clarification preserves the maintainer-approved
+[G16 package](../roadmap/phase-02b-delivery-log.md#g16-proposal--additive-adr-0032-amendment)
+at `486588d9`; it selects no new diagnostic or redaction policy.
+
+- Amendment 6's “through Phase 02b” describes that packet's severity, not an
+  earlier promotion. Both diagnostics remain Warning until the Phase 03 exit
+  gate named in its next sentence. Standards 09/11/21, Phase 03 and compiler
+  wiring use that same gate.
+- Automatic `backend/src/Directory.Build.props` wiring replaces Amendment 1's
+  per-project reference mechanism, while preserving its Domain/Application-only
+  `LS0001` scope. The reference and its importing item group are unconditional;
+  `ReferenceOutputAssembly="false"` keeps the analyzer out of runtime references.
+- Inside supported message roots, inspect evaluated descendants but skip
+  `nameof`, `typeof`, literals and deferred lambda/local-function bodies.
+  A formatting-helper invocation as the root stays outside coverage; the same
+  evaluated reference inside an interpolation is within coverage. `params`
+  arrays, non-string inner exceptions, object initializers and constructor
+  `base(...)` initializers are not directly thrown string arguments.
+- Production corpus checks include suppressed reports. A justified local
+  public-metadata exception must be reviewed at its exact site; project-wide
+  `NoWarn`, disabled analyzer execution or reduced editorconfig severity cannot
+  replace the rule. The current production corpus needs no local exception.
+- Generated code keeps Amendment 6's exclusion. Roslyn generation conventions
+  are not a confidentiality boundary. Name matching remains conservative about
+  value types and does not expand plural, numeric-suffix or unsplit compound
+  matching. Runtime matching behavior is unchanged. Review must cover these
+  limits before Phase 03's Error promotion.
+
+The catalogue names the compiler, corpus, build-settings and planted controls.
+Carrier corrections in Standards 02/09/11/17/21, the backend-module/foundation
+skills and the phase-exit index make that unchanged contract discoverable.

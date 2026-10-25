@@ -1,10 +1,14 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
+using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
+using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -38,17 +42,28 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             // still runs as learnstack_app with its real MUST writer available.
             await SchemaQueries.ExecuteAsync(owner, null, "REVOKE INSERT ON audit_log FROM learnstack_outbox_admin");
         }
-        var organizations = new List<Guid>();
+        var bodyEntries = new ConcurrentDictionary<Guid, int>();
+        var controlledRefusals = new ConcurrentDictionary<Guid, byte>();
         var probe = new BackgroundJobFixtureProbe
         {
             Body = async (request, services, token) =>
             {
                 request.Should().Be("TenantRoot");
-                var organization = Guid.CreateVersion7();
-                organizations.Add(organization);
+                var context = services.GetRequiredService<ITenantContext>().Should().BeOfType<JobTenantContext>().Subject;
+                var job = context.JobId ?? throw new InvalidOperationException("The actual business job identity is missing.");
+                var organization = job.Value;
+                var entries = bodyEntries.AddOrUpdate(job.Value, 1, (_, previous) => previous + 1);
+                if (entries > 1)
+                    (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, organization)).Should().Be(0,
+                        "a new attempt must not see its predecessor's rolled-back business write");
                 var written = await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
                     OrganizationId.From(organization), "job-fair-" + organization.ToString("N")[..12], "Job fairness"), token);
                 written.IsSuccess.Should().BeTrue();
+                // The real nested write succeeds before this one controlled refusal.
+                // Handler entries include rolled-back attempts; the logical job's
+                // stable organization and successful MUST audit witness its effect.
+                if (controlledRefusals.TryAdd(job.Value, 0))
+                    return Result<None>.Fail(new Error(LocalizedMessage.Of("lockey_dependency_unavailable")));
                 return Result.Ok(None.Value);
             },
         };
@@ -70,14 +85,14 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             var firstFailure = await TerminalBacklogAsync(database);
             var elapsed = Stopwatch.StartNew();
             var first = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
-            await EventuallyQualificationAsync(async () => (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, first))!.Phase == "completed", deadline.Token);
+            await EnsureQualificationCompletionAsync(runtime, source, first, deadline.Token);
 
             // A one-row or sub-lease happy case cannot expose priority starvation.
             // Keep the real permission fault and all 100 records for two full
             // leases, then demand another actual native business completion.
             await Task.Delay(bounds.LeaseDuration + bounds.LeaseDuration + TimeSpan.FromSeconds(1), deadline.Token);
             var second = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
-            await EventuallyQualificationAsync(async () => (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, second))!.Phase == "completed", deadline.Token);
+            await EnsureQualificationCompletionAsync(runtime, source, second, deadline.Token);
             elapsed.Elapsed.Should().BeGreaterThan(bounds.LeaseDuration + bounds.LeaseDuration);
             var after = await TerminalBacklogAsync(database);
             after.Total.Should().Be(100);
@@ -86,11 +101,20 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             after.LatestBackoff.Should().BeAfter(firstFailure.LatestBackoff + bounds.LeaseDuration,
                 "actual terminal retries and their audit failure continued during healthy work");
             after.AuditPermitted.Should().BeFalse();
-            organizations.Should().HaveCount(2);
-            foreach (var organization in organizations)
-                (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, organization)).Should().Be(1);
+            bodyEntries.Keys.Should().BeEquivalentTo([first.Value, second.Value]);
+            controlledRefusals.Keys.Should().BeEquivalentTo([first.Value, second.Value]);
             foreach (var job in new[] { first, second })
-                (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
+            {
+                (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, job.Value)).Should().Be(1);
+                (await SuccessfulBacklogBusinessAuditsAsync(database, job)).Should().Be(1);
+                var completed = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!;
+                completed.Phase.Should().Be("completed");
+                completed.NormalAttempts.Should().BeInRange(2, BackgroundJobRuntimeOptions.MaxNormalAttempts);
+                (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(completed.NormalAttempts,
+                    "the durable attempt ledger and completed job summary must agree");
+                bodyEntries[job.Value].Should().BeInRange(2, completed.NormalAttempts,
+                    "each job retries its controlled rollback, and every body entry needs a committed admission");
+            }
             await AssertGuardedPoolAsync(source, physical);
         }
         finally
@@ -103,6 +127,20 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await runtime.Completion.WaitAsync(cleanup.Token);
             await DisposePinnedSourceAsync(source);
         }
+    }
+
+    private static async Task<long> SuccessfulBacklogBusinessAuditsAsync(DisposableSchemaDatabase database, BackgroundJobId job)
+    {
+        await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await using var transaction = await connection.BeginTransactionAsync();
+        await EducationSchemaSeed.AnnounceAsync(connection, transaction, SchemaFixture.TenantA, null);
+        await using var command = new NpgsqlCommand("""
+            SELECT count(*) FROM audit_log
+            WHERE entity_id=@id AND operation='tenancy.organization.create' AND operation_class='Must'
+                AND outcome='success' AND metadata->>'job_id'=@id
+            """, connection, transaction);
+        command.Parameters.AddWithValue("id", job.Value.ToString());
+        return (long)(await command.ExecuteScalarAsync())!;
     }
 
     [Fact]

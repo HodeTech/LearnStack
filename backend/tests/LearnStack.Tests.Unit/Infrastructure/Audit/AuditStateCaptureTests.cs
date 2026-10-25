@@ -108,9 +108,18 @@ public sealed class AuditStateCaptureTests
         // Called once, by the outermost behavior, in its finally. Anything left behind is
         // one request's snapshot arriving in the next request's audit row.
         var capture = new AuditStateCapture();
+        capture.OpenFrame();
         capture.DeclareIntent(Intent("tenancy.tenant.create"));
         capture.Add(new CapturedEntityChange("Tenant", "t-1", "{}", "{}", []));
+        capture.OpenFrame();
+        capture.DeclareIntent(Intent("tenancy.organization.create"));
+        capture.Add(new CapturedEntityChange("Organization", "o-1", "{}", "{}", []));
         capture.MarkIndeterminate(new InvalidOperationException("boom"));
+
+        capture.HasOpenFrame.Should().BeTrue();
+        capture.Intents.Should().HaveCount(2);
+        capture.Changes.Should().HaveCount(2);
+        capture.IndeterminateCause.Should().NotBeNull();
 
         capture.Clear();
 
@@ -118,6 +127,22 @@ public sealed class AuditStateCaptureTests
         capture.Intents.Should().BeEmpty();
         capture.Changes.Should().BeEmpty();
         capture.IndeterminateCause.Should().BeNull();
+        capture.HasOpenFrame.Should().BeFalse();
+
+        // Reuse the cleared object through real frame operations: stale parallel
+        // bookkeeping lists must not attach these writes to the discarded frames.
+        capture.OpenFrame();
+        capture.OpenFrame();
+        var intent = Intent("tenancy.tenant.create");
+        var change = new CapturedEntityChange("Tenant", "t-2", null, "{}", []);
+        capture.DeclareIntent(intent);
+        capture.Add(change);
+        capture.ChangesOf(intent).Should().ContainSingle().Which.Should().BeSameAs(change);
+        capture.CloseFrame(AuditIntentResult.Succeeded);
+        capture.Intents.Should().ContainSingle().Which.Result.Should().BeSameAs(AuditIntentResult.Succeeded);
+        capture.HasOpenFrame.Should().BeTrue("the new outer frame still owns its inner invocation");
+        capture.CloseFrame(AuditIntentResult.Succeeded);
+        capture.HasOpenFrame.Should().BeFalse();
     }
 
     [Fact]

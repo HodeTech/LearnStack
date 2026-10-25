@@ -9,14 +9,14 @@ namespace LearnStack.Infrastructure.Observability.Serilog;
 /// formatter touches them. Per
 /// <see href="../../../../docs/standards/10-observability.md">Standards 10
 /// § Logging Rules</see> and
-/// <see href="../../../../docs/standards/11-security.md">Standards 11 § Sensitive Data Exposure</see>:
+/// <see href="../../../../docs/standards/11-security.md">Standards 11 § Logging Hygiene</see>:
 /// passwords, tokens, DSNs, JWTs, API keys, national / corporate identifiers,
 /// authorization headers, full payment payloads must never reach the
 /// console or the OTLP sink.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The token list lives in
+/// The token list is exposed by
 /// <see cref="LearnStack.SharedKernel.Secrets.SensitiveTokenCatalog"/> —
 /// the canonical source the air-gapped <c>LocalFileErrorTracker</c> shares
 /// so the two redaction surfaces cannot drift. Adding a token there lights
@@ -28,7 +28,7 @@ namespace LearnStack.Infrastructure.Observability.Serilog;
 /// field nested inside a non-sensitive top-level property
 /// (e.g. <c>User.Password</c>) is scrubbed too. Reconstruction is lazy —
 /// a value with no sensitive descendant is returned by reference, so the
-/// common (clean) event allocates nothing.
+/// clean value needs no reconstruction. Name matching can still allocate.
 /// </para>
 /// <para>
 /// Stack traces and exception messages are NOT redacted — they ride
@@ -37,15 +37,13 @@ namespace LearnStack.Infrastructure.Observability.Serilog;
 /// exception messages) so the boundary stays honest.
 /// </para>
 /// <para>
-/// The compile-time half of this rule is <c>LS0002</c> in
-/// <c>LearnStack.Analyzers</c>, which flags string-interpolated or concatenated
-/// <c>throw new ...Exception($"...{token}...")</c> patterns in <c>Domain</c> +
-/// <c>Application</c>. It ships as a Warning in
+/// <c>LS0002</c> in <c>LearnStack.Analyzers</c> checks direct sensitive string
+/// references, interpolation and concatenation in directly thrown exceptions
+/// across production C# projects (ADR-0032 Amendment 6). It ships as a Warning in
 /// <see href="../../../../docs/roadmap/phase-02b-events-auth.md">Phase 02b</see>
-/// and escalates to Error at Phase 03 exit. Today the
-/// "no secrets in exception messages" rule rests on Standards 11 review
-/// discipline; promoting it to a compile-time check closes the last
-/// gap the runtime redactor cannot.
+/// and escalates to Error at Phase 03 exit. It is a bounded name guard, not
+/// taint analysis or a replacement for review and closed diagnostic controls.
+/// Runtime redaction still leaves exception messages and stack traces intact.
 /// </para>
 /// </remarks>
 public sealed class RedactSensitiveFieldsEnricher : ILogEventEnricher
@@ -63,7 +61,7 @@ public sealed class RedactSensitiveFieldsEnricher : ILogEventEnricher
         // Collect first, mutate after — never mutate logEvent.Properties
         // while enumerating it. The list materialises only when a top-level
         // property needs rewriting (its name is sensitive, or a sensitive
-        // value lives nested inside it), so a clean event allocates nothing.
+        // value lives nested inside it), so a clean event needs no rewrite list.
         List<LogEventProperty>? rewrites = null;
 
         foreach (var (name, value) in logEvent.Properties)

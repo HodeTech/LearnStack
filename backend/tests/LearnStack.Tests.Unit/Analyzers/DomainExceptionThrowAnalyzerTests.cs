@@ -2,8 +2,6 @@ using System.Collections.Immutable;
 using FluentAssertions;
 using LearnStack.Analyzers;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Analyzers;
@@ -77,17 +75,28 @@ public sealed class DomainExceptionThrowAnalyzerTests
         diagnostics.Should().NotContain(d => d.Id == "AD0001");
     }
 
+    [Theory]
+    [InlineData("public void Run() { throw new LearnStack.SharedKernel.Errors.DomainException(\"fixed\"); }", 1)]
+    [InlineData("public void Run() => throw new Derived(\"fixed\");", 1)]
+    [InlineData("public void Run() => throw new Unrelated.DomainException(\"fixed\");", 0)]
+    [InlineData("public System.Exception Run() => new LearnStack.SharedKernel.Errors.DomainException(\"fixed\");", 0)]
+    public async Task Preserves_Direct_Throw_Inheritance_And_Namespace_Identity(string member, int expected)
+    {
+        var source = DomainExceptionShim + """
+            namespace Unrelated
+            {
+                public sealed class DomainException(string message) : System.Exception(message) { }
+            }
+            public sealed class Derived(string message) : LearnStack.SharedKernel.Errors.DomainException(message) { }
+            public sealed class Sample
+            {
+            """ + member + "\n}";
+        var diagnostics = await RunAnalyzerAsync(source);
+        diagnostics.Count(diagnostic => diagnostic.Id == "LS0001").Should().Be(expected);
+    }
+
     private static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync(string source)
     {
-        var compilation = CSharpCompilation.Create(
-            assemblyName: "AnalyzerSample",
-            syntaxTrees: [CSharpSyntaxTree.ParseText(source)],
-            references: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var withAnalyzers = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new DomainExceptionThrowAnalyzer()));
-
-        return await withAnalyzers.GetAnalyzerDiagnosticsAsync();
+        return await AnalyzerCompilation.RunAsync(source, new DomainExceptionThrowAnalyzer());
     }
 }

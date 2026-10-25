@@ -5,7 +5,7 @@ description: >
   (`LearnStack.Api`, worker, background-service host) — `IExceptionHandler`,
   8-step MediatR pipeline, `Result<T>.ToActionResult()`, Serilog + OTel,
   `TenantContextSpanProcessor`, `IErrorTrackingProvider`,
-  `IProviderResilience<TPort>`, Roslyn analyzer for `DomainException`. USE
+  `IProviderResilience<TPort>`, and the scoped exception analyzers. USE
   FOR: standing up the foundation in Phase 02a (one-time wiring per host
   process), or restoring it after a composition-root refactor. DO NOT USE
   FOR: adding a new provider adapter ([add-provider-adapter](../add-provider-adapter/SKILL.md)),
@@ -21,7 +21,7 @@ description: >
 Bring up the LearnStack error-handling + logging + observability foundation
 in a backend host. The contract is bound by
 [ADR-0032](../../../docs/decisions/0032-exception-handling-logging-and-observability.md).
-This skill walks the canonical wiring step by step so the eight binding
+This skill walks the canonical wiring step by step so the binding
 sub-decisions land in the right composition-root order and the architecture
 tests pass.
 
@@ -69,8 +69,11 @@ and
 [33-cross-cutting-concerns.md](../../../docs/architecture/33-cross-cutting-concerns.md).
 You should be able to recite, before you write a line of code:
 
-- The eight pipeline behaviors and their order
+- The eight pipeline stages (seven behaviors plus the handler) and their order
   (`Validation → Logging → AuditLog → TenantContext → Authorization → Transaction → OutboxFlush → Handler`).
+- Step 7's historical name denotes the producer enrollment/invariant guard,
+  not a buffered flush. Enqueue inserts immediately in the ambient transaction;
+  its owner drains domain events before MUST audit/commit under ADR-0057.
 - The Sentry-vs-OTel boundary (`ShouldCapture(ex)` table).
 - The Serilog + OTLP wiring rule (no `AddOpenTelemetry().WithLogging()` alongside).
 - The composition-root branching for `IErrorTrackingProvider`.
@@ -208,24 +211,18 @@ and dispatches to `IErrorTrackingProvider.CaptureAsync` only when
 `ShouldCapture(ex)` returns true (see
 [09-error-handling.md § Sentry vs OpenTelemetry — Error Capture Boundary](../../../docs/standards/09-error-handling.md)).
 
-### Step 8: Register the MediatR pipeline (8 behaviors in order)
+### Step 8: Use the shared MediatR registration (7 behaviors plus handler)
 
-```csharp
-services.AddMediatR(cfg =>
-{
-    cfg.RegisterServicesFromAssemblyContaining<AssemblyMarker>();
-
-    // Order matters — outermost first, innermost last.
-    // Architecture test MediatR_Pipeline_Order_Matches_Canonical_Sequence enforces this.
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuditLogBehavior<,>));
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(TenantContextBehavior<,>));
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(OutboxFlushBehavior<,>));
-});
-```
+The foundation call in Step 12 invokes
+`services.AddLearnStackMediatRPipeline(handlerAssemblies)` once. That shared
+helper registers the audit, producer and transaction coordinators, validators
+and `MediatRPipelineRegistration.CanonicalBehaviorOrder`. Do not reconstruct
+the behavior chain with a separate `AddMediatR` call or call the helper again
+after the foundation. A separate registration path can bypass shared services;
+repeating the shared helper is idempotent but needlessly obscures ownership.
+`Registering_The_Pipeline_Twice_Registers_It_Once` protects that idempotency.
+`MediatR_Pipeline_Order_Matches_Canonical_Sequence` verifies
+the actual order, including `OutboxFlushBehavior` at position seven.
 
 Do **not** add an `ExceptionHandlingBehavior`. The `AuditLogBehavior` catches
 handler exceptions, writes the failure audit, and rethrows via
@@ -298,24 +295,37 @@ public async Task<IActionResult> Create(CreateCourseCommand cmd, CancellationTok
 
 No action filter, no `ResultUnwrapBehavior`. Explicit beats magic.
 
-### Step 11: Add the Roslyn analyzer
+### Step 11: Preserve automatic analyzer wiring
 
-The `LearnStackException-DomainExceptionThrow` analyzer lives in
-`backend/analyzers/` and ships as a NuGet package referenced by
-`Domain` + `Application` projects via
-`<PackageReference Include="LearnStack.Analyzers" ... />`. Severity:
-Warning in Phase 02a, escalates to Error after Phase 03 exit.
+`backend/src/Directory.Build.props` automatically references the in-tree
+`backend/analyzers/LearnStack.Analyzers` project with
+`OutputItemType="Analyzer"` and `ReferenceOutputAssembly="false"`. It is not
+a NuGet package. New production C# projects inherit this wiring. Do not add
+project-level
+analyzer references or suppress these diagnostics with `NoWarn`.
 
-### Step 12: Register module services last
+- `LS0001` (`LearnStackException-DomainExceptionThrow`) retains its
+  Domain/Application scope through the compiler-visible scope property.
+- `LS0002` (`LearnStackException-SensitiveExceptionMessage`) covers bounded
+  sensitive-name exception expressions in every production C# project. It is
+  not data-flow analysis and covers no JavaScript/TypeScript.
+- Both remain Warning, including CI, in `WarningsNotAsErrors` rather than
+  `NoWarn`. Phase 03 exit promotes them to Error and removes that exemption.
+
+[ADR-0032 Amendment 6](../../../docs/decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25)
+and the [catalogue](../../../docs/standards/21-architecture-tests-catalogue.md#learnstackexception-sensitiveexceptionmessage-roslyn-analyzer)
+own the exact scope, expression limits and proof obligations.
+
+### Step 12: Pass all module assemblies to the host foundation
 
 Module assemblies reach the foundation as arguments, not as separate registration
 calls. `AddLearnStackCrossCuttingFoundation` discovers their integration-event
-handlers and hands the same assemblies to `AddLearnStackMediatRPipeline` as its
-**last** statement, so behaviors and instrumentation are already wired before any
-module handler is registered:
+handlers and then hands the same assemblies to `AddLearnStackMediatRPipeline`
+for the shared execution services, behavior chain and validator discovery. Keep
+the complete assembly set in this one host call:
 
 ```csharp
-// The shipped entry point, and the only one: AddLearnStackCrossCuttingFoundation
+// The shipped host entry point, called once: AddLearnStackCrossCuttingFoundation
 // on the WebApplicationBuilder, taking the deployment mode and the assemblies whose
 // integration-event handlers should be discovered.
 builder.AddLearnStackCrossCuttingFoundation(

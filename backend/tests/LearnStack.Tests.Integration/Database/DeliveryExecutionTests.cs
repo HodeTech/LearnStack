@@ -71,6 +71,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             var result = await fixture.Executor.ExecuteAsync(claim, gate, cancellation.Token);
 
             result.Should().Be(new DeliveryExecutionResult(DeliveryExecutionOutcome.Completed, true, false));
+            AssertCaptureCleared(fixture.Observation.Captures.Should().ContainSingle().Subject);
             gate.CommitAcknowledged.Should().BeTrue();
             fixture.Observation.Constructions.Should().Be(1);
             fixture.Observation.Executions.Should().Be(1);
@@ -84,6 +85,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             state.Inbox.Should().Be(1);
             state.Outbox.Should().Be(1);
             state.SuccessAudit.Should().Be(1);
+            state.IndeterminateAudit.Should().Be(0, "an acknowledged commit has no indeterminate reconcile row");
             state.Processed.Should().BeTrue();
             state.OutboxCausation.Should().Be(fact.EventId);
             state.OutboxActor.Should().Be(CausalActor);
@@ -173,6 +175,8 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
 
         result.CommitAcknowledged.Should().BeFalse();
         result.Outcome.Should().Be(DeliveryExecutionOutcome.Failed);
+        var firstCapture = fixture.Observation.Captures.Should().ContainSingle().Subject;
+        AssertCaptureCleared(firstCapture);
         fixture.Accessor.Current.Should().BeSameAs(previous);
         fixture.Logs.Text.Should().NotContain(SensitiveCanary).And.NotContain(PayloadCanary.ToString()).And.NotContain(typeof(Handler).FullName!);
         (await fixture.StateAsync(fact)).Should().Match<DurableState>(state =>
@@ -188,6 +192,10 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         var retry = await fixture.Executor.ExecuteAsync(claim, new DeliveryCommitGate());
         retry.Outcome.Should().Be(DeliveryExecutionOutcome.Completed);
         retry.CommitAcknowledged.Should().BeTrue();
+        fixture.Observation.Captures.Should().HaveCount(2);
+        var retryCapture = fixture.Observation.Captures.Last();
+        retryCapture.Should().NotBeSameAs(firstCapture, "a retry owns a fresh DI scope");
+        AssertCaptureCleared(retryCapture);
         (await fixture.StateAsync(fact)).Business.Should().Be(1);
         fixture.Accessor.Current.Should().BeSameAs(previous);
         fixture.Accessor.Current = null;
@@ -403,15 +411,19 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         gate.CommitStarted.Should().BeTrue();
         proxy.DroppedCommitResponses.Should().Be(1);
         uncertain.Observation.ObservedSavedWork.Should().BeTrue();
+        AssertCaptureCleared(uncertain.Observation.Captures.Should().ContainSingle().Subject);
         var state = await fixture.StateAsync(fact);
         state.Business.Should().Be(1);
         state.Inbox.Should().Be(1);
         state.Outbox.Should().Be(1);
         state.SuccessAudit.Should().Be(1);
+        state.IndeterminateAudit.Should().Be(1);
         state.Processed.Should().BeTrue();
 
         var retry = await fixture.Executor.ExecuteAsync(claim, new DeliveryCommitGate());
         retry.Outcome.Should().Be(DeliveryExecutionOutcome.LostClaim);
+        fixture.Observation.Captures.Should().BeEmpty(
+            "durable completion refuses the retry before another business audit frame opens");
         fixture.Observation.Constructions.Should().Be(0, "durable completion excludes every subsequent execution");
         (await fixture.StateAsync(fact)).Should().BeEquivalentTo(state);
         uncertain.Logs.Text.Should().NotContain(SensitiveCanary).And.NotContain(PayloadCanary.ToString());
@@ -672,7 +684,13 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                 inbox.ExecuteScalar().Should().Be(1L, "the transport claimed inbox before entering the business constructor");
                 observation.InboxObservedAtConstruction = true;
             }
-            services.GetRequiredService<IAuditStateCapture>().HasOpenFrame.Should().BeTrue();
+            var capture = services.GetRequiredService<AuditStateCapture>();
+            services.GetRequiredService<IAuditStateCapture>().Should().BeSameAs(capture);
+            services.GetRequiredService<IAuditSubject>().Should().BeSameAs(capture);
+            capture.HasOpenFrame.Should().BeTrue();
+            capture.Intents.Should().ContainSingle(intent => intent.Operation == Operation,
+                "the actual delivery audit frame declared its intent before handler construction");
+            observation.Captures.Enqueue(capture);
             services.GetRequiredService<ProducerExecution>().RequireAnnouncement().TenantId.Value.Should().Be(SchemaFixture.TenantA);
             if (observation.Fault == "constructor") throw new InvalidOperationException(SensitiveCanary);
         }
@@ -695,6 +713,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                 LocalizedText.From(("en", "Delivery execution proof")), """{"type":"object"}""", "default-card",
                 _services.GetRequiredService<IClock>(), UserId.SystemActor);
             _observation.Source = source;
+            _services.GetRequiredService<IAuditSubject>().Designate(source);
             if (_observation.EmitDomainEvent)
             {
                 typeof(Entity<TenantContentTypeId>).GetMethod("RaiseDomainEvent", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -705,6 +724,12 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             }
             db.Add(source);
             await db.SaveChangesAsync(cancellationToken);
+            var capture = _services.GetRequiredService<AuditStateCapture>();
+            var intent = capture.Intents.Single(intent => intent.Operation == Operation);
+            intent.SubjectId.Should().Be(fact.SubjectId.ToString());
+            capture.ChangesOf(intent).Should().Contain(change =>
+                change.EntityType == nameof(TenantContentType) && change.EntityId == fact.SubjectId.ToString(),
+                "the real module interceptor filled the same capture and frame the delivery owner reconciles");
             _observation.OutgoingActivity = Activity.Current?.Id;
             _observation.OutgoingAnnouncement = unit.GetTenantContextAnnouncement(unit.Transaction);
             await _services.GetRequiredService<IOutbox>().EnqueueAsync(fact with { EventId = Guid.CreateVersion7() }, cancellationToken);
@@ -745,6 +770,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
     public sealed class Observation
     {
         public int Constructions { get; set; }
+        public ConcurrentQueue<AuditStateCapture> Captures { get; } = new();
         public bool InboxObservedAtConstruction { get; set; }
         public bool ObserveBareUnit { get; set; }
         public bool BareUnitObserved { get; set; }
@@ -855,6 +881,15 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             builder.MustAudit<Handler>(Operation, OperationType.Create, typeof(TenantContentType));
     }
 
+    private static void AssertCaptureCleared(AuditStateCapture capture)
+    {
+        capture.State.Should().Be(AuditIntentState.None);
+        capture.Intents.Should().BeEmpty();
+        capture.Changes.Should().BeEmpty();
+        capture.HasOpenFrame.Should().BeFalse();
+        capture.IndeterminateCause.Should().BeNull();
+    }
+
     private sealed class ProbeContext(Guid tenant, Guid? organization) : ITenantContext
     {
         public bool IsResolved => true;
@@ -869,7 +904,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         bool Processed, Guid? OutboxCausation, Guid? OutboxActor, Guid? AuditActor,
         string? AuditCorrelation, Guid? AuditOrganization, string? LockedBy,
         Guid? AuditCausation, Guid? AuditCausalActor, string? OutboxCorrelation,
-        Guid? OutboxTenant, Guid? OutboxOrganization, string? OutboxPartition);
+        Guid? OutboxTenant, Guid? OutboxOrganization, string? OutboxPartition, long IndeterminateAudit);
 
     private sealed class Fixture : IAsyncDisposable
     {
@@ -1117,7 +1152,9 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                   (SELECT correlation_id FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
                   (SELECT tenant_id FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
                   (SELECT organization_id FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
-                  (SELECT partition_key FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1)
+                  (SELECT partition_key FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
+                  (SELECT count(*) FROM audit_log WHERE operation = @operation AND outcome = 'indeterminate'
+                      AND entity_id = @subject_text AND (metadata ->> 'causation_id')::uuid = @event)
                 """, connection, transaction);
             command.Parameters.AddWithValue("subject", fact.SubjectId);
             command.Parameters.AddWithValue("subject_text", fact.SubjectId.ToString());
@@ -1133,7 +1170,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                 read.IsDBNull(10) ? null : read.GetString(10), read.IsDBNull(11) ? null : read.GetGuid(11),
                 read.IsDBNull(12) ? null : read.GetGuid(12), read.IsDBNull(13) ? null : read.GetString(13),
                 read.IsDBNull(14) ? null : read.GetGuid(14), read.IsDBNull(15) ? null : read.GetGuid(15),
-                read.IsDBNull(16) ? null : read.GetString(16));
+                read.IsDBNull(16) ? null : read.GetString(16), read.GetInt64(17));
         }
         public async ValueTask DisposeAsync()
         {

@@ -40,7 +40,7 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence;
 public sealed class CustomizationDbContextFactory
     : IDesignTimeDbContextFactory<CustomizationDbContext>
 {
-    private const string ConnectionStringVariable = "ConnectionStrings__Migration";
+    private const string MigrationEnvironmentKey = "ConnectionStrings__Migration";
 
     /// <summary>
     /// The migration history table for this chain.
@@ -55,12 +55,12 @@ public sealed class CustomizationDbContextFactory
 
     public CustomizationDbContext CreateDbContext(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable(ConnectionStringVariable);
+        var connectionString = Environment.GetEnvironmentVariable(MigrationEnvironmentKey);
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                $"{ConnectionStringVariable} is not set in the environment. "
+                $"{MigrationEnvironmentKey} is not set in the environment. "
                 + "Migrations run as learnstack_migration, which owns every table; the value "
                 + "is in .env.example and `make migrate` is its sanctioned carrier. "
                 + "`dotnet ef --connection` does not help here — EF applies it after this "

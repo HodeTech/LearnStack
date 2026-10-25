@@ -147,7 +147,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**263 test methods run in
+**282 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -156,12 +156,12 @@ P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–8, with further
 source-boundary, observation and production-manifest companions in Step 9.
 Its nineteen packet obligations are implemented with actual canonical owners and
 complementary structural, native-runtime and PostgreSQL controls. The
-[Step 9 record](../roadmap/phase-02b-delivery-log.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
-distinguishes local enforcement qualification from pending review/packet/CI closeout.
-P02b-5 adds the authenticated route/helper census and closed claim/role authority
-controls; its seven obligations have actual local owners. Its Step 5 and
-[review remediation](../roadmap/phase-02b-delivery-log.md#p02b-5-external-review-remediation-2026-10-20)
-records distinguish prior hosted qualification from the current correction head.
+[P02b-4 merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
+owns its final review/CI qualification. Authentication, realm and BFF obligations
+have unit/integration/frontend/offline owners in their entries below; the
+[Phase 02b Status block](../roadmap/phase-02b-events-auth.md) links current delivery
+and qualification. The analyzer and asynchronous inventory controls also have
+actual owners; registration alone promotes none of these obligations.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -169,10 +169,10 @@ and most rows pair a rule with the companion assertion that stops it passing vac
 **Every number in this section is recomputed by `The_Catalogue_Counts_Its_Own_Rules`.** They
 are a second copy of what the repository already knows, and the first version of this section
 proved the point by being wrong on arrival: it published "ninety-five in that assembly" in the
-same commit that added three more. The count of methods is the count of `[Fact]` and `[Theory]`
-**declarations**, one per line, over source with literal contents removed — the attributes
-written as strings inside `Every_Database_Test_Carries_The_Docker_Trait` and its companion are
-not declarations, and the meta-test's `[Fact(DisplayName = …)]` is.
+same commit that added three more. The method count uses **compiled methods**
+carrying `[Fact]`/`[Theory]`, discovered by reflection.
+Attributes written as fixture strings and declarations removed by conditional
+compilation do not count; an actual `[Fact(DisplayName = …)]` method does.
 
 **The rows and the code are held together by a test, not by a table.** This section used to
 carry a hand-written list of rule → file, and it went stale the way any second copy does — on
@@ -188,8 +188,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**235 rules in this catalogue are Implemented, and 133 of them are in that assembly.**
-The other 102 are no less binding, and most could not live there. The table says where
+**237 rules in this catalogue are Implemented, and 134 of them are in that assembly.**
+The other 103 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -442,12 +442,11 @@ otherwise).
   Phase 03 escalation, and a pragma is the sanctioned way to keep a genuine invariant throw —
   so the test compiles each project's sources itself, sets the severity, and reports
   suppressed diagnostics. It parses with the symbols the build defines, so an `#if` region is
-  read rather than skipped, and it fails loudly on a source it cannot parse, because a compiler
-  behind the SDK reads a new language feature as a syntax error and a scan that cannot read a
-  file sees nothing in it. The wiring leg reads the reference as an element rather than as a
-  line: the attributes may be written in either order, a commented-out reference is not a
-  reference, and a `Condition` is refused outright — a conditional analyzer does not run in the
-  configuration the condition excludes, and this rule cannot tell which that is. Its companion,
+  read rather than skipped, and fails loudly on an unparseable source. The wiring
+  leg evaluates actual MSBuild imports and analyzer-reference metadata rather than
+  assuming each project spells out its own reference. It also verifies the
+  compiler-visible `LS0001` scope flag; shared assembly wiring for `LS0002` must
+  not broaden the older rule. Its companion,
   `The_Domain_Exception_Report_Can_Actually_Fail`, plants all four shapes — thrown from a
   `Result` method, the same one silenced by a pragma, a pragma-silenced invariant guard, and
   an unsuppressed throw — and requires exactly the three the rule refuses. Mutation-checked:
@@ -465,11 +464,13 @@ otherwise).
   reviewer-dependent. Genuine aggregate-invariant throws (the sanctioned
   use) are the rare sites that suppress with justification
   (`#pragma warning disable LS0001`). The analyzer ships in
-  `backend/analyzers/LearnStack.Analyzers` and is referenced by every
-  module's `Domain` + `Application` project (and the core `LearnStack.Domain`
-  / `LearnStack.Application`) via
-  `<ProjectReference ... OutputItemType="Analyzer" ReferenceOutputAssembly="false" />`
-  (NOT a PackageReference — the analyzer is built in-tree, not packed).
+  `backend/analyzers/LearnStack.Analyzers`. The unconditional reference in
+  `backend/src/Directory.Build.props` loads it as an in-tree analyzer, with
+  `ReferenceOutputAssembly="false"`; the compiler-visible
+  `LearnStackAnalyzeDomainExceptionThrow` property preserves its exact
+  Domain/Application scope. The same reference loads
+  [LS0002](#learnstackexception-sensitiveexceptionmessage-roslyn-analyzer) in all
+  production projects. Do not duplicate per-project references.
 - **Severity:** Warning in Phase 02a; listed in `WarningsNotAsErrors`
   (Directory.Build.props) so it does not break CI under
   `TreatWarningsAsErrors` before the documented escalation. Flipped to Error
@@ -483,6 +484,64 @@ otherwise).
 - **Kind:** compile-time.
 - **Status:** **Implemented** — analyzer + unit tests.
 - **Phase:** 02a (Packet 3).
+
+#### `LearnStackException-SensitiveExceptionMessage` (Roslyn analyzer)
+
+- **Rule name:** `LearnStackException-SensitiveExceptionMessage`.
+- **Diagnostic id:** `LS0002`.
+- **Asserts:** direct thrown Exception construction is checked for sensitive
+  names in direct string references, interpolation and string concatenation,
+  within the bounded semantic contract in ADR-0032 Amendment 6. All production
+  C# projects under `backend/src` are wired automatically, while `LS0001` keeps
+  its Domain/Application scope. The runtime and analyzer use one internal
+  source for the complete single/two-word token union and word matcher.
+- **Severity:** Warning, including CI; `WarningsNotAsErrors` preserves this
+  posture until Phase 03 exit, when both diagnostics become Errors.
+- **Proofs:** compiler-clean positive/negative cases, exact ID/location/severity
+  and no `AD0001`; independent union and two-word-only mutation; evaluated
+  MSBuild/new-project wiring and unchanged `LS0001` scope; a real `CI=true`
+  Warning build and an unrelated-warning failure control. No taint analysis or
+  JavaScript/TypeScript coverage is claimed.
+- **Source:** [ADR-0032 Amendment 6](../decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25).
+- **Kind:** compile-time.
+- **Status:** **Implemented** — analyzer, `SensitiveExceptionMessageAnalyzerTests`
+  and `AnalyzerBuildTests` in `LearnStack.Tests.Unit`.
+- **Supporting architecture proofs:**
+  `SensitiveExceptionMessageTests` runs
+  `Production_Exception_Messages_Do_Not_Contain_Sensitive_References` for both
+  production configurations, including suppressed reports;
+  `The_Sensitive_Report_Sees_Suppressed_And_Conditional_Violations` plants them.
+  `AnalyzerWiringTests` checks evaluated settings and unconditional reference
+  ancestry, with OS/CI/Choose and editorconfig/targets suppression controls.
+  These are supporting proofs of this rule, not additional catalogue rules.
+- **Phase:** 02b (P02b-8).
+
+#### `Durable_Async_Store_Inventory_Covers_The_Storage_Census`
+
+- **Asserts:** the canonical erasure inventory covers the actual event/job
+  storage census and all guarded vendor tables, including explicit control-only
+  classifications. Added tables, missing inventory rows and a removed row are
+  discriminated by planted controls. This is a coverage check, not a proof of
+  field-level erasure, legal compliance or personal-data absence.
+- **Source:** ADR-0046/0047/0057 and
+  [Data Protection inventory](../architecture/23-data-protection.md#durable-asynchronous-store-inventory),
+  accepted through [P02b-8](../roadmap/phase-02b-delivery-log.md#p02b-8-decision-package-2026-10-25).
+- **Type:** storage-definition and documentation census with dirty controls.
+- **Kind:** structural.
+- **Status:** **Implemented** — `AsyncStoreInventoryTests` reads the ordered,
+  compiled `UpOperations` for Platform, Audit, Tenancy, Customization and Education,
+  including expanded vendor installer SQL. It reconciles every table with the
+  canonical inventory or an explicit synchronous/module exclusion. Opaque
+  procedural DDL, stored projections and unsupported schema/path changes fail
+  closed with their origin; planted controls assert the intended reason.
+  Vendor rows independently match
+  `HangfireStorageContract.Columns`. Added/dropped/renamed storage, every removed
+  row, duplicate/malformed tables and blank vendor classifications fail the
+  controls. Audit/provider/diagnostic/backup/volatile custody entries are required;
+  the independent live PostgreSQL `r`/`p`/`m` relation census remains a separate
+  backstop, with `StorageRelationCensusTests` checking each kind. Exact vendor
+  column shape remains the independent `HangfireSchemaShape.Verify` runtime proof.
+- **Phase:** 02b (P02b-8).
 
 #### `Handlers_Return_Result`
 
@@ -2694,6 +2753,12 @@ which decides identity, multiplicity, capture and classification;
 - **Type:** xUnit over the behavior and the scoped capture, with a nested-dispatch case.
   **Kind:** behavioural.
 - **Status:** **Implemented** (`AuditLogBehaviorTests`, Packet 9 step 8). A theory over three endings — success, refusal, handler exception — because each leaves the behaviour by a different door and only the `finally` is common to them; plus the nested case, so the pair pins "exactly once, by the outermost" rather than merely "at least once".
+  `DeliveryExecutionTests` additionally observes the unmodified production capture
+  populated by real saves, then empty on successful, faulted and lost-COMMIT
+  delivery. A completed retry produces no new frame or indeterminate row.
+  `AuditCaptureWiringTests` checks the real `IAuditStateCapture`/`IAuditSubject`
+  aliases and cross-scope isolation. `AuditStateCaptureTests` exercises cleared
+  nested state independently; the behavior tests retain exactly-once call proof.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_Shipped_Request_Is_Registered`
@@ -3320,6 +3385,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   also checks the real HTTP producer's stored trace,
   announced tenant/org and exact nonempty partition; the delivery proof checks
   the same quartet for its outgoing event. Actual production consumers are Active.
+  Its lost-COMMIT theory independently counts exactly one row-bound standalone
+  `indeterminate` audit beside the durable success row, observes one outer capture
+  clear and proves that a rejected completed retry changes neither count.
 - **Phase:** 02b, P02b-3.
 
 #### `Integration_Event_Handlers_Use_InboxGuard`
@@ -5069,9 +5137,9 @@ structural test proves — and what it does not.
   behavioural and asserted in `PlatformAdminGateTests`; a structural rule cannot see it.
 
   *Subject, vacuous:* there is no permission to hold. `AuthorizationBehavior.Handle` is
-  `return next()`, authentication arrives in
-  [Phase 02b](../roadmap/phase-02b-events-auth.md), and the Platform-scope permission
-  with the Identity module in [Phase 03](../roadmap/phase-03-identity-admin.md). So
+  `return next()`. API authentication is delivered under ADR-0064; the
+  Platform-scope permission remains Identity work in
+  [Phase 03](../roadmap/phase-03-identity-admin.md). So
   nothing exercises a *permitted* entry, and the gate refusing everyone blocks nothing
   this packet ships. Packet 9 gives the scope its first real work and inherits the gate:
   the platform-scope `security-event` row the scope writes on entry through
@@ -5691,8 +5759,9 @@ assertions below; each Implemented status names its actual canonical owner.
 Acceptance alone promotes no rule, and a partial foundation does not enforce a
 complete assertion. The
 [Step 9 record](../roadmap/phase-02b-delivery-log.md#canonical-enforcement-reconciliation)
-distinguishes executed local qualification from packet/review and exact PR-head
-CI/job-budget closure.
+retains the original local enforcement scope; the
+[merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
+records final packet/review and PR-source CI/job-budget qualification.
 Production business/recurrence registries remain empty; real framework subjects
 and fixture definitions make the implemented controls non-vacuous.
 

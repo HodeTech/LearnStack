@@ -7,18 +7,18 @@ namespace LearnStack.Modules.Education.Infrastructure.Persistence;
 /// <summary>Builds the Education migration chain without runtime configuration.</summary>
 public sealed class EducationDbContextFactory : IDesignTimeDbContextFactory<EducationDbContext>
 {
-    private const string ConnectionStringVariable = "ConnectionStrings__Migration";
+    private const string MigrationEnvironmentKey = "ConnectionStrings__Migration";
 
     /// <summary>The independent Education chain's migration history table.</summary>
     public const string HistoryTable = "__ef_migrations_history_education";
 
     public EducationDbContext CreateDbContext(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable(ConnectionStringVariable);
+        var connectionString = Environment.GetEnvironmentVariable(MigrationEnvironmentKey);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                $"{ConnectionStringVariable} is not set in the environment. "
+                $"{MigrationEnvironmentKey} is not set in the environment. "
                 + "Migrations run as learnstack_migration; use `make migrate`. "
                 + "Runtime connection strings are never a migration fallback.");
         }

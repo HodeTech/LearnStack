@@ -1,3 +1,4 @@
+using System.Globalization;
 using FluentAssertions;
 using LearnStack.SharedKernel.Secrets;
 using Xunit;
@@ -11,6 +12,30 @@ namespace LearnStack.Tests.Unit.SharedKernel.Secrets;
 /// </summary>
 public sealed class SensitiveTokenCatalogTests
 {
+    [Fact]
+    public void DefaultTokens_Is_The_Complete_Immutable_Union()
+    {
+        string[] expected =
+        [
+            "apikey", "authenticationheader", "authorization", "authheader", "cardnumber",
+            "connectionstring", "cookie", "credential", "creditcard", "cvc", "cvv", "dsn",
+            "encryptionkey", "hmac", "iban", "jwt", "otp", "pan", "passwd", "password", "pin",
+            "privatekey", "pwd", "secret", "setcookie", "signature", "signingkey", "ssn", "tckn",
+            "token", "vkn",
+        ];
+
+        var snapshot = SensitiveTokenCatalog.DefaultTokens;
+        snapshot.Should().BeEquivalentTo(expected);
+        snapshot.Should().OnlyHaveUniqueItems();
+        snapshot.Should().BeSameAs(SensitiveTokenCatalog.DefaultTokens, "the complete union is cached");
+        snapshot.Should().NotBeOfType<string[]>();
+        var collection = snapshot.Should().BeAssignableTo<ICollection<string>>().Subject;
+        collection.IsReadOnly.Should().BeTrue();
+        Action mutate = () => collection.Add("invented");
+        mutate.Should().Throw<NotSupportedException>();
+        SensitiveTokenCatalog.DefaultTokens.Should().BeEquivalentTo(expected);
+    }
+
     [Theory]
     [InlineData("Password")]
     [InlineData("UserPassword")]
@@ -91,5 +116,39 @@ public sealed class SensitiveTokenCatalogTests
     public void IsSensitive_False_For_Ordinary_Names(string name)
     {
         SensitiveTokenCatalog.IsSensitive(name).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("api.key")]
+    [InlineData("api-key")]
+    [InlineData("api/key")]
+    [InlineData("api key")]
+    [InlineData("api::key")]
+    [InlineData("__auth..header--")]
+    [InlineData("request2Token")]
+    [InlineData("HTTPAuthorization")]
+    public void IsSensitive_Preserves_Separator_And_Acronym_Boundaries(string name) =>
+        SensitiveTokenCatalog.IsSensitive(name).Should().BeTrue();
+
+    [Fact]
+    public void IsSensitive_Is_Ordinal_Under_Turkish_Culture_And_Handles_Null()
+    {
+        var previous = CultureInfo.CurrentCulture;
+        var previousUi = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("tr-TR");
+            CultureInfo.CurrentUICulture = CultureInfo.CurrentCulture;
+            SensitiveTokenCatalog.IsSensitive("SIGNING_KEY").Should().BeTrue();
+            SensitiveTokenCatalog.IsSensitive("PRIVATE_KEY").Should().BeTrue();
+            SensitiveTokenCatalog.IsSensitive("ClassName").Should().BeFalse();
+            SensitiveTokenCatalog.IsSensitive("---").Should().BeFalse();
+            SensitiveTokenCatalog.IsSensitive(null!).Should().BeFalse();
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+            CultureInfo.CurrentUICulture = previousUi;
+        }
     }
 }

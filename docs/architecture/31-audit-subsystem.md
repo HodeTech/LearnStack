@@ -1396,12 +1396,13 @@ CREATE TRIGGER tg_audit_log_no_truncate
 
 Four properties worth stating, because a careless copy loses each of them:
 
-- **`actor_user_id` is deliberately immutable.** Once the `users` row is erased it is an
-  orphan surrogate key with no path back to a natural person, which is what keeps the
-  audit row's existence auditable after erasure. Redacting it would collapse every erased
-  user's history into one indistinguishable bucket and make the probe-detection queries
-  [Audit Coverage Standards](../standards/18-audit-coverage.md) justifies the whole
-  `denied` class with unanswerable.
+- **`actor_user_id` is deliberately immutable.** It preserves distinct actor
+  histories after a user row is erased; removing it would collapse those histories
+  and prevent the probe-detection queries in
+  [Audit Coverage Standards](../standards/18-audit-coverage.md). An orphan identifier
+  does not prove that a person cannot be reidentified through other retained copies.
+  The [durable-copy inventory](23-data-protection.md#durable-asynchronous-store-inventory)
+  and Phase 03's first-writer decision cover the surviving references.
 - **`BEFORE` row triggers on partitioned tables are supported from PostgreSQL 13**, and
   LearnStack runs 18+ ([ADR-0031](../decisions/0031-postgresql-major-version.md)). The
   row trigger is inherited by partitions created later, so Phase 11 partitioning remains
@@ -1570,9 +1571,11 @@ Phase 11 owns retention purge, not redaction.
 
 `actor_user_id`, `module`, `operation`, `operation_type`, `operation_class`, `outcome`,
 `correlation_id` and `timestamp` are **never** redacted; the trigger rejects an `UPDATE`
-that changes any of them. What survives erasure is a pseudonymous record that a regulator
-can still reconstruct "who did what, when, with what outcome" from — which is the point of
-redacting in place rather than deleting.
+that changes any of them. `metadata` is also outside the six-column redaction
+grant and can retain causal actor references. Preserving an attributable history
+is not proof of complete anonymisation. Phase 03 settles those references under
+the [erasure first-writer prerequisites](23-data-protection.md#erasure-authority-and-first-writer-prerequisites)
+before its redaction handler ships.
 
 Every module that stores user references in audit payloads registers an
 `IUserReferenceLocator`. It lands in [Phase 03](../roadmap/phase-03-identity-admin.md)

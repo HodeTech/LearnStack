@@ -108,11 +108,11 @@ data, and three concrete defects follow from it:
   `tenant_id`, no query filter and no Row Level Security policy. A learner enrolled in
   a language school and a yoga studio would carry both tenants' fields in one blob that
   both tenants read.
-- **A tenant-scoped data request is not separated from global account deletion.**
-  [Data Protection](../architecture/23-data-protection.md) describes one erasure
-  workflow that ends in "invalidate Keycloak user". Initiated by a tenant admin, that
-  workflow destroys an identity that other tenants are actively using. One tenant must
-  not be able to close a person's account with another.
+- **A tenant-scoped data request needs separate authority from global closure.**
+  [Data Protection](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten)
+  separates those workflows. This phase implements that boundary: invalidating
+  Keycloak from a tenant-admin request would destroy an identity other tenants
+  actively use.
 - **JSONB columns carry no PII metadata.** Data Protection requires every aggregate to
   declare a PII category and claims a CI check over columns named like `email` or
   `phone`. A `custom_fields` blob is one column whose keys are authored by tenants at
@@ -188,16 +188,34 @@ by this note.
   mechanism that bounds the bundle, not a `WHERE tenant_id = …` clause a developer can
   forget in one of a dozen modules.
 - A tenant-scoped erasure removes the `Membership` and its `MembershipProfile`,
-  anonymises that tenant's behaviour rows, and anonymises the actor field on that
-  tenant's audit entries while keeping the action record
-  ([Data Protection § Right to Erasure](../architecture/23-data-protection.md)). The
-  `users` row survives for as long as any membership remains anywhere.
+  anonymises that tenant's behaviour rows, and redacts the permitted human-facing
+  audit fields while keeping the action record. Audit identifiers and causal
+  metadata remain subject to the first-writer decision below. The `users` row
+  survives for as long as any membership remains anywhere.
 - **Global account closure has no tenant-admin endpoint.** It is a platform-scoped
   operation. It fans out `UserAnonymisationRequestedV1` to every tenant the person
   belongs to and reconciles completion per Data Protection's 30-day workflow.
 - The audited `EnterPlatformAdminScope(reason)` from
   [Phase 02a Packet 7](phase-02a-kernel-tenancy.md) is the only path that reads across
   tenants during either flow, and every use of it is MUST-class audited.
+
+**Durable-copy prerequisite.** This phase still implements tenant-scoped DSAR
+export/erasure, separate global closure, subject/actor mapping, request authority
+and audit redaction. It consumes the canonical
+[durable asynchronous store inventory](../architecture/23-data-protection.md#durable-asynchronous-store-inventory)
+and its [first-writer prerequisites](../architecture/23-data-protection.md#erasure-authority-and-first-writer-prerequisites).
+Before the first affected writer, settle a bounded decision for surviving
+identifier/payload/audit references, exact principal and minimum grants,
+immutable facts, dependency/deletion order, replay/deduplication floors and
+durable completion. Ordinary app-role/SystemActor delivery or dispatcher
+credentials authorize no privileged erasure. The existing inbox, delivery and
+job grants provide no generic Platform purge; operator authority and erasure
+do not prove external quiescence or reservation release.
+
+[Phase 11](phase-11-production-hardening.md#data-operations) extends these
+workflows across later modules and retained copies, with purge/retention,
+backup/provider/diagnostic and operational reconciliation. That later work does
+not defer this phase's DSAR or redaction implementation.
 
 **PII classification on JSONB.** Every `TenantCustomFieldDef` row carries a required
 `pii_category` drawn from the closed set in
@@ -366,6 +384,25 @@ Authorization is the third layer, not the first. A permission check that passes 
 runs under the tenant's `ITenantContext` and under Row Level Security; a deny is a
 better error message, not the isolation boundary.
 
+### Operator recovery and dashboard admission
+
+Phase 02b supplies internal targeted subscriber replay and no operator route.
+This phase owns the operator outbox/dead-letter/subscriber-replay and job-recovery
+surface. Before its first writer, settle the URL space under ADR-0036, exact
+Platform-scope permission, reason, fenced transition and MUST audit/runbook;
+producer reset is not an implied power of targeted subscriber replay.
+
+This phase also owns the application `/admin/hangfire*` mapping and its
+Platform-scope permission. Append the dated ADR-0015 disclosure before replacing
+its historical realm-role gate. Keycloak roles are not LearnStack authority.
+Keep the route absent until the application gate and denied-route controls ship.
+Phase 11 owns APISIX defense in depth and gateway activation.
+
+The first Platform-admin consumer must decide denied-entry evidence and enforce
+connection lifetime: a connection retained after scope completion must not permit
+an autocommit bypass. The current deny-all gate exposes no privileged consumer;
+an admitted scope's entry row is not evidence of a denied attempt.
+
 ### Gateway Configuration Corrections
 
 The APISIX gateway **adapter** is demand-gated to
@@ -490,18 +527,32 @@ result as a second, bounded caller or to give it a method of its own, and settle
 inbox boundary with it: the inbox mark lives on another connection, so a redelivery must
 find the result row already written rather than record a second one.
 
+The same decision must account for immutable `actor_user_id`, entity/causation
+identifiers and new `metadata.causal_actor_user_id` references. Current redaction
+permits only `actor_email`, `ip_address`, `user_agent`, `before_state`,
+`after_state` and `changes`; `metadata` is outside the column grant. Preserve
+those boundaries until the bounded decision and any required migration ship.
+Redacting the six columns alone does not establish complete anonymisation.
+
 ### Cross-cutting follow-up at phase exit
 
 - **Escalate both analyzers from Warning to Error** — `LS0001`
-  (`LearnStackException-DomainExceptionThrow`) and `LS0002` (the
-  secrets-in-exception-message rule introduced in
+  (`LearnStackException-DomainExceptionThrow`) and `LS0002`
+  (`LearnStackException-SensitiveExceptionMessage`, introduced in
   [Phase 02b](phase-02b-events-auth.md)) — and remove both from `WarningsNotAsErrors` in
   `backend/Directory.Build.props` — the documented escalation point per
-  [ADR-0032 § Sub-decision 4 + Amendment 1](../decisions/0032-exception-handling-logging-and-observability.md).
-  Until this gate the analyzer fires as a Warning so that a legitimate
-  aggregate-invariant throw does not break CI. By phase exit the identity domain is the
-  first substantial body of domain code, and the rule has been exercised against real
-  aggregates rather than against an empty solution.
+  [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md).
+  Reconcile each rule's scoped call sites and obtain a clean solution build
+  before this exit gate. `LS0001` retains its Domain/Application scope;
+  `LS0002` covers all production C# projects under `backend/src`. Both remain
+  Warnings until this gate; neither belongs in `NoWarn`.
+- **Inherited documentation CI trigger.** When a second active contributor gains
+  write access, add XML-documentation target-existence and changed-prose
+  88-column checks to CI under
+  [Documentation Standards](../standards/13-documentation.md) and the existing
+  [contributor trigger](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main).
+  Existing Markdown fragment lint does not establish either check. The trigger
+  remains unchanged; no protection-setting change is authorized by this handoff.
 
 ## Deliverables
 
@@ -509,8 +560,9 @@ find the result row already written rather than record a second one.
   (tenant-owned, organization-scoped), `Role` and `Permission` with explicit scope,
   `Invitation` — on top of Keycloak.
 - Written attribute-ownership table, enforced by `User_Aggregate_Has_No_TenantScoped_Columns`.
-- Tenant-scoped DSAR export and erasure, running under `ITenantContext` as
-  `learnstack_app`; global account closure as a separate platform-scoped operation.
+- Tenant-scoped DSAR export and erasure, with business handlers running under
+  `ITenantContext` as `learnstack_app`; separate platform-scoped global closure
+  and audit redaction after the bounded first-writer decisions above.
 - `TenantCustomFieldDef` with a mandatory `pii_category`, the `Membership` target, the
   definition editor, and the schema-driven membership form.
 - Category-driven redaction of custom-field values in logs and error-tracking payloads.
@@ -519,6 +571,9 @@ find the result row already written rather than record a second one.
   the first permission-sensitive route, with real denied-dispatch controls.
 - The Platform-scope permission gate replacing `DenyAllPlatformAdminGate`, with the
   killswitch toggle command, its permission key and its runbook.
+- Operator recovery and Hangfire dashboard admission under the
+  [bounded first-writer decisions](#operator-recovery-and-dashboard-admission),
+  including denied-route, fencing, reason and audit controls.
 - Admin login, tenant switcher and organization switcher via OIDC PKCE.
 - Tenant- and organization-aware user management screens.
 - Invitation flow end to end, tenant and organization bound.
@@ -547,6 +602,10 @@ find the result row already written rather than record a second one.
   the ability to log in.
 - No tenant-admin endpoint can delete or anonymise the global `User` row or the
   Keycloak user.
+- DSAR and audit redaction account for the canonical durable-copy inventory and
+  satisfy their bounded first-writer decisions. Tests preserve immutable facts,
+  replay/deduplication floors, unresolved reservations and same-transaction MUST
+  evidence; six-column redaction alone is not proof of complete anonymisation.
 - Every `TenantCustomFieldDef` row carries a `pii_category`; a definition with category
   `Payment` is rejected; the export bundle contains exactly the fields the categories
   permit.
@@ -556,6 +615,10 @@ find the result row already written rather than record a second one.
   rejection (Tenant vs Organization) returns the correct Problem Details code.
 - Unauthorized users cannot reach admin endpoints, and a denied command returns
   `Result.Fail(forbidden)` rather than throwing.
+- Dashboard and recovery routes remain absent until their application permission
+  and dated decisions ship. Cross-scope/unauthorized recovery cannot reset producer
+  state, bypass subscriber deduplication, release uncertain job capacity or reuse
+  a completed privileged connection.
 - The [runtime authorization gate](#authorization) refuses an unclassified protected
   endpoint and a valid principal lacking its permission before handler execution;
   explicit public routes still work anonymously. Updating the static route census
@@ -579,6 +642,10 @@ find the result row already written rather than record a second one.
   `internal-api-hmac-key` appears nowhere in it.
 
 ## Risks
+
+- **Redaction mistaken for anonymisation.** Retained actor/entity/causation IDs
+  and metadata survive six-column redaction. The bounded first-writer decision
+  and durable-copy controls are exit requirements, not a later operations waiver.
 
 - **Re-implementing what Keycloak owns** — password hashing, reset emails, token
   rotation. If a capability appears in the Keycloak vs LearnStack split table in
@@ -621,6 +688,8 @@ find the result row already written rather than record a second one.
   integration test running as `learnstack_app`.
 - A tenant-scoped erasure in one tenant leaves that person's access to the other tenant
   intact, and no tenant-admin path can reach the global account.
+- The bounded DSAR/redaction decision and applicable durable-copy controls above
+  are implemented; surviving immutable references are explicitly reconciled.
 - Every `TenantCustomFieldDef` carries a PII category, and export, redaction and
   retention are driven by the definitions rather than by the JSONB blob.
 - `AuthorizationBehavior` is a real implementation and every write endpoint carries an

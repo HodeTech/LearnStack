@@ -196,7 +196,7 @@ each packet decided and delivered, as
     - [P02b-6 pending aggregate metadata acquisition (2026-10-22)](#p02b-6-pending-aggregate-metadata-acquisition-2026-10-22) — 110 lines
     - [P02b-6 hosted browser dependency removal (2026-10-23)](#p02b-6-hosted-browser-dependency-removal-2026-10-23) — 45 lines
   - [P02b-6 correction merge and closeout (2026-10-23)](#p02b-6-correction-merge-and-closeout-2026-10-23) — 19 lines
-- [P02b-7 — BFF session](#p02b-7--bff-session) — 3,133 lines
+- [P02b-7 — BFF session](#p02b-7--bff-session) — 3,179 lines
   - [P02b-7 decision package (2026-10-23)](#p02b-7-decision-package-2026-10-23) — 213 lines
   - [P02b-7 proposal review round 1 (2026-10-23)](#p02b-7-proposal-review-round-1-2026-10-23) — 35 lines
   - [P02b-7 proposal review round 2 (2026-10-23)](#p02b-7-proposal-review-round-2-2026-10-23) — 26 lines
@@ -265,6 +265,37 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 1 (2026-10-24)](#p02b-7-observer-correction-review-round-1-2026-10-24) — 24 lines
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
+  - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,288 lines
+  - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
+  - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
+  - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
+    - [Correction verification (2026-10-25)](#correction-verification-2026-10-25) — 10 lines
+  - [P02b-8 acceptance (2026-10-25)](#p02b-8-acceptance-2026-10-25) — 27 lines
+  - [P02b-8 Step 1 — Sensitive exception analysis and compiler scope (2026-10-25)](#p02b-8-step-1--sensitive-exception-analysis-and-compiler-scope-2026-10-25) — 43 lines
+  - [P02b-8 Step 1 review round 1 (2026-10-25)](#p02b-8-step-1-review-round-1-2026-10-25) — 26 lines
+  - [P02b-8 Step 1 review round 2 and closeout (2026-10-25)](#p02b-8-step-1-review-round-2-and-closeout-2026-10-25) — 21 lines
+  - [P02b-8 Step 2 — Independent asynchronous inventory coverage (2026-10-25)](#p02b-8-step-2--independent-asynchronous-inventory-coverage-2026-10-25) — 30 lines
+  - [P02b-8 Step 2 review round 1 (2026-10-25)](#p02b-8-step-2-review-round-1-2026-10-25) — 36 lines
+  - [P02b-8 Step 2 review round 2 (2026-10-25)](#p02b-8-step-2-review-round-2-2026-10-25) — 34 lines
+  - [P02b-8 Step 2 closeout (2026-10-25)](#p02b-8-step-2-closeout-2026-10-25) — 16 lines
+  - [P02b-8 Step 3 — Delivered carriers and catalogue reconciliation (2026-10-25)](#p02b-8-step-3--delivered-carriers-and-catalogue-reconciliation-2026-10-25) — 44 lines
+  - [P02b-8 Step 3 review round 1 (2026-10-25)](#p02b-8-step-3-review-round-1-2026-10-25) — 19 lines
+  - [P02b-8 Step 3 review round 2 and closeout (2026-10-25)](#p02b-8-step-3-review-round-2-and-closeout-2026-10-25) — 22 lines
+  - [P02b-8 Step 4 — Individual exit ownership and source freeze (2026-10-25)](#p02b-8-step-4--individual-exit-ownership-and-source-freeze-2026-10-25) — 42 lines
+  - [P02b-8 Step 4 review round 1 — source (2026-10-25)](#p02b-8-step-4-review-round-1--source-2026-10-25) — 22 lines
+  - [P02b-8 Step 4 review round 2 — source (2026-10-25)](#p02b-8-step-4-review-round-2--source-2026-10-25) — 31 lines
+  - [P02b-8 Step 4 — Completed-source qualification and review closeout (2026-10-25)](#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25) — 109 lines
+  - [P02b-8 PR correction verification (2026-10-25)](#p02b-8-pr-correction-verification-2026-10-25) — 93 lines
+  - [P02b-8 correction review round 2 and source freeze (2026-10-25)](#p02b-8-correction-review-round-2-and-source-freeze-2026-10-25) — 44 lines
+  - [P02b-8 CI fixture-witness reconciliation (2026-10-25)](#p02b-8-ci-fixture-witness-reconciliation-2026-10-25) — 24 lines
+  - [P02b-8 CI witness and SQL-literal corrections, review round 1 (2026-10-25)](#p02b-8-ci-witness-and-sql-literal-corrections-review-round-1-2026-10-25) — 52 lines
+  - [P02b-8 CI corrections, review round 2 and source freeze (2026-10-25)](#p02b-8-ci-corrections-review-round-2-and-source-freeze-2026-10-25) — 21 lines
+  - [P02b-8 native completion qualification correction, review round 1 (2026-10-25)](#p02b-8-native-completion-qualification-correction-review-round-1-2026-10-25) — 43 lines
+  - [P02b-8 native completion correction, review round 2 and freeze (2026-10-25)](#p02b-8-native-completion-correction-review-round-2-and-freeze-2026-10-25) — 17 lines
+  - [P02b-8 browser artifact ownership correction, review round 1 (2026-10-25)](#p02b-8-browser-artifact-ownership-correction-review-round-1-2026-10-25) — 44 lines
+  - [P02b-8 browser ownership correction, review round 2 and freeze (2026-10-25)](#p02b-8-browser-ownership-correction-review-round-2-and-freeze-2026-10-25) — 19 lines
+  - [P02b-8 PR correction qualification and closeout (2026-10-25)](#p02b-8-pr-correction-qualification-and-closeout-2026-10-25) — 105 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -20899,6 +20930,1340 @@ PR readiness. The A/B receipt belongs to the implementation source above, not
 that later documentation-only commit. PR #36 remains the maintainer review/merge
 gate; no merge is performed here.
 
+
+### P02b-7 merge and closeout (2026-10-25)
+
+Read-only GitHub verification confirms
+[PR #36](https://github.com/HodeTech/LearnStack/pull/36) merged at
+`2026-10-24T22:16:17Z` (2026-10-25 in Europe/Istanbul), squash commit
+`0dfade02a08fce6bd937fe0554f94f47c571ca8e`. Its source is
+`6b6f0629eac05bd9fe6e63a3185dee1e9ba42c15`. Fetching the merge confirms both
+commits have tree `99098202a0a687cd54d2848f0fcd438bc8862824`; their file contents
+are identical.
+
+The [preceding qualification](#p02b-7-review-correction-qualification-2026-10-24)
+owns the implementation source's complete A/1 and B/2 evidence in
+[run 40120289765](https://github.com/HodeTech/LearnStack/actions/runs/40120289765).
+The documentation-only final PR head additionally passes its complete current-head
+assignment in
+[run 40124028474](https://github.com/HodeTech/LearnStack/actions/runs/40124028474):
+27 successful jobs and all seven required contexts. Retained-evidence verification
+before merge confirms the same manifest, plan, captured toolchains and population:
+5,931 .NET cases and 2,376 frontend cases, zero skips, all 20 natural producer
+cleanups, nine demo navigations and 27 Lighthouse reports. This merge closeout
+rechecks run metadata and tree equality; it does not rerun tests or claim a new
+post-merge execution.
+
+All five implementation steps, their two independent review rounds, and the
+subsequent verified correction bundles are closed. Accepted
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) and
+[ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) govern the shipped
+native credential owner, host-only opaque cookies, guarded Studio/Portal
+scaffolds, CSRF/Origin admission, refresh/logout and uncertain ordinary AccountSite
+401 handling. Anonymous public rendering remains independent of sign-in.
+
+The actual warm Keycloak/BFF/application-role API proof and the separate
+controlled-grant/API browser cookie/history proof retain their recorded scopes.
+[Phase 06](phase-06-renderer-admin-studio.md) owns full browser-driven OIDC
+journeys and Studio/Portal business functionality;
+[Phase 03](phase-03-identity-admin.md) owns membership/authorization and the
+identity-event ingress; [Phase 11](phase-11-production-hardening.md) owns
+production/distributed session qualification. This merge does not broaden those
+claims or erase earlier failed runs and evidence limits.
+
+P02b-7 is complete. The next packet is P02b-8: accept G16's `LS0002` contract
+before its implementation, complete G18's erasure inventory, reconcile remaining
+carriers and verify the catalogue, exact required-check names and phase exit
+criteria. No P02b-8 decision is accepted or implementation started by this
+documentation closeout; Phase 02b remains in progress.
+
+## P02b-8 — Exit enforcement
+
+### P02b-8 decision package (2026-10-25)
+
+**Accepted — 2026-10-25.** The maintainer approved the reviewed package at
+`486588d9` and its four implementation steps. The
+[acceptance record](#p02b-8-acceptance-2026-10-25) identifies the installed gate
+vehicles; the re-verified baseline is
+`0d0696acf06b35d45ba2456197dfc2dd2f4ff798` on `development`. Earlier review
+receipts retain their pre-acceptance state.
+
+**Problem and scope.** Finish the compile-time secret-message guard, inventory
+the durable copies this phase actually introduced, reconcile their carriers and
+qualify the phase exit against the final source. No business feature, provider,
+permission, persistence privilege or retention policy changes here.
+
+#### Re-verified premises
+
+- G16 is still Open; `backend/analyzers/LearnStack.Analyzers` contains only
+  `LS0001`. Its consuming projects cover Domain/Application, excluding the API,
+  SharedKernel, infrastructure and Seeder where credentials are handled.
+- `SensitiveTokenCatalog.IsSensitive` consumes single-word and two-word sets;
+  `DefaultTokens` currently exposes only the first. `authheader`,
+  `authenticationheader` and `setcookie` demonstrate the omitted second-set
+  coverage. Runtime property redaction does not scrub exception messages.
+- Current event/job failure stores persist closed bounded descriptors, rather
+  than arbitrary exception messages. `LS0002` complements those controls; it
+  does not replace them or certify that existing sinks contain raw messages.
+- G18's historical four-store count is insufficient: three event stores, seven
+  LearnStack job tables and twelve guarded vendor tables now exist. Durable
+  provider events and new actor references in existing audit storage also need
+  explicit treatment. The BFF session store is volatile, not a durable ledger.
+- All 62 existing Phase 02b catalogue obligations are marked Implemented: 43
+  explicit Phase entries plus 19 inherited under the P02b-4 section. `LS0002`
+  has no entry, so checking only existing statuses would miss it entirely.
+- A local Release run of `CorpusConsistencyTests` passes 5/5, with zero skips.
+  This baseline checks corpus mechanics, not P02b-8 implementation or exit.
+- Three read-only audits cover analyzer/security, storage/erasure, and catalogue/
+  CI/carrier obligations. Their verified corrections and limits are captured in
+  this package; implementation and its two review rounds per step remain pending.
+
+#### G16 proposal — additive ADR-0032 amendment
+
+G16 already names its vehicle: a dated amendment to
+[ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md),
+plus the catalogue and release record. No new ADR number is needed. Acceptance
+appends the following bounded contract as the next free amendment; the existing
+body, acceptance metadata, pipeline and `LS0001` decision remain unchanged.
+
+**Proposed amendment: Sensitive exception-message diagnostic.**
+
+- **Identity:** `LS0002`, human-readable rule name
+  `LearnStackException-SensitiveExceptionMessage`, category `Security`, enabled
+  by default. A diagnostic uses fixed remediation text and never includes the
+  interpolated value or rendered expression.
+- **Scope:** every production C# project recursively under `backend/src`,
+  including all module layers, API, SharedKernel, infrastructure and Seeder.
+  Analyzer/test projects and generated code are excluded. Wiring must reach
+  future production projects automatically. Broadening the assembly reference
+  must not broaden `LS0001` beyond its existing Domain/Application projects.
+- **Thrown forms:** direct construction of `System.Exception` itself or a type
+  transitively derived from it in a throw statement or throw expression,
+  including aliases, target-typed construction, parentheses and conversions.
+  A type-name suffix does not establish exception identity.
+- **Expressions:** inspect string-valued constructor arguments for direct
+  sensitive value references, interpolation holes and built-in string `+`
+  concatenation, after unwrapping parentheses/conversions. Other root expression
+  forms are outside the initial rule. Within these forms, inspect evaluated
+  local, parameter, field and property names through the canonical word matcher.
+  Named constant locals/fields are not exempt when their names match; literal
+  text is not inspected for secret contents. Argument position is irrelevant; the
+  provider exception's message is not its first parameter. `nameof`, `typeof`,
+  method/type names and literal text are not sensitive value references.
+- **Token source:** extract the existing token sets and word matcher into one
+  internal framework-compatible source under SharedKernel/Secrets, compiled
+  into both SharedKernel and the netstandard2.0 analyzer. Keep the public runtime
+  facade and its matching behavior; expose an immutable complete union snapshot.
+  No runtime dependency or second public type is added to the analyzer.
+- **Severity:** Warning throughout this packet; append `LS0002` to
+  `WarningsNotAsErrors`, never `NoWarn`. At
+  [Phase 03 exit](phase-03-identity-admin.md#cross-cutting-follow-up-at-phase-exit),
+  both `LS0001` and `LS0002` become Errors and leave `WarningsNotAsErrors`, after
+  their scoped call sites and the solution build satisfy that exit gate.
+
+This is a name-based source guard, not taint analysis or a secrecy guarantee.
+Earlier assignments, exception factories, `throw existingException`, formatting
+helpers, literal secrets and dictionary string keys are outside its initial
+coverage. Renaming a value can evade it; metadata such as `token.Length` inside
+an interpolation can conservatively warn. TypeScript/JavaScript BFF and realm
+tooling remain under their existing closed diagnostic and runtime controls.
+
+**Options considered.** Domain/Application-only coverage misses actual credential
+handlers. An independent analyzer token list invites drift. Referencing net10
+SharedKernel from its analyzer creates a framework/dependency problem. Full taint
+analysis adds a materially different contract; it is not claimed by this rule.
+Interpolation-only detection misses ordinary concatenation and direct string
+arguments. The proposed bounded forms cover those without tracing prior values.
+
+**Required proofs:** compiler-clean positive/negative compilations, exact Warning
+ID/name/location and no `AD0001`; throw statement/expression, aliases, argument
+order, members, direct references, interpolation and string concatenation;
+both `System.Exception` itself and a derived exception; sensitive and ordinary
+named constants. Non-sensitive names, literal text/`nameof`/`typeof`, sensitive
+expressions outside a throw and fixed messages with a cancellation-token argument
+remain clean. Prove the complete single/two-word union independently. Include a
+two-word-only addition exposing a stale or single-set-only analyzer view. Do not mutate
+global static token sets during concurrent tests. Evaluated MSBuild wiring must
+include API/infrastructure and a planted new project, while preserving `LS0001`.
+A disposable real build with `CI=true` must report `LS0002` as a Warning and
+succeed; an unrelated ordinary warning must still fail that build.
+
+#### G18 proposal — complete inventory, unchanged erasure authority
+
+[Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten)
+owns the inventory. The first acceptance commit installs the concrete matrix
+below there and reconciles its Phase 03/11 handoffs and immutable/grant limits,
+before either gate is marked Accepted or Step 1 writes code. Accepting a future
+inventory scope alone does not close G18. Step 2 independently verifies that
+carrier against storage and implements its drift control. Identifier-only data
+can still identify a person; absence of free text is not an erasure exemption.
+
+| Store family | Copies and subject linkage the inventory must cover |
+|---|---|
+| `outbox_messages` | `actor_user_id`, identifier-only `payload`, tenant/org, partition/causation/event IDs and `correlation_id`; new producer `metadata` is SQL NULL. Platform may SELECT/DELETE, not rewrite envelope fields |
+| `event_deliveries` | Independent per-subscription envelope/`payload` copy with `actor_user_id`, tenant/org, causation/trace/partition and replay state. Platform has no grant; producer cleanup cannot erase this copy |
+| `inbox_messages` | `(tenant_id, subscription_id, event_id)` and `recorded_at`; indirect subject linkage without actor/payload/org columns. Immutable completion history; no generic Platform purge |
+| `background_jobs` | `causal_actor_user_id`, identifier-only `parameters`/`plan`, trace/causation, parent/recipient/operation and final-attempt links. Envelope/prepared facts stay immutable; uncertain effects retain occupancy |
+| `background_job_attempts` | `job_id`, identifier-only `outcome`, operation/quiescence IDs, fingerprint, selected-outcome link and finite `failure_policy`. Write-once retry/effect/cleanup facts are not a mutable person profile |
+| `background_job_capacity` | `tenant_id`, finite capacity-group key and timestamp only. Coordination metadata, not person content or a person-erasure target |
+| `background_job_reservations` | Tenant/job/attempt linkage, finite group and reservation/release facts. Erasure never proves quiescence or frees unresolved occupancy |
+| `background_job_recurrences` | Finite definition/revision/manifest/target/schedule/recipient-policy metadata; no user or arbitrary parameters. Infrastructure control, no ordinary app access |
+| `background_job_occurrences` | Manifest/slot identity and frozen tenant/org sweep bounds/checkpoints; no person column or arbitrary payload. Preserve occurrence history and monotonic progress |
+| `background_job_recipients` | Immutable tenant/org route, occurrence/manifest/target and accepted child-job receipt. Recipient means a tenant/org route, not a person; restricted reciprocal job links affect future purge order |
+| Guarded Hangfire schema-23 storage | All twelve tables from `HangfireStorageContract.Columns`; invocation/argument, parameter, state, queue, hash/list/set, server, counter and lock/control metadata; guards forbid business payload/credentials, but opaque identifiers remain linkable |
+| Existing `audit_log` | New asynchronous terminal/causal metadata, including `causal_actor_user_id`, beside immutable actor/entity/causation identifiers; redacting human-facing fields alone does not remove every reference |
+| Development Keycloak user events | Separate provider `EVENT_ENTITY`: subject `USER_ID`, `SESSION_ID`, `IP_ADDRESS`, client/realm and event-detail JSON. Selected events and qualified finite retention remain governed by ADR-0070; account invalidation does not erase past events |
+| Diagnostics and backups | External log/trace/error archives and database/WAL/backup copies follow the existing data-protection and Phase 11 operational ownership; they are not silently erased by deleting a source row |
+
+The twelve vendor table names are `schema`, `counter`, `aggregatedcounter`,
+`hash`, `job`, `state`, `jobqueue`, `list`, `server`, `set`, `jobparameter` and
+`lock`, all in `public`. Schema bookkeeping and aggregate counters remain in the
+inventory as explicit no-person-content/control classifications, rather than
+disappearing from coverage. Provider storage is separate from LearnStack's DB.
+The canonical definitions remain in
+[Standards 05 § Outbox](../standards/05-database.md#outbox),
+[Inbox](../standards/05-database.md#inbox),
+[Background jobs](../standards/05-database.md#background-jobs) and
+[guarded vendor storage](../standards/05-database.md#p02b-4-stock-hangfire-control-storage).
+The inventory records references and constraints; it copies no SQL template.
+
+**Authority limits and handoff:**
+
+- P02b-8 implements no erasure, purge, payload rewrite or new storage grant.
+  It chooses no retention duration, principal, deletion order or replay reset.
+  Live/uncertain effects, immutable facts, deduplication floors, reservation
+  accounting and same-transaction MUST audit remain unchanged.
+- Current inbox/delivery/job grants and guards do not give a generic platform
+  eraser permission to update/delete these records. BYPASSRLS does not bypass
+  SQL privileges, no-delete triggers or write-once facts. Phase 11's contrary
+  inbox-DELETE wording must be corrected, not implemented as an invented grant.
+- The current audit redaction column grant excludes `metadata`. Phase 03's
+  first redaction/erasure writer must account for these surviving references and
+  obtain its own bounded decision before changing an immutable/audit boundary.
+  `actor_user_id` also remains immutable; the six currently redactable columns
+  are `actor_email`, `ip_address`, `user_agent`, `before_state`, `after_state`
+  and `changes`. Correct Architecture 23's broader actor-anonymisation wording
+  against this existing contract. This inventory does not declare that complete
+  anonymisation already works.
+- Phase 03 retains its tenant-scoped DSAR export/erasure and separate global
+  account-closure implementation, identity mapping, request authority, and audit
+  redaction after its required bounded decision. This inventory transfers none
+  of those deliverables. Phase 11 completes the workflows across later modules
+  and retained copies, with purge/principal/retention, backup and operational
+  reconciliation. Both plans link this inventory and retain these preconditions
+  before a writer ships; ordinary SystemActor delivery or dispatcher credentials
+  are no substitute.
+- Volatile BFF custody is explicitly distinguished from durable provider events.
+  Its local invalidation is not a claim to erase provider events or log archives.
+
+**Proof boundary:** register
+`Durable_Async_Store_Inventory_Covers_The_Storage_Census` as structural coverage
+under existing ADR-0046/0047/0057 obligations. Compare the documented LearnStack
+table set and vendor classifications with their actual storage definitions;
+missing or added tables and a removed inventory row must fail via planted
+controls. This checks inventory coverage, not legal compliance, SQL erasure
+correctness or arbitrary personal data hidden in values. Locator/mutability
+accuracy remains independently reviewed against DDL and contracts.
+
+#### Current CI and inherited documentation checks
+
+Read-only GitHub checks on 2026-10-25 confirm `main` uses strict protection and
+these seven exact required contexts, each bound to GitHub Actions app `15368`:
+
+1. `backend (build + unit + arch + contract)`
+2. `frontend (typecheck + lint + build + test)`
+3. `secret scan (leakwatch)`
+4. `meta (compose + commit hygiene + link audit)`
+5. `backend integration (Testcontainers)`
+6. `openapi diff`
+7. `public demo + lighthouse`
+
+The read-only paginated collaborator census finds one contributor with write
+access. The inherited second-write-contributor trigger has not fired. Hand the
+XML-documentation target-existence and changed-prose 88-column CI checks to
+Phase 03 with that unchanged trigger; existing fragment lint is not a substitute.
+No protection setting changes are proposed.
+
+#### Four implementation steps after acceptance
+
+Each step lands its implementation and commit, then two fresh independent review
+rounds. Confirm findings against current code, fix and commit the verified ones,
+and record the review scope, commit and validation. Continue automatically to
+the next step unless a new decision or real blocker requires the maintainer.
+
+1. **Analyzer and compiler wiring.** After the acceptance commit, implement
+   `LS0002`, shared matching, release row, all-production wiring,
+   Warning posture and compiler/architecture/unit/mutation controls. Update
+   Standards 09/11/21, analyzer comments and Phase 03's severity reference.
+2. **Inventory verification and drift proof.** Independently check the accepted
+   Architecture 23 matrix and Phase 03/11 handoffs against actual DDL, grants,
+   fields and copies; add the structural census and dirty controls. Preserve
+   schemas, grants, execution state and retention policy. G18's carrier is already
+   installed; this step supplies its implementation-level coverage control.
+3. **Carrier and catalogue reconciliation.** Repair stale current-tense phase,
+   architecture, standard, skill, gateway and source-comment claims against
+   delivered code. Preserve Accepted bodies and append-only records. Audit every
+   Phase 02b obligation, including inherited P4 entries and frontend owners;
+   register/implement any verified missing proof before claiming exit. Keep the
+   provider-SDK rule with Phase 03's first real SDK subject. Transfer the unchanged
+   documentation-lint trigger and keep front doors as phase pointers.
+4. **Source-bound qualification and exit evidence.** Run relevant local backend
+   and frontend suites, documentation/format/secret checks and applicable real
+   integration proofs. Qualify complete same-source A/B assignments under
+   ADR-0063; do not combine failed-only reruns or relabel P7 receipts as P8 runs.
+   Recheck exact live protection and zero skips, map every exit criterion to its
+   actual proof in a phase exit index, and prepare the review PR on development.
+   Keep actual warm-provider/BFF/API and controlled-browser proofs distinct from
+   Phase 06's full browser-driven OIDC suite. A failed or missing proof leaves the
+   packet/phase incomplete; user review and merge remain subsequent acts.
+
+The first acceptance commit appends ADR-0032's dated amendment, installs G18's
+canonical Architecture 23 matrix, reconciles the Phase 03/11 prerequisites and
+misleading purge/actor-anonymisation wording, and registers the diagnostic and
+inventory rows. Only then does it record G16/G18 as Accepted and permit Step 1.
+Every extension stays Registered until its owner and controls ship; existing
+Implemented obligations do not become Registered merely because this packet
+reviews them. No code has been changed by this proposal.
+
+### P02b-8 proposal review round 1 (2026-10-25)
+
+Two independent readers review `c0261cab` against `0d0696ac`: a
+`gpt-6.1-sol`/xhigh analyzer/security reviewer and a `gpt-6-astra`/high
+data/governance reviewer. Both inspect the proposed package and verify findings
+against the governing code/DDL/records; neither modifies files or runs provider
+tests. There is no runtime implementation to qualify yet.
+
+Three findings are verified and corrected before the next review:
+
+- Preserve Phase 03's existing DSAR export/erasure, global closure and audit
+  redaction implementation; Phase 11's retained-copy/operational work does not
+  acquire or defer those deliverables.
+- Include `System.Exception` itself, not only derived types, in the proposed
+  diagnostic boundary and its positive tests.
+- Distinguish clean literal text from named sensitive constants; named
+  const-local/field references remain subject to the same name matcher.
+
+The baseline Release checks additionally pass all 65 existing LS0001/token
+catalogue unit cases and all five corpus cases, zero skips. Documentation
+fragment/structure/index and whitespace checks pass. These are baseline and
+proposal checks, not evidence that `LS0002` or an erasure workflow is implemented.
+Acceptance and the fresh second proposal review remain pending.
+
+### P02b-8 proposal review round 2 (2026-10-25)
+
+Two new independent readers review `7e6e61ff` against `0d0696ac`: a
+`gpt-6-astra`/high contract/data reviewer and a `gpt-6.1-sol`/xhigh
+proof/execution reviewer. They recheck the proposed analyzer, inventory,
+ownership, catalogue and qualification boundaries against current source and
+Accepted records. The first finds no actionable issue; the second identifies
+one verified acceptance-ordering gap.
+
+G18's vehicle is Architecture 23, not merely a future inventory promise in a
+phase-doc package. The revised proposal requires its concrete canonical matrix,
+the Phase 03/11 prerequisite corrections, ADR-0032 amendment and Registered rows
+in the first acceptance commit, before either gate closes or Step 1 writes code.
+Step 2 now supplies independent field/DDL/grant verification and the coverage
+control. The proposed matrix also spells out each LearnStack job table and
+distinguishes provider subject identity from LearnStack actor identity.
+
+Documentation fragment, structure, generated-index and whitespace checks pass.
+Both reviewers' bounded recheck of this correction remains pending; no provider,
+compiler-implementation or final hosted qualification is claimed. The package
+and both gates remain Proposed/Open until maintainer acceptance.
+
+#### Correction verification (2026-10-25)
+
+Both second-round reviewers independently recheck `7e6e61ff..49b541c5` against
+the current DDL and Accepted records. The acceptance-ordering finding is closed;
+neither identifies a new actionable finding in the bounded correction. Table
+classifications, preserved Phase 03 commitments and the absence of new erasure
+authority remain explicit. This completes both proposal review rounds, not any
+implementation review. Only maintainer acceptance of the proposed G16/G18
+answers and four-step plan remains before the acceptance commit and Step 1.
+
+### P02b-8 acceptance (2026-10-25)
+
+The maintainer explicitly approves the revised package at `486588d9` and directs
+implementation. This acceptance installs the complete decision vehicles before
+Step 1 changes any code:
+
+- [ADR-0032 Amendment 6](../decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25)
+  records `LS0002`'s identity, bounded forms, all-production C# scope, shared
+  tokens and Warning/Phase 03 escalation. The existing Decision, metadata and
+  `LS0001` Domain/Application contract are unchanged.
+- [Architecture 23's canonical inventory](../architecture/23-data-protection.md#durable-asynchronous-store-inventory)
+  covers the actual ten first-party event/job tables, twelve guarded vendor
+  tables, existing audit references, provider events and retained/external
+  copies. Phase 03/11 carriers preserve their respective DSAR/redaction and
+  retained-copy/purge operations, with immutable/grant preconditions explicit.
+- Standards 21 registers the diagnostic and
+  `Durable_Async_Store_Inventory_Covers_The_Storage_Census`; the analyzer release
+  record registers `LS0002`. Both new catalogue obligations are Registered until
+  their implementation and controls ship.
+- G16 and G18's inventory part are Accepted — 2026-10-25. Prior payload and
+  failure-descriptor decisions remain Accepted; this adds no erasure authority,
+  retention interval, grant or application permission.
+
+The four approved implementation steps follow on `development`, each with its
+commit, two fresh independent review rounds and committed verified corrections.
+No implementation or final-source CI/phase exit is claimed by this acceptance.
+
+### P02b-8 Step 1 — Sensitive exception analysis and compiler scope (2026-10-25)
+
+The acceptance commit is `4b29ea70`. This step implements `LS0002` under
+ADR-0032 Amendment 6 without changing runtime exception handling or widening
+`LS0001`'s Domain/Application scope.
+
+- An internal netstandard-compatible word matcher supplies runtime redaction and
+  analyzer source; the public facade retains matching behavior and returns the
+  cached immutable complete union. Loaded-assembly parity and all-token samples
+  complement an isolated two-word-only source propagation proof.
+- Semantic throw analysis covers the accepted direct string, interpolation and
+  concatenation forms with fixed diagnostics. Compiler-clean positive/negative
+  cases exercise base/derived/aliased/target-typed exceptions, constants,
+  argument position, generated code and the declared exclusions.
+- `backend/src/Directory.Build.props` supplies the analyzer automatically to all
+  production projects. Sixteen local references are removed. The compiler-visible
+  scope property keeps `LS0001` on its former project set; evaluated Debug/Release
+  wiring, a planted new nested project and actual builds verify both rules.
+- Disposable builds use actual copied props, source and local package archives:
+  `CI=true` still allows `LS0002` Warning, while an unrelated CS0219 warning fails.
+  This local-cache restore is not a production vulnerability-audit claim.
+- Behavioral samples reject unsuppressed compiler warnings/errors. Recompiling
+  the real analyzer for source propagation separately uses its evaluated SDK
+  references and NoWarn settings, including SDK assembly-version unification;
+  no new sample-warning exemption or runtime dependency is introduced.
+- Five design-time factory sites suppress only the public environment-key-name
+  constant false positive, with a local explanation. Credential values are not
+  interpolated; the rule is never disabled for a project. Standards 09/11/21 and
+  the redactor comment now describe the bounded guard rather than a secrecy proof.
+
+Validation after formatting: full Release solution build with `CI=true`, zero
+warnings/errors; all 2,665 Unit cases, 298 Docker-free integration cases and five
+Contract cases pass, zero skips. Eleven relevant architecture cases pass,
+including corpus, actual project wiring, domain-exception dirty controls and
+the production compiler-input/genericity census. The new controls include real
+SDK builds, not only synthetic compiler invocation. Documentation fragment,
+structure/index and whitespace checks pass.
+
+The diagnostic catalogue row is Implemented; the inventory drift row remains
+Registered for Step 2. Full final-source A/B/Docker/phase-exit qualification is
+Step 4, not inferred from these local results. Both fresh implementation review
+rounds remain pending before Step 2 begins.
+
+### P02b-8 Step 1 review round 1 (2026-10-25)
+
+Two fresh readers review `212ec0f4` against acceptance `4b29ea70`: a
+`gpt-6.1-sol`/xhigh analyzer/security reviewer and a `gpt-6-astra`/high
+wiring/proof reviewer. The latter independently runs the evaluated wiring cases
+(3/3, zero skips); the former compares compiler diagnostics for ordinary and
+dynamically bound exception construction without changing repository files.
+
+Two findings are verified and corrected:
+
+- An unrelated dynamic constructor argument changes the operation to
+  `IDynamicObjectCreationOperation`, bypassing the original static-creation-only
+  guard despite a known Exception type and direct string message. The guard now
+  applies the same accepted argument checks to both forms. Three positive and
+  one ordinary-message negative compiler-clean cases lock the distinction.
+- The old XML-reference parser was called only by its own assertions after the
+  active check moved to evaluated MSBuild. That superseded helper and its
+  self-only assertions are removed; real compiler plants and evaluated metadata
+  dirty controls remain.
+
+After correction, the full `CI=true` Release build has zero warnings/errors;
+all 2,669 Unit cases and ten affected architecture cases pass with zero skips.
+The original HTTP/Contract and production-census results retain their recorded
+scope. No new policy or diagnostic-coverage exclusion is introduced. Fresh
+second-round review remains required before Step 2.
+
+### P02b-8 Step 1 review round 2 and closeout (2026-10-25)
+
+Two new reviewers independently inspect `4682e269` against acceptance
+`4b29ea70`: a `gpt-6-astra`/high semantics reviewer and a
+`gpt-6.1-sol`/xhigh proof/wiring reviewer. Both approve with no remaining
+Blocker, Major or Minor finding in their reviewed scope. The dynamic-constructor
+fix and removal of the superseded parser are included, not assumed from the
+first-round receipt.
+
+The semantics reviewer independently runs 113 semantic/token cases, including
+the source-propagation clone. The proof reviewer runs 115 Unit and eight
+architecture cases, including current Debug/Release wiring and corpus counts.
+All pass with zero skips. The second reviewer inspects the disposable real-build
+and source-mutation machinery without claiming an independent rerun of it;
+the root's full build/2,669-Unit and broader local receipts remain separate.
+
+Step 1 is complete with both fresh review rounds and committed verified fixes.
+The next approved step independently verifies the canonical erasure inventory
+against actual storage and adds its drift controls. No final hosted/Docker/A/B
+or phase-exit result is inferred from this local closeout.
+
+### P02b-8 Step 2 — Independent asynchronous inventory coverage (2026-10-25)
+
+The structural control reads the ordered compiled `PlatformDbContext` and
+`AuditDbContext` migration `UpOperations`, without opening a database or consulting
+a design-time factory or private configuration. Evaluating those operations
+expands the pinned vendor installer resources. A bounded table-declaration reader
+tracks typed and literal SQL CREATE/DROP/RENAME operations and refuses unsupported
+or ambiguous table DDL rather than silently omitting it.
+
+The complete Platform census contains 23 tables: the inventory's ten first-party
+and twelve vendor rows, plus the explicitly documented `idempotency_keys` scope
+exclusion. The vendor rows independently match `HangfireStorageContract.Columns`;
+Audit's migration chain independently establishes `audit_log`. Required provider,
+diagnostic, backup/WAL and volatile BFF entries remain distinct from that SQL
+census. Marked canonical tables prevent incidental nearby prose from satisfying
+a missing row. The existing live PostgreSQL schema census remains independent.
+
+Five new architecture facts cover the clean subject, added/dropped/renamed storage,
+changed vendor contract, each removed or duplicated inventory/exclusion/custody
+row, blank vendor classifications, malformed tables/markers and unsupported DDL.
+All five pass in Release with zero failures/skips, as do the five corpus controls.
+The catalogue now reports 270 methods and 237 Implemented rules, 134 in the
+architecture assembly and 103 elsewhere. Documentation fragment/structure/index
+and whitespace checks pass.
+
+This is structural coverage, not field-level erasure, legal compliance, provider
+schema discovery or a new purge/grant/retention mechanism. Independent review of
+subject locators and existing authority remains part of this step. Both fresh
+implementation review rounds remain pending.
+
+### P02b-8 Step 2 review round 1 (2026-10-25)
+
+Two fresh independent reviewers inspect `b20ffaeb` against `fa56aac3`: a
+`gpt-6.1-sol`/xhigh census/proof reviewer and a `gpt-6-astra`/high data/governance
+reviewer. The latter independently checks migration fields/grants, immutable
+inbox/job facts, causal audit metadata, the six-column redaction boundary,
+pinned provider event fields and volatile BFF custody; no actionable finding is
+identified and no provider test is claimed.
+
+The census reviewer reruns the five existing Release cases, zero skips, and
+reproduces two omissions against the compiled internal parser/checker through
+an owned temporary reflection harness: top-level `SELECT INTO` can create a
+persisted copy without a CREATE token, and split-literal dynamic EXECUTE can
+construct table DDL without a complete declaration inside any one literal. Both
+leave the prior census unchanged and were therefore wrongly accepted. The fix
+must refuse these unsupported paths without confusing PL/pgSQL variable
+assignment or the pinned installer's non-table dynamic statements.
+
+The independent live PostgreSQL backstop also passes its table-class/RLS census
+and both unknown-table/history-lookalike controls, 3/3 with zero skips. These
+checks do not remove the new structural parser's obligation to reject its own
+unsupported shapes. Correction verification and the second fresh review round
+remain pending.
+
+#### Correction verification
+
+Both verified SQL omissions now refuse through the same complete inventory
+checker. Dollar-body tracking preserves existing PL/pgSQL INTO assignments;
+unresolved dynamic EXECUTE refuses, with bounded literal concatenation accepted
+only for the pinned installer's non-table schema/sequence/index commands.
+Additional format/variable EXECUTE negatives and the legitimate assignment/
+installer positives exercise that boundary. The five inventory and five corpus
+Release cases pass together, zero warnings/failures/skips; scoped formatting,
+documentation and whitespace checks pass. The fresh second review remains
+pending.
+
+### P02b-8 Step 2 review round 2 (2026-10-25)
+
+Two new independent readers review `fa56aac3..c241301b`: a
+`gpt-6-astra`/high contract/data reviewer and a `gpt-6.1-sol`/xhigh proof reviewer.
+Each reruns the five Release inventory cases with zero skips. The first confirms
+actual compiled migration/vendor discovery, independent contract reconciliation,
+canonical row controls and authority limits without an actionable finding.
+
+The second confirms R1's corrections and independently reproduces three further
+false passes through the compiled complete checker: SET LOCAL/SESSION search-path
+and SET SCHEMA aliases can hide a colliding non-public table; a dynamic variable
+named `function` or `procedure` is wrongly treated as trigger syntax; and SQL
+RENAME loses the source schema, mistaking a non-public table for a public one.
+The reviewer verifies the SQL semantics in rollback transactions on an owned,
+unpublished `postgres:18.4-alpine` container and removes that exact container.
+No production/developer database or private environment is used.
+
+These are bounded reader defects, not changes to storage or erasure authority.
+They require supported name resolution or explicit refusal, genuine trigger-only
+exemptions, and complete-checker controls. Correction and both second-round
+reviewers' bounded rechecks remain pending before Step 2 closes.
+
+#### Correction verification
+
+The reader now explicitly refuses non-public table storage rather than inferring
+schema-qualified renames. Search-path handling covers LOCAL/SESSION, quoted names,
+SCHEMA aliases and DO-body statement starts; only the supported singleton public
+path passes. Trigger EXECUTE exemptions require actual top-level trigger syntax;
+GRANT/REVOKE clauses remain separate from dynamic commands. Nine complete-checker
+regressions exercise these reviewed paths, with supported public-path/rename,
+trigger and grant positives. Inventory 5/5 and corpus 5/5 pass in Release, zero
+warnings/failures/skips. Scoped formatting and whitespace checks pass. Both
+second-round reviewers' bounded correction rechecks remain pending.
+
+### P02b-8 Step 2 closeout (2026-10-25)
+
+Both second-round reviewers independently recheck `c241301b..bfa6ec89` and
+approve the bounded corrections without a new actionable finding. The proof
+reviewer reruns the original counterexamples through the compiled complete
+checker; all now refuse. The contract reviewer reruns the five inventory cases;
+the proof reviewer runs inventory/corpus together, 10/10, zero failures/skips.
+No new provider, field-erasure or legal-compliance claim follows from these checks.
+
+Step 2 and both fresh implementation review rounds are complete. The canonical
+inventory is installed, its structural drift control is Implemented, and the
+independent existing live PostgreSQL census/control cases have passed. Step 3
+now reconciles remaining current-tense carriers, inherited catalogue obligations
+and the unchanged documentation-lint handoff. Step 4 retains final-source local
+and complete hosted A/B qualification; none is inferred from this closeout.
+
+### P02b-8 Step 3 — Delivered carriers and catalogue reconciliation (2026-10-25)
+
+The current phase plan now describes the delivered JWT/UUID/matrix/recorder,
+realm reconciliation and bounded read-only surface. Assertion audit is subject
+to ADR-0065 admission; the whole-chain quota control uses a reduced subject
+budget below the unchanged ingress floors, not an end-to-end 600/minute promise.
+Provider events and local BFF diagnostics remain separate from module audit
+registration. Explicitly historical preparation and Accepted/delivered records
+retain their original state.
+
+Architecture 31 preserves immutable actor identity and surviving causal metadata
+without claiming complete anonymisation. Architecture 33, workflow skills and
+source comments describe the actual seven behaviors plus handler, pass-through
+permission shell, shared composition helper, immediate outbox INSERT, owner-side
+domain completion and independent dispatch. Automatic in-tree analyzer wiring
+and Warning posture replace the obsolete NuGet/manual-registration example.
+The platform gate remains deny-all; only its stale fixed explanatory sentence
+changes. Cache invalidation retains its TTL-bound race, without assigning a
+nonexistent post-commit seam to the outbox.
+
+Adjacent database/audit/gateway/phase/contributor carriers now point to actual
+schema classes, shipped job controls and their distinct Phase 03/11 owners.
+Front doors remain phase pointers. Phase 03 inherits XML-documentation target
+existence and changed-prose width CI checks on the unchanged second-write-
+contributor trigger. The read-only live census still finds one writer and the
+same seven strict required contexts; no repository setting is changed.
+
+The complete catalogue audit includes 45 entries whose Phase names 02b and the
+nineteen inherited P02b-4 obligations: all 64 are Implemented, including frontend
+and offline owners and the new analyzer/inventory controls. The provider-SDK
+rule remains Phase 03 backfill at the first actual runtime SDK; direct HTTP
+tooling does not manufacture that subject. Three development realm roles and
+full scope remain real and inert application authority, so neither is removed
+on the strength of a stale review premise. Production job registries remain
+intentionally empty.
+
+Validation: `CI=true` Release solution build has zero warnings/errors; Unit
+2,669/2,669, affected architecture 28/28, Docker-free HTTP 298/298 and Contract
+5/5 pass, zero skips. Frontend typecheck/lint and guarded 2,376 cases pass;
+offline shard/result controls pass 72/72 and 30/30. Documentation fragment,
+structure/index, added-prose width and whitespace checks pass. Full-source
+hosted A/B qualification remains Step 4, and both fresh Step 3 review rounds
+remain pending.
+
+### P02b-8 Step 3 review round 1 (2026-10-25)
+
+Two fresh independent reviewers inspect all 24 files in
+`3a564448..1231aedc`: a `gpt-6-astra`/high contract/authority reviewer and a
+`gpt-6.1-sol`/xhigh corpus/proof reviewer. Both approve without an actionable
+finding. They compare current identity/refusal/audit and owner-completion
+claims with source, preserve the deny-all platform gate and erasure prerequisites,
+and confirm that Accepted bodies and historical records remain intact.
+
+The corpus reviewer independently recounts 45 explicit Phase 02b entries plus
+nineteen inherited job obligations, verifies the inherited canonical-owner
+methods, and checks backend/frontend/offline ownership. Paginated read-only
+GitHub checks again find one writer and the same seven strict contexts bound
+to Actions app `15368`. Documentation lint resolves 2,328 fragments; corpus
+5/5 and selected inventory/pipeline/authority/surface controls 29/29 pass from
+existing Release binaries, zero skips. The contract reviewer performs source
+review only. Neither claims fresh build, full suites, provider/browser or hosted
+A/B execution. The fresh second review round remains pending.
+
+### P02b-8 Step 3 review round 2 and closeout (2026-10-25)
+
+Two new independent reviewers inspect `3a564448..4d242bc8`, including all
+24 changed implementation files and the first review receipt: a
+`gpt-6.1-sol`/xhigh semantics reviewer and a `gpt-6-astra`/high proof/governance
+reviewer. Both approve without an actionable finding. They independently confirm
+all 64 obligations and the nineteen inherited canonical owner methods, current
+carrier/code agreement, actor/metadata limits, shared pipeline registration and
+unchanged Phase 03/11 responsibilities. Neither edits files or changes settings.
+
+The proof reviewer runs existing Release corpus checks 5/5, zero skips, and
+passes documentation lint (2,329 fragments, structure and indexes) and whitespace
+checks. Its read-only live GitHub check again confirms one writer and seven
+strict required contexts bound to app `15368`. The semantics review is source/
+corpus inspection only. Neither claims full suites, provider/browser or hosted
+A/B execution.
+
+Step 3 and both fresh review rounds are complete. Step 4 now owns the individual
+exit-evidence index, full-source local and hosted A/B qualification, final live
+protection verification and the review PR. Until those proofs complete, P02b-8
+and Phase 02b remain in progress.
+
+### P02b-8 Step 4 — Individual exit ownership and source freeze (2026-10-25)
+
+The [individual exit index](phase-02b-exit-evidence.md) maps all 26 deliverables,
+60 completion criteria and eleven exit obligations in canonical source order,
+plus eleven explicit exclusions and the Dapr/Kafka boundaries. Named method
+owners are checked against actual classes, including partial-file distinctions;
+backend, real integration, frontend, browser, OpenAPI and offline/governance
+lanes stay separate. This is an ownership index, not a passing CI receipt.
+
+Two formerly imprecise proof locators are resolved before hosted qualification:
+
+- C27's vague G6 reference is replaced by ADR-0044's existing declared-type/frame
+  composition contract. The actual app-role
+  `AuditStoreTests.A_capture_of_another_entity_type_does_not_reach_the_row` passes,
+  1/1, zero skips. Frame controls remain separate; this creates no new policy or
+  claim that arbitrary undeclared roots are rejected by a runtime guard.
+- `DeliveryExecutionTests` directly observes the real scoped capture's single
+  clear on success, failure and lost physical COMMIT, preserving the concrete
+  `IAuditSubject` binding. The lost-COMMIT theory counts exactly one standalone
+  indeterminate row by operation, subject and causal event as `learnstack_app`
+  under both tenant/organization GUCs. Completed retries clear no new frame and
+  change no durable count. All 35 existing cases pass with zero skips; no test
+  method/count, production path, schema, grant or retry policy changes.
+
+The Phase 02c owner now explicitly carries its already assigned queued/in-flight
+status-transition decision before the first status/termination writer. It selects
+no hold/drop/dead-letter policy here and preserves lease/quiescence/reservation
+constraints. Its phone-home handoff distinguishes delivered runtime foundation
+from future real Hub definitions and adapter proof.
+
+Before freezing, `c5847a9` joins current main's PR #36 squash ancestry. Main's
+complete tree equals the already included `6b6f0629` source; the merge's complete
+tree equals its development parent. No file content changes or prior qualification
+relabeling occurs. Development remains the working branch.
+
+The integration-only build with existing project references has zero warnings/
+errors, and documentation fragment/structure/index and whitespace checks pass.
+The full local Release architecture suite remains in progress. Earlier Step 3
+local receipts cover unchanged production/frontend source; final hosted complete
+same-source A/B and all actual lanes remain pending. Both fresh Step 4 review
+rounds and the review PR follow those receipts; this record claims no phase exit.
+
+### P02b-8 Step 4 review round 1 — source (2026-10-25)
+
+Two fresh independent readers review `63a4b523..6224bd9e`: a
+`gpt-6.1-sol`/xhigh source/proof reviewer and a `gpt-6-astra`/high index/governance
+reviewer. Both approve the source without an actionable finding. They verify
+all 26/60/11 source-ordered requirement mappings and eleven/two exclusion
+boundaries, exact method owners and partial-file distinctions, the real capture
+observer/subject identity, row-bound app-role indeterminate count, existing C27
+composition rule and unchanged authority/retention boundaries. The index reviewer
+also verifies the content-preserving merge ancestry and passes documentation/
+whitespace checks.
+
+This is source approval only. The frozen code/test source is
+`6224bd9eba807b56b477ee57d6abba7b9caaa1b8`, tree
+`274599e096854e8f0332e8f894596fc45e082fe9`.
+[Run 40145581317](https://github.com/HodeTech/LearnStack/actions/runs/40145581317)
+is the first complete assignment A, still in progress when this entry is made;
+complete same-source B, final-head checks and the full local architecture receipt
+remain pending. Both reviewers require the actual completed receipts before
+qualification approval. Later documentation-only records do not relabel this
+source or any earlier run as a later source's proof.
+
+### P02b-8 Step 4 review round 2 — source (2026-10-25)
+
+Two fresh independent readers review `63a4b523..7ae3d8f3`: a
+`gpt-6-astra`/high semantics reviewer and a `gpt-6.1-sol`/xhigh evidence reviewer.
+Both approve the source without an actionable finding. They verify the complete
+26/60/11 requirement mapping, eleven exclusions and two transport boundaries,
+all 94 explicit class/method locators, actual Docker lanes, concrete capture/
+`IAuditSubject` identity and row-bound app-role indeterminate audit counts. C27
+retains ADR-0044's existing composition policy. Documentation and whitespace
+checks pass. No executable changes follow the frozen `6224bd9e` source.
+
+The full local Release architecture suite now passes 441/441 with zero skips;
+the final solution build has zero warnings and errors. Unit 2,669/2,669,
+non-Docker HTTP 298/298, contract 5/5, frontend 2,376 cases and the relevant real
+PostgreSQL delivery/store proofs also pass. These receipts do not replace full
+hosted qualification.
+
+[Run 40145581317 attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/40145581317/attempts/1)
+completes layout A on the frozen source with 27/27 successful jobs. Before the
+full B rerun, all 25 artifact archives and complete attempt-1 API metadata are
+retained and hash-verified. Independent readers recompute 5,992 unique Passed
+cases, zero skips, backend 3,413 and integration 2,579, plus nine public pages
+and 27 Lighthouse report/HTML pairs with natural cleanup. The largest producer
+takes 984 whole-job seconds; the aggregates take 14/28 seconds. GitHub removes
+A's remote artifacts during the full rerun; the retained authenticated metadata
+and matching archives supply that evidence, not continued downloadability.
+
+This remains source and A-only approval. Full same-source B, the completed-pair
+review follow-up and actual final PR-head qualification remain pending. No
+earlier run, source-only approval or passing A result is counted as phase exit.
+
+### P02b-8 Step 4 — Completed-source qualification and review closeout (2026-10-25)
+
+All four implementation steps and both fresh independent review rounds per step
+are complete. The Step 4 source reviews above are supplemented by completed-pair
+reviews: the round-1 `gpt-6-astra`/high reviewer and both fresh round-2 reviewers
+(`gpt-6-astra`/high and `gpt-6.1-sol`/xhigh) independently verify the actual A/B
+receipts and approve frozen-source qualification without an actionable finding.
+They keep the later receipt-only commit and its actual PR-head result separate.
+
+**Qualified implementation source:**
+`6224bd9eba807b56b477ee57d6abba7b9caaa1b8`, tree
+`274599e096854e8f0332e8f894596fc45e082fe9`.
+[Run 40145581317](https://github.com/HodeTech/LearnStack/actions/runs/40145581317)
+uses two complete attempts: [A/1](https://github.com/HodeTech/LearnStack/actions/runs/40145581317/attempts/1)
+and [B/2](https://github.com/HodeTech/LearnStack/actions/runs/40145581317/attempts/2).
+Both use that exact source and unchanged plan. Neither is a failed-only rerun,
+an older P7 receipt or a union of successful siblings from different attempts.
+
+| Completed proof | A / attempt 1 | B / attempt 2 |
+|---|---:|---:|
+| Successful jobs / required contexts | 27 / 7 | 27 / 7 |
+| Unique Passed .NET cases; skipped cases | 5,992; 0 | 5,992; 0 |
+| Non-Docker / Docker cases | 3,413 / 2,579 | 3,413 / 2,579 |
+| Unit / Architecture / HTTP / Contract | 2,669 / 441 / 298 / 5 | 2,669 / 441 / 298 / 5 |
+| Ordinary / native Docker cases | 2,548 / 31 | 2,548 / 31 |
+| Natural producer ownership and cleanup | 20 / 20 | 20 / 20 |
+| Verified artifact archive digests | 25 / 25 | 25 / 25 |
+| Frontend cases; skips/todos | 2,376; 0/0 | 2,376; 0/0 |
+| Maximum producer whole-job seconds | 984 | 852 |
+| Backend / integration aggregate seconds | 14 / 28 | 17 / 35 |
+| Meta whole-job seconds | 108 | 84 |
+| Public pages / Lighthouse report pairs | 9 / 27 | 9 / 27 |
+| Natural demo cleanup milliseconds | 12,298 | 10,545 |
+
+Independent checks hash every archive against authenticated API metadata, match
+the extracted bytes and source identity, recompute selector assignments from
+the full discovery and reviewed plan, and validate exact case IDs/raw TRX
+unions, zero skips, toolchain/resources and natural cleanup. The 35 delivery
+cases include both lost-COMMIT variants; the actual C27 store proof also passes.
+Frontend job logs independently state 2,376 passes in two packages with zero
+skips/todos. Public receipts match source/tree, all nine URLs and 27 JSON/HTML
+digests, passed budgets and confirmed process/Compose/private-file cleanup.
+
+Before starting B, all A archives and complete attempt-1 API metadata are
+retained and their hashes verified. A's remote artifacts were unavailable on
+readback after B started. This corrects the round-2 source receipt's causal
+wording: the observed timing does not establish the cause of removal. A's
+artifact IDs identify the captured provenance; this record promises no continued
+remote downloadability. B is independently verified against its completed API
+snapshot and all 25 archives.
+
+Actual co-membership changes, rather than renamed bins: Architecture moves 221
+methods / 359 cases; ordinary moves 1,074 / 2,256. Across the declared
+fixture-bearing classes, 1,071 methods / 2,253 cases move. Both grouping sets
+differ under the independent shared-fixture check. Two assignments do not prove
+absence of every possible ordering dependency.
+
+Both attempts capture the same .NET SDK `10.0.402`, console
+`18.7.0-release-26505-111`, console/dependency hashes and xUnit adapter `2.8.2.0`
+hashes. Runner receipts identify Ubuntu 24.04 image `20261023.334.3`, kernel
+`6.17.0-1022-azure` and four CPUs. Both demos record Node `v22.23.1`, Playwright
+`1.64.0`, Chromium revision `1248`, Lighthouse `13.5.0` and the same configuration
+digest. These are observed identities, not claims that moving runner labels or
+the SDK roll-forward policy pin those binaries indefinitely.
+
+- Manifest digest:
+  `a3244565e6b1842821760e919e1c3e6e1eeec3ed151d8ed9f6981199288cd7e4`.
+- Plan digest:
+  `69bbbf02314096983765b4fda1ded636c3698903d4b714393b4280c5e504016b`.
+- A assignment digest:
+  `8933afb7ec87353cecdeed094abdd6ba2c691ae515a6a13c48c7a45a9c927374`.
+- B assignment digest:
+  `1a90b01a179388c0e4509a71928ede67b490c3acaabfb5961ecfb42773b36075`.
+- Independent pair audit SHA-256:
+  `bed7f4cb97bfba59cd60473cb85a3cc0e4f733899ff74ff81c60d1c43912f64f`.
+- A/B supplementary audit SHA-256:
+  `996c10658fa9880c4f8d978513ee39f65411ce02c0093b20e6516db0baefe68e` /
+  `833338062f12b8f40baadc0324d209c053ca83112770a45bb7561f3d09f73b4b`.
+
+**Live protection, read back 2026-10-25:** strict up-to-date protection retains
+all seven exact contexts, each bound to GitHub Actions app `15368`: backend,
+frontend, secret scan, meta, backend integration, OpenAPI diff and public demo +
+Lighthouse. Their complete names remain canonical in
+[Contributing](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main).
+Only `cemililik` has write access; `hodesis` is read-only. The documentation-lint
+trigger requiring a second collaborator with write access has not fired; Phase
+03 retains its unchanged named owner. Required reviews remain zero and admin
+enforcement is false under the documented single-contributor deferral; no
+settings change is made by this packet.
+
+The [individual exit index](phase-02b-exit-evidence.md) maps all 26 deliverables,
+60 completion criteria and eleven exit obligations, plus exclusions and
+transport boundaries. All 45 explicit Phase 02b catalogue obligations and
+nineteen inherited job obligations are Implemented with real proof owners.
+No erasure, legal-compliance or full browser-driven OIDC guarantee follows from
+this index or the structural store census. Phase 03 retains the accepted
+severity/authorization/privileged erasure work; Phase 11 retains production
+operations; Phase 06 retains its full browser journeys. Phase 02c starts on its
+own billing/plan-gating trigger and does not gate Phase 02b exit.
+
+This closeout changes only the delivery receipt/generated index, phase Status
+and exit-index qualification notes. No executable, plan, toolchain or fixture
+lifetime changes. Under ADR-0063's normal-future-push rule it still requires one
+complete current-head assignment before PR readiness, including the PR-only
+meta gates omitted by `workflow_dispatch`. The review PR's live checks record
+that result. A/B remains attributed to the frozen implementation above, never
+to this later receipt-only commit. Maintainer review and merge remain separate
+acts; Phase 02b stays in progress until that merge closeout.
+
+### P02b-8 PR correction verification (2026-10-25)
+
+This pass starts from PR #37 head `141592fa`. Its historical qualification stays
+attributed to that source and the earlier frozen implementation; none of those
+receipts qualifies the corrections below.
+
+**Verified corrections.**
+
+- Add the LS0002 Debug/Release production corpus guard, including suppressed
+  diagnostics; prove unconditional analyzer-reference ancestry and evaluated
+  execution/severity settings. Target-time ProjectReference removal/update and
+  editorconfig/targets suppression have planted controls. An explicit operation
+  stack replaces recursive analyzer traversal without changing its expression,
+  token, type or generated-code scope.
+- Remove the five broad LS0002 factory pragmas through accurate constant names,
+  preserving their environment keys and messages. Add compiler-clean descriptor,
+  dynamic-argument, rethrow, culture and clean-build controls.
+- Reconcile all five compiled migration chains with inventory classifications
+  and explicit synchronous/module exclusions. Unsupported stored projections,
+  opaque procedural DDL, adjacent dollar terminators, search-path manipulation
+  and schema mutation fail closed with origin-specific reasons. A separate
+  PostgreSQL control discovers ordinary/partitioned/materialized relations.
+- Observe the unmodified production audit capture and its subject alias, real
+  population and empty terminal state; prove cross-scope isolation and no
+  indeterminate row after acknowledged success. Retained call-count behavior
+  tests and real delivery state tests cover different aspects of cleanup.
+- Correct stale purge grants, pending job-runtime wording, owner omissions,
+  pseudonymity and whole-payload redaction claims. Phase 03 owns application
+  recovery/dashboard and first-writer authority; Phase 11 owns gateway/purge
+  qualification. The exit index names the actual row-8 and Contract-lane proofs.
+  Its mode-boundary test now composes every DeploymentMode value in a Development
+  test host; it does not qualify production deployments.
+- ADR-0032 Amendment 7 clarifies the already-approved severity/wiring/scope
+  contract. It leaves Amendment 6 and earlier Accepted text unchanged.
+
+**Bounded dispositions.**
+
+- Runtime matcher plural/digit/compound expansion, type-based analyzer
+  exclusions and non-thrown/factory coverage would change the approved contract;
+  they are not introduced by a regression fix. The documented name-based limits
+  remain mandatory review considerations at Phase 03's Error gate. A proposed
+  EF-only generated-source/no-throw restriction was rejected and removed;
+  Roslyn's general generated-code exclusion remains explicit.
+- C27's historical criterion delegates its outcome to G6. ADR-0044 Amendment 5
+  selects captures matching declared EntityType, while ADR-0057 separately
+  refuses unregistered mutating handlers. The index proves that existing filter;
+  it does not select arbitrary extra-root rejection or certify every possible
+  direct write. No new erasure, purge, privilege or retention decision is made.
+- Exact vendor columns already have the independent applied-schema
+  `HangfireSchemaShape.Verify` proof. The structural inventory does not duplicate
+  it or claim to discover personal data hidden in values.
+- Foreign worktrees and existing history are untouched. In particular, the
+  append-only earlier artifact-removal sentence is superseded by the explicit
+  observed-timing correction in the Step 4 closeout, not silently rewritten.
+
+**First correction review round.** Three fresh automated sessions inspect
+bounded, disjoint primary surfaces against this baseline working tree:
+
+| Session | Model / effort | Scope and verified result |
+|---|---|---|
+| `pr37_fix_r1_storage` | GPT-6-astra / high | Inventory, live census and real capture proof; approve with stated structural/runtime limits |
+| `pr37_fix_r1_analyzer` | GPT-6.1-sol / xhigh | Analyzer/build/corpus/suppression; real MSBuild-only probes expose target-time reference mutation; corrected controls pass review; unsupported generated restriction removed |
+| `pr37_fix_r1_docs` | GPT-6-astra / high | Accepted scope, carriers and exit ownership; no Blocker/Major; missing Contract executor labels corrected |
+
+“Independent” here means separate fresh-context automated review sessions with
+shared repository access, not human approval or separately administered hosts.
+These records preserve scope, model, finding and disposition; full provider
+transcripts are not committed or claimed as a permanent audit archive.
+
+**Local validation.** Release solution build: zero warnings/errors. All 2,692
+unit cases pass, zero skips. Focused architecture validates 94/95 initially;
+the single catalogue-owner classification error is corrected, and the complete
+five-case CorpusConsistency group then passes. The published census is 279 test
+methods and 237 Implemented rules (134 architecture, 103 other owners).
+Inventory controls pass 40/40, live relation-kind PostgreSQL controls 3/3, and
+final capture/delivery/all-mode integration controls 40/40, all without skips.
+Removing the owner Clear kills all seven targeted delivery paths; changing its
+capture to singleton kills the scoped-root control. Both mutations are restored
+byte-for-byte and the normal binaries rebuilt before the final passing run.
+Documentation fragment/structure/index checks and seven ADR parser controls pass.
+
+Second-round review and current correction-source hosted qualification remain
+pending. GitHub's required conversation resolution is a separate merge gate,
+alongside the seven required checks and maintainer review. The two corrected
+threads must be resolved after their changes are published and verified.
+
+**Evidence lifetime.** Existing workflow artifacts have finite seven-day
+retention. The earlier archive hashes and supplementary audit hashes identify
+the evidence read at qualification time; they do not promise permanent remote
+availability or committed copies of those audit aids. Retained local receipts
+are not a substitute for source attribution or a public permanent archive.
+Future operational retention remains Phase 11's responsibility.
+
+### P02b-8 correction review round 2 and source freeze (2026-10-25)
+
+The completed code correction source is
+`5da6bab383d77a9d43f6ab310a03b49a13ccaf02`, tree
+`75862d496ea54940b0ded95f6d3a5cb7cebdb9a9`, after commits `60a9721c` and
+`b4b85dea`. This receipt and prose-only wrapping add no executable change.
+
+Two new fresh-context automated reviewers independently inspect the committed
+correction and its bounded fixes:
+
+| Session | Model / effort | Final source and result |
+|---|---|---|
+| `pr37_fix_r2_code` | GPT-6-astra / high | `5da6bab3`; approve across changed C# and direct contracts after the opaque-routine finding and header/path variants are corrected |
+| `pr37_fix_r2_contracts` | GPT-6.1-sol / xhigh | `5da6bab3`; documentation approval after two remaining adjacent carrier comments are synchronized |
+
+These source reviews execute no builds or PostgreSQL tests themselves. Their
+approval verifies implementation and proof design; the execution below is the
+implementing agent's evidence, not an attributed independent rerun.
+
+**Verified second-round finding.** A quoted FUNCTION/PROCEDURE body can hide
+split dynamic table DDL, just as a quoted DO body can. All four initial planted
+routine cases fail before the fix for the intended missing-refusal reason.
+The bounded reader now requires a dollar-quoted routine body, scans the complete
+declaration through its terminator, and separates default-string dollars and
+parenthesis depth from the body AS. Search-path options before and after the
+body admit the current explicit public/pg_catalog forms and refuse unresolved
+or foreign paths. Quoted setting names do not broaden quoted schema identity.
+The actual five migration chains and pinned installer remain clean.
+
+Final inventory/CorpusConsistency selection passes **58/58**, zero skips. A
+separate owned PostgreSQL selection passes **5/5**, including actual table
+creation through the quoted dynamic routine and quoted setting-name behavior.
+The earlier complete Unit and capture/delivery/all-mode runs remain applicable:
+only the inventory test reader, its controls and these isolated PostgreSQL cases
+change after their passing source. Test-method/catalogue counts remain
+279 / 237 / 134 / 103; additional theory rows are not new methods or rules.
+Whitespace, fragment/structure/index and commit-hook format/leak checks pass.
+
+The unchanged CI plan, algorithm and seven required context names are retained.
+Current correction-source hosted qualification is still pending. Freeze the
+code here before collecting its complete assignments; never relabel earlier
+5992-case receipts as proof of the new population. Conversation resolution,
+maintainer review and merge remain separate release gates.
+
+### P02b-8 CI fixture-witness reconciliation (2026-10-25)
+
+[Run 40174825328](https://github.com/HodeTech/LearnStack/actions/runs/40174825328),
+head `0d9dea4f`, fails the meta job's
+`test_shared_fixture_witness_matches_actual_source_classes`. The newly added
+`StorageRelationCensusTests : IClassFixture<PostgresFixture>` is absent from
+`ci-test-shards-plan.json`'s fixture witness list. The local pre-push selection
+omitted this relevant offline control; a passing Unit/database run did not
+establish plan consistency. This is an implementation bookkeeping omission,
+not a passing qualification or an unexplained infrastructure incident.
+
+Add exactly that sorted class entry. Counts, weights, algorithm, salt, bounds
+and job topology remain unchanged; the list changes the fixture witness
+population, not assignment membership. The plan digest changes. The fresh
+`pr37_fix_r2_contracts` reviewer independently verifies this single-line delta
+against the actual fixture declaration and approves it without selecting new
+policy. Both offline selections pass: 72 plan controls and 30 result controls.
+
+The reviewed application/test code remains at `5da6bab3`. Collect fresh complete
+A/B attempts for the corrected plan, with exact current test identities and
+actual cleanup; the failed run and all earlier receipts remain source-bound
+history. No omitted case, disabled control or increased ceiling is used to
+recover the result.
+
+### P02b-8 CI witness and SQL-literal corrections, review round 1 (2026-10-25)
+
+The complete `c399ba52` attempt in
+[run 40175295858](https://github.com/HodeTech/LearnStack/actions/runs/40175295858)
+finishes 25/27 jobs successfully. `ordinary-3` contains one failed case,
+`Terminal_audit_backlog_remains_faulted_beyond_two_leases_while_native_business_commits`;
+the integration aggregate consequently refuses the attempt. Authenticated API
+metadata and the failing artifact ZIP digest match. Its finite failure location
+is `facade_business:89`: the handler-entry list is expected to contain two IDs.
+The manifest contains 6096 test identities; this failed attempt is not a passing
+qualification. Backend, frontend, meta and public-demo successes do not override
+the failed integration population.
+
+**Business witness defect.** The list adds a fresh organization ID before the
+business transaction commits, while the accepted transactional runtime permits
+rolled-back attempts and bounded retries. A controlled transient refusal after
+the original first successful nested write reproduces the same line-89 failure:
+three entries rather than two. The original bytes are restored before the final
+repair. This proves an invalid test witness; it does not establish the specific
+historical CI retry trigger.
+
+The repaired test derives stable organization identity from the authoritative
+JobTenantContext.JobId, deliberately rolls back one successful nested write per
+logical job, and verifies absence on re-entry. Each completed job must have one
+durable organization and one successful MUST audit, with ledger/summary admission
+agreement and bounded body entries. All hundred terminal rows, revoked audit
+permission, native bridge, two-lease hold and original deadlines remain intact.
+The target and two business/renewal siblings pass 3/3, zero skips; the Docker
+trait guard passes. No production retry or timeout policy changes.
+
+**SQL literal defect.** A newly verified inline finding shows escaped E/e
+strings can hide subsequent SELECT INTO from the old ordinary-quote tokenizer.
+Three negative plants reproduce missing refusals before the fix. E/e boundaries
+are recognized without evaluating their values; configuration names and pinned
+EXECUTE retain ordinary-only literal requirements. A fresh reviewer also exposes
+newline escape-string continuations; three further red plants reproduce that
+gap. Adjacent continuations now fail closed, including conservatively refused
+comment-separated forms; operator/terminator-separated values remain supported.
+Actual PostgreSQL cases prove direct and continued escaped strings can precede
+table creation. Current five-chain/installer definitions still pass.
+
+**Fresh first-round source review:** `pr37_ci_r1_backlog` (GPT-6-astra/high)
+approves the one-file witness repair against ADR-0047. `pr37_ci_r1_lexer`
+(GPT-6.1-sol/xhigh) finds the continuation gap, verifies its correction and
+approves the final three-file reader/test scope. Both are read-only source
+reviews; executed negative/positive results above belong to the implementing
+agents. Final census/Corpus selection passes 81/81 and owned PostgreSQL cases
+7/7, zero skips. The published test-method census becomes 282; rule counts
+remain 237/134/103. The fixture declaration, plan, bounds and algorithm do not
+change in this follow-up. Second-round source review and hosted qualification
+remain pending.
+
+### P02b-8 CI corrections, review round 2 and source freeze (2026-10-25)
+
+**Reviewed source:** `93ef4b1881c439a150bb1a8164422e168e4199f7`, tree
+`837daab732414e7840d265e8084ac49eba615786`, against `c399ba52`.
+The failed hosted attempt and first-round correction record above remain the
+owners of the reproduced defects and their bounded claims.
+
+Two fresh, read-only second-round reviewers approve without verified findings:
+`pr37_ci_r2_witness` (GPT-6.1-sol/xhigh) checks the transactional retry and durable
+audit witness against ADR-0047; `pr37_ci_r2_sql` (GPT-6-astra/high) checks escaped
+literal boundaries, conservative continuation refusal, PostgreSQL controls and
+catalogue counts. Neither reviewer claims independent test execution.
+
+The parent independently rebuilds the committed source and runs all 76 census
+cases plus five Corpus controls: 81/81 pass, zero skips. The implementing
+agents' seven PostgreSQL cases and three backlog/business siblings retain their
+separate execution receipts. Both required source-review rounds are complete.
+Production retry policy, timeout bounds, fixture ownership and shard plan are
+unchanged by these corrections. A fresh complete hosted A/B qualification on the
+same source remains required; the earlier failed attempts do not satisfy it.
+
+### P02b-8 native completion qualification correction, review round 1 (2026-10-25)
+
+[Run 40178360488](https://github.com/HodeTech/LearnStack/actions/runs/40178360488),
+attempt 1 at `ec038610`, completes 25/27 jobs successfully. The same backlog case
+now cancels at its second completion wait after 102.719 seconds; integration's
+aggregate consequently fails. Its discovered population is 6,121 cases, not a
+passing qualification. The finite failure receipt establishes cancellation and
+source locations, but not the job's durable phase, native state or retry cause.
+
+**Verified fixture timing gap.** The unchanged 100-second deadline includes a
+31-second hold and two jobs, each deliberately requiring a rollback and retry.
+Native scheduled retries poll at 15 seconds. A callback may harmlessly consume
+its hint before ACK while the application row is locked; ACK then retains the
+accepted 60-second repair grace. The existing owned-lock proof demonstrates
+this legal state. A local four-CPU rerun still passes in 62.679 seconds; neither
+that pass nor the source counterexample proves the historical hosted trigger.
+
+The completion fixture now supplements at most one actual stock hint per
+current durable generation. It first requires the real bridge ACK, database
+eligibility, the original hint's Succeeded state, joined local work and open
+routing authority. A broken bridge, retry control or native scheduler still
+prevents success. This qualifies native completion rather than repair timing;
+the production runtime, grace, retry policy, original deadlines, terminal fault,
+hundred-row backlog and durable business/MUST-audit witnesses are unchanged.
+
+A new real regression rolls back a successful nested write, obtains generation
+2 from actual control, locks that row during the original stock hint, proves no
+second admission and live repair grace, then completes through the correct
+generation. It requires two ledger admissions, one organization and one
+successful MUST audit. Existing generation-1 lock coverage also uses the helper.
+
+The parent runs all three target cases: 3/3 pass, zero skips. Hardcoding the
+supplement to generation 1 makes the new generation-2 regression fail on its
+bounded wait. Original source bytes are restored and rebuilt; both lock cases
+then pass 2/2, zero skips. Offline plan/result controls pass 72/72 and 30/30.
+
+Two independent read-only first-round reviewers approve without verified
+findings: `pr37_retry_timeout_analysis` (GPT-6-astra/xhigh) checks the accepted
+handoff, cleanup and progress contracts; `pr37_handoff_r1_test`
+(GPT-6.1-sol/high) checks fixture isolation and regression non-vacuity. They do
+not claim independent test execution. A second fresh source-review round and
+complete current-source hosted A/B qualification remain pending.
+
+### P02b-8 native completion correction, review round 2 and freeze (2026-10-25)
+
+**Reviewed code:** `0d609804f97bacaeefde5545f868fe6ff89e4f68`, tree
+`c079613a472d02b41d5d5ccfc45b298624272209`, against `ec038610`.
+Two fresh read-only reviewers approve without verified findings:
+`pr37_handoff_r2_protocol` (GPT-6-astra/high) verifies the protocol and cleanup
+fences; `pr37_handoff_r2_witness` (GPT-6.1-sol/high) verifies the regression,
+fixture and documentation claims. Neither reviewer executes tests.
+
+After commit hooks, the parent rebuilds the exact committed source: both locked
+generation cases pass 2/2, zero skips, and the Docker trait control passes 1/1.
+The first-round record above owns the three-case positive run, wrong-generation
+counterfactual and byte-identical restoration. Both review rounds are complete.
+This freeze changes no production implementation, plan or timing bounds. Fresh
+complete hosted A/B qualification remains required before current-source
+readiness; the failed earlier attempts remain failed.
+
+### P02b-8 browser artifact ownership correction, review round 1 (2026-10-25)
+
+[Run 40180307903](https://github.com/HodeTech/LearnStack/actions/runs/40180307903),
+attempt 1 at `d6462dc7`, finishes 24/27 jobs successfully. The repaired backlog
+case passes in 64.556 seconds. Native proof refuses before test launch with
+`unexpected_crash_artifact_docker_overlay_dump_binary_data_image_metadata_unavailable`;
+its runner reports image `20261012.334.1`, while the earlier passing native job
+reports `20261023.334.3`. This difference does not establish the metadata
+failure's cause. The fail-closed native prerequisite is unchanged.
+
+The separate actual browser case fails during counter-journey cleanup with
+`retained_tree`: the C# driver's private temporary parent is not empty. The
+receipt does not identify its retained entry, so historical causation remains
+unproven. Source inspection nevertheless exposes a reproducible ownership gap.
+Pinned Playwright 1.64.0 creates CDP artifacts under its cached process temporary
+directory, outside the nested root the fixture owns. Its removal helper collects
+filesystem errors without making the CDP close fail.
+
+A disposable actual-SDK probe uses stock Chromium `156.0.8078.48` on Darwin and
+an exact-path, process-local removal refusal. Default CDP creates one unowned
+sibling; browser close, joined browser shutdown and fixture disposal succeed
+while the parent remains nonempty. An explicit private artifact directory under
+the owned root leaves no sibling, and owner disposal removes the marker/root
+after actual browser shutdown. Both process groups join without force; the
+scoped filesystem hook is restored and the owned outer root removed. The
+receipt SHA-256 is
+`51fa1cadb45987bedb2662aae843e9265e3884c26d2d2f6943cc469babfd5e8c`.
+This is a controlled ownership proof, not an identification of the hosted residue.
+
+The fixture now creates that `0700` directory and passes it as `artifactsDir`.
+Browser/history assertions, process joins, privacy checks and the parent's
+nonrecursive empty-root guard are unchanged. Actual removal failures still fail.
+The parent runs the full native HTTPS browser positive/history-counter case:
+1/1 passes in 28.845 seconds, zero skips. Existing fixture/observer controls pass
+37/37; Prettier and whitespace checks pass. No application behavior, test
+population, native prerequisite, deadline or shard plan changes.
+
+Two independent first-round source reviewers approve without findings:
+`pr37_browser_cleanup_analysis` (GPT-6-astra/xhigh) executes the isolated SDK
+counterexample and reviews resource ownership; `pr37_browser_r1_isolation`
+(GPT-6.1-sol/high) independently checks source, isolation and cleanup without
+execution. Second-round source review and fresh hosted qualification remain
+pending. Failed runs provide no passing siblings to that qualification.
+
+### P02b-8 browser ownership correction, review round 2 and freeze (2026-10-25)
+
+**Reviewed executable correction:** `65f328358548da9a0af9b6b7eefb045efb9e08d3`,
+tree `446f384e7e3225c7030cdbc4a3318b474eb24830`, against `d6462dc7`.
+Two fresh read-only reviewers approve without verified findings:
+`pr37_browser_r2_sdk` (GPT-6-astra/high) and `pr37_browser_r2_claims`
+(GPT-6.1-sol/high). Both check the pinned SDK, fixture ownership, cleanup and
+receipt limits without executing tests or the SDK counterexample.
+
+The parent retains the first-round actual browser 1/1, fixture/support 37/37,
+controlled SDK refusal and hook build/lint/format receipts. This prose-only
+freeze also corrects the nonexistent `IModule` label in Phase 08a and restores
+ADR-0032 Amendment navigation/current Phase 02b ownership in the decision index;
+the claims reviewer independently verifies those bounded carrier changes.
+No executable, policy, timing, test population or plan change follows this
+review. Both source-review rounds are complete. Fresh complete hosted A/B
+qualification is still pending, with failed attempts and unsupported native
+preconditions kept distinct from successful qualification.
+
+### P02b-8 PR correction qualification and closeout (2026-10-25)
+
+The corrections above and both independent source-review rounds per bundle are
+complete. Their qualified head is
+`7a2ef1d364a55b7438d17e44a02a5309d433d24d`, tree
+`53ffc9e6a4563248d177c13a661fbf8b858d0690`.
+[Run 40182091476](https://github.com/HodeTech/LearnStack/actions/runs/40182091476)
+completes two full attempts, [A/1](https://github.com/HodeTech/LearnStack/actions/runs/40182091476/attempts/1)
+and [B/2](https://github.com/HodeTech/LearnStack/actions/runs/40182091476/attempts/2).
+Neither is a failed-job rerun or a union of successful siblings from different
+attempts. Both check out merge `68684d128b4ac71bc5384f7cc3211068dc9a1bc4`, with
+parents main `0dfade02a08fce6bd937fe0554f94f47c571ca8e` and the qualified head;
+the merge tree equals the head tree. Workflow identity matches that checkout.
+Earlier 5,992-case receipts and failed correction attempts retain their own
+source attribution and do not qualify this population.
+
+| Completed proof | A / attempt 1 | B / attempt 2 |
+|---|---:|---:|
+| Successful jobs / required contexts | 27 / 7 | 27 / 7 |
+| Unique assembly/case IDs Passed; skipped | 6,122; 0 | 6,122; 0 |
+| Unit / Architecture / HTTP / Contract | 2,692 / 540 / 298 / 5 | 2,692 / 540 / 298 / 5 |
+| Ordinary / native Docker cases | 2,556 / 31 | 2,556 / 31 |
+| Natural producer completion and cleanup | 20 / 20 | 20 / 20 |
+| Verified archives / extracted member files | 25 / 957 | 25 / 957 |
+| Frontend cases; skips/todos | 2,376; 0/0 | 2,376; 0/0 |
+| Maximum producer whole-job seconds | 881 | 920 |
+| Maximum producer queue seconds, separate from job wall | 359 | 450 |
+| Backend / integration aggregate seconds | 23 / 32 | 15 / 33 |
+| Meta whole-job seconds | 88 | 112 |
+| Public pages / Lighthouse JSON-and-HTML pairs | 9 / 27 | 9 / 27 |
+| Natural demo cleanup milliseconds | 11,270 | 13,280 |
+
+Authenticated API metadata binds every raw archive digest and all inspected
+member bytes. Exact TRX and incremental-completion IDs, outcomes and durations
+agree across 22 TRXs per attempt; no skipped or forced-cleanup result supplies
+passing evidence. Current-attempt job/artifact identities, source trees,
+selectors, complete disjoint case unions, toolchains and cleanup are checked
+independently. Each worker retains its twenty-minute ceiling; both aggregates
+retain five minutes. Queue delay is not counted as execution wall time. These
+successful runs do not requalify every interrupted-path reserve; the unchanged
+launcher's separate failure-path controls retain that responsibility.
+
+The actual method co-memberships differ, including shared-fixture classes;
+this is not a bin-label rename. Owner relocations cover 229 Architecture
+methods / 405 cases, 1,061 ordinary methods / 2,303 cases and 1,059 shared-fixture
+methods / 2,301 cases. An independent reconstruction also compares label-free
+partitions. The source, complete case manifest and reviewed plan remain equal.
+Two layouts do not prove absence of every possible ordering dependency.
+
+Both attempts observe SDK `10.0.402`, console `18.7.0-release-26505-111`, equal
+console/dependency hashes and xUnit adapter `2.8.2.0` hashes. These observations
+do not pin future runner binaries. Both frontend job logs independently confirm
+2,273 + 103 passes, zero skips/todos. Public receipts bind all nine URLs and 27
+report/HTML digests to the source/tree, pass their budgets and confirm process,
+Compose, private-file, environment and lock cleanup.
+
+- Manifest digest:
+  `ecaeae0e230f34bf8c49aa523f2d58ca683c01d113d99eb58003f58c406b40a3`.
+- Plan digest:
+  `f6be9ba11c6cce2c6bdb7c11415553ec72c39704e03a84a422e53cb74851b0ed`.
+- A / B assignment digests:
+  `b48d9e1c8ffdc668867e9e6d5b31e452e80672b19fe391f997a882722c4e5905` /
+  `7bec875797cbde4b6a51e1aba15c19267285dcc43c706b2fe1e165fbe710cdd4`.
+- Parent pair-audit SHA-256:
+  `10001f727814853dd8b6a1d56f5093c679cc1e271dba0ebfd8f60cb047f24323`.
+- Independent A-audit SHA-256:
+  `8d34a1ae66b8ee46e4c530e338af95a5b61dac5a3d6aac9f94f4012ee7557e39`.
+- Independent completed-pair audit SHA-256:
+  `97b6810d09e38f362d731de56d985db4a5c38d9435cff74c9ba327ad7b8d594b`.
+
+`pr37_qualification_prepare` (GPT-6.1-sol/high) independently approves A's
+complete captured evidence. Fresh `pr37_pair_final_audit` (GPT-6-astra/high)
+independently validates both attempts and label-free partitions and approves
+the pair without scoped findings. Both execute read-only data validation and
+authenticated API/log readbacks, not application builds, tests or browsers.
+These are separate automated contexts with shared repository access, not human
+approval or independent platform attestation.
+
+All A archives and API metadata are sealed and verified before starting B.
+After rerun, the latest artifacts listing exposes B's 25 IDs and none of A's
+captured IDs; explicit attempt-1 job identities still match. The independent A
+checks use retained raw archives and the authenticated snapshot. This observed
+visibility change establishes no removal cause or permanent availability.
+Artifacts have finite retention; neither these hashes nor local supplementary
+audit receipts promise a permanent public archive.
+
+**Live protection readback, 2026-10-25:** strict up-to-date protection and
+required conversation resolution remain enabled. All seven exact contexts in
+[Contributing](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
+remain bound to GitHub Actions app `15368`; all three verified review threads
+are resolved. No remote protection setting is changed.
+
+The earlier [bounded dispositions](#p02b-8-pr-correction-verification-2026-10-25)
+remain explicit: matcher/type/factory expansion and arbitrary extra-root
+rejection are not selected by a regression repair. The inventory grants no
+erasure, purge or privilege authority and proves no legal compliance or full
+browser-driven OIDC coverage.
+
+This closeout changes only the delivery receipt/generated index, phase Status
+and exit-index qualification pointer. Under ADR-0063's normal-future-push rule,
+the later documentation-only head still requires one complete current-head
+assignment, including PR-only meta gates. The PR's live checks own that result;
+this frozen A/B receipt does not imply it. Maintainer review and merge remain
+separate release gates, and Phase 02b remains in progress until merge closeout.
 
 ## Status archive
 

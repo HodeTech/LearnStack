@@ -367,6 +367,10 @@ rules:
   The Roslyn analyzer `LearnStackException-DomainExceptionThrow` flags
   violations; full catalogue entry in
   [docs/standards/21-architecture-tests-catalogue.md](docs/standards/21-architecture-tests-catalogue.md).
+- Silence the production `LS0002` sensitive-exception-message guard project-wide.
+  Its automatic wiring and bounded scope are in the
+  [same catalogue](docs/standards/21-architecture-tests-catalogue.md#learnstackexception-sensitiveexceptionmessage-roslyn-analyzer).
+  A clean report is not data-flow secrecy or a redaction guarantee.
 - Throw `FluentValidation.ValidationException` from `ValidationBehavior` —
   the behavior returns `Result.Fail(validation_failed)` and never throws.
 - Reference `Sentry.SentrySdk` directly from any module assembly — error

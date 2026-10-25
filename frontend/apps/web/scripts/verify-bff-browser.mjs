@@ -207,6 +207,9 @@ try {
     .digest('base64');
   const profile = join(root, 'chromium-profile');
   mkdirSync(profile, { mode: 0o700 });
+  // Keep SDK artifacts inside the root whose actual cleanup the fixture verifies.
+  const artifacts = join(root, 'playwright-artifacts');
+  mkdirSync(artifacts, { mode: 0o700 });
   owner.assertActive();
   stage = 'browser-spawn';
   browserProcess = owner.ownChild(
@@ -263,7 +266,10 @@ try {
     timeout: 10_000,
   });
   stage = 'browser-connect';
-  browser = await chromium.connectOverCDP('http://127.0.0.1:' + port, { timeout: 10000 });
+  browser = await chromium.connectOverCDP('http://127.0.0.1:' + port, {
+    timeout: 10000,
+    artifactsDir: artifacts,
+  });
   version = browser.version();
   assert.match(version, /^\d+(?:\.\d+){1,3}$/);
   stage = 'browser-context';

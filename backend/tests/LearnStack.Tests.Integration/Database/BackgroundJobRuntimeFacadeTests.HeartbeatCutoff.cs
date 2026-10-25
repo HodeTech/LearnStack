@@ -341,7 +341,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         (await command.ExecuteScalarAsync(cancellationToken)).Should().Be(server);
     }
 
-    private static string CreateQualificationWakeup(PostgreSqlStorage provider, BackgroundJobWorkerPoolRegistration pool, BackgroundJobId id)
+    private static string CreateQualificationWakeup(PostgreSqlStorage provider, BackgroundJobWorkerPoolRegistration pool, BackgroundJobId id,
+        long generation = 1)
     {
         var culture = CultureInfo.CurrentCulture;
         var uiCulture = CultureInfo.CurrentUICulture;
@@ -349,7 +350,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         {
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
             CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
-            var job = new Job(typeof(HangfireJobWakeup), HangfireInvocationContract.JobMethod, [id, 1L], pool.Queues[0]);
+            var job = new Job(typeof(HangfireJobWakeup), HangfireInvocationContract.JobMethod, [id, generation], pool.Queues[0]);
             return new BackgroundJobClient(provider, HangfireRuntimeFilters.Create()) { RetryAttempts = 0 }
                 .Create(job, new EnqueuedState(pool.Queues[0]))
                 ?? throw new InvalidOperationException("The real qualification wakeup was not created.");

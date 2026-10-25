@@ -7,15 +7,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors Condition="'$(CI)' == 'true'">true</TreatWarningsAsErrors>
     <!--
-      LS0001 ("LearnStackException-DomainExceptionThrow", ADR-0032
-      § Sub-decision 4 + Amendment 1) is a Warning until the Phase 03 exit
-      gate, then escalates to Error. Keep it OUT of TreatWarningsAsErrors
-      until then so a legitimate aggregate-invariant `throw new
-      DomainException(...)` does not break CI before the documented
-      escalation point. Remove LS0001 from this list when the analyzer's
-      default severity flips to Error after Phase 03 exit.
+      ADR-0032 Amendments 1/6 keep LS0001 and LS0002 as Warnings until
+      Phase 03 exit, including CI. They remain visible, not suppressed.
+      Remove both exemptions when their default severities become Error.
     -->
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);LS0001</WarningsNotAsErrors>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);LS0001;LS0002</WarningsNotAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest</AnalysisLevel>
     <!--

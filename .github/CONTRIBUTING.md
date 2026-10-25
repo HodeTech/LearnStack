@@ -167,8 +167,10 @@ it.
 `make test` starts Testcontainers since Phase 02a Packet 6, so it needs a Docker
 socket and takes noticeably longer than it did. The Docker-bound cases are split
 out by `[Trait("Requires","Docker")]`; to skip them, run
-`dotnet test backend/LearnStack.slnx --filter "Requires!=Docker"`, which is
-exactly what CI's `backend` job runs.
+`dotnet test backend/LearnStack.slnx --filter "Requires!=Docker"` locally.
+CI partitions that population into base and architecture producers, with exact
+coverage checked by the required backend aggregate under
+[ADR-0063](../docs/decisions/0063-complete-bounded-ci-test-shards.md).
 
 The pre-commit hook (activated by `make install`) runs, on staged files only:
 `dotnet format` on `*.cs`; prettier on JS / TS / JSON / Markdown **under

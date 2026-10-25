@@ -8,9 +8,10 @@ namespace LearnStack.Infrastructure.Persistence;
 /// <remarks>
 /// <para>
 /// <c>outbox_messages</c>, <c>idempotency_keys</c>, <c>event_deliveries</c> and
-/// <c>inbox_messages</c> belong to no module: they
-/// are reached through SharedKernel ports by any module's handler and read by
-/// infrastructure that belongs to none of them. <c>IIdempotencyStore</c> ships
+/// <c>inbox_messages</c> belong to no module. This migration chain also owns
+/// LearnStack job state and guarded Hangfire control storage. Their runtime
+/// paths use the corresponding infrastructure ports and confined credentials.
+/// <c>IIdempotencyStore</c> ships
 /// today, behind <c>InMemoryIdempotencyStore</c> until its ADR-0035 trigger
 /// fires; <c>IOutbox</c> enqueues immediately on the ambient transaction under
 /// <see href="../../../../docs/decisions/0057-transactional-event-production-and-completion.md">ADR-0057</see>.
@@ -29,10 +30,11 @@ namespace LearnStack.Infrastructure.Persistence;
 /// registration and never acquire a dispatcher connection.
 /// </para>
 /// <para>
-/// All four tables are tenant-owned despite living outside a module. The
-/// delivery ledger is organization-scoped to protect retained envelopes;
-/// the other three are tenant-wide machinery. Every row carries a tenant key
-/// and the corresponding canonical policy applies.
+/// The original outbox, idempotency, delivery and inbox tables are tenant-owned;
+/// the delivery ledger is additionally organization-scoped. Job and vendor tables
+/// have separate tenant, recurrence-control and vendor-control classes under
+/// <see href="../../../../docs/standards/05-database.md">Database Standards</see>.
+/// They must not inherit the original four-table classification by assumption.
 /// The dispatcher reads across tenants through <c>learnstack_outbox_admin</c>'s
 /// <c>BYPASSRLS</c>, bounded by a column-scoped grant rather than by the policy.
 /// </para>
@@ -45,9 +47,10 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
 
         // No entity types. These tables are written through their ports with
         // parameterised SQL, not through a change tracker: an outbox row is
-        // enqueued and never updated by application code, and an idempotency
-        // claim is a single INSERT ... ON CONFLICT that decides five outcomes in
-        // one round trip (ADR-0037 Amendment 2). Mapping them as entities would
+        // enqueued and never updated by application code. ADR-0037 Amendment 2
+        // specifies the future PostgreSQL idempotency adapter's single-round-trip
+        // claim; the current registered store remains in memory. Mapping these as
+        // entities would
         // add a model nothing queries and invite exactly the row-by-row use both
         // designs avoid.
         //

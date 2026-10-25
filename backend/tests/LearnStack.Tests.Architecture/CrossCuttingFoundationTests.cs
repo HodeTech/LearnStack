@@ -333,9 +333,12 @@ public sealed class CrossCuttingFoundationTests
 
         foreach (var project in AnalyzerReport.Projects())
         {
-            WiresTheAnalyzer(File.ReadAllText(project)).Should().BeTrue(
+            var wiring = await AnalyzerProjectWiring.ReadAsync(project, "Release");
+            wiring.HasAnalyzer(AnalyzerProjectWiring.AnalyzerPath).Should().BeTrue(
                 $"{Path.GetFileName(project)} runs the LS0001 analyzer in its own build "
                 + "(ADR-0032 Amendment 1), or the discipline holds only in this test");
+            wiring.DomainRule.Should().BeTrue("the evaluated compiler scope must enable LS0001");
+            wiring.VisibleScope.Should().BeTrue("the compiler must expose the evaluated rule scope");
 
             runs.Add(await AnalyzerReport.RunAsync(project));
         }
@@ -350,39 +353,6 @@ public sealed class CrossCuttingFoundationTests
             .Should().BeEmpty(
                 "a method with a Result channel returns the expected case instead of throwing "
                 + "it, and an unsuppressed LS0001 is a Warning nobody has justified");
-    }
-
-    /// <summary>
-    /// Whether a project references the analyzer <b>as an analyzer</b>, unconditionally.
-    /// </summary>
-    /// <remarks>
-    /// Read as an element rather than as a line: the attributes may be written in either order,
-    /// comments are not references, and a <c>Condition</c> is refused outright — a conditionally
-    /// referenced analyzer is one that does not run in the configuration the condition excludes,
-    /// and this rule cannot tell which that is. The condition may sit on the reference or on
-    /// the <c>ItemGroup</c> around it, and both hide the analyzer equally well, so a
-    /// conditional group is removed before the references are read — and so is a
-    /// <c>Choose</c> block, whose <c>When</c> carries the condition and whose <c>Otherwise</c>
-    /// runs only when none matched. Both are conditions spelled differently.
-    /// </remarks>
-    internal static bool WiresTheAnalyzer(string projectXml)
-    {
-        var project = Regex.Replace(projectXml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
-
-        project = Regex.Replace(
-            project,
-            @"<ItemGroup\b[^>]*\bCondition\s*=.*?</ItemGroup>|<Choose\b.*?</Choose>",
-            string.Empty,
-            RegexOptions.Singleline);
-
-        return Regex.Matches(project, @"<ProjectReference\b(?<attributes>[^>]*)/?>", RegexOptions.Singleline)
-            .Select(match => match.Groups["attributes"].Value)
-            .Where(attributes => attributes.Contains("LearnStack.Analyzers.csproj", StringComparison.Ordinal))
-            .Any(attributes =>
-                // Either quote: XML admits both, MSBuild reads both, and requiring double
-                // ones reported a correctly wired project as unwired.
-                Regex.IsMatch(attributes, @"OutputItemType\s*=\s*(?:""|')Analyzer(?:""|')")
-                && !Regex.IsMatch(attributes, @"\bCondition\s*="));
     }
 
     [Fact]
@@ -464,28 +434,7 @@ public sealed class CrossCuttingFoundationTests
                 "the invariant guard is the sanctioned suppression, and it is the only one — an "
                 + "aliased Result returns through the same channel as one spelled out");
 
-        // And the wiring check reads an element rather than a line: either attribute order, no
-        // comment, and no condition.
-        const string Reference = """<ProjectReference Include="..\LearnStack.Analyzers.csproj" """;
 
-        WiresTheAnalyzer(Reference + """OutputItemType="Analyzer" />""").Should().BeTrue();
-        WiresTheAnalyzer("""<ProjectReference OutputItemType="Analyzer" Include="..\LearnStack.Analyzers.csproj" />""")
-            .Should().BeTrue("the attributes may be written in either order");
-        WiresTheAnalyzer("""<ProjectReference Include="..\LearnStack.Analyzers.csproj" OutputItemType='Analyzer' />""")
-            .Should().BeTrue("and in either quote, which is XML's rule and not ours");
-        WiresTheAnalyzer(Reference + """/>""").Should().BeFalse("a plain reference is not an analyzer");
-        WiresTheAnalyzer("""<ProjectReference Condition="'$(CI)' == 'true'" Include="..\LearnStack.Analyzers.csproj" OutputItemType="Analyzer" />""")
-            .Should().BeFalse("a conditional analyzer does not run in the configuration the condition excludes");
-        WiresTheAnalyzer("<!-- " + Reference + """OutputItemType="Analyzer" /> -->""")
-            .Should().BeFalse("a commented-out reference is not a reference");
-        WiresTheAnalyzer(
-            """<ItemGroup Condition="'$(CI)' == 'true'">""" + Reference
-            + """OutputItemType="Analyzer" /></ItemGroup>""")
-            .Should().BeFalse("a condition on the group hides the analyzer exactly as well");
-        WiresTheAnalyzer(
-            """<Choose><When Condition="'$(CI)' == 'true'"><ItemGroup>""" + Reference
-            + """OutputItemType="Analyzer" /></ItemGroup></When></Choose>""")
-            .Should().BeFalse("and so does a Choose/When, which is a condition spelled differently");
     }
 
     [Fact]

@@ -9,12 +9,6 @@
     <ProjectReference Include="..\LearnStack.Domain\LearnStack.Domain.csproj" />
     <ProjectReference Include="..\LearnStack.Application.Contracts\LearnStack.Application.Contracts.csproj" />
 
-    <!-- ADR-0032 § Sub-decision 4: LearnStackException-DomainExceptionThrow
-         analyzer flags `throw new DomainException(...)` in Application code
-         too (handlers should return Result.Fail, not throw). -->
-    <ProjectReference Include="..\..\analyzers\LearnStack.Analyzers\LearnStack.Analyzers.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

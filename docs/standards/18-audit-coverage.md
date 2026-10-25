@@ -553,19 +553,18 @@ table above is the policy those deliverables implement, not a description of tod
   changes no platform-admin pre-entry audit or other bypass operation.
   Accepted ADR-0047 adds only the named job/recurrence routing/status extension,
   conditional on exact grants/caller censuses, bounded diagnostics, metrics/health
-  and same-transaction terminal MUST audit. Until P02b-4 implements those controls,
-  acceptance grants no executable exemption; ordinary business mutations and
-  privileged maintenance remain audited under their existing contracts.
+  and same-transaction terminal MUST audit;
+  the [canonical job obligations](21-architecture-tests-catalogue.md#p02b-4-background-job-obligations)
+  name their owners and proofs. Ordinary business mutations and privileged
+  maintenance remain audited under their existing contracts.
 - Accepted ADR-0047's sixth `WriteJobTerminalAsync` method accepts only the actual
   fenced job-transition witness and matching caller connection/transaction. It
   validates stored tenant/organization/job/definition/attempt/acquisition values,
   MUST/SecurityEvent classification and the exact `platform.job.dead_letter` draft.
   It opens or commits no transaction; failed audit rolls back terminal state.
-  P02b-4 Step 5 implements this seam; its delivery record owns qualification and
-  review status. The event seam and original four writes retain their contracts.
+  The event seam and original four writes retain their contracts.
 - `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
-  DbTransaction, CancellationToken)` is the narrow fifth write, implemented in
-  P02b-2 Step 2; both independent review rounds passed.
+  DbTransaction, CancellationToken)` is the narrow fifth write.
   Only a successful fenced UPDATE result mints the restricted witness binding
   actual tenant/org/event/acquisition/kind/reason/attempts/subscription and live
   transaction. Validate declared MUST/SecurityEvent operation and matching draft

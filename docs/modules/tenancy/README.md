@@ -256,7 +256,9 @@ projection. The framework reads only the minimal columns allowed by
 tenantless orchestration constructs no Tenancy service and accepts no arbitrary
 tenant selector. The additive Tenancy migration owns this SELECT-only grant.
 The [Step 8 record](../../roadmap/phase-02b-delivery-log.md#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18)
-owns implementation and pending complete qualification.
+records implementation; the
+[merge closeout](../../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
+records its complete source-bound qualification.
 
 ## Entity-relationship diagram
 

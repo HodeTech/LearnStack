@@ -13,14 +13,15 @@ domain capability on top of it, not new plumbing.
 
 ### What this phase does not own
 
-Three mechanisms are routinely mis-attributed to this phase. Stated once, here, so no
+These mechanisms are routinely mis-attributed to this phase. Stated once, here, so no
 reader and no later phase has to guess:
 
 | Mechanism | Owning phase | What Phase 08a adds |
 |---|---|---|
-| Outbox — `outbox_messages` table, `OutboxFlushBehavior` | [Phase 02a](phase-02a-kernel-tenancy.md) | Nothing |
+| Outbox table and ambient transaction foundation | [Phase 02a](phase-02a-kernel-tenancy.md) | Nothing |
+| Immediate outbox enqueue, producer guard and transaction-owner completion under ADR-0057 | [Phase 02b](phase-02b-events-auth.md) | Event production through the existing contract |
 | Outbox dispatcher — polling, retry, backoff, dead-letter, inbox guard, `IEventBus` transport | [Phase 02b](phase-02b-events-auth.md) | Event types, topics, and idempotent consumers |
-| Background jobs — typed scheduling, host/storage, restored authority, retry/audit, external/capacity/recurrence foundation under Accepted ADR-0047 (implementation pending) | [Phase 02b](phase-02b-events-auth.md) | Job/provider definitions and declared queue/profile assignments |
+| Background jobs — typed scheduling, host/storage, restored authority, retry/audit, external/capacity/recurrence foundation under Accepted ADR-0047 | [Phase 02b](phase-02b-events-auth.md) | Job/provider definitions and declared queue/profile assignments |
 | Scoring / completion DSL engine — ADR-0025, sandbox, evaluator | [Phase 05](phase-05-education-learning-content.md) | Callers, answer maps, and result-band projection |
 
 Phase 08a writes **no** dispatcher, **no** job host, and **no** expression evaluator. If
@@ -161,16 +162,16 @@ idempotency/reconciliation must separately prevent duplicate external delivery.
 
 ### Background Jobs
 
-**P02b-4 acceptance update — 2026-10-15.** The maintainer accepts expanded H1:
-stock Hangfire wakeups with LearnStack-owned submission, retries/audit, external
+The inherited runtime uses stock Hangfire wakeups with LearnStack-owned
+submission, retries/audit, external
 stages, capacity and recurrence/fan-out under
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
-P02b-4 implementation remains pending. This phase supplies notification/expiry
+This phase supplies notification/expiry
 definitions and chooses declared queues/profiles, not a second retry policy or
 activator. Provider sends require stable logical-operation idempotency and known
 effect reconciliation; inbox/event dedup alone cannot prove an email was sent once.
 The accepted typed job obligations replace the old payload/base-class spellings;
-P02b-4 still owes their runtime enforcement.
+the inherited runtime enforces them.
 
 Additions to the existing host, not a new one:
 
@@ -183,14 +184,16 @@ Additions to the existing host, not a new one:
 Typed transactional submission, exact tenant/org restoration, profile/capacity
 admission and the replacement BackgroundJob_* obligations are accepted by
 [P02b-4](phase-02b-delivery-log.md#p02b-4-decision-package-2026-10-15).
-Their implementation/proofs remain pending; this phase depends on that completed
-foundation and adds no runner.
+Their implementation/proofs are recorded in the
+[P02b-4 merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19);
+this phase consumes that foundation and adds no runner.
 
 ## Deliverables
 
 - `LearnStack.Modules.Assessment` and `LearnStack.Modules.Notifications` scaffolded —
-  each with `{Domain, Application, Application.Contracts, Infrastructure}`, its `IModule`
-  registration, its `docs/modules/<module>/audit.md`, and its permission-catalogue rows.
+  each with `{Domain, Application, Application.Contracts, Infrastructure}`, its
+  composition-root registration, its `docs/modules/<module>/audit.md`, and its
+  permission-catalogue rows.
 - Assessment MVP: assessments, question bank, attempts, grading, result visibility.
 - Placement-test path scored through the Phase 05 `TenantScoringRule` evaluator, with the
   result-band → level projection.

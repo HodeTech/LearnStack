@@ -390,6 +390,21 @@ Enforcement:
 - Architecture test `Domain_Methods_Do_Not_Throw_For_Expected_Cases` walks
   `Result<T>`-returning methods and asserts the analyzer's report is empty.
 
+## Sensitive Exception Messages
+
+Exception messages never carry sensitive values such as credentials. Property-based
+runtime redaction does not scrub an exception's message. Use fixed messages and
+the existing closed descriptors at durable failure boundaries.
+
+[ADR-0032 Amendment 6](../decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25)
+defines `LS0002` (`LearnStackException-SensitiveExceptionMessage`): a bounded
+sensitive-name guard on directly thrown exception string arguments, across all
+production C# projects. The analyzer shares the runtime token matcher; it does
+not trace earlier values, inspect literal contents or cover JavaScript/TypeScript.
+Warning severity remains visible in CI until Phase 03 exit, when both `LS0001`
+and `LS0002` become Errors. A justified public-metadata false positive may be
+suppressed at that exact site; never silence the rule project-wide.
+
 ## Controller Mapping — `Result<T>` → `IActionResult`
 
 Per

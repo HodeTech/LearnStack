@@ -23,6 +23,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Compile the canonical matcher without a runtime SharedKernel dependency. -->
+    <Compile Include="..\..\src\LearnStack.SharedKernel\Secrets\SensitiveTokenMatcher.cs"
+             Link="Secrets\SensitiveTokenMatcher.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Roslyn release-tracking rule (RS2008) requires these markdown files
          to live alongside the analyzer assembly. -->
     <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />

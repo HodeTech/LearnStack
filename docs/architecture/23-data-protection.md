@@ -14,9 +14,11 @@ Every aggregate that may hold personal data must declare its PII category at des
 | **PII-Behaviour** | Learning progress, lesson views, assessment attempts, classroom attendance | Exportable as part of the user's data; anonymisable on deletion (replaced with a pseudonymous id). |
 | **PII-Sensitive** | Recording audio / video, transcripts, medical accommodation notes (post-MVP) | Stored only when consent is captured; deletable with the recording itself; never logged. |
 | **Payment** | Billing addresses, last-four card digits, invoice records | Retained 7 years for tax compliance (cannot be deleted on request); separate retention from other PII. |
-| **Audit** | Audit log entries referencing the user | Retained per [18-audit-coverage.md](../standards/18-audit-coverage.md); deletion request anonymises the actor field but keeps the action record. |
+| **Audit** | Audit log entries referencing the user | Retained per [18-audit-coverage.md](../standards/18-audit-coverage.md); bounded redaction preserves the action record and immutable identifiers. See [erasure prerequisites](#erasure-authority-and-first-writer-prerequisites). |
 
-Every aggregate's domain spec records its PII categories; a CI check ensures every entity with an email / phone / address column is annotated.
+Every aggregate's domain spec must record its PII categories. Phase 03 owns the
+classification census and planted missing-annotation control before its first
+DSAR writer; no current CI check discovers every email/phone/address column.
 
 ## Rights We Support
 
@@ -54,7 +56,9 @@ Per category:
 - PII-Behaviour → anonymisation (progress / attempts retained for cohort statistics; actor field is replaced).
 - PII-Sensitive → hard delete (recordings deleted from storage; metadata anonymised).
 - Payment → retained for legal period; user notified of the exception.
-- Audit → actor field anonymised; action record retained.
+- Audit → redact the six permitted human-facing columns; retain the action record.
+  Immutable identifiers and metadata require the bounded decision below before the
+  first erasure writer can claim complete anonymisation.
 
 Deletion is a workflow, not a single SQL statement — and there are **two** of them,
 separated by authority. Conflating them lets a tenant admin close a person's account
@@ -65,8 +69,8 @@ that tenant.
 
 1. Eligibility is validated (no active payment dispute, no legal hold).
 2. The `Membership` and its `MembershipProfile` are removed.
-3. That tenant's behaviour rows are anonymised; that tenant's audit entries keep the
-   action record with the actor field anonymised.
+3. That tenant's behaviour rows are anonymised; its audit entries keep the action
+   record, with redaction subject to the [first-writer prerequisites](#erasure-authority-and-first-writer-prerequisites).
 4. The `users` row survives for as long as any membership remains anywhere. Nothing in
    this flow touches Keycloak.
 
@@ -82,6 +86,141 @@ endpoint for it.
    step — never by a module reacting to a tenant-scoped request.**
 5. A final reconciliation job confirms every module reported completion within 30 days.
    Failures escalate to platform admin.
+
+### Durable asynchronous store inventory
+
+This is the canonical inventory for the durable asynchronous copies introduced by
+Phase 02b, including references added to existing audit storage. Identifier-only
+values can still identify a person; absence of free text is no erasure exemption.
+The inventory records subject locators and existing constraints. It grants no
+erasure authority and selects no retention period or deletion order.
+
+The ten first-party tables are in LearnStack's database. Canonical DDL and grants
+remain in Database Standards: [Outbox](../standards/05-database.md#outbox),
+[Inbox and delivery ledger](../standards/05-database.md#inbox), and
+[Background jobs](../standards/05-database.md#background-jobs).
+
+<!-- async-store-first-party:start -->
+| Store | Copies and subject linkage | Existing constraint |
+|---|---|---|
+| `outbox_messages` | `actor_user_id`, identifier-only `payload`, tenant/org, partition/causation/event IDs and `correlation_id`; new producer `metadata` is SQL NULL | Platform has SELECT/DELETE, no envelope rewrite grant |
+| `event_deliveries` | Independent per-subscription envelope/`payload` copy with `actor_user_id`, tenant/org, causation/trace/partition, lease, closed failure descriptor and dead-letter/replay state | No DELETE grant to runtime roles; producer cleanup does not erase this copy |
+| `inbox_messages` | `(tenant_id, subscription_id, event_id)` and `recorded_at`; indirect subject linkage without actor, payload or org columns | Immutable completion history; no generic Platform purge |
+| `background_jobs` | `causal_actor_user_id`, identifier-only `parameters`/`plan`, trace/causation, lease, closed failure/terminal descriptors and parent/recipient/operation/final-attempt links | Envelope/prepared facts stay immutable; uncertain effects retain occupancy |
+| `background_job_attempts` | `job_id`, identifier-only `outcome`, operation/quiescence IDs, fingerprint, selected-outcome link and finite `failure_policy` | Write-once retry/effect/cleanup facts are not a mutable person profile |
+| `background_job_capacity` | `tenant_id`, finite capacity-group key and timestamp | Coordination metadata; no person content or person-erasure target |
+| `background_job_reservations` | Tenant/job/attempt linkage, finite group and reservation/release facts | Erasure does not prove quiescence and cannot free unresolved occupancy |
+| `background_job_recurrences` | Finite definition/revision/manifest/target/schedule/recipient-policy metadata; no user or arbitrary parameters | Infrastructure control; no ordinary app access |
+| `background_job_occurrences` | Manifest/slot identity and frozen tenant/org sweep bounds/checkpoints; no person column or arbitrary payload | Preserve occurrence history and monotonic progress |
+| `background_job_recipients` | Immutable tenant/org route, occurrence/manifest/target and accepted child-job receipt | Recipient is a tenant/org route, not a person; reciprocal job links constrain future purge order |
+<!-- async-store-first-party:end -->
+
+The complete Platform migration census also includes this explicit scope exclusion.
+Exclusion from this asynchronous inventory is not an erasure exemption.
+
+<!-- async-store-exclusions:start -->
+| Excluded table | Scope boundary |
+|---|---|
+| `idempotency_keys` | Synchronous HTTP request replay, outside asynchronous transport scope; cached body/headers can still contain personal data |
+<!-- async-store-exclusions:end -->
+
+Other module tables remain explicit scope exclusions, so a new table cannot
+silently escape the five-chain migration census. Their own module specifications
+govern personal data; exclusion here grants no erasure exemption.
+
+<!-- async-store-module-exclusions:start -->
+| Excluded table | Scope boundary |
+|---|---|
+| `tenants` | Tenancy aggregate |
+| `organizations` | Tenancy aggregate |
+| `tenant_domains` | Tenancy host configuration |
+| `tenant_locales` | Tenancy locale configuration |
+| `tenant_settings` | Tenancy configuration |
+| `tenant_feature_flags` | Tenancy feature configuration |
+| `platform_entitlement_cache` | Entitlement projection |
+| `platform_host_to_tenant` | Host-resolution projection |
+| `platform_killswitches` | Platform feature configuration |
+| `customization_generations` | Customization publication metadata |
+| `tenant_content_types` | Customization definitions |
+| `tenant_level_taxonomies` | Customization definitions |
+| `tenant_level_taxonomy_items` | Customization definition items |
+| `courses` | Education aggregate |
+| `lessons` | Education aggregate |
+| `course_translations` | Education localized content |
+| `lesson_translations` | Education localized content |
+| `audit_config` | Audit coverage configuration |
+<!-- async-store-module-exclusions:end -->
+
+LearnStack job-table no-delete triggers also bind the owner; BYPASSRLS is not
+an exemption. Restrictive job/attempt/recipient foreign keys constrain deletion
+order. No ordinary erasure operation can remove those facts under current DDL.
+
+All twelve guarded Hangfire schema-23 tables are in `public`, in the same database.
+The pinned table/column census is `HangfireStorageContract.Columns`; canonical
+[vendor storage definitions and guards](../standards/05-database.md#p02b-4-stock-hangfire-control-storage)
+forbid business payloads and credentials. Opaque identifiers remain linkable.
+Vendor maintenance grants are confined transport authority, not a person-erasure
+API or a generic Platform grant.
+
+<!-- async-store-vendor:start -->
+| Vendor table | Copy or control classification |
+|---|---|
+| `schema` | Schema-version bookkeeping; no person content |
+| `counter` | Finite control counters and expiry; no person content |
+| `aggregatedcounter` | Aggregated control counters and expiry; no person content |
+| `hash` | Guarded recurrence/control fields and values; opaque job references can link to authoritative rows |
+| `job` | Guarded invocation/argument wakeup references and state linkage; no business parameters |
+| `state` | Job/state linkage, finite state metadata and redacted reason/data |
+| `jobqueue` | Opaque job reference, finite queue and fetch metadata |
+| `list` | Guarded control keys/values; opaque references remain linkable |
+| `server` | Guarded server identity, queue/worker and heartbeat metadata |
+| `set` | Guarded control/recurrence keys and opaque job references |
+| `jobparameter` | Job-linked guarded parameter name/value metadata |
+| `lock` | Guarded resource, acquisition and update-control metadata |
+<!-- async-store-vendor:end -->
+
+The inventory also covers these distinct copies and custody boundaries:
+
+<!-- async-store-custody:start -->
+| Store or custody boundary | Subject linkage and limit |
+|---|---|
+| Existing `audit_log` | Asynchronous terminal/causal `metadata`, including `causal_actor_user_id`, beside immutable actor/entity/causation identifiers. Redacting human-facing fields leaves references; see [Audit data model](31-audit-subsystem.md#7-data-model) |
+| Development Keycloak user events, `EVENT_ENTITY` | Provider `USER_ID`, `SESSION_ID`, `IP_ADDRESS`, client/realm and event-detail JSON. Separate provider storage and identity namespace; account invalidation does not erase prior events. Selection and qualified finite retention remain under [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md#reads-and-durable-event-ownership) |
+| External diagnostics and local error files | Log, trace, Sentry and `LocalFileErrorTracker` JSON archives can retain linkable exception/context copies; source-row deletion does not erase them |
+| Database, WAL and backups | Retained copies need backup and post-restore reconciliation; source-row deletion alone does not remove them |
+| Native BFF session custody | `InMemoryBffSessionStore` is volatile process-local custody under ADR-0070, not a durable ledger. Local invalidation does not erase provider events or diagnostic archives |
+<!-- async-store-custody:end -->
+
+### Erasure authority and first-writer prerequisites
+
+- [Phase 03](../roadmap/phase-03-identity-admin.md#tenant-data-ownership-dsar-boundary-and-pii-classification)
+  implements tenant-scoped DSAR export/erasure, separate global account closure,
+  subject/actor mapping, request authority and audit redaction. Its first writer
+  must account for every applicable reference in this inventory. This does not
+  transfer those deliverables to Phase 11.
+- [Phase 11](../roadmap/phase-11-production-hardening.md#data-operations) extends
+  those workflows across later modules and retained copies, and owns purge,
+  retention, backup, provider/diagnostic and operational reconciliation.
+- Before either phase's first affected writer, its bounded decision names the
+  subject mapping, permissible transformations, exact principal and minimum
+  grants, immutable-fact treatment, dependency/deletion order, replay/deduplication
+  floor and evidence of completion. No such authority or policy is chosen by this
+  inventory. Ordinary SystemActor delivery and dispatcher credentials supply none.
+- `learnstack_platform` has no grants on inbox, delivery or LearnStack job
+  tables. `BYPASSRLS` bypasses policies, not SQL privileges, no-delete triggers or
+  write-once facts. Any required authority change needs its own bounded decision
+  and migration before the writer ships.
+- Live/uncertain effects, reservation accounting, immutable execution evidence,
+  monotonic progress and same-transaction MUST audit remain intact. Erasure,
+  elapsed time and operator authority prove neither quiescence nor permission to
+  reset replay or release capacity.
+- Audit redaction currently permits only `actor_email`, `ip_address`,
+  `user_agent`, `before_state`, `after_state` and `changes`.
+  `actor_user_id` remains immutable and `metadata` is outside that grant
+  ([Audit append-only enforcement](31-audit-subsystem.md#append-only-enforcement)).
+  Phase 03 must decide the surviving actor/entity/causation references and new
+  causal metadata before its redaction/erasure handler lands; this inventory
+  does not claim that complete anonymisation already works.
 
 ### Right to Restriction of Processing
 
@@ -201,27 +340,52 @@ For tenants subject to KVKK / GDPR, LearnStack acts as a **data processor** whil
 
 ## Operational Requirements
 
-- **PII redaction in logs.** Configured at the logging pipeline; the `[PiiSensitive]` attribute on a property excludes it from log emission ([10-observability.md](../standards/10-observability.md)).
-- **PII redaction in error reports.** Sentry receives redacted payloads; integration tests assert the redaction layer cannot be bypassed.
+- **PII redaction in logs.** The Serilog enricher redacts structured properties
+  whose names match the shared token matcher. `[PiiSensitive]` controls audit
+  snapshots, not arbitrary log values or exception text; see
+  [Observability](../standards/10-observability.md#errors).
+- **PII redaction in error reports.** Sentry and local-file adapters redact
+  matching `AdditionalTags` names. They retain exception messages and stacks;
+  no whole-payload redaction or bypass-proof integration test is claimed.
+  Callers must use fixed messages/closed descriptors. Phase 03 owns category
+  handling at its first PII writer; Phase 11 qualifies diagnostic egress and
+  retention before production use.
 - **Encryption at rest.** Storage provider (S3 / SeaweedFS) + PostgreSQL volumes use the provider's at-rest encryption; specific configuration documented in [12-infrastructure.md](../standards/12-infrastructure.md).
 - **TLS in transit.** [11-security.md](../standards/11-security.md) § Transport.
-- **Backups.** Per-tenant deletion must propagate to backups within the platform's RPO + 1 backup cycle; the `delete-from-backups` job runs nightly.
+- **Backups.** Phase 11 owns retained backup/WAL handling and post-restore
+  reconciliation against the [inventory](#durable-asynchronous-store-inventory).
+  The existing propagation target remains the platform's RPO + one backup cycle;
+  Phase 11 qualifies the mechanism. Source-row deletion does not prove removal
+  from backups; Phase 02b delivers no nightly `delete-from-backups` job.
 - **Subject-access timeline.** GDPR Article 12 requires response within 30 days. Engineering target: export bundle ready within 7 days of request; deletion completed within 30 days.
 
 ## Roadmap Touchpoints
 
+- **Phase 03** — Tenant-scoped DSAR export/erasure, separate global closure and
+  audit redaction, subject to the [first-writer prerequisites](#erasure-authority-and-first-writer-prerequisites).
 - **Phase 04** — First content holding PII (page metadata, content entries with author fields). Categories declared.
-- **Phase 07** — Learner portal stores PII-Behaviour. Export skeleton lands.
+- **Phase 07** — Learner portal adds PII-Behaviour. Its first such writer must
+  integrate with Phase 03's export/erasure workflows.
 - **Phase 08c** — Recordings (PII-Sensitive). Consent flow + retention.
 - **Phase 09** — Billing payment data. 7-year retention.
-- **Phase 11** — Full data-export pipeline, anonymisation workflow, sub-processor list, incident-notification runbook, KVKK / GDPR compliance review.
+- **Phase 11** — Complete the Phase 03 workflows across later modules and retained
+  copies; decide purge/retention operations, backup reconciliation, sub-processor
+  list, incident-notification runbook and KVKK / GDPR compliance review.
 
 A separate data-protection runbook (`docs/runbooks/data-protection.md`) lands in Phase 11 and links to this architecture document.
 
 ## Risks
 
-- **Deletion incompleteness.** A module that doesn't subscribe to the anonymisation event leaks the user's data. Mitigation: architecture test asserts every tenant-owned aggregate either anonymises or hard-deletes on `UserAnonymisationRequestedV1`.
-- **Backup re-introduction.** Restoring a backup re-introduces deleted PII. The post-restore job replays the deletion log against the restored state. Documented in the DR runbook.
-- **Cross-tenant data in exports.** An export must never include another user's identifiable data. Cohort statistics are aggregated and anonymous; integration tests assert this.
+- **Deletion incompleteness.** Phase 03 must implement and test every applicable
+  module's erasure response before its first writer; Phase 11 extends that
+  coverage to later modules and retained copies. The event and coverage control
+  described above are planned, not current implementations.
+- **Backup re-introduction.** Phase 11 must qualify post-restore reconciliation
+  and document it in its DR runbook; no current replay job or runbook is claimed.
+- **Cross-tenant data in exports.** Phase 03's DSAR integration tests must prove
+  that an export excludes another user's identifiable data before release.
 - **Sub-processor surprise.** Adding a new sub-processor without notice breaks the processor agreement. The Tenancy module tracks the sub-processor list and emits a notice 30 days before any change.
-- **Audit-vs-erasure tension.** Audit entries must be retained for accountability but cannot identify a deleted user. Resolved by anonymising the actor field while keeping the action record.
+- **Audit-vs-erasure tension.** Redacting the six permitted columns leaves immutable
+  actor/entity/causation identifiers and causal metadata. Phase 03's bounded
+  first-writer decision must reconcile those references with accountability; the
+  existing redaction grant does not establish complete anonymisation.

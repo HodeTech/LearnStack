@@ -72,6 +72,11 @@ backend/src/Modules/<Name>/
     LearnStack.Modules.<Name>.Infrastructure.csproj
 ```
 
+All four projects inherit the analyzer from `backend/src/Directory.Build.props`;
+do not duplicate its project reference or add `LS0001`/`LS0002` to `NoWarn`.
+[The catalogue](../../../docs/standards/21-architecture-tests-catalogue.md#learnstackexception-sensitiveexceptionmessage-roslyn-analyzer)
+owns their distinct scopes and escalation contract.
+
 Project references follow the strict graph in
 [01-architecture-standards.md § Dependency Direction](../../../docs/standards/01-architecture-standards.md):
 
@@ -109,10 +114,11 @@ Forbidden references (architecture test will catch them):
 > entry describes an intended shape; do not write code against it. Two real seams
 > replace it:
 >
-> - **Handlers and validators** are registered today by passing the module's assembly
->   marker to `AddLearnStackMediatRPipeline(params Assembly[])` from the composition
->   root — one call, all modules, and it registers the validators from the same
->   assemblies.
+> - **Handlers and validators** use the shared
+>   `AddLearnStackMediatRPipeline(params Assembly[])` helper. The API's one
+>   `AddLearnStackCrossCuttingFoundation` call invokes it with all module assemblies;
+>   the Seeder calls the helper in its own composition. Both register validators
+>   and the scoped execution coordinators with the same behavior chain.
 > - **The audit catalogue** is a module-owned `IAuditCatalogSource` discovered from DI,
 >   shipped in Phase 02a Packet 9 per
 >   [ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md). Register it at both
@@ -129,8 +135,9 @@ Forbidden references (architecture test will catch them):
 Composition root (`LearnStack.Api/Program.cs` and its `Composition/` extensions):
 
 ```csharp
-// Handlers + validators for every module, one call.
-services.AddLearnStackMediatRPipeline(
+// Extend the existing API foundation call; retain every other module marker.
+builder.AddLearnStackCrossCuttingFoundation(
+    deploymentMode,
     typeof(LearnStack.Modules.<Name>.Application.AssemblyMarker).Assembly,
     /* … the other module markers … */);
 
@@ -138,6 +145,9 @@ services.AddLearnStackMediatRPipeline(
 // the module never branches on DeploymentMode.
 // services.AddScoped<I<Name>Provider, <Name>Provider>();
 ```
+
+Do not add a second pipeline registration in the API. Extend the Seeder's
+existing `AddLearnStackMediatRPipeline` call separately with the same assembly.
 
 And, from Packet 9, the module's audit catalogue — one class in the module's
 `Application` project, registered like any other DI service

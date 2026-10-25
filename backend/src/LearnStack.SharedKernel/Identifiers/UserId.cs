@@ -43,11 +43,11 @@ public readonly partial record struct UserId : IStronglyTypedId<Guid>
     /// <b>It is not a foreign key, and needs no <c>users</c> row.</b>
     /// <c>created_by</c>, <c>updated_by</c>, <c>deleted_by</c> and
     /// <c>audit_log.actor_user_id</c> carry no referential constraint anywhere in
-    /// the schema, and that absence is load-bearing: GDPR erasure leaves the audit
-    /// row's actor as an orphan surrogate key with no path back to a natural
-    /// person, which is what keeps the row's existence auditable after erasure. An
-    /// enforced foreign key would make that state unreachable under every
-    /// <c>ON DELETE</c> action. See
+    /// the schema, so an actor identifier can remain after the user row is erased.
+    /// It preserves audit continuity but remains pseudonymous and may be linked to
+    /// a person through other retained records; erasing the user row alone does not
+    /// establish anonymization. An enforced foreign key would require an explicit
+    /// deletion policy for these retained references. See
     /// <see href="../../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md">ADR-0038
     /// Amendment 1</see>; the <c>users</c> table itself is owned by Phase 03.
     /// </para>

@@ -1,7 +1,9 @@
 # APISIX Gateway (Dev)
 
-LearnStack's only tenant-facing ingress, per
+LearnStack's demand-gated gateway, per
 [ADR-0015 (API Gateway: APISIX)](../../docs/decisions/0015-api-gateway-apisix.md).
+The current native development ingress runs without it; Phase 11 owns activation
+on [ADR-0035's gateway trigger](../../docs/decisions/0035-demand-gated-infrastructure.md#the-gated-set).
 File-driven standalone mode — `apisix.yaml` is the only source of truth,
 hot-reloaded on file change. No etcd, no Admin API, no dashboard.
 
@@ -51,9 +53,10 @@ route-level `ip-restriction`; see the commented stub at the bottom of
 | 99 | `/api/v*/**` | OPTIONS | `cors` only (preflight bypass) | `host.docker.internal:5080` |
 | 100 | `/api/v*/**` | GET/POST/PUT/PATCH/DELETE | `cors`, `limit-req` (100 r/s), `request-id`, `prometheus` | `host.docker.internal:5080` |
 
-`openid-connect` is **commented out** in route 100; Phase 03 wires the
-plugin against the `learnstack` Keycloak realm discovery endpoint. The
-backend re-validates the JWT (defence in depth — gateway compromise must
+`openid-connect` is **commented out** in route 100; Phase 11 qualifies the
+gateway plugin against the `learnstack` Keycloak realm discovery endpoint.
+Phase 03 owns the published route-priority and secret-reference corrections.
+The backend re-validates the JWT (defence in depth — gateway compromise must
 not bypass auth).
 
 The `/api/internal/*` route is a **disabled placeholder** documenting the
@@ -95,6 +98,7 @@ surface is the SSL cert pair that Phase 11 introduces when TLS lands.
 - Hub-side APISIX route block (`hub.learnstack.dev`) — Phase 02c, lives in
   the separate `learnstack-hub` repo.
 - The .NET `AddJwtBearer` middleware (the backend's defence-in-depth
-  JWT re-validation) — Phase 02b.
-- Hangfire dashboard `/admin/hangfire*` gating — Phase 08a when Hangfire
-  itself lands.
+  JWT validation) — delivered in Phase 02b, independently of this gateway.
+- Hangfire dashboard `/admin/hangfire*` gating — Phase 03 owns the application
+  permission and route; Phase 11 owns the APISIX boundary. Phase 02b maps no
+  dashboard route.

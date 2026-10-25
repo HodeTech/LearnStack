@@ -1,18 +1,22 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-> **Status (2026-10-24).** Phase 02b is **in progress**. P02b-0 through P02b-5 are
-> complete, and P02b-1–5 are merged through PRs #29–#33. P02b-6's implementation is
-> merged through [PR #34](https://github.com/HodeTech/LearnStack/pull/34); its
-> post-merge CI corrections are merged through
-> [PR #35](https://github.com/HodeTech/LearnStack/pull/35). P02b-7's earlier
-> implementation and source-bound A/B qualification remain recorded. The current
-> runtime corrections and observer-test follow-up have completed local validation,
-> both fresh independent review rounds and final-source hosted A/B qualification.
-> The failed earlier source remains recorded; current-head required checks and
-> maintainer review/merge remain the PR gate.
-> [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) is Accepted and
-> implemented. The packet row below owns correction state; maintainer review and
-> merge remain separate. P02b-8's exit enforcement remains pending.
+> **Status (2026-10-25).** Phase 02b is **in progress**. P02b-0 through P02b-7 are
+> complete. P02b-1–5 are merged through PRs #29–#33; P02b-6 through PR #34 and
+> correction PR #35; P02b-7 through
+> [PR #36](https://github.com/HodeTech/LearnStack/pull/36).
+> [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) and
+> [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) are Accepted and
+> implemented. The P02b-7 merge closeout below links the source-bound A/B and
+> final PR-head qualification. P02b-8's G16/G18 decisions are Accepted; all four
+> implementation steps and both review rounds per step are complete. Its
+> [correction qualification closeout](phase-02b-delivery-log.md#p02b-8-pr-correction-qualification-and-closeout-2026-10-25)
+> records complete A/B proof on the corrected source.
+> [PR #37](https://github.com/HodeTech/LearnStack/pull/37) has completed both
+> correction review rounds; earlier qualification stays bound to its own source.
+> Current-head checks, conversation resolution, maintainer review and merge
+> remain release gates; this phase is not yet marked merged.
+> The [individual exit index](phase-02b-exit-evidence.md) names each criterion's
+> owner.
 >
 > This document is the plan. Every dated decision package, step record, review
 > round, correction and merge closeout lives in the [delivery log](phase-02b-delivery-log.md), split out
@@ -30,8 +34,8 @@
 > | P02b-4 | Background jobs | ✅ complete and merged — PR #32, 2026-10-19; [merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) |
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
-> | P02b-7 | BFF session | [Review corrections and final-source A/B qualified](phase-02b-delivery-log.md#p02b-7-review-correction-qualification-2026-10-24); [PR #36](https://github.com/HodeTech/LearnStack/pull/36) pending maintainer review/merge |
-> | P02b-8 | Exit enforcement | Pending — G16 and G18's erasure inventory |
+> | P02b-7 | BFF session | ✅ complete and merged — PR #36, 2026-10-25; [merge closeout](phase-02b-delivery-log.md#p02b-7-merge-and-closeout-2026-10-25) |
+> | P02b-8 | Exit enforcement | Implemented, reviewed and source-qualified — [acceptance](phase-02b-delivery-log.md#p02b-8-acceptance-2026-10-25); [Step 1](phase-02b-delivery-log.md#p02b-8-step-1-review-round-2-and-closeout-2026-10-25), [Step 2](phase-02b-delivery-log.md#p02b-8-step-2-closeout-2026-10-25), [Step 3](phase-02b-delivery-log.md#p02b-8-step-3-review-round-2-and-closeout-2026-10-25), [Step 4](phase-02b-delivery-log.md#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25) and [corrected-source A/B](phase-02b-delivery-log.md#p02b-8-pr-correction-qualification-and-closeout-2026-10-25) complete with both review rounds; current-head checks, maintainer review and merge govern release |
 
 ## Goal
 
@@ -156,9 +160,10 @@ Each item below is named somewhere as adjacent to this phase's work. Each has an
 - **Purging processed outbox rows and aged inbox rows.**
   [Phase 11 § Data Operations](phase-11-production-hardening.md#data-operations) owns
   it. This phase is the one that starts filling both tables, so it records the
-  constraint — the `DELETE` grant belongs to `learnstack_platform`, whose only entry
-  takes a reason and no actor, so a recurring job has no principal to present — and G18
-  registers the question.
+  constraint: only outbox currently grants Platform SELECT/DELETE. Inbox,
+  delivery and LearnStack job tables do not. Phase 11 must decide the exact
+  principal, minimum grants, interval and retention/replay floor before its first
+  writer; G18's inventory grants no purge authority.
 - **Cross-instance L1 cache invalidation** (`learnstack.cache.invalidation`). Port
   `ICacheService`, default implementation `InMemoryCacheService`, owning phase
   [Phase 11](phase-11-production-hardening.md), trigger "more than one application
@@ -174,10 +179,11 @@ Each item below is named somewhere as adjacent to this phase's work. Each has an
   decides what it does to work already in flight — hold, drop, or dead-letter — beside
   the termination question it already carries.
 - **The documentation-lint CI promotion.** [Phase 02a](phase-02a-kernel-tenancy.md)'s
-  Packet 3b record assigns the XML-documentation link check and the prose-width check to
-  this phase, on the trigger that a second contributor gains write access. The trigger
-  has not fired; `P02b-8` picks them up if it does, and otherwise they travel to the
-  phase that inherits them.
+  Packet 3b record assigns XML-documentation target-existence and changed-prose
+  88-column checks on the trigger that a second contributor gains write access.
+  [Phase 03](phase-03-identity-admin.md#cross-cutting-follow-up-at-phase-exit)
+  inherits both with that unchanged trigger. Markdown fragment lint establishes
+  neither check; the exit evidence records the live contributor census.
 - **The full authenticated browser end-to-end suite.**
   [Testing Standards § End-to-End Tests](../standards/06-testing.md#end-to-end-tests)
   assigns the full Playwright Test/axe suite to
@@ -284,9 +290,9 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G13 | What is the BFF session — its custody of the refresh token, its store, its idle and absolute lifetimes, its refresh serialisation under concurrent requests, its terminal `invalid_grant` behaviour, its CSRF control and its logout — and which document owns the access-token lifetime? | The `HttpOnly` cookie Security Standards already describes, encrypted by the session adapter, read only by server code, with single-flight refresh and one authority for the TTL | Phase-doc + one reconciled [Security Standards § Authentication](../standards/11-security.md#authentication); [ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) is the dedicated development-issuance authority; a new session ADR is required for a server-side store | P02b-6 (which document owns the access-token lifetime: the realm export and its reconciler write it), P02b-7 | Accepted — issuance-TTL part, [2026-10-21 package](phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20) and separate ADR-0067 acceptance on 2026-10-21; session part Accepted — [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) and [revised package](phase-02b-delivery-log.md#p02b-7-revised-decision-package-2026-10-23), [acceptance](phase-02b-delivery-log.md#p02b-7-acceptance-and-implementation-2026-10-23), 2026-10-23 |
 | G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject. The early anonymous stage already runs before authentication: P02d-5 delivers 60/min per canonical direct or authenticated-hop visitor IP plus 600/min peer acquisitions/allocations under ADR-0053 and ADR-0054. Exhausted known visitors refuse before peer debit; unknown visitor allocation remains peer-gated. These remain IP/peer quotas, not token quotas; a request they reject never reaches the token stage. Re-verify the [P5 remediation decision](phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09) before choosing authenticated accounting, preserving pre-classification protection against unknown-host abuse | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 (the token-keyed stage and the early stage's treatment of validated callers); G34's anonymous-hop policy and ADR-0054's bounded accounting replacement are Accepted and delivered in P02d-5 | Accepted — 2026-10-19; [P02b-5 package](phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19) |
 | G15 | What initiates a replay in this phase? | Targeted internal subscriber replay in P02b-3; producer/operator reset and fencing require a separate Phase 03 contract | Phase-doc; the URL space is its own decision record, per ADR-0036 | — (answered in § The consumer side; recorded so the question travels with the deferral) | Accepted — internal subscriber replay implemented by P02b-3 Step 4; operator contract Phase 03 |
-| G16 | What is `LS0002`'s rule name, which project trees does it run over, what does it inspect, and what escalates it to Error? | The name and scope recorded the way Amendment 1 recorded `LS0001`, with the scope reaching the assemblies that actually handle tokens | A dated **ADR-0032** amendment + a catalogue entry + an `AnalyzerReleases` row | P02b-8 | Open |
+| G16 | What is `LS0002`'s rule name, which project trees does it run over, what does it inspect, and what escalates it to Error? | The name and scope recorded the way Amendment 1 recorded `LS0001`, with the scope reaching the assemblies that actually handle tokens | A dated **ADR-0032** amendment + a catalogue entry + an `AnalyzerReleases` row | P02b-8 | Accepted — 2026-10-25; [acceptance](phase-02b-delivery-log.md#p02b-8-acceptance-2026-10-25), [ADR-0032 Amendment 6](../decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25); implementation and proofs complete in [Step 1](phase-02b-delivery-log.md#p02b-8-step-1-review-round-2-and-closeout-2026-10-25) |
 | G17 | What are the label sets for the event and job metrics, is the tenant axis permitted, and is it spelled `tenant` or `tenant_id`? | One note in the document that owns metric names, no raw tenant label on a per-event series, and an oldest-eligible-row age metric separate from the pending count | [Observability Standards § Required Metrics](../standards/10-observability.md#required-metrics) edit | P02b-2 (the first series ships there, and a label added afterwards touches every emitter already written) | Event metrics Accepted — 2026-10-12; runtime/guards [implemented](phase-02b-delivery-log.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12); complete and merged; [merge closeout](phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state; job label/observation contract Accepted — 2026-10-15 under ADR-0047; job instruments/guards implemented; [P02b-4 merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) records final qualification and merge |
-| G18 | May an integration-event payload or a job argument carry personal data, what may `last_error` contain, and do the four new durable stores enter the erasure scope? | Identifiers only, a sanitized and length-bounded failure descriptor, and the stores named in the erasure inventory | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) decides the new producer payload/NULL JSON metadata policy and application byte cap; a dated ADR-0038 cross-reference under this acceptance. [Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten), P02b-8 and Phase 11 retain erasure ownership | P02b-1 (the payload rule: the first payload ships there), P02b-2 (the `last_error` rule and its DDL bound), P02b-8 (the erasure inventory) | Payload and failure descriptors Accepted and implemented; job identifier-only payload/checkpoint and failure-descriptor bounds Accepted — 2026-10-15 under ADR-0047; job payload/checkpoint/failure bounds implemented; [P02b-4 merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) records final qualification; erasure inventory open P02b-8 |
+| G18 | May an integration-event payload or a job argument carry personal data, what may `last_error` contain, and do the four new durable stores enter the erasure scope? | Identifiers only, a sanitized and length-bounded failure descriptor, and the stores named in the erasure inventory | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) decides the new producer payload/NULL JSON metadata policy and application byte cap; a dated ADR-0038 cross-reference under this acceptance. [Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten), [the canonical inventory](../architecture/23-data-protection.md#durable-asynchronous-store-inventory), Phase 03 privileged erasure/redaction and Phase 11 retained-copy/purge operations own their respective scope | P02b-1 (the payload rule: the first payload ships there), P02b-2 (the `last_error` rule and its DDL bound), P02b-8 (the erasure inventory) | Payload and failure descriptors Accepted and implemented; job identifier-only payload/checkpoint and failure-descriptor bounds Accepted — 2026-10-15 under ADR-0047; job payload/checkpoint/failure bounds implemented; [P02b-4 merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) records final qualification; erasure inventory Accepted — 2026-10-25; [acceptance](phase-02b-delivery-log.md#p02b-8-acceptance-2026-10-25); the [canonical matrix](../architecture/23-data-protection.md#durable-asynchronous-store-inventory) includes the current event/job/vendor copies rather than the original four-store count; drift controls implemented and reviewed in [Step 2](phase-02b-delivery-log.md#p02b-8-step-2-closeout-2026-10-25) |
 | G19 | Where do the sample flow's publisher and consumer live — a fixture pair in the integration assembly, or a real event a shipped module consumes? | A real event between two shipped domain modules, because a test-assembly-only consumer leaves every module-scoped sweep with zero subjects | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) and the P02b-1 package; reconcile Tenancy/Customization/Audit specs under this acceptance. ADR-0046 accepts distinct subscription deduplication and envelope delivery scope; P02b-3 implements the two effects and Seeder handoff. The provisioning publisher must prove enqueue from its transaction announcement while ambient context remains unresolved | P02b-1 | Flow and delivery contract Accepted; subscriptions/semantic Seeder handoff implemented by P02b-3 Step 5 |
 | G20 | What does an anonymous request to a **routed non-public** request type on a live tenant host answer — and does the catalogued `Backend_RequiresJwt_OnAllAuthenticatedRoutes` narrow to a surface outside tenant resolution? A second half rides with it: the shipped assertion middleware says that from this phase the refusal code differs by caller, `tenant_mismatch` for an authenticated one and `not_found` for an anonymous one, written by the middleware itself | AccountSite absent credentials give masked `not_found` 404 on tenant/organization/platform hosts. Invalid present credentials on known hosts give 401, including public routes. Rows 8/11/12 and authenticated assertions use `tenant_mismatch`; membership refusals and anonymous assertions use `not_found`; the generic unresolved MediatR gate is unchanged | The dated **ADR-0036** amendment G11 needs + a catalogue edit to that rule's Asserts line | P02b-5 | Accepted — 2026-10-19; [P02b-5 package](phase-02b-delivery-log.md#p02b-5-decision-package-2026-10-19) |
 
@@ -530,110 +536,63 @@ LearnStack does not implement password hashing, password-reset rendering, MFA en
 or refresh-token rotation. Those live in Keycloak; the split is described in
 [Identity and Auth](../architecture/13-identity-and-auth.md).
 
-- **The authentication wiring ADR-0036 stages here**, and its insertion order:
-  `UseAuthentication` above tenant resolution so a validated claim exists when the
-  resolver builds its attempt, `UseAuthorization` below the tenant assertions. Two
-  insertions, not one block, with an ordering rule and a planted-order companion
-  registered in the catalogue. The claim signal is populated at the one site the
-  resolver's comment reserves, from a validated `learnstack`-realm principal only.
-- **One JWT authority for `/api/v1/*`**, the `learnstack` realm, with the issuer, the
-  audience, the algorithm allow-list, the clock skew, `azp`, and the rejection of ID
-  tokens all pinned. `Api_Registers_Only_The_Tenant_Realm_Authority` is catalogued to
-  this phase and its own note says the structural half passes while issuer validation is
-  disabled in configuration — the integration half is the load-bearing one. A
-  `learnstack-hub` token on a tenant-facing endpoint is refused here, not in
-  demand-gated Phase 02c.
-- **The claim shape and the actor's identity**, under **G10**. The pipeline carries a
-  `UserId` from this phase on, and the resolver already dereferences one when a tenant
-  claim arrives with a subject, so the value is load-bearing rather than cosmetic. Phase
-  03 owns the durable `sub` → `UserId` mapping; this phase owns where the claim comes
-  from and must not mint a fresh identifier per login.
-- **Which matrix rows go live**, under **G11**. `demo-english` is a tenant-wide host and
-  `demo-yoga` maps to its default organization, so a tenant-only token on the yoga host
-  is a row that consults `ITenantMembershipReader` — registered as
-  `DenyAllTenantMembershipReader` until Phase 03. Whichever way G11 resolves, the
-  outcome is asserted rather than discovered: a successful Keycloak callback on its own
-  conceals it.
-- **The host/JWT tenant cross-check.** A request whose host-derived tenant disagrees
-  with its JWT tenant returns 404 — not 403, which would confirm the resource exists —
-  through the **same** recorder and the **same** operation key Packet 9 shipped, with
-  `metadata.assertionSource = jwt-claim`, per
-  [ADR-0036 § Recording a rejected assertion](../decisions/0036-tenant-resolution-trusted-inputs.md#recording-a-rejected-assertion).
-  Not a second detector. The shipped types cannot carry that metadata yet — the
-  rejection record has no source, actor or correlation field, the recorder hard-codes a
-  null actor, and the resolver's refusal path only logs — so those are this phase's
-  edits. The organization dimension follows G11. The cross-check is a fault detector,
-  not an authorization control, and not the first isolation layer: Row Level Security
-  and the query filters precede it.
-- **What an anonymous request to a routed endpoint answers**, under **G20**. The
-  catalogued `Backend_RequiresJwt_OnAllAuthenticatedRoutes` is booked to this phase and
-  says every endpoint outside the public allow-list answers 401 without a bearer token;
-  [ADR-0036's matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix)
-  row 2 says a non-`[PublicSurface]` request on a tenant host with no credential answers
-  404, byte-identical to an unknown host's. Both cannot hold for the same request, and
-  the default `UseAuthorization` wiring answers the one the matrix forbids. The same
-  gate carries the refusal **code** split the shipped assertion middleware assigns to
-  this phase by name — `tenant_mismatch` for an authenticated caller, `not_found` for an
-  anonymous one, written by the middleware rather than left to the status-code pages.
-- **Absence is not disagreement.** A token with no `tenant_id` claim resolves under the
-  host-only ceiling by design. What this phase must not do is let that be silent: with
-  the realm as it stands every token is claimless, so a lost mapper looks exactly like
-  an anonymous visitor. The claimless-token case on a tenant host has no matrix row at
-  all, and G11 gives it one.
-- **The authenticated tier's bound**, under **G14**. Authentication goes live while
-  `AuthorizationBehavior` is still `return next()`, so without a bound any tenant user
-  reaches every routed request type until Phase 03. The token-keyed budgets that
-  [Security Standards § Rate Limiting](../standards/11-security.md#rate-limiting),
-  Standards 04 and the shipped limiter's own remarks assign to this phase go live with
-  authentication — they are also the bound ADR-0036 names for its per-occurrence
-  mismatch row, so activating that path activates this dependency.
-- **Seed users**, under **G12**: tenant users only. Operators are the `learnstack-hub`
-  population and ADR-0004 Amendment 1 makes the separation a hard invariant — the
-  `learnstack` realm declares no platform-admin role and should not gain one. The
-  current dev export has no organization claim. **G11** decides whether this phase
-  mints one or deliberately refuses the authenticated organization-host case;
-  "across both organizations" is not yet an accepted promise.
-- **Keycloak realm roles.** The realm ships three `tenant-*` roles with full scope on
-  both clients, so they appear in every token, while roles live in LearnStack and not in
-  Keycloak. Either they leave the realm or they are declared inert with a rule proving
-  no LearnStack assembly reads a role claim. A documentation link is not a mitigation
-  for a leak the realm actively causes.
+- **Ordered authentication.** `UseAuthentication` runs before tenant resolution;
+  `UseAuthorization` follows tenant assertions. The resolver consumes only the
+  validated `learnstack` principal. The catalogue's ordering rule includes a
+  planted-order control.
+- **One tenant API authority.** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
+  owns the closed issuer/audience/algorithm/purpose/claim profile and key-refresh
+  behavior. Real signed HTTP and provider cases complement the structural
+  authority census; `learnstack-hub` tokens are refused on tenant endpoints.
+- **Stable actor identity, G10.** The protected UUID-valued `user_id` supplies
+  `UserId`; `sub` remains Keycloak's subject. No identifier is minted per login.
+  Phase 03 owns durable subject/actor mapping and the identity domain.
+- **Explicit matrix outcomes, G11.** Matching tenant/organization claims enable
+  rows 6/9 on the two seed hosts. Rows 7/10/14 remain membership-dependent
+  refusals under `DenyAllTenantMembershipReader` until Phase 03. Claimless valid
+  principals retain public-only HostOnly authority and a bounded diagnostic;
+  they gain no authenticated tenant authority.
+- **One attributed rejection recorder.** Host/JWT disagreements use the existing
+  operation key with captured source, actor, correlation and trusted organization
+  attribution. [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
+  bounds durable authenticated admission per defended tenant; suppressed
+  occurrences retain diagnostics and their refusal. Platform-host membership
+  refusal has no confirmed host tenant and writes no tenant audit row.
+- **Closed HTTP outcomes, G20.** Absent AccountSite credentials return masked
+  `not_found` 404 on known tenant, organization and platform hosts. Present
+  invalid/undecidable credentials return 401 on known hosts, including public
+  routes. Authenticated tenant/organization disagreements use 404
+  `tenant_mismatch`; anonymous assertions and membership refusals use
+  `not_found`, as specified by ADR-0064.
+- **Bounded authenticated surface, G14.** The additional validated-subject tier
+  runs behind the unchanged visitor/physical-peer floors; it promises no
+  end-to-end 600/minute allowance. While authorization remains a pass-through,
+  the routable census admits the existing public reads and the exact physically
+  read-only AccountSite request, with separate infrastructure exclusions.
+- **Realm roles convey no LearnStack authority.** The three `tenant-*` roles and
+  full scope on both named clients remain in the development realm. Assigned
+  role claims are inert: `Keycloak_Roles_Are_Not_Application_Authority` holds the
+  production claim-consumer boundary. Phase 03 supplies LearnStack permissions.
 
-#### Correction: the realm emits no `tenant_id` claim at all
+#### Realm issuance and warm reconciliation
 
-This is an unimplemented prerequisite of this phase's authenticated cross-check.
-`infra/keycloak/realms/learnstack.json` stores `tenant_id` as a **user attribute** and
-declares **zero protocol mappers**. Keycloak does not put user attributes into tokens
-unless a mapper says so. The API also has no JwtBearer registration or
-`UseAuthentication` today: it does not validate those tokens or populate the
-resolver's reserved claim signal. Current public requests use the delivered
-host-only admission, query filters and Row Level Security. Authenticated behavior
-must not go live until G10–G12 settle the token and resolution contract.
+The committed tenant realm issues the accepted UUID profile through a shared
+client scope: tenant/actor/organization attribute mappers and the API audience
+mapper serve the named API and confidential BFF clients. The three identity
+attributes are admin-only in the user profile. Four stable seed actors agree with
+`SeedData`; both tenant and organization host outcomes are asserted.
 
-Three changes, and the third is the one that makes the first two take effect:
-
-- An **`oidc-usermodel-attribute-mapper`** on a client scope shared by the API and the
-  BFF's client, projecting the attribute into the access token and the ID token, typed
-  as `String`, with an explicit audience mapper beside it. A mapper on the API's client
-  alone shapes nothing in a token minted for another client, which is the client the BFF
-  redeems the code with.
-- The seeded value changed from the slug `"tenant-a"` to the seed tenant's **UUID**. The
-  claim is consumed as a `TenantId` — a Vogen value object over `Guid` from
-  [Phase 02a Packet 6](phase-02a-kernel-tenancy.md) — so a slug cannot be parsed. The
-  attribute is declared **admin-only** in the realm's user-profile configuration: it
-  alone raises a request to the host-and-claim authority ceiling, so a
-  self-service-writable attribute is a privilege-escalation path.
-- A **reconciliation mechanism**, under **G12**. Keycloak consumes the realm import
-  once, at first start, and re-import overwrites nothing that already exists. A change
-  made only in the import reaches no existing workstation, and a Keycloak database wipe
-  is not the upgrade path — `make seed` today only polls each realm's discovery endpoint
-  and never writes to Keycloak. Without this step the token-shape test below is green in
-  CI on a fresh container while every warm workstation issues claimless tokens.
-
-The test asserts the shape rather than the configuration file: a token issued by the dev
-realm for a seed user carries a `tenant_id` claim that parses to that seed tenant's
-`TenantId`, and the realm export's seeded value equals `SeedData`'s literal. A realm
-export that loses the mapper fails it.
+`make seed` and local `make demo` invoke the shared bounded reconciler. It upgrades
+qualified historical warm realms, preserves existing accounts/credentials/MFA and
+the Hub realm and reads back the owned state. Real warm-provider controls include
+an independently observed zero-write repeat.
+[ADR-0068](../decisions/0068-development-warm-realm-qualification.md) owns the
+limited profile preparation and stock account-console scope detachment;
+[ADR-0067](../decisions/0067-development-tenant-access-token-issuance.md) owns
+development issuance lifetime. Fresh-file tests and real warm-provider tests are
+separate proof subjects: changing an import alone cannot update an existing realm.
+The pre-mapper/claimless baseline remains in the dated delivery records, not as a
+current implementation claim here.
 
 #### The BFF session
 
@@ -727,22 +686,23 @@ points it does not reach, and both of Packet 9's hand-offs land here.
   routine polls/claims/acknowledgements/retries from per-invocation security audit.
   Existing `EnterPlatformAdminScope` entry audit and all other bypass obligations
   remain unchanged. This is no general background-job exemption.
-- **The rejected-assertion row names its actor once there is one.** The recorder writes
-  a null actor on the authenticated tier today, because no principal exists in the
-  process and `IsAuthenticated` is a tier rather than an identity. ADR-0036 makes the
-  actor the finding on that tier, so the realm integration above populates it from the
-  validated token's user — the observable that also proves the assertion middleware runs
-  after authentication.
+- **Attributed rejected assertions.** Admitted authenticated mismatches use
+  captured actor/source/correlation and trusted organization attribution under
+  ADR-0064/0065. The standalone audit refusal path preserves the HTTP refusal on
+  store failure. Suppressed events and no-confirmed-tenant refusals remain
+  distinct diagnostics rather than fictitious durable rows.
 - **Causal actor and causation.** P02b-3 supplies the validated incoming event ID
   to consumer audit intents and follow-up outbox production; causal actor remains
   separate from effective SystemActor. Nested commands inherit these identifiers,
   while a newly drained domain event supplies its own causation ID. The Accepted
   **G6** producer/common-owner contract owns these bounded metadata keys.
-- **Classification for the operations this phase introduces** — the sample flow's
-  command, the first authenticated read, login, logout and refresh — registered in their
-  owning module's catalogue source and matrix before their handlers ship, because an
-  operation the catalogue does not classify is refused, and the join is total in both
-  directions. The authenticated read carries no permission key until Phase 03.
+- **Total module operation classification.** The sample flow's commands and
+  subscriber operations are registered in their owning catalogues/matrices.
+  `GetAccountSiteQuery` is explicitly `Off`, with no audit row or permission key.
+  Selected provider authentication events belong to Keycloak under
+  [Standards 18](../standards/18-audit-coverage.md#operation-types), not module
+  handler registration; local BFF lifecycle has no durable LearnStack ledger
+  under ADR-0070. Phase 03 owns the authenticated identity-event ingress/mirror.
 
 The `AuditEntry` aggregate is owned by the **Audit** module and shipped in Phase 02a;
 rows arrive through the store's parameterised inserts, and
@@ -752,41 +712,26 @@ and coverage matrix against it. See
 
 ### Compile-time secret leakage (carried out of Phase 02a Packet 3)
 
-Packet 3 shipped runtime redaction — the Serilog enricher and the local error tracker
-both scrub the same set through the single `SensitiveTokenCatalog`. It covers logs, OTLP
-and error-tracker tags. It does not cover a value already interpolated into an exception
-**message**, and this phase adds three durable sinks for one: an outbox row's
-`last_error`, a subscriber-side failure record, and a job's persisted failure state.
-Those sinks, not a Problem Details body, are the threat this phase's diagnostic answers
-— the response factory builds no free text from an exception message.
+Runtime property/tag redaction and compile-time exception-message checking are
+complementary. Property redaction does not scrub arbitrary exception messages;
+producer, delivery and job stores separately retain only their accepted closed,
+bounded failure descriptors rather than raw exception text.
 
-`LS0002` is planned, not shipped; its initial Warning severity does not itself
-make a build fail. A roadmap document is not its diagnostic registry.
-**G16** records it the way ADR-0032 Amendment 1 recorded `LS0001`: its
-`LearnStackException-<Topic>` rule name, the project trees it runs over, what it
-inspects, its `AnalyzerReleases` row, its catalogue entry, and the condition that
-escalates it from Warning to Error. Two things the record has to settle rather than
-inherit:
+[ADR-0032 Amendment 6](../decisions/0032-exception-handling-logging-and-observability.md#amendment-6--sensitive-exception-message-diagnostic-2026-10-25)
+defines `LS0002`; its canonical rule and proof owners are in the
+[catalogue](../standards/21-architecture-tests-catalogue.md#learnstackexception-sensitiveexceptionmessage-roslyn-analyzer).
+The rule covers every production C# project, preserving `LS0001`'s narrower
+Domain/Application scope. Both runtime and analyzer compile the same internal
+word matcher and complete token sets. Synthetic compilations, loaded token
+parity, a two-word-only source mutation, evaluated project wiring and actual
+CI-warning builds prove their respective boundaries. Initial Warning severity
+does not fail the build; Phase 03 exit promotes both rules to Error.
 
-- **Its scope.** `LS0001`'s `Domain` + `Application` reference set excludes the
-  assemblies where this phase handles tokens and provider errors, which is where the
-  sinks are.
-- **Its token source.** The analyzer targets a different framework from the assembly
-  that holds `SensitiveTokenCatalog`, whose own remark says new tokens land there and
-  not in consuming projects, and the catalogue's public accessor exposes only part of
-  the set. A drift test is what makes "matches `SensitiveTokenCatalog`" true rather than
-  aspirational.
-
-Its own tests assert the positive case, a clean case staying clean, a sensitive name
-outside a `throw` staying clean, no `AD0001` crash — the failure mode ADR-0032 Amendment
-1 records for `LS0001` — and that the analyzer's token set equals the catalogue's.
-
-P02b-2 bounds the durable failure descriptor under **G18** to closed stage,
-reason and category codes, with only allowlisted SQLSTATE where applicable;
-exception text/type, trace identity and payload are not persisted there. The
-canonical DDL owns the byte bound. Step 1 implements the migration beside the
-lease columns, including redaction of legacy descriptors without rewriting
-event facts/state; Steps 2–3 implement transitions and bounded diagnostics.
+The diagnostic is name-based, with bounded expression forms. It does not prove
+secret absence, trace earlier assignments or cover TypeScript/JavaScript. Review,
+closed diagnostic contracts and durable failure-descriptor bounds remain
+necessary. [Error Handling](../standards/09-error-handling.md#sensitive-exception-messages)
+owns the ongoing exception-message rule and its limits.
 
 ### Architecture tests
 
@@ -803,11 +748,9 @@ What this phase owes the catalogue beyond implementing those rows:
 
 - **Producer rows delivered by P02b-1:** the announced-transaction write,
   produced-work refusal, owner-only completion, outbox-only domain handlers and
-  identifier-only payloads. Later decision passes register and implement the
-  ADR-0036 middleware-ordering rule, the
-  routable-set bound (**G14**) and the Keycloak-role-claim rule — with the realm-role
-  question it answers — in `P02b-5`, where the API first reads a claim; and `LS0002`
-  under its rule name (**G16**) in `P02b-8`.
+  identifier-only payloads. The middleware-ordering rule, routable-set bound
+  (**G14**) and inert Keycloak-role-claim controls are implemented under ADR-0064;
+  `LS0002` is implemented under ADR-0032 Amendment 6 (**G16**).
 - **Widened assertions** where a catalogued rule is satisfied by the defect it exists to
   catch. P02b-1 extends `Outbox_Row_Carries_Correlation_Context` to exact stored
   identity, tenant/organization, full traceparent and partition values, including
@@ -819,7 +762,8 @@ What this phase owes the catalogue beyond implementing those rows:
   stale-transition refusal; Step 3 implements the actual two-worker proof.
   P02b-4's accepted `BackgroundJob_Submission_Is_Transactional_And_Stamped` replaces
   `Hangfire_Job_Payloads_Include_TenantId` with tenant/org/actor/trace and atomic
-  submission proofs under Accepted ADR-0047; it is not Implemented today.
+  submission proofs under Accepted ADR-0047; its canonical owner and controls
+  are Implemented.
   `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` gains the hanging-handler
   case. Two rules the catalogue stamps **02a** also
   widen here, so the Phase-field sweep above does not reach them: the transport arm of
@@ -853,10 +797,11 @@ so "the architecture suite is green" does not reach them. `backend integration
 (Testcontainers)` is already a required check; the
 [P02b-0 receipt](phase-02b-delivery-log.md#p02b-0-entry-verification-2026-10-12) verifies all seven current
 required contexts with strict up-to-date protection. `P02b-8` re-verifies those
-live settings under the exact reported names. `scripts/assert-tests-ran.py`
-already rejects a missing assembly, zero executed tests and any unexecuted test
-in the required assemblies; test failures additionally fail the `dotnet test`
-command. The phase retains zero skips, per assembly.
+live settings under the exact reported names. The current
+`scripts/ci-test-shards.py aggregate-*` owners validate complete current-attempt
+case identities and zero skips through `ci-test-shard-results.py`; they reject
+missing assemblies, unexecuted cases and non-passing outcomes. The phase retains
+zero skips, per assembly.
 
 ## Deliverables
 
@@ -951,7 +896,7 @@ command. The phase retains zero skips, per assembly.
   and both visible to the trait sweep.
 - `LS0002` shipping as a Warning under its catalogued rule name, with its ADR-0032
   amendment, its catalogue entry, its `AnalyzerReleases` row, its linked token source
-  and its four tests.
+  and compiler, token-parity, mutation, wiring and real-build proofs.
 - **Carrier reconciliation**, in the change that lands each mechanism:
   [Events and Outbox](../architecture/15-event-and-outbox.md) (§ Inbox table, §
   Subscriber side, § Ordering, § Dead-letter — producer side, whose pushed-out
@@ -978,8 +923,8 @@ command. The phase retains zero skips, per assembly.
   Hangfire dashboard route behind the Platform-scope permission with its ADR-0015
   amendment, the operator recovery surface, and this phase's stale in-code messages;
   [Phase 11 § Data Operations](phase-11-production-hardening.md#data-operations), which
-  acquires the processed-outbox and aged-inbox purge under the `learnstack_platform`
-  `DELETE` grant with the no-principal constraint **G9** carries;
+  owns purge decisions against the actual per-store grants and immutable-fact
+  boundaries, including G9's absent recurring-maintenance principal;
   [Phase 08a](phase-08a-assessment-notifications.md), which credits
   `OutboxFlushBehavior` to Phase 02a and books the queue two ways; and
   `infra/apisix/README.md`, which dates the dashboard's gateway gating to Phase 08a. Two
@@ -1101,8 +1046,12 @@ this document; this section names criteria and the records that prove them.
   remain observed and hold their local partition; unrelated work progresses
   within the accepted cap. An uncertain physical COMMIT is Indeterminate and
   recovers from atomic durable state rather than assuming rollback.
-- A frame whose captures name an aggregate root that no intent in the frame declares
-  produces the behaviour G6 records.
+- An audit row uses only the captures belonging to its intent's declaring frame
+  and declared aggregate type. A captured root of another type does not reach
+  that row's snapshots or changes, under
+  [ADR-0044 Amendment 5 § 2](../decisions/0044-audit-write-path.md#2-entity_type-and-entity_id-come-from-the-intents-declared-aggregate)
+  and [Amendment 6 § 3](../decisions/0044-audit-write-path.md#3-each-intent-keeps-its-own-requests-result-the-transactions-state-says-only-what-it-can).
+  ADR-0057's common owner preserves these composition and frame rules.
 - A consumer handling an event caused by user U writes a row whose metadata names U and
   the consumed event, and the follow-up outbox row carries that event as its causation.
 - Every registered off-path dead-letter slug has a matrix row in the module that writes
@@ -1149,7 +1098,8 @@ CI and merge verification; its dated local receipts retain their original scope.
   structural realm-authority rule cannot see.
 - On `demo-english`, an authenticated read answers 200 under the host-and-claim ceiling;
   a token naming the other seed tenant returns 404 and produces exactly one rejection
-  row under the host's tenant carrying a non-null actor, the request's correlation id,
+  row under the host's tenant while durable audit allowance is available, carrying
+  a non-null actor, the request's correlation id,
   and `metadata.assertionSource = jwt-claim`. A catalogue sweep finds no second slug for
   the cross-check.
 - On `demo-yoga`, an organization host, the same request produces the outcome **G11**
@@ -1175,12 +1125,13 @@ CI and merge verification; its dated local receipts retain their original scope.
   and zero on rollback. P02b-3 proves independent create-only `card@1`/`plain@1`
   delivery, sibling recovery, preserved authored/deleted definitions, semantic
   built-in identity verification and concurrent fresh seed/delivery convergence.
-- Two principals behind one BFF do not share an authenticated quota: through the
-  **whole** middleware chain, from one peer address, one exhausts that budget and
-  the other's next request is not 429. G14 settles the delivered pre-auth visitor/
-  peer floor's treatment of validated callers; anonymous unknown-host abuse stays
-  bounded. The 429 carries the one Problem Details shape and `Retry-After`, and
-  repeated mismatches from one token reach 429 and stop producing audit rows.
+- Two principals behind one BFF do not share the additional subject quota. The
+  actual whole-chain control uses a reduced subject budget below the unchanged
+  visitor/peer floors: one subject exhausts it while the other's next request
+  from the same peer succeeds. Separate production-floor controls prove the
+  earlier IP/peer stages can still refuse validated subjects; no end-to-end
+  600/minute allowance is inferred. The 429 has the canonical Problem Details
+  shape and `Retry-After`; quota refusal precedes the durable assertion recorder.
 - A second `make seed` against a Keycloak database created from the pre-mapper realm
   JSON leaves every existing account and the `learnstack-hub` realm intact, applies the
   client scope and the mappers, and yields a token carrying a UUID-valued `tenant_id`. A
@@ -1230,8 +1181,8 @@ CI and merge verification; its dated local receipts retain their original scope.
   non-sensitive interpolation and on a sensitive name outside a `throw`, produces no
   `AD0001`, and its token set equals the union of the catalogue's single- and two-word
   sets — proved by a token added only to the two-word set failing the drift case — with
-  its rule name, catalogue entry and `AnalyzerReleases` row in the same commit as the
-  analyzer.
+  its rule name, catalogue entry and `AnalyzerReleases` row accepted before the
+  analyzer implementation, as the approved decision sequence requires.
 - The phase's authenticated endpoint appears in the generated OpenAPI document and in
   the regenerated SDK surface.
 - Every event metric uses the literal name and bounded dimensions in
@@ -1242,11 +1193,13 @@ CI and merge verification; its dated local receipts retain their original scope.
   the [P02b-4 merge closeout](phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19) records final
   qualification, while Standards 10 owns the exact inventory.
 - **No row in the [catalogue](../standards/21-architecture-tests-catalogue.md) whose
-  Phase names 02b is still Registered or Awaiting backfill.** Structural rows are green
-  in the `backend` check and behavioural rows in the `backend integration` check, which
-  this phase makes a required one; neither job reports a skipped case in the assemblies
-  this phase touches. Every structural rule this phase implements has a planted offender
-  and a companion that fails when the rule's predicate is removed.
+  Phase names 02b is still Registered or Awaiting backfill.** This includes the
+  inherited nineteen P02b-4 obligations and the analyzer/inventory additions.
+  Each owner runs in its actual required context: backend base/architecture
+  behind `backend`, real database/provider/native work behind `backend integration`,
+  frontend boundaries/behavior in `frontend`, and offline CI controls in `meta`.
+  None reports skipped cases. Each structural rule has a planted offender and
+  a companion that fails when its predicate is removed.
 
 ## Risks
 
@@ -1296,13 +1249,14 @@ CI and merge verification; its dated local receipts retain their original scope.
   mitigation is an integration test that commits and rolls back both together,
   registered as a new catalogue row rather than assumed to exist.
 - **Authentication goes live with authorization still a pass-through.** Between this
-  phase and Phase 03 any tenant user reaches every routed request type. G14 bounds the
-  routable set and holds the bound with a rule; the token-keyed limits land in the same
-  packet because admitted per-occurrence assertion auditing depends on them;
+  phase and Phase 03 authorization does not enforce permissions. G14's closed
+  read-only routable set and its census prevent that gap from exposing arbitrary
+  request types; the additional subject limits bound admitted assertion traffic;
   ADR-0065 separately bounds aggregate audit admission per defended tenant.
-- **The access-token TTL is the revocation window.** Between this phase and Phase 03 no
-  membership check runs and `AuthorizationBehavior` is a pass-through, so a token keeps
-  tenant access for its full lifetime after the attribute behind it is removed. The
+- **The access-token TTL is the revocation window.** Before Phase 03, matching
+  host/claim rows 6/9 do not re-read live membership and
+  `AuthorizationBehavior` is a pass-through, so a token can retain that authority
+  for its remaining lifetime after the backing attribute is removed. The
   mitigation is the single TTL authority this phase links plus Phase 03's membership
   read; until then the window is a stated property, not an accident.
 - **Refresh-token rotation is off in the dev realm.** The realm this phase hardens
@@ -1327,10 +1281,9 @@ CI and merge verification; its dated local receipts retain their original scope.
   refresh/deadline rules apply; masked 403/404 can still revoke. Phase 11's
   distributed adapter/proxy qualification precedes multiple web processes.
 - **Keycloak claims leak into authorization decisions.** Keycloak authenticates;
-  LearnStack authorizes. The realm currently ships three tenant-shaped realm roles with
-  full scope on both clients, so the mitigation is the realm-role resolution above plus
-  a rule proving no LearnStack assembly reads a role claim — not a link to the document
-  that states the split.
+  LearnStack authorizes. Development role claims remain present, so the
+  implemented `Keycloak_Roles_Are_Not_Application_Authority` census must continue
+  to reject their use as permission or membership authority.
 
 ## Phase Exit Decision
 
@@ -1344,8 +1297,10 @@ CI and merge verification; its dated local receipts retain their original scope.
 - An authenticated request answers on a named `/api/v1/*` endpoint on `demo-english`,
   the organization host's documented outcome is asserted, and a `learnstack-hub` token
   is 401.
-- The host-vs-JWT cross-check returns 404 and writes one row under Packet 9's existing
-  operation key with a non-null actor and `metadata.assertionSource = jwt-claim`.
+- The host-vs-JWT disagreement returns 404 and writes one admitted row under
+  Packet 9's existing operation key with a non-null actor and
+  `metadata.assertionSource = jwt-claim`. ADR-0065's audit allowance and
+  ADR-0064's no-trusted-tenant/no-row exceptions remain authoritative.
 - The sample integration event flows enqueue → outbox → dispatch → idempotent
   consumption. Forced interleaving proves one live producer owner; publication
   stays at least once. **Forced redelivery** produces one committed business
@@ -1360,9 +1315,11 @@ CI and merge verification; its dated local receipts retain their original scope.
   restored from its real durable row; opaque transport hints carry no tenant payload.
 - Both Phase 02d sites still render anonymously with Keycloak stopped.
 - `LS0002` ships as a Warning with its record, its catalogue entry and its release row.
-- No catalogue row whose Phase names 02b is still Registered or Awaiting backfill; both
-  CI checks are green with no skipped case in the assemblies this phase touches; and the
-  behavioural job is a required check, with the branch-protection date recorded.
+- No catalogue row whose Phase names 02b is still Registered or Awaiting backfill.
+  Every required backend, integration, frontend, meta, OpenAPI and public-demo
+  owner passes its actual population with no skips. `backend integration
+  (Testcontainers)` remains a required check, verified by dated live protection
+  readback under its exact name.
 
 [Phase 02c](phase-02c-hub-foundation.md) is unblocked by this phase but does not gate
 it. Phase 02c hangs off the spine and starts only when its own trigger fires — a tenant
