@@ -6,7 +6,7 @@ The abbreviated locators below do not replace, weaken or omit the canonical bull
 subordinate conditions. Each row refers to its entire canonical bullet.
 
 This is an ownership index. The
-[P02b-8 Step 4 closeout](phase-02b-delivery-log.md#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25)
+[P02b-8 correction closeout](phase-02b-delivery-log.md#p02b-8-pr-correction-qualification-and-closeout-2026-10-25)
 records completed exact-source A/B, artifact/skip/cleanup evidence and the dated
 live required-check read-back. The review PR's live checks own qualification of
 its actual current head. The frozen-source receipt does not imply a passing

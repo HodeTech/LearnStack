@@ -9,13 +9,12 @@
 > implemented. The P02b-7 merge closeout below links the source-bound A/B and
 > final PR-head qualification. P02b-8's G16/G18 decisions are Accepted; all four
 > implementation steps and both review rounds per step are complete. Its
-> [source-bound qualification closeout](phase-02b-delivery-log.md#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25)
-> records the complete A/B proof. [PR #37](https://github.com/HodeTech/LearnStack/pull/37)
-> has completed both correction review rounds; the
-> [correction closeout](phase-02b-delivery-log.md#p02b-8-browser-ownership-correction-review-round-2-and-freeze-2026-10-25)
-> distinguishes those changes from earlier qualified source. Current-head checks,
-> conversation resolution, maintainer review and merge remain release gates;
-> this phase is not yet marked merged.
+> [correction qualification closeout](phase-02b-delivery-log.md#p02b-8-pr-correction-qualification-and-closeout-2026-10-25)
+> records complete A/B proof on the corrected source.
+> [PR #37](https://github.com/HodeTech/LearnStack/pull/37) has completed both
+> correction review rounds; earlier qualification stays bound to its own source.
+> Current-head checks, conversation resolution, maintainer review and merge
+> remain release gates; this phase is not yet marked merged.
 > The [individual exit index](phase-02b-exit-evidence.md) names each criterion's
 > owner.
 >
@@ -36,7 +35,7 @@
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
 > | P02b-7 | BFF session | ✅ complete and merged — PR #36, 2026-10-25; [merge closeout](phase-02b-delivery-log.md#p02b-7-merge-and-closeout-2026-10-25) |
-> | P02b-8 | Exit enforcement | Implemented and reviewed — [acceptance](phase-02b-delivery-log.md#p02b-8-acceptance-2026-10-25); [Step 1](phase-02b-delivery-log.md#p02b-8-step-1-review-round-2-and-closeout-2026-10-25), [Step 2](phase-02b-delivery-log.md#p02b-8-step-2-closeout-2026-10-25), [Step 3](phase-02b-delivery-log.md#p02b-8-step-3-review-round-2-and-closeout-2026-10-25), [Step 4 and source-bound A/B](phase-02b-delivery-log.md#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25) complete with both review rounds; current-head checks, maintainer review and merge govern release |
+> | P02b-8 | Exit enforcement | Implemented, reviewed and source-qualified — [acceptance](phase-02b-delivery-log.md#p02b-8-acceptance-2026-10-25); [Step 1](phase-02b-delivery-log.md#p02b-8-step-1-review-round-2-and-closeout-2026-10-25), [Step 2](phase-02b-delivery-log.md#p02b-8-step-2-closeout-2026-10-25), [Step 3](phase-02b-delivery-log.md#p02b-8-step-3-review-round-2-and-closeout-2026-10-25), [Step 4](phase-02b-delivery-log.md#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25) and [corrected-source A/B](phase-02b-delivery-log.md#p02b-8-pr-correction-qualification-and-closeout-2026-10-25) complete with both review rounds; current-head checks, maintainer review and merge govern release |
 
 ## Goal
 

@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,183 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,288 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -295,6 +295,7 @@ each packet decided and delivered, as
   - [P02b-8 native completion correction, review round 2 and freeze (2026-10-25)](#p02b-8-native-completion-correction-review-round-2-and-freeze-2026-10-25) — 17 lines
   - [P02b-8 browser artifact ownership correction, review round 1 (2026-10-25)](#p02b-8-browser-artifact-ownership-correction-review-round-1-2026-10-25) — 44 lines
   - [P02b-8 browser ownership correction, review round 2 and freeze (2026-10-25)](#p02b-8-browser-ownership-correction-review-round-2-and-freeze-2026-10-25) — 19 lines
+  - [P02b-8 PR correction qualification and closeout (2026-10-25)](#p02b-8-pr-correction-qualification-and-closeout-2026-10-25) — 105 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -22158,6 +22159,111 @@ No executable, policy, timing, test population or plan change follows this
 review. Both source-review rounds are complete. Fresh complete hosted A/B
 qualification is still pending, with failed attempts and unsupported native
 preconditions kept distinct from successful qualification.
+
+### P02b-8 PR correction qualification and closeout (2026-10-25)
+
+The corrections above and both independent source-review rounds per bundle are
+complete. Their qualified head is
+`7a2ef1d364a55b7438d17e44a02a5309d433d24d`, tree
+`53ffc9e6a4563248d177c13a661fbf8b858d0690`.
+[Run 40182091476](https://github.com/HodeTech/LearnStack/actions/runs/40182091476)
+completes two full attempts, [A/1](https://github.com/HodeTech/LearnStack/actions/runs/40182091476/attempts/1)
+and [B/2](https://github.com/HodeTech/LearnStack/actions/runs/40182091476/attempts/2).
+Neither is a failed-job rerun or a union of successful siblings from different
+attempts. Both check out merge `68684d128b4ac71bc5384f7cc3211068dc9a1bc4`, with
+parents main `0dfade02a08fce6bd937fe0554f94f47c571ca8e` and the qualified head;
+the merge tree equals the head tree. Workflow identity matches that checkout.
+Earlier 5,992-case receipts and failed correction attempts retain their own
+source attribution and do not qualify this population.
+
+| Completed proof | A / attempt 1 | B / attempt 2 |
+|---|---:|---:|
+| Successful jobs / required contexts | 27 / 7 | 27 / 7 |
+| Unique assembly/case IDs Passed; skipped | 6,122; 0 | 6,122; 0 |
+| Unit / Architecture / HTTP / Contract | 2,692 / 540 / 298 / 5 | 2,692 / 540 / 298 / 5 |
+| Ordinary / native Docker cases | 2,556 / 31 | 2,556 / 31 |
+| Natural producer completion and cleanup | 20 / 20 | 20 / 20 |
+| Verified archives / extracted member files | 25 / 957 | 25 / 957 |
+| Frontend cases; skips/todos | 2,376; 0/0 | 2,376; 0/0 |
+| Maximum producer whole-job seconds | 881 | 920 |
+| Maximum producer queue seconds, separate from job wall | 359 | 450 |
+| Backend / integration aggregate seconds | 23 / 32 | 15 / 33 |
+| Meta whole-job seconds | 88 | 112 |
+| Public pages / Lighthouse JSON-and-HTML pairs | 9 / 27 | 9 / 27 |
+| Natural demo cleanup milliseconds | 11,270 | 13,280 |
+
+Authenticated API metadata binds every raw archive digest and all inspected
+member bytes. Exact TRX and incremental-completion IDs, outcomes and durations
+agree across 22 TRXs per attempt; no skipped or forced-cleanup result supplies
+passing evidence. Current-attempt job/artifact identities, source trees,
+selectors, complete disjoint case unions, toolchains and cleanup are checked
+independently. Each worker retains its twenty-minute ceiling; both aggregates
+retain five minutes. Queue delay is not counted as execution wall time. These
+successful runs do not requalify every interrupted-path reserve; the unchanged
+launcher's separate failure-path controls retain that responsibility.
+
+The actual method co-memberships differ, including shared-fixture classes;
+this is not a bin-label rename. Owner relocations cover 229 Architecture
+methods / 405 cases, 1,061 ordinary methods / 2,303 cases and 1,059 shared-fixture
+methods / 2,301 cases. An independent reconstruction also compares label-free
+partitions. The source, complete case manifest and reviewed plan remain equal.
+Two layouts do not prove absence of every possible ordering dependency.
+
+Both attempts observe SDK `10.0.402`, console `18.7.0-release-26505-111`, equal
+console/dependency hashes and xUnit adapter `2.8.2.0` hashes. These observations
+do not pin future runner binaries. Both frontend job logs independently confirm
+2,273 + 103 passes, zero skips/todos. Public receipts bind all nine URLs and 27
+report/HTML digests to the source/tree, pass their budgets and confirm process,
+Compose, private-file, environment and lock cleanup.
+
+- Manifest digest:
+  `ecaeae0e230f34bf8c49aa523f2d58ca683c01d113d99eb58003f58c406b40a3`.
+- Plan digest:
+  `f6be9ba11c6cce2c6bdb7c11415553ec72c39704e03a84a422e53cb74851b0ed`.
+- A / B assignment digests:
+  `b48d9e1c8ffdc668867e9e6d5b31e452e80672b19fe391f997a882722c4e5905` /
+  `7bec875797cbde4b6a51e1aba15c19267285dcc43c706b2fe1e165fbe710cdd4`.
+- Parent pair-audit SHA-256:
+  `10001f727814853dd8b6a1d56f5093c679cc1e271dba0ebfd8f60cb047f24323`.
+- Independent A-audit SHA-256:
+  `8d34a1ae66b8ee46e4c530e338af95a5b61dac5a3d6aac9f94f4012ee7557e39`.
+- Independent completed-pair audit SHA-256:
+  `97b6810d09e38f362d731de56d985db4a5c38d9435cff74c9ba327ad7b8d594b`.
+
+`pr37_qualification_prepare` (GPT-6.1-sol/high) independently approves A's
+complete captured evidence. Fresh `pr37_pair_final_audit` (GPT-6-astra/high)
+independently validates both attempts and label-free partitions and approves
+the pair without scoped findings. Both execute read-only data validation and
+authenticated API/log readbacks, not application builds, tests or browsers.
+These are separate automated contexts with shared repository access, not human
+approval or independent platform attestation.
+
+All A archives and API metadata are sealed and verified before starting B.
+After rerun, the latest artifacts listing exposes B's 25 IDs and none of A's
+captured IDs; explicit attempt-1 job identities still match. The independent A
+checks use retained raw archives and the authenticated snapshot. This observed
+visibility change establishes no removal cause or permanent availability.
+Artifacts have finite retention; neither these hashes nor local supplementary
+audit receipts promise a permanent public archive.
+
+**Live protection readback, 2026-10-25:** strict up-to-date protection and
+required conversation resolution remain enabled. All seven exact contexts in
+[Contributing](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
+remain bound to GitHub Actions app `15368`; all three verified review threads
+are resolved. No remote protection setting is changed.
+
+The earlier [bounded dispositions](#p02b-8-pr-correction-verification-2026-10-25)
+remain explicit: matcher/type/factory expansion and arbitrary extra-root
+rejection are not selected by a regression repair. The inventory grants no
+erasure, purge or privilege authority and proves no legal compliance or full
+browser-driven OIDC coverage.
+
+This closeout changes only the delivery receipt/generated index, phase Status
+and exit-index qualification pointer. Under ADR-0063's normal-future-push rule,
+the later documentation-only head still requires one complete current-head
+assignment, including PR-only meta gates. The PR's live checks own that result;
+this frozen A/B receipt does not imply it. Maintainer review and merge remain
+separate release gates, and Phase 02b remains in progress until merge closeout.
 
 ## Status archive
 
