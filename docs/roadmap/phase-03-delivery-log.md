@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 554 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 582 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -26,6 +26,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 revised proposal review round 2 and readiness (2026-10-25)](#p03-1-revised-proposal-review-round-2-and-readiness-2026-10-25) — 30 lines
   - [P03-1 second maintainer review and revised package (2026-10-25)](#p03-1-second-maintainer-review-and-revised-package-2026-10-25) — 99 lines
   - [P03-1 second revision review round 1 (2026-10-25)](#p03-1-second-revision-review-round-1-2026-10-25) — 23 lines
+  - [P03-1 second revision review round 2 and approval readiness (2026-10-25)](#p03-1-second-revision-review-round-2-and-approval-readiness-2026-10-25) — 28 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -665,3 +666,31 @@ No other actionable finding is reported within the reviewers' assigned slices.
 Parent validation at the reviewed source passes 37 Python documentation controls
 and 20 compiled CorpusConsistencyTests/AuditCoverageTests cases, zero skipped.
 These checks do not qualify the proposed Identity runtime or database guards.
+
+### P03-1 second revision review round 2 and approval readiness (2026-10-25)
+
+**Reviewed source:** `cd8150c9`. Two new read-only reviewers independently
+inspect execution/audit/API boundaries (GPT-6 Astra, xhigh) and model/lifecycle/
+seed contracts (GPT-6.1 Sol, xhigh). Both approve within their assigned Proposed
+design/source-review scopes, with no actionable findings. The model reviewer
+explicitly falsifies the first Role-before-admin path and direct-write/lock
+contracts; the execution reviewer traces current coordinators, Npgsql outcome,
+store, credential and native handoffs. These verdicts do not establish runtime
+confinement or accept either ADR.
+
+The earlier round's Role-initialization contradiction and internal-result
+wording are resolved at the reviewed source. Parent controls pass 37 existing
+Python documentation cases and 20 compiled CorpusConsistencyTests/
+AuditCoverageTests cases, with zero skips. Local file/fragment, inactive-annex,
+ADR-status, whitespace and private-review-reference checks are separate mechanical
+evidence, not proof of future Identity execution. Final text reflow/status and
+this append-only receipt require regenerated indexes and whole-tree lint after
+the last edit.
+
+The current second-maintainer package is ready for joint review of ADR-0072/0073.
+Only HTTP/new-user BFF staging to P03-3 is already approved. Both ADRs remain
+Proposed, their acceptance-dependent gates remain Open, and no schema/runtime/
+provider change has occurred. Steps 3/4 still require real owner-function/body/
+privilege/caller and held-lock competing-commit proofs; metadata scans cannot
+close them. No new approval is inferred from a review verdict or the staging
+answer. Acceptance must be the first implementation step before dependent code.

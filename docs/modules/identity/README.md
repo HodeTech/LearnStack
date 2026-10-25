@@ -93,8 +93,9 @@ shared-to-exclusive upgrade or caller-declared nonadmin exemption is admitted.
 
 Every Membership mutation, in either lock mode, leaves an Active, globally
 eligible, tenant-wide Tenant Admin with both kernel pairs. The first mutation
-therefore establishes that administrator. Role roots may exist first; completed foundation is actual
-eligible administration plus semantically valid required templates, without a
+therefore establishes that administrator. Role roots may exist first; completed
+foundation is actual eligible administration plus semantically valid required
+templates, without a
 bootstrap Boolean, receipt or table. Trial, Active and Suspended retain their
 admin. No Archived/termination exemption exists until separately admitted by
 G13/G16. Final-admin removal/suspension/revocation or kernel stripping refuses.
