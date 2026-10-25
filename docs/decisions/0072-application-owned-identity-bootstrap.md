@@ -93,10 +93,10 @@ evidence does not make a tenantless native session valid.
 | Verified subject / binding | Ordinary API | Internal creation owner |
 |---|---|---|
 | Active; actor absent/equal | Resolve stored actor | Return stored actor |
-| Actor conflict/malformed/reserved | 401, no mutation | 401, no mutation |
+| Actor conflict/malformed/reserved | 401, no mutation | Typed identity refusal; no mutation |
 | Unknown; actor absent | 401, no mutation | Serialize and allocate once when independently admitted |
 | Unknown; actor present | 401, no adoption | Only fixed, separately witnessed seed adoption may preserve its actor |
-| Closing/Closed | 401, no recreation | 401, no recreation |
+| Closing/Closed | 401, no recreation | Typed nonadmitting-binding refusal; no recreation |
 | Binding unavailable | Uniform 401 | Typed storage failure, no asserted success |
 
 No P03-1 identity/eligibility cache is installed. Each authenticated admission

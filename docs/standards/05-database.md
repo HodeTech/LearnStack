@@ -4458,8 +4458,14 @@ key beneath it. Ambiguous or post-wait changed classification refuses, rather
 than upgrading. A multi-write owner acquires its strongest complete lock set
 before mutation. Last-admin checks acquire no further User key.
 
-Both modes freshly verify the total eligible tenant-wide-admin invariant; shared
-mode does not permit a nonadmin write into an incomplete tenant. Later closure/
+Both modes freshly verify the total eligible tenant-wide-admin invariant for
+every Membership/child mutation and protected post-initialization Role change.
+The finite first Role-creation acts have their separate SHARED-lock exception:
+freshly require that no Membership has existed in the tenant and that the exact
+admitted initial manifest/source is being created. Existing Role edits, grant
+upgrades and repairs cannot use that exception. First-admin creation takes
+EXCLUSIVE mode and establishes the total invariant. A shared nonadmin Membership
+write cannot enter an incomplete tenant. Later closure/
 status writers take the same User fence and affected exclusive tenant keys in
 stable order. They cannot make the final administrator ineligible without a
 separately accepted recovery/termination contract; closure and Archived status

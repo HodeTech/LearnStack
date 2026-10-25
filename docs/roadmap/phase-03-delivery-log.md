@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 531 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 554 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -25,6 +25,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 revised proposal review round 1 (2026-10-25)](#p03-1-revised-proposal-review-round-1-2026-10-25) — 16 lines
   - [P03-1 revised proposal review round 2 and readiness (2026-10-25)](#p03-1-revised-proposal-review-round-2-and-readiness-2026-10-25) — 30 lines
   - [P03-1 second maintainer review and revised package (2026-10-25)](#p03-1-second-maintainer-review-and-revised-package-2026-10-25) — 99 lines
+  - [P03-1 second revision review round 1 (2026-10-25)](#p03-1-second-revision-review-round-1-2026-10-25) — 23 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -641,3 +642,26 @@ session/no-session continuation. P03-9 owns production first-admin, issuer rebin
 and exceptional recovery; P03-10 owns closure/retained-copy fulfillment. Neither
 schema nor seed evidence closes those later flows. Each implementation step still
 receives a commit and two new independent review rounds with verified fixes.
+
+### P03-1 second revision review round 1 (2026-10-25)
+
+**Reviewed source:** `c63ca622`. Two fresh read-only reviewers independently
+trace the revised proposal against current source: execution/audit/API contracts
+(GPT-6 Astra, xhigh) and membership/manifests/seed/lifecycle contracts
+(GPT-6.1 Sol, xhigh). No runtime proof is claimed.
+
+The execution slice approves with a minor internal-result wording correction:
+HTTP401 belongs only to the ordinary API column; the internal creation owner
+returns typed refusal and P03-3 owns its HTTP mapping. The model slice requests
+changes for one Major contradiction: the unqualified shared/exclusive admin
+assertion also forbids initial Role roots before the first Membership.
+
+Standard 05 now gives finite first Role creation its explicit shared-lock
+exception, requiring exact admitted initial manifest/source and no historical
+Membership. Existing Role edits, upgrades and repairs cannot take that path;
+first-admin creation takes exclusive mode and every Membership/child mutation
+retains the total invariant. ADR-0072's internal result wording is corrected.
+No other actionable finding is reported within the reviewers' assigned slices.
+Parent validation at the reviewed source passes 37 Python documentation controls
+and 20 compiled CorpusConsistencyTests/AuditCoverageTests cases, zero skipped.
+These checks do not qualify the proposed Identity runtime or database guards.
