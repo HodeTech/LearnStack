@@ -298,6 +298,13 @@ The block system ships with:
 
 ### Media Library and the Transcoding Pipeline
 
+This phase owns the full media/storage surface below.
+[Phase 03 G16](phase-03-identity-admin.md#the-decision-register) must explicitly
+deliver any minimum private-export artifact/storage prerequisite its earlier
+DSAR workflow requires, or accept a replacement delivery contract. That slice is
+not a Phase 04 media library, and this phase adopts its decided provider/access
+boundary rather than making Phase 03 fulfillment depend on an undelivered engine.
+
 Storage and asset management:
 
 - Upload to SeaweedFS through `IStorageProvider`

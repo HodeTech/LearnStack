@@ -16,9 +16,11 @@ Every aggregate that may hold personal data must declare its PII category at des
 | **Payment** | Billing addresses, last-four card digits, invoice records | Retained 7 years for tax compliance (cannot be deleted on request); separate retention from other PII. |
 | **Audit** | Audit log entries referencing the user | Retained per [18-audit-coverage.md](../standards/18-audit-coverage.md); bounded redaction preserves the action record and immutable identifiers. See [erasure prerequisites](#erasure-authority-and-first-writer-prerequisites). |
 
-Every aggregate's domain spec must record its PII categories. Phase 03 owns the
+Every aggregate's domain spec must record its PII categories.
+[Phase 03 G19](../roadmap/phase-03-identity-admin.md#the-decision-register) owns the
 classification census and planted missing-annotation control before its first
-DSAR writer; no current CI check discovers every email/phone/address column.
+identity PII writer; G9 extends it for custom-field revision history. No current
+CI check discovers every email/phone/address column.
 
 ## Rights We Support
 
@@ -35,12 +37,28 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
 - Exports include: identity, memberships, profiles, enrollments, progress, attempts, bookings, attendance, recordings (metadata + signed download links), audit entries where the user is the actor.
 - Exports exclude: another user's data, tenant-internal admin notes about the user, internal system identifiers that have no meaning outside LearnStack.
 
+Tenant/org RLS is one boundary, not the subject predicate. Every participating
+module additionally identifies the requested person and permitted recipient/
+purpose, including third-party references inside shared JSON/audit records.
+[Phase 03 G15/G16](../roadmap/phase-03-identity-admin.md#the-decision-register)
+settle self/admin/delegate and org scope, eligibility/holds, artifact retrieval
+authorization/revocation, expiry, cleanup and durable progress before their first
+writers. PII category alone does not decide disclosure. The private artifact needs
+an explicit Phase 03 prerequisite slice or an approved replacement contract; the
+full Phase 04 media and Phase 08a notification engines are not implicit blockers.
+
 ### Right to Rectification
 
 Profile edit is the everyday path. The platform must accept name / email / phone updates via the user's own profile screen or via the tenant admin's user management screen.
 
 - Email change re-runs Keycloak's email verification.
 - Audit entries record the change.
+
+This does not grant tenant admins a global identity editor. Provider canonical
+email stays mirror-owned; contextual contact data stays membership-owned under
+[Phase 03's ownership table](../roadmap/phase-03-identity-admin.md#tenant-data-ownership-dsar-boundary-and-pii-classification).
+G1/G3 decide trusted mirror updates and self/admin field permissions before those
+writers. A matching email never merges global identities or grants membership.
 
 ### Right to Erasure (Right to be Forgotten)
 
@@ -74,8 +92,20 @@ that tenant.
 4. The `users` row survives for as long as any membership remains anywhere. Nothing in
    this flow touches Keycloak.
 
+G15 defines the authorized subject/org scope: an org admin cannot erase a person's
+other branch, and the subject needs a request/status path without admin rights.
+G16 retains sufficient workflow authority and a scoped status receipt after the
+membership is removed; it settles the last-membership case without silently
+turning tenant erasure into provider-account closure.
+
 **Global account closure.** A **platform-scoped** operation. There is no tenant-admin
 endpoint for it.
+
+The person authorizes the account request through its separate surface; this
+does not assign the person a Platform permission. Phase 03 G13/G16 distinguish
+requesting person, any required approver, service actor and privileged executor.
+The participant inventory/write fence must reconcile new memberships, pending
+invites and delayed mirrors so completed closure cannot recreate account data.
 
 1. The platform admin enters scope through the audited `EnterPlatformAdminScope(reason)`
    — the only path that reads across tenants.

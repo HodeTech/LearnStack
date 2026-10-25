@@ -138,7 +138,7 @@ erDiagram
     Tenant ||--o{ TenantScoringRule : "defines"
     Tenant ||--o{ CustomDomain : "has 0..N"
     Tenant ||--|| TenantPlan : "subscribed to (via Hub)"
-    Organization ||--o{ User : "has members"
+    Organization ||--o{ Membership : "scopes organization memberships"
     Organization ||--o{ Course : "owns 0..N (or tenant-wide)"
     Course ||--|{ CourseVersion : "versioned"
     CourseVersion ||--|{ Module : "contains"
@@ -147,7 +147,7 @@ erDiagram
     Tenant ||--o{ Course : "owns 0..N (tenant-wide)"
     Tenant ||--o{ Page : "owns 0..N"
     User ||--o{ Membership : "has (per tenant+org)"
-    Membership }o--|| Role : "has"
+    Membership }o--o{ Role : "holds scoped grants"
 
     Tenant {
         uuid id PK
@@ -167,17 +167,25 @@ erDiagram
     }
     User {
         uuid id PK
-        string keycloak_user_id
+        string issuer
+        string provider_subject
         string email
     }
     Membership {
         uuid id PK
         uuid user_id FK
-        uuid tenant_id FK
-        uuid organization_id FK
-        uuid role_id FK
+        uuid tenant_id
+        uuid organization_id
     }
 ```
+
+Text fallback: a global user has memberships in tenant/optional-organization
+contexts and may hold multiple scoped role grants. Organization remains Tenancy's
+aggregate; Membership holds its ID by value, with no cross-module FK or join.
+This is a conceptual diagram, not the pending identity migration.
+[Phase 03 G1/G3/G5](../roadmap/phase-03-identity-admin.md#the-decision-register)
+decide provider mapping, nullable-key/profile/role-binding shape and scope
+composition before those tables are written.
 
 ## 4. What customers can do — what LearnStack core does for them
 

@@ -132,6 +132,13 @@ and an unread template store is a schema nobody validates.
 
 ### Notifications
 
+This phase owns the full engine and template-driven channel orchestration.
+[Phase 03 G8](phase-03-identity-admin.md#the-decision-register) owns the earlier
+usable bounded invitation delivery/handoff and its privacy/idempotency/recovery
+contract. That first consumer must name any required minimum email slice there;
+it cannot assume this engine is already running. This phase integrates that
+accepted boundary instead of introducing a competing sender or retry policy.
+
 - Notification dispatch orchestration in the Notifications module.
 - Channels: email wired through the `IEmailProvider` adapter
   ([06-extension-model.md](../architecture/06-extension-model.md)); SMS, WhatsApp, and

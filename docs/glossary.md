@@ -25,6 +25,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 |------|------------|
 | **User** | A person known to LearnStack at the global level. Identified by a stable user id. |
 | **Membership** | The relationship between a user, a tenant, and (optionally) an organization. Triple-keyed `(user_id, tenant_id, organization_id)` per [ADR-0017](decisions/0017-tenant-organization-hierarchy.md). A user can have memberships in multiple tenants and multiple organizations within one tenant. |
+| **MembershipProfile** | Tenant-owned, organization-scoped contextual profile attached to a membership, including its custom-field values. Global identity stays on `User`; [Phase 03 G3/G9](roadmap/phase-03-identity-admin.md#the-decision-register) settle profile granularity, editable fields and revision-aware values before their first writers. Consent evidence follows [Data Protection](architecture/23-data-protection.md#consent-management). |
 | **Role** | A named bundle of permissions. Scope: `Platform` / `Tenant` / `Organization`. Examples: `tenant-admin`, `editor`, `instructor`, `learner`, `org-admin`. |
 | **Permission** | A fine-grained capability `{module}.{resource}.{action}` with a scope (Platform / Tenant / Organization). Action set is closed: `read \| write \| delete \| admin`. |
 | **Invitation** | A pending offer for a user to accept a membership in a tenant + organization. |

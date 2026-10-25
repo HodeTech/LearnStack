@@ -35,6 +35,14 @@ plan.
   cache key this module's reads compose. Not an aggregate
   ([ADR-0043 § 7](../../decisions/0043-customization-payload-validation.md)).
 
+**Phase 03 addition, not yet implemented:** `TenantCustomFieldDef` belongs to
+Customization; Identity owns the membership values and consumes the definition
+contract. [G9](../../roadmap/phase-03-identity-admin.md#the-decision-register)
+settles immutable revisions, value pins, classification history and schema
+admission before that aggregate's first migration. Its permission/audit matrices
+and module-spec diagrams extend with the implementation, not with a second
+Identity-owned definition table.
+
 **It does not own:**
 
 - **The content.** A `TenantContentType` says what an article looks like; the

@@ -3,10 +3,19 @@
 **Status:** Adopted
 **Derives from:** [11-security.md](11-security.md) § Authorization,
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
+[ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
+(realm roles and provider scope do not grant application authority),
 [01-architecture-standards.md](01-architecture-standards.md),
 [18-audit-coverage.md](18-audit-coverage.md).
 
 LearnStack uses permission-based RBAC layered on top of tenant membership. This standard pins the **naming convention**, **closed action set**, **registration pattern**, **enforcement points**, and the **per-module matrix template** that every module must produce.
+
+**Implementation boundary.** No permission registry/grants are shipped yet.
+[Phase 03 G3/G5/G13](../roadmap/phase-03-identity-admin.md#the-decision-register)
+settle scoped key identity, role-binding/delegation, seed defaults, revocation and
+operator admission before their first consumers. Examples below describe target
+shape, not existing interfaces, an admitted Platform credential or implicit grants.
+The closed key/action/scope rules remain binding.
 
 ## Naming Convention
 
@@ -64,7 +73,7 @@ disjoint and validated at seed time.
 
 | Scope | Examples | Granted to |
 |-------|----------|------------|
-| **Platform** | `platform.tenant.write`, `platform.feature_flag.admin`, `platform.audit.read`, `platform.hub.operator` | Only platform admins / Hub operators; never assignable to a tenant role. |
+| **Platform** | `platform.tenant.write`, `platform.feature_flag.admin`, `platform.audit.read` | Only platform admins / Hub operators; never assignable to a tenant role. |
 | **Tenant** | `education.course.write`, `enrollment.course_access.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
 | **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Org-scoped roles; permission check requires `Membership.OrganizationId` matches the resource's `OrganizationId` (or the role is tenant-scoped). |
 
@@ -83,6 +92,10 @@ without an explicit `organization-scope` role binding.
 ## Module-Driven Registration
 
 Permissions are declared in code, not configured in a database. Each module exposes its permissions at startup; the platform registry composes them and seeds the database.
+
+The code below is a registration sketch. `IModule` and `IPermissionRegistry` do
+not currently exist; G5 chooses their actual composition contract. Registering a
+key does not itself decide grants or make the current authorization shell safe.
 
 ```csharp
 public sealed class EnrollmentModule : IModule
@@ -106,6 +119,13 @@ Rules:
 - Renaming a permission key is a breaking change. Add the new key, dual-write during migration, drop the old key in a separate release. Renaming under the radar breaks every role assignment.
 - Removing a permission requires an ADR + grace period (one minor release with a deprecation log).
 - Adding a permission is non-breaking; it ships disabled-by-default in seeded roles until a tenant admin enables it.
+
+The earlier Tenant Admin target assumed automatic new-key expansion on a later
+provisioning cycle, conflicting with the disabled-default rule above. G5 resolves
+the exact bootstrap/upgrade contract and its accepted vehicle before the first
+seed/grant writer; neither an existing seed rerun nor a historical example
+authorizes automatic expansion. Changes to the closed role/delegation contract
+need the corresponding decision, not an implicit registry implementation choice.
 
 ## Enforcement Points
 
@@ -136,7 +156,11 @@ Combining: an `instructor` role has `education.course.write`, but a policy class
 
 ### Frontend
 
-Permission-aware UI hides actions the user cannot perform — but the API is authoritative. The frontend never decides authorization on its own. UI checks call a generated permission catalogue (`usePermissions().can("education.course.write")`) that fetches the actor's permissions once per session and caches them.
+Permission-aware UI hides actions the user cannot perform; the API is
+authoritative. The target generated catalogue facade
+(`usePermissions().can("education.course.write")`) is not shipped. G5 specifies
+API revocation and UI invalidation/freshness; fetching grants once per session
+alone proves neither. A stale enabled control still cannot authorize a mutation.
 
 ## Permission Matrix Template
 
@@ -158,7 +182,7 @@ The "Default role grants" column declares which built-in roles receive which per
 | Role | Scope | Auto-provisioned | Notes |
 |------|-------|------------------|-------|
 | `Platform Admin` | Platform | At platform install | Superset of platform permissions; never a tenant role. |
-| `Tenant Admin` | Tenant | On tenant creation | Superset of tenant permissions for that tenant. Receives newly registered tenant permissions on next provisioning cycle. |
+| `Tenant Admin` | Tenant | On tenant creation | Tenant administrative bundle; G5 settles initial/new-key grants and upgrades before the first seed writer. |
 | `Instructor` | Tenant | Module-defined seeds | Read/write on courses, lessons, sessions, attendances where they are the owner/host. |
 | `Learner` | Tenant | Module-defined seeds | Read on published catalog; write on own attempts, bookings, profile. |
 | `Guardian` | Tenant | Off by default | Read on linked learner's progress and recordings (per consent). |
@@ -166,10 +190,16 @@ The "Default role grants" column declares which built-in roles receive which per
 | `Portal Public` | Tenant | Anonymous | Read on published public surfaces only. |
 | `Org Admin` | Organization | Off by default | Tenant-admin permissions limited to the actor's organization. Typical for branch managers / campus heads. |
 | `Org Instructor` | Organization | Off by default | Instructor permissions limited to the actor's organization. |
-| `Hub Operator` | Platform | Off by default — provisioned by Hub | Has the `platform.hub.operator` permission and a Hub-realm token. Each Hub operator action against a tenant resource writes an audit entry with `actor.hubOperator = true`. |
+| `Hub Operator` | Platform | Off by default — provisioned by Hub | G13 selects the exact registered Platform permission and authenticated actor chain. Each admitted action against a tenant resource records trusted `actor.hubOperator = true`; a Hub token alone grants no tenant-route admission. |
 
 Tenant-driven customization **does not add roles**. Tenants extend behavior through
 customization data; they configure role grants by composing the closed set above.
+
+The historical proposed operator key used `operator` as its action, outside the
+closed set. It is not a registration exception; G5/G13 choose a conforming key.
+`Portal Public` is the anonymous capability model, not a stored membership: its
+eventual registry integration preserves the `HostOnly`/PublicSurface ceiling under
+ADR-0036 and grants no protected authority.
 
 ## Testing Requirements
 
@@ -192,7 +222,9 @@ Permission grants and revocations are MUST-audit security-events ([18-audit-cove
 
 - The role mutated.
 - The permission added or removed.
-- Whether the change affects active sessions (forces JWT refresh).
+- The decided effect on active requests/sessions and the applicable revocation
+  boundary under G5. Forcing provider JWT refresh alone does not enforce a
+  LearnStack role/permission change; realm roles remain nonauthoritative.
 
 ## Forbidden
 

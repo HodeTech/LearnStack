@@ -135,6 +135,23 @@ The separate `learnstack-hub` realm remains the operator boundary. Realm-per-ten
 is not part of the accepted API profile; a different issuer strategy needs a new
 decision before its first consumer.
 
+### Application identity preparation
+
+[Phase 03's decision register](../roadmap/phase-03-identity-admin.md#the-decision-register)
+owns the first-writer questions. G1 establishes actor provisioning before the
+accepted API/BFF callback already requires `user_id`; an idempotent post-login
+mirror alone cannot bootstrap it. G2/G3 establish the pre-context membership read,
+schema/grant boundaries and global-user projection. G4 decides session-specific
+scope issuance: the current seed user-attribute mappers do not prove independent
+tenant scope for one person's simultaneous sessions. Ordinary refresh remains
+scope-preserving until its bounded transition contract ships.
+
+No missing profile is repaired by email merging, a new per-login actor, a client
+tenant selector or a permissive membership default. Existing seed/provider IDs
+and credentials remain preserved. The first runtime provider adapter is separate
+from development realm tooling; an actual SDK introduction triggers its catalogue
+backfill, while direct HTTP alone does not.
+
 ## Token Flow
 
 ```mermaid
@@ -226,8 +243,11 @@ Roles live in LearnStack, not in Keycloak. Keycloak does not know what an "instr
 Mechanism:
 
 - `Membership` carries one or more `Role` references.
-- `Role` carries `Permission`s (atomic capabilities like `course.publish`, `enrollment.create`).
-- Resource-scoped checks (`course.edit` is allowed only when `course.owner_id == current_user.id`) live in policy classes, evaluated in the application layer.
+- `Role` carries code-defined permissions from the
+  [closed key/action catalogue](../standards/19-permissions.md), such as
+  `education.course.write` and `education.course_publication.write`.
+- Resource-scoped checks limit `education.course.write` to the actor's own course
+  where applicable; they live in application policy classes.
 
 The API uses opaque `sub` for external identity/subject accounting and UUID
 `user_id` for actor attribution, with scalar active-scope claims. Email and
@@ -237,33 +257,48 @@ authorization is still pass-through.
 
 ## Invitations
 
-Invitations are owned by LearnStack:
+Invitations are owned by LearnStack. The target flow below needs
+[Phase 03 G1/G8](../roadmap/phase-03-identity-admin.md#the-decision-register)
+before its writers: actor bootstrap, verified current email, aggregate boundaries,
+single-use acceptance, grant freshness and bounded delivery are not yet delivered.
 
 ```mermaid
 sequenceDiagram
     participant Admin
+    participant Web as Native BFF
     participant API
-    participant Email
+    participant Delivery as Bounded invitation delivery
     participant Invitee
+    participant KC as Keycloak
 
-    Admin->>API: POST /v1/invitations (email, role)
-    API->>API: create Invitation row, generate token
-    API->>Email: send templated email with link
-    Invitee->>API: GET /invite/accept?token=...
-    alt user does not exist in Keycloak
-        API->>API: redirect to Keycloak signup with prefilled email
-    else user exists
-        API->>API: redirect to Keycloak login
-    end
-    Invitee->>API: callback with KC tokens
-    API->>API: create Membership, mark Invitation accepted
+    Admin->>Web: Submit authorized invitation
+    Web->>API: Admitted invitation command
+    API->>API: Persist offer and durable delivery intent
+    API-->>Delivery: Execute the G8 delivery contract
+    Delivery-->>Invitee: Offer and permitted continuation
+    Invitee->>Web: GET inspects offer; no grant
+    Web->>KC: Approved sign-in/signup continuation
+    KC-->>Web: Bound callback under G1 bootstrap
+    Invitee->>Web: Confirm acceptance through admitted mutating act
+    Web->>API: Verify subject/email, offer and current delegation
+    API->>API: Reconcile membership grant and offer consumption under G8
 ```
+
+Text fallback: an authorized admin creates a durable offer and delivery intent;
+the invitee inspects it without a write, completes the approved identity flow and
+confirms acceptance. The API verifies current identity/delegation and produces
+the single authoritative grant/offer outcome. Exact routes and atomicity belong
+to G8; this diagram admits no direct token callback to the API or multi-root write.
 
 Edge cases:
 
 - **Invitee uses a different email at Keycloak signup.** The invitation token is bound to the email; mismatched signup is rejected.
 - **Invitation expires.** Default TTL 14 days, configurable per tenant.
 - **Invitation revoked.** Tenant admin can revoke; accepting a revoked invitation is rejected.
+- **Races and delivery failure.** G8 specifies accept/revoke/expiry/resend and
+  existing-member outcomes, one-way token storage, provider idempotency/
+  reconciliation and truthful delivery state. Full notification orchestration
+  remains Phase 08a; the usable Phase 03 handoff cannot depend on it silently.
 
 ## SSO and Federation
 
@@ -271,9 +306,18 @@ Tenant-specific SSO is enabled per tenant. Implementation:
 
 - A tenant can configure a SAML or OIDC identity provider in Keycloak (admin API).
 - The tenant's public site shows "Sign in with {tenant}" on the login page.
-- Users authenticating via tenant SSO land in the LearnStack realm; their Keycloak account is federated, and LearnStack creates or matches a `Membership` based on the email.
+- Users authenticating through a broker land in the LearnStack realm. Broker
+  authentication or email equality alone grants no LearnStack membership, role or
+  global account link. Phase 03 G1/G8/G12 supply the trusted linking/admission
+  contract before any such writer.
 
 This does not require LearnStack code changes per tenant; it is a configuration in Keycloak that LearnStack exposes via a tenant-admin UI.
+
+The UI needs a confined runtime adapter: tenant ownership of broker resources,
+write-only secrets, bounded metadata/discovery egress, trusted verification/MFA,
+test/activate/rollback and last-login recovery. G12 owns those decisions and their
+real two-tenant provider proof; a realm-level Admin API credential is not tenant
+authority.
 
 ## MFA
 
@@ -305,7 +349,11 @@ Two audit streams:
 - **Keycloak audit** — login success/failure, password change, MFA enroll, account lock. Retained inside Keycloak.
 - **LearnStack `AuditLog`** — role change, permission change, invitation, tenant setting change, platform admin bypass. Owned by LearnStack.
 
-Mirrored events (e.g. `user.created`) are propagated via Keycloak webhooks into LearnStack so cross-system queries are possible.
+The mirror is a Phase 03 G10 target. That gate selects authenticated durable
+provider listener/webhook or pull ingress, stable provider-event deduplication,
+global/unknown/multi-membership attribution and retention. Approved facts enter
+the tenant outbox and transport-owned Audit subscription; raw provider payloads
+and a direct business `IEventBus.PublishAsync` are not the mirror contract.
 
 ## Local Development
 
