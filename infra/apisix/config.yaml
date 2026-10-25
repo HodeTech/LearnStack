@@ -33,7 +33,7 @@ nginx_config:
 plugins:
   - real-ip
   - cors
-  - openid-connect       # JWT validation (Phase 03 wires Keycloak realm)
+  - openid-connect       # Phase 11 qualifies JWT validation before activation
   - jwt-auth
   - limit-req
   - limit-count

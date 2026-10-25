@@ -140,6 +140,8 @@ public sealed class AsyncStoreInventoryTests
                 + "GRANT EXECUTE ON FUNCTION public.census_guard() TO PUBLIC; "
                 + "INSERT INTO final_table(id) VALUES(1) ON CONFLICT DO NOTHING; "
                 + "SELECT set_config('app.tenant_id', 'probe', true);" },
+            new SqlOperation { Sql = "CREATE FUNCTION public.census_function() RETURNS void LANGUAGE plpgsql AS $$ BEGIN NULL; END; $$; "
+                + "CREATE OR REPLACE PROCEDURE public.census_procedure() AS $body$ BEGIN NULL; END; $body$ LANGUAGE plpgsql;" },
         ];
         AsyncStoreInventoryCensus.Tables(operations).Should().BeEquivalentTo(["final_table"]);
     }
@@ -161,6 +163,10 @@ public sealed class AsyncStoreInventoryTests
     [InlineData("DO 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE hidden_table(id int)''; END';", "Non-dollar procedural bodies")]
     [InlineData("DO E'BEGIN EXECUTE ''CRE'' || ''ATE TABLE hidden_table(id int)''; END';", "Non-dollar procedural bodies")]
     [InlineData("DO LANGUAGE plpgsql 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE hidden_table(id int)''; END';", "Non-dollar procedural bodies")]
+    [InlineData("CREATE FUNCTION public.inventory_probe() RETURNS void LANGUAGE plpgsql AS 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.hidden_table(id int)''; END;'; SELECT public.inventory_probe();", "Non-dollar procedural bodies")]
+    [InlineData("CREATE OR REPLACE FUNCTION public.inventory_probe() RETURNS void AS E'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.hidden_table(id int)''; END;' LANGUAGE plpgsql; SELECT public.inventory_probe();", "Non-dollar procedural bodies")]
+    [InlineData("CREATE PROCEDURE public.inventory_probe() LANGUAGE plpgsql AS 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.hidden_table(id int)''; END;'; CALL public.inventory_probe();", "Non-dollar procedural bodies")]
+    [InlineData("CREATE OR REPLACE PROCEDURE public.inventory_probe() AS E'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.hidden_table(id int)''; END;' LANGUAGE plpgsql; CALL public.inventory_probe();", "Non-dollar procedural bodies")]
     [InlineData("CREATE TABLE IF absent_table (id int);", "Malformed table declaration.")]
     [InlineData("CREATE TABLE (id int);", "Malformed table identifier.")]
     [InlineData("SET search_path = other; CREATE TABLE hidden_table (id int);", "non-public search path")]

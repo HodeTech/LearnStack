@@ -163,6 +163,17 @@ internal static class AsyncStoreInventoryCensus
                 if (Is(index, "CREATE"))
                 {
                     var cursor = index + 1;
+                    if (Is(cursor, "OR") && Is(cursor + 1, "REPLACE")) cursor += 2;
+                    if (Is(cursor, "FUNCTION") || Is(cursor, "PROCEDURE"))
+                    {
+                        // A quoted routine body is opaque to this declaration reader,
+                        // just like a quoted DO body. Split EXECUTE text can hide table
+                        // DDL until a later SELECT/CALL executes the routine.
+                        while (cursor < tokens.Length && At(cursor).Text != ";" && !Is(cursor, "AS")) cursor++;
+                        if (!Is(cursor, "AS") || !At(cursor + 1).Dollar)
+                            throw new FormatException("Non-dollar procedural bodies require an explicit census reader decision.");
+                        continue;
+                    }
                     if (Is(cursor, "TEMP") || Is(cursor, "TEMPORARY") || Is(cursor, "UNLOGGED")
                         || Is(cursor, "FOREIGN") || Is(cursor, "GLOBAL") || Is(cursor, "LOCAL"))
                         throw new FormatException("Unsupported table persistence declaration.");
