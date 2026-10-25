@@ -11,8 +11,8 @@
 > implementation steps and both review rounds per step are complete. Its
 > [source-bound qualification closeout](phase-02b-delivery-log.md#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25)
 > records the complete A/B proof. [PR #37](https://github.com/HodeTech/LearnStack/pull/37)
-> is under correction review; the
-> [correction record](phase-02b-delivery-log.md#p02b-8-pr-correction-verification-2026-10-25)
+> has completed both correction review rounds; the
+> [correction closeout](phase-02b-delivery-log.md#p02b-8-correction-review-round-2-and-source-freeze-2026-10-25)
 > distinguishes those changes from earlier qualified source. Current-head checks,
 > conversation resolution, maintainer review and merge remain release gates;
 > this phase is not yet marked merged.

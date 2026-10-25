@@ -220,7 +220,8 @@ and `MediatRPipelineRegistration.CanonicalBehaviorOrder`. Do not reconstruct
 the behavior chain with a separate `AddMediatR` call or call the helper again
 after the foundation. A separate registration path can bypass shared services;
 repeating the shared helper is idempotent but needlessly obscures ownership.
-`Registering_The_Pipeline_Twice_Registers_It_Once` protects that idempotency. `MediatR_Pipeline_Order_Matches_Canonical_Sequence` verifies
+`Registering_The_Pipeline_Twice_Registers_It_Once` protects that idempotency.
+`MediatR_Pipeline_Order_Matches_Canonical_Sequence` verifies
 the actual order, including `OutboxFlushBehavior` at position seven.
 
 Do **not** add an `ExceptionHandlingBehavior`. The `AuditLogBehavior` catches
@@ -299,7 +300,8 @@ No action filter, no `ResultUnwrapBehavior`. Explicit beats magic.
 `backend/src/Directory.Build.props` automatically references the in-tree
 `backend/analyzers/LearnStack.Analyzers` project with
 `OutputItemType="Analyzer"` and `ReferenceOutputAssembly="false"`. It is not
-a NuGet package. New production C# projects inherit this wiring. Do not add project-level
+a NuGet package. New production C# projects inherit this wiring. Do not add
+project-level
 analyzer references or suppress these diagnostics with `NoWarn`.
 
 - `LS0001` (`LearnStackException-DomainExceptionThrow`) retains its

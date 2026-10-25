@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 919 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 963 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -287,6 +287,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 4 review round 2 — source (2026-10-25)](#p02b-8-step-4-review-round-2--source-2026-10-25) — 31 lines
   - [P02b-8 Step 4 — Completed-source qualification and review closeout (2026-10-25)](#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25) — 109 lines
   - [P02b-8 PR correction verification (2026-10-25)](#p02b-8-pr-correction-verification-2026-10-25) — 93 lines
+  - [P02b-8 correction review round 2 and source freeze (2026-10-25)](#p02b-8-correction-review-round-2-and-source-freeze-2026-10-25) — 44 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21886,6 +21887,50 @@ the evidence read at qualification time; they do not promise permanent remote
 availability or committed copies of those audit aids. Retained local receipts
 are not a substitute for source attribution or a public permanent archive.
 Future operational retention remains Phase 11's responsibility.
+
+### P02b-8 correction review round 2 and source freeze (2026-10-25)
+
+The completed code correction source is
+`5da6bab383d77a9d43f6ab310a03b49a13ccaf02`, tree
+`75862d496ea54940b0ded95f6d3a5cb7cebdb9a9`, after commits `60a9721c` and
+`b4b85dea`. This receipt and prose-only wrapping add no executable change.
+
+Two new fresh-context automated reviewers independently inspect the committed
+correction and its bounded fixes:
+
+| Session | Model / effort | Final source and result |
+|---|---|---|
+| `pr37_fix_r2_code` | GPT-6-astra / high | `5da6bab3`; approve across changed C# and direct contracts after the opaque-routine finding and header/path variants are corrected |
+| `pr37_fix_r2_contracts` | GPT-6.1-sol / xhigh | `5da6bab3`; documentation approval after two remaining adjacent carrier comments are synchronized |
+
+These source reviews execute no builds or PostgreSQL tests themselves. Their
+approval verifies implementation and proof design; the execution below is the
+implementing agent's evidence, not an attributed independent rerun.
+
+**Verified second-round finding.** A quoted FUNCTION/PROCEDURE body can hide
+split dynamic table DDL, just as a quoted DO body can. All four initial planted
+routine cases fail before the fix for the intended missing-refusal reason.
+The bounded reader now requires a dollar-quoted routine body, scans the complete
+declaration through its terminator, and separates default-string dollars and
+parenthesis depth from the body AS. Search-path options before and after the
+body admit the current explicit public/pg_catalog forms and refuse unresolved
+or foreign paths. Quoted setting names do not broaden quoted schema identity.
+The actual five migration chains and pinned installer remain clean.
+
+Final inventory/CorpusConsistency selection passes **58/58**, zero skips. A
+separate owned PostgreSQL selection passes **5/5**, including actual table
+creation through the quoted dynamic routine and quoted setting-name behavior.
+The earlier complete Unit and capture/delivery/all-mode runs remain applicable:
+only the inventory test reader, its controls and these isolated PostgreSQL cases
+change after their passing source. Test-method/catalogue counts remain
+279 / 237 / 134 / 103; additional theory rows are not new methods or rules.
+Whitespace, fragment/structure/index and commit-hook format/leak checks pass.
+
+The unchanged CI plan, algorithm and seven required context names are retained.
+Current correction-source hosted qualification is still pending. Freeze the
+code here before collecting its complete assignments; never relabel earlier
+5992-case receipts as proof of the new population. Conversation resolution,
+maintainer review and merge remain separate release gates.
 
 ## Status archive
 

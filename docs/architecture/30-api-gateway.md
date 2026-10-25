@@ -393,7 +393,8 @@ routes:
 
 The corrections in Rules 1–3 land in the shipped `infra/apisix/apisix.yaml` in
 [Phase 03](../roadmap/phase-03-identity-admin.md). The `openid-connect` block stays
-disabled until its qualification and gateway activation in Phase 11. APISIX becomes a real
+disabled until its qualification and gateway activation in Phase 11. APISIX
+becomes a real
 gateway — TLS termination, consumer-keyed limits, WAF — in
 [Phase 11](../roadmap/phase-11-production-hardening.md).
 

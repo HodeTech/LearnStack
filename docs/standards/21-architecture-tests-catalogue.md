@@ -507,8 +507,9 @@ otherwise).
 - **Status:** **Implemented** — analyzer, `SensitiveExceptionMessageAnalyzerTests`
   and `AnalyzerBuildTests` in `LearnStack.Tests.Unit`.
 - **Supporting architecture proofs:**
-  `SensitiveExceptionMessageTests.Production_Exception_Messages_Do_Not_Contain_Sensitive_References`
-  checks both production configurations, including suppressed reports;
+  `SensitiveExceptionMessageTests` runs
+  `Production_Exception_Messages_Do_Not_Contain_Sensitive_References` for both
+  production configurations, including suppressed reports;
   `The_Sensitive_Report_Sees_Suppressed_And_Conditional_Violations` plants them.
   `AnalyzerWiringTests` checks evaluated settings and unconditional reference
   ancestry, with OS/CI/Choose and editorconfig/targets suppression controls.
