@@ -15,10 +15,11 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 203 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 237 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
+  - [P03-1 proposal readiness (2026-10-25)](#p03-1-proposal-readiness-2026-10-25) — 34 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -233,9 +234,9 @@ dynamic-field schema or distributed session store is delivered by this package.
 Their first-writer contracts remain assigned in the phase register; no required
 P03-1 prerequisite is relabeled as a later production-hardening task.
 
-**Current validation.** Pending on the proposed documentation source. There has
-been no backend/frontend/provider execution or implementation qualification in
-this decision pass; review and mechanical results are appended after completion.
+**Validation boundary.** The review and readiness entries below own completed
+mechanical/static results. There is no backend/frontend/provider execution or
+implementation qualification in this documentation-only decision pass.
 
 ### P03-1 proposal review round 1 (2026-10-25)
 
@@ -307,3 +308,38 @@ waiting/publication, not proof that centrally owned audit cleanup completed.
 The corrected proposal is rechecked against source and the PostgreSQL 18
 isolation/volatility/policy contracts. A targeted correction verification and
 final mechanical checks follow before maintainer approval is requested.
+
+### P03-1 proposal readiness (2026-10-25)
+
+**Source reviewed:** `037fd56f`, after first draft `8cf352f4`, round-one fixes
+`c9a969f6` and round-two fixes `d0fd67de`. Three initial read-only audits establish
+the prior-document/source gaps. Two fresh reviewers per full round examine the
+proposal; the second-round reviewers then independently verify the targeted
+corrections at the final source. That verification is not a third full round.
+Their reviewed scopes report no remaining concrete actionable finding. Neither
+static review nor these documentation checks supplies runtime qualification.
+
+The new authorities remain Proposed:
+
+- [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md): application-
+  owned binding, exact global-self operation, atomic global audit and confined
+  failed/indeterminate reconciliation, seed preservation and closure fence.
+- [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md):
+  contained contextual membership state, finite scoped grants/Organization
+  Learner, last-admin/read-committed invariants and complete PII/diagnostic census.
+- The [six-step package](#p03-1-proposed-decision-package-2026-10-25) identifies
+  the user decisions, exact gate parts, proof owners and later packet boundaries.
+
+The final audit preserves P03-0 history byte-for-byte outside the generated index,
+changes no Accepted ADR/runtime/configuration file, leaves all nineteen gates
+Open and stays on `development`. No foreign process/worktree or provider state
+is changed. Commits are local; no PR or push is performed by this preparation.
+The user's explicit approval-before-new-ADR requirement is the remaining gate;
+acceptance/disclosures and all dependent implementation await that answer.
+
+Final document validation is recorded on this proposal source before commit:
+2,413 whole-tree fragment links, roadmap structure and three current indexes;
+1,258 changed-document relative targets with none missing; both ADRs parse
+Proposed; added ADR prose, whitespace and private-path residual checks pass.
+Existing parser/fragment/structure/index guard controls pass 37 tests. No
+application test is presented as run or passing in this proposal preparation.
