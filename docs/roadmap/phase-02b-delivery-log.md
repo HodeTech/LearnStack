@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 622 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 664 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -282,6 +282,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 3 — Delivered carriers and catalogue reconciliation (2026-10-25)](#p02b-8-step-3--delivered-carriers-and-catalogue-reconciliation-2026-10-25) — 44 lines
   - [P02b-8 Step 3 review round 1 (2026-10-25)](#p02b-8-step-3-review-round-1-2026-10-25) — 19 lines
   - [P02b-8 Step 3 review round 2 and closeout (2026-10-25)](#p02b-8-step-3-review-round-2-and-closeout-2026-10-25) — 22 lines
+  - [P02b-8 Step 4 — Individual exit ownership and source freeze (2026-10-25)](#p02b-8-step-4--individual-exit-ownership-and-source-freeze-2026-10-25) — 42 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21584,6 +21585,48 @@ Step 3 and both fresh review rounds are complete. Step 4 now owns the individual
 exit-evidence index, full-source local and hosted A/B qualification, final live
 protection verification and the review PR. Until those proofs complete, P02b-8
 and Phase 02b remain in progress.
+
+### P02b-8 Step 4 — Individual exit ownership and source freeze (2026-10-25)
+
+The [individual exit index](phase-02b-exit-evidence.md) maps all 26 deliverables,
+60 completion criteria and eleven exit obligations in canonical source order,
+plus eleven explicit exclusions and the Dapr/Kafka boundaries. Named method
+owners are checked against actual classes, including partial-file distinctions;
+backend, real integration, frontend, browser, OpenAPI and offline/governance
+lanes stay separate. This is an ownership index, not a passing CI receipt.
+
+Two formerly imprecise proof locators are resolved before hosted qualification:
+
+- C27's vague G6 reference is replaced by ADR-0044's existing declared-type/frame
+  composition contract. The actual app-role
+  `AuditStoreTests.A_capture_of_another_entity_type_does_not_reach_the_row` passes,
+  1/1, zero skips. Frame controls remain separate; this creates no new policy or
+  claim that arbitrary undeclared roots are rejected by a runtime guard.
+- `DeliveryExecutionTests` directly observes the real scoped capture's single
+  clear on success, failure and lost physical COMMIT, preserving the concrete
+  `IAuditSubject` binding. The lost-COMMIT theory counts exactly one standalone
+  indeterminate row by operation, subject and causal event as `learnstack_app`
+  under both tenant/organization GUCs. Completed retries clear no new frame and
+  change no durable count. All 35 existing cases pass with zero skips; no test
+  method/count, production path, schema, grant or retry policy changes.
+
+The Phase 02c owner now explicitly carries its already assigned queued/in-flight
+status-transition decision before the first status/termination writer. It selects
+no hold/drop/dead-letter policy here and preserves lease/quiescence/reservation
+constraints. Its phone-home handoff distinguishes delivered runtime foundation
+from future real Hub definitions and adapter proof.
+
+Before freezing, `c5847a9` joins current main's PR #36 squash ancestry. Main's
+complete tree equals the already included `6b6f0629` source; the merge's complete
+tree equals its development parent. No file content changes or prior qualification
+relabeling occurs. Development remains the working branch.
+
+The integration-only build with existing project references has zero warnings/
+errors, and documentation fragment/structure/index and whitespace checks pass.
+The full local Release architecture suite remains in progress. Earlier Step 3
+local receipts cover unchanged production/frontend source; final hosted complete
+same-source A/B and all actual lanes remain pending. Both fresh Step 4 review
+rounds and the review PR follow those receipts; this record claims no phase exit.
 
 ## Status archive
 

@@ -257,6 +257,17 @@ tenant the links, mail and bookmarks still pointing at the first one; the termin
 handler this phase builds decides whether a slug is ever released, and on what condition,
 before an index filter is allowed to decide it by accident.
 
+**Status changes decide the fate of asynchronous work.** Before this phase's
+first status-transition or termination writer, its decision pass selects the
+hold, drop or dead-letter policy for already queued or in-flight outbox,
+delivery and job work. This is the owner named by
+[Phase 02b's asynchronous-status exclusion](phase-02b-events-auth.md#explicitly-not-in-this-phase);
+no policy is selected here. The decision preserves the existing lease fences,
+actual-quiescence requirements and reservation ownership under
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) and
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md). A tenant
+status change alone proves neither settled work nor a released reservation.
+
 Each handler:
 
 - Runs on the **internal listener only** and is unreachable from the public surface
@@ -323,15 +334,16 @@ keeps the 24-hour cadence and 0–119-minute jitter; signed-key hardening and
 revocation-list operations remain Phase 11. This is a periodic job, distinct from
 the entitlement-push integration-event consumer above.
 
-The accepted expanded P02b-4 contract supplies durable recurrence and the
-restricted tenantless trigger → enumeration → separately announced submission
-foundation. This phase registers the real phone-home recurrence/child definitions
-and chooses the nonarchived policy that includes Suspended tenants. Verify stable
-occurrence/jitter, bounded resumable fan-out and duplicate-tick controls with the
-real Hub adapter here. No tenant sentinel or general business bypass substitutes
-for that authority. [ADR-0047 is Accepted — 2026-10-15](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations);
-P02b-4 implementation/proofs remain pending. This handoff claims no delivered
-foundation or implemented grant.
+[Phase 02b](phase-02b-events-auth.md) supplies the delivered durable-recurrence
+and restricted tenantless trigger → enumeration → separately announced
+submission foundation under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations).
+This phase registers the real phone-home recurrence/child definitions and chooses
+the nonarchived policy that includes Suspended tenants. Its real Hub adapter
+proofs verify stable occurrence/jitter, bounded resumable fan-out and duplicate
+ticks. Delivered runtime and fixture controls do not implement these Hub-specific
+definitions or prove the adapter. No tenant sentinel or general business bypass
+substitutes for the declared authority.
 
 ### `platform_host_to_tenant` mirroring
 

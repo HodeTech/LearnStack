@@ -2739,6 +2739,9 @@ which decides identity, multiplicity, capture and classification;
 - **Type:** xUnit over the behavior and the scoped capture, with a nested-dispatch case.
   **Kind:** behavioural.
 - **Status:** **Implemented** (`AuditLogBehaviorTests`, Packet 9 step 8). A theory over three endings — success, refusal, handler exception — because each leaves the behaviour by a different door and only the `finally` is common to them; plus the nested case, so the pair pins "exactly once, by the outermost" rather than merely "at least once".
+  `DeliveryExecutionTests` additionally observes the real scoped capture's single
+  clear on successful, faulted and lost-COMMIT delivery. An already-completed
+  retry clears no new frame; the concrete `IAuditSubject` binding is preserved.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_Shipped_Request_Is_Registered`
@@ -3365,6 +3368,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   also checks the real HTTP producer's stored trace,
   announced tenant/org and exact nonempty partition; the delivery proof checks
   the same quartet for its outgoing event. Actual production consumers are Active.
+  Its lost-COMMIT theory independently counts exactly one row-bound standalone
+  `indeterminate` audit beside the durable success row, observes one outer capture
+  clear and proves that a rejected completed retry changes neither count.
 - **Phase:** 02b, P02b-3.
 
 #### `Integration_Event_Handlers_Use_InboxGuard`

@@ -9,7 +9,8 @@
 > implemented. The P02b-7 merge closeout below links the source-bound A/B and
 > final PR-head qualification. P02b-8's G16/G18 decisions are Accepted; its
 > implementation Steps 1–3 and both review rounds per step are complete. Step 4
-> source-bound qualification and the exit evidence index remain in progress.
+> source-bound qualification remains in progress; the
+> [individual exit index](phase-02b-exit-evidence.md) names each criterion's owner.
 >
 > This document is the plan. Every dated decision package, step record, review
 > round, correction and merge closeout lives in the [delivery log](phase-02b-delivery-log.md), split out
@@ -1037,8 +1038,12 @@ this document; this section names criteria and the records that prove them.
   remain observed and hold their local partition; unrelated work progresses
   within the accepted cap. An uncertain physical COMMIT is Indeterminate and
   recovers from atomic durable state rather than assuming rollback.
-- A frame whose captures name an aggregate root that no intent in the frame declares
-  produces the behaviour G6 records.
+- An audit row uses only the captures belonging to its intent's declaring frame
+  and declared aggregate type. A captured root of another type does not reach
+  that row's snapshots or changes, under
+  [ADR-0044 Amendment 5 § 2](../decisions/0044-audit-write-path.md#2-entity_type-and-entity_id-come-from-the-intents-declared-aggregate)
+  and [Amendment 6 § 3](../decisions/0044-audit-write-path.md#3-each-intent-keeps-its-own-requests-result-the-transactions-state-says-only-what-it-can).
+  ADR-0057's common owner preserves these composition and frame rules.
 - A consumer handling an event caused by user U writes a row whose metadata names U and
   the consumed event, and the follow-up outbox row carries that event as its causation.
 - Every registered off-path dead-letter slug has a matrix row in the module that writes

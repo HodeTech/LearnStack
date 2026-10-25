@@ -68,9 +68,11 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         try
         {
             var gate = new DeliveryCommitGate();
+            var clearsBefore = fixture.Observation.AuditClearCount;
             var result = await fixture.Executor.ExecuteAsync(claim, gate, cancellation.Token);
 
             result.Should().Be(new DeliveryExecutionResult(DeliveryExecutionOutcome.Completed, true, false));
+            (fixture.Observation.AuditClearCount - clearsBefore).Should().Be(1);
             gate.CommitAcknowledged.Should().BeTrue();
             fixture.Observation.Constructions.Should().Be(1);
             fixture.Observation.Executions.Should().Be(1);
@@ -169,10 +171,12 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         fixture.Observation.Fault = fault;
         var previous = new ProbeContext(SchemaFixture.TenantB, null);
         fixture.Accessor.Current = previous;
+        var clearsBefore = fixture.Observation.AuditClearCount;
         var result = await fixture.Executor.ExecuteAsync(claim, new DeliveryCommitGate());
 
         result.CommitAcknowledged.Should().BeFalse();
         result.Outcome.Should().Be(DeliveryExecutionOutcome.Failed);
+        (fixture.Observation.AuditClearCount - clearsBefore).Should().Be(1);
         fixture.Accessor.Current.Should().BeSameAs(previous);
         fixture.Logs.Text.Should().NotContain(SensitiveCanary).And.NotContain(PayloadCanary.ToString()).And.NotContain(typeof(Handler).FullName!);
         (await fixture.StateAsync(fact)).Should().Match<DurableState>(state =>
@@ -396,6 +400,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         await using var proxy = new CommitResponseDroppingProxy(fixture.Database.AppConnectionString);
         await using var uncertain = fixture.ForConnection(proxy.ConnectionString);
         var gate = new DeliveryCommitGate();
+        var clearsBefore = uncertain.Observation.AuditClearCount;
         var result = await uncertain.Executor.ExecuteAsync(claim, gate);
 
         result.Outcome.Should().Be(DeliveryExecutionOutcome.Indeterminate);
@@ -403,15 +408,21 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         gate.CommitStarted.Should().BeTrue();
         proxy.DroppedCommitResponses.Should().Be(1);
         uncertain.Observation.ObservedSavedWork.Should().BeTrue();
+        (uncertain.Observation.AuditClearCount - clearsBefore).Should().Be(1,
+            "the outer delivery audit owner clears the real capture exactly once after reconciliation");
         var state = await fixture.StateAsync(fact);
         state.Business.Should().Be(1);
         state.Inbox.Should().Be(1);
         state.Outbox.Should().Be(1);
         state.SuccessAudit.Should().Be(1);
+        state.IndeterminateAudit.Should().Be(1);
         state.Processed.Should().BeTrue();
 
+        var retryClearsBefore = fixture.Observation.AuditClearCount;
         var retry = await fixture.Executor.ExecuteAsync(claim, new DeliveryCommitGate());
         retry.Outcome.Should().Be(DeliveryExecutionOutcome.LostClaim);
+        (fixture.Observation.AuditClearCount - retryClearsBefore).Should().Be(0,
+            "durable completion refuses the retry before another audit frame can clear");
         fixture.Observation.Constructions.Should().Be(0, "durable completion excludes every subsequent execution");
         (await fixture.StateAsync(fact)).Should().BeEquivalentTo(state);
         uncertain.Logs.Text.Should().NotContain(SensitiveCanary).And.NotContain(PayloadCanary.ToString());
@@ -744,7 +755,11 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
 
     public sealed class Observation
     {
+        private int _auditClearCount;
+
         public int Constructions { get; set; }
+        public int AuditClearCount => Volatile.Read(ref _auditClearCount);
+        public void RecordAuditClear() => Interlocked.Increment(ref _auditClearCount);
         public bool InboxObservedAtConstruction { get; set; }
         public bool ObserveBareUnit { get; set; }
         public bool BareUnitObserved { get; set; }
@@ -855,6 +870,28 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             builder.MustAudit<Handler>(Operation, OperationType.Create, typeof(TenantContentType));
     }
 
+    private sealed class ObservedCapture(IAuditStateCapture actual, Observation observation) : IAuditStateCapture
+    {
+        public IReadOnlyList<CapturedEntityChange> Changes => actual.Changes;
+        public IReadOnlyList<AuditIntent> Intents => actual.Intents;
+        public AuditIntentState State => actual.State;
+        public bool HasOpenFrame => actual.HasOpenFrame;
+        public void Add(CapturedEntityChange change) => actual.Add(change);
+        public IReadOnlyList<CapturedEntityChange> ChangesOf(AuditIntent intent) => actual.ChangesOf(intent);
+        public void OpenFrame() => actual.OpenFrame();
+        public void CloseFrame(AuditIntentResult result) => actual.CloseFrame(result);
+        public void DeclareIntent(AuditIntent intent) => actual.DeclareIntent(intent);
+        public void MarkWrittenInTransaction() => actual.MarkWrittenInTransaction();
+        public void MarkCommitted() => actual.MarkCommitted();
+        public void MarkRolledBack() => actual.MarkRolledBack();
+        public void MarkIndeterminate(Exception cause) => actual.MarkIndeterminate(cause);
+        public void Clear()
+        {
+            actual.Clear();
+            observation.RecordAuditClear();
+        }
+    }
+
     private sealed class ProbeContext(Guid tenant, Guid? organization) : ITenantContext
     {
         public bool IsResolved => true;
@@ -869,7 +906,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         bool Processed, Guid? OutboxCausation, Guid? OutboxActor, Guid? AuditActor,
         string? AuditCorrelation, Guid? AuditOrganization, string? LockedBy,
         Guid? AuditCausation, Guid? AuditCausalActor, string? OutboxCorrelation,
-        Guid? OutboxTenant, Guid? OutboxOrganization, string? OutboxPartition);
+        Guid? OutboxTenant, Guid? OutboxOrganization, string? OutboxPartition, long IndeterminateAudit);
 
     private sealed class Fixture : IAsyncDisposable
     {
@@ -900,6 +937,9 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                     services.RemoveAll<IntegrationEventHandlerRegistry>();
                     services.AddSingleton(handlers);
                     services.AddSingleton(Observation);
+                    services.RemoveAll<IAuditStateCapture>();
+                    services.AddScoped<IAuditStateCapture>(provider =>
+                        new ObservedCapture(provider.GetRequiredService<AuditStateCapture>(), Observation));
                     services.RemoveAll<IUnitOfWork>();
                     services.AddScoped<IUnitOfWork>(provider =>
                     {
@@ -1117,7 +1157,9 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                   (SELECT correlation_id FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
                   (SELECT tenant_id FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
                   (SELECT organization_id FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
-                  (SELECT partition_key FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1)
+                  (SELECT partition_key FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
+                  (SELECT count(*) FROM audit_log WHERE operation = @operation AND outcome = 'indeterminate'
+                      AND entity_id = @subject_text AND (metadata ->> 'causation_id')::uuid = @event)
                 """, connection, transaction);
             command.Parameters.AddWithValue("subject", fact.SubjectId);
             command.Parameters.AddWithValue("subject_text", fact.SubjectId.ToString());
@@ -1133,7 +1175,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                 read.IsDBNull(10) ? null : read.GetString(10), read.IsDBNull(11) ? null : read.GetGuid(11),
                 read.IsDBNull(12) ? null : read.GetGuid(12), read.IsDBNull(13) ? null : read.GetString(13),
                 read.IsDBNull(14) ? null : read.GetGuid(14), read.IsDBNull(15) ? null : read.GetGuid(15),
-                read.IsDBNull(16) ? null : read.GetString(16));
+                read.IsDBNull(16) ? null : read.GetString(16), read.GetInt64(17));
         }
         public async ValueTask DisposeAsync()
         {
