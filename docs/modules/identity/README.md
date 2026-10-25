@@ -82,30 +82,43 @@ only, never canonical email/verification, global identity, Role bindings,
 arbitrary settings or consent evidence. P03-3/G6 chooses exact DTOs; P03-5/G9 owns
 dynamic fields/revisions. No dormant custom-fields column lands in the foundation.
 
-Creation, Suspended→Active and assignment additions acquire the target User
-admission lock and recheck ADR-0072's canonical fence before the tenant lock.
-All Membership mutations and protected Role changes take the same tenant
-invariant lock before a separate fresh check; deferred database guards cover
-direct writes. Writers/guards require READ COMMITTED, refuse incompatible
-isolation and use VOLATILE fresh post-wait reads. Locks last through commit.
-Never acquire another User lock under tenant; final-admin checks use ADR-0072's
-confined Boolean state read. Future closure takes User then affected tenant
-locks in stable order. [Standard 05](../../standards/05-database.md) owns the
-proposed lock/timeout/telemetry contract, not a second module algorithm.
+Creation, Suspended→Active and **all** assignment additions recheck the target
+User fence, including additions of currently empty/inactive templates.
+[Standard 05's Proposed lock contract](../../standards/05-database.md#proposed-lock-snapshot-and-adoption-conditions)
+alone owns the algorithm, ordering, fresh reads, deadlines and database guards.
+Profile/nonadmin/organization mutations use its shared tenant invariant mode;
+first-admin and tenant-admin eligibility/assignment/kernel transitions use its
+exclusive mode. Actual affected rows bind the mode before acquisition; no
+shared-to-exclusive upgrade or caller-declared nonadmin exemption is admitted.
 
-Every Membership mutation leaves an Active, globally eligible, tenant-wide
-Tenant Admin with both kernel pairs. The first mutation therefore establishes
-that administrator. Role roots may exist first; completed foundation is actual
+Every Membership mutation, in either lock mode, leaves an Active, globally
+eligible, tenant-wide Tenant Admin with both kernel pairs. The first mutation
+therefore establishes that administrator. Role roots may exist first; completed foundation is actual
 eligible administration plus semantically valid required templates, without a
 bootstrap Boolean, receipt or table. Trial, Active and Suspended retain their
 admin. No Archived/termination exemption exists until separately admitted by
 G13/G16. Final-admin removal/suspension/revocation or kernel stripping refuses.
+Future global closure cannot make the final admin ineligible before its separate
+recovery/termination authority and guards are Accepted and implemented.
 
-Live coverage also requires Tenancy's current lifecycle facts through its
-application contract. Trial/Active admit ordinary work; Suspended retains an
+P03-1 supplies the bounded Tenancy Application.Contracts port
+`IIdentityScopeLifecycleReader.ReadAsync(TenantId, OrganizationId?, CancellationToken)`.
+Its immutable `IdentityScopeLifecycle` result has four Booleans:
+`TenantExistsAndNotDeleted`, `TenantAllowsOrdinaryWork`,
+`OrganizationBelongsToTenant` and `OrganizationAllowsOrdinaryWork`. Organization
+facts are false when no organization is requested; it returns no row or list.
+Trial/Active admit ordinary work; Suspended retains an
 admin without ordinary-work eligibility. Organization work requires Active and
-nondeleted, not just belonging. P03-2 owns live checks; P03-3 owns target-scope
-transitions and last/default-organization concurrency before Tenancy endpoints.
+nondeleted, not just belonging. Missing targets return closed false facts.
+
+The target must match an already trusted, announced owner scope. The Tenancy
+implementation reads its own tables in one fresh READ COMMITTED statement on
+that app-role transaction; no cached lifecycle result, additional setter,
+cross-module SQL join or Organization FK is admitted. P03-1 Step 4 supplies the
+port/implementation and seed controls; P03-2 executes it for live admission at
+the declared per-act snapshot. P03-3 owns lifecycle-transition/last/default-org
+concurrency before Tenancy endpoints. G3's foundation contract does not qualify
+those later live checks or archive races.
 
 ### First-admin and seed sequence
 
@@ -141,9 +154,11 @@ Organization pair; no cross-module transaction or further exception is admitted.
 
 The expected fingerprint is not a new receipt table. Existing Role/Membership
 facts establish completion; keep historical manifest versions to verify earlier
-completed acts. Registry additions do not change adopted grants. Explicit later
-grant adoption is separately admitted/audited. Ordinary seed refuses operator
-drift rather than interpreting it as permission to overwrite authority.
+completed acts. Registry additions do not change adopted grants. P03-2 owns
+separately admitted/audited grant adoption, including removal of the initial
+profile grant outside the two-pair kernel. A legitimate later upgrade that no
+longer matches this fixed v1 seed also makes that seed refuse; it never overwrites,
+repairs or resets upgraded authority. Seed is not an upgrade reconciler.
 
 | Existing actor | Membership scope | Assignment |
 |---|---|---|
@@ -155,8 +170,19 @@ drift rather than interpreting it as permission to overwrite authority.
 [SeedData](../../../backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the full
 legacy actor/tenant/organization IDs. Exact assignment declarations extend that
 manifest; suffixes above identify existing actors, not newly allocated IDs.
-Separate explicit proof subjects cover one person in both tenants/two branches
-and a second same-tenant person. Email never merges them.
+The four authentication personas remain fixed. Additional cross-tenant/two-branch
+and same-tenant-second-person proof populations are fixture-local, outside
+`IdentityUsers` and its exact four-user realm manifest. Email never merges them.
+
+Yoga admin `b001` keeps its existing provider claim for default studio `b1`.
+Its seed Membership declaration independently selects NULL organization, and
+the seed transaction derives NULL SQL organization scope from that trusted
+target; the authentication manifest does not choose the Membership write scope.
+After live authorization ships, a branch session may consume eligible Tenant
+grants for branch operations only. Tenant-wide Membership/Profile/template
+writes require an explicitly selected orgless context through P03-3's validated
+reissue transition. Neither the existing branch claim nor `app.scope` promotes
+writes; no extra branch-admin Membership or provider-claim rewrite is required.
 
 ## Entity-relationship diagram
 
@@ -212,7 +238,7 @@ sequenceDiagram
     Seed->>Role: Exact v1 template and closed seed witness
     Role->>DB: One Role plus grants; commit
     Seed->>Member: Declared admin and existing Role
-    Member->>DB: User lock/recheck, then tenant lock/recheck
+    Member->>DB: Standard 05 admission/invariant guards
     Member->>DB: Membership, Profile and Assignment
     Member->>Audit: MUST intent with captured children
     Audit->>DB: Same-transaction audit
@@ -288,7 +314,7 @@ closure/locators. These are named later writers, not implicit foundation authori
 | Kernel manifest/SQL equivalence | Planned, unregistered; no artifact | P03-1 Steps 1/4, register and qualify equality before grants |
 | Lifecycle/null uniqueness/admin/closure-reactivation races | Planned behavioral proof | P03-1 Step 4, separate real app-role connections and independent guard removals |
 | Per-sink PII canaries/child audit/MUST rollback | Planned behavioral proof | P03-1 Steps 2/4, positive sink events and actual snapshots |
-| Nonseed/native/global identity | Proposed ADR-0072 obligations | P03-1 Steps 3/5/6 under its canonical contract |
+| Nonseed/native/global identity | Proposed ADR-0072 obligations | P03-1 storage/audit/seed/existing-session binding; P03-3 HTTP/new-user BFF activation |
 
 Registered means an actual catalogue entry exists. Until then a new control is
 planned/unregistered; later Registered is not Implemented. No empty census,

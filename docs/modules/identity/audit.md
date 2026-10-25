@@ -7,16 +7,22 @@ and [Standard 18](../../standards/18-audit-coverage.md). Part of the [module spe
 
 The baseline MUST floor applies. Planned `IdentityAuditCatalogSource` declares
 actual operations: catalogue-to-matrix coverage is total; planned markers must
-disappear when requests compile. Audit slugs are not additional permission keys.
+disappear when their requests/off-path writers ship. Audit slugs are not
+additional permission keys.
 
-| Planned request/path | Operation | Resource | Classification / owner |
+| Resource | Operation | Class | Why |
 |---|---|---|---|
-| Global bootstrap/adoption/non-success reconciliation | Defined only in ADR-0072 | User/global immutable subject | Exact central contract there; no local SQL/retention variant |
-| `InitializeSeedRole` | `identity.role.initialize` (planned) | Role including grants | MUST, same Role transaction |
-| `CreateFirstSeedAdminMembership` | `identity.membership.create_first_seed_admin` (planned) | Membership/Profile/Assignments | MUST, same Membership transaction |
-| `CreateSeedMembership` | `identity.membership.create_seed` (planned) | Membership/Profile/Assignments | MUST, same Membership transaction |
-| `SetSeedMembershipProfile` | `identity.membership.set_seed_profile` (planned) | Membership including Profile | MUST, same Membership transaction |
-| Contextual seed verification | `identity.seed_state.read` (planned) | Exact bounded declared seed facts | Explicit Off; no directory/provider profile; request registered before use |
+| User/global immutable subject | `identity.user.create` `(planned)` `(off-path)` | **MUST** (`security-event`) | ADR-0072's confined creation/adoption owner and central non-success reconciliation; success shares the User transaction. Exact global witness, source and retention contract stays there. |
+| Role including grants | `identity.role.initialize` `(planned)` | **MUST** (`security-event`) | `InitializeSeedRole`; one Role transaction, with contained grants. |
+| Membership including Profile/Assignments | `identity.membership.create_first_seed_admin` `(planned)` | **MUST** (`security-event`) | `CreateFirstSeedAdminMembership`; one Membership transaction. |
+| Membership including Profile/Assignments | `identity.membership.create_seed` `(planned)` | **MUST** (`security-event`) | `CreateSeedMembership`; one Membership transaction. |
+| MembershipProfile, captured under Membership | `identity.membership_profile.set_seed_profile` `(planned)` | **MUST** (`update`) | `SetSeedMembershipProfile`; same Membership transaction. The slug matches the gated sub-resource while the row's subject remains its owning aggregate. |
+
+**Explicit Off reads.** Contextual seed verification request types are registered
+Off before use; they inspect only the exact bounded declared seed facts, with no
+directory/provider profile. Ordinary existing-binding lookups create no mutation
+intent under ADR-0072. Off request registration is separate from MUST operation
+rows; no Off value is presented as an `OperationClass` or a MUST audit slug.
 
 No seed command mutates a second root. Role grants travel in Role diffs;
 assignments/Profile travel in Membership diffs. Planned instance-qualified paths
@@ -57,7 +63,11 @@ P03-1 Steps 2/4 prove actual root/child capture, MUST rollback, inherited
 references and sensitive/neutral-key nested canaries at each real sink:
 validation/response, logs, local archive, Sentry envelope and audit snapshot.
 Every sink receives a positive event. Preserve existing TenantSetting whole-value
-redaction. No runtime test is claimed here.
+redaction. Steps 3/4 also extend the existing audit-interface/matrix controls
+for the central global seams, exact classifications and planted wrong-column,
+missing-global-row and child-capture controls; canonical signatures/SQL stay in
+[Standard 05](../../standards/05-database.md#proposed-global-central-audit-branch).
+No runtime test is claimed here.
 
 P03-2 adds normal authorization/denied/read enrichment; P03-5 extends revision-aware
 dynamic values; P03-10 delivers applicable user-reference locators and export/

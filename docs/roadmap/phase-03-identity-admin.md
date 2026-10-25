@@ -11,7 +11,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | Proposed — [revised decision package](phase-03-delivery-log.md#p03-1-revised-decision-package-2026-10-25); maintainer findings reopened readiness; ADR-0072/0073 await approval |
+> | P03-1 | Identity authority and membership foundation | Proposed — [revised decision package](phase-03-delivery-log.md#p03-1-second-maintainer-review-and-revised-package-2026-10-25); maintainer findings reopened readiness; ADR-0072/0073 await approval |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
@@ -84,21 +84,26 @@ activation is not the only decision boundary.
 | Packet | Result | Dependencies | Gates before the first affected writer |
 |---|---|---|---|
 | P03-0 | Reconciled plan, packet boundaries, decision register and proof ownership | Completed 02a/02d/02b | Documentation preparation only; no new runtime authority |
-| P03-1 | Durable issuer/subject/actor mapping, identity bootstrap, membership/profile and role-binding foundation, semantic seed adoption | P03-0 | G1, G2 contract, G3, G4 storage/issuance implications, G5 schema/bootstrap, G19; resolve any invitation/closure invariant that changes these first tables under G8/G16 |
+| P03-1 | Durable identity storage/common creation authority, existing-binding admission, membership/profile/role foundation and fixed seed adoption; no new HTTP | P03-0 | G1, G2 contract, G3, G4 storage/issuance implications, G5 schema/bootstrap, G19; resolve any invitation/closure invariant that changes these first tables under G8/G16 |
 | P03-2 | Live membership, permission registry/behavior, runtime default-deny gate, scoped reads and audit enrichment | P03-1 | G2 execution, G5 enforcement, G6 policy ordering, G7; complete denied controls before protected activation |
-| P03-3 | Bounded authenticated web operations, tenant/org switching, member/role screens, organization endpoints and defined member settings | P03-2 | G4 transition, G6 transport/UI, G5 delegation; retain existing AccountSite ceiling |
+| P03-3 | Bounded authenticated web operations, new-user bootstrap/no-session entry, tenant/org switching, member/role screens, organization endpoints and defined member settings | P03-2; production onboarding also waits for P03-9 | G1 activation, G4 transition, G6 transport/UI, G5 delegation; retain existing AccountSite ceiling |
 | P03-4 | Secure new/existing invitee acceptance, revocation/resend and usable bounded delivery | P03-1–3 | G8; G1 supplies bootstrap; move delivery/provider gates earlier if this mechanism requires them |
 | P03-5 | Customization-owned field definitions, revision-aware values, definition editor and membership form | P03-2–3 | G9; G19 covers diagnostic/PII baseline before any earlier personal-data writer |
 | P03-6 | Authenticated durable provider ingress and attributed, deduplicated Audit mirror | P03-1–2 | G10; G13 before any privileged/global intake the chosen mechanism requires |
 | P03-7 | Registered, authenticated back-channel logout with bounded provider/session indexes | P03-3 | G11; provider event mirroring is a distinct contract, not a prerequisite by filename |
 | P03-8 | Usable tenant SAML/OIDC configuration with safe linking and recovery | P03-3 | G12; G1/G4/G5 still bound issued identity and authority |
-| P03-9 | Admitted Platform gate, killswitch, fenced recovery and dashboard | P03-2 | G13, G14; privileged execution remains closed until this contract ships |
+| P03-9 | Admitted Platform gate, production first-admin/issuer-rebind authority, killswitch, fenced recovery and dashboard | P03-2 | G13, G14; privileged execution remains closed until this contract ships |
 | P03-10 | Subject-scoped DSAR, usable export, tenant erasure and separately authorized global closure/redaction | P03-3, P03-5, P03-9 | G15, G16; G10 only if this workflow consumes provider ingress; integrate all applicable delivered stores |
 | P03-11 | Complete source-bound evidence, gateway scaffold correction and analyzer escalation | All implementation packets | G17, G18; no pending mandatory deliverable or unqualified production subject |
 
 The table is a dependency plan, not a total execution order. Federation does not
 gate platform recovery; back-channel revocation does not require the Audit mirror.
 P03-1 decides shared schema implications without implementing later workflows.
+The maintainer places new-user HTTP bootstrap and BFF entry in P03-3. G1/G6
+requires provider registration policy, durable creation admission, explicit
+session/no-session completion and exact transport outcomes before activation.
+P03-1 qualifies the common storage/audit owner and fixed seed adoption, while
+existing-session API admission remains route-independent. It opens no new route.
 Do not create Invitation, custom-field or DSAR tables there merely for convenience.
 If a chosen mechanism needs a later packet's capability, close that gate and
 deliver the minimum prerequisite before its first consumer; never introduce a
@@ -115,7 +120,7 @@ named part, and the register links each explicit acceptance and vehicle.
 
 | Gate | Question | Existing boundary / required answer | First consumer | Vehicle | Status |
 |---|---|---|---|---|---|
-| G1 | Who establishes issuer + opaque `sub` → stable `UserId`, and supplies required actor claims before the first accepted login? | Preserve seeded/provider IDs, reject substitution/email merging, name trusted pre-membership admission, first User-writer audit attribution, concurrency and cross-system reconciliation; self-registration alone supplies no actor profile | P03-1 | Identity authority ADR; bounded ADR-0064/0070 disclosures if affected; Identity spec | Open |
+| G1 | Who establishes issuer + opaque `sub` → stable `UserId` and proves actor association before an accepted login? | Preserve seeded/provider IDs, reject substitution/email merging, name trusted pre-membership admission, first User-writer audit attribution, concurrency and cross-system reconciliation; self-registration alone grants no membership/session; new-user HTTP activation also requires provider registration and durable creation budgets | P03-1 storage/seed; P03-3 activation | Identity authority ADR; bounded ADR-0064/0070 disclosures if affected; Identity spec | Open |
 | G2 | How do membership and permission readers reach data before resolved tenant SQL exists, and how does authorized `app.scope` reach EF/RLS? | Decide exact principal, grants, candidate-scope read and transaction/setter ownership before schema; implement step-5/step-6 handoff later; rows 6/9 still need live authorization; qualify rows 7/10/14 and successful claim-only header-mismatch evidence separately from host-tenant budgets | P03-1 contract; P03-2 execution | ADR-0036/0040 authority; Security/Database standards and closed-set tests | Open |
 | G3 | What are membership/profile/role-binding boundaries, nullable natural keys, lifecycle and global-user projections? | Decide active uniqueness, tenant/org grant composition, profile granularity, archive/reinvite and last-admin/org invariants, same-module composite FKs and Tenancy lifecycle contracts; no cross-module Organization FK/join | P03-1 | Identity module spec; ADR for aggregate/ownership changes; database class declaration | Open |
 | G4 | How are active tenant/org claims issued per session, discovered and switched safely? | Current mappers use user-global attributes and ordinary BFF refresh preserves scope; decide storage implications first, then token reissue, callbacks/hosts, no-membership entry and switch/logout/refresh races | P03-1 implications; P03-3 transition | Provider/session ADR and applicable ADR-0070 disclosure; auth architecture | Open |
@@ -127,7 +132,7 @@ named part, and the register links each explicit acceptance and vehicle.
 | G10 | What authenticated durable provider ingress is selected, and how are global events attributed? | Name producer, acknowledgement, stable provider-event dedup, ordering, tenantless/multi-membership routing, privacy and retention; enqueue through outbox, never direct business publication; no invented tenant or privileged app consumer | P03-6, or an earlier mechanism needing ingress | Provider-event ADR; ADR-0046/0057 boundaries, exact grants and Audit subscription | Open |
 | G11 | Which back-channel token profile, route and session targets are supported? | Separate OIDC purpose validation, signature/issuer/audience/time/events/no-nonce, replay retention, provider/session indexing and reachability; preserve late-work/accounting fences and unrelated/new session owners | P03-7 | ADR-0070 bounded extension; native route/provider configuration package | Open |
 | G12 | How is realm-level tenant federation confined and safely activated? | Provider ownership, write-only credentials, bounded egress, linking/verified-email trust, MFA assurance, test/activate/rollback and last-login recovery; email/broker claims alone grant no membership | P03-8 | Identity-provider contract under ADR-0004/0064; permission/audit matrices | Open |
-| G13 | How does the operator population authenticate a specific Platform act and retain human attribution? | Resolve ADR-0036's internal-chain rule and undecided platform URL space, tenant/Hub realm separation, no-Hub baseline, service versus human actors, MFA/reason, denied-entry evidence and retained-connection lifetime; a new Hub crossing needs a coordinated ADR | P03-9 or first earlier privileged consumer | Operator authority ADR; bounded disclosures/supersession in affected Accepted records; Platform gate contract | Open |
+| G13 | How does the operator population authenticate a specific Platform act and retain human attribution? | Resolve ADR-0036's internal-chain rule and undecided platform URL space, tenant/Hub realm separation, no-Hub baseline, service versus human actors, MFA/reason, denied-entry evidence, production first-admin/provisioning and exceptional recovery, controlled issuer rebind and retained-connection lifetime; a new Hub crossing needs a coordinated ADR | P03-9 or first earlier privileged consumer | Operator authority ADR; bounded disclosures/supersession in affected Accepted records; Platform gate contract | Open |
 | G14 | Which dashboard/replay/job-recovery transitions and grants are allowed? | Separate producer reset from targeted subscriber replay; exact permission, reason, stale fences, MUST result audit and runbook; immutable facts and uncertain external reservations survive; dated ADR-0015 disclosure before dashboard admission | P03-9 operational writer | ADR-0046/0047 recovery contract; ADR-0015 disclosure and bounded migrations | Open |
 | G15 | Who may request which person's data in which tenant/org scope and for which recipient/purpose? | Separate self/admin/delegate authority, subject predicates and org boundaries; category is not disclosure authority; resolve third-party data, holds, eligibility and post-erasure status access | P03-10 request writer | Data Protection/Identity request contract and module matrices | Open |
 | G16 | How do exports, closure and privileged redaction finish durably? | Decide artifact delivery/reauthorization/expiry, job/storage prerequisites, participant inventory/write fence, last-membership case and provider finalization; exact erasure grants/order/immutable references, user-reference locators and result-audit/inbox reconciliation | P03-1 only for shared closure-fence invariants; P03-10 workflow | Data Protection and ADR-0044/0046 privileged contract; migrations, module participation and phase package | Open |
@@ -370,7 +375,9 @@ what may be written into it invites exactly the leak this phase closes.
   retirement, consent for sensitive values and supported localized form types.
 - Permission keys per [Permission Standards](../standards/19-permissions.md):
   `customization.custom_field.admin` (Tenant scope) to define fields;
-  `identity.membership.write` (Tenant / Organization scope) to set their values.
+  `identity.membership_profile.write` (Tenant / Organization scope) to set their
+  values under the Proposed ADR-0073 profile permission contract; G9 still owns
+  dynamic-value activation.
 - Studio surface: a definition editor and a schema-driven form on the membership detail
   page. The visual schema builder is [Phase 06](phase-06-renderer-admin-studio.md).
 
@@ -528,6 +535,18 @@ Server Action or tenant/org selector is not admitted by adding an admin screen.
   remains [Phase 06](phase-06-renderer-admin-studio.md).
 
 ### Operator recovery and dashboard admission
+
+P03-9/G13 also owns the production first-admin and controlled issuer-rebind
+authority promised by Proposed ADR-0072/0073. Before production onboarding,
+qualify an admitted operator creating the finite Role templates in separate
+transactions, then the first tenant-wide admin Membership with MUST audit.
+Specify authorized retry after partial setup, wrong-tenant/operator denial,
+unknown-COMMIT reconciliation and recovery without the development seed
+capability. Tenancy provisioning remains its Tenant/default Organization pair.
+An issuer rebind needs proven provider continuity and frozen admission, preserving
+AuthorityId, actor IDs and tombstones; no production rename path exists before
+this contract is accepted and delivered. Seed-backed P03-3 journeys may be
+qualified earlier; they are not production onboarding proof.
 
 Phase 02b supplies internal targeted subscriber replay and no operator route.
 This phase owns the operator outbox/dead-letter/subscriber-replay and job-recovery
@@ -743,9 +762,9 @@ identifies observable proof; a later packet completes dependent end-to-end paths
 
 | ID | Delivered result | Packet | Completion criteria |
 |---|---|---|---|
-| D01 | Stable global `User` mapping/bootstrap, scoped Membership/Profile and Role/Permission foundation, semantic seed adoption | P03-1 | C01–C03, C10 |
+| D01 | Stable global `User` storage/common creation authority, existing-binding admission, scoped Membership/Profile and Role/Permission foundation, fixed seed adoption | P03-1 | C01–C03, C10 |
 | D02 | Live membership/permission enforcement, runtime gate, `app.scope` carrier and real denied controls | P03-2 | C03–C05, C19 |
-| D03 | Bounded authenticated native/SDK operations and member/role management screens | P03-3 | C06, C20 |
+| D03 | Bounded authenticated native/SDK operations, usable new-user bootstrap/no-session entry and member/role management screens | P03-3 | C01, C06–C07, C20 |
 | D04 | Membership-aware tenant and organization switchers through newly validated scope | P03-3 | C07 |
 | D05 | Tenancy-owned organization CRUD/archive endpoints, member/profile preferences and identity-backed admission for named existing Tenancy commands | P03-3 | C02, C06, C16, C20 |
 | D06 | Secure tenant/org invitation lifecycle and usable bounded delivery/handoff | P03-4 | C01, C08, C20 |
@@ -754,7 +773,7 @@ identifies observable proof; a later packet completes dependent end-to-end paths
 | D09 | Authenticated durable provider-event ingress, identifier-only outbox facts and deduplicated Audit mirror | P03-6 | C11, C19 |
 | D10 | Authenticated OIDC back-channel logout, provider/session indexes and fenced local revocation | P03-7 | C12 |
 | D11 | Confined tenant federation configuration, safe linking, test/activate/rollback and recovery | P03-8 | C13, C20 |
-| D12 | Platform-scope identity/permission gate, attributed bypass, killswitch writer and runbook | P03-9 | C14, C19 |
+| D12 | Platform-scope identity/permission gate, production first-admin/issuer rebind, attributed bypass, killswitch writer and runbook | P03-9 | C14, C19 |
 | D13 | Fenced operator recovery and application Hangfire dashboard admission, exact permissions/grants/audit/runbooks | P03-9 | C15, C19 |
 | D14 | Self/admin tenant-scoped DSAR requests, usable export/erasure, separate person-authorized global closure and privileged redaction | P03-10 | C17, C18, C20 |
 | D15 | Trusted audit request/actor enrichment, sensitive-read/denied coverage and user-reference locators | P03-2; P03-10 locator/redaction completion | C19 |
@@ -771,7 +790,7 @@ Test-only endpoints, fake grants or empty scans do not establish shipped behavio
 
 | ID | Observable proof | Packet evidence |
 |---|---|---|
-| C01 | A real nonseed invitee obtains required actor claims and completes the permitted flow; concurrent first login and provider/DB retries preserve one mapping. Same-email/different-sub and conflicting/reserved actor values refuse; the four seed identities/credentials survive. | P03-1 foundation; P03-4 full path |
+| C01 | A real nonseed invitee obtains required actor claims and completes the permitted flow; concurrent first login and provider/DB retries preserve one mapping. Same-email/different-sub and conflicting/reserved actor values refuse; the four seed identities/credentials survive. | P03-1 internal foundation; P03-3 HTTP/native entry; P03-4 invitation path |
 | C02 | Tenant/org directory and profile reads expose only authorized members/fields, including a guessed foreign global UserId. NULL-org uniqueness, archive/revoke/reinvite and profile granularity follow G3 with database race controls. | P03-1, P03-3, P03-5 |
 | C03 | Org/self/invite grant escalation fails; legitimate delegation and bootstrap work. Concurrent last-admin changes preserve the decided invariant; registry upgrades grant only the accepted defaults. API revocation meets its declared boundary and stale UI cannot mutate; SystemActor has finite permissions. | P03-1–3 |
 | C04 | Actual HTTP rejects an unclassified protected endpoint and an underprivileged valid principal before handler dispatch. Direct MediatR dispatch independently refuses; expected denials return `Result.Fail(forbidden)`. Explicit public reads remain anonymous. | P03-2 |
@@ -784,7 +803,7 @@ Test-only endpoints, fake grants or empty scans do not establish shipped behavio
 | C11 | Real provider ingress authenticates and durably acknowledges one stable provider event. Duplicate/reordered delivery and crash-after-accept reconcile once; unknown/no-/multi-membership subjects have the exact authorized routing/audit fan-out. No raw provider payload, direct business publication or invented tenant escapes the event contract. | P03-6 |
 | C12 | Real signed back-channel logout and separate wrong-purpose/signature/issuer/audience/time/events/nonce/replay controls prove the selected profile. Shared/distinct SSO and later independent sessions have exact targets; held callbacks/refresh cannot republish. Replay/index retention and unsettled ownership stay bounded; actual provider-to-native reachability is shown. | P03-7 |
 | C13 | Two tenant IdPs coexist in the real realm. One tenant cannot edit another broker/secret, use unauthorized egress or link a foreign admin via asserted email. Valid federation still issues the accepted profile; failed activation retains recovery and trusted MFA semantics. | P03-8 |
-| C14 | A real operator with the specific Platform permission succeeds only on its admitted surface; tenant/wrong-purpose credentials fail before bypass acquisition. Human/service/executor/subject attribution, reason and correlation survive. A retained raw connection cannot execute autocommit after scope completion/abandonment. The chosen no-Hub baseline works without a Development bypass. | P03-9 |
+| C14 | A real operator with the specific Platform permission succeeds only on its admitted surface; tenant/wrong-purpose credentials fail before bypass acquisition. Human/service/executor/subject attribution, reason and correlation survive. A retained raw connection cannot execute autocommit after scope completion/abandonment. The chosen no-Hub baseline works without a Development bypass. Production first-admin setup/recovery and controlled issuer rebind have positive/denied, partial-commit and identity-continuity proof; seed authority is insufficient. | P03-9 |
 | C15 | Dashboard/recovery remain absent until admitted. Positive and denied routes, stale fences, producer-versus-subscriber replay, unchanged sibling inboxes and job quiescence/reservations prove only the accepted transition/grants; MUST result audit and runbooks are usable. | P03-9 |
 | C16 | Tenant-admin organization create/read/update/archive succeeds under Tenancy contracts; foreign tenant/org, inactive/archived org and default/last-org controls match G3/G5. No cross-module Organization FK/join or write-hatch shortcut exists. The identity-backed settings slice exposes only its named supported commands/fields. | P03-3 |
 | C17 | A subject export excludes another person in the same tenant as well as foreign tenants/orgs and disallowed notes. Org-admin cannot request another branch; self-service works without admin rights. Eligibility/holds, purpose/recipient and post-erasure status access match G15. | P03-10 |

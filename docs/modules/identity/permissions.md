@@ -45,12 +45,20 @@ separate. P03-2/3 registers broader production operations before activation.
 - Eligible Tenant grants compose with that organization's grants. Another branch
   or a no-org Tenant check cannot consume an Organization grant. Tenant association
   for discovery is not administrative authority.
+- Branch-scoped sessions use eligible Tenant grants only for branch operations.
+  Tenant-wide writes require the explicit orgless reissue transition owned by
+  P03-3; `app.scope` widens reads only. The [seed handoff](README.md#first-admin-and-seed-sequence)
+  preserves Yoga admin's branch claim while using its declared NULL-org target.
 - Org Admin cannot edit templates. Editing requires an eligible Tenant Admin
   binding and Tenant `identity.role.admin`; that capability is reserved to Tenant
   Admin and cannot be delegated to another built-in/Organization binding.
 - Later live writes cannot delegate beyond current authority, cross scope, edit
   self into higher authority or remove the immutable kernel. P03-2/G5 qualifies
   these controls before a protected administration path activates.
+- The two-pair admin kernel is deliberately smaller than the three-pair initial
+  Tenant Admin bundle. P03-2 owns explicit audited grant adoption/removal outside
+  that kernel. A later adopted manifest does not make the fixed v1 seed an
+  upgrade writer; a mismatch, including a legitimate upgrade, refuses unchanged.
 - A per-act committed snapshot defines revocation: later admissions see the change;
   already admitted work is not retroactively cancelled. JWT/session/UI caching
   cannot establish that boundary. P03-3 owns UI freshness/target transitions.

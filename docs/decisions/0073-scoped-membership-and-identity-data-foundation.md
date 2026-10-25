@@ -72,16 +72,24 @@ plus the actual eligible admin, without a bootstrap table or writable flag.
 
 This preserves administration for Trial, Active and Suspended tenants. Archived
 termination/global closure needs a separately admitted G13/G16 exception before
-its writer; foundation guards infer none from status. Creation, reactivation and
-assignment additions recheck the User fence. User admission locks precede tenant
-invariant locks; writers/guards require READ COMMITTED and VOLATILE fresh
-post-wait reads through commit.
+its writer; foundation guards infer none from status. Future global closure
+cannot make the final administrator ineligible before that authority/guard
+contract ships. Creation, reactivation and **all** assignment additions recheck
+the User fence, including currently empty/inactive templates. Profile/nonadmin/
+organization mutations use shared tenant invariant mode; first-admin and tenant-
+admin eligibility/assignment/kernel transitions use exclusive mode. Actual rows
+bind the mode before acquisition, with no lock upgrade. Both modes preserve the
+total invariant, not merely the administrator count before the mutation.
+[Standard 05](../standards/05-database.md#proposed-lock-snapshot-and-adoption-conditions)
+alone owns lock ordering, snapshots, deadlines and direct-write guards.
 
 The [Identity module contract](../modules/identity/README.md) owns exact tables,
 guards, seed sequence and execution/proof owners. Seed-only commands have a
 closed admission capability, default-denied in the API, with no live route.
 G19 adds semantic property classification and fixed diagnostics before PII
 writes. Live authorization remains P03-2; retained linkage remains pseudonymous.
+P03-1 supplies storage/audit/seed and existing-session binding only; HTTP/new-user
+BFF activation belongs to P03-3 under its separately Accepted contract.
 
 ## Context
 
@@ -95,8 +103,11 @@ SeedData declares four authentication actors, two tenants and two organizations
 per tenant, without application memberships. The Proposed [seed sequence](../modules/identity/README.md#first-admin-and-seed-sequence)
 preserves bindings/credentials and declares exact assignments. Role templates
 are tenant-wide even for Organization capabilities; only Membership/Profile/
-Assignment rows carry branch scope. Separate explicit proof subjects exercise
-cross-tenant/multi-org behavior and another same-tenant person, without email merging.
+Assignment rows carry branch scope. Yoga admin keeps its provider branch claim;
+its independently declared NULL-org seed target supplies the seed SQL scope.
+The module contract owns that handoff and P03-3's explicit orgless reissue for
+later tenant-wide writes. Additional cross-tenant/multi-org and same-tenant
+proof populations are fixture-local, preserving the exact four-person manifest.
 
 ### Boundaries and acceptance instruments
 
@@ -106,11 +117,11 @@ cross-tenant/multi-org behavior and another same-tenant person, without email me
 | ADR-0017 | Preserve tenant grants plus matching-org grants; clarify contained Membership data and tenant-wide Role storage | Dated clarification on acceptance, preserving Accepted body; P03-1 Step 1 |
 | ADR-0042 | Preserve its only exception: Tenancy's Tenant/default Organization pair | No replacement or new exception; external seed owner commits Role/Membership commands separately |
 | ADR-0040 / Security 11 | Candidate reader needs an explicitly enumerated owner/setter | Dated Amendment and exact registration before execution; P03-1 contract, P03-2 adapter |
-| Standard 19 | Resolve initial/upgrade grants with finite manifests; extend Learner capability scope | Adopt Proposed annex only with both ADRs; P03-1 Step 1, enforcement P03-2 |
+| Standard 19 | Resolve scoped identity, stored templates versus assignments and finite initial/upgrade grants; extend Learner capability scope | Adopt Proposed replacements only with both ADRs; P03-1 Step 1, live enforcement/grant adoption P03-2 |
 | ADR-0044 / Standards 18/21 | Child capture, personal-data declarations and actual proof subjects need named owners | Applicable dated navigation/registered extensions, then actual backfill; P03-1 Steps 1–4 |
 
 No current Accepted ADR body, privilege or runtime surface changes through this
-Proposed record. The [revised P03-1 package](../roadmap/phase-03-delivery-log.md#p03-1-revised-decision-package-2026-10-25)
+Proposed record. The [revised P03-1 package](../roadmap/phase-03-delivery-log.md#p03-1-second-maintainer-review-and-revised-package-2026-10-25)
 owns approval/implementation sequencing. This revised proposal's exact manifest
 and module contracts are part of the joint approval surface.
 
@@ -120,6 +131,10 @@ and module contracts are part of the joint approval surface.
   EF/RLS read scope and independent HostScope ceiling. The current DenyAll reader,
   HTTP surface and unset `app.scope` stay until then. Successful claim-only header
   mismatch evidence needs separate G2/G7 authority before activation.
+- **G3 / P03-1:** supply the bounded Tenancy lifecycle port/result/freshness
+  contract and implementation named in the module specification. Live admission
+  execution remains P03-2; lifecycle/archive/last-default-org races remain P03-3
+  before their endpoints. Foundation acceptance does not close those later proofs.
 - **G4 / P03-3:** scope discovery/issuance is per session. No global User selector
   or provider user-global attribute proves independent simultaneous A/B refresh.
 - **G8 / P03-4:** invitation acceptance/delivery needs its own accepted atomicity/

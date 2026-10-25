@@ -251,6 +251,22 @@ Both require joint acceptance before this annex is adopted/implemented. Current
 source has no registry, Role/Membership model or commands below. No route,
 operator admission, grant or live permission is activated.
 
+### Adoption replacements
+
+At joint acceptance, apply these replacements to the corresponding clauses
+above. Until then the Adopted prefix remains active; this annex grants nothing.
+
+| Existing clause | Adopted replacement on joint approval |
+|---|---|
+| Scope: disjoint registries | Definitions are identified by `(PermissionScope, PermissionKey)`. Tenant and Organization may register the same key as distinct definitions; Platform definitions remain unassignable to tenant Roles. |
+| Module-driven registration/defaults | Registration defines available capabilities. New keys grant nothing to existing Roles. New-tenant initialization chooses an explicit finite initial manifest version; later grant adoption is a separately admitted audited act. |
+| Built-in Roles: auto-provisioned/off-by-default and broad example grants | P03-1 stores the eight templates below. Stored template existence grants no authority: only eligible Membership assignments and active registered scoped grants contribute. Off-by-default means no initial assignment, not omission of a required template. The finite owning phase's manifest replaces illustrative broad bundles. |
+
+P03-1's five pairs and version-1 grants below are the complete foundation set.
+P03-2 owns the separately admitted finite live-authorization/grant-adoption
+contract; P03-3 owns protected operations and UI/scope transitions. Neither a
+later operation nor an older built-in-role example silently expands v1 grants.
+
 ### Capability scope and template ownership
 
 `PermissionDefinition(PermissionScope, PermissionKey)` identifies a definition.
@@ -268,6 +284,12 @@ Assignments belong to Membership. Tenant templates require NULL-org Membership;
 Organization templates require non-NULL-org Membership and apply to that exact
 organization alone. Grants mirror Role capability scope. Storage as a tenant-wide
 template never promotes an Organization grant to Tenant capability or widens writes.
+
+A branch session may consume eligible Tenant grants for operations on that
+branch. Tenant-wide Membership/Profile/template writes require P03-3's explicit
+validated orgless reissue, preserving the canonical write guards. The
+`app.scope = 'tenant'` hatch remains read-only; a permission or Tenant assignment
+cannot clear an authenticated branch scope implicitly.
 
 ### Exact foundation registry and operation owners
 
@@ -314,7 +336,8 @@ them. Later broader P03-2 manifests are finite; reruns cannot fill existing Role
 
 The minimum is **exactly two pairs**: Tenant `identity.membership.admin` and
 Tenant `identity.role.admin`. Profile writing belongs to the initial bundle,
-outside that minimum. Role-admin is reserved to Tenant Admin template/eligible
+outside that minimum, and P03-2 may remove it through an explicitly admitted
+audited grant change. Role-admin is reserved to Tenant Admin template/eligible
 actors; an arbitrary grant or renamed Role cannot delegate template authorship.
 
 One versioned compiled `IdentityFoundationManifest` supplies proposed
@@ -328,10 +351,13 @@ migration before dependent grants.
 
 New tenants receive the explicitly selected current finite initial version.
 Existing Roles retain adopted grants; registry/seed reruns add no new-key grants.
-A separately admitted audited grant change adopts additions. Keep historical
-manifest versions/fingerprints for completed-act verification. Matching completed
-seed acts do no writes; revoked/suspended/operator-edited authority conflicts,
-without repair/reset. Realm roles/SystemActor cannot supply manifests or authority.
+P03-2 owns separately admitted audited grant additions/removals outside the kernel.
+Keep historical manifest versions/fingerprints for completed-act verification.
+Matching completed seed acts do no writes; revoked/suspended/operator-edited
+authority conflicts without repair/reset. A legitimate later manifest adoption
+that differs from the fixed v1 seed also makes that seed refuse, preserving the
+adopted state. Seed is not an upgrade reconciler. Realm roles/SystemActor cannot
+supply manifests or authority.
 [Identity's seed sequence](../modules/identity/README.md#first-admin-and-seed-sequence)
 owns ordering and interrupted-run disposition.
 
@@ -339,7 +365,8 @@ owns ordering and interrupted-run disposition.
 
 P03-1 Step 4 supplies nonempty actual-command registry, templates, reference/
 scope guards and kernel artifact. P03-2 owns default deny/delegation, per-act
-revocation/freshness and denied controls. P03-3 owns UI/scope transitions;
+revocation/freshness, grant adoption and denied controls. P03-3 owns HTTP/new-user
+BFF activation, protected UI and explicit scope transitions;
 P03-9/G13 owns production first-admin/recovery before its production provisioner.
 The development seed capability is not that future authority.
 

@@ -28,8 +28,9 @@ Existing Accepted bodies, statuses and dates remain historical.
 ## Considered Options
 
 1. **Application binding and exact self bootstrap** (chosen). One verified
-   subject receives one actor; ordinary reads never allocate. Database ownership
-   makes concurrency and mutation evidence one commit.
+   subject receives one actor; ordinary reads never allocate. P03-1 implements
+   storage/common creation authority and fixed seed adoption. P03-3 decides and
+   activates new-user HTTP/BFF entry with its usable membership journey.
 2. **Provider allocator or runtime Admin API/reissue** (rejected). Adds provider
    machinery, credentials and recovery merely to establish application identity.
 3. **Invitation-only provisioning** (not selected). An enrollment policy rather
@@ -55,7 +56,8 @@ Existing Accepted bodies, statuses and dates remain historical.
 
 - LearnStack binds one verified provider subject to one stable UUIDv7 actor.
   `user_id` becomes optional consistency evidence; present conflict/malformed
-  values refuse. Only explicit self bootstrap creates a binding.
+  values refuse. Only an admitted creation owner creates a binding; P03-1 exposes
+  that authority to the fixed seed owner, not an HTTP operation.
 - A deployment-pinned authority and permanent digest preserve identity independently
   of issuer URL. Active accounts retain exact subject for collision checking;
   authorized closure removes it and retains the nonauthorizing tombstone.
@@ -78,63 +80,55 @@ New API-owned `VerifiedProviderSubject` contains the stock-verified issuer/sub,
 optional actor and optional scalar tenant/org claims. TenantCredentialFeature
 carries this stage separately from normalized ValidatedTenantIdentity. Only
 existing-binding resolution creates the latter. Quota consumes the former
-before **any** ordinary/bootstrap binding SQL. Preserve 600/minute, 4096-entry
+before **any** authenticated request's binding SQL. Preserve 600/minute, 4096-entry
 ownership/fault protocol, visitor/peer floors, once-per-request debit and
 reexecution behavior. No request payload selects a subject or resets its quota.
 
 All remaining JOSE/signature/purpose/audience/time/security-property checks stay.
-API and native pre-session ID projection both use exact ordinal opaque sub,
-bounded to 255 characters, without trimming/case folding. Actor/tenant can be
-absent before bootstrap; organization still requires tenant. Normalized ordinary
-session identity remains complete and separate.
+API and native ID-token validation use exact ordinal opaque sub, bounded to 255
+characters, without trimming/case folding. The native profile still requires
+actor/tenant and the existing AccountSite witness in P03-1. Optional API actor
+evidence does not make a tenantless native session valid.
 
-| Verified subject / binding | Ordinary API | Bootstrap |
+| Verified subject / binding | Ordinary API | Internal creation owner |
 |---|---|---|
 | Active; actor absent/equal | Resolve stored actor | Return stored actor |
 | Actor conflict/malformed/reserved | 401, no mutation | 401, no mutation |
-| Unknown; actor absent | 401, no mutation | Serialize and allocate once |
-| Unknown; actor present | 401, no adoption | 401, no adoption |
+| Unknown; actor absent | 401, no mutation | Serialize and allocate once when independently admitted |
+| Unknown; actor present | 401, no adoption | Only fixed, separately witnessed seed adoption may preserve its actor |
 | Closing/Closed | 401, no recreation | 401, no recreation |
-| Binding unavailable | Uniform 401 | Typed 503, no asserted success |
+| Binding unavailable | Uniform 401 | Typed storage failure, no asserted success |
 
 No P03-1 identity/eligibility cache is installed. Each authenticated admission
 reads committed binding state; provider key caching remains separate. Anonymous
 public reads do no identity lookup. Closed diagnostic reasons distinguish
 binding storage/authority faults without enriching the 401 body/challenge.
-Bootstrap explicitly translates storage/audit failures: raw DbException mapping
-to 500 is not its contract. Preserve already refused/cancelled/uncertain outcomes.
+Internal creation explicitly translates storage/audit failures to bounded typed
+results. Its future HTTP mapping is a P03-3 decision. Preserve already refused,
+cancelled and uncertain outcomes.
 
-### Exact surface and native association
+### Activation boundary
 
-| Host / operation | Absent credential | Invalid present credential | Valid provider subject |
-|---|---|---|---|
-| Unknown host | Masked 404 before token work | Same | Same |
-| Known, exact POST bootstrap | Masked 404 | 401 | Quota, input gate, global-self owner |
-| Known, reserved path/wrong method | Masked 404 | 401 | Masked 404, no binding SQL |
-| Ordinary surface | Existing rule | 401 | Binding, then existing tenant reconciliation |
+The maintainer selects P03-3 for new-user HTTP bootstrap and BFF entry. P03-1 adds
+no POST, SDK operation, endpoint-dependent resolver, global MediatR marker or
+native no-session completion. AllowsUnresolvedTenantContext and its provisioning
+allowlist remain closed. Current public/AccountSite routes, missing-token rules,
+wrong-method outcomes and complete native identity remain unchanged.
 
-Admit only POST `/api/v1/account/bootstrap`, empty body/no query; return at most
-4 KiB JSON `{issuer, subject, actorId}`, no-store, without profile. Malformed
-operation input is 400 after credential/admission; existing 429/503 quota
-outcomes remain. Preserve ten-second native API response budget, fixed SDK path/
-origin, verified host/source, hop secret and omitted browser credentials.
-
-Exact endpoint metadata selects this global operation before ordinary resolution.
-It installs no ITenantContext. A new exact `GlobalSelfIdentity` descriptor admits
-only its internal self-read/create requests to the global owner; it does not
-expand AllowsUnresolvedTenantContext. Reject all other global/unresolved types.
-Ordinary resolution stays route-independent. No browser bearer/proxy/Server Action
-is added. The canonical pipeline table is in
+P03-1's actual consumers are fixed seed adoption and existing-session admission.
+Its common creation/audit contract receives real PostgreSQL/provider proofs,
+without exposing a new creation route. Every ordinary request follows one
+route-independent credential/quota/binding sequence, canonically owned by
 [Security](../standards/11-security.md#proposed-p03-1-identity-admission-annex).
 
-The new native pre-session projection beside provider-core.ts permits absent
-actor/tenant after independent ID verification. Bootstrap uses the same grant's
-access token; match returned issuer/sub and any actor claim. AccountSite still
-positively witnesses actor/resolved scope before ordinary publication. Tenantless
-callback can create User but publishes no tenant session. P03-3 owns usable
-discovery/reissue. Refresh never allocates, preserves original claim presence/
-values, normalized identity and scope, and retains positive-witness/late-result
-fences. ADR-0071 ordinary-read classification is unchanged.
+P03-3/G1/G6 must decide provider registration and durable creation budgets before
+activation, explicitly supersede ADR-0064's route-invariance prohibition if a
+global operation needs it, and define its own API/native outcome table. It must
+distinguish session publication from identity-created-without-session, including
+cookie/transaction cleanup, and prove grant/issuer/subject association. No retry
+may infer rollback from a missing response. Those are future acceptance gates,
+not an approved transport design hidden in this foundation ADR. ADR-0053/0070
+caller and publication changes wait for that package. Refresh never allocates.
 
 ### Authority, retention and concurrency
 
@@ -158,16 +152,19 @@ NULL: closure is lifecycle, not recycling. No email/verification or unused globa
 profile fields land here. P03-6/G10, or an earlier proven consumer, owns the first
 mirror schema/source/freshness decision.
 
-Bootstrap locks the subject key and freshly rechecks **before** allocating actor
-or declaring MUST intent. Expected concurrent callers return the winner without
-failed mutation intents. Uniqueness remains a backstop; genuine failure/unknown
-COMMIT reconciles. Every valid provider account can establish membershipless
-identity; email verification is not required for that limited act. Provider
-registration and HTTP budgets do not cap total new-subject cardinality.
+The common prepared global owner acquires subject serialization and freshly
+checks the binding before handler construction or intent declaration. Only
+serialized absence opens the common audit frame and allocates a target plus
+creation-audit reference. Ordinary AuditLog-before-Transaction execution cannot
+supply that order unchanged; Standard 05 names the prepared-owner extension,
+central attribution/key port and precommit constraint validation. Existing
+bindings return without a mutation intent. Genuine failures/unknown COMMIT retain
+central reconciliation. No unrestricted new-subject route is activated here;
+the 4096 retained limiter partitions never bound permanent User cardinality.
 
-Creation, reactivation and assignment additions take the User fence before the
-tenant invariant lock. READ COMMITTED, post-wait fresh VOLATILE reads and
-incompatible-isolation refusal apply in database guards, not just handlers.
+Creation, reactivation and all assignment additions use the canonical User fence.
+Standard 05 alone owns lock keys, shared/exclusive tenant modes, fresh reads and
+deadlines; handlers and database guards must implement the same contract.
 Unknown and nonadmitting ids produce the same false result. No function projects
 a profile. Later closure/status writers share the tenant invariant locks before
 making an administrator ineligible; their workflow remains P03-10.
@@ -177,8 +174,10 @@ making an administrator ineligible; their workflow remains P03-10.
 PlatformSentinel ceases to identify operator events uniquely. Operation/source
 distinguishes platform-scope standalone rows from `identity.user.create` global
 MUST SecurityEvent. No tenant setter announces the sentinel. Ordinary audit
-methods still reject it; only the named global pending/reconcile seams gain
-app-role permission. Existing sentinel announcement guards remain unchanged.
+methods must reject it explicitly before SQL; current WritePendingAsync lacks
+that check and must gain it before the new policy branch is admitted. Only the
+named global pending/reconcile seams gain permission; platform entry rejects the
+new identity discriminator. Existing sentinel announcement guards remain.
 
 The audit isolation policy explicitly departs from the unmodified template:
 retain its tenant/org branch, add a guarded global INSERT branch, and add
@@ -188,17 +187,23 @@ possible under FORCE RLS. Function execution under table-owner privilege is a
 new capability, despite no migration credential in runtime configuration.
 
 The prior host-lookup definer rejection remains true for its old policies.
-Here explicit owner SELECT policies plus enumerated fixed functions are chosen.
+Here role-qualified USING arms in single policies plus fixed functions are chosen.
+Those arms are not command-specific SELECT policies. Explicit User DELETE and
+TRUNCATE guards protect the permanent binding, including owner execution.
 No BYPASSRLS, fifth role, PUBLIC execution, dynamic SQL, generic target projection
 or mutable search path is allowed. Migrations own installation; runtime call
 sites and policy/function bodies have positive and dirty controls.
 
-User and success audit share one commit. Deferred insertion-time reciprocity is
-not a permanent cross-module FK blocking audit purge. Central non-success
+User and success audit share one commit. Deferred reciprocity is forced IMMEDIATE
+after all writes and before commit admission; it is not a permanent cross-module
+FK blocking audit purge. A known precommit guard refusal rolls back; a missing
+physical COMMIT acknowledgement remains uncertain. Central non-success
 reconciliation uses the captured subject, fresh standalone timestamp and existing
-possible indeterminate pair. Failed evidence needs no User and proves no User
-committed. Exact duplicate checking includes outcome; a unique error alone is
-insufficient. Before binding, actor is NULL and proposed target is distinct.
+possible indeterminate pair. Non-success evidence requires no User witness and
+proves no business outcome; it may coexist with a committed success after an
+unknown acknowledgement. Exact duplicate checking includes outcome; a unique
+error alone is insufficient. Before binding, actor is NULL and proposed target
+is distinct.
 Seed adoption attributes SystemActor and its adopted subject. Catalogue baseline
 is MUST; no tenant override or suppression allowance applies. Preserve existing
 Critical/health, refusal and cancellation-independent joined cleanup semantics.
@@ -215,20 +220,21 @@ purge/backup operations; it does not own missing Phase 03 fulfillment.
 ### Acceptance vehicle and carriers
 
 Both ADRs are accepted together or neither closes gates. The
-[revised package](../roadmap/phase-03-delivery-log.md#p03-1-revised-decision-package-2026-10-25)
+[revised package](../roadmap/phase-03-delivery-log.md#p03-1-second-maintainer-review-and-revised-package-2026-10-25)
 contains append-ready Amendment drafts and proof owners. Those drafts are not
 inserted as Accepted changes before approval.
 
 | Carrier / clause | Named adoption instrument |
 |---|---|
 | ADR-0003; Standard 05 six classes/unmodified audit/global unique exceptions | Dated bounded Amendment for new class and exact audit/owner-policy departure; ordinary template unchanged |
+| ADR-0010; Standard 01 cross-module SQL | Dated bounded Amendment for enumerated central persistence-witness guard SQL only; no module business join or fifth application mechanism |
 | ADR-0033 including Amendment 5 | Dated Amendment extending central success/reconcile to the named global population, preserving durability |
-| ADR-0036 HTTP resolution/marker boundary | Dated bounded-supersession Amendment for exact global-self surface, no fifth TenantContext writer |
+| ADR-0036 pre-context identity read | Dated Amendment for route-independent binding normalization and future candidate reader; no new HTTP surface or TenantContext writer |
 | ADR-0040 owners/nesting/setters | Dated Amendment for subject owners and separately registered candidate reader; no tenant/global join |
-| ADR-0044 §§1/2/9/10 | Dated bounded-supersession Amendment for second sentinel population, app INSERT/evidence reads and new central seams |
-| ADR-0053 Amendment 11 | Dated Amendment extending the confined authenticated BFF seam to exact pre-session bootstrap; public wrappers stay anonymous |
-| ADR-0064 actor/GET-HEAD-only/no-unresolved-endpoint | Dated bounded-supersession Amendment for optional actor/global POST; absent-token 404 preserved |
-| ADR-0070 association/publication | Dated bounded-supersession Amendment for pre-session/bootstrap proof; session custody unchanged |
+| ADR-0044 §§1/2/3/5/9/10 | Dated bounded Amendment for second sentinel population, prepared global declaration, app INSERT/evidence, exact duplicate proof and new central seams |
+| ADR-0064 actor/projection/pipeline | Dated bounded Amendment for optional API wire actor, verified-subject quota and existing-binding normalization; route invariance/census preserved |
+| ADR-0066 subject admission population | Dated clarification for verified-subject input before binding; numeric/ownership/fault semantics unchanged |
+| ADR-0065 and ADR-0070 | Dated navigation only: host mismatch allowance never covers global MUST; native complete identity/AccountSite publication remain unchanged |
 | ADR-0071 | Dated navigation Amendment only; ordinary-read status table unchanged |
 | Standards 04/05/07/10/11/18/19/21; Architecture 09/13/23/31/33 | Promote approved Proposed contracts and authority headers; no duplicate SQL |
 | CLAUDE, glossary, IAuditStore/PostgresAuditStore XML and guard census | Reconcile sole-population/writer and method-count claims before dependent code; default refusal stays |
@@ -252,8 +258,8 @@ writer preempts P03-9 rebind/privileged reads or P03-10 retained-reference workf
 - Authority installation is mandatory; unsupported issuer change fails closed.
 - Fixed owner SQL/policies are load-bearing runtime privilege, without an owner
   password. They require independent controls and genuine database proof.
-- Durable actors can lack membership/session; provider registration can multiply
-  subjects beyond one subject quota.
+- Durable actors can lack membership/session. HTTP creation and its registration/
+  capacity policy are withheld until P03-3, not solved by in-memory subject caps.
 - Permanent digest/actor and retained failed-attempt keys remain personal data.
   Offline guessing and immutable retained copies are explicit accepted costs.
 
@@ -270,10 +276,13 @@ provider subjects and credentials survive; ordinary HTTP cannot invoke adoption.
 
 ## References
 
-- [ADR-0033](0033-audit-durability-model.md), [ADR-0036](0036-tenant-resolution-trusted-inputs.md),
+- [ADR-0010](0010-cross-module-communication.md),
+  [ADR-0033](0033-audit-durability-model.md), [ADR-0036](0036-tenant-resolution-trusted-inputs.md),
   [ADR-0040](0040-ambient-unit-of-work.md), [ADR-0044](0044-audit-write-path.md),
   [ADR-0053](0053-trusted-public-server-rendering.md),
   [ADR-0064](0064-tenant-api-authentication-boundary.md),
+  [ADR-0065](0065-bounded-tenant-assertion-diagnostics.md),
+  [ADR-0066](0066-bounded-tenant-subject-admission.md),
   [ADR-0070](0070-owned-tenant-bff-sessions.md),
   [ADR-0071](0071-uncertain-account-site-refusals.md).
 - [ADR-0073](0073-scoped-membership-and-identity-data-foundation.md),
@@ -283,3 +292,4 @@ provider subjects and credentials survive; ordinary HTTP cannot invoke adoption.
   [functions](https://www.postgresql.org/docs/18/sql-createfunction.html),
   [isolation](https://www.postgresql.org/docs/18/transaction-iso.html),
   [function snapshots](https://www.postgresql.org/docs/18/xfunc-volatility.html).
+- [PostgreSQL 18 constraint timing](https://www.postgresql.org/docs/18/sql-set-constraints.html).

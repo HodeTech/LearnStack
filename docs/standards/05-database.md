@@ -4172,6 +4172,9 @@ classes, current four roles and applied policies above remain the shipped baseli
 The [Identity specification](../modules/identity/README.md) owns the proposed
 Membership, profile, Role and assignment shapes; this annex owns their database
 authority boundary and the global exceptions.
+P03-1 delivers the internal creation core, seed adoption and ordinary
+existing-binding lookup. New-user HTTP/native-BFF activation belongs to P03-3;
+this annex adds no P03-1 HTTP endpoint.
 
 ### Proposed global class and authority anchor
 
@@ -4189,7 +4192,7 @@ UserId. The global class is not an exemption from transaction/capture guards.
 | `users.authority_id`, `subject_key` | AuthorityId references the singleton's stable authority UUID; `subject_key bytea` has exactly 32 bytes. Unique `(authority_id, subject_key)` has no partial predicate and survives closure. |
 | `users.provider_subject` | Nullable, sensitive exact opaque provider subject. Active requires a nonempty value; Closed requires NULL. Closing retains it until the separately admitted closure owner removes it. |
 | `users.status` | Closed CHECK set `Active`, `Closing`, `Closed`; ordinary bootstrap inserts Active only. Closing and Closed refuse new admission. |
-| `users.creation_audit_id`, `creation_audit_timestamp` | Immutable complete central-audit key. Deferred creation guards verify it at insertion commit; no perpetual cross-module foreign key or purge veto. |
+| `users.creation_audit_id`, `creation_audit_timestamp` | Immutable complete central-audit key, allocated centrally with timestamp normalized once to PostgreSQL microsecond precision. Deferred creation guards verify it before commit; no perpetual cross-module foreign key or purge veto. |
 | User audit/concurrency fields | All six inherited audit columns and the existing row-version convention. CHECK requires `deleted_at` and `deleted_by` to remain NULL: closure uses status, not soft deletion. |
 
 The authority anchor is installed once using the deploy/installer's migration
@@ -4236,13 +4239,48 @@ owners cannot join each other's transaction mode.
 | Trusted seed adoption | Separately enumerated development owner with credential-free verified provider facts and fixed seed actor; same global insertion/audit guards, never ordinary HTTP adoption. |
 | Global audit reconciliation | New central owner for one captured failed/indeterminate creation intent, with the captured subject announcement and its own bounded app transaction; no general sentinel writer. |
 
+**Prepared owner and creation reference.** Extend the common coordinators using
+the existing `PreparedDeliveryOwner` lifetime pattern. The planned
+`PreparedGlobalIdentityOwner` has a distinct global authority kind;
+ReadOnly/ReadWrite alone cannot distinguish tenant/global owners.
+
+1. The exact internal descriptor prepares a fresh physical READ COMMITTED owner,
+   with no inherited tenant, audit frame or transaction. Its single-use handle
+   binds the actual unit, connection, transaction, generation, verified subject
+   and fixed source. The new identity setter clears unrelated tenant authority,
+   announces the verified identity scope and never calls a tenant setter.
+2. Await the exclusive subject-key advisory lock, then freshly read the exact
+   binding. An eligible existing binding returns its actor without allocation,
+   creation intent or creation-handler construction. Collision/nonadmission also
+   declares no mutation intent. The prepared handle owns cleanup on every exit.
+3. Only serialized absence enters the common audit coordinator's typed global
+   entry. It checks the central MUST catalogue, opens the capture frame and
+   allocates the target actor and creation intent. An immutable, narrow
+   `GlobalIdentityCreationReference` exposes the exact audit `(id, timestamp)` to
+   this invocation's deferred handler; subject, target, source and owner binding cannot be replaced
+   by a handler, request or a second intent lookup.
+4. The common transaction coordinator consumes the original prepared owner once,
+   constructs/invokes the handler and flushes its tracked User with that reference.
+   The central pending seam composes/writes the success row on this same physical
+   transaction. The ordinary common frame still owns completion, outcome reporting
+   and cleanup; the outer audit frame still owns reconciliation and clearing.
+
+Unconsumed, foreign, stale, disposed or reused handles refuse and clean up their
+own frame. No private Identity audit writer, replacement transaction, synthetic
+tenant context or handler-owned capture manipulation is admitted.
+
 `users` grants app SELECT and column-level INSERT only for the declared initial
 identity, status, creation-reference and inherited creation fields. It grants no
-app UPDATE or DELETE, no profile refresh and no directory read. Its one permissive
-isolation policy has an app self-read arm and an explicitly role-qualified
-`learnstack_migration` owner-read arm for the exact functions below. Explicit
-WITH CHECK permits only the app self-qualified first INSERT; immutable-field and
-creation guards bind the actual command. FORCE RLS still applies to the owner.
+app UPDATE, DELETE or TRUNCATE, no profile refresh and no directory read. Its one
+permissive isolation policy has role-qualified app self and `learnstack_migration`
+owner arms in USING. These are row-visibility predicates, **not SELECT-only
+policies**: USING also selects UPDATE/DELETE targets. Explicit WITH CHECK admits
+only app self-qualified initial values; grants and command-specific creation/
+immutability guards confine those values to the first INSERT. Unconditional
+BEFORE DELETE and BEFORE TRUNCATE guards preserve bindings for every role,
+including owner/definer execution. FORCE RLS does not govern TRUNCATE, and absent
+app grants do not constrain the owner. DDL-capable disabling/dropping of guards
+is outside this trust boundary; no admitted definer body performs such DDL.
 Later lifecycle/profile writers need separately accepted grants and guards.
 
 ### Proposed global central-audit branch
@@ -4256,6 +4294,11 @@ of sentinel tenant, NULL organization, module `identity`, operation
 owner, never by the body. The existing platform-admin class and its writer remain
 distinct. Audit metadata carries the verified `identity_authority_id` and
 `identity_subject_key`; it contains neither raw issuer/subject nor credentials.
+Extend `AuditIntent`, captured attribution and the shared `AuditDraftComposer`
+with a closed typed global-creation value carrying this scope, source, target and
+creation reference. Central composition generates the metadata for both success
+and reconciliation; no arbitrary metadata/draft port is exposed. Bootstrap's
+authenticated audit actor is NULL; seed adoption uses its fixed SystemActor.
 
 This is an explicit proposed departure from `audit_log` taking the tenant
 template **unmodified**, not a change to the reusable tenant template:
@@ -4278,15 +4321,34 @@ template **unmodified**, not a change to the reusable tenant template:
 - Planned central methods `WriteGlobalIdentityPending` and
   `ReconcileGlobalIdentity` are the only new writer paths. The former accepts
   only the enrolled live business transaction; the latter only its captured
-  non-success intent. Existing ordinary audit methods continue rejecting
-  sentinel drafts; `WritePlatformScopeAsync` remains the platform class's writer.
+  typed non-success intent. Ordinary `WritePendingAsync` gains an explicit
+  sentinel/global-intent and global-owner refusal before batch SQL; it has no
+  such check in the shipped source. Standalone/best-effort sentinel refusals stay.
+  Ordinary audit entry, transaction entry and tenant/provisioning setters reject
+  global enrollment before declaration, joining or announcement. EF command and
+  capture admission accept only the exact Identity owner/transaction, never a
+  blanket unresolved-context or table-name exemption. Global entry rejects tenant,
+  provisioning, delivery, job and platform nesting. `WritePlatformScopeAsync`
+  rejects the global discriminator; its platform class and the exact terminal
+  event/job seams remain separate. No global owner receives producer/outbox
+  tenant-announcement authority.
 - A success row and its first User mutually validate the complete audit key,
   authority/key, target actor, source, operation and successful outcome through
   deferred insertion guards on the same transaction. A failed/indeterminate row
-  has no successful User witness and cannot satisfy that reciprocal guard.
+  requires no User witness and cannot satisfy that reciprocal success guard;
+  neither its presence nor successful validation proves User absence.
   Reconciliation preserves the intent ID and takes a fresh standalone timestamp.
   Exact-key duplicates require the bounded evidence read below; a 23505 by itself
   never proves a matching audit row or a business COMMIT.
+
+After the final business/audit writes, await `SET CONSTRAINTS ALL IMMEDIATE` on
+the enrolled owner **before** the common coordinator's committing flag/commit
+admission. No later mutation, intent declaration, callback or reset to DEFERRED
+is permitted. A guard refusal follows the existing precommit rollback path and
+failed reconciliation. The deferred guards remain a database backstop for an
+omitted preflight. Physical COMMIT faults retain the existing uncertain-outcome
+contract; successful preflight, cancellation and cleanup are not COMMIT evidence.
+No blanket SQLSTATE-to-rollback inference is introduced.
 
 Global classification reads the central baseline catalogue directly; no tenant
 AuditConfig lookup or suppression allowance applies. Ordinary binding reads make
@@ -4306,8 +4368,8 @@ must name that exception, not describe it as ordinary app isolation.
 |---|---|
 | `fn_identity_user_creation_audit_guard()` | Deferred User INSERT trigger; reads only the exact creation audit key and verifies the complete global discriminator/subject/target/outcome. Returns no audit row. |
 | `fn_identity_audit_creation_guard()` | Deferred global audit INSERT trigger; verifies the exact User creation reference for success, or the captured subject/target and non-success class for reconciliation. Returns no User/profile row. |
-| `fn_identity_audit_evidence(id, timestamp, authority_id, subject_key, target_id, source, outcome)` | Central duplicate checker only; all inputs come from its captured intent. Returns a Boolean exact match, never raw metadata, profile or a list. Success evidence and non-success evidence are distinct. |
-| `fn_identity_membership_admission_guard()` | Membership INSERT, Suspended-to-Active and authority-increasing assignment trigger; target comes from the actual Membership or its tenant-composite parent. Locks/rechecks that User before the tenant lock. Returns no User fields. |
+| `fn_identity_audit_evidence(id, timestamp, authority_id, subject_key, target_id, source, outcome)` | Central duplicate checker only; all inputs come from its captured intent and must agree with the transaction's announced authority/key. Returns a Boolean exact match of the complete audit key, discriminator, subject, target, source and outcome, never metadata/profile/list data. |
+| `fn_identity_membership_admission_guard()` | Membership INSERT, Suspended-to-Active and every assignment-addition trigger; target comes from the actual Membership or its tenant-composite parent. Locks/rechecks that User before the tenant lock. Returns no User fields. |
 | `fn_identity_admin_admission_state(user_id, tenant_id)` | Last-admin guard only; target must be a candidate Membership in the already admitted tenant invariant check. Returns one admission Boolean; takes no second User lock while holding the tenant lock. |
 
 These functions have fixed `search_path = pg_catalog`, schema-qualified relations,
@@ -4317,6 +4379,15 @@ grant app execution only for the enumerated callable contracts. Trigger function
 are entered only by their declared table/command; no generic UserId probe or SQL
 executor is exposed. Exact function-body, ownership, privilege, trigger and
 call-site census controls reject widening or an additional definer function.
+
+After a unique error, evidence runs on a clean bounded reconciliation transaction,
+not the aborted INSERT transaction. Only a matching exact key can be swallowed;
+missing, mismatched or unavailable evidence follows the central failure/health
+contract. Original-success evidence uses the intent's original declaration key
+and reciprocal User creation reference. A fresh failed/indeterminate duplicate
+proves only that exact audit row is durable; it cannot establish business success.
+An original success and fresh indeterminate row may coexist after a lost COMMIT
+acknowledgement. The function never substitutes another timestamp or outcome.
 
 The owner-read arms are role-qualified inside each relation's single isolation
 policy. The audit arm admits only the global identity discriminator, not tenant
@@ -4344,10 +4415,15 @@ No hidden enrollment table or purported database JWT verifier is introduced.
 
 Global audit policy/guard SQL belongs to central Audit infrastructure. The first
 Identity migration invokes its enumerated installer on the migration connection,
-after the existing Audit schema prerequisite; it does not put direct audit SQL
-in Identity handlers. The sixth Identity chain and applied migration order are
-tested explicitly. This is the named central witness contract, not a business
-cross-module join or another owner of Audit tables.
+after the existing Audit schema prerequisite. The bounded, planned
+`IdentityCreationWitnessInstaller` exception admits only installation of the two
+reciprocal creation guards and exact evidence function over the declared User creation
+reference and Audit discriminator fields. Identity migration/handler source
+contains no copied audit SQL; core infrastructure gains no module assembly/entity
+reference. The exception permits no general cross-module joins or additional
+Audit writer. Exact installer, function-body, table-reference and call-site
+censuses extend the existing module/audit SQL guards; the sixth migration chain
+and prerequisite order receive independent applied-schema proof.
 
 Contextual lifecycle, scope-compatibility and final-admin guards are SECURITY
 INVOKER, with fixed search path and canonical tenant context. They use the named
@@ -4359,13 +4435,35 @@ and that admin, never an ordinarily writable flag. Trial, Active and Suspended
 tenants preserve administration; Archived supplies no implicit exception. This
 closes only Membership/Role mutations, not the future Tenancy archive workflow.
 
-Bootstrap serializes on the stable authority/subject key before reading absence.
-Membership creation, reactivation and assignment additions take the target User
-admission lock before tenant invariant
-locks. Closure/status writers later take the same User lock and affected tenant
-locks in stable order before changing eligibility. Hash collisions may serialize
-unrelated work but never replace exact predicates. Last-admin checks do not
-acquire another User lock under tenant lock.
+**Canonical advisory key.** SHA-256 hashes a sequence of unsigned-32-bit
+big-endian-length-prefixed byte strings: UTF-8 `learnstack.identity.lock.v1`,
+UTF-8 lock kind (`subject`, `user`, or `tenant`), then either AuthorityId's 16
+RFC/network-order UUID bytes and the 32-byte subject digest (`subject`), or the
+corresponding UserId/TenantId's 16 network-order UUID bytes. Interpret the first
+eight digest bytes as a signed two's-complement big-endian 64-bit PostgreSQL
+advisory key. Application and SQL implementations use identical fixed test
+vectors; neither runtime hash functions nor .NET mixed-endian UUID bytes qualify.
+Collisions serialize unrelated work only; exact row predicates remain mandatory.
+
+Bootstrap takes its exclusive subject key before reading absence. Membership
+creation/reactivation and **all** assignment additions take the target User's
+exclusive admission key before any tenant key. Tenant keys use SHARED mode for
+profile, nonadministrator and organization-scoped mutations; first-admin
+creation, administrator eligibility/assignment changes and protected Role/kernel
+changes use EXCLUSIVE mode. Derive the strongest required mode from actual
+OLD/NEW transitions and protected capabilities before locking, not a caller's
+label. Acquire all required User keys, then tenant keys, in stable order within
+each family; never upgrade a held shared tenant lock or acquire another User
+key beneath it. Ambiguous or post-wait changed classification refuses, rather
+than upgrading. A multi-write owner acquires its strongest complete lock set
+before mutation. Last-admin checks acquire no further User key.
+
+Both modes freshly verify the total eligible tenant-wide-admin invariant; shared
+mode does not permit a nonadmin write into an incomplete tenant. Later closure/
+status writers take the same User fence and affected exclusive tenant keys in
+stable order. They cannot make the final administrator ineligible without a
+separately accepted recovery/termination contract; closure and Archived status
+are not implicit exceptions.
 
 All these writer/guard transactions use READ COMMITTED and reject incompatible
 isolation. Functions are VOLATILE. Await the advisory-lock statement, then issue
@@ -4376,18 +4474,41 @@ Timeout/cancellation refuses without partial grants or allocation retry. Lost
 commit responses remain uncertain; cleanup and central reconciliation retain
 their independent bounded ownership after caller cancellation.
 
-Acceptance must update the six-class census, the two-global-unique-columns
-statement, the `audit_log` unmodified-policy claim, the grant/owner-function
-census, the closed canonical GUC-name list and the partial-unique-index rule.
-Add only `app.identity_authority_id` and `app.identity_subject_key` to that list;
-identity-only announcements do not change the tenant setter census. Only the
-permanent User identity key and authority anchor receive the named global
-uniqueness exemptions; inherited
-`deleted_*` columns do not make a closed User reusable. Update the corresponding
-architecture obligations with pending extensions, not claims of implementation.
-Apply forward migrations only after acceptance; qualify actual app-role reads,
-cross-subject/tenant refusals, owner-function projection, failed witness/duplicate
-controls, pooled cleanup and a real competing commit during a held-lock wait.
+### Proposed adoption text and qualification
+
+On joint acceptance, replace the named active clauses with these bounded rules;
+until then the active clauses and applied census remain unchanged:
+
+| Carrier | Adoption-ready replacement |
+|---|---|
+| Closed GUC list | The canonical set is `app.tenant_id`, `app.organization_id`, `app.scope`, `app.resolving_host`, `app.identity_authority_id`, `app.identity_subject_key`. Only the named global owners set the last two, transaction-locally; missing/reset/malformed values fail closed. Identity announcements do not increase the tenant-setter census. |
+| Table classes | Seven classes exist. Add **Global self-identity**: `users`, ENABLE/FORCE RLS plus parameterized self filter, exact role-qualified policy/guards in this annex. Add `identity_authority` to platform-scoped, `memberships`, `membership_profiles`, `membership_role_assignments` to tenant-owned org-scoped, and `roles`, `role_permission_grants` to tenant-owned tenant-wide. |
+| Global uniqueness / partial indexes | Existing global host/slug uniqueness remains. Add only the authority anchor's permanent `authority_id` and User's permanent `(authority_id,subject_key)` binding as named identity exceptions. The binding index is never partial: inherited `deleted_*` fields remain NULL and closure cannot make a key reusable. Ordinary soft-deletable business uniqueness remains partial. |
+| Audit template | `audit_log` retains ordinary tenant/org predicate semantics and restrictive guards, with only this annex's named global identity USING/WITH CHECK additions and central insertion/evidence guards; it no longer takes the tenant template unmodified. The reusable tenant template is unchanged. |
+| Owner privilege | Migration credentials remain deploy-only. Exactly the five enumerated Identity SECURITY DEFINER contracts add runtime owner execution on the existing app transaction under FORCE RLS; neither owner column privilege nor USING is described as SELECT-only authority. |
+| Foreign-key shape | Add the third canonical relationship shape: tenant-owned `memberships.user_id` references same-module global `users.id`, indexed and ON DELETE RESTRICT. It has no tenant composite because User has no tenant key. The BEFORE admission guard refuses unknown/nonadmitting targets uniformly before FK diagnostics; audit actor columns gain no User FK. Other tenant parents retain composite references and the self-keyed `tenants` exception. |
+
+The current census is **six table classes, 42 data tables plus five history
+tables, five migration chains, six central audit write seams and zero shipped
+Identity SECURITY DEFINER functions**. The proposed completed P03-1 census is
+**seven classes, 49 data tables plus six history tables, six chains, eight central
+audit write seams and exactly five Identity SECURITY DEFINER functions**. The
+seven additional data tables are those classified above; Identity adds the sixth
+history table/chain. The two global seams extend the existing six without a new
+INSERT owner. These are projected counts, not applied-schema or runtime readiness.
+
+Steps 3/4 must qualify actual app-role positive/negative paths, owner DELETE/
+TRUNCATE refusal, exact definer bodies/ownership/grants/projections/call sites,
+ordinary/global seam refusals, matching/mismatched creation and duplicate evidence,
+precommit guard refusal versus lost-COMMIT uncertainty, stale/foreign/reused owner
+handles and pooled cleanup. Lock proof requires a held lock and a **real competing
+commit**, followed by the waiting transaction's fresh read; mocks or two reads
+without contention do not qualify. Include shared/exclusive blocking, forbidden
+upgrade and final-admin/closure races. Step 5 qualifies ordinary existing-binding
+lookup before/after latency, pool occupancy and cancellation/cleanup under load;
+P03-3 separately qualifies the new-user HTTP/BFF transport. Update architecture
+obligations as pending extensions and apply forward migrations only after
+acceptance; documentation checks establish none of these runtime proofs.
 
 ## Backups
 
