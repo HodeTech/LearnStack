@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 696 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 716 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -31,6 +31,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 1 review round 1 (2026-10-25)](#p03-1-step-1-review-round-1-2026-10-25) — 21 lines
   - [P03-1 Step 1 review round 2 and closeout (2026-10-25)](#p03-1-step-1-review-round-2-and-closeout-2026-10-25) — 16 lines
   - [P03-1 Step 2 implementation and local qualification (2026-10-25)](#p03-1-step-2-implementation-and-local-qualification-2026-10-25) — 36 lines
+  - [P03-1 Step 2 review round 1 (2026-10-25)](#p03-1-step-2-review-round-1-2026-10-25) — 20 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -812,3 +813,23 @@ failures are not described as a green complete rerun.
 Changed C# formatting verification passes. Documentation, generated-index and
 whitespace checks run after this entry. The implementation commit precedes two
 fresh independent review rounds; Step 2 is not closed by these local results.
+
+### P03-1 Step 2 review round 1 (2026-10-25)
+
+**Reviewed source:** `3261114c`. Two fresh read-only reviewers independently
+inspect the common validator/model boundary (GPT-6 Astra, xhigh) and module
+semantics/corpus (GPT-6.1 Sol, xhigh). The first approves without actionable
+findings and independently passes all eleven classification cases with zero
+skips. The second verifies one Minor documentation drift: the Identity spec
+and G19 status still describe the current classification control as pending.
+Those mutable statuses now distinguish the implemented current-model census
+from pending Identity mappings and writer diagnostic proofs. No Accepted ADR
+body changes.
+
+Both verify explicit None purposes against actual institution/configuration/
+curriculum semantics, conservative personal/reference declarations, value-free
+diagnostics and actual snapshot/model relational comparison. Complex-leaf
+recursion is structurally reviewed, not claimed as a separate production complex
+property proof: no current production complex mapping exists. No verified runtime
+finding remains within these review scopes. A second fresh review round follows
+the correction commit.

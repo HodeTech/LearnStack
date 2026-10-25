@@ -312,7 +312,7 @@ closure/locators. These are named later writers, not implicit foundation authori
 | Models, commands and registry | Assembly markers; no subjects | P03-1 Steps 3/4, actual models/production commands and five-pair registry |
 | Canonical marker/filter/RLS/FK/unique/aggregate/audit controls | Existing implemented controls unchanged; Identity extensions Awaiting backfill | P03-1 Step 4, real app-role positive/dirty controls |
 | `Permission_Definitions_DeclareScope` | Registered; Identity implementation pending | P03-1 Step 4, `IdentityFoundationConventionTests` and actual commands; broader enforcement P03-2 |
-| `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Registered; implementation pending | P03-1 Step 2, `DataProtectionConventionTests`; actual complete census and planted neutral-name omission |
+| `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Implemented for current production models; Identity model backfill pending | P03-1 Step 2, `DataProtectionConventionTests`; complete census and neutral-name omission; Steps 3/4 add their actual Identity mappings |
 | `Identity_Seed_Uses_Finite_Adopted_Manifests` | Registered; no runtime artifact | P03-1 Step 4, `IdentityFoundationConventionTests` / `SeederTests`; exact manifests, kernel equivalence and no-write reruns |
 | `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Registered; implementation pending | P03-1 Step 4, `IdentityMembershipTests`; separate real app-role connections and independent guard removals |
 | Per-sink PII canaries/child audit/MUST rollback | Planned behavioral proof | P03-1 Steps 2/4, positive sink events and actual snapshots |
