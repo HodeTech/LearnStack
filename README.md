@@ -65,10 +65,12 @@ items, rules, custom fields and notification templates; their delivery is tracke
 
 ## Where it is today
 
-**Phase 01, Phase 02a and Phase 02d are complete; Phase 02b is in progress.**
+**Phase 01, Phase 02a, Phase 02d and Phase 02b are complete; Phase 03 is next.**
 [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) owns the two-tenant walking
-skeleton. Current packet state lives in the
-[Phase 02b](docs/roadmap/phase-02b-events-auth.md) document's Status block; the
+skeleton. [Phase 02b](docs/roadmap/phase-02b-events-auth.md) owns the delivered
+events, jobs, authentication and session baseline. The
+[Phase 03](docs/roadmap/phase-03-identity-admin.md) Status block owns entry state
+for the next identity, membership and authorization work; the
 [roadmap](docs/roadmap/README.md) lists every phase.
 
 | Area | Delivered now | Next milestone |
@@ -290,7 +292,7 @@ docs/             Architecture, decisions, standards, roadmap and module specs
 | Your question | Start here |
 |---|---|
 | What are we building, and for whom? | [Platform vision](docs/architecture/01-platform-vision.md) · [MVP scope](docs/architecture/05-mvp-scope.md) |
-| What works today, and what comes next? | [Roadmap](docs/roadmap/README.md) · [Current phase](docs/roadmap/phase-02b-events-auth.md) |
+| What works today, and what comes next? | [Roadmap](docs/roadmap/README.md) · [Next phase](docs/roadmap/phase-03-identity-admin.md) |
 | How do I contribute? | [Contributing](.github/CONTRIBUTING.md) · [Working agreement](CLAUDE.md) · [Engineering standards](docs/standards/README.md) |
 | Why was a decision made? | [ADR index](docs/decisions/README.md) |
 | How are institutions isolated? | [Tenant isolation](docs/architecture/09-tenant-isolation.md) · [Tenancy module](docs/modules/tenancy/README.md) |

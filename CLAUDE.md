@@ -39,10 +39,12 @@ repository holds only LearnStack's side of the boundary, in
 
 ## What state this is in
 
-**Phase 01, Phase 02a and Phase 02d are complete; Phase 02b is the live phase.**
+**Phase 01, Phase 02a, Phase 02d and Phase 02b are complete; Phase 03 is next.**
 [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) owns the two-tenant walking
-skeleton. [Phase 02b](docs/roadmap/phase-02b-events-auth.md) owns current packet
-and decision state for events, background jobs, identity and sessions.
+skeleton. [Phase 02b](docs/roadmap/phase-02b-events-auth.md) owns the delivered
+events, background jobs, API authentication and session baseline.
+[Phase 03](docs/roadmap/phase-03-identity-admin.md) owns the next identity,
+membership and authorization work; its Status block records entry state.
 [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) owns the full
 renderer/Studio expansion.
 
@@ -77,10 +79,13 @@ For any task, read in this order:
 5. [docs/standards/00-principles.md](docs/standards/00-principles.md) — the beliefs every other standard descends from.
 6. [docs/glossary.md](docs/glossary.md) — terminology; the single source of truth for project-specific terms.
 
-Then read the phase that is live and the one it stands on:
+Then read the next phase and the completed baselines it stands on:
 
+- [docs/roadmap/phase-03-identity-admin.md](docs/roadmap/phase-03-identity-admin.md) —
+  **the next phase; implementation has not started**. Read its identity,
+  membership, authorization and first-writer decisions before planning code.
 - [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md) —
-  **the live phase**. Its Status block owns packet state; its decision register owns
+  complete. Its Status block owns packet state; its decision register owns
   gate state and links each Accepted decision package in the delivery log, which is
   normative — read it before writing the code its gate governs. Navigate a delivery
   log by the generated index at its top; never read the whole file.

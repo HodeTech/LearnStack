@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,288 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,352 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -296,6 +296,7 @@ each packet decided and delivered, as
   - [P02b-8 browser artifact ownership correction, review round 1 (2026-10-25)](#p02b-8-browser-artifact-ownership-correction-review-round-1-2026-10-25) — 44 lines
   - [P02b-8 browser ownership correction, review round 2 and freeze (2026-10-25)](#p02b-8-browser-ownership-correction-review-round-2-and-freeze-2026-10-25) — 19 lines
   - [P02b-8 PR correction qualification and closeout (2026-10-25)](#p02b-8-pr-correction-qualification-and-closeout-2026-10-25) — 105 lines
+  - [P02b-8 merge and phase closeout (2026-10-25)](#p02b-8-merge-and-phase-closeout-2026-10-25) — 64 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -22264,6 +22265,70 @@ the later documentation-only head still requires one complete current-head
 assignment, including PR-only meta gates. The PR's live checks own that result;
 this frozen A/B receipt does not imply it. Maintainer review and merge remain
 separate release gates, and Phase 02b remains in progress until merge closeout.
+
+### P02b-8 merge and phase closeout (2026-10-25)
+
+Read-only GitHub verification confirms
+[PR #37](https://github.com/HodeTech/LearnStack/pull/37) merged at
+`2026-10-25T11:17:05Z` (14:17:05 in Europe/Istanbul), squash commit
+`7cad8402a8490cc4914c270cab18118d57a70a97`. Its final source is
+`b1f19f5b32fd9cb11fc8abc427817dbe72878068`. Fetching the merge confirms both
+have tree `9eb11ced9d70f66dc84ad629f409801f1aeebbcf`; their file contents are
+identical. The actual squash commit is distinct from CI's tested merge commit.
+
+The [preceding qualification](#p02b-8-pr-correction-qualification-and-closeout-2026-10-25)
+owns the corrected implementation source's complete A/1 and B/2 evidence at
+`7a2ef1d364a55b7438d17e44a02a5309d433d24d` in
+[run 40182091476](https://github.com/HodeTech/LearnStack/actions/runs/40182091476).
+The documentation-only final PR head additionally passes one complete
+current-head assignment in
+[run 40185549406](https://github.com/HodeTech/LearnStack/actions/runs/40185549406),
+attempt 1/C. It tests merge `457de7ee3d0957127dfedc50a6b807e74b1c2de2` against
+main `0dfade02a08fce6bd937fe0554f94f47c571ca8e`, with the same tree as the
+final head and actual squash merge.
+
+Final-head retained-evidence verification confirms 27 successful jobs and all
+seven required contexts; the same manifest, plan, toolchain and 6,122 unique
+.NET assembly/case IDs as A/B; 2,376 frontend passes; zero skips/todos; all 20
+natural producer completions and cleanups; 25 authenticated archive digests and
+957 extracted member files; nine public pages and 27 Lighthouse JSON/HTML pairs.
+The maximum producer whole-job wall is 915 seconds. The final independent
+readiness audit finds no pending technical gate within that scope. This closeout
+rechecks successful run metadata, the seven exact required-check results and
+merge-tree equality; it does not rerun application tests or claim new post-merge
+execution. Earlier failures, source attribution and artifact-retention limits
+remain in their original records.
+
+The dated live protection readback still requires all seven exact contexts in
+[Contributing](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
+from GitHub Actions app `15368`, strict up-to-date checks and conversation
+resolution. The final readiness readback confirms all three review threads
+resolved. The maintainer's merge completes the remaining review/release gate;
+no protection setting is changed.
+
+All four P02b-8 implementation steps, their two independent review rounds and
+subsequent verified correction bundles are closed. The approved G16 `LS0002`
+Warning contract, G18 asynchronous-copy inventory, reconciled carriers and
+individual exit evidence are delivered. The
+[exit index](phase-02b-exit-evidence.md) maps all 26 Deliverables, 60 Completion
+Criteria and 11 Phase Exit Decision obligations to their owners and proofs.
+P02b-0 through P02b-8 and the Phase 02b exit are complete; the phase document's
+Status block owns that state.
+
+[Phase 03](phase-03-identity-admin.md) is next on the critical path. Its first
+work is document review and the identity/membership and authorization decision
+pass before first writers. Its existing scope retains real membership and
+permissions, deny-by-default dispatch, identity-event ingress, privileged
+recovery/dashboard admission, DSAR authority and `LS0001`/`LS0002` Error promotion
+at its exit. This closeout accepts no Phase 03 package and starts no runtime work.
+
+[Phase 06](phase-06-renderer-admin-studio.md) retains the full browser-driven
+OIDC and Studio/Portal journeys; [Phase 11](phase-11-production-hardening.md)
+retains production/distributed sessions, operational adapters, readiness and
+retention/purge qualification. [Phase 02c](phase-02c-hub-foundation.md) stays
+parallel and starts on its existing billing/plan-gating trigger. The inventory
+is not an erasure mechanism, and phase completion makes no production-readiness
+or legal-compliance claim.
 
 ## Status archive
 

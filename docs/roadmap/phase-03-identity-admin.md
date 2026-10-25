@@ -1,5 +1,11 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
+> **Status (2026-10-25).** **Not started.** This is the next critical-path phase
+> after [Phase 02b](phase-02b-events-auth.md). Its first packet requires document
+> review and a decision pass before identity/membership writers or the
+> [authorization gate](#authorization) are implemented. This handoff accepts no
+> Phase 03 decision package and starts no runtime implementation.
+
 ## Goal
 
 Build LearnStack's identity domain (users, memberships with triple-key

@@ -49,9 +49,11 @@ not deferred to the showcase phase.
   packet's merge closeout; the [individual exit evidence](phase-02d-exit-evidence.md)
   maps each exit criterion to its proof.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
-  — **in progress**. Its Status block owns packet state and links current
-  decisions, delivery evidence and the remaining exit work.
+  — **complete and merged — 2026-10-25**. Its Status block owns packet state and
+  links the merge closeout and individual exit evidence.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
+  — **next on the critical path; not started**. Begin with the document and
+  decision pass before the first identity/membership or authorization writer.
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)
 - [Phase 06: Public Site Renderer and Admin Studio](phase-06-renderer-admin-studio.md)
