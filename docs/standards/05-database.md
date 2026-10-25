@@ -610,15 +610,16 @@ drops the other tenants' rows when the filter is missing.
   specified in the [Identity contract](#global-class-and-authority-anchor), never
   a tenant predicate or UserId-only filter.
 
-**A table is platform-scoped only when no tenant predicate can isolate it.** Two
-shipped tables qualify. `platform_host_to_tenant` is read **before the tenant is known**,
+**A table is platform-scoped only when no tenant predicate can isolate it.** Three
+implemented tables qualify. `platform_host_to_tenant` is read **before the tenant is known**,
 so a tenant-keyed policy returns nothing on the path that decides the tenant.
 `platform_killswitches` is read inside a tenant request and still has no tenant of its
 own — [ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md) is the
 decision this rule asked for, and the class fits for the stated reason rather than by
 analogy: the rows belong to no tenant, so there is nothing for a tenant predicate to
 isolate. Accepted ADR-0072 adds the third, `identity_authority`, as a singleton
-deployment authority anchor with no tenant/person content; installation is pending.
+deployment authority anchor with no tenant/person content. Its migration and
+explicit deployment installer are implemented in P03-1 Step 3.
 Another platform-scoped table requires a decision. ADR-0047
 separately accepts the infrastructure-control and vendor-control classes above;
 these carry neither tenant content nor general Platform-role access.
@@ -4248,7 +4249,7 @@ UserId. The global class is not an exemption from transaction/capture guards.
 | `identity_authority` | Platform-scoped singleton, `id = 1` primary key and CHECK; immutable unique `authority_id uuid`; one current exact issuer URI. No tenant filter and no User/person fields. |
 | `users.id` | Permanent UserId UUIDv7 primary key, allocated through the existing injected ID source only after serialized absence is established. |
 | `users.authority_id`, `subject_key` | AuthorityId references the singleton's stable authority UUID; `subject_key bytea` has exactly 32 bytes. Unique `(authority_id, subject_key)` has no partial predicate and survives closure. |
-| `users.provider_subject` | Nullable, sensitive exact opaque provider subject. Active requires a nonempty value; Closed requires NULL. Closing retains it until the separately admitted closure owner removes it. |
+| `users.provider_subject` | Nullable, sensitive exact opaque provider subject. Active requires a nonempty value; Closed requires NULL. Closing permits NULL and retains a bounded nonempty value only while the separately admitted closure owner needs it. |
 | `users.status` | Closed CHECK set `Active`, `Closing`, `Closed`; ordinary bootstrap inserts Active only. Closing and Closed refuse new admission. |
 | `users.creation_audit_id`, `creation_audit_timestamp` | Immutable complete central-audit key, allocated centrally with timestamp normalized once to PostgreSQL microsecond precision. Deferred creation guards verify it before commit; no perpetual cross-module foreign key or purge veto. |
 | User audit/concurrency fields | All six inherited audit columns and the existing row-version convention. CHECK requires `deleted_at` and `deleted_by` to remain NULL: closure uses status, not soft deletion. |
@@ -4292,15 +4293,18 @@ values immutably to its actual connection/transaction; pool reuse, cancellation,
 rollback and nested calls cannot retain or retarget them. Global and tenant
 owners cannot join each other's transaction mode.
 
-| Planned owner | Granted operation and lifetime |
+Internal lookup, seed adoption and reconciliation are implemented. New-user
+bootstrap activation remains P03-3.
+
+| Owner contract | Granted operation and lifetime |
 |---|---|
 | Global self lookup | Short physically READ ONLY app transaction; exact authority/key query, retained-subject collision check and status check; closes before tenant resolution. No allocation or mutation intent. |
 | Global bootstrap | One READ COMMITTED app transaction; subject-key advisory lock, fresh lookup, allocation only when absent, first User INSERT and central MUST audit, then commit. A unique constraint is the final concurrent-write backstop. |
 | Trusted seed adoption | Separately enumerated development owner with credential-free verified provider facts and fixed seed actor; same global insertion/audit guards, never ordinary HTTP adoption. |
 | Global audit reconciliation | New central owner for one captured failed/indeterminate creation intent, with the captured subject announcement and its own bounded app transaction; no general sentinel writer. |
 
-**Prepared owner and creation reference.** Extend the common coordinators using
-the existing `PreparedDeliveryOwner` lifetime pattern. The planned
+**Prepared owner and creation reference.** The common coordinators extend
+the existing `PreparedDeliveryOwner` lifetime pattern. The implemented
 `PreparedGlobalIdentityOwner` has a distinct global authority kind;
 ReadOnly/ReadWrite alone cannot distinguish tenant/global owners.
 
@@ -4380,12 +4384,12 @@ template **unmodified**, not a change to the reusable tenant template:
   target to agree with the enrolled physical owner. A missing owner, foreign
   subject, caller-supplied metadata or another sentinel operation refuses. A
   transaction-local string alone is not the owner's provenance proof.
-- Planned central methods `WriteGlobalIdentityPending` and
-  `ReconcileGlobalIdentity` are the only new writer paths. The former accepts
+- Central methods `WriteGlobalIdentityPendingAsync` and
+  `ReconcileGlobalIdentityAsync` are the only new writer paths. The former accepts
   only the enrolled live business transaction; the latter only its captured
-  typed non-success intent. Ordinary `WritePendingAsync` gains an explicit
-  sentinel/global-intent and global-owner refusal before batch SQL; it has no
-  such check in the shipped source. Standalone/best-effort sentinel refusals stay.
+  typed non-success intent. Ordinary `WritePendingAsync` explicitly refuses
+  sentinel/global intents and global owners before batch SQL.
+  Standalone/best-effort sentinel refusals stay.
   Ordinary audit entry, transaction entry and tenant/provisioning setters reject
   global enrollment before declaration, joining or announcement. EF command and
   capture admission accept only the exact Identity owner/transaction, never a
@@ -4430,7 +4434,7 @@ SECURITY DEFINER adds the explicitly accepted runtime owner-execution exception;
 it is not ordinary app isolation. Acceptance alone installed no function; the
 Step 3 migration installs only its qualified global subset.
 
-| Planned function | Bound input / permitted result |
+| Function contract | Bound input / permitted result |
 |---|---|
 | `fn_identity_user_creation_audit_guard()` | Deferred User INSERT trigger; reads only the exact creation audit key and verifies the complete global discriminator/subject/target/outcome. Returns no audit row. |
 | `fn_identity_audit_creation_guard()` | Deferred global audit INSERT trigger; verifies the exact User creation reference for success, or the captured subject/target and non-success class for reconciliation. Returns no User/profile row. |
@@ -4483,7 +4487,7 @@ No hidden enrollment table or purported database JWT verifier is introduced.
 
 Global audit policy/guard SQL belongs to central Audit infrastructure. The first
 Identity migration invokes its enumerated installer on the migration connection,
-after the existing Audit schema prerequisite. The bounded, planned
+after the existing Audit schema prerequisite. The bounded, implemented
 `IdentityCreationWitnessInstaller` exception admits only installation of the two
 reciprocal creation guards and exact evidence function over the declared User creation
 reference and Audit discriminator fields. Identity migration/handler source

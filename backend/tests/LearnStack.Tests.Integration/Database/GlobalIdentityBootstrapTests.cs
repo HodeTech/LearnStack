@@ -139,7 +139,8 @@ public sealed partial class GlobalIdentityBootstrapTests(SchemaFixture schema) :
         var storeResolutions = 0;
         await using var provider = BuildProvider(_database.AppConnectionString, Registration, new FixtureAdmission(Subject, Actor), services =>
         {
-            services.Replace(ServiceDescriptor.Singleton<ITenantContext>(new SeedTenantContext(SeedData.English.TenantId, null)));
+            services.Replace(ServiceDescriptor.Singleton<ITenantContextAccessor>(
+                new StaticTenantContextAccessor(new SeedTenantContext(SeedData.English.TenantId, null))));
             services.Replace(ServiceDescriptor.Scoped<IUserBindingStore>(_ =>
             {
                 Interlocked.Increment(ref storeResolutions);
@@ -191,7 +192,8 @@ public sealed partial class GlobalIdentityBootstrapTests(SchemaFixture schema) :
         services.AddSingleton<ICacheService, InMemoryCacheService>();
         services.AddLearnStackMediatRPipeline();
         services.AddSingleton<ITenantContextAccessor>(StaticTenantContextAccessor.Unresolved);
-        services.AddTransient<ITenantContext>(_ => UnresolvedTenantContext.Instance);
+        services.AddTransient<ITenantContext>(provider =>
+            provider.GetRequiredService<ITenantContextAccessor>().Current ?? UnresolvedTenantContext.Instance);
         if (admission is not null) services.AddSingleton(admission);
         services.AddLearnStackPersistence(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {

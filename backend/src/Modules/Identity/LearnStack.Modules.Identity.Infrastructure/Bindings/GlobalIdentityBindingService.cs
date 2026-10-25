@@ -12,6 +12,7 @@ using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace LearnStack.Modules.Identity.Infrastructure.Bindings;
@@ -20,13 +21,14 @@ namespace LearnStack.Modules.Identity.Infrastructure.Bindings;
 public sealed class GlobalIdentityBindingService(
     IGlobalIdentityUnitOfWork unit,
     IAuditStateCapture capture,
-    ITenantContext tenantContext,
-    AuditExecutionCoordinator audit,
-    TransactionExecutionCoordinator transaction,
+    ITenantContextAccessor tenantAccessor,
+    Func<AuditExecutionCoordinator> audit,
+    Func<TransactionExecutionCoordinator> transaction,
     IdentityAuthorityQualification qualification,
     ISeedIdentityFoundationAdmission seedAdmission,
     Func<IUserBindingStore> store,
-    Func<CreateUserBindingHandler> handler)
+    Func<CreateUserBindingHandler> handler,
+    ILogger<GlobalIdentityBindingService> logger)
     : GlobalIdentityOwnerDescriptor.MintingSource, IIdentityBindingReader, ISeedIdentityBindingAdopter
 {
     public async Task<IdentityBindingResult> ResolveExistingAsync(GlobalIdentitySubject subject, UserId? claimedActor = null,
@@ -37,15 +39,19 @@ public sealed class GlobalIdentityBindingService(
         if (claimedActor is { } claimed && !ValidActor(claimed)) return Refused(IdentityBindingOutcome.Conflict);
         if (qualification.Current?.Matches(subject) is not true) return Refused(IdentityBindingOutcome.AuthorityUnavailable);
         var descriptor = ForLookup(subject, typeof(IdentityDbContext), typeof(User));
+        IUnitOfWorkScope? frame = null;
+        IdentityBindingResult result;
+        bool cleanupSucceeded;
         try
         {
-            await using var frame = await unit.BeginGlobalIdentityTransactionAsync(descriptor, TransactionMode.ReadOnly, cancellationToken);
-            var result = Resolve(await store().FindExactAsync(subject, cancellationToken), subject, claimedActor);
+            frame = await unit.BeginGlobalIdentityTransactionAsync(descriptor, TransactionMode.ReadOnly, cancellationToken);
+            result = Resolve(await store().FindExactAsync(subject, cancellationToken), subject, claimedActor);
             await frame.CompleteAsync(cancellationToken);
-            return result;
         }
-        catch (NpgsqlException) { return Refused(IdentityBindingOutcome.StorageUnavailable); }
-        catch (TimeoutException) { return Refused(IdentityBindingOutcome.StorageUnavailable); }
+        catch (NpgsqlException) { result = Refused(IdentityBindingOutcome.StorageUnavailable); }
+        catch (TimeoutException) { result = Refused(IdentityBindingOutcome.StorageUnavailable); }
+        finally { cleanupSucceeded = await DisposeOwnerAsync(frame); }
+        return cleanupSucceeded ? result : Refused(IdentityBindingOutcome.StorageUnavailable);
     }
 
     public async Task<IdentityBindingResult> AdoptAsync(GlobalIdentitySubject subject, UserId declaredActor,
@@ -59,43 +65,72 @@ public sealed class GlobalIdentityBindingService(
         if (qualification.Current?.Matches(subject) is not true) return Refused(IdentityBindingOutcome.AuthorityUnavailable);
         var descriptor = ForSeedAdoption(subject, declaredActor, typeof(IdentityDbContext), typeof(User));
         TransactionExecutionCoordinator.PreparedGlobalIdentityOwner? owner = null;
+        IdentityBindingResult result;
+        bool cleanupSucceeded;
         try
         {
             owner = await TransactionExecutionCoordinator.PrepareGlobalIdentityOwnerAsync(
-                unit, capture, tenantContext, descriptor, cancellationToken);
+                unit, capture, CurrentTenantContext, descriptor, cancellationToken);
             var current = await store().FindExactAsync(subject, cancellationToken);
             if (current is not null)
             {
-                var result = Resolve(current, subject, declaredActor);
+                result = Resolve(current, subject, declaredActor);
                 await owner.CompleteExistingAsync(cancellationToken);
-                return result;
             }
-            owner.AdmitSerializedAbsence();
-            var response = await audit.ExecuteGlobalIdentityAsync(owner,
-                reference => transaction.ExecutePreparedGlobalIdentityAsync(owner, reference,
-                    () => handler().HandleAsync(subject, reference, cancellationToken), cancellationToken), cancellationToken);
-            return response.IsSuccess
-                ? IdentityBindingResult.Bound(response.Value, created: true)
-                : Refused(IdentityBindingOutcome.StorageUnavailable);
+            else
+            {
+                owner.AdmitSerializedAbsence();
+                var response = await audit().ExecuteGlobalIdentityAsync(owner,
+                    reference => transaction().ExecutePreparedGlobalIdentityAsync(owner, reference,
+                        () => handler().HandleAsync(subject, reference, cancellationToken), cancellationToken), cancellationToken);
+                result = response.IsSuccess
+                    ? IdentityBindingResult.Bound(response.Value, created: true)
+                    : Refused(IdentityBindingOutcome.StorageUnavailable);
+            }
         }
-        catch (NpgsqlException) { return StorageFailure(owner); }
-        catch (AuditWriteFailedException) { return StorageFailure(owner); }
-        catch (UserBindingStorageException) { return StorageFailure(owner); }
-        catch (IOException) { return StorageFailure(owner); }
-        catch (TimeoutException) { return StorageFailure(owner); }
-        finally
-        {
-            if (owner is not null) await owner.DisposeAsync();
-        }
+        catch (NpgsqlException) { result = StorageFailure(owner); }
+        catch (AuditWriteFailedException) { result = StorageFailure(owner); }
+        catch (UserBindingStorageException) { result = StorageFailure(owner); }
+        catch (IOException) { result = StorageFailure(owner); }
+        catch (TimeoutException) { result = StorageFailure(owner); }
+        finally { cleanupSucceeded = await DisposeOwnerAsync(owner); }
+        return cleanupSucceeded ? result : StorageFailure(owner);
     }
 
     private static IdentityBindingResult StorageFailure(TransactionExecutionCoordinator.PreparedGlobalIdentityOwner? owner) =>
         Refused(owner?.RecordedOutcome == AuditIntentState.Indeterminate
             ? IdentityBindingOutcome.Indeterminate : IdentityBindingOutcome.StorageUnavailable);
 
-    private bool HasInheritedAuthority() => tenantContext.IsResolved || tenantContext is EventTenantContext or JobTenantContext
-        || unit.HasActiveTransaction || unit.IsRollbackOnly || capture.HasOpenFrame || capture.Intents.Count != 0
-        || capture.Changes.Count != 0 || capture.State != AuditIntentState.None;
+    private ITenantContext CurrentTenantContext => tenantAccessor.Current ?? UnresolvedTenantContext.Instance;
+
+    private bool HasInheritedAuthority()
+    {
+        var context = CurrentTenantContext;
+        return context.IsResolved || context is EventTenantContext or JobTenantContext
+            || unit.HasActiveTransaction || unit.IsRollbackOnly || capture.HasOpenFrame || capture.Intents.Count != 0
+            || capture.Changes.Count != 0 || capture.State != AuditIntentState.None;
+    }
+
+    private async ValueTask<bool> DisposeOwnerAsync(IAsyncDisposable? owner)
+    {
+        if (owner is null) return true;
+        try
+        {
+            await owner.DisposeAsync();
+            return true;
+        }
+#pragma warning disable CA1031 // Cleanup is awaited without replacing a primary failure or cancellation.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            LogCleanupFailure(logger, null);
+            return false;
+        }
+    }
+
+    private static readonly Action<ILogger, Exception?> LogCleanupFailure = LoggerMessage.Define(
+        LogLevel.Error, new EventId(1, "GlobalIdentityOwnerCleanupFailed"),
+        "Global identity owner cleanup failed; its scope retains connection cleanup responsibility.");
 
     private static IdentityBindingResult Resolve(User? user, GlobalIdentitySubject subject, UserId? claimedActor)
     {

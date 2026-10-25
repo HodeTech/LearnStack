@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 861 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 907 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -37,6 +37,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 3 final local pre-review controls (2026-10-26)](#p03-1-step-3-final-local-pre-review-controls-2026-10-26) — 25 lines
   - [P03-1 Step 3 retained-subject pre-commit correction (2026-10-26)](#p03-1-step-3-retained-subject-pre-commit-correction-2026-10-26) — 12 lines
   - [P03-1 Step 3 existing-adoption scope correction (2026-10-26)](#p03-1-step-3-existing-adoption-scope-correction-2026-10-26) — 24 lines
+  - [P03-1 Step 3 review round 1 and corrections (2026-10-26)](#p03-1-step-3-review-round-1-and-corrections-2026-10-26) — 46 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -983,3 +984,49 @@ warnings/errors; all 2,727 Unit cases and seven focused owner/model Architecture
 cases pass again, zero skipped. The complete Architecture run and both fresh
 review rounds follow the implementation commit; neither is claimed complete by
 these focused results.
+
+### P03-1 Step 3 review round 1 and corrections (2026-10-26)
+
+**Reviewed source:** `e3f56cb2`. Three fresh read-only reviewers independently
+inspect the common owner/audit boundary (GPT-6 Astra, xhigh), global schema and
+owner-function privileges (GPT-6.1 Sol, xhigh), and scoped consumers/deployment/
+corpus (GPT-6.1 Sol, xhigh). The schema reviewer approves its assigned scope.
+The other reviewers identify three verified runtime issues and one mutable
+documentation gap; no runtime test is attributed to their initial static review.
+
+The binding reader no longer eagerly constructs creation-only scoped
+coordinators before tenant resolution. Common scoped factories defer them until
+admitted creation, and the binding service checks the live context accessor.
+Owner cleanup is awaited without replacing a primary failure or cancellation;
+cleanup failure on a normal return becomes a bounded storage refusal and emits
+a fixed diagnostic without exception payload. The pending global audit command
+explicitly uses the ten-second command limit; independent reconciliation keeps
+its separate budget. Mutable Standard 05/issuer-environment descriptions now
+match the implemented owners, installer and ordinary writer refusals.
+
+The complete Architecture baseline is interrupted after four verified closed-
+census failures; it is not a complete or passing run. Exact tests now include
+the extracted private transaction opener, the two guarded global coordinator
+entries and the named physical completion/failure owners. Extra-call/delegate
+and removed-guard controls remain, including removed-commit controls for all four
+new physical commit owners. No job/delivery bypass or broad class exemption is
+introduced. The failed/interrupted log remains separate from requalification.
+
+The corrected Release solution builds with zero warnings/errors. All 25 native
+global-consumer cases pass, zero skips: they include actual pre-context lookup
+followed by resolved-context MediatR business/MUST audit, joined cleanup failures
+with primary exception/cancellation preservation and value-free diagnostics,
+and an observed sleeping audit INSERT under both deadline and caller cancellation.
+Each stalled-write refusal has a successful clean twin and independent failed
+reconciliation. The eight additional cases bring the distinct requested native
+population to 362; this is not a complete integration-suite claim.
+
+Formatting, Unit and focused corpus/owner checks run before the correction
+commit. The complete Architecture rerun and a second fresh independent review
+round follow that commit. Step 3 remains open until those controls close.
+
+Final R1 pre-commit controls pass: scoped formatting, the complete Release build
+with zero warnings/errors, 2,727 Unit cases and 147 focused Architecture cases,
+all with zero skips. Documentation/index checks and whitespace checks also pass.
+The focused set does not claim the interrupted closed-census controls passed;
+their corrected execution remains part of the complete rerun below.

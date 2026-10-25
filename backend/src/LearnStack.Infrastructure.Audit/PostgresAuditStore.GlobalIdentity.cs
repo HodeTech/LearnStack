@@ -27,6 +27,7 @@ public sealed partial class PostgresAuditStore
         try
         {
             await using var command = unitOfWork.Connection.CreateCommand();
+            command.CommandTimeout = 10;
             command.Transaction = unitOfWork.Transaction;
             command.CommandText = InsertSql;
             Bind(command.Parameters, draft);

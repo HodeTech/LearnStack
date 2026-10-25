@@ -180,7 +180,9 @@ public sealed partial class OutboxDispatchConventionTests
              RequireBoundaryMethod(offenders, types[(InfrastructureAssembly, JobBridgeStore)], "UpdateAsync", BoundaryBooleanTask,
                  MethodAttributes.Private, "LearnStack.Infrastructure.Jobs.BackgroundJobBridgeClaim", "System.String",
                  "System.Nullable`1<LearnStack.Infrastructure.Jobs.BackgroundJobBridgeDeferral>", BoundaryCancellation),
-             Owner(DeliveryApplication, DeliveryCoordinator, "PrepareDeliveryOwnerAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecutePreparedDeliveryAsync")]);
+             Owner(DeliveryApplication, DeliveryCoordinator, "PrepareDeliveryOwnerAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecutePreparedDeliveryAsync"),
+             Owner(DeliveryApplication, DeliveryCoordinator, "PrepareGlobalIdentityOwnerAsync"),
+             Owner(DeliveryApplication, DeliveryCoordinator, "ExecutePreparedGlobalIdentityAsync")]);
         return offenders;
 
         string Identity(MethodDefinition method)

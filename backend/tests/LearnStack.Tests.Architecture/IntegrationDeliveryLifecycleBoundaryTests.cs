@@ -20,6 +20,9 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleScope = "LearnStack.SharedKernel.Persistence.IUnitOfWorkScope";
     private const string LifecycleAdapter = "LearnStack.Infrastructure.Persistence.NpgsqlUnitOfWork";
     private const string LifecycleFrame = LifecycleAdapter + "/Frame";
+    private const string LifecycleGlobalPrepared = DeliveryCoordinator + "/PreparedGlobalIdentityOwner";
+    private const string LifecycleIdentityAssembly = "LearnStack.Modules.Identity.Infrastructure";
+    private const string LifecycleIdentityBindings = "LearnStack.Modules.Identity.Infrastructure.Bindings.";
     private const string LifecycleAcceptance = "LearnStack.Infrastructure.Messaging.PostgresDeliveryAcceptance";
     private const string LifecyclePlatform = "LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope";
     private const string LifecycleTask = "System.Threading.Tasks.Task";
@@ -122,6 +125,14 @@ public sealed partial class OutboxDispatchConventionTests
                  {
                      (AuditAssembly, AuditStore, "WriteOwnTransactionCoreAsync",
                          new[] { "LearnStack.SharedKernel.Audit.AuditEntryDraft", "LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources", BoundaryCancellation }, "database.CommitAsync"),
+                     (AuditAssembly, AuditStore, "WriteGlobalIdentityTransactionAsync",
+                         new[] { "LearnStack.SharedKernel.Audit.GlobalIdentityCreationReference", "LearnStack.SharedKernel.Audit.AuditEntryDraft", BoundaryCancellation }, "database.CommitAsync"),
+                     (AuditAssembly, AuditStore, "HasGlobalIdentityEvidenceAsync",
+                         new[] { "LearnStack.SharedKernel.Audit.GlobalIdentityCreationReference", "LearnStack.SharedKernel.Audit.AuditEntryDraft", BoundaryCancellation }, "database.CommitAsync"),
+                     (LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityDeploymentInstaller", "InstallAsync",
+                         new[] { "Npgsql.NpgsqlConnection", LifecycleIdentityBindings + "IdentityAuthorityRegistration", BoundaryCancellation }, "database.CommitAsync"),
+                     (LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityQualification", "QualifyCoreAsync",
+                         new[] { BoundaryCancellation }, "database.CommitAsync"),
                      (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
                          new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
                      (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",
@@ -142,9 +153,9 @@ public sealed partial class OutboxDispatchConventionTests
             var terminals = OwnedBodies(census).Where(item => item.Owner == owner)
                 .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is MethodReference target
                     && IntegrationLifecycleCapability(target, types) == terminalCapability).ToArray();
-            terminals.Should().ContainSingle("the exact job helper owner must execute its real physical terminal operation");
-            AssertMutation(census, "a missing actual job helper terminal operation in " + MethodId(owner), () =>
-                ReplaceInstruction(terminals[0], OpCodes.Ldstr, "missing job helper terminal operation"), IntegrationLifecycleOffenders);
+            terminals.Should().ContainSingle("the exact helper owner must execute its real physical terminal operation");
+            AssertMutation(census, "a missing actual helper terminal operation in " + MethodId(owner), () =>
+                ReplaceInstruction(terminals[0], OpCodes.Ldstr, "missing helper terminal operation"), IntegrationLifecycleOffenders);
         }
         var announcements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
             .Where(instruction => instruction.Operand is MethodReference target
@@ -241,9 +252,13 @@ public sealed partial class OutboxDispatchConventionTests
             ["unit.rollback"] = [],
             ["unit.announce"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
-            ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
+            ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
+                Owner(DeliveryApplication, LifecycleGlobalPrepared, "CompleteExistingAsync"),
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ResolveExistingAsync")],
             ["scope.fail"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
-                Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
+                Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
+                Owner(DeliveryApplication, LifecycleGlobalPrepared, "CreateAsync"),
+                Owner(DeliveryApplication, LifecycleGlobalPrepared, "FailBeforeConsumptionAsync")],
             ["owned-frame.fail"] = [Owner(InfrastructureAssembly, LifecycleFrame, "FailAsync"), Owner(InfrastructureAssembly, LifecycleFrame, "DisposeAsync")],
             ["database.CommitAsync"] =
             [
@@ -258,6 +273,13 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobBridgeStore", "UpdateAsync"),
                 Owner(AuditAssembly, AuditStore, "WriteOwnTransactionCoreAsync",
                     ["LearnStack.SharedKernel.Audit.AuditEntryDraft", "LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources", BoundaryCancellation]),
+                Owner(AuditAssembly, AuditStore, "WriteGlobalIdentityTransactionAsync",
+                    ["LearnStack.SharedKernel.Audit.GlobalIdentityCreationReference", "LearnStack.SharedKernel.Audit.AuditEntryDraft", BoundaryCancellation]),
+                Owner(AuditAssembly, AuditStore, "HasGlobalIdentityEvidenceAsync",
+                    ["LearnStack.SharedKernel.Audit.GlobalIdentityCreationReference", "LearnStack.SharedKernel.Audit.AuditEntryDraft", BoundaryCancellation]),
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityDeploymentInstaller", "InstallAsync",
+                    ["Npgsql.NpgsqlConnection", LifecycleIdentityBindings + "IdentityAuthorityRegistration", BoundaryCancellation]),
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityQualification", "QualifyCoreAsync", [BoundaryCancellation]),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
                     ["LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation]),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",

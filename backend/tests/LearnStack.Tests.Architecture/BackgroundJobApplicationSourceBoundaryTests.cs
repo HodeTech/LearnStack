@@ -110,8 +110,8 @@ public sealed partial class OutboxDispatchConventionTests
         Exact(resources, "DisposeReaderAsync", [cores[0], cores[2], (AppJobResources, "CleanupAsync")]);
         Exact(resources, "CleanupAsync", cores);
         Exact(owner, "BindMainUnit", [(AppJobUnit, "BindJobMainUnit")]);
-        Exact(owner, "HoldMainConnection", [(AppJobUnit, "get_Connection"), (AppJobUnit, "BeginTransactionAsync")]);
-        Exact(owner, "HoldMainTransaction", [(AppJobUnit, "BeginTransactionAsync")]);
+        Exact(owner, "HoldMainConnection", [(AppJobUnit, "get_Connection"), (AppJobUnit, "BeginTransactionCoreAsync")]);
+        Exact(owner, "HoldMainTransaction", [(AppJobUnit, "BeginTransactionCoreAsync")]);
         Exact(owner, "ReportMainTransactionCleanup", [(AppJobUnit, "CommitFrameAsync"), (AppJobUnit, "CommitFrameAsync"),
             (AppJobUnit, "DisposeCompletedTransactionAsync"), (AppJobUnit, "DisposeCompletedTransactionAsync"),
             (AppJobUnit, "RollbackCoreAsync"), (AppJobUnit, "RollbackCoreAsync")]);
@@ -140,9 +140,9 @@ public sealed partial class OutboxDispatchConventionTests
             foreach (var (typeName, methodName) in expected)
             {
                 var callers = types[typeName].Methods.Where(method => method.Name == methodName
-                    && (typeName != AppJobUnit || methodName != "BeginTransactionAsync"
+                    && (typeName != AppJobUnit || methodName != "BeginTransactionCoreAsync"
                         || method.Parameters.Select(parameter => parameter.ParameterType.FullName).SequenceEqual(
-                            ["LearnStack.SharedKernel.Persistence.TransactionMode", "System.Threading.CancellationToken"]))).ToArray();
+                            ["LearnStack.SharedKernel.Persistence.TransactionMode", "System.Boolean", "System.Threading.CancellationToken"]))).ToArray();
                 if (callers.Length != 1) { offenders.Add("Missing or overloaded job source caller: " + typeName + "::" + methodName); continue; }
                 allowed.Add(MethodId(callers[0]));
             }
