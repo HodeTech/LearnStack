@@ -10,6 +10,8 @@ Proposed — maintainer approval required before acceptance or dependent code.
 **Bounded supersession:** ADR-0064's required wire `user_id`, ADR-0070's
 claim-derived actor association, ADR-0036's ordinary-only HTTP resolution path,
 and ADR-0044's unresolved/global audit restrictions, only as identified below.
+ADR-0033's decide/write/reconcile durability is extended to this new global class,
+including its non-success path; it is not waived.
 This proposal changes no runtime, Accepted ADR or grant.
 
 ## Decision Drivers
@@ -111,8 +113,9 @@ ordinary unresolved command, tenant selector or general account administration A
   at most 4 KiB, no redirect, email or profile. Missing/invalid credentials are
   401, malformed operation input 400, admission 429/503 under existing rules,
   and failed required storage/audit 503. Fixed errors disclose no claim values.
-- Use a five-second whole-operation deadline through response consumption,
-  within the existing callback deadline. Cancellation before commit rolls back;
+- Keep the native caller's existing ten-second API request budget through body
+  consumption, within its owned callback lifetime. Cancellation before commit
+  rolls back;
   a lost response after commit can leave a durable User. Retry resolves the same
   mapping; cancellation or a timeout never proves the commit failed.
 - The native caller exposes this one generated SDK operation to its response
@@ -124,6 +127,9 @@ ordinary unresolved command, tenant selector or general account administration A
 
 Declare User as a **global self-identity** database class, separately from tenant
 tables. Use `learnstack_app`, ENABLE/FORCE RLS and an exact subject predicate.
+The repository and DbContext-parameterized EF filter independently restrict
+issuer/sub from the immutable verified-subject scope; missing scope yields no
+rows. A model-cache literal or UserId-only query cannot replace that predicate.
 An owning transaction announces verified issuer/sub before any User SQL; a narrow
 read owner is physically READ ONLY. No tenant sentinel is announced, no accessor
 is fabricated, and no Platform/bypass credential participates.
@@ -144,8 +150,10 @@ and later person/provider writes require separately admitted owners and grants.
 Store global PII only under the classifications and diagnostic restrictions in
 [ADR-0073](0073-scoped-membership-and-identity-data-foundation.md).
 
-The new central audit seam accepts the enrolled global-self transaction, not a
-standalone write. Its one P03-1 mutation operation is `identity.user.create`, MUST.
+The central transactional audit seam accepts the enrolled global-self transaction.
+Its one P03-1 mutation operation is `identity.user.create`, MUST SecurityEvent.
+Use the baseline central classification directly: no tenant AuditConfig loader,
+tenant override or suppression allowance applies to a global identity intent.
 `TenantId.PlatformSentinel` identifies this global row's storage attribution only;
 it is never request authority or a value passed to a tenant setter.
 
@@ -160,20 +168,57 @@ it is never request authority or a value passed to a tenant setter.
   independent writer. No arbitrary audit-row reuse passes the creation guard.
   RLS/write guards admit only this named global operation and subject. They do
   not widen the existing tenant audit policy or admit arbitrary sentinel INSERTs.
-- Record the verified requesting subject's normalized actor as actor, and the
-  bootstrap service as executor/source. Seed adoption records SystemActor as
-  executor and the adopted actor as subject. Do not claim an operator permission,
-  membership or person-provided email. Redact issuer/sub and personal values in
-  snapshots; retain only the declared surrogate linkage in causal metadata.
+- A committed creation attributes its new actor; the bootstrap service is its
+  executor/source. Seed adoption attributes SystemActor as executor/actor and
+  the adopted actor as subject. Before successful binding, a non-success attempt
+  has no normalized application actor: use NULL actor and a distinct proposed
+  target identity, not a fabricated authenticated User. Do not claim an operator
+  permission, membership or person-provided email. Redact issuer/sub and personal
+  values in snapshots. The only new provider linkage retained in global audit
+  metadata is the subject key defined below, never raw issuer/sub or a token.
 - Reconcile concurrent INSERTs through unique constraints on exact issuer/sub
   and actor. Losing work rolls back its audit; the owner reads the committed
   winner and returns it. A conflicting actor binding never becomes an alias.
 - Global rows remain invisible to ordinary tenant audit readers. P03-9/G13 owns
   a privileged global audit read; this proposal adds no such endpoint.
 
-This is a new central global mutation class, explicitly replacing the affected
-ADR-0044 restriction. It is not an exemption from same-transaction MUST durability,
-not a new Identity audit table and not an extension of the standalone refusal budget.
+The same central reconciliation owner also has a narrow global non-success seam.
+It opens an app-role transaction with the captured verified-subject announcement,
+independently of the request's cancelled token, and attempts the pending intent
+with its actual failed/indeterminate outcome. Only this captured global creation
+intent can use it; it is no route, generic sentinel writer or tenant assertion
+budget. Existing binding reads stage no mutation intent and create no row.
+
+- Preserve the intent's complete audit key through reconciliation. If unknown
+  COMMIT already carried the success row, verify that exact key, operation, target
+  and subject key before treating a duplicate as positive durability evidence.
+  A uniqueness error by itself cannot validate an unrelated global row.
+- A rolled-back/losing creation has no User witness. Its non-success row is
+  deliberately exempt from the success-only reciprocal guard; guards restrict
+  it to the verified subject, exact operation and non-success outcome. One
+  successful creator can coexist with failed racing-attempt rows. No failed row
+  claims that its proposed User or actor was durably created.
+- Store `metadata.identity_subject_key`, a SHA-256 digest of length-delimited
+  UTF-8 issuer and exact opaque subject, for attempt attribution. Derive/check it
+  from the captured subject; no payload supplies it. It is neither UserId nor
+  authority, metric label or anonymisation. It remains linkable personal data
+  under the existing security-audit retention and immutable-metadata rules.
+  G19 includes this path; P03-10 must account for it before redaction/closure.
+- Lost rollback/reconciliation storage emits the existing Critical/health signal.
+  Otherwise-successful bootstrap cannot return success when its required
+  non-success reconciliation failed; an already failed/uncertain request retains
+  its bounded failure. Do not infer no commit or allocate a replacement from a
+  timeout. A later request independently resolves the same subject's durable
+  binding. There is no automatic grant retry or unbounded database retry loop.
+- Reconciliation keeps the existing central connection/command timeout and
+  cleanup ownership, even after client cancellation. The native request budget
+  limits response waiting/publication, not proof that server work stopped.
+  Shutdown joins actual owned work; no discarded audit task outlives its owner.
+
+This new global class explicitly replaces the affected ADR-0044 restriction,
+while preserving ADR-0033's same-transaction success and non-success reconciliation.
+It adds no Identity audit table. Subject-authenticated failed attempts can add
+durable rows under the existing HTTP quotas; there is no new suppression allowance.
 
 ### BFF association and publication
 
@@ -238,6 +283,13 @@ email, subject or other profile fields. The transaction-held User lock and reche
 linearize new membership against closure. Closure/status writers must also join
 the affected tenant invariant locks before making a last admin ineligible, in
 ADR-0073's order, before their later writer is admitted.
+These writer/guard transactions explicitly use READ COMMITTED. Database guards
+reject incompatible isolation, including a direct app-role REPEATABLE READ
+write. Await the advisory-lock statement, then execute the admission/invariant
+query with a fresh post-wait snapshot. Guard functions/triggers are VOLATILE;
+neither a STABLE/cached result nor a snapshot acquired before waiting can decide
+admission. A lock alone is not visibility proof. Require a real held-lock test
+where the competing commit changes eligibility before the waiter rechecks.
 This function is a declared confined owner read, not ordinary app-role User
 isolation. Direct app global SELECT, arbitrary target projection and generic
 definer functions remain forbidden. Closure's privileged writer remains P03-10.
@@ -245,6 +297,10 @@ The lock lifetime follows PostgreSQL 18's
 [transaction advisory-lock contract](https://www.postgresql.org/docs/18/explicit-locking.html#ADVISORY-LOCKS).
 The SELECT-only choice avoids the additional row-lock policy requirements in
 [CREATE POLICY](https://www.postgresql.org/docs/18/sql-createpolicy.html).
+Post-wait visibility follows the separate
+[isolation](https://www.postgresql.org/docs/18/transaction-iso.html) and
+[function snapshot](https://www.postgresql.org/docs/18/xfunc-volatility.html)
+contracts; actual migration/guard qualification remains required.
 
 ## Context
 
@@ -289,11 +345,13 @@ From ADR-0044:
 > It is carried by exactly one class of row: a platform-scope operation with no
 > resolvable tenant, written standalone.
 
-Its unresolved-not-provisioning table also says no row. Only the named,
-transactional global-self mutation class is added. Existing platform entry,
-rejected assertions, tenant writes and standalone semantics remain intact.
+Its unresolved-not-provisioning table also says no row. The named transactional
+global-self mutation and its non-success reconciliation are added. Existing
+platform entry, rejected assertions and tenant writes remain intact. A dated
+ADR-0033 disclosure names the global reconciliation extension; its existing
+decide/write/reconcile and standalone failure semantics are preserved.
 
-Acceptance appends dated disclosures to ADR-0036/0040/0044/0064/0070, without
+Acceptance appends dated disclosures to ADR-0033/0036/0040/0044/0064/0070, without
 changing Accepted bodies, statuses or dates. ADR-0003's tenant policy remains;
 its disclosure names the new non-tenant class. These are bounded new decisions,
 not ADR-0041 factual corrections. Standards 04/05/07/11/18/21, Architecture
@@ -323,6 +381,9 @@ P03-3 scope transition, P03-6 provider mirroring and P03-10 closure remain named
   and response loss do not undo that commit; no-membership UX is completed in P03-3.
 - Global subject RLS, a new transaction/audit class and a narrow owner function
   need genuine database/dirty controls. They add no operator bypass authority.
+- Failed/indeterminate bootstrap can retain linkable subject keys and proposed
+  target identifiers without a durable User. Security-audit retention and
+  later privacy fulfillment must include them; a hash is not anonymisation.
 - Permanent anti-recreation bindings retain personal linkage after closure;
   this is not an erasure-compliance claim.
 
@@ -354,7 +415,9 @@ claim a provider SDK backfill from direct HTTP.
   absent/invalid/unknown/conflicting/closed matrix cases, genuine positive calls
   and no mapping write on ordinary GET or failed validation.
 - Concurrent first bootstrap, forced audit/commit failure and response loss:
-  exactly one actor and matching durable row; no replacement on retry.
+  one actor/successful creation row; faithful standalone loser/rollback/unknown
+  outcomes, exact durable-duplicate verification and no replacement on retry.
+  Force standalone failure too and prove no otherwise-successful response.
 - Actual app-role self/global isolation with missing, foreign, cancelled and
   pooled authority; planted broad-policy, missing-audit and wrong-user controls.
 - Exact global admission before ordinary reconciliation, unknown-host/quota
@@ -366,7 +429,8 @@ claim a provider SDK backfill from direct HTTP.
   wrong-subject proof,
   claim-presence conflict, lost/late callback and closed-account controls;
   no tenant session from actor-only bootstrap.
-- Membership-versus-closure lock races and definer privilege/search-path/method
+- Membership-versus-closure lock races, a competing commit during the held lock,
+  incompatible-isolation/STABLE controls and definer privilege/search-path/method
   controls; invoking the guard cannot enumerate a profile or bypass tenant RLS.
 
 ## References

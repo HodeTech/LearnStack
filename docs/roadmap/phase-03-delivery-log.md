@@ -15,9 +15,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 165 lines
-  - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 128 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 197 lines
+  - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
+  - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 30 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -162,7 +163,7 @@ Accepted ADR bodies and all historical delivery entries remain untouched.
 | G3 | ADR-0073: Membership contains one contextual profile and multiple assignments; null-safe natural key, lifecycle/successor and finite role scopes, including the explicit Organization Learner variant | P03-3 field/HTTP/admin/organization operations; P03-5 dynamic fields |
 | G4 shared implications | No global active-scope column; actor-only bootstrap does not publish a tenant BFF session | P03-3 usable discovery, per-session issuance, switch/refresh/logout races and real A/B proof |
 | G5 schema/bootstrap | Scoped permission identity; code definitions, finite initial grants, disabled later additions, last-admin serialization | P03-2 permission enforcement/delegation/denial and revocation execution; P03-3 UI |
-| G7 only new global mutation | ADR-0072: first User and its central MUST row share one app-role transaction, exact row-bound global exception | P03-2 normal HTTP/application denial/enrichment; no general standalone budget |
+| G7 only new global mutation | ADR-0072: first User and central MUST row share one app-role transaction; confined same-subject failed/indeterminate reconciliation preserves ADR-0033 | P03-2 normal HTTP/application denial/enrichment; no general standalone budget |
 | G8 shared shape | No Invitation table/implicit multi-root exception; Membership natural key supports later reconciliation | P03-4 acceptance/delivery/aggregate atomicity decision before writer |
 | G16 shared invariants | Permanent binding/tombstone, global admission lock, no implicit global closure on tenant erasure | P03-10 authority, holds, participants, transformations, artifacts, provider finalization and completion |
 | G19 | ADR-0073: explicit mapped-property classification, fixed diagnostics and sink/capture canaries | P03-5 revision-aware dynamic values; P03-10 locator/erasure fulfillment |
@@ -178,9 +179,11 @@ implementation discovers such a dependency, its affected gate closes before code
    application-owned binding and an optional consistency claim. Keep all other
    strict token checks; ordinary reads never create Users. This changes the API/
    BFF contract and introduces authenticated binding-store availability cost.
-2. Admit the exact global-self POST and transactional global User/audit class,
-   subject RLS and confined owner-read closure guard. No fifth login/bypass,
-   operator grant, public directory or tenant authority is implied.
+2. Admit the exact global-self POST, transactional global User/audit class and
+   confined non-success reconciliation, subject RLS and owner-read closure guard.
+   Linkable audit subject keys survive under security retention even without a
+   User. No fifth login/bypass, operator grant, public directory or tenant
+   authority is implied.
 3. Adopt ADR-0073's contained membership/profile/grant model, null-safe lifecycle,
    scoped finite permission manifests and concurrent last-admin invariant.
 4. Approve permanent anti-recreation binding retention as a first-schema choice.
@@ -194,9 +197,9 @@ implementation discovers such a dependency, its affected gate closes before code
 
 | Step | Concrete result | Main surfaces | Required validation before closure |
 |---|---|---|---|
-| 1 | Accept decisions, append exact dated disclosures, register obligations and reconcile canonical authorities | ADR-0003/0017/0036/0040/0044/0064/0070; Standards 05/11/18/19/21; Identity spec and applicable architecture/glossary | Parser/status, exact clauses/carrier audit, whole-tree docs lint, no Accepted-body rewrite |
+| 1 | Accept decisions, append exact dated disclosures, register obligations and reconcile canonical authorities | ADR-0003/0017/0033/0036/0040/0044/0064/0070; Standards 05/11/18/19/21; Identity spec and applicable architecture/glossary | Parser/status, exact clauses/carrier audit, whole-tree docs lint, no Accepted-body rewrite |
 | 2 | Complete typed property classification census and safe diagnostic boundary before identity PII writes | SharedKernel metadata; production EF models; module PII/audit specs; observability/error tests | Nonempty model census; planted omission; real sink/capture positive and canary controls; existing redaction remains |
-| 3 | Global User/binding storage, confined self owner, atomic central audit and closure guard | Identity Domain/Infrastructure; common transaction/audit contracts; migration chain and fixtures | Real app-role RLS and uniqueness races; missing/mismatched audit commit refusal; owner/pooled/cancellation/fence controls |
+| 3 | Global User/binding storage, confined self owner, atomic central audit/non-success reconciliation and closure guard | Identity Domain/Infrastructure; common transaction/audit contracts; migration chain and fixtures | Real app-role RLS and uniqueness races; missing/mismatched success audit, rollback/loser/unknown-COMMIT/standalone failure, fresh post-lock/incompatible-isolation and owner/pooled/cancellation controls |
 | 4 | Membership/Profile/Role foundation and semantic identity/member seed adoption | Identity packages/contracts; Tenancy lifecycle contract; Seeder/shared seed-demo handoff; role/PII matrices | Null-key/scope/child/audit/lifecycle and last-admin races; real warm provider seed readback, preserved credentials and no-write rerun |
 | 5 | Explicit bootstrap HTTP, binding-based ordinary identity and coordinated native BFF/SDK activation | API authentication/global-self surface; generated SDK; native provider/session response owners; OpenAPI | Real actorless Keycloak tokens/native HTTPS; binding matrix; unknown-host/quota/body/protocol/late-publication controls; unchanged anonymous flow |
 | 6 | Complete integrated qualification, corpus/CI assignment and source-bound closeout | Actual test owners; bounded shard plan if discovery changes; phase Status/log; reviewable PR description | Relevant complete backend/frontend suites, real provider/browser slice, full complementary A/B CI under existing ceilings/names, no skips/empty proof |
@@ -268,3 +271,33 @@ file sweep resolves 1,013 relative targets; both ADRs parse Proposed. Existing
 ADR/parser/fragment/roadmap/index controls pass 37 tests in total. No application
 suite is rerun for this documentation-only review. Corrected-source checks and
 a second independent round remain required before requesting approval.
+
+### P03-1 proposal review round 2 (2026-10-25)
+
+**Reviewed source:** `c9a969f6`. Two different fresh reviewers use GPT-6.1 Sol /
+xhigh for authority/SQL and GPT-6 Astra / xhigh for model/privacy/audit. Both
+independently verify the first round's tenantless pre-session, scoped Learner,
+insertion-only witness and advisory-lock corrections. Both remain read-only;
+neither runs application/provider/database tests or changes source.
+
+Two additional Major contract gaps are verified and corrected:
+
+- Lock ownership alone does not supply a fresh snapshot. User/tenant invariant
+  writers and database guards now require READ COMMITTED, refuse incompatible
+  isolation and read again after the awaited lock in a fresh VOLATILE query.
+  Held-lock competing-commit and stale-snapshot controls are mandatory.
+- ADR-0033 requires failed/indeterminate MUST reconciliation, while the initial
+  global proposal admitted only a transactional success row. ADR-0072 now names
+  the central global non-success seam, same verified subject, exact duplicate
+  witness, loser/rollback/unknown-COMMIT/failure disposition, cleanup ownership
+  and ADR-0033 disclosure. Its immutable subject-key attribution is explicitly
+  linkable PII under the existing security-audit retention; no new budget waives
+  those rows. Normal known-binding reads stage no mutation/audit intent.
+
+The subject EF filter and direct baseline catalogue ownership are also explicit;
+no tenant override lookup or new context bypass is inferred for global rows.
+The existing native API response budget remains ten seconds; cancellation ends
+waiting/publication, not proof that centrally owned audit cleanup completed.
+The corrected proposal is rechecked against source and the PostgreSQL 18
+isolation/volatility/policy contracts. A targeted correction verification and
+final mechanical checks follow before maintainer approval is requested.

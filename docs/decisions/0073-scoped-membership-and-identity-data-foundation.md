@@ -160,6 +160,10 @@ second mutable aggregate is written merely to obtain a lock. Deferred database
 guards cover direct/concurrent changes, including role grants that would strip
 the admin kernel. Initial foundation provisioning admits a declared empty-to-
 first-admin transition; it does not create a generally writable bootstrap flag.
+These owners and guards require READ COMMITTED and refuse incompatible database
+isolation. Acquire the lock before a separate fresh invariant query; VOLATILE
+guard reads must observe a competing commit after a wait. No STABLE expression,
+preloaded membership set or earlier transaction snapshot proves last-admin safety.
 
 Preserve at least one active, globally eligible tenant-wide Tenant Admin for an
 active tenant after bootstrap. Removing/suspending/revoking the last one or
@@ -226,6 +230,8 @@ fields; an arbitrary UserId does not open global User or canonical provider data
 
 G19 introduces an explicit, typed personal-data declaration for every current
 mapped application subject/property, including inherited actor references.
+Include ADR-0072's new immutable audit subject-key/proposed-target paths; hash
+values remain personal linkage and are not safe diagnostic labels.
 Each is classified in the canonical closed categories, or explicitly None with
 its nonpersonal purpose. Inventory is not discovered by searching for sensitive
 names or counting only marked properties. Cross-check the declarations against
@@ -386,7 +392,8 @@ Extend the canonical existing rules rather than inventing alternate spellings:
 - Tenant/org grant composition, no reserved/unknown-role/key escalation, finite
   initial manifests, disabled later additions and completed seed no-write rerun.
 - Concurrent last-admin revoke/suspend/role-kernel changes, first-admin bootstrap,
-  cancellation and User-admission/closure lock order. Dirty controls must prove
+  cancellation, post-lock competing commit, incompatible isolation and User-
+  admission/closure lock order. Dirty controls must prove
   each guard matters; a held handler is not evidence of a committed result.
 - Profile/assignment child changes reach their one Membership audit; forced MUST
   failure rolls back writes. Tenant/global/profile PII and neutral-key nested
