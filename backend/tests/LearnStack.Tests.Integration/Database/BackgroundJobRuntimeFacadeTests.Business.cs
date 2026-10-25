@@ -85,14 +85,14 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             var firstFailure = await TerminalBacklogAsync(database);
             var elapsed = Stopwatch.StartNew();
             var first = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
-            await EventuallyQualificationAsync(async () => (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, first))!.Phase == "completed", deadline.Token);
+            await EnsureQualificationCompletionAsync(runtime, source, first, deadline.Token);
 
             // A one-row or sub-lease happy case cannot expose priority starvation.
             // Keep the real permission fault and all 100 records for two full
             // leases, then demand another actual native business completion.
             await Task.Delay(bounds.LeaseDuration + bounds.LeaseDuration + TimeSpan.FromSeconds(1), deadline.Token);
             var second = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
-            await EventuallyQualificationAsync(async () => (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, second))!.Phase == "completed", deadline.Token);
+            await EnsureQualificationCompletionAsync(runtime, source, second, deadline.Token);
             elapsed.Elapsed.Should().BeGreaterThan(bounds.LeaseDuration + bounds.LeaseDuration);
             var after = await TerminalBacklogAsync(database);
             after.Total.Should().Be(100);

@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,060 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,103 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -291,6 +291,7 @@ each packet decided and delivered, as
   - [P02b-8 CI fixture-witness reconciliation (2026-10-25)](#p02b-8-ci-fixture-witness-reconciliation-2026-10-25) — 24 lines
   - [P02b-8 CI witness and SQL-literal corrections, review round 1 (2026-10-25)](#p02b-8-ci-witness-and-sql-literal-corrections-review-round-1-2026-10-25) — 52 lines
   - [P02b-8 CI corrections, review round 2 and source freeze (2026-10-25)](#p02b-8-ci-corrections-review-round-2-and-source-freeze-2026-10-25) — 21 lines
+  - [P02b-8 native completion qualification correction, review round 1 (2026-10-25)](#p02b-8-native-completion-qualification-correction-review-round-1-2026-10-25) — 43 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -22031,6 +22032,49 @@ separate execution receipts. Both required source-review rounds are complete.
 Production retry policy, timeout bounds, fixture ownership and shard plan are
 unchanged by these corrections. A fresh complete hosted A/B qualification on the
 same source remains required; the earlier failed attempts do not satisfy it.
+
+### P02b-8 native completion qualification correction, review round 1 (2026-10-25)
+
+[Run 40178360488](https://github.com/HodeTech/LearnStack/actions/runs/40178360488),
+attempt 1 at `ec038610`, completes 25/27 jobs successfully. The same backlog case
+now cancels at its second completion wait after 102.719 seconds; integration's
+aggregate consequently fails. Its discovered population is 6,121 cases, not a
+passing qualification. The finite failure receipt establishes cancellation and
+source locations, but not the job's durable phase, native state or retry cause.
+
+**Verified fixture timing gap.** The unchanged 100-second deadline includes a
+31-second hold and two jobs, each deliberately requiring a rollback and retry.
+Native scheduled retries poll at 15 seconds. A callback may harmlessly consume
+its hint before ACK while the application row is locked; ACK then retains the
+accepted 60-second repair grace. The existing owned-lock proof demonstrates
+this legal state. A local four-CPU rerun still passes in 62.679 seconds; neither
+that pass nor the source counterexample proves the historical hosted trigger.
+
+The completion fixture now supplements at most one actual stock hint per
+current durable generation. It first requires the real bridge ACK, database
+eligibility, the original hint's Succeeded state, joined local work and open
+routing authority. A broken bridge, retry control or native scheduler still
+prevents success. This qualifies native completion rather than repair timing;
+the production runtime, grace, retry policy, original deadlines, terminal fault,
+hundred-row backlog and durable business/MUST-audit witnesses are unchanged.
+
+A new real regression rolls back a successful nested write, obtains generation
+2 from actual control, locks that row during the original stock hint, proves no
+second admission and live repair grace, then completes through the correct
+generation. It requires two ledger admissions, one organization and one
+successful MUST audit. Existing generation-1 lock coverage also uses the helper.
+
+The parent runs all three target cases: 3/3 pass, zero skips. Hardcoding the
+supplement to generation 1 makes the new generation-2 regression fail on its
+bounded wait. Original source bytes are restored and rebuilt; both lock cases
+then pass 2/2, zero skips. Offline plan/result controls pass 72/72 and 30/30.
+
+Two independent read-only first-round reviewers approve without verified
+findings: `pr37_retry_timeout_analysis` (GPT-6-astra/xhigh) checks the accepted
+handoff, cleanup and progress contracts; `pr37_handoff_r1_test`
+(GPT-6.1-sol/high) checks fixture isolation and regression non-vacuity. They do
+not claim independent test execution. A second fresh source-review round and
+complete current-source hosted A/B qualification remain pending.
 
 ## Status archive
 
