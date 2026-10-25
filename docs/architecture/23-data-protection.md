@@ -22,6 +22,55 @@ classification census and planted missing-annotation control before its first
 identity PII writer; G9 extends it for custom-field revision history. No current
 CI check discovers every email/phone/address column.
 
+### Proposed identity foundation and classification ownership
+
+**Proposed — pending joint approval of [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md)
+and [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).**
+These are first-schema requirements, not current storage, grants or fulfilled
+erasure capabilities.
+
+Each module owns reviewed declarations for every property in its mapped models,
+including inherited references. The Infrastructure data-protection coordinator
+and `DataProtectionConventionTests` compare those declarations with the complete,
+nonempty EF property population in P03-1 Step 2, before identity writes. An
+undeclared property fails; `None` requires an explicit nonpersonal purpose and is
+never a default. Module audit specs own exact reference/payload paths and snapshot
+redaction markers. SQL-only, control and vendor stores stay in their existing
+inventories; this check creates no duplicate durable-store inventory.
+
+The proposed User retains a stable authority identifier, subject key, actor and
+admission lifecycle. Raw subject is required while Active, explicitly marked
+`[PiiSensitive]` for snapshot capture, and nullable for removal at Closed by the
+authorized P03-10 closure writer. No raw issuer is copied onto each User. The
+platform-scoped, application-read-only `identity_authority` singleton owns the
+stable authority UUID and current exact issuer URI. The deployment installer
+creates it once with migration credentials before bootstrap; application code
+cannot insert, update or automatically replace it. Configuration issuer drift
+refuses identity admission. P03-9/G13 owns an approved issuer rebind before the
+first change, proving provider continuity and freezing bootstrap and old grants
+while preserving authority, keys, actors and closed tombstones. Until that owner
+is implemented, issuer renaming is unsupported; aliases and email matching supply
+no continuity proof.
+
+The subject key is SHA-256 over domain-separated, length-delimited stable
+authority UUID and exact opaque subject, using the
+[canonical Standard 05 encoding](../standards/05-database.md#proposed-p03-1-identity-storage-annex).
+It supports
+stable equality and audit linkage, not secrecy: low-entropy subjects remain
+vulnerable to dictionary guessing, and no provider entropy guarantee is assumed.
+HMAC is not selected; selecting it for secrecy would also require durable key
+custody, rotation and restore decisions. Hash and actor linkage are PII-Identity,
+retained under their declared purposes, not anonymous data. An Active key match
+with a different raw subject refuses; a Closed key match always refuses admission
+and never merges identities. The permanent key/actor tombstone prevents
+recreation indefinitely; closure removes the raw subject rather than claiming
+that the retained tombstone is erased.
+
+P03-1 adds no email/verification columns or claim processing. A first earlier
+consumer or P03-6/G10 owns the minimum mirror fields and freshness contract before
+their writer. Snapshot markers, diagnostic controls and semantic classification
+remain separate requirements; none implies general exception-message scrubbing.
+
 ## Rights We Support
 
 The capabilities below are the engineering primitives. The tenant-facing data-protection UX (consent forms, privacy policy, DSAR portal) is built on top.
@@ -215,6 +264,7 @@ The inventory also covers these distinct copies and custody boundaries:
 | Store or custody boundary | Subject linkage and limit |
 |---|---|
 | Existing `audit_log` | Asynchronous terminal/causal `metadata`, including `causal_actor_user_id`, beside immutable actor/entity/causation identifiers. Redacting human-facing fields leaves references; see [Audit data model](31-audit-subsystem.md#7-data-model) |
+| Proposed global identity audit linkage | Pending joint ADR-0072/0073 approval: `metadata.identity_subject_key` carries the same stable binding key, including failed attempts without a User; proposed target actor and immutable action references remain linkable personal data. Existing seven-year SecurityEvent retention applies; metadata stays outside the six-column UPDATE grant. |
 | Development Keycloak user events, `EVENT_ENTITY` | Provider `USER_ID`, `SESSION_ID`, `IP_ADDRESS`, client/realm and event-detail JSON. Separate provider storage and identity namespace; account invalidation does not erase prior events. Selection and qualified finite retention remain under [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md#reads-and-durable-event-ownership) |
 | External diagnostics and local error files | Log, trace, Sentry and `LocalFileErrorTracker` JSON archives can retain linkable exception/context copies; source-row deletion does not erase them |
 | Database, WAL and backups | Retained copies need backup and post-restore reconciliation; source-row deletion alone does not remove them |
@@ -251,6 +301,19 @@ The inventory also covers these distinct copies and custody boundaries:
   Phase 03 must decide the surviving actor/entity/causation references and new
   causal metadata before its redaction/erasure handler lands; this inventory
   does not claim that complete anonymisation already works.
+
+**Proposed identity fulfillment ownership — pending joint ADR-0072/0073 approval.**
+P03-10's Identity closure coordinator owns the authorized lifecycle transition
+and raw-subject removal. The Audit redaction participant uses
+`IUserReferenceLocator` to locate exact global failed-attempt paths by subject key
+even when no User was committed, together with successful actor references. Its
+request/result contract reports retained immutable linkage and the applicable
+retention truthfully; it does not call the tombstone or subject key anonymous.
+The key/actor tombstone serves indefinite anti-recreation, while audit copies
+follow the SecurityEvent period in [Audit Coverage](../standards/18-audit-coverage.md#retention).
+This proposal does not widen metadata UPDATE grants. P03-10 settles exact
+principal, minimum grants and participant completion before its first writer;
+Phase 11 owns later purge, backup and retained-copy reconciliation operations.
 
 ### Right to Restriction of Processing
 

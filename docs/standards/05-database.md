@@ -4161,6 +4161,231 @@ simultaneously busy connections or a tight empirical minimum.
 Later SQL lanes require a new census and requalification; Phase 11 owns measured
 production capacity and PgBouncer.
 
+## Proposed P03-1 identity storage annex
+
+**Status: Proposed; inactive.** This annex derives from Proposed
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+It specifies their approval target, not an additional current grant or migration.
+Both ADRs must be Accepted before dependent implementation. The six current table
+classes, current four roles and applied policies above remain the shipped baseline.
+The [Identity specification](../modules/identity/README.md) owns the proposed
+Membership, profile, Role and assignment shapes; this annex owns their database
+authority boundary and the global exceptions.
+
+### Proposed global class and authority anchor
+
+`users` belongs to a seventh, **global self-identity**, class. It has no tenant or
+organization column. ENABLE/FORCE RLS and a DbContext-parameterized EF filter
+independently restrict ordinary reads to the immutable verified authority/subject
+key. Missing, reset or malformed authority cannot select a row. The filter uses
+the current scoped values, never a model-cache literal, raw caller input or only
+UserId. The global class is not an exemption from transaction/capture guards.
+
+| Relation / field | Proposed storage contract |
+|---|---|
+| `identity_authority` | Platform-scoped singleton, `id = 1` primary key and CHECK; immutable unique `authority_id uuid`; one current exact issuer URI. No tenant filter and no User/person fields. |
+| `users.id` | Permanent UserId UUIDv7 primary key, allocated through the existing injected ID source only after serialized absence is established. |
+| `users.authority_id`, `subject_key` | AuthorityId references the singleton's stable authority UUID; `subject_key bytea` has exactly 32 bytes. Unique `(authority_id, subject_key)` has no partial predicate and survives closure. |
+| `users.provider_subject` | Nullable, sensitive exact opaque provider subject. Active requires a nonempty value; Closed requires NULL. Closing retains it until the separately admitted closure owner removes it. |
+| `users.status` | Closed CHECK set `Active`, `Closing`, `Closed`; ordinary bootstrap inserts Active only. Closing and Closed refuse new admission. |
+| `users.creation_audit_id`, `creation_audit_timestamp` | Immutable complete central-audit key. Deferred creation guards verify it at insertion commit; no perpetual cross-module foreign key or purge veto. |
+| User audit/concurrency fields | All six inherited audit columns and the existing row-version convention. CHECK requires `deleted_at` and `deleted_by` to remain NULL: closure uses status, not soft deletion. |
+
+The authority anchor is installed once using the deploy/installer's migration
+credential, before bootstrap is enabled. It is not derived anew from a changed
+issuer URL, realm import or application restart. Application configuration must
+match its exact current issuer; mismatch refuses admission without allocating a
+new authority or binding. `learnstack_app` has SELECT only on the anchor, with an
+explicit platform read predicate; it has no INSERT, UPDATE or DELETE privilege.
+The owner has an explicit installation policy under FORCE RLS. The installer
+refuses an existing conflicting anchor instead of repairing it automatically.
+Qualify the anchor/configuration pair before enabling identity admission; the
+request path uses that immutable admitted configuration and performs no anchor
+lookup before the subject quota. A changed pair requires requalification, not
+live replacement of a request's verified authority.
+P03-9/G13 owns a future controlled issuer rebind with verified continuity and a
+freeze boundary; no runtime rebind owner is admitted here.
+
+**Canonical subject-key encoding.** Compute SHA-256 over three concatenated
+length-prefixed byte strings: UTF-8 `learnstack.identity.subject.v1`, the stable
+AuthorityId's 16 UUID bytes in RFC/network byte order, and the exact opaque
+subject's UTF-8 bytes. Each length is an unsigned 32-bit big-endian byte count.
+Do not use the issuer URL, .NET's mixed-endian UUID array representation, trimming
+or case folding. The verified-subject owner computes the key; a request supplies
+neither it nor AuthorityId. An Active match with a different retained raw subject
+refuses as a collision, without aliasing, repair or a new actor. A Closed key
+always refuses even though its raw subject is gone. The digest remains linkable
+personal data; it is neither anonymisation nor authentication authority.
+
+### Proposed global owners and privileges
+
+The four login roles remain unchanged. Global runtime owners connect as
+`learnstack_app`, NOBYPASSRLS. Each transaction announces only its verified
+`app.identity_authority_id` and `app.identity_subject_key` (canonical lowercase
+hex of the 32-byte key), using parameterized transaction-local setters. Neither
+the platform sentinel nor any other tenant is announced. The owner binds those
+values immutably to its actual connection/transaction; pool reuse, cancellation,
+rollback and nested calls cannot retain or retarget them. Global and tenant
+owners cannot join each other's transaction mode.
+
+| Planned owner | Granted operation and lifetime |
+|---|---|
+| Global self lookup | Short physically READ ONLY app transaction; exact authority/key query, retained-subject collision check and status check; closes before tenant resolution. No allocation or mutation intent. |
+| Global bootstrap | One READ COMMITTED app transaction; subject-key advisory lock, fresh lookup, allocation only when absent, first User INSERT and central MUST audit, then commit. A unique constraint is the final concurrent-write backstop. |
+| Trusted seed adoption | Separately enumerated development owner with credential-free verified provider facts and fixed seed actor; same global insertion/audit guards, never ordinary HTTP adoption. |
+| Global audit reconciliation | New central owner for one captured failed/indeterminate creation intent, with the captured subject announcement and its own bounded app transaction; no general sentinel writer. |
+
+`users` grants app SELECT and column-level INSERT only for the declared initial
+identity, status, creation-reference and inherited creation fields. It grants no
+app UPDATE or DELETE, no profile refresh and no directory read. Its one permissive
+isolation policy has an app self-read arm and an explicitly role-qualified
+`learnstack_migration` owner-read arm for the exact functions below. Explicit
+WITH CHECK permits only the app self-qualified first INSERT; immutable-field and
+creation guards bind the actual command. FORCE RLS still applies to the owner.
+Later lifecycle/profile writers need separately accepted grants and guards.
+
+### Proposed global central-audit branch
+
+`TenantId.PlatformSentinel` gains a second explicitly named attribution class:
+global identity creation, including its failed/indeterminate attempts. It remains
+storage attribution, never tenant authority. The discriminator is the conjunction
+of sentinel tenant, NULL organization, module `identity`, operation
+`identity.user.create`, MUST/SecurityEvent, and closed `metadata.identity_source`
+`identity-bootstrap` or `identity-seed-adoption`. Source is fixed by the admitted
+owner, never by the body. The existing platform-admin class and its writer remain
+distinct. Audit metadata carries the verified `identity_authority_id` and
+`identity_subject_key`; it contains neither raw issuer/subject nor credentials.
+
+This is an explicit proposed departure from `audit_log` taking the tenant
+template **unmodified**, not a change to the reusable tenant template:
+
+- Keep one permissive isolation policy. Its USING retains the ordinary tenant/org
+  branch with exactly the existing semantics, and adds only an explicitly
+  `current_user = 'learnstack_migration'` global-identity evidence-read arm with
+  the complete discriminator above. App tenant readers and direct self reads
+  receive no global SELECT arm. There is no general owner/platform sentinel arm.
+- Its explicit WITH CHECK retains the ordinary tenant/org branch exactly, and
+  adds the app-role global-identity branch bound to the verified authority/key,
+  admitted global owner, exact discriminator and target. The new branch is
+  INSERT-only through the command-specific global insertion guard; WITH CHECK
+  alone does not distinguish INSERT from UPDATE. Absent app UPDATE/DELETE grants,
+  existing restrictive org guards and append-only enforcement remain in place.
+- The global guard requires the row's captured subject/key, source, operation and
+  target to agree with the enrolled physical owner. A missing owner, foreign
+  subject, caller-supplied metadata or another sentinel operation refuses. A
+  transaction-local string alone is not the owner's provenance proof.
+- Planned central methods `WriteGlobalIdentityPending` and
+  `ReconcileGlobalIdentity` are the only new writer paths. The former accepts
+  only the enrolled live business transaction; the latter only its captured
+  non-success intent. Existing ordinary audit methods continue rejecting
+  sentinel drafts; `WritePlatformScopeAsync` remains the platform class's writer.
+- A success row and its first User mutually validate the complete audit key,
+  authority/key, target actor, source, operation and successful outcome through
+  deferred insertion guards on the same transaction. A failed/indeterminate row
+  has no successful User witness and cannot satisfy that reciprocal guard.
+  Reconciliation preserves the intent ID and takes a fresh standalone timestamp.
+  Exact-key duplicates require the bounded evidence read below; a 23505 by itself
+  never proves a matching audit row or a business COMMIT.
+
+Global classification reads the central baseline catalogue directly; no tenant
+AuditConfig lookup or suppression allowance applies. Ordinary binding reads make
+no mutation intent. P03-9/G13 owns privileged global audit consumption; this
+proposal adds no user or tenant endpoint for those rows. Existing retention and
+permitted redaction remain separate from insertion-time witness validation.
+
+### Proposed confined owner functions
+
+The following names are planned contracts, not shipped functions. All execute as
+`learnstack_migration`, NOBYPASSRLS, under FORCE RLS, on the caller's existing
+physical transaction. No migration credential enters runtime configuration.
+SECURITY DEFINER nevertheless adds runtime owner execution authority; approval
+must name that exception, not describe it as ordinary app isolation.
+
+| Planned function | Bound input / permitted result |
+|---|---|
+| `fn_identity_user_creation_audit_guard()` | Deferred User INSERT trigger; reads only the exact creation audit key and verifies the complete global discriminator/subject/target/outcome. Returns no audit row. |
+| `fn_identity_audit_creation_guard()` | Deferred global audit INSERT trigger; verifies the exact User creation reference for success, or the captured subject/target and non-success class for reconciliation. Returns no User/profile row. |
+| `fn_identity_audit_evidence(id, timestamp, authority_id, subject_key, target_id, source, outcome)` | Central duplicate checker only; all inputs come from its captured intent. Returns a Boolean exact match, never raw metadata, profile or a list. Success evidence and non-success evidence are distinct. |
+| `fn_identity_membership_admission_guard()` | Membership INSERT, Suspended-to-Active and authority-increasing assignment trigger; target comes from the actual Membership or its tenant-composite parent. Locks/rechecks that User before the tenant lock. Returns no User fields. |
+| `fn_identity_admin_admission_state(user_id, tenant_id)` | Last-admin guard only; target must be a candidate Membership in the already admitted tenant invariant check. Returns one admission Boolean; takes no second User lock while holding the tenant lock. |
+
+These functions have fixed `search_path = pg_catalog`, schema-qualified relations,
+no dynamic SQL, no identity/tenant setters and no provider/person-field projection.
+Revoke PUBLIC execution in the same migration transaction that creates them;
+grant app execution only for the enumerated callable contracts. Trigger functions
+are entered only by their declared table/command; no generic UserId probe or SQL
+executor is exposed. Exact function-body, ownership, privilege, trigger and
+call-site census controls reject widening or an additional definer function.
+
+The owner-read arms are role-qualified inside each relation's single isolation
+policy. The audit arm admits only the global identity discriminator, not tenant
+or platform-admin evidence. Every function also uses its own exact key predicate;
+an existing tenant GUC cannot widen its query through the ordinary policy branch.
+User reads project only admission status or the identity/creation-reference fields
+required by the named guards. Table ownership inherently carries column
+privileges: this is confinement of function projections and call sites, not a
+claim that column grants restrict the owner to those columns.
+
+The historical host-lookup definer rejection above remains its historical
+decision: that table's policies grant the owner no read. This proposal instead
+explicitly admits narrow owner reads for a new class and the global audit branch.
+It adds neither BYPASSRLS nor a fifth login role, and changes no existing host
+lookup. The alternatives and their trade-offs belong to ADR-0072.
+
+### Proposed lock, snapshot and adoption conditions
+
+The in-memory enrollment marker is checked by the common transaction/capture
+coordinator and central writer against the actual connection/generation. SQL
+policies cannot inspect that CLR marker or validate JWT signatures: they enforce
+the announced values, role and exact row constraints. As with tenant GUCs, a
+compromised application SQL credential is not made safe by a context string.
+No hidden enrollment table or purported database JWT verifier is introduced.
+
+Global audit policy/guard SQL belongs to central Audit infrastructure. The first
+Identity migration invokes its enumerated installer on the migration connection,
+after the existing Audit schema prerequisite; it does not put direct audit SQL
+in Identity handlers. The sixth Identity chain and applied migration order are
+tested explicitly. This is the named central witness contract, not a business
+cross-module join or another owner of Audit tables.
+
+Contextual lifecycle, scope-compatibility and final-admin guards are SECURITY
+INVOKER, with fixed search path and canonical tenant context. They use the named
+state-only owner function only for global eligibility. Every Membership mutation
+must leave an eligible tenant-wide Tenant Admin, including first creation;
+protected Role/kernel changes cannot remove that minimum. Role initialization
+may precede any Membership. Completion is derived from actual approved templates
+and that admin, never an ordinarily writable flag. Trial, Active and Suspended
+tenants preserve administration; Archived supplies no implicit exception. This
+closes only Membership/Role mutations, not the future Tenancy archive workflow.
+
+Bootstrap serializes on the stable authority/subject key before reading absence.
+Membership creation, reactivation and assignment additions take the target User
+admission lock before tenant invariant
+locks. Closure/status writers later take the same User lock and affected tenant
+locks in stable order before changing eligibility. Hash collisions may serialize
+unrelated work but never replace exact predicates. Last-admin checks do not
+acquire another User lock under tenant lock.
+
+All these writer/guard transactions use READ COMMITTED and reject incompatible
+isolation. Functions are VOLATILE. Await the advisory-lock statement, then issue
+a separate fresh read; no STABLE function, pre-wait snapshot or cached state can
+decide admission. Use a transaction-local two-second `lock_timeout` default and a
+command/cancellation deadline within the existing ten-second native API budget.
+Timeout/cancellation refuses without partial grants or allocation retry. Lost
+commit responses remain uncertain; cleanup and central reconciliation retain
+their independent bounded ownership after caller cancellation.
+
+Acceptance must update the six-class census, the two-global-unique-columns
+statement, the `audit_log` unmodified-policy claim, the grant/owner-function
+census and the partial-unique-index rule. Only the permanent User identity key
+and authority anchor receive the named global uniqueness exemptions; inherited
+`deleted_*` columns do not make a closed User reusable. Update the corresponding
+architecture obligations with pending extensions, not claims of implementation.
+Apply forward migrations only after acceptance; qualify actual app-role reads,
+cross-subject/tenant refusals, owner-function projection, failed witness/duplicate
+controls, pooled cleanup and a real competing commit during a held-lock wait.
+
 ## Backups
 
 - Daily logical backups (`pg_dump`) for dev-grade restore.

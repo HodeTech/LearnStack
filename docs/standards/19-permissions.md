@@ -241,3 +241,109 @@ Permission grants and revocations are MUST-audit security-events ([18-audit-cove
 - [18-audit-coverage.md](18-audit-coverage.md) — audit entries for permission changes.
 - [13-identity-and-auth.md](../architecture/13-identity-and-auth.md) — Keycloak vs LearnStack identity split (Keycloak does authentication, LearnStack does authorization).
 - [01-architecture-standards.md](01-architecture-standards.md) — module layout for `IPermissionRegistry`.
+
+## Proposed Identity foundation contract
+
+**Status: Proposed — outside the Adopted runtime baseline above.** Derived from
+Proposed [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+Both require joint acceptance before this annex is adopted/implemented. Current
+source has no registry, Role/Membership model or commands below. No route,
+operator admission, grant or live permission is activated.
+
+### Capability scope and template ownership
+
+`PermissionDefinition(PermissionScope, PermissionKey)` identifies a definition.
+The same key at Tenant/Organization scope is two definitions; unknown/inactive
+entries never authorize. Existing key grammar and closed action set remain.
+
+Role templates are tenant-owned, **tenant-wide** roots. Capability scope does
+not dictate storage scope or authoring: Role has TenantId, built-in key and
+PermissionScope, with no OrganizationId. Only an eligible tenant-wide Tenant
+Admin with Tenant `identity.role.admin` edits templates, including Organization
+variants. No independent branch copy exists; needing that product capability
+reopens ADR-0073. Organization creation consequently writes no Identity rows.
+
+Assignments belong to Membership. Tenant templates require NULL-org Membership;
+Organization templates require non-NULL-org Membership and apply to that exact
+organization alone. Grants mirror Role capability scope. Storage as a tenant-wide
+template never promotes an Organization grant to Tenant capability or widens writes.
+
+### Exact foundation registry and operation owners
+
+Version 1 contains **exactly five pairs**:
+
+| Scope | Key | Planned production consumer, compiled in P03-1 Step 4 |
+|---|---|---|
+| Tenant | `identity.membership.admin` | `CreateFirstSeedAdminMembership`; Tenant variant of `CreateSeedMembership` |
+| Organization | `identity.membership.admin` | Organization variant of `CreateSeedMembership` |
+| Tenant | `identity.role.admin` | `InitializeSeedRole`, including Organization-capability templates |
+| Tenant | `identity.membership_profile.write` | Tenant variant of `SetSeedMembershipProfile` |
+| Organization | `identity.membership_profile.write` | Organization variant of `SetSeedMembershipProfile` |
+
+These are planned compiled production commands, not existing types/test fixtures.
+Finite scope metadata derives from immutable target/validated declarations.
+Closed seed authority is checked independently before dispatch, default-denied
+in API composition. P03-2 qualifies live permission admission before protected
+activation; registration/attributes/seed success grant no HTTP route.
+
+### Version-1 built-in grant manifest
+
+Keep seven stored built-in keys; Learner has two capability variants, yielding
+eight templates per tenant. Platform Admin/Hub Operator have no tenant rows;
+Portal Public remains virtual anonymous capability. Empty means empty, without
+future automatic expansion.
+
+| Built-in key | Capability scope | Exact version-1 grant set |
+|---|---|---|
+| Tenant Admin | Tenant | Tenant `identity.membership.admin`; Tenant `identity.role.admin`; Tenant `identity.membership_profile.write` |
+| Instructor | Tenant | Empty |
+| Learner | Tenant | Tenant `identity.membership_profile.write` |
+| Guardian | Tenant | Empty |
+| Editor | Tenant | Empty |
+| Org Admin | Organization | Organization `identity.membership.admin`; Organization `identity.membership_profile.write` |
+| Org Instructor | Organization | Empty |
+| Learner | Organization | Organization `identity.membership_profile.write` |
+
+Organization Learner explicitly extends the earlier Tenant-only example, without
+Tenant/other-branch grants. Instructor/Org Instructor/Guardian/Editor remain empty
+until real owning operations register keys and separately admitted grants adopt
+them. Later broader P03-2 manifests are finite; reruns cannot fill existing Roles.
+
+### Immutable admin kernel and one manifest source
+
+The minimum is **exactly two pairs**: Tenant `identity.membership.admin` and
+Tenant `identity.role.admin`. Profile writing belongs to the initial bundle,
+outside that minimum. Role-admin is reserved to Tenant Admin template/eligible
+actors; an arbitrary grant or renamed Role cannot delegate template authorship.
+
+One versioned compiled `IdentityFoundationManifest` supplies proposed
+`PermissionDefinitionSource`, `BuiltInRoleGrantManifest` and
+`TenantAdminKernelManifest` composition. These are not current interfaces or an
+`IModule` API. It generates the immutable SQL guard artifact; an equivalence
+control compares complete scoped values/version/fingerprint with the compiled
+manifest. No app-editable kernel table, wildcard/prefix or independently
+maintained SQL list defines the minimum. Changes need the decision and guard
+migration before dependent grants.
+
+New tenants receive the explicitly selected current finite initial version.
+Existing Roles retain adopted grants; registry/seed reruns add no new-key grants.
+A separately admitted audited grant change adopts additions. Keep historical
+manifest versions/fingerprints for completed-act verification. Matching completed
+seed acts do no writes; revoked/suspended/operator-edited authority conflicts,
+without repair/reset. Realm roles/SystemActor cannot supply manifests or authority.
+[Identity's seed sequence](../modules/identity/README.md#first-admin-and-seed-sequence)
+owns ordering and interrupted-run disposition.
+
+### Enforcement and proof boundary
+
+P03-1 Step 4 supplies nonempty actual-command registry, templates, reference/
+scope guards and kernel artifact. P03-2 owns default deny/delegation, per-act
+revocation/freshness and denied controls. P03-3 owns UI/scope transitions;
+P03-9/G13 owns production first-admin/recovery before its production provisioner.
+The development seed capability is not that future authority.
+
+Canonical tests keep current status; Identity subjects await backfill. New
+controls are planned until registered and Registered until actual clean/dirty
+controls ship. The semantic property census is planned in Step 2 and is not yet
+a catalogue entry. Empty censuses/stored Roles/diagrams are not implementation proof.

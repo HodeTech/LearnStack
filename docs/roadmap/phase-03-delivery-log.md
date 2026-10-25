@@ -15,11 +15,13 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 237 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 384 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
-  - [P03-1 proposal readiness (2026-10-25)](#p03-1-proposal-readiness-2026-10-25) — 34 lines
+  - [P03-1 proposal readiness (2026-10-25)](#p03-1-proposal-readiness-2026-10-25) — 35 lines
+  - [P03-1 maintainer review disposition (2026-10-25)](#p03-1-maintainer-review-disposition-2026-10-25) — 34 lines
+  - [P03-1 revised decision package (2026-10-25)](#p03-1-revised-decision-package-2026-10-25) — 112 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -343,3 +345,149 @@ Final document validation is recorded on this proposal source before commit:
 Proposed; added ADR prose, whitespace and private-path residual checks pass.
 Existing parser/fragment/structure/index guard controls pass 37 tests. No
 application test is presented as run or passing in this proposal preparation.
+
+### P03-1 maintainer review disposition (2026-10-25)
+
+**Reviewed source:** `9211789342fd15c0a9a1cafaeb80ea7b7ca345d8`. The maintainer
+returned review findings rather than approval. Both ADRs remain Proposed; all
+nineteen gates remain Open. Earlier source-bound reviewer conclusions remain
+historical. This follow-up reopens their readiness conclusion; it does not claim
+the earlier reviewers verified findings they did not report.
+
+Three read-only source verifications cover global SQL/auth/instruments,
+membership/bootstrap/manifests, and privacy/retention/operational carriers.
+They inspect current code and authorities, not instructions in review data.
+No provider/database/application tests or state changes occur in that audit.
+
+| Review items | Verified disposition / revision |
+|---|---|
+| F1/K1, Y4 | Valid incomplete global write/read contract and contradictory unmodified-policy wording. Proposed Standard 05 now declares seventh class, exact audit policy arms, owner evidence functions, grants and central seams. PlatformSentinel's second population is explicit, not operator authority. |
+| F2 | Host-lookup definer rejection is real but host-specific, not a universal impossibility. Explicitly choose limited migration-owner execution with owner SELECT policies; compare projection/fifth-role alternatives. Migration credentials stay outside runtime. |
+| K2/O7 | Key already uses issuer/sub, but its typed consumer requires actor. New provider projection/feature/quota handoff before binding is explicit; API/BFF sub limit is 255. This is a proposed replacement, not a claim current code supports it. |
+| K3/Y3/F10 | New ADRs already supply a superseding instrument, but affected clauses/Amendments were underspecified. Append-ready drafts below name each bounded change, separate navigation and keep old bodies/metadata intact. No Amendment number is reserved. |
+| F3/Y5 | Replace independently configured per-org Roles with tenant-wide capability templates; organization lives on Membership assignments. Exact contextual schema/FKs/guards are in the Proposed Identity spec. No per-org Role initialization writer is needed. |
+| Y1/Y2/O8 | Define staged seed Role roots then first-admin Membership, no cross-module transaction. First/final-admin predicate covers Trial/Active/Suspended and every Membership mutation. Production first-admin belongs P03-9/G13; Tenancy archive race remains P03-3 before its writer. No writable bootstrap flag/table is invented. |
+| Y7 | Include reactivation and authority-increasing assignment changes in User-before-tenant admission fencing; DB lifecycle prevents resurrection. Current global eligibility already denies closed accounts, so this was not demonstrated shipped access bypass. |
+| F4 | Introduce stable authority registration, config-drift refusal and named P03-9 rebind owner before rename; no silent new identity domain or email-based continuity. |
+| F5/O1/O2 | Choose permanent digest/actor tombstone now, with raw subject nullable and removed at Closed. No per-User raw issuer or unused email. Digest remains access-controlled, potentially guessable PII; metadata remains immutable under security retention. P03-10 locates failed attempts even without User. |
+| F6 | Serialize subject before allocation/intent; benign waiters return the winner without failed mutation audit. Genuine failures/unknown COMMIT keep MUST reconciliation. Membershipless identity is allowed without verified email; provider registration cardinality cost is explicit. |
+| F7 | 401 on ordinary binding outage preserves Accepted 0064/0071; mandatory 503/witness is not a bug fix. Compare and decline that separate policy change. Add closed diagnostic reasons and typed bootstrap 503 translation instead. |
+| F8/O4/O5 | Proposed Standard 19 enumerates five production-command permission pairs, eight templates/seven role keys and exact two-pair kernel; one versioned compiled source generates verified guard artifacts. Registry scope identity and Organization Learner are explicit; later routes remain closed. |
+| F9/O9 | Remove unused email/verification columns and parsing from P03-1. First proven mirror consumer, currently P03-6/G10, owns their later schema/freshness. |
+| O3 | Seed already refused unauthorized repair by decision. Pin existing manifests/fingerprints; registry additions do not change v1 completion. Conflict stops later seed acts, leaving earlier commits. A destructive reset is not introduced. |
+| O6/census ownership | Prior draft already named Step 2 and DataProtectionConventionTests; timeline was not TBD. Strengthen per-module declaration/coordinator ownership and automatic complete-model diff. Distinguish planned/unregistered, Registered, Awaiting backfill and actual Implemented states. |
+| Missing contention detail | Specify bounded transaction lock waits and identity-free closed telemetry; Phase 11 owns field thresholds/load qualification. |
+| Global-table glossary allegation | Not reproduced: the current term does not impose bypass-only access. Preserve it; fix actual AuditEntry/sentinel/class/method claims on acceptance. |
+| Stale generated index | Reproduced at 92117893. Final readiness prose changed its line count without regeneration; the earlier lint claim did not qualify that final commit. Regenerate after the last edit and validate the committed index. |
+
+### P03-1 revised decision package (2026-10-25)
+
+**Status: Proposed; no maintainer acceptance.** This package replaces the earlier
+draft as the current approval surface, not its historical review entries.
+Joint [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md),
+their clearly Proposed canonical annexes/specs and these Amendment drafts are
+reviewed together. Existing Adopted standards and Accepted ADR text stay active
+until explicit approval. No runtime/configuration/schema file changes here.
+
+#### Approval surface and owners
+
+| Contract | Canonical proposed owner / decision |
+|---|---|
+| Global class, anchor, key, grants, RLS/evidence reads, lock limits | [Standard 05](../standards/05-database.md#proposed-p03-1-identity-storage-annex): one authority anchor, digest/actor tombstone, no raw subject at Closed; enumerated owner privilege and two global audit seams |
+| Provider-subject credential/quota and exact route | [Standard 11](../standards/11-security.md#proposed-p03-1-identity-admission-annex): no bearer → 404, invalid present → 401; quota before binding; ordinary outage uniform 401, exact bootstrap storage 503 |
+| Contextual tables/first-admin/lifecycle | [Identity spec](../modules/identity/README.md): one Membership root and tenant-wide Role templates, guarded seed-only commands, no new ADR-0042 exception or bootstrap flag |
+| Exact roles/permissions/kernel/upgrades | [Standard 19](../standards/19-permissions.md#proposed-identity-foundation-contract): five scoped pairs, finite v1 manifests, no new-key automatic grants; generated SQL/compiled-source equality |
+| PII and retained-copy purpose | [Data Protection](../architecture/23-data-protection.md#proposed-identity-foundation-and-classification-ownership): per-module declarations, complete automated model diff in Step 2, explicit snapshot/diagnostic boundaries, Identity closure/Audit participants in P03-10 |
+| Module matrices | [Permissions](../modules/identity/permissions.md), [audit](../modules/identity/audit.md): compiled internal seed commands are production subjects, not proof of live endpoint enforcement |
+
+G1/G3/G19 and schema parts of G2/G4/G5/G16 close only on joint acceptance.
+G7 closes only the explicit global mutation/reconciliation slice; G2 candidate
+reader execution stays P03-2. G8 needs no Invitation table/exception here.
+Production onboarding, live permissions, scope transition, provider mirroring,
+operator recovery and closure remain with their named packets; none is an
+unclaimed P03-1 dependency. No provider ingress or new Platform population is
+required by the selected bootstrap mechanism.
+
+#### Append-ready Amendment drafts
+
+These are proposed texts for existing ADRs, not amendments already applied.
+At acceptance, use the actual date/next available heading in each target, link
+the newly Accepted vehicles, and preserve every original heading/body/metadata.
+Append each under that ADR's Amendments; a table entry or the word disclosure
+alone does not amend the old authority. No future number is reserved here.
+
+**ADR-0036 — bounded global-self admission and candidate-reader contract.**
+
+> ADR-0072/0073 bound this ADR's ordinary HTTP resolution rule for the exact
+> POST /api/v1/account/bootstrap. Known-host credential verification and
+> provider-subject quota precede it; missing bearer remains masked 404, invalid
+> present bearer 401. Valid subject enters the new global-self owner without
+> installing ITenantContext or choosing a tenant. Ordinary reconciliation and
+> its rows remain route-independent. The exact GlobalSelfIdentity descriptor is
+> separate from AllowsUnresolvedTenantContext; its provisioning allowlist and
+> four TenantContext writers do not grow. PreContextIdentityAuthorizationReader
+> confirms an already verified actor's candidate tenant/org in a short app-role
+> READ ONLY owner; it installs no context. Its execution and real rows 7/10/14,
+> protected 6/9 and claim-only mismatch evidence remain P03-2 prerequisites.
+
+**ADR-0040 — global owners, nesting and the ninth logical tenant setter.**
+
+> ADR-0072 adds exact global self-read/bootstrap/seed-adoption/reconcile owners
+> with verified identity announcements specified in Standard 05. They connect
+> as learnstack_app and never announce PlatformSentinel as tenant. Common frame
+> generation, capture and cleanup govern them; tenant/global modes cannot join
+> or retarget one another. ADR-0073 accepts the separately named future ninth
+> tenant setter PreContextIdentityAuthorizationReader, using learnstack_app
+> with exact candidate app.tenant_id/app.organization_id in its own physically
+> READ ONLY transaction, closed before the ordinary request owner. The existing
+> eight logical paths remain the current implemented set until P03-2 delivers
+> and qualifies this adapter. Identity-only announcements are a separate census,
+> not hidden tenant setters. No other setter/context writer is admitted.
+
+**Other required dated Amendment bodies:**
+
+| Target | Proposed appended text / instrument |
+|---|---|
+| ADR-0003 | ADR-0072 admits global self-identity as a seventh class, the identity_authority platform anchor, exact role-qualified global audit/owner-policy arms and named definer functions. Standard 05 is the sole SQL authority; existing tenant/org template and four login credentials remain. This names new owner execution power without runtime owner credentials. |
+| ADR-0017 | ADR-0073 clarifies Membership's contained profile/assignments and tenant-wide Role templates: template capability scope is not storage/authoring scope. Organization authority derives only from exact Membership binding; tenant grants plus matching-org grants remain. Organization aggregate/CRUD stays Tenancy-owned. |
+| ADR-0033 | ADR-0072 extends central decide/write/reconcile to global identity creation under the named app-role owners, including failed/indeterminate attempts. Success shares the User transaction; fresh standalone timestamps/indeterminate pairs and required failure signals remain. Amendment 5's old platform-only routing does not authorize or substitute for these new global seams. |
+| ADR-0044 | ADR-0072 narrowly supersedes the sole sentinel population/writer and unresolved-no-row rules for identity.user.create MUST/SecurityEvent. Exact new app INSERT, owner evidence reads, central pending/reconcile seams and insertion-time witnesses are required. Tenant setters/ordinary writers still reject sentinel; platform entry remains its separate standalone owner. No metadata UPDATE or broad sentinel capability is granted. |
+| ADR-0064 | ADR-0072 narrowly replaces required wire actor with verified provider-subject plus existing-binding normalization, and extends GET/HEAD-only surface with exact global-self POST. Quota source moves before binding; actor optionality is no anonymous fallback. Absent-bearer 404 and other strict validation remain. No ordinary permission route or scope authority follows. |
+| ADR-0070 | ADR-0072 adds pre-session provider projection with 255-character subject and optional actor/tenant, followed by explicit bootstrap association. Only matching AccountSite publishes ordinary scope. Refresh resolves existing identity without allocation and preserves original claim presence/values and session fences. Actor-only entry publishes no tenant session. |
+| ADR-0071 | Navigation only: ADR-0072 preserves the ordinary-read table and uniform 401 despite the additional binding-store uncertainty source. Bootstrap has separate initial storage failures; no new refusal witness, retry or refresh policy is inferred. |
+
+Before dependent code, reconcile Standard 05's six-class, global-index exceptions,
+unmodified-audit and migration-never-runtime-execution statements; Standard 11's
+owner/census; Standard 19's scoped identity/manifests; CLAUDE/glossary sentinel
+population and IAuditStore XML/method counts. Preserve source-bound current
+history; do not edit Accepted bodies as though these decisions were factual
+corrections. All new catalogue obligations are planned until actual registration.
+
+#### Revised implementation steps and falsifiable proof
+
+The original six-step dependency order is retained, with the following explicit
+corrections; every committed step still receives two fresh independent reviews.
+
+| Step | Required scope / evidence |
+|---|---|
+| 1 — Acceptance | Joint approval, actual dated Amendments above, promote only approved annexes, authority headers and planned catalogue rows. No dependent code precedes the acceptance commit. |
+| 2 — Classification | Each mapped module owns complete declarations; Infrastructure Data Protection coordinator compares real EF properties automatically, including inherited IDs, raw subject and stable linkage. DataProtectionConventionTests and planted neutral-name omission are implemented here before Step 3. Existing snapshots/log/local/Sentry positive-plus-canary controls remain distinct. |
+| 3 — Global storage/audit | Sixth Identity migration chain, deploy-only authority installer, subject-key serialization before intent, exact RLS/evidence functions, reciprocal success/failed/unknown-COMMIT/duplicate/standalone-failure controls, READ COMMITTED/fresh post-wait and incompatible-isolation controls. No operator credential in runtime. |
+| 4 — Contextual foundation | Five contextual tables, tenant templates/five-pair registry, kernel artifact equivalence, null/scope/FK/lifecycle and reactivation/admin guards. Separate Role-root commits then first-admin Membership; fixed seed admission denied in API, real provider adoption, v1 interrupted/no-write/conflict reruns and preserved actors/credentials. |
+| 5 — API/BFF activation | New provider-subject feature/quota handoff before SQL, exact global descriptor and HTTP matrix, 255 sub bound, SDK/native bootstrap, actorless/tenantless real provider and wrong-subject/capacity/cancellation/late-result controls. Anonymous public behavior and ordinary 401/ADR-0071 stay. |
+| 6 — Integrated qualification | Complete relevant suites and source-bound shard/discovery accounting, actual PostgreSQL/Keycloak/native/browser slice, required A/B CI without skips or relaxed names/ceilings, updated corpus and reviewable PR. No first-admin production/onboarding, full authorization or closure claim from seed proof. |
+
+`User_Aggregate_Has_No_TenantScoped_Columns` is currently Registered;
+`Permission_Definitions_DeclareScope` awaits real backfill. The new classification
+and global-isolation controls are planned, not yet registered/implemented. Step 1
+registers named owners; Steps 2/3/4/5 supply actual subjects and positive/dirty
+controls. Existing Implemented rules retain status with explicit pending
+extensions; this proposal does not alter catalogue counts or claim coverage.
+
+The final semantic review must independently assess SQL owner privileges,
+authority installation/drift, digest/raw closure contract, input/feature/quota
+handoff, generated manifest/kernel equality, staged seed recovery, derived first-
+admin predicate and exact predecessor Amendments. Run fragment/file/status/
+structure/index/whitespace/private-reference checks after the **last** edit.
+Static checks qualify only the proposal; no runtime proof is claimed here.

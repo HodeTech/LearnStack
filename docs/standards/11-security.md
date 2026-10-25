@@ -1036,6 +1036,141 @@ Security-relevant durability rules:
   cannot be retrofitted, audit scale can. Phase 02a ships `audit_log` as a single plain
   table ([ADR-0028 Amendment, 2026-09-07](../decisions/0028-audit-log-partition-management.md)).
 
+## Proposed P03-1 identity admission annex
+
+**Status: Proposed; inactive.** This annex derives from Proposed
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+Both require maintainer acceptance before dependent code or grants. The current
+authentication surface, eight tenant setters and deny-all membership reader above
+remain the implemented baseline. The
+[proposed database contract](05-database.md#proposed-p03-1-identity-storage-annex)
+owns the global class, authority anchor, subject-key encoding, exact policies,
+owner functions and lock/snapshot rules; they are not duplicated here.
+
+### Proposed credential, quota and binding order
+
+Stock cryptographic/provider validation creates an immutable
+`VerifiedProviderSubject` projection. It carries the exact validated subject and
+issuer, matched to the installed stable authority anchor, plus validated optional
+actor/scope evidence. It is distinct from the normalized application identity;
+only a successful existing binding lookup or committed bootstrap creates that
+identity. Neither raw claims nor a supplied UserId substitutes for either proof.
+Present malformed/reserved/duplicate actor or scope claims still refuse; absence
+of the compatibility actor claim is permitted only under ADR-0072's matrix.
+
+Admission runs in this order: existing visitor/peer and body bounds; known-host
+classification; provider credential verification; provider-subject quota; then
+the selected binding lookup/bootstrap path. Qualify the authority anchor and
+configuration before enabling identity admission; requests use that immutable
+admitted pair, with no anchor lookup before the quota. A mismatch refuses without
+deriving a new authority, repairing the anchor or using an email.
+
+The subject quota consumes `VerifiedProviderSubject` before any binding database
+access, including ordinary authenticated requests. Its current consumer of an
+actor-bearing `ValidatedTenantIdentity` must be replaced explicitly; merely
+omitting `user_id` from a token cannot reach that consumer. Preserve the existing
+validated issuer/subject key, 600-per-window quota, 4096-partition registry,
+retirement/fault protocol, early quotas and refusal precedence. Re-entry consumes
+no second permit. A changed actor, tenant, host or bearer never resets the quota;
+no application actor is required to debit it.
+
+### Proposed exact bootstrap surface and outcomes
+
+Only `POST /api/v1/account/bootstrap`, empty body and no query, enters the closed
+global-self mutation path. On provider verification it skips ordinary tenant
+reconciliation/assertions and installs no `ITenantContext`. Scope claims must be
+well-formed but provide no bootstrap tenant authority. Unknown or mismatched
+methods cannot enter its binding owner. The generated native SDK call retains its
+fixed API origin, host/source/hop validation and omitted browser credentials;
+this adds no browser bearer or generic proxy.
+
+| Observation | Proposed response / database work |
+|---|---|
+| Existing early admission/body refusal | Existing status and precedence; no binding work. |
+| Unknown host | Masked 404 before token/provider work. |
+| Known host, absent bearer | Existing masked 404; no binding access or allocation. |
+| Known host, present invalid/undecidable provider credential | Fixed 401 with bare Bearer challenge; no binding access. |
+| Wrong method or unclassified/mismatched operation | Existing closed-surface refusal; no bootstrap database work. |
+| Valid bootstrap credential, invalid operation body/query | Fixed 400 after earlier gates; no mutation. |
+| Subject admission refuses | Existing 429 or registry-fault 503; no binding access. |
+| Ordinary authenticated binding lookup unavailable | Fixed 401 under ADR-0064/0071; no fabricated anonymous identity or automatic retry. |
+| Bootstrap binding storage unavailable after verified-subject admission | Typed 503 `dependency_unavailable`; fixed internal reason `binding_store_unavailable`, no provider/database details. |
+| Required bootstrap audit write unavailable | Typed 503 `audit_unavailable` when otherwise successful; preserve an already refused/failed outcome during non-success reconciliation. |
+| Missing ordinary binding, conflicting actor, collision, Closing/Closed binding | Fixed 401; no adoption, alias, recreation or replacement actor. |
+| Bootstrap creates or resolves an Active binding | 200 with exactly issuer, subject and actorId; JSON/no-store, at most 4 KiB; no profile or membership authority. |
+
+Error bodies and challenges disclose no claim values or internal refusal detail.
+`binding_store_unavailable` is a closed internal diagnostic reason, not a new
+public Problem Details code or a trusted identity-refusal witness. Translate
+expected storage availability failures at the new owner boundary; arbitrary
+exceptions do not automatically become 503. Cancellation and a missing response
+do not prove rollback. Never use exception text, challenge detail or status alone
+to infer that a User was created, absent or definitively rejected.
+
+The ordinary API's uniform 401 and ADR-0071's uncertain AccountSite policy remain:
+withhold authenticated content, retain the ordinary live owner without idle
+renewal, and add no automatic retry/refresh. Initial and refreshed publication
+still require the independent positive binding/AccountSite evidence and existing
+late-publication fences. A failed post-refresh check revokes. A successful global
+bootstrap without tenant authority publishes no tenant BFF session.
+
+### Proposed owner and setter census
+
+Global self lookup, bootstrap, trusted seed adoption and central reconciliation
+announce verified subject authority only. Their immutable connection/transaction
+marker is a separate mode of the common guard, not a table-name exemption or a
+tenant context. Only their enumerated setters may announce the identity variables;
+the setter derives them from verified/captured facts, never payload or headers.
+Missing markers, foreign subject reuse, nested tenant/global ownership and pooled
+authority leakage refuse. All ordinary tenant setters, factories and audit writers
+continue rejecting `TenantId.PlatformSentinel`.
+
+The proposed global audit methods and confined definer functions are enumerated
+in Standard 05. Their bounded target/operation/subject evidence is the only new
+authority. Sentinel attribution conveys neither PlatformAdminScope nor operator
+permission. Runtime never receives a migration credential; the new functions do
+execute with migration-owner rights and need their own exact privilege/body/caller
+controls before admission. No general SQL executor, global User directory or
+direct self audit read follows from them.
+
+`PreContextIdentityAuthorizationReader` is the planned ninth logical tenant
+setter, owned by P03-2 execution under G2. It uses `learnstack_app`, NOBYPASSRLS,
+and a short physically READ ONLY transaction. It binds the verified application
+actor and exact candidate tenant/organization to a minimal coverage/grant read,
+announces only that candidate scope, and closes before the request owner opens.
+It installs no `ITenantContext` and returns no profile or member directory.
+Candidate scope remains a question; validated identity and the confined reader
+contract supply input authority. P03-1 specifies the port/storage contract only.
+Its ADR-0040 disclosure and this census extension must be accepted before P03-2
+implements or registers it; the eight current tenant setters are unchanged while
+this annex remains Proposed. The global subject owners do not add tenant setters.
+
+### Proposed bounded contention and proof
+
+Use Standard 05's separate subject/User/tenant lock namespaces, READ COMMITTED,
+post-wait fresh queries and transaction-local two-second default lock timeout.
+The global command/cancellation deadline stays within the existing ten-second
+native request budget. Record histogram
+`learnstack_identity_lock_wait_seconds{lock_kind,outcome}`, with `lock_kind`
+closed to `subject`, `user`, `tenant` and `outcome` closed to `acquired`, `timeout`,
+`cancelled`, `fault`. Record refusal counter
+`learnstack_identity_lock_refusals_total{lock_kind,reason}`, with `reason` closed
+to `timeout`, `cancelled`, `fault`. No actor, tenant, subject, digest, SQL or
+exception text appears in labels. Phase 11 owns measured alert thresholds and
+capacity tuning; bounded acquisition and cancellation are P03-1 prerequisites.
+
+Qualification uses actual actorless provider credentials through HTTP and the
+native caller, missing/invalid/wrong-method controls, proof of quota before every
+binding read, unchanged ordinary 401/session behavior, typed bootstrap storage
+failure and independent audit failure. Include concurrent first bootstrap,
+response loss, failed/indeterminate reconciliation, exact duplicate evidence,
+wrong-source/subject/target witnesses and actual app-role tenant/self read
+exclusion. A real held-lock race must observe the competing eligibility commit;
+metadata inspection alone does not prove visibility or cancellation cleanup.
+These are pending extensions to the existing controls, not evidence that the
+proposed owners, setter or functions have shipped.
+
 ## Incident Response
 
 - A security incident playbook lives in `docs/runbooks/security-incident.md` (Phase 11 deliverable).

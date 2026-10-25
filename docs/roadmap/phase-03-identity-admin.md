@@ -1,7 +1,7 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-10-25).** Entry preparation and P03-1 proposal review complete;
-> maintainer approval pending; runtime implementation **not started**. This is
+> **Status (2026-10-25).** Entry preparation complete; P03-1 maintainer findings
+> are under revision; approval pending; runtime implementation **not started**. This is
 > the next critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md). Begin with the identity foundation's
 > decision pass. The [decision register](#the-decision-register) owns gate state;
@@ -11,7 +11,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | Proposed — [decision package and six-step plan](phase-03-delivery-log.md#p03-1-proposed-decision-package-2026-10-25); [review readiness](phase-03-delivery-log.md#p03-1-proposal-readiness-2026-10-25); ADR-0072/0073 await approval |
+> | P03-1 | Identity authority and membership foundation | Proposed — [revised decision package](phase-03-delivery-log.md#p03-1-revised-decision-package-2026-10-25); maintainer findings reopened readiness; ADR-0072/0073 await approval |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
