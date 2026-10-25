@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 402 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 432 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -23,6 +23,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 maintainer review disposition (2026-10-25)](#p03-1-maintainer-review-disposition-2026-10-25) — 34 lines
   - [P03-1 revised decision package (2026-10-25)](#p03-1-revised-decision-package-2026-10-25) — 114 lines
   - [P03-1 revised proposal review round 1 (2026-10-25)](#p03-1-revised-proposal-review-round-1-2026-10-25) — 16 lines
+  - [P03-1 revised proposal review round 2 and readiness (2026-10-25)](#p03-1-revised-proposal-review-round-2-and-readiness-2026-10-25) — 30 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -510,3 +511,33 @@ bootstrap caller. The revision above adds both obligations and the proposed
 ADR-0053 text; Accepted predecessor text remains untouched. No other actionable
 proposal contradiction is reproduced. Database/provider/application tests are
 not run or inferred from this documentation review.
+
+### P03-1 revised proposal review round 2 and readiness (2026-10-25)
+
+**Reviewed source:** `26237b823a0bf72a1986dfffc849c6a28dd67355`. Two new
+read-only reviewers inspect the complete revised approval surface independently:
+authentication/global SQL/audit and source handoffs (GPT-6 Astra, xhigh), and
+model/manifests/lifecycle/privacy and adoption carriers (GPT-6.1 Sol, xhigh).
+Both approve within the Proposed documentation scope, with no actionable finding.
+No reviewer edits files or claims implemented enforcement or maintainer consent.
+
+The authentication review also checks a possible attribution ambiguity against
+ADR-0044 Amendment 6: aggregate `created_by = SystemActor` when no actor exists
+does not substitute SystemActor for the NULL authenticated audit principal.
+That concern is not a finding and does not change the selected contract.
+
+Parent validation at the reviewed source passes all 37 existing Python guard
+controls and all five Release `CorpusConsistencyTests` cases, with zero skips.
+The changed-document sweep resolves 884 relative file targets; both ADR statuses
+parse as Proposed, and no temporary review report is referenced. ADR prose checks
+exclude the documented table/link exceptions. Whole-tree fragment, roadmap
+structure, regenerated-index and whitespace checks qualify the final record
+after its last edit. These are documentation/corpus checks, not Identity SQL,
+Keycloak, API, browser, concurrency or privacy-fulfillment qualification.
+
+The revised package is ready for **joint maintainer review**, not Accepted.
+Both ADRs and all nineteen gates remain Proposed/Open as applicable. No runtime,
+schema or provider configuration changes accompany this preparation. Acceptance
+and the six implementation steps wait for the explicit approval requested before
+new ADR implementation; after approval, Step 1 applies the actual dated
+Amendments and authority reconciliation before dependent code.
