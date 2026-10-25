@@ -16,6 +16,8 @@ public sealed class StorageRelationCensusTests : IClassFixture<PostgresFixture>
     [InlineData("SET LOCAL \"SEARCH_PATH\" TO public; CREATE TABLE census_probe (id integer)", "DROP TABLE census_probe")]
     [InlineData("CREATE TABLE census_probe (id integer) PARTITION BY RANGE (id)", "DROP TABLE census_probe")]
     [InlineData("CREATE MATERIALIZED VIEW census_probe AS SELECT 1 AS id", "DROP MATERIALIZED VIEW census_probe")]
+    [InlineData("SELECT E'\\''; SELECT 1 INTO census_probe; SELECT 'tail';", "DROP TABLE census_probe")]
+    [InlineData("SELECT E'prefix'\n'\\''; SELECT 1 INTO census_probe; SELECT 'tail';", "DROP TABLE census_probe")]
     [InlineData("CREATE FUNCTION public.census_creator() RETURNS void LANGUAGE plpgsql AS 'BEGIN EXECUTE ''CRE'' || ''ATE TABLE public.census_probe(id int)''; END;'; SELECT public.census_creator();",
         "DROP TABLE census_probe; DROP FUNCTION public.census_creator()")]
     public async Task Catalogue_discovers_each_persistent_relation_kind(string create, string drop)

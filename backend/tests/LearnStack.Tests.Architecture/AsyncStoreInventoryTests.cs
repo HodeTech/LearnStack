@@ -147,6 +147,63 @@ public sealed class AsyncStoreInventoryTests
     }
 
     [Theory]
+    [InlineData("SELECT E'\\''; SELECT 1 INTO hidden; SELECT 'tail';")]
+    [InlineData("SELECT e'\\''; SELECT 1 INTO hidden; SELECT 'tail';")]
+    [InlineData("SELECT E'doubled''quote\\''; SELECT 1 INTO hidden; SELECT 'tail';")]
+    public void Migration_census_detects_select_into_after_escape_literals(string sql)
+    {
+        var read = () => AsyncStoreInventoryCensus.Tables([new SqlOperation { Sql = sql }]);
+        read.Should().Throw<FormatException>().WithMessage(
+            "Planted migration (SqlOperation): SELECT INTO table creation requires an explicit census reader decision.");
+    }
+
+    [Theory]
+    [InlineData("SELECT E'\\'';")]
+    [InlineData("SELECT e'\\'';")]
+    [InlineData("SELECT E'backslash\\\\';")]
+    [InlineData("SELECT E'doubled''quote';")]
+    [InlineData("SELECT E'escaped\\q';")]
+    [InlineData("SELECT E'; SELECT 1 INTO hidden;';")]
+    [InlineData("SELECT E'\\'' || 'ordinary';")]
+    [InlineData("SELECT E'\\''; SELECT 'ordinary';")]
+    [InlineData("SELECT '\\';")]
+    [InlineData("SELECT 'doubled''quote';")]
+    public void Migration_census_preserves_literal_boundaries_before_table_declarations(string prefix)
+    {
+        AsyncStoreInventoryCensus.Tables([new SqlOperation
+        {
+            Sql = prefix + " CREATE TABLE literal_probe(id int); SELECT 'tail';",
+        }]).Should().Equal("literal_probe");
+    }
+
+    [Theory]
+    [InlineData("SELECT E'prefix'\n'\\''; SELECT 1 INTO hidden; SELECT 'tail';",
+        "Escape literal continuation requires an explicit census reader decision.")]
+    [InlineData("SELECT e'prefix'\n/* continuation */ '\\''; SELECT 1 INTO hidden; SELECT 'tail';",
+        "Escape literal continuation requires an explicit census reader decision.")]
+    [InlineData("SELECT E'prefix' -- continuation\n'\\''; SELECT 1 INTO hidden; SELECT 'tail';",
+        "Escape literal continuation requires an explicit census reader decision.")]
+    [InlineData("SELECT set_config(E'app.tenant_id', 'probe', true);",
+        "set_config search-path resolution requires an explicit census reader decision.")]
+    [InlineData("SELECT set_config(e'search_\\x70ath', 'other', true);",
+        "set_config search-path resolution requires an explicit census reader decision.")]
+    [InlineData("DO $$ BEGIN EXECUTE E'CREATE SCHEMA \"public\";'; END $$;",
+        "Unresolved dynamic EXECUTE requires an explicit census reader decision.")]
+    [InlineData("DO $$ BEGIN EXECUTE e'CREATE SCHEMA \"public\";'; END $$;",
+        "Unresolved dynamic EXECUTE requires an explicit census reader decision.")]
+    [InlineData("SET search_path = E'public';",
+        "The table census does not assume a non-public search path.")]
+    [InlineData("SET SCHEMA e'public';",
+        "The table census does not assume a non-public search path.")]
+    [InlineData("CREATE FUNCTION public.inventory_probe() RETURNS void SET search_path = E'public' AS $$ BEGIN NULL; END; $$ LANGUAGE plpgsql;",
+        "Non-pinned routine search path requires an explicit census reader decision.")]
+    public void Migration_census_does_not_resolve_escape_literal_values(string sql, string reason)
+    {
+        var read = () => AsyncStoreInventoryCensus.Tables([new SqlOperation { Sql = sql }]);
+        read.Should().Throw<FormatException>().WithMessage($"Planted migration (SqlOperation): {reason}");
+    }
+
+    [Theory]
     [InlineData("CREATE TEMP TABLE hidden_table (id int);", "Unsupported table persistence declaration.")]
     [InlineData("CREATE UNLOGGED TABLE hidden_table (id int);", "Unsupported table persistence declaration.")]
     [InlineData("CREATE GLOBAL TEMP TABLE hidden_table (id int);", "Unsupported table persistence declaration.")]

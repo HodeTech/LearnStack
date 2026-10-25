@@ -15,7 +15,7 @@ namespace LearnStack.Tests.Architecture;
 internal static class AsyncStoreInventoryCensus
 {
     private static readonly Regex SqlTokens = new(
-        "(?<comment>--[^\\r\\n]*|/\\*[\\s\\S]*?\\*/)|(?<literal>'(?:''|[^'])*')|"
+        "(?<comment>--[^\\r\\n]*|/\\*[\\s\\S]*?\\*/)|(?<literal>[Ee]'(?:\\\\[\\s\\S]|''|[^'\\\\])*'|'(?:''|[^'])*')|"
         + "(?<quoted>\"(?:\"\"|[^\"])*\")|(?<dollar>\\$(?:[A-Za-z_][A-Za-z_0-9]*)?\\$)|"
         + "(?<word>[A-Za-z_][A-Za-z_0-9$]*)|(?<symbol>\\S)",
         RegexOptions.CultureInvariant);
@@ -121,7 +121,7 @@ internal static class AsyncStoreInventoryCensus
                         throw new FormatException("Non-dollar procedural bodies require an explicit census reader decision.");
                 }
                 if (IdentifierIs(index, "set_config") && At(index + 1).Text == "("
-                    && (!At(index + 2).Literal || At(index + 3).Text != ","
+                    && (!At(index + 2).Literal || At(index + 2).Text[0] != '\'' || At(index + 3).Text != ","
                         || string.Equals(At(index + 2).Text, "'search_path'", StringComparison.OrdinalIgnoreCase)))
                     throw new FormatException("set_config search-path resolution requires an explicit census reader decision.");
                 if (((Is(index, "DROP") || Is(index, "ALTER")) && Is(index + 1, "SCHEMA"))
@@ -281,7 +281,8 @@ internal static class AsyncStoreInventoryCensus
                 while (cursor < tokens.Length && At(cursor).Text != ";")
                 {
                     var token = At(cursor++);
-                    if (token.Literal && expectingLiteral)
+                    // Escape literals are tokenized for boundaries, never decoded as pinned values.
+                    if (token.Literal && token.Text[0] == '\'' && expectingLiteral)
                     {
                         command.Append(token.Text[1..^1].Replace("''", "'", StringComparison.Ordinal));
                         expectingLiteral = false;
@@ -341,6 +342,11 @@ internal static class AsyncStoreInventoryCensus
             }
             offset = match.Index + match.Length;
             if (match.Groups["comment"].Success) continue;
+            // An unprefixed continuation inherits the preceding E literal's escape rules.
+            // Refuse that opaque value instead of reading it with ordinary quote boundaries.
+            if (match.Groups["literal"].Success && match.Value[0] == '\''
+                && tokens.Count > 0 && tokens[^1].Literal && tokens[^1].Text[0] is 'E' or 'e')
+                throw new FormatException("Escape literal continuation requires an explicit census reader decision.");
             tokens.Add(new SqlToken(match.Value, match.Groups["word"].Success,
                 match.Groups["quoted"].Success, match.Groups["literal"].Success, match.Groups["dollar"].Success));
             if (delimiter is null && match.Groups["dollar"].Success)

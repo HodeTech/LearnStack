@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 987 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,039 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -289,6 +289,7 @@ each packet decided and delivered, as
   - [P02b-8 PR correction verification (2026-10-25)](#p02b-8-pr-correction-verification-2026-10-25) — 93 lines
   - [P02b-8 correction review round 2 and source freeze (2026-10-25)](#p02b-8-correction-review-round-2-and-source-freeze-2026-10-25) — 44 lines
   - [P02b-8 CI fixture-witness reconciliation (2026-10-25)](#p02b-8-ci-fixture-witness-reconciliation-2026-10-25) — 24 lines
+  - [P02b-8 CI witness and SQL-literal corrections, review round 1 (2026-10-25)](#p02b-8-ci-witness-and-sql-literal-corrections-review-round-1-2026-10-25) — 52 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21956,6 +21957,58 @@ A/B attempts for the corrected plan, with exact current test identities and
 actual cleanup; the failed run and all earlier receipts remain source-bound
 history. No omitted case, disabled control or increased ceiling is used to
 recover the result.
+
+### P02b-8 CI witness and SQL-literal corrections, review round 1 (2026-10-25)
+
+The complete `c399ba52` attempt in
+[run 40175295858](https://github.com/HodeTech/LearnStack/actions/runs/40175295858)
+finishes 25/27 jobs successfully. `ordinary-3` contains one failed case,
+`Terminal_audit_backlog_remains_faulted_beyond_two_leases_while_native_business_commits`;
+the integration aggregate consequently refuses the attempt. Authenticated API
+metadata and the failing artifact ZIP digest match. Its finite failure location
+is `facade_business:89`: the handler-entry list is expected to contain two IDs.
+The manifest contains 6096 test identities; this failed attempt is not a passing
+qualification. Backend, frontend, meta and public-demo successes do not override
+the failed integration population.
+
+**Business witness defect.** The list adds a fresh organization ID before the
+business transaction commits, while the accepted transactional runtime permits
+rolled-back attempts and bounded retries. A controlled transient refusal after
+the original first successful nested write reproduces the same line-89 failure:
+three entries rather than two. The original bytes are restored before the final
+repair. This proves an invalid test witness; it does not establish the specific
+historical CI retry trigger.
+
+The repaired test derives stable organization identity from the authoritative
+JobTenantContext.JobId, deliberately rolls back one successful nested write per
+logical job, and verifies absence on re-entry. Each completed job must have one
+durable organization and one successful MUST audit, with ledger/summary admission
+agreement and bounded body entries. All hundred terminal rows, revoked audit
+permission, native bridge, two-lease hold and original deadlines remain intact.
+The target and two business/renewal siblings pass 3/3, zero skips; the Docker
+trait guard passes. No production retry or timeout policy changes.
+
+**SQL literal defect.** A newly verified inline finding shows escaped E/e
+strings can hide subsequent SELECT INTO from the old ordinary-quote tokenizer.
+Three negative plants reproduce missing refusals before the fix. E/e boundaries
+are recognized without evaluating their values; configuration names and pinned
+EXECUTE retain ordinary-only literal requirements. A fresh reviewer also exposes
+newline escape-string continuations; three further red plants reproduce that
+gap. Adjacent continuations now fail closed, including conservatively refused
+comment-separated forms; operator/terminator-separated values remain supported.
+Actual PostgreSQL cases prove direct and continued escaped strings can precede
+table creation. Current five-chain/installer definitions still pass.
+
+**Fresh first-round source review:** `pr37_ci_r1_backlog` (GPT-6-astra/high)
+approves the one-file witness repair against ADR-0047. `pr37_ci_r1_lexer`
+(GPT-6.1-sol/xhigh) finds the continuation gap, verifies its correction and
+approves the final three-file reader/test scope. Both are read-only source
+reviews; executed negative/positive results above belong to the implementing
+agents. Final census/Corpus selection passes 81/81 and owned PostgreSQL cases
+7/7, zero skips. The published test-method census becomes 282; rule counts
+remain 237/134/103. The fixture declaration, plan, bounds and algorithm do not
+change in this follow-up. Second-round source review and hosted qualification
+remain pending.
 
 ## Status archive
 
