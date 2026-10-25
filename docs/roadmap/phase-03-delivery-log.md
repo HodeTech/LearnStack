@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 644 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 660 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -29,6 +29,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 second revision review round 2 and approval readiness (2026-10-25)](#p03-1-second-revision-review-round-2-and-approval-readiness-2026-10-25) — 28 lines
   - [P03-1 joint acceptance and Step 1 (2026-10-25)](#p03-1-joint-acceptance-and-step-1-2026-10-25) — 41 lines
   - [P03-1 Step 1 review round 1 (2026-10-25)](#p03-1-step-1-review-round-1-2026-10-25) — 21 lines
+  - [P03-1 Step 1 review round 2 and closeout (2026-10-25)](#p03-1-step-1-review-round-2-and-closeout-2026-10-25) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -758,3 +759,19 @@ finding: its later invitation paragraph and the authoritative register expressly
 leave G8 Open. Do not rewrite the now-Accepted body merely to restyle that
 boundary. Both reviewers confirm predecessor-byte preservation, legitimate joint
 approval, planned control statuses and the unchanged P03-3 transport boundary.
+
+### P03-1 Step 1 review round 2 and closeout (2026-10-25)
+
+**Reviewed source:** `7ded2585`. Two new read-only reviewers independently assess
+authority/canonical execution contracts (GPT-6 Astra, xhigh) and corpus/model/
+proof-state carriers (GPT-6.1 Sol, xhigh). Both approve within Step 1's scope,
+with no actionable findings. They verify the earlier non-success/sentinel/policy/
+method-count corrections, Domain Model alignment, predecessor-byte preservation,
+registered proof owners, finite manifests and P03-3 transport staging.
+
+Step 1 is complete. Acceptance/canonical adoption precedes all dependent code;
+no runtime or schema qualification is inferred. Parent fragment, roadmap/index
+and whitespace checks pass; current compiled corpus/audit-matrix controls pass
+20 cases with zero skips. Step 2 proceeds automatically under the accepted plan:
+explicit mapped-property declarations, common classification validation and a
+neutral-name missing-declaration control before Identity writers.
