@@ -191,8 +191,9 @@ this phase consumes that foundation and adds no runner.
 ## Deliverables
 
 - `LearnStack.Modules.Assessment` and `LearnStack.Modules.Notifications` scaffolded —
-  each with `{Domain, Application, Application.Contracts, Infrastructure}`, its `IModule`
-  registration, its `docs/modules/<module>/audit.md`, and its permission-catalogue rows.
+  each with `{Domain, Application, Application.Contracts, Infrastructure}`, its
+  composition-root registration, its `docs/modules/<module>/audit.md`, and its
+  permission-catalogue rows.
 - Assessment MVP: assessments, question bank, attempts, grading, result visibility.
 - Placement-test path scored through the Phase 05 `TenantScoringRule` evaluator, with the
   result-band → level projection.

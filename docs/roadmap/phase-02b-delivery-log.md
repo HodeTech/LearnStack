@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,164 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,183 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -294,6 +294,7 @@ each packet decided and delivered, as
   - [P02b-8 native completion qualification correction, review round 1 (2026-10-25)](#p02b-8-native-completion-qualification-correction-review-round-1-2026-10-25) — 43 lines
   - [P02b-8 native completion correction, review round 2 and freeze (2026-10-25)](#p02b-8-native-completion-correction-review-round-2-and-freeze-2026-10-25) — 17 lines
   - [P02b-8 browser artifact ownership correction, review round 1 (2026-10-25)](#p02b-8-browser-artifact-ownership-correction-review-round-1-2026-10-25) — 44 lines
+  - [P02b-8 browser ownership correction, review round 2 and freeze (2026-10-25)](#p02b-8-browser-ownership-correction-review-round-2-and-freeze-2026-10-25) — 19 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -22138,6 +22139,25 @@ counterexample and reviews resource ownership; `pr37_browser_r1_isolation`
 (GPT-6.1-sol/high) independently checks source, isolation and cleanup without
 execution. Second-round source review and fresh hosted qualification remain
 pending. Failed runs provide no passing siblings to that qualification.
+
+### P02b-8 browser ownership correction, review round 2 and freeze (2026-10-25)
+
+**Reviewed executable correction:** `65f328358548da9a0af9b6b7eefb045efb9e08d3`,
+tree `446f384e7e3225c7030cdbc4a3318b474eb24830`, against `d6462dc7`.
+Two fresh read-only reviewers approve without verified findings:
+`pr37_browser_r2_sdk` (GPT-6-astra/high) and `pr37_browser_r2_claims`
+(GPT-6.1-sol/high). Both check the pinned SDK, fixture ownership, cleanup and
+receipt limits without executing tests or the SDK counterexample.
+
+The parent retains the first-round actual browser 1/1, fixture/support 37/37,
+controlled SDK refusal and hook build/lint/format receipts. This prose-only
+freeze also corrects the nonexistent `IModule` label in Phase 08a and restores
+ADR-0032 Amendment navigation/current Phase 02b ownership in the decision index;
+the claims reviewer independently verifies those bounded carrier changes.
+No executable, policy, timing, test population or plan change follows this
+review. Both source-review rounds are complete. Fresh complete hosted A/B
+qualification is still pending, with failed attempts and unsupported native
+preconditions kept distinct from successful qualification.
 
 ## Status archive
 
