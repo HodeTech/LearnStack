@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 686 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 717 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -284,6 +284,7 @@ each packet decided and delivered, as
   - [P02b-8 Step 3 review round 2 and closeout (2026-10-25)](#p02b-8-step-3-review-round-2-and-closeout-2026-10-25) — 22 lines
   - [P02b-8 Step 4 — Individual exit ownership and source freeze (2026-10-25)](#p02b-8-step-4--individual-exit-ownership-and-source-freeze-2026-10-25) — 42 lines
   - [P02b-8 Step 4 review round 1 — source (2026-10-25)](#p02b-8-step-4-review-round-1--source-2026-10-25) — 22 lines
+  - [P02b-8 Step 4 review round 2 — source (2026-10-25)](#p02b-8-step-4-review-round-2--source-2026-10-25) — 31 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -21650,6 +21651,37 @@ complete same-source B, final-head checks and the full local architecture receip
 remain pending. Both reviewers require the actual completed receipts before
 qualification approval. Later documentation-only records do not relabel this
 source or any earlier run as a later source's proof.
+
+### P02b-8 Step 4 review round 2 — source (2026-10-25)
+
+Two fresh independent readers review `63a4b523..7ae3d8f3`: a
+`gpt-6-astra`/high semantics reviewer and a `gpt-6.1-sol`/xhigh evidence reviewer.
+Both approve the source without an actionable finding. They verify the complete
+26/60/11 requirement mapping, eleven exclusions and two transport boundaries,
+all 94 explicit class/method locators, actual Docker lanes, concrete capture/
+`IAuditSubject` identity and row-bound app-role indeterminate audit counts. C27
+retains ADR-0044's existing composition policy. Documentation and whitespace
+checks pass. No executable changes follow the frozen `6224bd9e` source.
+
+The full local Release architecture suite now passes 441/441 with zero skips;
+the final solution build has zero warnings and errors. Unit 2,669/2,669,
+non-Docker HTTP 298/298, contract 5/5, frontend 2,376 cases and the relevant real
+PostgreSQL delivery/store proofs also pass. These receipts do not replace full
+hosted qualification.
+
+[Run 40145581317 attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/40145581317/attempts/1)
+completes layout A on the frozen source with 27/27 successful jobs. Before the
+full B rerun, all 25 artifact archives and complete attempt-1 API metadata are
+retained and hash-verified. Independent readers recompute 5,992 unique Passed
+cases, zero skips, backend 3,413 and integration 2,579, plus nine public pages
+and 27 Lighthouse report/HTML pairs with natural cleanup. The largest producer
+takes 984 whole-job seconds; the aggregates take 14/28 seconds. GitHub removes
+A's remote artifacts during the full rerun; the retained authenticated metadata
+and matching archives supply that evidence, not continued downloadability.
+
+This remains source and A-only approval. Full same-source B, the completed-pair
+review follow-up and actual final PR-head qualification remain pending. No
+earlier run, source-only approval or passing A result is counted as phase exit.
 
 ## Status archive
 
