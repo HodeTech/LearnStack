@@ -1,5 +1,7 @@
+using LearnStack.Infrastructure.DataProtection;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Education.Domain;
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
@@ -70,6 +72,15 @@ internal sealed class CourseConfiguration : IEntityTypeConfiguration<Course>
         builder.Property(x => x.LevelTaxonomySchemaVersion);
         builder.Property(x => x.LevelBandKey).HasMaxLength(EducationPinKey.MaxLength);
         builder.MapAuditColumns<Course, CourseId>();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Curriculum record identity and institution scope, not a person identifier.",
+            nameof(Course.Id), nameof(Course.TenantId), nameof(Course.OrganizationId));
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Course catalogue handle, publication state and content-access configuration.",
+            nameof(Course.SlugKey), nameof(Course.Status), nameof(Course.ContentAccess));
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Pinned curriculum taxonomy definition and band references.",
+            nameof(Course.LevelTaxonomyKey), nameof(Course.LevelTaxonomySchemaVersion), nameof(Course.LevelBandKey));
         builder.HasIndex(x => new { x.TenantId, x.SlugKey })
             .IsUnique().HasFilter("deleted_at IS NULL")
             .HasDatabaseName("ux_courses_tenant_id_slug_key");
@@ -112,6 +123,15 @@ internal sealed class LessonConfiguration : IEntityTypeConfiguration<Lesson>
         builder.Property(x => x.ContentTypeKey).HasMaxLength(EducationPinKey.MaxLength).IsRequired();
         builder.Property(x => x.ContentTypeSchemaVersion).IsRequired();
         builder.MapAuditColumns<Lesson, LessonId>();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Curriculum record identity, parent course reference and institution scope.",
+            nameof(Lesson.Id), nameof(Lesson.TenantId), nameof(Lesson.OrganizationId), nameof(Lesson.CourseId));
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Lesson curriculum ordering and publication state.",
+            nameof(Lesson.Sort), nameof(Lesson.Status));
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Pinned lesson content-type definition reference.",
+            nameof(Lesson.ContentTypeKey), nameof(Lesson.ContentTypeSchemaVersion));
         builder.HasOne<Course>().WithMany()
             .HasForeignKey(x => new { x.TenantId, x.CourseId })
             .HasPrincipalKey(x => new { x.TenantId, x.Id })
@@ -147,6 +167,13 @@ internal sealed class CourseTranslationConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.Title).HasColumnType("text").IsRequired();
         builder.Property(x => x.Summary).HasColumnType("text");
         builder.Property(x => x.Slug).HasMaxLength(EducationSlug.MaxLength).IsRequired();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Translated curriculum parent reference, institution scope and content locale.",
+            nameof(CourseTranslation.CourseId), nameof(CourseTranslation.TenantId),
+            nameof(CourseTranslation.OrganizationId), nameof(CourseTranslation.Locale));
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Course catalogue content and route slug, not a learner or profile record.",
+            nameof(CourseTranslation.Title), nameof(CourseTranslation.Summary), nameof(CourseTranslation.Slug));
         builder.HasAlternateKey(x => new { x.TenantId, x.Locale, x.Slug })
             .HasName("ux_course_translations_tenant_id_locale_slug");
         builder.HasIndex(x => new { x.TenantId, x.CourseId })
@@ -172,6 +199,13 @@ internal sealed class LessonTranslationConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.Title).HasColumnType("text").IsRequired();
         builder.Property(x => x.Slug).HasMaxLength(EducationSlug.MaxLength).IsRequired();
         builder.Property(x => x.Body).HasColumnType("jsonb").IsRequired();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Translated curriculum parent reference, institution scope and content locale.",
+            nameof(LessonTranslation.LessonId), nameof(LessonTranslation.TenantId),
+            nameof(LessonTranslation.OrganizationId), nameof(LessonTranslation.Locale));
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Lesson curriculum content and route slug, not a learner or profile record.",
+            nameof(LessonTranslation.Title), nameof(LessonTranslation.Slug), nameof(LessonTranslation.Body));
         builder.HasAlternateKey(x => new { x.TenantId, x.Locale, x.Slug })
             .HasName("ux_lesson_translations_tenant_id_locale_slug");
         builder.HasIndex(x => new { x.TenantId, x.LessonId })

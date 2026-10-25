@@ -160,3 +160,15 @@ remains classified. The transport skips construction for a durable inbox duplica
 so that duplicate adds no business audit. Completed Seeder acts skip the command
 before invocation. The [Step 5 record](../../roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 owns validation and review status.
+
+## Mapped-property personal-data declarations
+
+P03-1 Step 2's [EF declarations](../../../backend/src/Modules/Customization/LearnStack.Modules.Customization.Infrastructure/Persistence/Configurations.cs)
+classify scoped definition IDs, revision/status/renderer/schema and presentation
+metadata as explicit None with purpose. These describe reusable definitions,
+not stored person-specific field values. Inherited actor references and stamps
+use the [common declarations](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership).
+The complete final-model census includes taxonomy children and rejects omitted
+properties. Future dynamic personal values require G9's revision-aware semantic
+classification, consent and diagnostics; a definition's None category does not
+classify values subsequently authored against it.

@@ -108,3 +108,16 @@ class is defined here. The two `(off-path)` rows are the ones a retention policy
 never expire ahead of the rows they describe: a purge record that outlives nothing is a
 record of a deletion whose subject is gone, which is the only durable evidence that the
 deletion happened.
+
+## Mapped-property personal-data declarations
+
+P03-1 Step 2 explicitly declares the current append-only record and override
+model's scalar paths in [the EF mappings](../../../backend/src/Modules/Audit/LearnStack.Modules.Audit.Infrastructure/Persistence/Configurations.cs).
+Actor/email/IP fields are Identity; record/scope/resource/time, reason, client,
+correlation and captured JSON/metadata use Audit purposes. Closed operation/
+outcome descriptors and override configuration are explicit nonpersonal metadata;
+inherited override actor references/stamps follow the
+[common declarations](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership).
+Classification describes retained personal references; it does not claim they
+are anonymous, redact SQL-written metadata or change the existing six-column
+redaction authority. Snapshot capture and storage retention remain independent.

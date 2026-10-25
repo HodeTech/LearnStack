@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.DataProtection;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Tenancy;
@@ -63,6 +64,12 @@ public sealed class TenancyDbContext(
     /// Amendment 1 § 4).
     /// </summary>
     public DbSet<PlatformKillswitch> PlatformKillswitches => Set<PlatformKillswitch>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        base.ConfigureConventions(configurationBuilder);
+        configurationBuilder.UsePersonalDataClassification();
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

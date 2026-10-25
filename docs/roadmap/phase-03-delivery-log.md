@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 660 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 696 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -30,6 +30,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 joint acceptance and Step 1 (2026-10-25)](#p03-1-joint-acceptance-and-step-1-2026-10-25) — 41 lines
   - [P03-1 Step 1 review round 1 (2026-10-25)](#p03-1-step-1-review-round-1-2026-10-25) — 21 lines
   - [P03-1 Step 1 review round 2 and closeout (2026-10-25)](#p03-1-step-1-review-round-2-and-closeout-2026-10-25) — 16 lines
+  - [P03-1 Step 2 implementation and local qualification (2026-10-25)](#p03-1-step-2-implementation-and-local-qualification-2026-10-25) — 36 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -775,3 +776,39 @@ and whitespace checks pass; current compiled corpus/audit-matrix controls pass
 20 cases with zero skips. Step 2 proceeds automatically under the accepted plan:
 explicit mapped-property declarations, common classification validation and a
 neutral-name missing-declaration control before Identity writers.
+
+### P03-1 Step 2 implementation and local qualification (2026-10-25)
+
+Step 2 adds explicit personal-data category/purpose declarations and a shared EF
+model-finalizing validator. The actual production census covers five contexts
+(including the deliberately empty Platform context), 19 mapped entities and 201
+scalar properties: Tenancy 83, Customization 39, Audit 34 and Education 45.
+Inherited actor/audit fields and shadow properties participate. Each module owns
+its semantic declarations; no field-name heuristic supplies a default category.
+Classification does not itself authorize disclosure, redact snapshots, establish
+consent or change retention. SQL-only stores retain their separate inventory.
+
+The canonical mapped-property control is now Implemented in
+`DataProtectionConventionTests`. Its eight methods produce eleven cases,
+including a neutral shadow property added after normal production customization:
+missing classification prevents model use, and the same property with an explicit
+declaration succeeds. Invalid categories, blank/excessive purposes, conflicting
+declarations and misspelled unmapped names refuse without values in diagnostics.
+A relational comparison with all four existing migration snapshots is empty; this
+step adds no schema, migration, Identity writer or authentication change.
+
+Release build passes with zero warnings/errors. Local qualification passes 2,692
+Unit cases, five Contract cases and 153 relevant real-PostgreSQL integration
+cases, all with zero skips. The complete Architecture run executes 551 cases:
+545 pass and six fail in existing corpus/inventory/module-matrix accounting.
+The corrections preserve exact census checks: include the accepted Identity
+module specification, name the implemented test owner in the catalogue's parsed
+Status, and place pending global audit linkage under the existing audit custody
+boundary rather than inventing another physical store. Rebuilt focused
+Architecture qualification passes all 104 affected and classification cases,
+with zero skips. The first complete run remains recorded as failed; its six
+failures are not described as a green complete rerun.
+
+Changed C# formatting verification passes. Documentation, generated-index and
+whitespace checks run after this entry. The implementation commit precedes two
+fresh independent review rounds; Step 2 is not closed by these local results.

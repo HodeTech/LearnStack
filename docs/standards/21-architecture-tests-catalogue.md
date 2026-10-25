@@ -152,7 +152,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**282 test methods run in
+**290 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -193,7 +193,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**237 rules in this catalogue are Implemented, and 134 of them are in that assembly.**
+**238 rules in this catalogue are Implemented, and 135 of them are in that assembly.**
 The other 103 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -2540,9 +2540,9 @@ because the filters hold, and removing both turns all five red.
 
 ### Accepted Identity foundation obligations
 
-These names are Registered under ADR-0072/0073. Named owners are planned classes,
-not existing files or passing controls. Promotion to Implemented requires actual
-nonempty production subjects and dirty/clean controls.
+These obligations derive from ADR-0072/0073. Each Status states actual delivery;
+Registered owners remain planned classes, not passing controls. Promotion to
+Implemented requires nonempty production subjects and dirty/clean controls.
 
 #### `Mapped_Properties_Have_Explicit_Personal_Data_Classification`
 
@@ -2555,8 +2555,12 @@ nonempty production subjects and dirty/clean controls.
   [Data Protection](../architecture/23-data-protection.md).
 - **Type:** complete EF model/declaration comparison and planted omissions.
   **Kind:** structural.
-- **Test owner:** `DataProtectionConventionTests` (planned).
-- **Status:** **Registered** — implementation pending.
+- **Test owner:** `DataProtectionConventionTests`.
+- **Status:** **Implemented** (`DataProtectionConventionTests`) — P03-1 Step 2;
+  current nonempty production models,
+  the deliberately empty migration-only Platform context, real neutral-property
+  negative/positive controls and annotation/schema neutrality. Identity models
+  must join the complete census when Steps 3/4 introduce them.
 - **Phase:** P03-1 Step 2, before the first Identity personal-data writer.
 
 #### `Global_Identity_Storage_Is_Subject_Confined`

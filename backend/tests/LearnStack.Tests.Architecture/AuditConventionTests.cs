@@ -164,7 +164,7 @@ public sealed partial class AuditConventionTests
         // another appearing without a matrix is what this rule is for, and a bare count
         // would let one be swapped for another.
         modules.Select(Path.GetFileName).Should().BeEquivalentTo(
-            ["tenancy", "customization", "audit", "education"]);
+            ["tenancy", "customization", "audit", "education", "identity"]);
 
         WithoutMatrix(modules).Should().BeEmpty(
             "a module spec without a coverage matrix is a module whose audit obligations "

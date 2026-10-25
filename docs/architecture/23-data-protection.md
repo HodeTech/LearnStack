@@ -19,29 +19,35 @@ Every aggregate that may hold personal data must declare its PII category at des
 Every aggregate's domain spec must record its PII categories.
 [Phase 03 G19](../roadmap/phase-03-identity-admin.md#the-decision-register) owns the
 classification census and planted missing-annotation control before its first
-identity PII writer; G9 extends it for custom-field revision history. No current
-CI check discovers every email/phone/address column.
+identity PII writer; G9 extends it for custom-field revision history. The
+implemented mapped-property census requires explicit semantics; it does not infer personal data from an email/phone/address name or arbitrary stored text.
 
 <a id="proposed-identity-foundation-and-classification-ownership"></a>
 
 ### Identity foundation and classification ownership
 
-**Accepted contract — implementation pending P03-1.** Jointly Accepted
+**Classification implemented in P03-1 Step 2; Identity storage and fulfillment
+remain pending their implementation steps.** Jointly Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
 require these controls before the first identity writer. Acceptance creates no
 current storage, grant or fulfilled erasure capability.
 
-Each module owns reviewed declarations for every property in its mapped models,
-including inherited references. The Infrastructure data-protection coordinator
+P03-1 Step 2 implements reviewed declarations in each module's EF mappings and
+`PersonalDataModelCensus` in common Infrastructure. Each module owns declarations
+for every property in its mapped models, including inherited references. The Infrastructure data-protection coordinator
 and `DataProtectionConventionTests` compare those declarations with the complete,
-nonempty EF property population in P03-1 Step 2, before identity writes.
-`Mapped_Properties_Have_Explicit_Personal_Data_Classification` is Registered
-in the [architecture catalogue](../standards/21-architecture-tests-catalogue.md);
-its implementation and neutral-name planted omission control remain Step 2. An
+nonempty EF property population before identity writes.
+`Mapped_Properties_Have_Explicit_Personal_Data_Classification` is Implemented
+in the [architecture catalogue](../standards/21-architecture-tests-catalogue.md),
+with real production-model omission and positive controls. An
 undeclared property fails; `None` requires an explicit nonpersonal purpose and is
 never a default. Module audit specs own exact reference/payload paths and snapshot
-redaction markers. SQL-only, control and vendor stores stay in their existing
+redaction markers. The explicit common audit-column declarations live in
+[AuditColumnMapping](../../backend/src/LearnStack.Infrastructure/Persistence/AuditColumnMapping.cs):
+actor references are Identity, change timestamps Audit, and the technical
+row-version counter explicitly None. Classification never reads row values or
+replaces snapshot markers, disclosure authority or erasure/retention rules. SQL-only, control and vendor stores stay in their existing
 inventories; this check creates no duplicate durable-store inventory.
 
 The Accepted User contract retains a stable authority identifier, subject key, actor and
@@ -270,12 +276,19 @@ The inventory also covers these distinct copies and custody boundaries:
 | Store or custody boundary | Subject linkage and limit |
 |---|---|
 | Existing `audit_log` | Asynchronous terminal/causal `metadata`, including `causal_actor_user_id`, beside immutable actor/entity/causation identifiers. Redacting human-facing fields leaves references; see [Audit data model](31-audit-subsystem.md#7-data-model) |
-| Global identity audit linkage (Accepted; implementation pending P03-1) | ADR-0072/0073 require: `metadata.identity_subject_key` carries the same stable binding key, including failed attempts without a User; proposed target actor and immutable action references remain linkable personal data. Existing seven-year SecurityEvent retention applies; metadata stays outside the six-column UPDATE grant. |
 | Development Keycloak user events, `EVENT_ENTITY` | Provider `USER_ID`, `SESSION_ID`, `IP_ADDRESS`, client/realm and event-detail JSON. Separate provider storage and identity namespace; account invalidation does not erase prior events. Selection and qualified finite retention remain under [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md#reads-and-durable-event-ownership) |
 | External diagnostics and local error files | Log, trace, Sentry and `LocalFileErrorTracker` JSON archives can retain linkable exception/context copies; source-row deletion does not erase them |
 | Database, WAL and backups | Retained copies need backup and post-restore reconciliation; source-row deletion alone does not remove them |
 | Native BFF session custody | `InMemoryBffSessionStore` is volatile process-local custody under ADR-0070, not a durable ledger. Local invalidation does not erase provider events or diagnostic archives |
 <!-- async-store-custody:end -->
+
+ADR-0072/0073 add identity linkage to the existing `audit_log` boundary above,
+not another physical store or custody owner. Implementation remains P03-1 Step 3:
+`metadata.identity_subject_key` carries the stable binding key, including failed
+attempts without a User; proposed target and action references remain personal
+data. Existing SecurityEvent retention applies, and metadata stays outside the
+six-column UPDATE grant. P03-10 locates and reports retained linkage under the
+same inventory boundary.
 
 ### Erasure authority and first-writer prerequisites
 

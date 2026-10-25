@@ -47,3 +47,16 @@ exposes eligible marketing metadata; lesson publication enables content only und
 the parent/access rules. Restriction does not lower the selected MUST classification.
 `GetCourseSeedStateQuery` and `GetLessonSeedStateQuery` are explicitly Off in
 `EducationAuditCatalogSource`; they declare no synthetic write operation.
+
+## Mapped-property personal-data declarations
+
+P03-1 Step 2 declares current curriculum IDs/scope, publication/access policy,
+locales and authored content as explicit None with purpose in
+[the EF mappings](../../../backend/src/Modules/Education/LearnStack.Modules.Education.Infrastructure/Persistence/Configurations.cs).
+These models hold curriculum definitions, not an individual's attempts or
+progress. Inherited author/change references and stamps follow the
+[common declarations](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership).
+The complete census covers both roots and translation children; a new personal
+reference or learner-state model needs its own reviewed declaration. None is no
+permission to log arbitrary authored text or substitute for later learner-data
+classification and disclosure rules.
