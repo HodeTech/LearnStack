@@ -266,7 +266,7 @@ each packet decided and delivered, as
   - [P02b-7 observer correction review round 2 and source freeze (2026-10-24)](#p02b-7-observer-correction-review-round-2-and-source-freeze-2026-10-24) — 26 lines
   - [P02b-7 review correction qualification (2026-10-24)](#p02b-7-review-correction-qualification-2026-10-24) — 83 lines
   - [P02b-7 merge and closeout (2026-10-25)](#p02b-7-merge-and-closeout-2026-10-25) — 46 lines
-- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,039 lines
+- [P02b-8 — Exit enforcement](#p02b-8--exit-enforcement) — 1,060 lines
   - [P02b-8 decision package (2026-10-25)](#p02b-8-decision-package-2026-10-25) — 246 lines
   - [P02b-8 proposal review round 1 (2026-10-25)](#p02b-8-proposal-review-round-1-2026-10-25) — 24 lines
   - [P02b-8 proposal review round 2 (2026-10-25)](#p02b-8-proposal-review-round-2-2026-10-25) — 32 lines
@@ -290,6 +290,7 @@ each packet decided and delivered, as
   - [P02b-8 correction review round 2 and source freeze (2026-10-25)](#p02b-8-correction-review-round-2-and-source-freeze-2026-10-25) — 44 lines
   - [P02b-8 CI fixture-witness reconciliation (2026-10-25)](#p02b-8-ci-fixture-witness-reconciliation-2026-10-25) — 24 lines
   - [P02b-8 CI witness and SQL-literal corrections, review round 1 (2026-10-25)](#p02b-8-ci-witness-and-sql-literal-corrections-review-round-1-2026-10-25) — 52 lines
+  - [P02b-8 CI corrections, review round 2 and source freeze (2026-10-25)](#p02b-8-ci-corrections-review-round-2-and-source-freeze-2026-10-25) — 21 lines
 - [Status archive](#status-archive) — 112 lines
 
 <!-- END GENERATED INDEX -->
@@ -22009,6 +22010,27 @@ agents. Final census/Corpus selection passes 81/81 and owned PostgreSQL cases
 remain 237/134/103. The fixture declaration, plan, bounds and algorithm do not
 change in this follow-up. Second-round source review and hosted qualification
 remain pending.
+
+### P02b-8 CI corrections, review round 2 and source freeze (2026-10-25)
+
+**Reviewed source:** `93ef4b1881c439a150bb1a8164422e168e4199f7`, tree
+`837daab732414e7840d265e8084ac49eba615786`, against `c399ba52`.
+The failed hosted attempt and first-round correction record above remain the
+owners of the reproduced defects and their bounded claims.
+
+Two fresh, read-only second-round reviewers approve without verified findings:
+`pr37_ci_r2_witness` (GPT-6.1-sol/xhigh) checks the transactional retry and durable
+audit witness against ADR-0047; `pr37_ci_r2_sql` (GPT-6-astra/high) checks escaped
+literal boundaries, conservative continuation refusal, PostgreSQL controls and
+catalogue counts. Neither reviewer claims independent test execution.
+
+The parent independently rebuilds the committed source and runs all 76 census
+cases plus five Corpus controls: 81/81 pass, zero skips. The implementing
+agents' seven PostgreSQL cases and three backlog/business siblings retain their
+separate execution receipts. Both required source-review rounds are complete.
+Production retry policy, timeout bounds, fixture ownership and shard plan are
+unchanged by these corrections. A fresh complete hosted A/B qualification on the
+same source remains required; the earlier failed attempts do not satisfy it.
 
 ## Status archive
 
