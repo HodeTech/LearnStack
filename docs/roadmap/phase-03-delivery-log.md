@@ -15,10 +15,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 197 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 203 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
-  - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 30 lines
+  - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -293,6 +293,12 @@ Two additional Major contract gaps are verified and corrected:
   and ADR-0033 disclosure. Its immutable subject-key attribution is explicitly
   linkable PII under the existing security-audit retention; no new budget waives
   those rows. Normal known-binding reads stage no mutation/audit intent.
+
+Final source reconciliation preserves ADR-0044 § 5's fresh standalone timestamp
+and possible indeterminate pair, instead of introducing an unnecessary global
+key/timestamp exception. User's success reference remains insertion-only; a
+duplicate must match the exact operation/target/subject/outcome, and a durable
+failed row is never evidence that User creation committed.
 
 The subject EF filter and direct baseline catalogue ownership are also explicit;
 no tenant override lookup or new context bypass is inferred for global rows.

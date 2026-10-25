@@ -189,10 +189,13 @@ with its actual failed/indeterminate outcome. Only this captured global creation
 intent can use it; it is no route, generic sentinel writer or tenant assertion
 budget. Existing binding reads stage no mutation intent and create no row.
 
-- Preserve the intent's complete audit key through reconciliation. If unknown
-  COMMIT already carried the success row, verify that exact key, operation, target
-  and subject key before treating a duplicate as positive durability evidence.
-  A uniqueness error by itself cannot validate an unrelated global row.
+- Preserve AuditEntryId and use a fresh standalone timestamp, retaining
+  ADR-0044 § 5's deliberate indeterminate pair. The User's creation reference
+  names the original success key only. A non-success row at its fresh key does
+  not need or replace that successful User witness. If a complete key collides,
+  verify operation, target, subject key and stored outcome before accepting
+  durable evidence. A matching failed row proves failure evidence durable, not
+  a business COMMIT. A uniqueness error cannot validate an unrelated global row.
 - A rolled-back/losing creation has no User witness. Its non-success row is
   deliberately exempt from the success-only reciprocal guard; guards restrict
   it to the verified subject, exact operation and non-success outcome. One
@@ -350,6 +353,8 @@ global-self mutation and its non-success reconciliation are added. Existing
 platform entry, rejected assertions and tenant writes remain intact. A dated
 ADR-0033 disclosure names the global reconciliation extension; its existing
 decide/write/reconcile and standalone failure semantics are preserved.
+ADR-0044 § 5's fresh standalone timestamp and possible indeterminate pair also
+remain: this proposal adds no global key/timestamp exception.
 
 Acceptance appends dated disclosures to ADR-0033/0036/0040/0044/0064/0070, without
 changing Accepted bodies, statuses or dates. ADR-0003's tenant policy remains;
