@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,676 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,709 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -78,7 +78,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 2 review round 2 and qualification handoff (2026-10-27)](#adr-0075-step-2-review-round-2-and-qualification-handoff-2026-10-27) — 24 lines
   - [ADR-0075 Step 3 fresh hosted A/B evidence (2026-10-27)](#adr-0075-step-3-fresh-hosted-ab-evidence-2026-10-27) — 54 lines
   - [ADR-0075 Step 3 review round 1 (2026-10-27)](#adr-0075-step-3-review-round-1-2026-10-27) — 30 lines
-  - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 27 lines
+  - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
+  - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 32 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2840,3 +2841,36 @@ attempts. Proof limits remain explicit: actual source qualification is not
 later documentation-head qualification, signed acquisition chronology or a
 future fit guarantee. No reviewer edits the repository, executes .NET, starts
 services or reruns hosted work.
+
+
+### ADR-0075 three-step closeout (2026-10-27)
+
+All three approved steps and both independent review rounds per step are
+complete. Step 1 records maintainer acceptance, each predecessor's own dated
+amendment and current carriers. Step 2 supplies one verified expected-owner
+policy for ordinary-only twenty-five-minute whole-job/enclosing observations,
+with 81 combined plan/result and 89 launcher controls. Other ceilings, the
+203-second reserve, operation caps, plan, counts, population and resource policy
+stay unchanged.
+
+Step 3 qualifies implementation source `ea114d25` / actual merge `c633763c`
+with complete run 40412041726 A/B: each 27 successful jobs, 6,490 Passed cases,
+zero skips, twenty natural owners and 25 original archives. All fifty originals
+and exact API/result/public/lifecycle evidence are retained and independently
+recomputed in two fresh review rounds. The historical six missing IDs pass in
+both attempts. Observed producer maxima are 938/1,058 seconds; these establish
+neither a minimum ceiling nor future fit.
+
+R2's one minor evidence-label finding is fixed in `468e9c65`. The original
+reporter `adr75_step3_r2_union` and the public/lifecycle reviewer narrowly
+recheck and approve the corrected 85-class SharedSchema versus 131-class
+fixture-bearing populations; no actionable finding remains. No code, plan,
+package or execution changes after qualification. Whole-tree document/index/
+roadmap/lifecycle and whitespace checks pass.
+
+This later documentation closeout has a distinct commit identity and is not
+relabelled as the executed source. Its normal current-head protected checks
+remain mandatory before merge; actual results belong to that check run rather
+than a prediction here. PR #38 remains open for maintainer review and merge.
+No merge is performed. P03-2 is not started; P03-3 still owns new-user HTTP/BFF
+activation. This CI correction changes no application authority or deployment.

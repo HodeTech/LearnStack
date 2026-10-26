@@ -9,11 +9,10 @@
 > `7aabc6d8` passed A but left B incomplete. After accepted
 > [ADR-0075](../decisions/0075-ordinary-ci-job-window.md), implementation source
 > `ea114d25` passes fresh full A/B; the
-> [three-step correction](phase-03-delivery-log.md#adr-0075-acceptance-and-step-1-2026-10-27)
-> is in evidence review. Budget implementation, local controls and both
-> implementation review rounds are complete; two independent hosted-evidence
-> review rounds remain before closeout.
-> Merge review remains required. The
+> [three-step correction](phase-03-delivery-log.md#adr-0075-three-step-closeout-2026-10-27)
+> and both independent review rounds per step are complete. Qualification is
+> source-bound to `ea114d25`; later documentation heads retain their own normal
+> protected checks before merge. PR review and merge remain required. The
 > [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md)
 > is Accepted; existing-binding API admission is implemented. This is the current
 > critical-path phase after
@@ -26,7 +25,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | Implemented; PR review/merge pending — [six-step closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26) and [review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26); [ADR-0075](../decisions/0075-ordinary-ci-job-window.md) Accepted and implemented with both code review rounds complete; source `ea114d25` passes fresh full A/B, evidence review rounds pending; HTTP/new-user BFF activation belongs to P03-3 |
+> | P03-1 | Identity authority and membership foundation | Implemented; PR review/merge pending — [six-step closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26), [review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26) and [ADR-0075 closeout](phase-03-delivery-log.md#adr-0075-three-step-closeout-2026-10-27); source `ea114d25` passes fresh full A/B, both independent review rounds per step complete; normal current-head protected checks remain mandatory; HTTP/new-user BFF activation belongs to P03-3 |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |

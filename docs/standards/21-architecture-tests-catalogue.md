@@ -6294,8 +6294,10 @@ and fixture definitions make the implemented controls non-vacuous.
   **ADR-0075 extension implemented** by the same owners and offline suites:
   exact mode/job/index policy, ordinary-only workflow/API/receipt/measurement
   windows, fixture-preparation identity, unchanged operation caps and forged
-  identity/nonfinite/threshold counterexamples. Phase 03 owns its implementation
-  reviews and fresh complete hosted A/B; local controls do not establish fit.
+  identity/nonfinite/threshold counterexamples. The
+  [Phase 03 closeout](../roadmap/phase-03-delivery-log.md#adr-0075-three-step-closeout-2026-10-27)
+  owns implementation reviews and observed complete hosted A/B; local controls
+  alone do not establish fit and later documentation identities remain distinct.
 - **Phase:** 02b (P02b-4 CI follow-up).
 
 ## References
