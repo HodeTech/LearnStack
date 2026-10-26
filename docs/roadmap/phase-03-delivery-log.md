@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,425 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,453 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -69,7 +69,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 proposal review round 2 (2026-10-26)](#adr-0075-proposal-review-round-2-2026-10-26) — 27 lines
   - [ADR-0075 maintainer review and revised package (2026-10-27)](#adr-0075-maintainer-review-and-revised-package-2026-10-27) — 103 lines
   - [ADR-0075 revised proposal review round 1 (2026-10-27)](#adr-0075-revised-proposal-review-round-1-2026-10-27) — 20 lines
-  - [ADR-0075 revised proposal review round 2 (2026-10-27)](#adr-0075-revised-proposal-review-round-2-2026-10-27) — 24 lines
+  - [ADR-0075 revised proposal review round 2 (2026-10-27)](#adr-0075-revised-proposal-review-round-2-2026-10-27) — 25 lines
+  - [ADR-0075 acceptance and Step 1 (2026-10-27)](#adr-0075-acceptance-and-step-1-2026-10-27) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2580,3 +2581,31 @@ checks pass. Neither reviewer changes files, starts services, executes .NET,
 reruns hosted jobs or repeats archive qualification. This closes the revised
 proposal reviews; maintainer acceptance, implementation reviews and fresh full
 A/B remain required. No twenty-five-minute hosted fit is claimed.
+
+
+### ADR-0075 acceptance and Step 1 (2026-10-27)
+
+**Maintainer acceptance.** The maintainer explicitly approves the revised
+ADR-0075 and three-step plan at `c274fa6e` with “Revize ADR ve planı
+onaylıyorum; uygula”. Acceptance covers the revised interval distinction:
+ordinary enclosing observations follow independently verified 1,500-second job
+identity; nonordinary remains 1,200, actual operation deadlines and the
+203-second reserve stay unchanged. It accepts per-job extra running time and
+no overall workflow-delay or hosted-fit guarantee.
+
+Step 1 records ADR-0075 as Accepted, appends own-record dated amendments to
+ADR-0062 and ADR-0063, moves the index row to Active and reconciles Testing 06,
+Infrastructure Stack 20, the existing CI catalogue Source/Asserts and Phase 03
+Status. Existing catalogue enforcement stays Implemented; its ADR-0075 extension
+is explicitly pending implementation. Historical Accepted bodies/metadata and
+prior delivery records remain intact. No workflow, plan or executable budget
+changes occur in this step.
+
+The [revised package](#adr-0075-maintainer-review-and-revised-package-2026-10-27)
+is now the accepted three-step implementation authority. Each step receives a
+commit and two fresh independent review rounds, with verified fixes committed
+and revalidated before advancing. Step 2 implements and locally proves the
+closed expected-owner policy; Step 3 requires fresh complete same-final-source
+A/B and independent original-evidence cross-audit. Earlier A and failed B remain
+historical evidence and do not qualify the changed source. Acceptance is neither
+implementation nor actual twenty-five-minute hosted fit.

@@ -117,13 +117,13 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0072 | [Application-Owned Identity Bootstrap](0072-application-owned-identity-bootstrap.md) | Accepted jointly with ADR-0073 on 2026-10-25: stable authority/digest binding, prepared common global creation/audit and route-independent existing-binding admission. New-user HTTP/BFF activation remains P03-3; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns implementation and qualification state. |
 | 0073 | [Scoped Membership and Identity Data Foundation](0073-scoped-membership-and-identity-data-foundation.md) | Accepted jointly with ADR-0072 on 2026-10-25: contained Membership state, tenant-wide Role templates, finite manifests, fresh administration invariants and semantic PII census. No live authorization or production first-admin path is activated by acceptance. |
 | 0074 | [Membership Admission Under Ordered Locks](0074-membership-admission-under-ordered-locks.md) | Accepted 2026-10-26: creation/reactivation and every assignment addition retain User-before-tenant fences; the real mutation trigger freshly verifies eligibility under the complete preheld plan. No reader, scope or grant is added; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current implementation and qualification state. |
+| 0075 | [Ordinary CI Job Window](0075-ordinary-ci-job-window.md) | Accepted 2026-10-27: ordinary-only twenty-five-minute whole-job and expected-owner observation bounds, with own-record ADR-0062/0063 amendments. Other ceilings, counts, assignment, reserves and resource policy stay fixed; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns implementation and fresh A/B qualification state. |
 
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0075 | [Ordinary CI Job Window](0075-ordinary-ci-job-window.md) | Proposed ordinary-only exception to ADR-0063 and ADR-0062 Amendment 1: 25-minute whole-job window with expected-owner observation bounds; counts, assignment, reserves, resource policy and other ceilings stay fixed | Maintainer approval before any budget implementation; fresh final-source A/B qualification before PR #38 closeout |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

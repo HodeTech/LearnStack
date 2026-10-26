@@ -39,6 +39,9 @@ owns review, packet and exact PR-head CI/job-budget status),
 [ADR-0063 Complete Bounded CI Test Shards](../decisions/0063-complete-bounded-ci-test-shards.md)
 (Accepted 2026-10-18; general CI obligation implemented; the phase record owns
 final-source hosted qualification),
+[ADR-0075 Ordinary CI Job Window](../decisions/0075-ordinary-ci-job-window.md)
+(Accepted 2026-10-27; the ordinary-budget extension below awaits implementation
+and fresh full hosted qualification),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
 (Accepted 2026-10-19; P02b-5 obligations implemented and merged through PR #33;
 the [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
@@ -6270,7 +6273,12 @@ and fixture definitions make the implemented controls non-vacuous.
   Pending-only API acquisition validates each fresh complete snapshot under
   one finite deadline; it never combines responses or retries terminal,
   malformed, missing, duplicate or identity-invalid evidence.
-- **Source:** [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md).
+  The ADR-0075 extension binds the ordinary-only twenty-five-minute whole-job
+  and enclosing observation bounds to verified expected producer identity;
+  other producers retain twenty minutes, operation caps and the 203-second
+  reserve stay fixed. Forged modes/partitions cannot select a longer window.
+- **Source:** [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md),
+  [ADR-0075](../decisions/0075-ordinary-ci-job-window.md).
 - **Type:** actual Python plan/owner subprocess controls and workflow/API/hosted
   result proofs. **Kind:** structural + behavioural.
 - **Status:** **Implemented** — `scripts/ci-test-shards.py`,
@@ -6283,6 +6291,9 @@ and fixture definitions make the implemented controls non-vacuous.
   gates/toolchain/resource fields, partial-rerun refusals and canonical-name
   collisions. The phase's Step 3 record separately owns actual final-source
   two-assignment hosted qualification; source enforcement is not a fit claim.
+  **ADR-0075 extension accepted; implementation pending** in Phase 03's
+  three-step CI correction. The existing Implemented status does not establish
+  the extension or its hosted fit.
 - **Phase:** 02b (P02b-4 CI follow-up).
 
 ## References

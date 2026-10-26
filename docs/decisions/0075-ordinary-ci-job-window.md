@@ -2,19 +2,24 @@
 
 ## Status
 
-Proposed
+Accepted — 2026-10-27.
 
 **Date:** 2026-10-26
-**Deciders:** Maintainer — pending approval.
+**Deciders:** @cemil
 **Bounded supersession:** Only the twenty-minute ordinary Docker execution
 clauses in ADR-0063 and the inherited requirement in ADR-0062 Amendment 1.
 
-This proposal requires maintainer acceptance before implementation. It authorizes
-no present ceiling change. ADR-0062 and ADR-0063 remain Accepted; their other
-decisions remain in force. On acceptance, each receives its own dated amendment
-recording the ordinary-only exception and linking here; native execution keeps
-twenty minutes. This is a changed policy, not an erratum; this proposal does
-not edit either Accepted record.
+**Maintainer acceptance — 2026-10-27.** The maintainer approves the revised ADR
+and three-step plan at `c274fa6e` and authorizes dependent implementation on
+`development`: only verified ordinary Docker producers receive the twenty-five-minute
+whole-job window. ADR-0062 and ADR-0063 retain their Accepted bodies and metadata
+with their own dated ordinary-only amendments; native, base and Architecture
+execution retain twenty minutes. All other decisions and retained boundaries
+remain in force. This is a bounded policy change, not an erratum.
+Acceptance, implementation, two fresh independent review rounds per step and
+fresh same-final-source hosted A/B qualification remain separate gates. The
+[acceptance and Step 1 record][acceptance-record] owns the approval receipt and
+dependent delivery evidence; acceptance claims no executable change or hosted fit.
 
 ## Decision Drivers
 
@@ -297,3 +302,4 @@ second application-test catalogue name for a CI policy.
 [native-ci]: 0062-native-crash-proof-ci-provisioning.md
 [ci-rule]: ../standards/21-architecture-tests-catalogue.md#ci_test_shards_are_complete_and_bounded
 [revised-package]: ../roadmap/phase-03-delivery-log.md#adr-0075-maintainer-review-and-revised-package-2026-10-27
+[acceptance-record]: ../roadmap/phase-03-delivery-log.md#adr-0075-acceptance-and-step-1-2026-10-27
