@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,181 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,225 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -45,6 +45,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0074 maintainer review correction and acceptance (2026-10-26)](#adr-0074-maintainer-review-correction-and-acceptance-2026-10-26) — 52 lines
   - [P03-1 Step 4 — Contextual foundation and owned seed (2026-10-26)](#p03-1-step-4--contextual-foundation-and-owned-seed-2026-10-26) — 90 lines
   - [P03-1 Step 4 review round 1 (2026-10-26)](#p03-1-step-4-review-round-1-2026-10-26) — 25 lines
+  - [P03-1 Step 4 review round 2 and diagnostic correction (2026-10-26)](#p03-1-step-4-review-round-2-and-diagnostic-correction-2026-10-26) — 44 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1311,3 +1312,50 @@ configuration-continuity caveat rather than a demonstrated authority bypass.
 No speculative runtime change follows from those candidates. Full source/shard/
 integrated provider qualification remains Step 6. Document/corpus checks qualify
 the verified correction before a second fresh full-step review round.
+
+### P03-1 Step 4 review round 2 and diagnostic correction (2026-10-26)
+
+**Reviewed source:** `9c9ec4a7`. Two new independent read-only reviewers inspect
+storage/SQL/privileges/ordered-lock behavior (GPT-6 Astra, xhigh) and
+Application/Domain/tooling/privacy/corpus boundaries (GPT-6.1 Sol, xhigh). Both
+approve their assigned runtime scopes. Neither edits files or executes tests.
+Verified Minor corrections reconcile Standard 19's already implemented types
+and Standard 05's contextual table-class and current grant inventories.
+
+The Application review also identifies an evidence gap: the current module
+inventory overstates Step 2's sink proof. Classification and generic baseline
+controls do not establish neutral/nested value exclusion at Identity's actual
+writer boundary. The Accepted package requires that proof before those writers;
+it is completed here before Step 4 closes, rather than moved to Step 6. The
+earlier review's absence of a demonstrated leak is not a safety proof.
+
+New source-reaching tests demonstrate a real failure before the correction:
+PostgreSQL returns neutral/nested/sensitive synthetic values from a tracked
+profile write, with provider error detail disabled. EF's pre-adapter event 10000
+(`SaveChangesFailed`) puts neutral/nested values into serialized Serilog and
+the actual Sentry SDK envelope. The initial two-case run has one failure and
+one passing validation control. Local archive and response exclusion alone do
+not establish safety for the other sinks. This negative receipt is retained
+separately from the subsequent successful run.
+
+The narrow fix replaces only IdentityDbContext's EF save-failure event with
+fixed event 3191 (`IdentityStorageSaveFailed`), retaining ordinary command
+diagnostics and other modules' save-failure events. Unexpected contextual
+provider/save/preflight failures become a fixed provider exception with no
+original inner payload; owned conflict/target/plan classifications and caller
+cancellation retain their existing behavior. The global binding adapter keeps
+its existing fixed failure boundary. No general logging scrub, new authority,
+grant, schema or HTTP operation is introduced.
+
+Eight focused actual Integration cases pass with zero skips: immediate and
+deferred profile failures, global binding failure, sibling-module confinement,
+real validator attempted-value exclusion, and existing success/owned-conflict/
+cancellation controls. Provider-side witnesses establish source reach; nonempty
+positive controls establish serialized Serilog, real local archive, real Sentry
+SDK envelope and L1 response execution before every canary exclusion assertion.
+Sentry delivery uses an in-memory transport; the actual SDK serializes its
+envelope, and the existing L1 handler writes response bytes directly. No remote
+Sentry delivery or production HTTP endpoint is claimed. All 51 affected
+Architecture and 191 affected Unit controls pass, with zero skips. Fresh scoped independent verification
+of this correction remains required before local Step 4 closeout; complete
+source/shard/provider qualification remains Step 6.

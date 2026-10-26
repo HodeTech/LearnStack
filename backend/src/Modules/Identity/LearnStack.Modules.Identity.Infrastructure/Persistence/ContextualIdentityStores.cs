@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Data.Common;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Application.Abstractions;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
@@ -45,6 +46,11 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
             unit.MarkRollbackOnly();
             throw new IdentityFoundationStorageException(IdentityFoundationStorageFailure.Conflict);
         }
+        catch (Exception failure) when (failure is DbUpdateException or DbException or TimeoutException)
+        {
+            unit.MarkRollbackOnly();
+            throw new IdentityStorageProviderException();
+        }
         catch
         {
             unit.MarkRollbackOnly();
@@ -71,6 +77,11 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
         {
             unit.MarkRollbackOnly();
             throw Translate(failure);
+        }
+        catch (Exception failure) when (failure is DbException or TimeoutException)
+        {
+            unit.MarkRollbackOnly();
+            throw new IdentityStorageProviderException();
         }
     }
 

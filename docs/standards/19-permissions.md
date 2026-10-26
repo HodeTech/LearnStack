@@ -101,7 +101,8 @@ Permissions are declared in code. Module definition sources compose the availabl
 scoped capabilities; registration grants nothing to existing Roles. The accepted
 [manifest composition contract](#immutable-admin-kernel-and-one-manifest-source)
 supplies finite initial grants and the admin kernel from one versioned source.
-Its named types await Step 4; no `IModule` interface is introduced.
+Its finite manifest and scoped definition types are implemented in P03-1
+Step 4; no `IModule` interface is introduced.
 
 Rules:
 

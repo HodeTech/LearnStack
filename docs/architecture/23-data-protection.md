@@ -86,6 +86,19 @@ consumer or P03-6/G10 owns the minimum mirror fields and freshness contract befo
 their writer. Snapshot markers, diagnostic controls and semantic classification
 remain separate requirements; none implies general exception-message scrubbing.
 
+`IdentityDiagnosticSinkTests` exercises real tracked profile writes and global
+binding creation with provider-generated, value-bearing failures. Neutral,
+nested and sensitive canaries reach PostgreSQL before exclusion is checked in
+serialized Serilog, the local error archive, the real Sentry SDK envelope and
+L1 response bytes. Nonempty positive controls qualify each output. Immediate
+and deferred profile failures, the global binding boundary, real validator
+attempted values and sibling-module event confinement are separate controls.
+Identity replaces only its EF save-failure event with a fixed diagnostic;
+unexpected contextual provider failures retain no original exception payload.
+Ordinary command diagnostics and other modules' EF failure events remain active.
+These cases qualify the named Identity boundaries, not arbitrary exception text
+throughout the application.
+
 ## Rights We Support
 
 The capabilities below are the engineering primitives. The tenant-facing data-protection UX (consent forms, privacy policy, DSAR portal) is built on top.

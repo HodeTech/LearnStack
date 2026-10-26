@@ -573,12 +573,13 @@ hole the composite key exists to close.
 Not every table in the tenancy schema is tenant-owned, and applying the template above
 to all of them produces a deadlock rather than isolation. Seven classes are
 adopted, and every migration states which one its table is. The applied schema
-contains all seven after P03-1 Step 3. Identity contextual tables remain Step 4.
+contains all seven after P03-1 Step 3. Step 4 adds contextual Identity tables
+under the existing tenant-wide and organization-scoped classes.
 
 | Class | Rule | Tables |
 |---|---|---|
-| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — `event_deliveries` (P02b-3 Step 1), `background_jobs`, `background_job_attempts`, `background_job_recipients` (P02b-4 Step 2), and `audit_log`, which Packet 9 added ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)); P02d-1 Step 2 adds `courses`, `lessons` and both translation tables |
-| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `inbox_messages` (P02b-3 Step 1), `background_job_capacity`, `background_job_reservations` (P02b-4 Step 2), `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)) |
+| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — `event_deliveries` (P02b-3 Step 1), `background_jobs`, `background_job_attempts`, `background_job_recipients` (P02b-4 Step 2), and `audit_log`, which Packet 9 added ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)); P02d-1 Step 2 adds `courses`, `lessons` and both translation tables; P03-1 Step 4 adds `memberships`, `membership_profiles` and `membership_role_assignments` |
+| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `inbox_messages` (P02b-3 Step 1), `background_job_capacity`, `background_job_reservations` (P02b-4 Step 2), `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)); P03-1 Step 4 adds `roles` and `role_permission_grants` |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
 | **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes have exact declared owners | `platform_host_to_tenant`, `platform_killswitches`, `identity_authority` (P03-1 Step 3) |
 | **Infrastructure control** | `ENABLE` + `FORCE`, no app policy or privilege; enumerated confined bypass control access under ADR-0047 | `background_job_recurrences`, `background_job_occurrences` |
@@ -1050,12 +1051,17 @@ that bound.
 `—` means no privilege. `learnstack_migration` owns every table, which carries all
 privileges implicitly. The matrix records current applied grants. Global
 [Identity grants/functions](#global-owners-and-privileges) are implemented in
-Step 3; contextual Membership/Role extensions remain Step 4.
+Step 3; contextual Membership/Role grants are implemented in Step 4.
 
 | Table | `learnstack_app` | `learnstack_platform` | `learnstack_outbox_admin` |
 |---|---|---|---|
 | `identity_authority` | `SELECT` | — | — |
 | `users` | `SELECT` and only the [initial INSERT columns](#global-owners-and-privileges); no UPDATE/DELETE/TRUNCATE | — | — |
+| `memberships` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
+| `membership_profiles` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
+| `membership_role_assignments` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
+| `roles` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
+| `role_permission_grants` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
 | `tenants` | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `organizations` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `tenant_domains` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |

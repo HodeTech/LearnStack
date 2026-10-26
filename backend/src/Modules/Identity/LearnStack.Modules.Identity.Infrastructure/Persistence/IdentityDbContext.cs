@@ -5,6 +5,7 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 
@@ -32,6 +33,16 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
         && current.Descriptor.ContextType == typeof(IdentityDbContext)
         && current.Descriptor.EntityType == typeof(User)
             ? current.Descriptor.Subject.SubjectKey : IdentitySubjectKey.FromBytes(new byte[32]);
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        // EF reports the original provider payload before the Identity adapter
+        // can translate it. Replace only this context's save-failure event;
+        // ordinary command diagnostics and other module contexts stay enabled.
+        optionsBuilder.ConfigureWarnings(warnings => warnings.Ignore(CoreEventId.SaveChangesFailed));
+        optionsBuilder.AddInterceptors(IdentityStorageDiagnostics.Instance);
+    }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
