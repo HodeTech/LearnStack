@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,733 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,806 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -57,6 +57,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 6 review round 2 and complete parent-stack correction (2026-10-26)](#p03-1-step-6-review-round-2-and-complete-parent-stack-correction-2026-10-26) — 41 lines
   - [P03-1 Step 6 correction approvals and first hosted assignment (2026-10-26)](#p03-1-step-6-correction-approvals-and-first-hosted-assignment-2026-10-26) — 48 lines
   - [P03-1 Step 6 measured timing revision (2026-10-26)](#p03-1-step-6-measured-timing-revision-2026-10-26) — 39 lines
+  - [P03-1 Step 6 qualification closeout and PR handoff (2026-10-26)](#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26) — 73 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1875,3 +1876,76 @@ test-process versus case-body differences and unobserved fixture costs remain
 separate. The failed browser observation is not reduced into a cheaper positive
 weight. Both full variants on the new final source remain required; neither
 these estimates nor the preceding-head successes establish fit or close Step 6.
+
+### P03-1 Step 6 qualification closeout and PR handoff (2026-10-26)
+
+All six implementation steps complete their two fresh independent review rounds.
+Verified correction reviews approve `3754e4ea`; supplemental reviews approve the
+bounded browser fixture change `e05ba3ad` and timing revision `193d61cc`.
+The preceding entries retain failed runs, actual corrections and proof limits.
+No new decision or implementation scope is inferred from a passing test.
+
+The final implementation source is `193d61cc17ab66e9c392039d5da2ad112b33bb8f`.
+[Run 40274315368](https://github.com/HodeTech/LearnStack/actions/runs/40274315368)
+completes **attempt 1 (A) and attempt 2 (B)** on that same source, workflow,
+reviewed plan, test population, SDK/console and adapter identities. Both full
+attempts have **27/27 successful jobs**, including the seven required contexts.
+Each supplies 25 immutable, API-digest-verified artifacts and twenty producer
+packages with complete natural ownership/cleanup, no forced stop, exact actual
+TRX/completed-case identities and zero skips. Pure production aggregate
+validators independently reproduce both protected results from retained data;
+this does not simulate hosted execution on the workstation.
+
+Each attempt passes **6,437 .NET cases**:
+
+- 2,770 Unit, 570 Architecture, 306 offline Integration and five Contract cases;
+- 2,755 ordinary Docker and 31 native cases.
+
+Both complete frontend guards independently report **2,380 Passed in two
+packages**, zero skips/todos, with lint, typecheck, production build and native
+ingress controls. Both actual public-demo receipts qualify nine linked pages,
+27 Lighthouse JSON/HTML report pairs, budgets and completed process/Compose/
+private-file/environment/lock cleanup. Actual provider/native tests remain
+separate from mocked protocol unit controls; serialized Sentry/telemetry proof
+does not claim remote delivery or full manual accessibility coverage.
+
+The two assignments genuinely change selector co-membership: A-only/B-only pairs
+are **6,143/6,469 Architecture**, **61,057/66,502 ordinary** and **60,766/66,203
+shared-fixture**. Base/native membership stays identical. The longest complete
+job is **997s in A / 976s in B**, within the existing applicable ceilings.
+The real browser positive/history-counter and two-host warm-realm refresh/logout
+journeys pass under both arrangements. These successes do not retrospectively
+establish the lower-level cause of the first hosted browser failure.
+
+The plan digest is
+`7e3357bf961f6ed215a306a72d8b616c7bf7462b098205c1094885d422062804`;
+manifest digest is
+`29ded01d790e2f1ecdcc4dc73c349d67e52206afa4034c4e1240c751278be2b5`.
+Retained full verification receipts hash to
+`8572744e36430812c476c8e59ef2ba9c77c262bb2038e03bf640652b2b595161`
+(A) and
+`b0cc4a5c0eff90852f5de763ff94c39ec1e79496f27d4d1a8cd23d089278d0e9`
+(B). Original API metadata, archives, raw result rows and reports retain their
+own source/attempt identity rather than being relabeled as another head.
+
+The independent accounting reviewer verifies both attempts directly: all fifty
+archive digests/sizes, package byte equality, actual TRX/JSONL/discovery outcomes,
+disjoint artifact identities, natural cleanup, toolchain hashes, native/provider/
+browser witnesses, public-demo report hashes and the three co-membership
+comparisons. The cross-attempt audit reports no finding and explicitly limits
+its qualification to `193d61cc`.
+
+Only closeout evidence/status documentation changes after the qualified
+implementation source. The final documentation head requires normal complete
+PR qualification; the recorded A/B receipts remain explicitly bound to
+`193d61cc`. The PR comparison uses `origin/main`, including the already recorded
+ancestry reconciliation, and every non-merge commit passes the actual strict
+commit-message hook. No branch switch, published-history rewrite or unrelated
+worktree cleanup is performed.
+
+P03-1 delivers audited global storage/common creation, contextual storage/seed,
+existing-binding admission and privacy/diagnostic foundation. It opens no new
+HTTP/SDK operation. Live membership/permission execution remains P03-2; usable
+new-user HTTP/BFF onboarding remains P03-3; production first-admin/rebind and
+global closure/redaction remain P03-9/P03-10. P03-2 is the next packet, not part
+of this implementation. The phase Status block owns review/merge state.

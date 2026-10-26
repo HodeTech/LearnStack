@@ -1,10 +1,12 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
 > **Status (2026-10-26).** Entry preparation and P03-1's joint ADR approval
-> are complete. Steps 1–5 are locally complete with both review rounds. The
+> are complete. P03-1's six implementation steps and both review rounds are
+> complete; its implementation source has passed complementary full A/B
+> qualification ([Step 6 closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26)).
+> PR review and merge remain pending. The
 > [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md)
-> is Accepted; existing-binding API admission is implemented, and final
-> qualification is Step 6. This is the current
+> is Accepted; existing-binding API admission is implemented. This is the current
 > critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md).
 > The [decision register](#the-decision-register) owns gate state;
@@ -15,7 +17,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Steps 1–5 locally complete with both review rounds ([Step 5 closeout](phase-03-delivery-log.md#p03-1-step-5-review-round-2-and-local-closeout-2026-10-26)); final source-bound qualification is Step 6; HTTP/new-user BFF activation belongs to P03-3 |
+> | P03-1 | Identity authority and membership foundation | Implemented and qualified — [six-step closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26); PR review/merge pending, with normal current-head checks required; HTTP/new-user BFF activation belongs to P03-3 |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
