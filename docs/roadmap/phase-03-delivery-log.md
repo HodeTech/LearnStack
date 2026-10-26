@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,646 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,694 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -55,6 +55,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 6 review round 1 and carrier correction (2026-10-26)](#p03-1-step-6-review-round-1-and-carrier-correction-2026-10-26) — 36 lines
   - [P03-1 Step 6 full ordinary failures and bounded corrections (2026-10-26)](#p03-1-step-6-full-ordinary-failures-and-bounded-corrections-2026-10-26) — 78 lines
   - [P03-1 Step 6 review round 2 and complete parent-stack correction (2026-10-26)](#p03-1-step-6-review-round-2-and-complete-parent-stack-correction-2026-10-26) — 41 lines
+  - [P03-1 Step 6 correction approvals and first hosted assignment (2026-10-26)](#p03-1-step-6-correction-approvals-and-first-hosted-assignment-2026-10-26) — 48 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1786,3 +1787,51 @@ complete source-bound qualification or imply packet closeout.
 An additional **77/77 Integration** startup/worker/binding/diagnostic cases and
 **28/28 Architecture** cases pass, zero skips. These selections remain separate
 receipts; overlapping earlier populations are not added into a new suite total.
+
+### P03-1 Step 6 correction approvals and first hosted assignment (2026-10-26)
+
+Both second-round reviewers independently approve correction commit `3754e4ea`.
+They verify source/artifact hashes, the exact two negative failures, corrected
+rows and historical SQL equality without executing tests themselves. No concrete
+actionable source finding remains in those correction verifications. Complete
+Release compilation passes with zero warnings/errors. Fresh local Unit **2,770**,
+offline Integration **306** and Contract **five** cases pass with zero skips.
+Actual Release discovery contains **6,437** unique cases: 3,651 non-Docker and
+2,786 Docker (2,755 ordinary plus 31 native). Both assignments cover the exact
+population once and genuinely change co-membership. Local discovery is not a
+hosted-execution or wall-fit receipt.
+
+The first complete hosted A assignment is
+[run 40270967586, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/40270967586),
+on `3754e4ea`. **24 jobs succeed; ordinary-6, ordinary-9 and the Integration
+aggregate fail.** All Architecture pieces, the backend aggregate, native proof,
+frontend, meta, secret scan, OpenAPI and public demo pass. Retained immutable
+archives and actual case IDs show **6,401 Passed, one Failed and 35 without a
+result**. No complete-suite success is inferred from the passing pieces.
+
+Both ordinary owners reach their unchanged deadline and require forced cleanup.
+Ordinary-6 continues to pass renderer cases until 31.66 seconds before that
+deadline; its remaining serialized public/diagnostic cases are queued. Actual
+fresh account fixtures also successfully qualify Identity startup. Two read-only
+source/evidence investigations find no shared Identity startup deadlock. This
+does not prove that every unfinished case started. The original artifacts and
+incomplete cleanup/ownership outcomes remain intact.
+
+Ordinary-9 additionally contains a real browser failure after 28.38 seconds:
+`browser-devtools-missing`. The owned stock Chrome remains live during the
+ten-second readiness window but does not create its port file. This is before
+CDP attachment, page navigation or authentication. The lower-level cause is not
+established by the closed diagnostic; it is not labeled transient or repaired
+by a blind retry.
+
+A separate verified fixture dependency is corrected: the BFF browser now uses
+`--password-store=basic` and `--use-mock-keychain`, matching the existing admission
+fixture and
+[Chrome 155's own test launcher](https://chromium.googlesource.com/chromium/src/+/refs/tags/155.0.8059.39/chrome/test/base/test_launcher_utils.cc#56).
+Chrome's source explicitly avoids native password-store UI/timeouts in tests.
+This two-line isolation correction changes no sandbox, HOME, readiness or
+cleanup limit and adds no fallback. It does not establish causality for the
+first hosted browser failure. Existing focused frontend controls pass **89/89**;
+the actual local browser positive/history-counter case passes **1/1**, zero
+skips. Actual Ubuntu browser and complete complementary A/B execution remain
+required before closeout.
