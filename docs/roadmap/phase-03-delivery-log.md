@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,467 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,480 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -71,7 +71,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 revised proposal review round 1 (2026-10-27)](#adr-0075-revised-proposal-review-round-1-2026-10-27) — 20 lines
   - [ADR-0075 revised proposal review round 2 (2026-10-27)](#adr-0075-revised-proposal-review-round-2-2026-10-27) — 25 lines
   - [ADR-0075 acceptance and Step 1 (2026-10-27)](#adr-0075-acceptance-and-step-1-2026-10-27) — 28 lines
-  - [ADR-0075 Step 1 review round 1 (2026-10-27)](#adr-0075-step-1-review-round-1-2026-10-27) — 13 lines
+  - [ADR-0075 Step 1 review round 1 (2026-10-27)](#adr-0075-step-1-review-round-1-2026-10-27) — 14 lines
+  - [ADR-0075 Step 1 review round 2 and closeout (2026-10-27)](#adr-0075-step-1-review-round-2-and-closeout-2026-10-27) — 12 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2624,3 +2625,16 @@ scope, accepted index/status, pending catalogue extension and separation of
 acceptance from implementation/hosted fit. Document, lifecycle and whitespace
 checks pass. Neither reviewer mutates files, starts services, executes .NET or
 revalidates original hosted evidence. Fresh second-round review remains.
+
+
+### ADR-0075 Step 1 review round 2 and closeout (2026-10-27)
+
+Fresh reviewers `adr75_step1_r2_records` (GPT-6 Astra, high) and
+`adr75_step1_r2_contract` (GPT-6.1 Sol, high) independently inspect
+`c274fa6e..7dc3f8b7`; both approve with no actionable finding. Both reconstruct
+predecessor bytes, check the accepted amendment texts and verify every carrier
+keeps implementation and new hosted fit pending. Historical delivery text is
+preserved outside its generated index. Lifecycle, fragments, roadmap/index and
+whitespace checks pass. Neither executes runtime tests, starts services or
+requalifies archives. Step 1 is complete; Step 2 may now implement the approved
+closed policy. This closeout supplies no executable or hosted-fit evidence.
