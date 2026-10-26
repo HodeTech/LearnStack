@@ -1471,7 +1471,7 @@ changes `xmin` while leaving `row_version` intact.
   still uses it is not a valid
   rollback order. Fresh application, reversed application and reapplication belong
   to the migration-chain integration proof.
-- Accepted ADR-0072's sixth Identity chain additionally requires Audit before
+- Accepted ADR-0072's sixth migration chain (Identity) additionally requires Audit before
   invoking the [central creation-witness installer](#lock-snapshot-and-adoption-conditions).
   Step 3 implements recipe/fixture ordering and applied-schema proof. Disposable
   reversal removes Identity before Audit; live recovery stays forward-only.

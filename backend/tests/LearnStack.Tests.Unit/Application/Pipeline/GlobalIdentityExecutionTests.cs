@@ -79,6 +79,24 @@ public sealed class GlobalIdentityExecutionTests
     }
 
     [Fact]
+    public async Task Missing_global_classification_releases_the_prepared_owner_before_returning_the_deployment_error()
+    {
+        var fixture = new Fixture(classified: false);
+        await using var owner = await fixture.PrepareAsync();
+        owner.AdmitSerializedAbsence();
+        var result = await fixture.Audit.ExecuteGlobalIdentityAsync<Result<UserId>>(owner,
+            _ => throw new InvalidOperationException("Unclassified creation cannot dispatch."));
+        result.Error!.Code.Should().Be(AuditErrors.UnclassifiedOperation.Code);
+        fixture.Unit.HasActiveTransaction.Should().BeFalse();
+        fixture.Trace.Should().Equal("begin", "lock", "dispose");
+        fixture.Capture.Intents.Should().BeEmpty();
+        fixture.Capture.HasOpenFrame.Should().BeFalse();
+        fixture.Guids.DidNotReceive().NewUuidV7();
+        fixture.Pending.Should().BeEmpty();
+        fixture.Reconciled.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Preparation_locks_without_allocating_or_declaring_and_disposal_releases_the_original_owner()
     {
         var fixture = new Fixture();
@@ -243,7 +261,7 @@ public sealed class GlobalIdentityExecutionTests
         public AuditExecutionCoordinator Audit { get; }
         public TransactionExecutionCoordinator Transaction { get; }
 
-        public Fixture()
+        public Fixture(bool classified = true)
         {
             _descriptor = DescriptorSource.Create(new GlobalIdentitySubject(
                 IdentityAuthorityId.From(Guid.Parse("10000000-0000-7000-8000-000000000001")),
@@ -319,6 +337,7 @@ public sealed class GlobalIdentityExecutionTests
                     OperationType.SecurityEvent, OperationClass.Must, typeof(User)),
                 }
             };
+            if (!classified) catalog = new FakeCatalog();
             Audit = new AuditExecutionCoordinator(catalog, new FakeClassifier(), Capture, store,
                 UnresolvedTenantContext.Instance, clock, Guids, NullLogger<AuditExecutionCoordinator>.Instance, Unit);
             var producer = new ProducerExecution(Unit);

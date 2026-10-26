@@ -154,7 +154,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**302 test methods run in
+**303 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -1571,9 +1571,11 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 #### `Migrate_Target_Applies_The_Tenancy_Chain_First`
 
-- **Asserts:** the `migrate` recipe visits Tenancy before Audit and Education.
-  Education's four organization-immutability triggers call Tenancy's shared function
-  (P02d-1). The two dependent-first companions exercise and repair the same detector.
+- **Asserts:** the `migrate` recipe visits Tenancy before Audit and Education,
+  and Audit before Identity. Education's four organization-immutability triggers
+  call Tenancy's shared function (P02d-1); ADR-0072's Identity chain invokes the
+  [central creation-witness installer](05-database.md#lock-snapshot-and-adoption-conditions)
+  after Audit. The three dependent-first companions exercise and repair the same detector.
   From Phase 02a Packet 9 the chains are no longer independent — `audit_config`
   carries the schema's only foreign key crossing two chains, to `tenants` — and the
   recipe's project list is a glob that expands alphabetically, with `Modules/Audit`
@@ -1594,11 +1596,12 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   named rule the only thing that catches it.
 - **Source:** [05-database.md § Migrations](05-database.md); the `migrate` target.
 - **Type:** xUnit + Makefile and directory inspection. **Kind:** structural.
-- **Status:** **Implemented** (Packet 9 step 3; expanded in P02d-1 Step 2,
-  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
-  Mutation-checked: deleting the Tenancy prefix fails this case; the Audit-first and
-  Education-first companions each exercise and repair the same order detector.
-- **Phase:** 02a (Packet 9); expanded in 02d (P02d-1).
+- **Status:** **Implemented** (Packet 9 step 3; expanded in P02d-1 Step 2 and
+  P03-1 Step 3, `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  Mutation-checked: deleting the Tenancy prefix fails this case; the Audit-first,
+  Education-first and Identity-before-Audit companions each exercise and repair
+  the same order detector.
+- **Phase:** 02a (Packet 9); expanded in 02d (P02d-1) and 03 (P03-1).
 
 #### `Migrate_Target_Refuses_An_Aliased_Runtime_Credential`
 
@@ -1809,21 +1812,29 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 - **Asserts:** two halves. The composition root's persistence registration is run,
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
-  its own connection. And under `backend/src`, exactly **eight** files may reach for a
-  connection at all: the five design-time factories — one per migration chain, where a
-  connection string is the point; the shared helper, which passes a *connection*; and the
-  API's separately guarded platform-role builder; and the shared application-role
-  builder used by both the API and the one-shot seeder. A ninth is a new decision.
+  its own connection. Under `backend/src`, the configuration/construction scan
+  admits exactly **eleven** files: six design-time factories, one per migration
+  chain; `ModuleDbContextRegistration`, which passes a *connection*;
+  `PersistenceCompositionExtensions`, with the guarded platform-role builder;
+  `ApplicationDataSource`, shared by the API and one-shot Seeder;
+  ADR-0046's confined `OutboxDispatcherDataSource`; and ADR-0072's deployment-only
+  `LearnStack.Tools.IdentityAuthorityInstaller/Program.cs`. Another construction
+  site requires its owning decision and an explicit allow-list change.
   A context on its own connection never saw the announcement, so every read through
   it returns zero rows under the corrected policy — silently.
 
   The set is keyed on `directory/filename`, not the bare filename: two files with
-  the same name cannot silently share a sanctioned construction site.
-- **Source:** ADR-0040; [05-database.md § Forbidden](05-database.md).
+  the same name cannot silently share a sanctioned construction site. The lexical
+  scan covers `UseNpgsql`, `AddDbContext`, data-source builders/factories and raw
+  connection constructors. Connection acquisition from an already configured
+  source remains governed by its named owner contract.
+- **Source:** ADR-0040; ADR-0046's confined dispatcher; ADR-0072's deployment
+  authority installer; [05-database.md § Forbidden](05-database.md).
 - **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6; the allow-list widened to five and
   keyed by directory in Packet 7 step 10, to six in Packet 8 step 3 and to seven in
-  Packet 9 step 3 and eight in P02d-1 step 2, `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  Packet 9 step 3, eight in P02d-1 step 2 and eleven with the ADR-0046/0072
+  construction sites, `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
 - **Phase:** 02a (Packet 6).
 
 #### `The_registration_marker_does_not_vouch_across_containers`

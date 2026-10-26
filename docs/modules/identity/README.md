@@ -1,7 +1,7 @@
 # Identity — Module Specification
 
-**Status: Global/contextual storage, common audit and seed handoff are
-implemented; existing-binding API admission is under qualification.** Derived from
+**Global/contextual storage, common audit, seed handoff and existing-binding API
+admission are implemented.** Derived from
 jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
 and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md),
 2026-10-25. The global User/authority model, internal binding/adoption consumers
@@ -11,7 +11,7 @@ owns current qualification and review state. New
 HTTP/native-user activation remains P03-3.
 The ordered admission timing/observation contract additionally derives from
 [ADR-0074](../../decisions/0074-membership-admission-under-ordered-locks.md),
-Accepted 2026-10-26; Step 4 owns contextual qualification and review closure.
+Accepted 2026-10-26. The phase Status block owns qualification and review state.
 
 ## Overview
 
@@ -31,7 +31,12 @@ route is exposed here.
 
 Set both `Identity__AuthorityId` and `Authentication__Tenant__Issuer` in the
 selected private deployment environment before `make migrate` installs/verifies
-the authority. The ID is deployment-pinned and never derived from an issuer URL.
+the authority. Supply the migration connection and complete pair together, either
+as all three process variables or in the selected private environment file.
+The migration owner refuses partial input and never combines the two sources;
+a complete process selection takes precedence over file defaults. Schema-only
+process input also refuses a file that supplies an authority pair. The ID is
+deployment-pinned and never derived from an issuer URL.
 The dedicated deployment child receives the migration credential only in its
 environment; restore/build and API processes receive no migration credential.
 An exact existing registration is a no-write verification. A conflicting pair
@@ -40,11 +45,19 @@ schema only; missing authority cannot admit a binding. A partially configured
 pair refuses before migration writes. See [the environment example](../../../.env.example)
 and the [canonical authority contract](../../standards/05-database.md#global-class-and-authority-anchor).
 
+Schema-only migration does not satisfy API startup. Every API host, including one
+serving only anonymous reads, requires both runtime configuration keys and the
+matching installed authority. Startup qualification rejects missing, unavailable
+or mismatched registration before accepting HTTP requests. Direct `dotnet run`
+reads process/.NET configuration, not the root `.env`. Restore the intended
+configuration when it differs from the selected database; an issuer rebind remains
+P03-9/G13 and is not an automatic repair.
+
 The internal binding service uses explicit startup qualification and fresh,
 physically read-only existing-binding transactions; it never creates a missing
 binding. Fixed seed adoption separately requires its confined admission port.
 Real provider/app-role, schema/body/ACL/caller and physical outcome controls are
-implemented; Step 3 completed both review rounds. Closure, directory access,
+implemented. Closure, directory access,
 production first-admin and issuer rebind remain their named later owners.
 
 ### Aggregate and storage contract

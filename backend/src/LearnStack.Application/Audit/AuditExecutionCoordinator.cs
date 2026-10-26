@@ -93,7 +93,10 @@ public sealed class AuditExecutionCoordinator(
         if (!catalog.TryGetOffPath(GlobalIdentityCreationReference.Operation, out var entry)
             || entry.ModuleName != "identity" || entry.OperationClass != OperationClass.Must
             || entry.OperationType != OperationType.SecurityEvent || entry.EntityType != owner.Descriptor.EntityType)
+        {
+            await owner.DisposeAsync().ConfigureAwait(false);
             return Result.FailFor<TResponse>(AuditErrors.UnclassifiedOperation);
+        }
 
         GlobalIdentityCreationReference? creation = null;
         return await ExecuteDeclaredAsync(() =>

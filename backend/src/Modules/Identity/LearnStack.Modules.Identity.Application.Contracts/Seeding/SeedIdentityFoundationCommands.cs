@@ -26,7 +26,7 @@ public sealed record CreateSeedMembershipCommand(Guid MembershipId, UserId UserI
     public PermissionDefinition RequiredPermission => new(MembershipScope, "identity.membership.admin");
 }
 
-public sealed record SetSeedMembershipProfileCommand(Guid MembershipId, PermissionScope MembershipScope,
+public sealed record SetSeedMembershipProfileCommand(Guid MembershipId, UserId ExpectedUserId, Guid ExpectedRoleId, PermissionScope MembershipScope,
     [property: PiiSensitive] string? DisplayName, [property: PiiSensitive] string? PreferredLocale,
     int ManifestVersion, string ExpectedFingerprint) : IRequest<Result<None>>, IIdentityPermissionRequest
 {

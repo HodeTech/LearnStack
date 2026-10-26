@@ -98,4 +98,17 @@ public sealed class GlobalIdentityKeyTests
         value.ToString().Should().Be(nameof(GlobalIdentitySubject));
         value.SubjectKey.ToString().Should().Be(nameof(IdentitySubjectKey));
     }
+
+    [Theory]
+    [InlineData("nul")]
+    [InlineData("high")]
+    [InlineData("low")]
+    public void Nonstorable_subjects_never_reach_hashing_or_storage(string variant)
+    {
+        var subject = variant switch { "nul" => "private\0subject", "high" => "private\ud800subject", _ => "private\udc00subject" };
+        var facts = () => new GlobalIdentitySubject(Authority, "https://identity.example", subject);
+        facts.Should().Throw<ArgumentException>().Which.ToString().Should().NotContain(subject);
+        var digest = () => IdentitySubjectKey.Compute(Authority, subject);
+        digest.Should().Throw<ArgumentException>().Which.ToString().Should().NotContain(subject);
+    }
 }

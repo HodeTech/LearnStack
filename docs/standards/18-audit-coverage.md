@@ -620,7 +620,9 @@ table above is the policy those deliverables implement, not a description of tod
 
 ## Global identity creation
 
-**Implemented under ADR-0072 in P03-1 Step 3; step review is in progress.**
+**Implemented under ADR-0072 in P03-1 Step 3.** The
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current
+qualification and review state.
 `identity.user.create` is MUST/SecurityEvent under the central baseline catalogue,
 independent of tenant AuditConfig and ADR-0065's host-tenant assertion allowance.
 Ordinary existing-binding reads declare no mutation intent. The exact

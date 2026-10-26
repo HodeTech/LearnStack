@@ -48,12 +48,18 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
       afterVerified: !seedIdentityFoundation ? undefined : async witness => {
         const applicationConnection = parseEnv(source).ConnectionStrings__Default;
         if (!applicationConnection || witness.issuer !== identityEnvironment.Authentication__Tenant__Issuer)
-          refuse('readback', 'configuration');
-        await processes.runPrivateInput('dotnet', [join(repositoryRoot,
-          'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'), '--identity-foundation-stdin'],
-        JSON.stringify(witness), { cwd: join(repositoryRoot, 'backend'),
-          env: { ...publicSeederEnvironment(applicationConnection), ...identityEnvironment },
-          label: 'Verified identity foundation', timeout: 180000 });
+          refuse('identity', 'configuration');
+        try {
+          await processes.runPrivateInput('dotnet', [join(repositoryRoot,
+            'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'), '--identity-foundation-stdin'],
+          JSON.stringify(witness), { cwd: join(repositoryRoot, 'backend'),
+            env: { ...publicSeederEnvironment(applicationConnection), ...identityEnvironment },
+            // The enclosing active signal retains the remaining shared pass budget.
+            label: 'Verified identity foundation', timeout: realmPassMilliseconds });
+        } catch (error) {
+          refuse('identity', error instanceof DemoCommandError && ['deadline', 'cancelled', 'cleanup'].includes(error.reason)
+            ? error.reason : 'seed_refused');
+        }
       } });
     preparationDispatched = result.preparationDispatched === true;
   } catch (error) {

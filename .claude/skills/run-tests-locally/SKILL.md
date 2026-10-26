@@ -79,10 +79,16 @@ frontend/apps/web/scripts/
 
 ### Step 3: Run unit tests
 
+Use `--configuration Release` for repository qualification, matching CI. The
+architecture suite includes exact compiled ownership/opcode controls; a Debug
+build is not interchangeable with that qualified population. Run heavy .NET and
+native frontend qualification sequentially on a workstation so cold development
+compilation does not compete with the architecture mutation census.
+
 Fastest; no Docker required.
 
 ```bash
-dotnet test backend/tests/LearnStack.Tests.Unit \
+dotnet test --configuration Release backend/tests/LearnStack.Tests.Unit \
   --no-restore \
   --logger "console;verbosity=normal"
 ```
@@ -91,11 +97,12 @@ Typical runtime: < 30 s. Failures here are almost always domain-logic bugs.
 
 ### Step 4: Run architecture tests
 
-Also fast; no Docker. Failures here mean **structural drift** — the code violates
-a documented rule.
+No Docker. The full IL mutation census can take tens of minutes on a workstation;
+CI runs it in bounded shards. Failures here mean **structural drift** — the code
+violates a documented rule.
 
 ```bash
-dotnet test backend/tests/LearnStack.Tests.Architecture \
+dotnet test --configuration Release backend/tests/LearnStack.Tests.Architecture \
   --no-restore
 ```
 
@@ -134,7 +141,7 @@ into native/ordinary execution jobs behind the required integration aggregate. L
 `--filter "Requires!=Docker"` gives you the Docker-free half.
 
 ```bash
-dotnet test backend/tests/LearnStack.Tests.Integration \
+dotnet test --configuration Release backend/tests/LearnStack.Tests.Integration \
   --no-restore \
   --logger "console;verbosity=normal" \
   --filter "FullyQualifiedName~Enrollment"     # subset
@@ -273,17 +280,17 @@ processes on Ctrl+C; it does not run the CI browser/audit proof.
 
 ### Step 7: Single-test focus
 
-`dotnet test --filter`:
+`dotnet test --configuration Release --filter`:
 
 ```bash
 # Class
-dotnet test --filter "FullyQualifiedName~EnrollmentCreateTests"
+dotnet test --configuration Release --filter "FullyQualifiedName~EnrollmentCreateTests"
 
 # Method
-dotnet test --filter "FullyQualifiedName~EnrollmentCreateTests.Create_succeeds"
+dotnet test --configuration Release --filter "FullyQualifiedName~EnrollmentCreateTests.Create_succeeds"
 
 # Docker trait — native CI additionally uses NativeCrashProof=true and its complement
-dotnet test --filter "Requires=Docker"
+dotnet test --configuration Release --filter "Requires=Docker"
 ```
 
 `vitest`:
@@ -298,11 +305,11 @@ pnpm --filter @learnstack/web test -t "shows danger tone"  # name filter
 
 ```bash
 # From the repository root; collect behavioral suites separately.
-dotnet test backend/tests/LearnStack.Tests.Unit \
+dotnet test --configuration Release backend/tests/LearnStack.Tests.Unit \
   --collect:"XPlat Code Coverage" --results-directory coverage/unit
-dotnet test backend/tests/LearnStack.Tests.Integration \
+dotnet test --configuration Release backend/tests/LearnStack.Tests.Integration \
   --collect:"XPlat Code Coverage" --results-directory coverage/integration
-dotnet test backend/tests/LearnStack.Tests.Architecture
+dotnet test --configuration Release backend/tests/LearnStack.Tests.Architecture
 reportgenerator -reports:"coverage/**/coverage.cobertura.xml" \
                 -targetdir:"coverage/html" \
                 -reporttypes:Html
@@ -337,12 +344,12 @@ make install
 
 # The `backend` job — build with warnings as errors, then the Docker-free half
 (cd backend && CI=true dotnet build LearnStack.slnx --no-restore --configuration Release)
-(cd backend && dotnet test LearnStack.slnx \
+(cd backend && dotnet test --configuration Release LearnStack.slnx \
   --no-restore --no-build --configuration Release \
   --filter "Requires!=Docker" --logger trx)
 
 # The complete Docker complement; CI requires both native/ordinary partitions
-(cd backend && dotnet test LearnStack.slnx \
+(cd backend && dotnet test --configuration Release LearnStack.slnx \
   --no-restore --no-build --configuration Release \
   --filter "Requires=Docker" --logger trx)
 ```

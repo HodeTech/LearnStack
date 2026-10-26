@@ -45,7 +45,7 @@ public sealed class FixedSeedIdentityFoundationAdmission : ISeedIdentityFoundati
                     manifest.MembershipFingerprint(member.Identity.Tenant.TenantId, member.OrganizationId,
                         member.MembershipId, member.Identity.UserId, member.Role.RoleId)));
             _acts.Add(new(SeedIdentityFoundationOperation.SetProfile, member.Identity.Tenant.TenantId, member.OrganizationId,
-                UserId.SystemActor, member.MembershipId, null, null, null, member.Scope, manifest.Version,
+                UserId.SystemActor, member.MembershipId, member.Identity.UserId, member.Role.RoleId, null, member.Scope, manifest.Version,
                 manifest.ProfileFingerprint(member.Identity.Tenant.TenantId, member.OrganizationId, member.MembershipId,
                     member.DisplayName, member.PreferredLocale)));
         }

@@ -193,6 +193,7 @@ public sealed class TenantIdentityBindingAdmissionTests
         var resolver = new Resolver((_, token) => Task.FromCanceled<IdentityBindingResult>(token));
         var middleware = new TenantIdentityBindingAdmissionMiddleware(_ => Task.CompletedTask, logger);
         var abort = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => middleware.InvokeAsync(http, resolver));
+        resolver.Calls.Should().Be(0, "an already cancelled request admits no binding I/O");
         abort.CancellationToken.Should().Be(cancellation.Token);
         http.Features.Get<TenantCredentialFeature>()!.Identity.Should().BeNull();
 
@@ -202,6 +203,12 @@ public sealed class TenantIdentityBindingAdmissionTests
         (await Record.ExceptionAsync(() => middleware.InvokeAsync(http, resolver))).Should().BeSameAs(failure);
         http.Features.Get<TenantCredentialFeature>()!.Identity.Should().BeNull();
         logger.Reasons.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Verified_provider_evidence_never_formats_private_claims()
+    {
+        Subject(Actor).ToString().Should().Be(nameof(VerifiedProviderSubject));
     }
 
     private static DefaultHttpContext AdmittedRequest()

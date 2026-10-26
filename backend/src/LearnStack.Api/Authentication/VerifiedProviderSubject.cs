@@ -9,4 +9,7 @@ internal sealed record VerifiedProviderSubject(
     UserId? ClaimedActor,
     TenantId? TenantId,
     OrganizationId? OrganizationId
-);
+)
+{
+    public override string ToString() => nameof(VerifiedProviderSubject);
+}

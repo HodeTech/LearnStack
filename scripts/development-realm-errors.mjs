@@ -1,12 +1,12 @@
 const stages = new Set([
   'preflight', 'discovery', 'authentication', 'version', 'manifest', 'lock',
-  'plan', 'prepare', 'apply', 'readback', 'cleanup',
+  'plan', 'prepare', 'apply', 'readback', 'identity', 'cleanup',
 ]);
 const reasons = new Set([
   'configuration', 'identity_conflict', 'mapper_conflict', 'secret_conflict',
   'unsupported', 'response', 'status', 'redirect', 'deadline', 'cancelled',
   'transport', 'lock_busy', 'body_limit', 'readback_conflict', 'cleanup',
-  'missing_web_secret', 'private_file', 'event_policy_conflict',
+  'missing_web_secret', 'private_file', 'event_policy_conflict', 'seed_refused',
 ]);
 
 /** Neither upstream objects nor arbitrary caller text can become a diagnostic. */

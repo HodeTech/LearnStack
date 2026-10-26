@@ -23,9 +23,12 @@ namespace LearnStack.Tests.Integration.Database;
 
 public sealed partial class TenantExistingBindingAdmissionTests
 {
-    [Fact]
-    public async Task Value_bearing_binding_read_failure_has_fixed_HTTP_diagnostics_and_recovers_with_exact_RLS_cleanup()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Value_bearing_binding_read_failure_has_fixed_HTTP_diagnostics_and_recovers_with_exact_RLS_cleanup(bool transient)
     {
+        var sqlState = transient ? PostgresErrorCodes.LockNotAvailable : "P0399";
         const string neutral = "binding-read-neutral-78e4";
         const string nested = "binding-read-nested-69f2";
         const string sensitive = "binding-read-sensitive-96a3";
@@ -57,7 +60,7 @@ public sealed partial class TenantExistingBindingAdmissionTests
             GRANT EXECUTE ON FUNCTION public.identity_read_sink_fault(text) TO learnstack_app;
             CREATE POLICY identity_read_sink_fault ON public.users AS RESTRICTIVE FOR SELECT TO learnstack_app
                 USING(public.identity_read_sink_fault(provider_subject));
-            """);
+            """.Replace("P0399", sqlState, StringComparison.Ordinal));
         try
         {
             var dirty = await ReadFaultShapeAsync(database);
@@ -71,7 +74,7 @@ public sealed partial class TenantExistingBindingAdmissionTests
             await FixedUnauthorizedAsync(refused);
             var response = await refused.Content.ReadAsStringAsync();
             source.Failure.Should().NotBeNull("the real application-role binding SELECT must reach the provider fault");
-            source.Failure!.SqlState.Should().Be("P0399");
+            source.Failure!.SqlState.Should().Be(sqlState);
             source.Failure.MessageText.Should().Be(payload,
                 "the failing RLS function receives the actual retained provider subject, including neutral and nested values");
             source.Commands.Should().Be(1);
@@ -83,7 +86,7 @@ public sealed partial class TenantExistingBindingAdmissionTests
                 .Select(span => span.Id));
             efErrors.Should().NotBeEmpty().And.OnlyContain(span => span.Description == "Identity storage command failed.");
             serializedLogs.Should().Contain("binding_store_unavailable").And.Contain("IdentityStorageReadFailed")
-                .And.NotContain("QueryIterationFailed").And.NotContain("P0399").And.NotContain("Npgsql.PostgresException");
+                .And.NotContain("QueryIterationFailed").And.NotContain(sqlState).And.NotContain("Npgsql.PostgresException");
             logs.Entries.Where(entry => entry.MessageTemplate.Text == "Identity storage read failed.")
                 .Should().ContainSingle().Which.Exception.Should().BeNull();
             serializedLogs.Should().NotContain("L1 exception handler captured",

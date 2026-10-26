@@ -112,14 +112,30 @@ public static class ContextualIdentityStorageDdl
         migration.Sql("CREATE OR REPLACE " + MembershipAdmissionGuardSql(correctParentMirror: false));
     }
 
+    internal static void SerializeParentLifecycle(MigrationBuilder migration)
+    {
+        ArgumentNullException.ThrowIfNull(migration);
+        migration.Sql("CREATE OR REPLACE " + MutationGuardSql(correctParentMirror: true, serializeParentLifecycle: true));
+    }
+
+    internal static void RestoreLegacyParentLifecycleLock(MigrationBuilder migration)
+    {
+        ArgumentNullException.ThrowIfNull(migration);
+        migration.Sql("CREATE OR REPLACE " + MutationGuardSql(correctParentMirror: true));
+    }
+
     private static string MembershipAdmissionGuardSql(bool correctParentMirror) => MembershipAdmissionGuardDefinition
         .Replace("__MISSING_MEMBERSHIP_REFUSAL__",
             correctParentMirror ? MembershipParentRefusal : LegacyMembershipParentRefusal, StringComparison.Ordinal);
 
-    private static string MutationGuardSql(bool correctParentMirror) => MutationGuardDefinition
+    private static string MutationGuardSql(bool correctParentMirror, bool serializeParentLifecycle = false) => MutationGuardDefinition
         .Replace("__PARENT_MIRROR_CHECK__", correctParentMirror ? ParentMirrorCheck : LegacyParentMirrorCheck,
             StringComparison.Ordinal)
-        .Replace("__ROLE_ADMIN_KEY__", IdentityFoundationManifest.RoleAdmin, StringComparison.Ordinal);
+        .Replace("__ROLE_ADMIN_KEY__", IdentityFoundationManifest.RoleAdmin, StringComparison.Ordinal)
+        // KEY SHARE protects references but permits a concurrent status UPDATE.
+        // The forward migration pins lifecycle through the fresh read and commit.
+        .Replace("target_member FOR KEY SHARE;", serializeParentLifecycle
+            ? "target_member FOR NO KEY UPDATE;" : "target_member FOR KEY SHARE;", StringComparison.Ordinal);
 
     private static string CompleteGraphGuard()
     {

@@ -1,3 +1,4 @@
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.Identity;
@@ -12,7 +13,7 @@ public sealed class GlobalIdentitySubject
             || !Uri.TryCreate(issuer, UriKind.Absolute, out var address)
             || address.Scheme is not ("http" or "https")
             || !string.IsNullOrEmpty(address.UserInfo) || !string.IsNullOrEmpty(address.Fragment)
-            || string.IsNullOrWhiteSpace(subject) || subject.Length > 255)
+            || string.IsNullOrWhiteSpace(subject) || subject.Length > 255 || !JsonValue.IsStorableText(subject))
             throw new ArgumentException("Qualified identity subject facts are invalid.");
 
         AuthorityId = authorityId;

@@ -65,6 +65,7 @@ internal sealed class TenantIdentityBindingAdmissionMiddleware(RequestDelegate n
         IdentityBindingResult binding;
         try
         {
+            context.RequestAborted.ThrowIfCancellationRequested();
             binding = await resolver.ResolveExistingAsync(subject, context.RequestAborted);
             context.RequestAborted.ThrowIfCancellationRequested();
         }

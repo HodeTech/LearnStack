@@ -243,7 +243,8 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
             _commitRequested = false;
         }
 
-        return new Frame(this, ++_depth, _generation);
+        return new Frame(this, ++_depth, _generation,
+            releaseConnection: globalIdentity && mode == TransactionMode.ReadOnly);
     }
 
     public bool IsGlobalIdentityTransaction => _openingGlobalIdentity || _resolvingGlobalIdentity
@@ -665,6 +666,7 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
             }
             if (_jobMainBound && connectionCleanupSucceeded)
                 _jobSourceOwner!.ReportMainCleanup(this, succeeded: true);
+            _resolvingGlobalIdentity = false;
         }
         cleanupFailure?.Throw();
 
@@ -870,7 +872,7 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
     /// opened after this one is still open would commit nothing and report
     /// success.
     /// </remarks>
-    private sealed class Frame(NpgsqlUnitOfWork unitOfWork, int depth, long generation)
+    private sealed class Frame(NpgsqlUnitOfWork unitOfWork, int depth, long generation, bool releaseConnection)
         : IUnitOfWorkScope
     {
         private bool _resolved;
@@ -944,7 +946,22 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
             // Disposal owns rollback cleanup even under external denial. It
             // cannot create operational authority or resolve a later generation.
             await FailOwnedAsync();
-            if (IsOwner && !IsStale()) await unitOfWork.DisposeCompletedTransactionAsync();
+            if (IsOwner && !IsStale())
+            {
+                await unitOfWork.DisposeCompletedTransactionAsync();
+                // A binding read precedes the ordinary request owner. Return its
+                // connector before dispatch, retaining the connection object so
+                // the same scoped unit/EF contexts can open their next owner.
+                if (releaseConnection && unitOfWork._connection is { } connection)
+                {
+                    try { await connection.CloseAsync(); }
+                    catch
+                    {
+                        unitOfWork._rollbackOnly = true;
+                        throw;
+                    }
+                }
+            }
         }
 
         private bool AlreadyResolved() =>

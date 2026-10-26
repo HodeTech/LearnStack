@@ -72,10 +72,14 @@ public sealed class IdentityFoundationConventionTests
             new CreateFirstSeedAdminMembershipCommand(Guid.Empty, actor, Guid.Empty, 1, ""),
             new CreateSeedMembershipCommand(Guid.Empty, actor, Guid.Empty, PermissionScope.Tenant, 1, ""),
             new CreateSeedMembershipCommand(Guid.Empty, actor, Guid.Empty, PermissionScope.Organization, 1, ""),
-            new SetSeedMembershipProfileCommand(Guid.Empty, PermissionScope.Tenant, null, null, 1, ""),
-            new SetSeedMembershipProfileCommand(Guid.Empty, PermissionScope.Organization, null, null, 1, ""),
+            new SetSeedMembershipProfileCommand(Guid.Empty, actor, Guid.Empty, PermissionScope.Tenant, null, null, 1, ""),
+            new SetSeedMembershipProfileCommand(Guid.Empty, actor, Guid.Empty, PermissionScope.Organization, null, null, 1, ""),
         ];
         operations.Select(operation => operation.RequiredPermission).Distinct().Should().BeEquivalentTo(manifest.Definitions);
+        var permissions = operations.Select(operation => operation.RequiredPermission).ToArray();
+        PermissionMappingViolations(permissions).Should().BeEmpty("each actual command/variant owns its exact scoped identity");
+        (permissions[0], permissions[1]) = (permissions[1], permissions[0]);
+        PermissionMappingViolations(permissions).Should().NotBeEmpty("a swapped mapping preserves the distinct set but violates command ownership");
         var sql = new Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder("Npgsql.EntityFrameworkCore.PostgreSQL");
         LearnStack.Modules.Identity.Infrastructure.Persistence.ContextualIdentityStorageDdl.Install(sql);
         var installed = string.Join('\n', sql.Operations.OfType<Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation>()
@@ -135,6 +139,22 @@ public sealed class IdentityFoundationConventionTests
             yield return "missing-or-duplicate";
         if (actual.Any(definition => !definition.IsActive || !Expected.Contains((definition.Scope, definition.Key))))
             yield return "inactive-or-scope";
+    }
+
+    private static IEnumerable<string> PermissionMappingViolations(PermissionDefinition[] actual)
+    {
+        (PermissionScope Scope, string Key)[] expected =
+        [
+            (PermissionScope.Tenant, "identity.role.admin"),
+            (PermissionScope.Tenant, "identity.membership.admin"),
+            (PermissionScope.Tenant, "identity.membership.admin"),
+            (PermissionScope.Organization, "identity.membership.admin"),
+            (PermissionScope.Tenant, "identity.membership_profile.write"),
+            (PermissionScope.Organization, "identity.membership_profile.write"),
+        ];
+        if (actual.Length != expected.Length) yield return "population";
+        for (var index = 0; index < Math.Min(actual.Length, expected.Length); index++)
+            if ((actual[index].Scope, actual[index].Key) != expected[index]) yield return "command-permission";
     }
 
     private static IEnumerable<string> SessionCalls(string source) => Regex.Matches(SourceText.WithoutComments(source),

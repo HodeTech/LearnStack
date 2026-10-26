@@ -289,9 +289,12 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
         }
     }
 
-    [Fact]
-    public async Task Actual_global_binding_save_keeps_its_fixed_boundary_and_replaces_pre_adapter_EF_failure_output()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Actual_global_binding_save_keeps_its_fixed_boundary_and_replaces_pre_adapter_EF_failure_output(bool transient)
     {
+        var sqlState = transient ? PostgresErrorCodes.LockNotAvailable : "P0399";
         using var sinks = new IdentityDiagnosticSinks();
         var witness = new ProviderFailureWitness();
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.MigrationConnectionString);
@@ -300,7 +303,7 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
             BEGIN RAISE EXCEPTION USING ERRCODE='P0399', MESSAGE=NEW.provider_subject; END $$;
             CREATE TRIGGER identity_binding_sink_failure BEFORE INSERT ON public.users
             FOR EACH ROW EXECUTE FUNCTION public.identity_binding_sink_failure();
-            """);
+            """.Replace("P0399", sqlState, StringComparison.Ordinal));
         try
         {
             using var parentSource = new ActivitySource("learnstack.identity.storage-qualification");
@@ -323,7 +326,7 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
             var failure = await Record.ExceptionAsync(() => store.AddAsync(user));
             failure.Should().BeOfType<UserBindingStorageException>();
             witness.Failure.Should().BeOfType<PostgresException>();
-            ((PostgresException)witness.Failure!).SqlState.Should().Be("P0399");
+            ((PostgresException)witness.Failure!).SqlState.Should().Be(sqlState);
             witness.Failure!.Message.Should().Contain(Payload);
             await frame.FailAsync();
             Activity.Current.Should().BeSameAs(parent, "stopping the actual EF span restores its existing caller context");
@@ -384,7 +387,8 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
     [Fact]
     public async Task Actual_profile_validation_drops_attempted_values_and_emits_fixed_nonempty_response()
     {
-        var request = new SetSeedMembershipProfileCommand(LearnerMembershipA, PermissionScope.Tenant,
+        var request = new SetSeedMembershipProfileCommand(LearnerMembershipA, UserId.From(PersonA),
+            RoleId(SchemaFixture.TenantA, BuiltInRoleKey.Learner, PermissionScope.Tenant), PermissionScope.Tenant,
             Payload + new string('x', MembershipProfile.MaximumDisplayNameLength), "en", 1, new string('a', 64));
         var validator = new SetSeedMembershipProfileCommandValidator();
         var source = await validator.ValidateAsync(request);

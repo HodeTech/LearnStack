@@ -46,6 +46,8 @@ public sealed class SetSeedMembershipProfileCommandValidator : AbstractValidator
 {
     public SetSeedMembershipProfileCommandValidator()
     {
+        RuleFor(request => request.ExpectedUserId).Must(SeedFoundationGate.ValidUser);
+        RuleFor(request => request.ExpectedRoleId).Must(SeedFoundationGate.ValidRoot);
         RuleFor(request => request.MembershipId).Must(SeedFoundationGate.ValidRoot);
         RuleFor(request => request.MembershipScope).Must(SeedFoundationValidation.IsContextualScope);
         RuleFor(request => request).Must(request => MembershipProfile.IsValid(request.DisplayName, request.PreferredLocale));

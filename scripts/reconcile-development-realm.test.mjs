@@ -286,6 +286,14 @@ for (const scenario of ['foundation-success', 'foundation-failure', 'foundation-
 import { composeSelection } from './scripts/compose.mjs';
 import { reconcileDevelopmentRealm } from './scripts/reconcile-development-realm.mjs';
 import { realmFailure } from './scripts/development-realm-errors.mjs';
+import { realmPassMilliseconds } from './scripts/development-realm-core.mjs';
+import { DemoProcesses } from './scripts/demo-process.mjs';
+const privateRun = DemoProcesses.prototype.runPrivateInput;
+DemoProcesses.prototype.runPrivateInput = function(command, args, input, options) {
+  if (realmPassMilliseconds !== 120000 || options.timeout !== realmPassMilliseconds)
+    throw new Error('Identity child exceeded the shared pass ceiling');
+  return privateRun.call(this, command, args, input, options);
+};
 const cancellation = new AbortController();
 process.on('SIGTERM', () => cancellation.abort());
 try {
@@ -320,7 +328,7 @@ try {
     }
     assert.equal(stdout, scenario === 'foundation-success' ? '{"mutations":0}\n' : '');
     assert.equal(stderr, scenario === 'foundation-success' ? ''
-      : `realm: readback/${scenario === 'foundation-cancel' ? 'cancelled' : 'response'}\n`);
+      : `realm: identity/${scenario === 'foundation-cancel' ? 'cancelled' : 'seed_refused'}\n`);
     assert.ok(!(stdout + stderr).includes(canary));
     assert.ok(!(stdout + stderr).includes('provider-'));
     assert.equal(await access(f.lock).then(() => true, () => false), false);

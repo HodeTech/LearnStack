@@ -52,9 +52,8 @@ not deferred to the showcase phase.
   — **complete and merged — 2026-10-25**. Its Status block owns packet state and
   links the merge closeout and individual exit evidence.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
-  — **next on the critical path; runtime not started**. Its Status, packet plan
-  and decision register define entry and the first-writer boundaries. Begin with
-  the identity foundation's decision pass before its first runtime/schema writer.
+  — its Status block owns current packet state; its packet plan and decision
+  register define dependencies and first-writer boundaries.
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)
 - [Phase 06: Public Site Renderer and Admin Studio](phase-06-renderer-admin-studio.md)

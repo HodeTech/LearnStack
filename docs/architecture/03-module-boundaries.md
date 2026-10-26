@@ -181,15 +181,16 @@ records to compose per-tenant content shapes, scoring, completion, and custom fi
 [32-tenant-customization-model.md](32-tenant-customization-model.md).
 
 ### Audit
-Owns the append-only platform audit trail per [ADR-0016](../decisions/0016-audit-log-subsystem.md):
-the `AuditEntry` aggregate, `AuditConfig` (per-tenant override of MUST/SHOULD/MAY
-classification), the partitioned `audit_log` table, the retention job, and the admin
-read API. The capture infrastructure (`AuditChangeTrackerInterceptor`,
-`IAuditStateCapture`, `AuditLogBehavior`, `IAuditStore`) lives in
-`LearnStack.Infrastructure.Audit` and is shared by every module via the MediatR
-pipeline. Audit consumes integration events from Identity, Enrollment, Classroom, etc.
-to enrich entries (actor, target, before/after state). Deep dive:
-[31-audit-subsystem.md](31-audit-subsystem.md).
+Owns the central append-only audit trail, `AuditEntry` and `AuditConfig`, under
+[ADR-0033](../decisions/0033-audit-durability-model.md) and
+[ADR-0044](../decisions/0044-audit-write-path.md). The shared capture and write
+infrastructure lives in `LearnStack.Infrastructure.Audit`; MUST mutation rows
+share the business transaction. The [Audit module specification](../modules/audit/README.md)
+owns current storage and read-side boundaries. Partitioning and retention scale
+remain demand-gated to [Phase 11](../roadmap/phase-11-production-hardening.md);
+protected reads and provider-event mirroring require their respective
+[Phase 03 gates](../roadmap/phase-03-identity-admin.md#the-decision-register).
+Deep dive: [31-audit-subsystem.md](31-audit-subsystem.md).
 
 ### Content
 Owns content types, content entries, pages, page versions, page blocks, navigation,

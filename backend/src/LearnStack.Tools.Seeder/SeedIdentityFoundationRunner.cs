@@ -69,7 +69,7 @@ public sealed class SeedIdentityFoundationRunner(Func<ITenantContext?, ServicePr
             if (!MatchesMembership(before, declaration)) throw Refused();
             if (MatchesProfile(before!, declaration)) continue;
             await SendAsync(context, new SetSeedMembershipProfileCommand(declaration.MembershipId,
-                declaration.Scope, declaration.DisplayName, declaration.PreferredLocale, Manifest.Version,
+                declaration.Identity.UserId, declaration.Role.RoleId, declaration.Scope, declaration.DisplayName, declaration.PreferredLocale, Manifest.Version,
                 Manifest.ProfileFingerprint(declaration.Identity.Tenant.TenantId, declaration.OrganizationId,
                     declaration.MembershipId, declaration.DisplayName, declaration.PreferredLocale)), cancellationToken);
             var after = (await SendAsync(context, query, cancellationToken)).State;
@@ -142,7 +142,7 @@ public sealed class SeedIdentityFoundationRunner(Func<ITenantContext?, ServicePr
         GetMembershipSeedStateQuery value => Act(context, SeedIdentityFoundationOperation.VerifyMembership,
             value.MembershipId, value.UserId, value.RoleId, null, value.MembershipScope, value.ManifestVersion, value.ExpectedFingerprint),
         SetSeedMembershipProfileCommand value => Act(context, SeedIdentityFoundationOperation.SetProfile,
-            value.MembershipId, null, null, null, value.MembershipScope, value.ManifestVersion, value.ExpectedFingerprint),
+            value.MembershipId, value.ExpectedUserId, value.ExpectedRoleId, null, value.MembershipScope, value.ManifestVersion, value.ExpectedFingerprint),
         _ => throw Refused(),
     };
 

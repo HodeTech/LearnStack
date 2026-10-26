@@ -44,7 +44,10 @@ function identity(claims: oidc.IDToken | undefined, issuer: string): ProviderIde
     typeof claims.sub !== 'string' ||
     !claims.sub ||
     claims.sub.length > 255 ||
-    /[\r\n]/.test(claims.sub) ||
+    /^[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/u.test(
+      claims.sub,
+    ) ||
+    /[\0\r\n\ud800-\udfff]/u.test(claims.sub) ||
     typeof claims.user_id !== 'string' ||
     !uuid.test(claims.user_id) ||
     claims.user_id === allZero ||

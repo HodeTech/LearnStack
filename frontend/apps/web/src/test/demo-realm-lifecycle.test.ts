@@ -38,6 +38,7 @@ function fixture() {
     'compose',
     'demo-process',
     'demo-database',
+    'migrate',
     'demo-observation',
     'public-runtime',
     'development-realm-owner',
@@ -408,7 +409,7 @@ export function record(stage, connection, selected = true) {
   const confined = Object.keys(process.env).every(key =>
     !/keycloak|connectionstrings|_pw$|password|bff|debug|private/i.test(key) || key === permitted);
   const connectionMatches = permitted === undefined || process.env[permitted] === values[permitted];
-  const metadataMatches = connection !== 'Migration' || (
+  const metadataMatches = connection !== 'Migration' || stage === 'authority-install' || (
     process.env.LEARNSTACK_COMPOSE_PROJECT === ${JSON.stringify(project)}
     && process.env.LEARNSTACK_COMPOSE_ENV_FILE === ${JSON.stringify(selectedFile)}
     && process.env.LEARNSTACK_COMPOSE_MODE === 'e2e');
@@ -534,7 +535,7 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
     environment,
     selectedFile,
     sensitiveValues,
-    run() {
+    run(expectSuccess = true) {
       writeFileSync(events, '');
       const execution = spawnSync('make', ['seed'], {
         cwd: f.root,
@@ -548,7 +549,8 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
         ),
       ).toBe(false);
       expect(execution.error).toBeUndefined();
-      expect(execution.status).toBe(0);
+      if (expectSuccess) expect(execution.status).toBe(0);
+      else expect(execution.status).not.toBe(0);
       expect(readFileSync(join(f.root, '.env'), 'utf8') === defaultSource).toBe(true);
       expect(readFileSync(selectedFile, 'utf8') === f.source).toBe(true);
       return readFileSync(events, 'utf8')
@@ -986,8 +988,9 @@ DemoProcesses.prototype.dispose = async function() {
     );
     expect(planted).not.toBe(source);
     writeFileSync(makefile, planted);
-    const inherited = f.run();
+    const inherited = f.run(false);
     expect(confined(inherited)).toBe(false);
+    expect(inherited.some((event) => event.stage.startsWith('migration-'))).toBe(false);
     expect(
       inherited
         .filter((event) =>

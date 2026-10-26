@@ -43,8 +43,6 @@ public sealed class IdentityFoundationManifest
         Fingerprint = Hash(["learnstack.identity.foundation.manifest.v1", .. Definitions.Select(DefinitionToken),
             .. Templates.Select(template => $"{template.BuiltInKey}:{template.Scope}:{string.Join(',', template.Grants.Select(DefinitionToken))}"),
             .. TenantAdminKernel.Select(DefinitionToken)]);
-        BuiltInRolePairsSql = string.Join(" OR ", Templates.Select(template =>
-            $"(builtin_key = '{template.BuiltInKey}' AND permission_scope = '{template.Scope}')"));
         TenantAdminKernelSqlValues = string.Join(", ", TenantAdminKernel.Select(definition =>
             $"('{definition.Scope}', '{definition.Key}')"));
     }
@@ -55,7 +53,6 @@ public sealed class IdentityFoundationManifest
     public ImmutableArray<BuiltInRoleTemplate> Templates { get; }
     public ImmutableArray<PermissionDefinition> TenantAdminKernel { get; }
     // Generated from the same immutable values used by registry and seed verification.
-    public string BuiltInRolePairsSql { get; }
     public string TenantAdminKernelSqlValues { get; }
 
     public string RolePairsSqlValues => string.Join(", ", Templates.Select(template =>

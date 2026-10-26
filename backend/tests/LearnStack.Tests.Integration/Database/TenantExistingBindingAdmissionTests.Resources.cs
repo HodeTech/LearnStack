@@ -22,6 +22,46 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed partial class TenantExistingBindingAdmissionTests
 {
     [Fact]
+    public async Task Completed_binding_returns_the_connector_before_its_HTTP_scope_dispatches_tenant_work()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var database = await DatabaseAsync(issuer);
+        var application = "binding-dispatch-" + Guid.NewGuid().ToString("N");
+        await using var source = ApplicationDataSource.Build(PoolConnection(database, application, maximum: 1));
+        var observation = new BindingObservation();
+        using var client = Client(database, observation, services => UseSource(services, source));
+        var token = Token(issuer, includeActor: false);
+        using (var warm = await SendAsync(client, token)) warm.StatusCode.Should().Be(HttpStatusCode.OK);
+        var backend = observation.BackendIds.Last();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reads = 0;
+        observation.AfterRead = async cancellationToken =>
+        {
+            if (Interlocked.Increment(ref reads) != 1) return;
+            entered.TrySetResult();
+            await release.Task.WaitAsync(cancellationToken);
+        };
+        var heldRequest = SendAsync(client, token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            // The first request still owns its DI scope but has completed only
+            // the global read. A second real binding and tenant read must fit
+            // through the one-slot pool without releasing the first request.
+            using var concurrent = await SendAsync(client, token).WaitAsync(TimeSpan.FromSeconds(10));
+            concurrent.StatusCode.Should().Be(HttpStatusCode.OK);
+            heldRequest.IsCompleted.Should().BeFalse();
+            observation.BackendIds.Last().Should().Be(backend);
+        }
+        finally { release.TrySetResult(); }
+        using var completed = await heldRequest.WaitAsync(TimeSpan.FromSeconds(10));
+        completed.StatusCode.Should().Be(HttpStatusCode.OK, "the original scoped unit must reopen for its tenant owner");
+        observation.ClosedOwners.Should().Be(3);
+        await WaitForPoolAsync(database, application, state => state.InTransactions == 0 && state.Active == 0);
+    }
+
+    [Fact]
     public async Task Small_real_HTTP_sample_reports_lookup_plan_statement_cost_and_bounded_concurrent_pool_occupancy()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();

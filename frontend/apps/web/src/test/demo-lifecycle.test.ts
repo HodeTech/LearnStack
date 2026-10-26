@@ -548,7 +548,7 @@ const { appendFileSync } = require('node:fs');
 const args = process.argv.slice(2);
 const startup = JSON.stringify(args) === JSON.stringify(['dev']);
 const migration = JSON.stringify(args) === JSON.stringify(['migrate']);
-const forbidden = Object.keys(process.env).filter(key => /keycloak|connectionstrings|_pw$|bff|debug/i.test(key) && !(migration && key === 'ConnectionStrings__Migration'));
+const forbidden = Object.keys(process.env).filter(key => /keycloak|connectionstrings|_pw$|bff|debug|^Identity__AuthorityId$|^Authentication__Tenant__Issuer$/i.test(key) && !(migration && ['ConnectionStrings__Migration', 'Identity__AuthorityId', 'Authentication__Tenant__Issuer'].includes(key)));
 if ((!startup && !migration) || forbidden.length || process.env.ConnectionStrings__Migration !== (migration ? 'Username=learnstack_migration' : undefined) || process.env.LEARNSTACK_COMPOSE_PROJECT !== 'learnstack-dev' || process.env.LEARNSTACK_COMPOSE_ENV_FILE !== ${JSON.stringify(join(root, '.env'))} || process.env.LEARNSTACK_COMPOSE_MODE !== 'dev') process.exit(13);
 appendFileSync(${JSON.stringify(join(root, 'events'))}, (startup ? 'stack-up' : 'migrate') + '\\n');
 `,
@@ -609,11 +609,16 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
       join(root, 'scripts/connection-string.awk'),
       readFileSync(new URL('../../../../../scripts/connection-string.awk', import.meta.url)),
     );
+    for (const name of ['migrate', 'compose', 'demo-database', 'development-realm-errors'])
+      writeFileSync(
+        join(root, `scripts/${name}.mjs`),
+        readFileSync(new URL(`../../../../../scripts/${name}.mjs`, import.meta.url)),
+      );
     writePrivateFileSync(
       join(root, '.env'),
       'ConnectionStrings__Migration=Username=learnstack_platform\n',
     );
-    writeFileSync(
+    writePrivateFileSync(
       join(root, 'alternate.env'),
       'ConnectionStrings__Migration=Username=learnstack_app\n',
     );
@@ -629,8 +634,8 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
     });
     expect(result.error).toBeUndefined();
     expect(result.status).not.toBe(0);
-    expect(result.stdout).toContain("Username='learnstack_app'");
-    expect(result.stdout).not.toContain("Username='learnstack_platform'");
+    expect(result.stdout + result.stderr).toContain("Username='learnstack_app'");
+    expect(result.stdout + result.stderr).not.toContain("Username='learnstack_platform'");
   });
   it('accepts only the owned API address in a structured hosting lifetime event', () => {
     const origin = 'http://127.0.0.1:5080';

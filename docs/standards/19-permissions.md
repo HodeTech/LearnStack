@@ -301,6 +301,8 @@ Version 1 contains **exactly five pairs**:
 
 These are actual compiled production commands, distinct from test fixtures.
 Finite scope metadata derives from immutable target/validated declarations.
+The seed profile declaration binds its expected User and single Role assignment;
+the handler verifies both before and after its tenant-lock wait.
 Closed seed authority is checked independently before dispatch, default-denied
 in API composition. P03-2 qualifies live permission admission before protected
 activation; registration/attributes/seed success grant no HTTP route.

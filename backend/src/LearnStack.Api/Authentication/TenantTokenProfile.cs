@@ -1,4 +1,5 @@
 using System.Text.Json;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.Api.Authentication;
@@ -132,6 +133,7 @@ internal static class TenantTokenProfile
             if (
                 !TryReadNonemptyString(claims, "sub", out var subject)
                 || subject.Length > 255
+                || !JsonValue.IsStorableText(subject)
                 || !TryReadTenantScope(claims, out var tenantId, out var organizationId)
             )
             {

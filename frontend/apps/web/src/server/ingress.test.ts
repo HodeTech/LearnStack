@@ -265,32 +265,61 @@ describe('private local configuration', () => {
     ).toBe('explicit');
   });
 
-  it.each([
-    ['Authentication__Tenant__Issuer', 'https://identity.example/realms/learnstack'],
-    ['Identity__AuthorityId', '019a1929-5450-7bbb-8df1-516e8e002501'],
-  ])('resolves %s across all inputs only for the API launcher', (key, value) => {
+  const identityPair = {
+    Authentication__Tenant__Issuer: 'https://identity.example/realms/learnstack',
+    Identity__AuthorityId: '019a1929-5450-7bbb-8df1-516e8e002501',
+  };
+  const identitySource = Object.entries(identityPair)
+    .map(([key, value]) => key + '=' + value)
+    .join('\n');
+
+  it('resolves complete matching identity pairs only for the API launcher', () => {
     const options = { apiAuthentication: true };
     const projectionDirectory = join(directory, 'frontend/apps/web');
     mkdirSync(projectionDirectory, { recursive: true });
     const projectionPath = join(projectionDirectory, '.env.local');
-    writeFileSync(join(directory, '.env'), key + '=' + value);
-    writeFileSync(projectionPath, key + '=' + value);
-    expect(loadLocalEnvironment(directory, {}, options)[key]).toBe(value);
-    expect(loadLocalEnvironment(directory, { [key]: value }, options)[key]).toBe(value);
-    expect(() => loadLocalEnvironment(directory, { [key]: value + '-hub' }, options)).toThrow(
-      'Conflicting API authentication configuration',
-    );
-    writeFileSync(projectionPath, key + '=' + value + '-hub');
-    expect(() => loadLocalEnvironment(directory, {}, options)).toThrow(
-      'Conflicting API authentication configuration',
-    );
-    expect(loadLocalEnvironment(directory, { [key]: 'unrelated' })[key]).toBeUndefined();
+    writeFileSync(join(directory, '.env'), identitySource);
+    writeFileSync(projectionPath, identitySource);
+    expect(loadLocalEnvironment(directory, identityPair, options)).toMatchObject(identityPair);
+    for (const key of Object.keys(identityPair)) {
+      expect(() =>
+        loadLocalEnvironment(directory, { ...identityPair, [key]: 'conflict' }, options),
+      ).toThrow('Conflicting API authentication configuration');
+      expect(loadLocalEnvironment(directory, { [key]: 'unrelated' })[key]).toBeUndefined();
+    }
     writeFileSync(join(directory, '.env'), '');
-    writeFileSync(projectionPath, key + '=' + value);
-    expect(loadLocalEnvironment(directory, {}, options)[key]).toBe(value);
+    expect(loadLocalEnvironment(directory, {}, options)).toMatchObject(identityPair);
     writeFileSync(projectionPath, '');
-    expect(loadLocalEnvironment(directory, { [key]: value }, options)[key]).toBe(value);
+    expect(loadLocalEnvironment(directory, identityPair, options)).toMatchObject(identityPair);
+    expect(loadLocalEnvironment(directory, {}, options)).toEqual({});
   });
+
+  it.each(['root', 'projection', 'ambient'] as const)(
+    'refuses a partial %s pair even when another source supplies its missing key',
+    (partial) => {
+      const projectionDirectory = join(directory, 'frontend/apps/web');
+      mkdirSync(projectionDirectory, { recursive: true });
+      const rootPath = join(directory, '.env');
+      const projectionPath = join(projectionDirectory, '.env.local');
+      writeFileSync(
+        rootPath,
+        partial === 'root'
+          ? 'Identity__AuthorityId=' + identityPair.Identity__AuthorityId
+          : identitySource,
+      );
+      writeFileSync(
+        projectionPath,
+        partial === 'projection'
+          ? 'Authentication__Tenant__Issuer=' + identityPair.Authentication__Tenant__Issuer
+          : '',
+      );
+      const ambient =
+        partial === 'ambient' ? { Identity__AuthorityId: identityPair.Identity__AuthorityId } : {};
+      expect(() => loadLocalEnvironment(directory, ambient, { apiAuthentication: true })).toThrow(
+        'Incomplete API authentication configuration',
+      );
+    },
+  );
 
   const configuration = {
     LEARNSTACK_PUBLIC_API_ORIGIN: 'http://127.0.0.1:5080',

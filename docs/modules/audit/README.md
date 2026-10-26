@@ -103,8 +103,7 @@ know before touching it.
   and an audit row is not a log line: it is a record a regulator reads and a tenant
   admin can be shown.
 
-**One property is worth stating before anything else.** `audit_log` is the only table
-in the schema whose rows cannot be corrected. `learnstack_app` holds no `UPDATE` and no
+**Audit rows cannot be corrected.** `learnstack_app` holds no `UPDATE` and no
 `DELETE`; `learnstack_platform`'s `UPDATE` names six columns and no more; and the table
 owner — which no grant bounds — is stopped by
 `audit_log_append_only_guard`. So a wrong `tenant_id`, a wrong `operation` or a wrong

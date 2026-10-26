@@ -3,17 +3,25 @@ using LearnStack.Modules.Identity.Domain;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 
 public sealed class UserBindingStore(IdentityDbContext context, IGlobalIdentityUnitOfWork unit) : IUserBindingStore
 {
-    public Task<User?> FindExactAsync(GlobalIdentitySubject subject, CancellationToken cancellationToken = default)
+    public async Task<User?> FindExactAsync(GlobalIdentitySubject subject, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
         EnrollCurrentOwner();
-        return context.Users.AsNoTracking().SingleOrDefaultAsync(user =>
-            user.AuthorityId == subject.AuthorityId && user.SubjectKey == subject.SubjectKey, cancellationToken);
+        try
+        {
+            return await context.Users.AsNoTracking().SingleOrDefaultAsync(user =>
+                user.AuthorityId == subject.AuthorityId && user.SubjectKey == subject.SubjectKey, cancellationToken);
+        }
+        catch (InvalidOperationException failure) when (failure.InnerException is NpgsqlException { IsTransient: true } or TimeoutException)
+        {
+            throw new UserBindingStorageException();
+        }
     }
 
     public async Task AddAsync(User user, CancellationToken cancellationToken = default)
@@ -25,6 +33,11 @@ public sealed class UserBindingStore(IdentityDbContext context, IGlobalIdentityU
             await context.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException)
+        {
+            throw new UserBindingStorageException();
+        }
+        catch (InvalidOperationException failure) when (
+            failure.InnerException is DbUpdateException { InnerException: NpgsqlException { IsTransient: true } or TimeoutException })
         {
             throw new UserBindingStorageException();
         }

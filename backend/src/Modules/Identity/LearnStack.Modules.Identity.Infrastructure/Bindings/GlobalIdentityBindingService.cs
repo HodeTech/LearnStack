@@ -49,6 +49,7 @@ public sealed class GlobalIdentityBindingService(
             await frame.CompleteAsync(cancellationToken);
         }
         catch (NpgsqlException) { result = Refused(IdentityBindingOutcome.StorageUnavailable); }
+        catch (UserBindingStorageException) { result = Refused(IdentityBindingOutcome.StorageUnavailable); }
         catch (TimeoutException) { result = Refused(IdentityBindingOutcome.StorageUnavailable); }
         finally { cleanupSucceeded = await DisposeOwnerAsync(frame); }
         return cleanupSucceeded ? result : Refused(IdentityBindingOutcome.StorageUnavailable);
@@ -83,9 +84,11 @@ public sealed class GlobalIdentityBindingService(
                 var response = await audit().ExecuteGlobalIdentityAsync(owner,
                     reference => transaction().ExecutePreparedGlobalIdentityAsync(owner, reference,
                         () => handler().HandleAsync(subject, reference, cancellationToken), cancellationToken), cancellationToken);
-                result = response.IsSuccess
+                if (response.IsFailure && response.Error.Code == AuditErrors.UnclassifiedOperation.Code)
+                    throw new InvalidOperationException("Global identity creation requires its classified audit operation.");
+                result = response.IsSuccess && owner.RecordedOutcome == AuditIntentState.Committed
                     ? IdentityBindingResult.Bound(response.Value, created: true)
-                    : Refused(IdentityBindingOutcome.StorageUnavailable);
+                    : StorageFailure(owner);
             }
         }
         catch (NpgsqlException) { result = StorageFailure(owner); }

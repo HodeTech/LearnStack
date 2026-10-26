@@ -41,6 +41,14 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
             unit.MarkRollbackOnly();
             throw Translate((PostgresException)failure.InnerException!);
         }
+        catch (InvalidOperationException failure) when (
+            failure.InnerException is DbUpdateException { InnerException: PostgresException postgres } && IsOwned(postgres))
+        {
+            // Npgsql's non-retrying execution strategy wraps transient save
+            // failures. Translate only the same exact owned provider states.
+            unit.MarkRollbackOnly();
+            throw Translate((PostgresException)failure.InnerException.InnerException!);
+        }
         catch (DbUpdateConcurrencyException)
         {
             unit.MarkRollbackOnly();
@@ -85,7 +93,11 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
         }
     }
 
+    // These states are translated only while saving/preflighting the owned graph,
+    // never at the physical COMMIT boundary whose outcome may be uncertain.
     private static bool IsOwned(PostgresException failure) => failure.SqlState is "P0301" or "P0302" or "P0303" or "P0304"
+        or PostgresErrorCodes.LockNotAvailable or PostgresErrorCodes.SerializationFailure
+        or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.QueryCanceled
         || failure.SqlState is "23505" or "23514" or "23503"
             && failure.ConstraintName is { } name
             && (name.Contains("membership", StringComparison.Ordinal) || name.Contains("roles", StringComparison.Ordinal)

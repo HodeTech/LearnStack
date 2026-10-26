@@ -101,7 +101,7 @@ public sealed class SeedIdentityHandlerTests
         fixture.Memberships.FindAsync(MembershipId.From(Member), Arg.Any<CancellationToken>()).Returns(member);
         var handler = new SetSeedMembershipProfileCommandHandler(fixture.Memberships, fixture.Context,
             fixture.Admission, fixture.Lifecycle, fixture.Locks, fixture.Clock);
-        var command = new SetSeedMembershipProfileCommand(Member, PermissionScope.Tenant, "Contextual Name", "en", 1,
+        var command = new SetSeedMembershipProfileCommand(Member, User, RoleGuid, PermissionScope.Tenant, "Contextual Name", "en", 1,
             IdentityFoundationManifest.Version1.ProfileFingerprint(Tenant, null, Member, "Contextual Name", "en"));
         var result = await handler.Handle(command, CancellationToken.None);
         result.IsSuccess.Should().BeTrue();
@@ -129,6 +129,33 @@ public sealed class SeedIdentityHandlerTests
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Profile_seed_refuses_a_replaced_user_or_assignment_before_and_after_waiting(bool wrongUser, bool afterWait)
+    {
+        var fixture = new Fixture();
+        var role = RoleFor(BuiltInRoleKey.Learner);
+        var original = Membership.Create(MembershipId.From(Member), Tenant, null, User, role, At, User).Value!;
+        var driftedRole = wrongUser ? role : Role.Create(RoleId.From(Guid.CreateVersion7()), Tenant,
+            BuiltInRoleKey.Learner, PermissionScope.Tenant, At, User).Value!;
+        var drifted = Membership.Create(original.Id, Tenant, null,
+            wrongUser ? UserId.From(Guid.CreateVersion7()) : User, driftedRole, At, User).Value!;
+        fixture.Memberships.FindAsync(original.Id, Arg.Any<CancellationToken>())
+            .Returns(afterWait ? original : drifted, drifted);
+        var command = new SetSeedMembershipProfileCommand(Member, User, RoleGuid, PermissionScope.Tenant,
+            "Contextual Name", "en", 1, IdentityFoundationManifest.Version1.ProfileFingerprint(
+                Tenant, null, Member, "Contextual Name", "en"));
+        var handler = new SetSeedMembershipProfileCommandHandler(fixture.Memberships, fixture.Context,
+            fixture.Admission, fixture.Lifecycle, fixture.Locks, fixture.Clock);
+        (await handler.Handle(command, CancellationToken.None)).IsFailure.Should().BeTrue();
+        await fixture.Memberships.DidNotReceiveWithAnyArgs().UpdateAsync(null!);
+        await fixture.Memberships.DidNotReceiveWithAnyArgs().ValidateGraphAsync();
+        drifted.Profile.DisplayName.Should().BeNull();
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Plan_fault_and_nonadmitting_target_return_the_same_fixed_outward_refusal(bool planFault)
@@ -150,7 +177,7 @@ public sealed class SeedIdentityHandlerTests
     [Fact]
     public void Actual_commands_declare_the_five_scoped_definitions_and_exact_audit_subjects()
     {
-        var profileTenant = new SetSeedMembershipProfileCommand(Member, PermissionScope.Tenant, null, null, 1, "");
+        var profileTenant = new SetSeedMembershipProfileCommand(Member, User, RoleGuid, PermissionScope.Tenant, null, null, 1, "");
         var profileOrg = profileTenant with { MembershipScope = PermissionScope.Organization };
         IIdentityPermissionRequest[] commands = [FirstAdminCommand(),
             new CreateSeedMembershipCommand(Member, User, RoleGuid, PermissionScope.Organization, 1, ""),

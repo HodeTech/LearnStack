@@ -51,6 +51,7 @@ public sealed partial class TenantAuthenticationProfileTests
             ("organization without tenant", issuer.Without("tenant_id")),
             ("subject exceeds the opaque subject bound", issuer.Payload(("sub", new string('s', 256)))),
             ("subject contains only whitespace", issuer.Payload(("sub", " \t\r\n\u2003"))),
+            ("subject cannot store NUL", issuer.Payload(("sub", "private\0subject"))),
             ("duplicate audience value", issuer.Payload(("aud", (string[])["learnstack-api", "learnstack-api"]))),
             ("empty audience array", issuer.Payload(("aud", Array.Empty<string>()))),
             ("nonstring audience entry", issuer.PayloadWithRaw("aud", "[\"learnstack-api\",1]")),

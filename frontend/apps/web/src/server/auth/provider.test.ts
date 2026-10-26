@@ -340,6 +340,39 @@ describe('inactive tenant RP boundary', () => {
     await expect(f.login()).rejects.toMatchObject({ reason: 'response' });
   });
 
+  it.each([
+    ' ',
+    '\u0085\u3000',
+    'private\0subject',
+    'private\ud800',
+    'private\udc00',
+    '🙂'.repeat(128),
+  ])(
+    'refuses nonstorable, whitespace-only or over-bound subjects at code and refresh processing (%#)',
+    async (subject) => {
+      const f = await fixture();
+      const { result } = await f.login();
+      f.setClaims({ sub: subject });
+      await expect(f.login()).rejects.toMatchObject({ reason: 'identity' });
+      await expect(f.provider.refresh(result.refreshToken!, result.identity)).rejects.toMatchObject(
+        { reason: 'identity' },
+      );
+    },
+  );
+
+  it.each(['  I/ı/🙂  ', '🙂'.repeat(127) + 'a'])(
+    'preserves exact non-ASCII subject text at both grants (%#)',
+    async (subject) => {
+      const f = await fixture();
+      f.setClaims({ sub: subject });
+      const { result } = await f.login();
+      expect(result.identity.subject).toBe(subject);
+      expect(
+        (await f.provider.refresh(result.refreshToken!, result.identity)).identity.subject,
+      ).toBe(subject);
+    },
+  );
+
   for (const patch of [
     { sub: 'replacement-subject' },
     { user_id: '019a154b-0000-7000-8000-000000000012' },

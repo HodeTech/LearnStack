@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,806 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,904 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -58,6 +58,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 6 correction approvals and first hosted assignment (2026-10-26)](#p03-1-step-6-correction-approvals-and-first-hosted-assignment-2026-10-26) — 48 lines
   - [P03-1 Step 6 measured timing revision (2026-10-26)](#p03-1-step-6-measured-timing-revision-2026-10-26) — 39 lines
   - [P03-1 Step 6 qualification closeout and PR handoff (2026-10-26)](#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26) — 73 lines
+  - [P03-1 PR 38 review corrections (2026-10-26)](#p03-1-pr-38-review-corrections-2026-10-26) — 98 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1949,3 +1950,101 @@ HTTP/SDK operation. Live membership/permission execution remains P03-2; usable
 new-user HTTP/BFF onboarding remains P03-3; production first-admin/rebind and
 global closure/redaction remain P03-9/P03-10. P03-2 is the next packet, not part
 of this implementation. The phase Status block owns review/merge state.
+
+### P03-1 PR 38 review corrections (2026-10-26)
+
+Two maintainer-supplied reports review the `7cad8402` → `d32f3101` PR population.
+Their findings are review data, not authority to change Accepted decisions. Three
+independent verification slices check tooling/domain, SQL/audit and mutable
+carriers against `d32f3101`; their source review does not claim executed suites.
+The correction pass preserves ADR-0072/0073/0074 and the separately owned future
+gates. No new HTTP route, role, owner function, tenant setter, credential claim,
+creation budget or distributed-session policy is admitted.
+
+| Finding population | Verified correction or disposition |
+|---|---|
+| P0-1, tooling source selection | `make migrate` now delegates execution to a bounded owner. The migration connection and optional authority pair come from one complete source; partial/mixed selections refuse before any .NET child. Complete process input takes precedence over file defaults. Installer children receive only the selected credential/pair and tooling prerequisites. Actual recipe controls cover both sources, schema-only input, refusals, build/order and private-environment isolation. |
+| P0-2, first report's three documentation findings | Mutable navigation/model/startup carriers are reconciled to accepted Identity storage and Phase 03 Status. Direct API startup requires the installed matching authority even for anonymous reads; it does not load root `.env`. Unused global email/profile, triple-key roots, persisted Platform roles and unqualified contact/custom-field claims no longer describe the delivered foundation. Future field/UI decisions retain their named gates. |
+| P0-3 | Actual app-role global audit INSERT controls now exercise eleven malformed attribution/scope cases with valid committed twins, owner/platform refusals, and an independently isolated WITH CHECK control. Missing scope can reach the BEFORE guard first; the proof does not require every refusal to be 42501. |
+| P1-1 | The two-second transaction timeout remains. Save/preflight contention maps to the existing fixed conflict refusal, including Npgsql's exact transient execution-strategy wrapper. Real held-row tests exercise both adapter and seed handler, rollback-only state and no partial profile. Physical COMMIT uncertainty is unchanged. The report's claim that the existing provider exception maps to HTTP 500 is incorrect; it maps to 503 and current writers are internal seed commands. |
+| P1-2 | Completed ordinary binding lookups dispose their transaction and return the physical connector before tenant dispatch, retaining the scoped connection object for its next owner. A one-slot real pool admits a second HTTP binding/tenant read while the first request's scope remains held; the original request subsequently reopens its own tenant owner. Cancellation/clean connector reuse remains covered. |
+| P1-4 | An unclassified global creation releases its prepared owner before returning the central deployment error; the binding service no longer reports that configuration defect as storage availability. Created success additionally requires the common owner's recorded Committed outcome. |
+| P1-6 | Ordered SQL operation digests pin the four existing Identity migrations' Up/Down output despite their shared helpers. The forward correction preserves the original helper outputs and model; current/predecessor transition controls compare exact function identity/body/ACL. |
+| P1-7 | The profile seed declaration now binds its expected User and single Role assignment through closed admission. Both are checked before/after waiting; replaced User/assignment controls refuse without mutation. The retained v1 fingerprint algorithm and fixed non-null persona profiles are unchanged. Generic both-null profiles are not part of this seed contract. |
+| P1-10 | Real competing first-admin commands now prove one successful graph/MUST row; final-admin checks have globally eligible/ineligible twins. Restrictive organization UPDATE/DELETE controls remove only the target policy and retain the independent WITH CHECK/parent guard, distinguishing normal zero-row filtering from the resulting closed exception before restoration. Exact per-command permission mapping detects a swap that preserves the distinct registry set. |
+| 5.1–5.4, remaining source corrections | Already-cancelled requests perform no binding call; verified provider evidence has fixed formatting; disposed global-unit state clears. Nonstorable subject text refuses before hashing/storage; BFF code/refresh align whitespace and UTF-16 limits while preserving exact valid non-ASCII subjects. Membership targets require UUIDv7. An unused SQL-string property is removed. Ingress requires complete pairs per participating source; identity-child failures use the closed identity stage and the unchanged total pass budget. |
+
+The child-write/revocation race in 5.2 is reproduced with actual PostgreSQL 18
+app-role sessions: `FOR KEY SHARE` permits a new assignment to commit alongside
+an uncommitted non-key revocation; final state is Revoked with that new child.
+The forward, function-only migration
+`20261026102944_serialize_identity_parent_lifecycle` changes the parent locking
+read to `FOR NO KEY UPDATE`. The real tracked `Membership.Revoke` regression
+then observes the waiting inserter refuse after the revocation commits. Its
+predecessor twin still reproduces the defect. Revocation retains its shared
+tenant plan and acquires no new User fence. No historical migration is rewritten.
+
+Several requested changes are not current defects or would select new policy:
+
+- Accepted ADR bodies and source-bound dated readiness/proof entries remain
+  historical records. Mutable summaries are corrected; historical pending text
+  is not rewritten into a live dashboard.
+- Exact function bodies, five definers/eighteen callers and the Audit→Identity
+  migration-order control already exist. The primary catalogue description is
+  corrected; the existing configuration-construction scanner is not described
+  as a census of every physical connection checkout.
+- Audit-owned witness installation from the Identity chain, confined Boolean
+  owner functions, broad contextual UPDATE grants, cross-module root-FK absence
+  and the SQL-credential threat boundary are explicitly accepted. No newly
+  demonstrated sanctioned writer bypass warrants redesigning those contracts.
+- A typed tenant sentinel does not reserve the same bits in every identifier
+  type. Qualification is startup-only and fail-closed; a new retry/readiness or
+  public 503 policy is not inferred from the uniform-401 diagnostic. Provenance
+  remains available to enforce re-entry without another subject debit.
+- Neither all Error events nor arbitrary provider inners have been shown to
+  escape the closed global boundary in this review. No ad hoc module tracker
+  capture is added in conflict with L1 ownership. Deployment alert thresholds
+  remain Phase 11; production Identity lifecycle/permission writers retain
+  P03-2/3/9/10 ownership. Extra database UUID checks, new creation-attribution
+  immutability and additional display-name restrictions are not silently adopted.
+- Both A/B attempts retain twenty-five original archives each. Rehashing all
+  fifty against original API metadata, extracted package bytes and twenty-seven
+  Lighthouse report pairs per attempt supports the existing source-bound claims.
+  Remote retrieval limits do not invalidate retained evidence. The intermediate
+  159/77 TRX populations and both separately dated timing observations exist;
+  the reports' unlocated 197/256 claim supplies no correction target.
+
+Local qualification records 2,779 unit passes, 195 selected real Identity/API/
+PostgreSQL/Keycloak passes, and 2,402 guarded frontend passes in two packages,
+with zero skips/todos in those completed runs. Final local follow-ups pass the
+44 Identity/auth/corpus architecture cases, 306 Docker-free integration cases
+and five contract cases, with a zero-warning Release solution build. The full
+571-case Release run precedes the final global-wrapper refinement; its affected
+architecture population is the separately rerun 44-case set. The two additional
+private-file recipe controls pass in the final 24-case tooling selection.
+The local command sample observes
+production-guard warm p95 7 ms (twenty warm samples; four cold samples), versus
+12 ms in its same-code observation-only counterfactual, with peak two/four pool
+slots and final zero busy slots. This is a local observation, not an enforced
+CI SLO, historical baseline, production capacity or proof of a speedup.
+
+Failed qualification is retained separately: the first selected real run has
+188 passes/two failures exposing EF's contention wrapper. Its corrected run
+passes 193/193 including the subsequently added organization controls. The final
+195/195 run additionally covers real transient global EF read/write failures
+with personal-data canaries and the EF-generated forward migration; the model
+snapshot remains byte-identical. The global storage boundary translates only
+Npgsql's exact transient wrapper shapes, preserving unrelated invalid operations
+and cancellation. An
+initial Debug architecture run is interrupted after repeated compiled-boundary
+failures; the canonical Release controls pass, and the full Release suite is
+passes 571/571 separately. An initial guarded frontend run overlaps the architecture
+mutation census and fails two cold-development RSC proofs. Focused clean and
+trace-mutant controls, then the entire serial guarded run pass without timeout
+or protocol changes. Resource contention is plausible, not established as the
+original failure's sole cause. The local test guide now uses CI's Release
+configuration and serial heavy qualification.
+
+The correction commit still requires two fresh independent review rounds and
+current-source hosted checks. These local results do not relabel the earlier
+`193d61cc` A/B receipts or claim a new hosted execution.

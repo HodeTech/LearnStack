@@ -4,7 +4,8 @@
 > are complete. P03-1's six implementation steps and both review rounds are
 > complete; its implementation source has passed complementary full A/B
 > qualification ([Step 6 closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26)).
-> PR review and merge remain pending. The
+> [PR review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26)
+> are under qualification; merge remains pending. The
 > [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md)
 > is Accepted; existing-binding API admission is implemented. This is the current
 > critical-path phase after
@@ -31,8 +32,8 @@
 
 ## Goal
 
-Build LearnStack's identity domain (users, memberships with triple-key
-`(user_id, tenant_id, organization_id)`, roles, permissions, invitations) on top of
+Build LearnStack's identity domain (global users, contextual memberships, roles,
+permissions and invitations) on top of
 the Keycloak OIDC integration delivered in [Phase 02b](phase-02b-events-auth.md), and
 ship the first admin experience.
 
@@ -167,29 +168,30 @@ named part, and the register links each explicit acceptance and vehicle.
 
 ### Identity Model
 
-- `User` — global identity bound to issuer + opaque `sub` and a stable `UserId`;
-  canonical provider attributes are mirrored under G1. No email-based merging or
-  per-login actor allocation. The first accepted callback already needs `user_id`:
-  G1 establishes its provisioning sequence before implementing a login mirror.
-- `Membership` — per-tenant **and per-organization** relationship; triple key
-  `(user_id, tenant_id, organization_id)` per
-  [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md). Carries roles. A user
-  can hold memberships in multiple tenants and in multiple organizations within one
-  tenant.
-- `MembershipProfile` — the tenant-owned, organization-scoped record attached to a
-  membership: contextual display/contact data, locale preference and custom-field
-  values. G3 decides tenant versus membership granularity and self/admin edit
-  boundaries; consent evidence remains subject to Data Protection's append-only
-  purpose/version contract, not an administrator-editable consent boolean.
-- `Role` — Platform / Tenant / Organization-scoped per the scope catalogue in
-  [Permission Standards](../standards/19-permissions.md).
-- `Permission` — fine-grained capability inside a role with an explicit scope
-  (Platform / Tenant / Organization).
-- `Invitation` — pending membership offer, bound to email + tenant + organization.
+The accepted [Identity module contract](../modules/identity/README.md#aggregate-and-storage-contract)
+owns exact tables, keys, lifecycle and contained state:
 
-The aggregate previously named `UserProfile` is split by the ownership rules below: the
-attributes a person owns stay on `User`, and everything a tenant authors moves to
-`MembershipProfile`. There is no single profile aggregate straddling both.
+- `User` is the permanent global application binding under
+  [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md), without an
+  email/verification or unused global-profile mirror. P03-1 supplies fixed seed
+  adoption and existing-binding admission; new-user HTTP/BFF entry remains P03-3.
+- `Membership` is a contextual root with a stable ID, current null-safe natural
+  uniqueness, a contained profile and assignments. Revoked memberships retire;
+  rejoin creates a successor under
+  [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+- `MembershipProfile` holds contextual display name and locale preference. P03-3/G6
+  decides self/admin DTOs; P03-5/G9 owns dynamic fields and revision history.
+  No dormant contact/custom-field column or editable consent Boolean is admitted.
+- `Role` is a tenant-wide template with Tenant or Organization capability scope;
+  assignments derive exact organization authority from Membership. Platform
+  authority remains P03-9/G13.
+- Permission definitions and finite foundation grants belong to
+  [Permission Standards](../standards/19-permissions.md#identity-foundation-contract).
+- `Invitation` remains a P03-4/G8 membership offer; its first writer requires that
+  packet's accepted contract.
+
+There is no global `UserProfile` aggregate. Tenant-authored profile data belongs
+inside Membership; later mirrors and workflows require their named gates.
 
 > **Audit ownership.** The `AuditEntry` aggregate lives in the **Audit** module, not in
 > Identity. Identity's commands flow through the shared `AuditLogBehavior`, and
@@ -222,11 +224,12 @@ already places membership fields on `membership_profiles`, never global `users`.
 The [Data Protection boundary](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten)
 already separates tenant requests from global closure. This phase implements both.
 
-Data Protection assigns the classification census and a planted missing-annotation
-control to this phase; no current CI check discovers all personal-data columns.
-G19 closes before the first identity PII writer. JSONB classification additionally
-needs revision-aware definitions under G9; a property-name matcher cannot classify
-tenant-authored keys or authorize disclosure to a recipient.
+The [Data Protection classification census](../architecture/23-data-protection.md#identity-foundation-and-classification-ownership)
+enforces explicit declarations for every mapped EF scalar property, with a
+planted neutral-name omission control. SQL-only, control and vendor stores retain
+their separate inventories. Dynamic-value classification additionally needs
+revision-aware definitions under G9; the census does not infer PII from stored
+text or authorize disclosure to a recipient.
 
 The [accepted P02d-2 G17 answer](phase-02d-delivery-log.md#p02d-2-accepted-answers)
 and its writer already supply whole-value `[PiiSensitive]` on `TenantSetting.Value`.
@@ -241,12 +244,12 @@ the table it lives in and who may write it.
 |---|---|---|---|
 | Provider credentials, MFA factors, token issuance | Keycloak | Keycloak realm `learnstack` | Keycloak only |
 | BFF token custody | Native web session owner | Process-local store under [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) | The closed BFF owner only |
-| Issuer + `sub`, canonical email, email-verified flag | Keycloak | mirrored onto `users` under G1 | The trusted mirror only; never email-based identity merging |
-| Global display name, avatar, preferred UI locale, global account status | The person | `users` | The person; platform admin under an audited `EnterPlatformAdminScope(reason)` |
+| Global application binding and admission lifecycle | Identity under [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) | `users` and the deployment authority under the [Database contract](../standards/05-database.md#identity-storage-contract) | Admitted creation owner; global closure remains P03-10/G16 |
+| Canonical provider email/verification mirror, if selected | Provider source | No P03-1 mirror storage; P03-6/G10 or an earlier proven consumer decides fields/source/freshness | Its separately admitted mirror owner; never email-based identity merging |
 | Roles and permissions inside a tenant | Tenant | Membership/role bindings under G3/G5 | Admin within the decided delegation ceiling and scope |
-| Contextual display name, contact fields, locale preference | Tenant / membership context | `membership_profiles`, granularity under G3 | Admin or self within the decided field/scope boundary |
+| Contextual display name and locale preference | Tenant / membership context | Contained `membership_profiles` under the [Identity contract](../modules/identity/README.md#lifecycle-profile-and-admission) | Closed seed owner; P03-3/G6 decides self/admin edits |
 | Consent evidence | The person for the stated purpose | Append-only contract in [Data Protection](../architecture/23-data-protection.md#consent-management) | G3/G9 decide references and authorized capture; a profile edit cannot fabricate consent |
-| Tenant-defined custom fields | Tenant | `membership_profiles.custom_fields` | Tenant / organization admin of that tenant |
+| Tenant-defined custom fields | Tenant | P03-5/G9 decides revision-aware Membership values; no foundation column | P03-5/G9 decides authorized writers |
 | Learning behaviour (progress, attempts, attendance) | Tenant | per-module tenant-owned tables | The owning module |
 
 Two rules make the table enforceable:
@@ -289,8 +292,8 @@ by this note.
 - A tenant-scoped erasure removes the `Membership` and its `MembershipProfile`,
   anonymises that tenant's behaviour rows, and redacts the permitted human-facing
   audit fields while keeping the action record. Audit identifiers and causal
-  metadata remain subject to the first-writer decision below. The `users` row
-  survives for as long as any membership remains anywhere.
+  metadata remain subject to the first-writer decision below. Tenant erasure
+  preserves the [permanent global binding/tombstone](../architecture/23-data-protection.md#identity-foundation-and-classification-ownership).
 - **Global account closure has no tenant-admin endpoint.** The person authorizes
   the request without receiving a Platform permission. G13/G16 define the
   privileged executor, stable participant inventory and write fence against new

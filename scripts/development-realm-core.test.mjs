@@ -107,7 +107,7 @@ test('a private consumer failure is closed and never exposes provider facts in p
   const recording = providerTransport(state);
   await assert.rejects(reconcileRealm({ ...memoryInput(recording.transport), afterVerified: witness => {
     throw new Error(witness.users[0].opaqueSub + privateCanary);
-  } }), refusal('readback', 'response'));
+  } }), refusal('identity', 'seed_refused'));
 });
 
 test('the actual core applies one mutation, verifies full state, and makes an explicit next pass read only', async () => {

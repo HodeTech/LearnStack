@@ -237,7 +237,7 @@ carry a composite natural key and no id at all, and therefore cannot be
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
 | `User` | Yes | Global application UUIDv7 actor, bound to stable authority/subject digest under [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md). Provider `sub` is opaque, never the actor UUID. No tenant-authored fields or global profile mirror land in P03-1. |
-| `MembershipProfile` | Inside Membership | Contextual display/contact/preferences; no global UserProfile. Exact accepted shape and later custom-field boundary are in the [Identity specification](../modules/identity/README.md). |
+| `MembershipProfile` | Inside Membership | Contextual display name and locale preference; no global UserProfile. Exact accepted shape and later custom-field boundary are in the [Identity specification](../modules/identity/README.md). |
 | `Membership` | Yes | Contextual root with stable ID, null-safe current `(tenant_id,user_id,organization_id)` uniqueness, contained profile and assignments; revoked rows retire and a rejoin is a successor. [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) owns the accepted boundary. |
 | `Role` | Yes | Tenant-wide template with Tenant/Organization capability scope, no OrganizationId. Exact Membership binding confines Organization grants. Platform/operator authority remains separate under P03-9. |
 | `Permission` | Code-owned definition; grant inside Role | Scoped `(PermissionScope,PermissionKey)` identity and finite manifests from [Permission Standards](../standards/19-permissions.md#identity-foundation-contract); template existence alone grants nothing. |

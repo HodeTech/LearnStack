@@ -118,7 +118,8 @@ extend the common owner in P03-1 Step 3. `IAuditStore` exposes eight implemented
 writes: pending, standalone, best-effort, platform scope, event terminal, job
 terminal, `WriteGlobalIdentityPending` and `ReconcileGlobalIdentity`. Exact
 method/call-site controls and actual app-role positive/planted proofs qualify
-the global extension; step review remains in progress.
+the global extension. The [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+owns current qualification and review state.
 
 `PreparedGlobalIdentityOwner` binds the verified authority/subject, source and
 physical connection/transaction/generation under a distinct global authority
@@ -797,9 +798,10 @@ and wrote both columns `NULL` on every successful row
 principal the request carried, or `NULL` when it carried none: a handler's
 `UserId ?? UserId.SystemActor` for `created_by` attributes the aggregate and is not the audit
 actor, and an execution that acts as the system carries `UserId.SystemActor` in its own
-context. `actor_email` stays `NULL` until the `users` table lands in
-[Phase 03](../roadmap/phase-03-identity-admin.md); there is no `users` row to read it from
-and `actor_user_id` carries no foreign key. `ip_address` and `user_agent` need HTTP-layer
+context. `actor_email` stays `NULL`: the global User foundation stores no email
+mirror. [Phase 03 G10](../roadmap/phase-03-identity-admin.md#the-decision-register),
+or an earlier proven consumer, must decide its first source/freshness contract;
+`actor_user_id` carries no foreign key. `ip_address` and `user_agent` need HTTP-layer
 enrichment `LearnStack.Application` cannot see — that project references no
 `Microsoft.AspNetCore.*` package, and must not begin to — so they stay `NULL` until
 [Phase 03](../roadmap/phase-03-identity-admin.md) adds the request-context port that

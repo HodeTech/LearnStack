@@ -14,8 +14,8 @@
 > merged contents, and closes the review and merge gates. Earlier evidence stays
 > bound to its recorded source.
 > The [individual exit index](phase-02b-exit-evidence.md) names each criterion's
-> owner. [Phase 03](phase-03-identity-admin.md) is next on the critical path;
-> its implementation has not started.
+> owner. The [Phase 03 Status block](phase-03-identity-admin.md) owns current
+> identity, membership and authorization packet state.
 >
 > This document is the plan. Every dated decision package, step record, review
 > round, correction and merge closeout lives in the [delivery log](phase-02b-delivery-log.md), split out

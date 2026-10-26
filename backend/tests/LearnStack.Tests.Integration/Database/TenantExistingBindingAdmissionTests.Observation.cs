@@ -39,6 +39,7 @@ public sealed partial class TenantExistingBindingAdmissionTests
         internal int ClosedOwners => Volatile.Read(ref _closed);
         internal ConcurrentQueue<int> BackendIds { get; } = new();
         internal Func<CancellationToken, Task>? BeforeRead { get; set; }
+        internal Func<CancellationToken, Task>? AfterRead { get; set; }
         internal void Enter(int backend)
         {
             Interlocked.Increment(ref _lookups);
@@ -103,6 +104,7 @@ public sealed partial class TenantExistingBindingAdmissionTests
                 capture.Changes.Should().BeEmpty();
                 capture.HasOpenFrame.Should().BeFalse();
                 observation.Closed();
+                if (observation.AfterRead is { } after) await after(cancellationToken);
             }
         }
     }

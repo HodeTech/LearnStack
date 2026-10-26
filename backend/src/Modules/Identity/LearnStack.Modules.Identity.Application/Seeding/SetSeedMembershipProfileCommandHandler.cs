@@ -20,10 +20,11 @@ public sealed class SetSeedMembershipProfileCommandHandler(IMembershipWriteStore
         ArgumentNullException.ThrowIfNull(request);
         if (!SeedFoundationGate.HasActor(context) || request.MembershipScope != SeedFoundationGate.Scope(context)
             || !SeedFoundationGate.ValidRoot(request.MembershipId)
+            || !SeedFoundationGate.ValidUser(request.ExpectedUserId) || !SeedFoundationGate.ValidRoot(request.ExpectedRoleId)
             || !MembershipProfile.IsValid(request.DisplayName, request.PreferredLocale))
             return Result<None>.Fail(IdentityFailures.Refused());
         var act = SeedFoundationGate.Act(context, SeedIdentityFoundationOperation.SetProfile, request.MembershipId,
-            null, null, null, request.MembershipScope, request.ManifestVersion, request.ExpectedFingerprint);
+            request.ExpectedUserId, request.ExpectedRoleId, null, request.MembershipScope, request.ManifestVersion, request.ExpectedFingerprint);
         if (!await SeedFoundationGate.AllowsAsync(context, admission, lifecycle, act,
             IdentityFoundationManifest.Version1.ProfileFingerprint(context.TenantId, context.OrganizationId,
                 request.MembershipId, request.DisplayName, request.PreferredLocale), cancellationToken))
@@ -59,6 +60,8 @@ public sealed class SetSeedMembershipProfileCommandHandler(IMembershipWriteStore
 
     private bool CanSet(Membership? membership, SetSeedMembershipProfileCommand request) =>
         membership is { Status: MembershipStatus.Active, DeletedAt: null, DeletedBy: null }
+        && membership.UserId == request.ExpectedUserId
+        && membership.RoleAssignments.Count == 1 && membership.RoleAssignments.Single().RoleId.Value == request.ExpectedRoleId
         && membership.TenantId == context.TenantId && membership.OrganizationId == context.OrganizationId
         && (membership.Version == 0 && membership.Profile.DisplayName is null && membership.Profile.PreferredLocale is null
             || membership.Version == 1 && membership.Profile.DisplayName == request.DisplayName

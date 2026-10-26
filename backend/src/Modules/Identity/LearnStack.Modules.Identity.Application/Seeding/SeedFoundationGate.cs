@@ -10,7 +10,8 @@ namespace LearnStack.Modules.Identity.Application.Seeding;
 internal static class SeedFoundationGate
 {
     internal static bool ValidRoot(Guid value) => value != Guid.Empty && value.Version == 7;
-    internal static bool ValidUser(UserId value) => value.IsInitialized() && value.Value != Guid.Empty && value != UserId.SystemActor;
+    internal static bool ValidUser(UserId value) => value.IsInitialized() && value.Value != Guid.Empty
+        && value.Value.Version == 7 && value != UserId.SystemActor;
     internal static PermissionScope Scope(ITenantContext context) =>
         context.OrganizationId is null ? PermissionScope.Tenant : PermissionScope.Organization;
 

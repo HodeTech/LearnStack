@@ -5,11 +5,11 @@ Part of the [module spec](README.md).
 
 **No permission keys are enforced yet.** The matrix below is a forward declaration in
 the `{module}.{resource}.{action}` form with the closed action set of
-[Permission Standards](../../standards/19-permissions.md). Registration runs through
-`IModule.RegisterPermissions(IPermissionRegistry)`, and neither type exists in
-`backend/src` yet; the registry lands with the Identity module in
-[Phase 03](../../roadmap/phase-03-identity-admin.md), together with the query API these
-keys gate.
+[Permission Standards](../../standards/19-permissions.md). These Audit keys await
+the separately admitted P03-2 registry/live-enforcement contract and the protected
+query API in [Phase 03](../../roadmap/phase-03-identity-admin.md). The implemented
+Identity foundation registry does not activate these forward declarations or
+introduce an `IModule` interface.
 
 | Resource | read | write | delete | admin | Default role grants |
 |----------|:----:|:-----:|:------:|:-----:|---------------------|

@@ -323,9 +323,18 @@ export function loadLocalEnvironment(
   }
   // Web startup does not consume API authentication configuration. Only the API
   // launcher resolves the exact issuer/authority pair and its conflict checks.
-  for (const key of ['Authentication__Tenant__Issuer', 'Identity__AuthorityId']) {
-    delete result[key];
-    if (options.apiAuthentication) {
+  const identityKeys = ['Authentication__Tenant__Issuer', 'Identity__AuthorityId'];
+  for (const key of identityKeys) delete result[key];
+  if (options.apiAuthentication) {
+    for (const input of [source, projection, environment]) {
+      const present = identityKeys.filter((key) => input[key] !== undefined);
+      if (
+        present.length !== 0 &&
+        (present.length !== identityKeys.length || present.some((key) => !input[key]))
+      )
+        throw new Error('Incomplete API authentication configuration');
+    }
+    for (const key of identityKeys) {
       const values = [source[key], projection[key], environment[key]].filter(
         (value): value is string => value !== undefined,
       );

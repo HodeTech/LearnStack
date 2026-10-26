@@ -33,7 +33,7 @@ public sealed class Membership : AuditableEntity<MembershipId>, IAggregateRoot<M
         TenantOwnership.EnsureRealTenant(tenantId, "Membership tenant is invalid.", nameof(tenantId));
         if (organizationId is { } organization && (!organization.IsInitialized() || organization.Value == Guid.Empty))
             throw new ArgumentException("Membership organization is invalid.", nameof(organizationId));
-        if (!userId.IsInitialized() || userId.Value == Guid.Empty || userId == UserId.SystemActor)
+        if (!userId.IsInitialized() || userId.Value == Guid.Empty || userId.Value.Version != 7 || userId == UserId.SystemActor)
             return Result<Membership>.Fail(IdentityFailures.Refused());
         if (role.TenantId != tenantId || role.IsDeleted
             || role.PermissionScope != (organizationId is null ? PermissionScope.Tenant : PermissionScope.Organization))

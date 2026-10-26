@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.Identity;
@@ -29,7 +30,7 @@ public sealed class IdentitySubjectKey : IEquatable<IdentitySubjectKey>
     public static IdentitySubjectKey Compute(IdentityAuthorityId authorityId, string subject)
     {
         if (!authorityId.IsInitialized() || authorityId.Value == Guid.Empty
-            || string.IsNullOrWhiteSpace(subject) || subject.Length > 255)
+            || string.IsNullOrWhiteSpace(subject) || subject.Length > 255 || !JsonValue.IsStorableText(subject))
             throw new ArgumentException("Identity subject-key inputs are invalid.");
 
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);

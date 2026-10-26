@@ -197,7 +197,12 @@ no-hop API startup remains supported outside this paired renderer recipe; supply
 both `ConnectionStrings:Default` (`learnstack_app`) and
 `ConnectionStrings:OutboxDispatcher` (`learnstack_outbox_admin`). The mandatory
 API worker verifies dispatcher connectivity at startup.
-Supply `Authentication:Tenant:Issuer` too: the canonical HTTPS tenant-realm URL,
+Supply `Identity:AuthorityId` (`Identity__AuthorityId`) and
+`Authentication:Tenant:Issuer` (`Authentication__Tenant__Issuer`) matching the
+installed deployment authority, following
+[Identity deployment](docs/modules/identity/README.md#global-implementation-and-deployment).
+Direct API startup reads process/.NET configuration, not the root `.env`.
+The issuer is the canonical HTTPS tenant-realm URL,
 with loopback HTTP allowed only in `Development`. The development configuration
 defaults to `http://localhost:8080/realms/learnstack`; issuer configuration is
 validated without contacting Keycloak at startup. Credential-free public reads
@@ -219,7 +224,7 @@ the closed authenticated hop. See
 | `make help` | List available tasks. |
 | `make demo` | Build/start the seeded production sites; Ctrl+C preserves local data. |
 | `make dev` | Start the default local infrastructure. |
-| `make migrate` | Apply platform and module migration chains. |
+| `make migrate` | Apply platform/module migrations and install or verify an explicitly configured [identity authority](docs/modules/identity/README.md#global-implementation-and-deployment). |
 | `make test` | Restore dependencies and run backend and frontend suites; Docker is required. |
 | `make lint` | Check backend formatting and frontend lint rules. |
 | `make down` | Stop infrastructure while preserving its data volumes. |
@@ -237,7 +242,7 @@ three product surfaces. See the
 
 | Layer | Choice | Current scope |
 |---|---|---|
-| Backend | .NET 10 · ASP.NET Core · EF Core · MediatR | Foundation and four domain modules implemented |
+| Backend | .NET 10 · ASP.NET Core · EF Core · MediatR | Foundation and domain modules implemented |
 | Database | PostgreSQL 18 | Migrations, tenant / organization RLS and integration proofs |
 | Frontend | Next.js 15 · React 19 · TypeScript | App/UI scaffolds; generated SDK and injected transport implemented |
 | Observability | OpenTelemetry · Serilog → OTLP | Cross-cutting backend instrumentation implemented |

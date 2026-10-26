@@ -181,8 +181,8 @@ that tenant.
 2. The `Membership` and its `MembershipProfile` are removed.
 3. That tenant's behaviour rows are anonymised; its audit entries keep the action
    record, with redaction subject to the [first-writer prerequisites](#erasure-authority-and-first-writer-prerequisites).
-4. The `users` row survives for as long as any membership remains anywhere. Nothing in
-   this flow touches Keycloak.
+4. This flow preserves the [permanent global binding/tombstone](#identity-foundation-and-classification-ownership).
+   Nothing in this flow touches Keycloak.
 
 G15 defines the authorized subject/org scope: an org admin cannot erase a person's
 other branch, and the subject needs a request/status path without admin rights.

@@ -89,6 +89,7 @@ public sealed class ContextualIdentityDomainTests
         Membership.Create(id, TenantId.From(Guid.Parse("01916d82-4b10-7000-8000-000000000003")),
             null, Actor, role, At, Actor).IsFailure.Should().BeTrue();
         Membership.Create(id, Tenant, null, UserId.SystemActor, role, At, Actor).IsFailure.Should().BeTrue();
+        Membership.Create(id, Tenant, null, UserId.From(Guid.NewGuid()), role, At, Actor).IsFailure.Should().BeTrue();
         Role.Create(role.Id, Tenant, BuiltInRoleKey.TenantAdmin, PermissionScope.Organization, At, Actor)
             .IsFailure.Should().BeTrue();
         Role.Create(role.Id, Tenant, BuiltInRoleKey.Learner, PermissionScope.Platform, At, Actor)
