@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,380 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,400 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -67,7 +67,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 PR #38 current-source A/B and ordinary window proposal (2026-10-26)](#p03-1-pr-38-current-source-ab-and-ordinary-window-proposal-2026-10-26) — 98 lines
   - [ADR-0075 proposal review round 1 (2026-10-26)](#adr-0075-proposal-review-round-1-2026-10-26) — 29 lines
   - [ADR-0075 proposal review round 2 (2026-10-26)](#adr-0075-proposal-review-round-2-2026-10-26) — 27 lines
-  - [ADR-0075 maintainer review and revised package (2026-10-27)](#adr-0075-maintainer-review-and-revised-package-2026-10-27) — 102 lines
+  - [ADR-0075 maintainer review and revised package (2026-10-27)](#adr-0075-maintainer-review-and-revised-package-2026-10-27) — 103 lines
+  - [ADR-0075 revised proposal review round 1 (2026-10-27)](#adr-0075-revised-proposal-review-round-1-2026-10-27) — 19 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2533,3 +2534,23 @@ Each step retains commits and two fresh independent review rounds before
 advancing. The revised proposal also receives two fresh review rounds before
 being returned for approval. Acceptance and executable implementation remain
 pending; this package is not new hosted qualification.
+
+
+### ADR-0075 revised proposal review round 1 (2026-10-27)
+
+Two fresh independent read-only reviewers inspect revision `d5ebab86`:
+`pr38_adr75_maintainer_r1_intervals` (GPT-6.1 Sol, high) traces enclosing
+measurement/deadline semantics and expected-owner budget authority;
+`pr38_adr75_maintainer_r1_docs` (GPT-6 Astra, high) checks the amendment texts,
+predecessor decisions, retained boundaries, Proposed status and plan consistency.
+Both approve with no remaining actionable finding. Neither changes files,
+starts services, executes .NET or reruns hosted jobs or archive validation.
+
+Both verify the partial M1 disposition against actual instrumentation: worker
+and assembly observations can legitimately exceed 1,200 within the proposed
+ordinary enclosing budget; a separate cap would add a workload restriction.
+Other producers and actual operation deadlines stay unchanged. Both own-record
+amendments, native twenty minutes, per-job feedback cost and the explicit
+A-passes/B-fails reopening rationale are confirmed. This establishes reviewed
+proposal semantics, not maintainer acceptance, implementation or hosted fit.
+A fresh second review round remains required before returning the package.
