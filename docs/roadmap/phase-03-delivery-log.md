@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,250 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,277 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -65,7 +65,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 PR 38 measured timing correction (2026-10-26)](#p03-1-pr-38-measured-timing-correction-2026-10-26) — 42 lines
   - [P03-1 PR 38 independent mutation collections (2026-10-26)](#p03-1-pr-38-independent-mutation-collections-2026-10-26) — 77 lines
   - [P03-1 PR #38 current-source A/B and ordinary window proposal (2026-10-26)](#p03-1-pr-38-current-source-ab-and-ordinary-window-proposal-2026-10-26) — 98 lines
-  - [ADR-0075 proposal review round 1 (2026-10-26)](#adr-0075-proposal-review-round-1-2026-10-26) — 28 lines
+  - [ADR-0075 proposal review round 1 (2026-10-26)](#adr-0075-proposal-review-round-1-2026-10-26) — 29 lines
+  - [ADR-0075 proposal review round 2 (2026-10-26)](#adr-0075-proposal-review-round-2-2026-10-26) — 26 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2401,3 +2402,30 @@ The historical 617-second advisory class envelope is outside that reviewer's
 reconstruction; it supplies no qualification claim. Root separately rechecks
 all archive digests/sizes/CRCs and unique case totals. These are offline evidence
 checks, not another hosted run. Fresh second-round review remains required.
+
+
+### ADR-0075 proposal review round 2 (2026-10-26)
+
+Two different fresh independent read-only reviewers inspect corrected proposal
+commit `e50e6d13`: `pr38_adr75_r2_source` (GPT-6.1 Sol, high) traces all
+launcher/leaf, API/receipt, workflow and image-preparation budget authorities;
+`pr38_adr75_r2_evidence` (GPT-6 Astra, high) independently recomputes the retained
+archive/case/source evidence and checks acceptance governance. Both approve with
+no remaining concrete finding. Neither edits files, starts services or executes
+.NET tests.
+
+The source reviewer confirms closed expected-owner authority, retained reserves,
+other ceilings, counts, runner tier and test-specific deadlines, plus the
+Standard 20 and resource-accounting corrections. Only the four proposal/carrier
+documents differ from measured code source `7aabc6d8`; no policy implementation
+precedes approval. The evidence reviewer independently checks all 49 original
+ZIP hashes/sizes/CRCs and extracted-file equality, exact A/B selected and
+completed unions, twenty natural A owners, identities and budget arithmetic.
+It does not reconstruct the advisory class-envelope analysis or rerun aggregate
+validation; those limitations do not become new qualification claims.
+
+Whole-tree Markdown fragments, roadmap structure, current delivery indexes,
+ADR lifecycle parsing and whitespace checks pass. ADR-0075 remains Proposed;
+maintainer approval is the next policy gate. After approval, the three-step plan
+above still requires actual implementation reviews and fresh complete hosted
+A/B. These document reviews do not establish twenty-five-minute fit.
