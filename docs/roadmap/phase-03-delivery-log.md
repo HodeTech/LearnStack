@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,990 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,005 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -61,6 +61,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 PR 38 review corrections (2026-10-26)](#p03-1-pr-38-review-corrections-2026-10-26) — 98 lines
   - [P03-1 PR 38 correction review round 1 (2026-10-26)](#p03-1-pr-38-correction-review-round-1-2026-10-26) — 55 lines
   - [P03-1 PR 38 correction review round 2 (2026-10-26)](#p03-1-pr-38-correction-review-round-2-2026-10-26) — 31 lines
+  - [P03-1 PR 38 correction fixture census (2026-10-26)](#p03-1-pr-38-correction-fixture-census-2026-10-26) — 15 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2136,3 +2137,18 @@ the focused local checks.
 
 The final guarded frontend run passes 2,413 cases in two packages with zero
 skips/todos; canonical frontend lint/typecheck and the documentation gates pass.
+
+### P03-1 PR 38 correction fixture census (2026-10-26)
+
+Hosted run [40317627293](https://github.com/HodeTech/LearnStack/actions/runs/40317627293)
+at `492f3f67` rejects the metadata control because the new real contextual-read
+sink class is absent from the closed shared-fixture census. The census now
+includes that actual class. Shard counts, assignment algorithm, weights,
+resource limits and time ceilings are unchanged; no producer is omitted to
+obtain a pass. All 72 planner controls pass before the next push, and the
+tooling reviewer independently confirms the exact source/census match and
+status/evidence wording in a narrow read-only recheck. Because this
+changes the plan digest, final qualification requires both complete A/B layouts
+at the same correction source; the original `193d61cc` A/B evidence is not
+relabeled. The phase Status block records committed implementation and review
+state without predicting the current-head checks' result.

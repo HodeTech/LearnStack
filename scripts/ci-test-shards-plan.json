@@ -9828,6 +9828,7 @@
     "LearnStack.Tests.Integration.Database.IdentityDiagnosticSinkTests",
     "LearnStack.Tests.Integration.Database.IdentityMembershipTests",
     "LearnStack.Tests.Integration.Database.IdentityMutationLockTests",
+    "LearnStack.Tests.Integration.Database.IdentityReadDiagnosticSinkTests",
     "LearnStack.Tests.Integration.Database.IdentityScopeLifecycleTests",
     "LearnStack.Tests.Integration.Database.IdentitySeederTests",
     "LearnStack.Tests.Integration.Database.InboxGuardTests",
