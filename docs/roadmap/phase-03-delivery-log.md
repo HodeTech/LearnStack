@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,400 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,425 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -68,7 +68,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 proposal review round 1 (2026-10-26)](#adr-0075-proposal-review-round-1-2026-10-26) — 29 lines
   - [ADR-0075 proposal review round 2 (2026-10-26)](#adr-0075-proposal-review-round-2-2026-10-26) — 27 lines
   - [ADR-0075 maintainer review and revised package (2026-10-27)](#adr-0075-maintainer-review-and-revised-package-2026-10-27) — 103 lines
-  - [ADR-0075 revised proposal review round 1 (2026-10-27)](#adr-0075-revised-proposal-review-round-1-2026-10-27) — 19 lines
+  - [ADR-0075 revised proposal review round 1 (2026-10-27)](#adr-0075-revised-proposal-review-round-1-2026-10-27) — 20 lines
+  - [ADR-0075 revised proposal review round 2 (2026-10-27)](#adr-0075-revised-proposal-review-round-2-2026-10-27) — 24 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2554,3 +2555,28 @@ amendments, native twenty minutes, per-job feedback cost and the explicit
 A-passes/B-fails reopening rationale are confirmed. This establishes reviewed
 proposal semantics, not maintainer acceptance, implementation or hosted fit.
 A fresh second review round remains required before returning the package.
+
+
+### ADR-0075 revised proposal review round 2 (2026-10-27)
+
+Two different fresh independent read-only reviewers inspect revision `9ba876f3`:
+`pr38_adr75_maintainer_r2_source` (GPT-6 Astra, high) traces enclosing execution,
+operation caps, observations and counterfactual obligations;
+`pr38_adr75_maintainer_r2_docs` (GPT-6.1 Sol, high) checks own-record amendments,
+predecessor/standard consistency, status and historical preservation. Both
+approve with no remaining actionable finding.
+
+The source review confirms that a 1,250-second worker/assembly observation can
+fit the proposed window when pre-owner/setup work is short, supporting the
+recorded partial M1 disposition. Both verify that expected identity, not a
+receipt or prefix, selects observational and whole-job bounds; nonordinary,
+actual operation caps and the 203-second reserve stay fixed. The corpus review
+confirms historical delivery text is preserved and both Accepted predecessor
+files, Standards 06/20/21, executable carriers, workflow and plan remain
+byte-identical to `b048412d`. Only four proposal/carrier documents differ.
+
+Whole-tree document/roadmap/index guards, ADR Proposed parsing and whitespace
+checks pass. Neither reviewer changes files, starts services, executes .NET,
+reruns hosted jobs or repeats archive qualification. This closes the revised
+proposal reviews; maintainer acceptance, implementation reviews and fresh full
+A/B remain required. No twenty-five-minute hosted fit is claimed.
