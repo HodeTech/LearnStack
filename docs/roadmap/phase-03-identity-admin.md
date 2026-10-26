@@ -5,8 +5,11 @@
 > complete; its implementation source has passed complementary full A/B
 > qualification ([Step 6 closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26)).
 > [PR review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26)
-> are committed with both independent review rounds complete; normal current-head
-> checks and merge review remain required. The
+> are committed with both independent review rounds complete. Current correction
+> source passes full A; full B reaches two ordinary job deadlines and is not
+> qualified. [ADR-0075](../decisions/0075-ordinary-ci-job-window.md) is Proposed;
+> its ordinary-only CI window change awaits maintainer approval before
+> implementation and fresh full A/B qualification. Merge review remains required. The
 > [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md)
 > is Accepted; existing-binding API admission is implemented. This is the current
 > critical-path phase after
@@ -19,7 +22,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | Implemented; PR review/merge pending — [six-step closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26) and [review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26); normal current-head checks required; HTTP/new-user BFF activation belongs to P03-3 |
+> | P03-1 | Identity authority and membership foundation | Implemented; PR review/merge pending — [six-step closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26) and [review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26); correction source A passes, B incomplete; [ADR-0075 CI window proposal](../decisions/0075-ordinary-ci-job-window.md) awaits approval, implementation and fresh A/B; HTTP/new-user BFF activation belongs to P03-3 |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |

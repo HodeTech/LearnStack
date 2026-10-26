@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,123 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,220 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -63,7 +63,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 PR 38 correction review round 2 (2026-10-26)](#p03-1-pr-38-correction-review-round-2-2026-10-26) — 31 lines
   - [P03-1 PR 38 correction fixture census (2026-10-26)](#p03-1-pr-38-correction-fixture-census-2026-10-26) — 15 lines
   - [P03-1 PR 38 measured timing correction (2026-10-26)](#p03-1-pr-38-measured-timing-correction-2026-10-26) — 42 lines
-  - [P03-1 PR 38 independent mutation collections (2026-10-26)](#p03-1-pr-38-independent-mutation-collections-2026-10-26) — 76 lines
+  - [P03-1 PR 38 independent mutation collections (2026-10-26)](#p03-1-pr-38-independent-mutation-collections-2026-10-26) — 77 lines
+  - [P03-1 PR #38 current-source A/B and ordinary window proposal (2026-10-26)](#p03-1-pr-38-current-source-ab-and-ordinary-window-proposal-2026-10-26) — 96 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2272,3 +2273,100 @@ is 617 seconds across all methods in each class; every assigned class plus the
 historical fixed-time proxy is below the existing nominal owner window. These
 are advisory scheduling diagnostics, not a future wall-time guarantee. The
 actual complete A/B runs remain the acceptance witness for hosted fit.
+
+
+### P03-1 PR #38 current-source A/B and ordinary window proposal (2026-10-26)
+
+**Source and outcome.** Complete run
+[40382715371](https://github.com/HodeTech/LearnStack/actions/runs/40382715371)
+uses head `7aabc6d8a3e2109a6e6dfa0c439442b0dcd008d9`, actual merge checkout
+`2c692b51adc5feb7fb0c843d4124938a61775a7b` and common tree
+`217d237966b20215ed25a15d5440c4d05a18717c`. Its frozen plan and manifest are
+those recorded in the preceding mutation-collection entry. Attempt 1 selects
+literal A; attempt 2 selects literal B. The attempts are retained separately.
+
+A succeeds in all 27 jobs, with 6,490 .NET passes, zero skips and exact case
+unions. All 25 original archives are retained. Independent offline audit by
+`pr38_layout_r2_plan` verifies API source/attempt identity, archive size/digest
+and CRC, 147 original producer files, production aggregate validation, all twenty
+natural execution owners and 27 public JSON/HTML report pairs. This audit is
+source-bound A evidence, not a second assignment or a new runtime execution.
+
+B succeeds in 24 jobs; all Architecture producers and the backend aggregate
+pass. Two ordinary producers report `deadline_exhausted`:
+
+| Producer / actual job | Selected | Completed Passed | No result |
+|---|---:|---:|---:|
+| [ordinary-3](https://github.com/HodeTech/LearnStack/actions/runs/40382715371/job/121796927865) | 262 | 259 | 3 |
+| [ordinary-7](https://github.com/HodeTech/LearnStack/actions/runs/40382715371/job/121796928433) | 267 | 264 | 3 |
+
+The dependent integration aggregate refuses. Whole B contains 6,484 completed
+passing cases and six without results. Both failed producers report forced
+cleanup and no proved Docker absence; ownership of forced cleanup is not natural
+completion. No assertion failure is observed in completed cases; the censored
+cases establish neither a pass nor an assertion failure. All 24 available B
+original ZIPs, API metadata and extracted proof are retained under
+`artifacts/p031-step6/hosted/40382715371/2/`; A is retained under sibling `1/`.
+Raw receipts remain private verification artifacts, not committed source.
+No complete current-source A/B qualification is claimed.
+
+**Decision boundary.** [ADR-0075](../decisions/0075-ordinary-ci-job-window.md)
+is Proposed. It recommends only an ordinary Docker whole-job window of
+25 minutes, preserving the other ADR-0063 limits. Its Context owns the budget
+arithmetic, censored-tail limitation and alternatives. Source-bound complete
+A and failed B expose a remaining wall-time limit; more weight tuning is not a
+substitute for final-source qualification. No policy or runtime implementation
+is authorized by this proposal. Maintainer approval is required because the
+maintainer requested review before implementing each new ADR.
+
+**Acceptance text prepared for ADR-0063 — not appended there while Proposed:**
+
+> Amendment 1 — Ordinary Docker whole-job window (acceptance date)
+>
+> The maintainer accepts ADR-0075's bounded supersession of the ordinary
+> Docker portion of the Decision sentence, “Each execution keeps its
+> twenty-minute whole-job ceiling”, and the execution rule, “Keep each
+> twenty-minute ceiling and a finite cleanup/upload reserve.” Ordinary Docker
+> producers instead have a twenty-five-minute whole-job ceiling. The
+> “No … ceiling increase … is authorized” plan clause remains the prohibition
+> on unapproved expansion; this explicitly approved ordinary exception is its
+> only change.
+>
+> All other ADR-0063 decisions remain in force: the existing producer count
+> ranges and twenty-VM cap, complete selector ownership and two-layout
+> qualification, algorithm/salt/weights/filters, resource quotas, cleanup and
+> upload reserves, all other job ceilings and the seven required names.
+> Expected verified producer identity controls the longer interval; a receipt
+> cannot choose it. Acceptance authorizes dependent work, not actual hosted
+> fit. ADR-0075 and the Phase 03 delivery log own the new decision and its
+> implementation/qualification receipts. Historical text and metadata above
+> remain intact.
+
+The amendment number is checked again at acceptance; ADR-0063 currently has no
+Amendments section. The acceptance date records actual approval rather than
+backdating this proposal. This is a policy change, not an ADR-0041 correction.
+
+**Three-step implementation plan, pending approval:**
+
+1. Accept ADR-0075 and append ADR-0063's dated amendment; reconcile Testing 06,
+   the existing `CI_Test_Shards_Are_Complete_And_Bounded` catalogue Source/Asserts,
+   the decision index and Phase 03 Status block. Keep the catalogue's prior
+   implementation distinct from the not-yet-delivered extension.
+2. Apply the closed expected-owner budget policy in the ordinary workflow,
+   launcher, fixture preparation and receipt/API/workflow verifiers named in
+   ADR-0075. Add positive and counterfactual controls for exact thresholds,
+   unknown modes, forged partitions, invalid indices and mismatched job identity.
+   Run the relevant existing Python suites and documentation guards; no test
+   population, quota, assignment or reserve change is included.
+3. Qualify two complete fresh same-final-source A/B attempts. Require every
+   job, exact full discovered unions, zero skips, complete original packages and
+   natural lifecycle evidence, followed by independent cross-attempt audit.
+   Retain each attempt before rerunning all jobs. Historical A cannot qualify
+   the changed policy source. Update closeout and PR evidence only from actual
+   completed results.
+
+Every step is committed and receives two fresh independent review rounds;
+verified findings are fixed, committed and revalidated before advancing. The
+proposal itself receives two fresh document-review rounds before the maintainer
+question. No new catalogue rule or Implemented extension is claimed by authoring
+this decision package. PR #38 remains open for review and is not merge-qualified.
