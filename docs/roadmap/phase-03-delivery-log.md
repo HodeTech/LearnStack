@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,540 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,564 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -74,7 +74,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 1 review round 1 (2026-10-27)](#adr-0075-step-1-review-round-1-2026-10-27) — 14 lines
   - [ADR-0075 Step 1 review round 2 and closeout (2026-10-27)](#adr-0075-step-1-review-round-2-and-closeout-2026-10-27) — 13 lines
   - [ADR-0075 Step 2 closed budget implementation (2026-10-27)](#adr-0075-step-2-closed-budget-implementation-2026-10-27) — 44 lines
-  - [ADR-0075 Step 2 review round 1 (2026-10-27)](#adr-0075-step-2-review-round-1-2026-10-27) — 15 lines
+  - [ADR-0075 Step 2 review round 1 (2026-10-27)](#adr-0075-step-2-review-round-1-2026-10-27) — 16 lines
+  - [ADR-0075 Step 2 review round 2 and qualification handoff (2026-10-27)](#adr-0075-step-2-review-round-2-and-qualification-handoff-2026-10-27) — 23 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2700,3 +2701,27 @@ nonfinite counterexamples; it independently reruns all 81 combined controls in
 The plan, application/population source and nonordinary limits stay unchanged.
 These are read-only source/offline reviews; no services, .NET or hosted
 qualification occur. A fresh second round remains before Step 3.
+
+
+### ADR-0075 Step 2 review round 2 and qualification handoff (2026-10-27)
+
+Fresh independent reviewers `adr75_step2_r2_source` (GPT-6.1 Sol, high) and
+`adr75_step2_r2_proof` (GPT-6 Astra, high) inspect `1d609d30..6bb91ede`.
+Both approve with no actionable finding. The source reviewer follows identity,
+source checks, owner/leaf environment and deadlines, cleanup, CLI and artifact
+paths. The proof reviewer verifies meaningful complete-evidence counterfactuals
+and preservation of every existing method: launcher 87 to 89, plan 42 to 43,
+results 30 to 38. Only ordinary workflow time grows; preparation and operation
+caps, reserve, counts, plan, population source and meta allocation stay fixed.
+Neither mutates files, starts services or reruns .NET/hosted execution; no
+redundant suite rerun is needed after unchanged passing local/R1 controls.
+Document/whitespace checks pass. Step 2 is complete.
+
+**Step 3 handoff.** Freeze this reviewed source and push it for a complete A
+attempt. Preserve the original current-attempt API metadata and all producer,
+aggregate and auxiliary packages before a full rerun for literal B. Both must
+use the same head/merge source, plan, toolchain and complete 6,490-case population,
+with every job successful, exact disjoint unions and twenty natural owners.
+Only then can independent two-round evidence review close Step 3. No current
+hosted-fit claim follows from this handoff; all earlier source receipts remain
+historical.
