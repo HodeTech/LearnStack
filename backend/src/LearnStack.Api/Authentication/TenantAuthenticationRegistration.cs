@@ -81,7 +81,7 @@ internal static class TenantAuthenticationRegistration
     }
 }
 
-/// <summary>Only a cryptographically validated token can publish its typed identity.</summary>
+/// <summary>Only stock cryptographic validation publishes typed provider-subject evidence.</summary>
 internal sealed class TenantAuthenticationEvents(
     TenantAuthenticationOptions settings,
     IClock clock,
@@ -129,7 +129,7 @@ internal sealed class TenantAuthenticationEvents(
         }
         else
         {
-            feature.Identity = identity;
+            feature.VerifiedSubject = identity;
             TenantAuthenticationDiagnostics.Outcome(logger, TenantAuthenticationOutcome.ValidationAccepted);
         }
 
@@ -141,6 +141,7 @@ internal sealed class TenantAuthenticationEvents(
         if (context.HttpContext.Features.Get<TenantCredentialFeature>() is { } feature)
         {
             feature.Identity = null;
+            feature.VerifiedSubject = null;
         }
 
         TenantAuthenticationDiagnostics.Outcome(logger, TenantAuthenticationOutcome.ValidationRejected);

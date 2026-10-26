@@ -779,18 +779,19 @@ describe('demo runtime boundaries', () => {
       ),
     });
   });
-  it('passes the selected tenant issuer only in the constructed API environment', () => {
+  it.each([
+    ['Authentication__Tenant__Issuer', 'https://identity.example/realms/learnstack'],
+    ['Identity__AuthorityId', '019a1929-5450-7bbb-8df1-516e8e002501'],
+  ])('passes the selected %s only in the constructed API environment', (key, value) => {
     const root = temporary();
-    const key = 'Authentication__Tenant__Issuer';
-    const issuer = 'https://identity.example/realms/learnstack';
     const values = {
       ConnectionStrings__Default: 'application',
       ConnectionStrings__OutboxDispatcher: 'dispatcher',
-      [key]: issuer,
+      [key]: value,
     };
     const configuration = { apiOrigin: 'http://127.0.0.1:5080', secret: 'private' };
-    expect(publicApiEnvironment(values, configuration, {})[key]).toBe(issuer);
-    expect(publicWebEnvironment(values, root, { [key]: issuer })).not.toHaveProperty(key);
+    expect(publicApiEnvironment(values, configuration, {})[key]).toBe(value);
+    expect(publicWebEnvironment(values, root, { [key]: value })).not.toHaveProperty(key);
     expect(publicApiEnvironment({ ...values, [key]: '' }, configuration, {})).not.toHaveProperty(
       key,
     );
@@ -801,7 +802,7 @@ describe('demo runtime boundaries', () => {
           ConnectionStrings__OutboxDispatcher: 'dispatcher',
         },
         configuration,
-        { [key]: issuer },
+        { [key]: value },
       ),
     ).not.toHaveProperty(key);
   });

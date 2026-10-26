@@ -2662,19 +2662,22 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   generated artifacts and planted definition controls are exercised.
 - **Phase:** P03-1 Step 4.
 
-### Pending Identity extensions to Implemented rules
+<a id="pending-identity-extensions-to-implemented-rules"></a>
 
-The following rules retain **Implemented** for their shipped populations. Their
-current named owners must add these controls in the stated step; extensions are
-pending and published implemented-method counts do not change.
+### Identity extensions to Implemented rules
 
-| Existing canonical rule(s) | Pending accepted extension |
+The following rules retain **Implemented** for their shipped populations.
+P03-1 extends their named owners without creating duplicate catalogue rules or
+promoting later live-admission controls. The phase Status block and delivery log
+own current qualification and review state.
+
+| Existing canonical rule(s) | Accepted extension and implemented owner scope |
 |---|---|
 | [`ModuleInfrastructure_References_Only_Its_Own_Layers_And_Core_Infrastructure`](#moduleinfrastructure_references_only_its_own_layers_and_core_infrastructure), [`CoreInfrastructure_DoesNotDependOn_AnyModule`](#coreinfrastructure_doesnotdependon_anymodule), [`Modules_Do_Not_Write_AuditLog_Directly`](#modules_do_not_write_auditlog_directly) | Step 3: exact migration-only installer/body/caller exception; no copied audit SQL, core module/entity reference or new SQL writer. |
 | [`Migrate_Target_Covers_Every_Migration_Chain`](#migrate_target_covers_every_migration_chain), [`Every_Module_With_A_Schema_Is_Swept`](#every_module_with_a_schema_is_swept), [`Every_TenantOwned_Entity_HasFilterAndRlsPolicy`](#every_tenantowned_entity_hasfilterandrlspolicy) | Steps 3/4: sixth Identity chain/Audit prerequisite and complete seven-class population, retaining tenant predicates. |
 | [`Every_TenantOwned_Foreign_Key_Includes_TenantId`](#every_tenantowned_foreign_key_includes_tenantid), [`Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`](#unique_indexes_on_soft_deletable_tables_exclude_deleted_rows) | Steps 3/4: exact Membership-to-global-User FK and permanent binding index. Other tenant references retain composite/self-keyed shape. |
 | [`AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands`](#allowsunresolvedtenantcontext_only_on_provisioning_commands), [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](#tenant_context_guard_fires_only_on_an_unmarked_transaction) | Step 3: closed global authority mode and crossover refusal; provisioning marker/current four context writers do not grow. P03-2 separately implements the accepted ninth candidate setter. |
-| [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly), [`MustClass_Audit_Writes_Share_The_Business_Transaction`](#mustclass_audit_writes_share_the_business_transaction) | Step 3: ordinary pending sentinel/global-owner refusal, typed global composition and two new central seams with independent failure/uncertainty/duplicate proof. Six writes remain current. |
+| [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly), [`MustClass_Audit_Writes_Share_The_Business_Transaction`](#mustclass_audit_writes_share_the_business_transaction) | Step 3: ordinary pending sentinel/global-owner refusal, typed global composition and two new central seams with independent failure/uncertainty/duplicate proof. Six ordinary seams and two confined global seams are implemented. |
 | [`Tenant_Authentication_Profile_Is_Closed`](#tenant_authentication_profile_is_closed), [`Keycloak_Roles_Are_Not_Application_Authority`](#keycloak_roles_are_not_application_authority), [`Authenticated_Rate_Limits_Use_Validated_Subject`](#authenticated_rate_limits_use_validated_subject), [`Authentication_Middleware_Order_Is_Enforced`](#authentication_middleware_order_is_enforced) | Step 5: verified subject before quota/binding SQL, optional actor evidence, normalized existing binding, uniform 401 and immutable feature/caller census. Numeric quota/fault/once-per-request semantics remain. |
 | [`Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`](#authenticated_http_surface_is_enumerated_and_readonly) | Step 5: existing-binding read, unchanged endpoint/SDK union, AccountSite404/405 and native publication. No POST or tenantless completion; P03-3 owns transport activation. |
 
@@ -4895,7 +4898,10 @@ structural test proves — and what it does not.
 #### `Tenant_Authentication_Profile_Is_Closed`
 
 - **Asserts:** the real stock handler enforces ADR-0064's signed RS256, issuer,
-  audience, purpose/client, bounded lifetime, stable actor and scalar UUID profile;
+  audience, purpose/client, bounded lifetime and scalar UUID profile;
+  ADR-0072 makes the wire actor optional compatibility evidence. Only a matching
+  Active existing binding normalizes the application actor, after subject quota;
+  unknown/conflicting/nonadmitting/unavailable bindings refuse uniformly.
   duplicate JSON/security properties and duplicate or unsupported JOSE parameters
   fail. Credential shape/size and configured-key-only discovery are bounded.
   Controlled metadata proves added-key refresh and rejection after observed key
@@ -4915,7 +4921,8 @@ structural test proves — and what it does not.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
   § Access-token profile and § Vendor diagnostic boundary;
   [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md)
-  § Outbound telemetry scope.
+  § Outbound telemetry scope;
+  [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
 - **Type:** real JwtBearer/OIDC handler with controlled signed-token issuer,
   discovery/JWKS server and actual logging/export/error-capture controls.
   **Kind:** behavioural.
@@ -4923,6 +4930,10 @@ structural test proves — and what it does not.
   `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationProfileTests.cs`;
   actual sink/export controls in `TenantAuthenticationDiagnosticsTests.cs` and
   `TenantAuthenticationDiagnosticsTests.Metrics.cs` in the same project.
+  `Database/TenantExistingBindingAdmissionTests*.cs` adds actual app-role binding,
+  startup, outage, no-allocation, lookup/pool and cancellation controls;
+  `TenancyIdentity/TenantRealmApiTests.ExistingBinding.cs` supplies the real
+  provider actorless-existing-binding positive.
 - **Status:** **Implemented** (`TenantAuthenticationProfileTests` and the
   diagnostic owners above). ADR-0065's ordinary HTTP hostname/IP/numeric-port/
   path/query negatives retain real unprojected positives and ordinary traces.
@@ -4939,7 +4950,8 @@ structural test proves — and what it does not.
 #### `Authentication_Middleware_Order_Is_Enforced`
 
 - **Asserts:** the actual chain preserves early admission/body limits, host
-  classification, authentication, credential enforcement, subject quota, tenant
+  classification, authentication, credential enforcement, subject quota,
+  existing-binding normalization, tenant
   resolution/assertions, authorization, closed-surface admission and dispatch in
   ADR-0064 order. Unknown-host/early-quota precedence survives; subject refusal
   prevents durable mismatch recording. A planted reorder fails. Production scheme
@@ -4954,13 +4966,14 @@ structural test proves — and what it does not.
   the existing health endpoint-convention builder remains clean. This
   is not a general C# semantic analysis of arbitrary reflection or dynamic code.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
-  § Pipeline and error precedence.
+  § Pipeline and error precedence;
+  [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
 - **Type:** whole-chain actual-host HTTP controls plus a planted reorder control.
   **Kind:** behavioural.
 - **Test owner:**
   `backend/tests/LearnStack.Tests.Integration/TenantAuthenticationHttpTests.cs`.
 - **Status:** **Implemented** (`TenantAuthenticationHttpTests`,
-  `AuthenticatedRateLimitTests`).
+  `AuthenticatedRateLimitTests`, `TenantExistingBindingAdmissionTests`).
 - **Phase:** P02b-5 Step 3 component harness; Step 4 actual activation; Step 5
   complete production enforcement.
 
@@ -5025,12 +5038,14 @@ structural test proves — and what it does not.
   controls; missing subjects or a weakened predicate fail. Phase 03 retains
   membership and permission authority.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
-  § Access-token profile and § Resolution and attribution; ADR-0004.
+  § Access-token profile and § Resolution and attribution; ADR-0004;
+  [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
 - **Type:** complete production source/IL call-site census with planted compiled
   violations and predicate-mutation controls. **Kind:** structural.
 - **Test owner:**
   `backend/tests/LearnStack.Tests.Architecture/AuthenticationAuthorityTests.cs`.
-  Its real production graph closes typed projection creation, feature writes,
+  Its real production graph separately closes verified-subject and normalized
+  identity creation, feature writes,
   immutable shape and direct actor/scope/subject accessors. Signature, local,
   field, method and generic-argument uses close projection acquisition and
   forwarding, including object/generic formatting. Raw IdentityModel accessors
@@ -5050,6 +5065,9 @@ structural test proves — and what it does not.
   and opaque subject, with no queue. Token rotation or tenant/organization changes
   cannot reset quota; distinct subjects have independent state. Invalid tokens
   gain no quota identity or early bypass. Existing visitor/peer limits remain.
+  ADR-0072's verified-subject stage requires no wire actor and precedes every
+  binding read. Reentry retains the original immutable subject provenance;
+  changed or missing evidence cannot borrow an earlier decision or identity.
   Whole-chain reduced-budget controls isolate subject accounting beneath those
   floors; a separate proof covers the actual 600 boundary. Concurrent accounting,
   first-refusal Retry-After/429, a finite partition registry with refusal before

@@ -26,6 +26,7 @@ namespace LearnStack.Tests.Integration;
 /// </summary>
 internal sealed class TenantAuthenticationReconciliationHost : IAsyncDisposable
 {
+    private static readonly string[] KnownBindingSubjects = ["opaque-keycloak-subject", "independent-subject-B"];
     internal const string PublicPath = "/api/v1/public/site";
     internal const string AccountPath = "/api/v1/account/site";
     internal const string TenantHost = "tenant.auth.test";
@@ -90,6 +91,10 @@ internal sealed class TenantAuthenticationReconciliationHost : IAsyncDisposable
         builder.Services.AddLearnStackTenantAuthentication(
             TenantAuthenticationOptions.Create(issuer.Issuer, DeploymentMode.Development));
         builder.Services.AddLearnStackTenantSubjectAdmission();
+        builder.Services.AddSingleton<ITenantIdentityBindingResolver>(new FixtureTenantIdentityBindingResolver(
+            issuer.Issuer, KnownBindingSubjects.Concat(
+                Enumerable.Range(0, RateLimitingExtensions.AnonymousPermitPerWindow)
+                    .Select(index => "subject-" + index.ToString(System.Globalization.CultureInfo.InvariantCulture)))));
         if (subjectPermitLimit is { } permitLimit)
         {
             builder.Services.RemoveAll<TenantSubjectRateLimiter>();
@@ -130,6 +135,7 @@ internal sealed class TenantAuthenticationReconciliationHost : IAsyncDisposable
         }
         app.UseLearnStackTenantCredentialAdmission();
         app.UseLearnStackTenantSubjectAdmission();
+        app.UseLearnStackTenantIdentityBindingAdmission();
         app.UseLearnStackTenantResolution();
         app.Use((context, next) =>
         {

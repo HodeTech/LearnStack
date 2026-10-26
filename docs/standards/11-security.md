@@ -1053,9 +1053,8 @@ Security-relevant durability rules:
 
 ## Identity admission contract
 
-**Status: Global internal storage/common audit implemented in Step 3; API
-existing-binding activation remains Step 5 and contextual execution remains
-Steps 4 / P03-2.** Derived from
+**Status: Global/contextual storage, common audit, seed and existing-binding API
+admission are implemented; live membership execution remains P03-2.** Derived from
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
@@ -1106,7 +1105,7 @@ no application actor is required to debit it.
 
 ### Ordinary outcomes and source handoffs
 
-| Observation | Adopted response / database work; implementation pending |
+| Observation | Adopted response / database work |
 |---|---|
 | Credential-free public GET/HEAD | Existing anonymous behavior; no binding lookup or allocation. |
 | AccountSite, absent bearer | Existing masked 404; no binding lookup. This is not the rule for anonymous public reads. |

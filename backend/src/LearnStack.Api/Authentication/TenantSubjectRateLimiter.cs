@@ -54,7 +54,7 @@ internal sealed class TenantSubjectRateLimiter : IDisposable, IAsyncDisposable
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
         });
 
-    internal SubjectAdmissionDecision AttemptAcquire(ValidatedTenantIdentity identity)
+    internal SubjectAdmissionDecision AttemptAcquire(VerifiedProviderSubject identity)
     {
         ArgumentNullException.ThrowIfNull(identity);
         var key = new SubjectKey(identity.Issuer, identity.Subject);

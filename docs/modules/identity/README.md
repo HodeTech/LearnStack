@@ -1,12 +1,13 @@
 # Identity — Module Specification
 
-**Status: Global storage/common audit implemented in Step 3; contextual
-foundation and seed handoff implemented under Step 4 review.** Derived from
+**Status: Global/contextual storage, common audit and seed handoff are
+implemented; existing-binding API admission is under qualification.** Derived from
 jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
 and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md),
 2026-10-25. The global User/authority model, internal binding/adoption consumers
 and central creation owner exist. Contextual tables/commands/manifests below
-are implemented; API existing-binding activation remains Step 5. New
+are implemented; the [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md)
+owns current qualification and review state. New
 HTTP/native-user activation remains P03-3.
 The ordered admission timing/observation contract additionally derives from
 [ADR-0074](../../decisions/0074-membership-admission-under-ordered-locks.md),
@@ -24,8 +25,9 @@ navigation or database join. Branch-specific Role configuration is not selected.
 
 P03-1 Step 3 implements one global User/authority model and migration chain,
 the common prepared creation owner and eight central audit seams. API composition
-denies seed adoption; the ordinary seed/demo handoff is implemented in Step 4. Existing
-API binding activation remains Step 5. No creation route is exposed here.
+denies seed adoption; the ordinary seed/demo handoff is implemented in Step 4.
+Existing-binding API admission uses the same read-only contract. No creation
+route is exposed here.
 
 Set both `Identity__AuthorityId` and `Authentication__Tenant__Issuer` in the
 selected private deployment environment before `make migrate` installs/verifies

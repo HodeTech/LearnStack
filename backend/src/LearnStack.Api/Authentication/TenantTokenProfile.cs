@@ -73,7 +73,7 @@ internal static class TenantTokenProfile
         string token,
         TenantAuthenticationOptions settings,
         DateTimeOffset now,
-        out ValidatedTenantIdentity? identity,
+        out VerifiedProviderSubject? identity,
         out TenantTokenFailure failure
     )
     {
@@ -132,18 +132,25 @@ internal static class TenantTokenProfile
             if (
                 !TryReadNonemptyString(claims, "sub", out var subject)
                 || subject.Length > 255
-                || !TryReadUuid(claims, "user_id", out var actor)
-                || actor == UserId.SystemActor.Value
                 || !TryReadTenantScope(claims, out var tenantId, out var organizationId)
             )
             {
                 return false;
             }
 
-            identity = new ValidatedTenantIdentity(
+            UserId? actor = null;
+            if (claims.ContainsKey("user_id"))
+            {
+                if (!TryReadUuid(claims, "user_id", out var actorValue)
+                    || actorValue == UserId.SystemActor.Value)
+                    return false;
+                actor = UserId.From(actorValue);
+            }
+
+            identity = new VerifiedProviderSubject(
                 issuer,
                 subject,
-                UserId.From(actor),
+                actor,
                 tenantId,
                 organizationId
             );

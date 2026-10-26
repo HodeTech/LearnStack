@@ -9,7 +9,8 @@ using Microsoft.Extensions.Hosting;
 namespace LearnStack.Tests.Integration;
 
 /// <summary>The production Program and stock bearer handler; only persistence ports are replaced.</summary>
-internal sealed class TenantAuthenticationApiFactory(TenantAuthenticationIssuer issuer) : ConstructionOnlyApiFactory
+internal sealed class TenantAuthenticationApiFactory(TenantAuthenticationIssuer issuer,
+    ITenantIdentityBindingResolver? bindings = null) : ConstructionOnlyApiFactory
 {
     internal ReconciliationPorts Ports { get; } = new();
     internal ReconciliationRecorder Recorder =>
@@ -21,6 +22,8 @@ internal sealed class TenantAuthenticationApiFactory(TenantAuthenticationIssuer 
         builder.UseSetting(TenantAuthenticationOptions.IssuerConfigurationKey, issuer.Issuer);
         builder.ConfigureTestServices(services =>
         {
+            services.AddSingleton(bindings ?? (ITenantIdentityBindingResolver)new FixtureTenantIdentityBindingResolver(
+                issuer.Issuer, ["opaque-keycloak-subject"]));
             services.AddSingleton(new PlatformHostOptions
             {
                 Hosts = [TenantAuthenticationReconciliationHost.PlatformHost],

@@ -28,6 +28,7 @@ public sealed partial class AuthenticatedRateLimitTests(PublicReadFixture fixtur
         var observed = new SubjectQuotaObservation();
         using var client = fixture.ClientFor(SeedData.English.Host, services =>
         {
+            AddQuotaBindings(services, issuer);
             services.RemoveAll<TenantSubjectRateLimiter>();
             services.AddSingleton(_ => new TenantSubjectRateLimiter(
                 () => TenantSubjectRateLimiter.CreateBudget(permitLimit: 3),
@@ -101,6 +102,7 @@ public sealed partial class AuthenticatedRateLimitTests(PublicReadFixture fixtur
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
         using var client = fixture.ClientFor(SeedData.English.Host, services =>
         {
+            AddQuotaBindings(services, issuer);
             // Keep the production coordinator, quota and window. Disable only
             // its visitor timer so slow DB-backed HTTP calls cannot replenish
             // this proof's spent quota. Above asserts the stock automatic-timer
@@ -125,6 +127,12 @@ public sealed partial class AuthenticatedRateLimitTests(PublicReadFixture fixtur
         (rejected.Headers.RetryAfter?.Delta).Should().BeGreaterThan(TimeSpan.Zero);
         fixture.Observation.Reads.Should().Be(reads + RateLimitingExtensions.AnonymousPermitPerWindow);
     }
+
+    private static void AddQuotaBindings(IServiceCollection services, TenantAuthenticationIssuer issuer) =>
+        services.AddSingleton<ITenantIdentityBindingResolver>(new FixtureTenantIdentityBindingResolver(issuer.Issuer,
+            ["opaque-keycloak-subject", "independent-subject-B", "fresh-subject", "admission-subject-A",
+                "admission-subject-B", "admission-subject-C", "blocked-retiring-subject",
+                "blocked-retained-subject", "blocked-competing-subject"]));
 
     private sealed class SubjectQuotaObservation : IStartupFilter, ILogEventSink
     {

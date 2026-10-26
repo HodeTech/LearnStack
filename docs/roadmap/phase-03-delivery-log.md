@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,287 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,372 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -48,6 +48,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 4 review round 2 and diagnostic correction (2026-10-26)](#p03-1-step-4-review-round-2-and-diagnostic-correction-2026-10-26) — 47 lines
   - [P03-1 Step 4 exported trace correction (2026-10-26)](#p03-1-step-4-exported-trace-correction-2026-10-26) — 37 lines
   - [P03-1 Step 4 local closeout (2026-10-26)](#p03-1-step-4-local-closeout-2026-10-26) — 22 lines
+  - [P03-1 Step 5 — Existing-binding API admission (2026-10-26)](#p03-1-step-5--existing-binding-api-admission-2026-10-26) — 85 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1420,3 +1421,88 @@ complete-suite, source-bound shard and combined provider/native qualification
 remain Step 6. No HTTP/bootstrap, live authorization or closure delivery is
 claimed. Implementation proceeds automatically to Step 5's approved existing
 binding admission, with new-user transport still owned by P03-3.
+
+### P03-1 Step 5 — Existing-binding API admission (2026-10-26)
+
+The approved API handoff is implemented: stock validation produces immutable
+`VerifiedProviderSubject`, whose optional actor remains compatibility evidence.
+The existing credential gate and unchanged issuer/subject quota precede the new
+existing-binding stage. Only an Active matching stored binding supplies the
+nonnull `ValidatedTenantIdentity` actor before the route-independent resolver.
+Unknown, conflicting, nonadmitting and unavailable bindings return the existing
+fixed 401/Bearer response, including on credential-bearing public reads. The
+closed internal outage reason is `binding_store_unavailable`. Ordinary HTTP
+never creates, adopts or repairs a User and adds no endpoint or SDK operation.
+
+The API-owned startup service qualifies the immutable deployment pair. Its
+resolver lazily constructs the module reader only for admitted credentials;
+anonymous and construction/schema hosts buy no identity connection. A short
+physically READ ONLY global owner finishes before tenant reconciliation. Reentry
+retains the original verified-subject quota provenance, clears any normalized
+identity and rereads the binding; missing or replaced evidence cannot borrow an
+earlier identity or permit. Caller cancellation and arbitrary unexpected faults
+retain their existing exception handling.
+
+Real provider fixtures use isolated databases per issuer on their owned
+PostgreSQL container, not anchor rebinding. Authenticated provider readback feeds
+the actual foundation runner before API startup and audit baselines. The warm
+provider and native BFF preserve complete identity, refresh and logout contracts.
+A real-provider control removes only a known persona's compatibility actor,
+proves the signed access token lacks it, and still reads AccountSite with its
+stored actor. Profile/credential restoration and a fresh complete-token positive
+follow. This is not native actorless/new-user publication.
+
+Local launchers preserve the selected authority/issuer pair only in API
+configuration and conflict-check each input source. Web startup does not consume
+that pair. Native subject validation aligns to 255 characters while retaining
+the complete actor/tenant publication contract.
+
+Qualification before implementation review:
+
+- CI/Release solution build has zero warnings/errors. All 2,770 Unit, 306
+  Docker-free Integration and five Contract cases pass with zero skips.
+- The initial complete Architecture run is 563/570 with seven failures and
+  zero skips. Those failures identify missed foundation census backfills:
+  five synchronous contextual tables need explicit asynchronous-inventory
+  exclusions; the sixth Organization SQL reader needs exact command/signature/
+  binding controls; genuine typed Role/seed DTO readers need method-level read
+  enumeration; and pure stdin-parser tests belong outside the Docker-only
+  directory. The corrected classes run 90/90 with zero skips, preserving old
+  predicates and adding dirty controls. No new aggregate write exception or
+  production SQL change follows. These are separate receipts, not a relabelled
+  all-green full run; final source-bound complete qualification remains Step 6.
+- The first real-provider/native selection is 50/51. Its one failure is an
+  exact fixture binding map omitting three legitimate acquisition-cleanup
+  subjects. Only those names are added; unknown/actor-conflict refusal remains.
+  All five quota cases rerun green together with ten actual binding HTTP cases
+  (15/15, zero skips). Overlapping cases are not summed into a new population.
+- Actual binding cases prove actorless/equal success, unknown/conflicting/
+  Closing/Closed/collision refusal without allocation, early/quota precedence,
+  physically read-only app-role/GUC ownership, startup missing/mismatched/wrong-
+  role refusal, real store outage with serialized fixed diagnostics, and cleanup
+  after a blocked lookup cancellation. One physical connector is reused only
+  after identity/tenant GUCs and lock/transaction ownership are cleared.
+- Four final cases pass for the matched measurement control and the relocated
+  pure parser. Collision setup first proves the digest CHECK rejects mismatch,
+  temporarily removes only that exact constraint in its isolated fixture,
+  restores it and proves the independent constraint/trigger/policy/privilege
+  state again. An EXPLAIN numeric-format assumption and stronger early authority
+  configuration refusal are corrected in tests, without changing production.
+- All 264 focused frontend cases pass, including signed 255/256 subject
+  boundaries and API-only authority projection. Web typecheck and lint pass.
+
+The small local measurement uses 32 audited bindings and twelve interleaved
+samples per authenticated lane after warmup. A current-code observational control
+returns one independently witnessed Existing result only for the exact verified
+input; all other authentication, quota and tenant reading remain real. It is
+neither historical nor security-qualified. Median control/production latency is
+5.68/8.33 ms, a 2.65 ms observed difference. Driver statement totals are 60/108;
+production includes twelve binding SELECTs and one observer proof SELECT per
+lookup. The separate anonymous lane totals 60 statements. The unforced small-
+population plan is Limit/Seq Scan, one actual row; planning/execution is
+0.324/0.039 ms. Eight concurrent HTTP requests occupy four of four bounded pool
+slots, then leave zero active/transaction owners. No production percentile,
+capacity, throughput or speed-ratio guarantee follows.
+
+Both fresh implementation review rounds remain required before Step 5 closes.
+Complete source/shard/discovery and complementary A/B CI evidence remain Step 6.

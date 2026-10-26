@@ -263,6 +263,11 @@ govern personal data; exclusion here grants no erasure exemption.
 | `audit_config` | Audit coverage configuration |
 | `users` | Synchronous global identity binding/tombstone; retained raw subject, digest and creation-audit linkage follow the Identity contract and P03-10 closure owner |
 | `identity_authority` | Deployment-owned stable authority registration, not a per-person profile; installation and rebind remain separately confined |
+| `memberships` | Synchronous contextual identity relation; its lifecycle and personal linkage remain with Identity and P03-10 closure |
+| `membership_profiles` | Synchronous tenant/organization personal profile; classification and fulfillment remain with Identity, without an asynchronous delivery copy |
+| `membership_role_assignments` | Synchronous authorization links; exclusion from the asynchronous inventory grants no personal-data retention or erasure exemption |
+| `roles` | Synchronous tenant-owned authority templates, not queued payloads |
+| `role_permission_grants` | Synchronous explicit authority definitions, not delivery or diagnostic copies |
 <!-- async-store-module-exclusions:end -->
 
 LearnStack job-table no-delete triggers also bind the owner; BYPASSRLS is not

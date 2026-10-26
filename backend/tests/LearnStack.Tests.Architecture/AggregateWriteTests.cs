@@ -103,6 +103,11 @@ public sealed class AggregateWriteTests
         TakesDomainObject(typeof(ITranslationCollisionReader), domains).Should().BeFalse();
         TakesDomainObject(typeof(LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader), domains).Should().BeFalse();
         TakesDomainObject(typeof(IPublicEducationReadStore), domains).Should().BeFalse();
+        var identityDomains = new HashSet<Assembly> { typeof(LearnStack.Modules.Identity.Domain.Role).Assembly };
+        TakesDomainObject(typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore), identityDomains)
+            .Should().BeFalse("the exact untracked Role lookup is a read, not a second aggregate writer");
+        TakesDomainObject(typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader), identityDomains)
+            .Should().BeFalse("the exact seed DTO lookups do not write their typed keys");
         TakesDomainObject(typeof(IWrappedKeyReader), domains).Should().BeTrue("an unenumerated key-only port must not escape; Fix: enumerate genuine read methods explicitly");
         foreach (var writer in new[] { typeof(IDirectWriter), typeof(IBulkWriter), typeof(IArrayWriter), typeof(IByRefWriter), typeof(IMixedWriter), typeof(IInheritedWriter), typeof(IIdOnlyWriteProbe), typeof(IValueReturningKeyWriter) })
         {
@@ -180,6 +185,9 @@ public sealed class AggregateWriteTests
         typeof(LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader).GetMethod("ReadSettingAsync")!,
         typeof(LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader).GetMethod("ReadContentTypeAsync")!,
         typeof(LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader).GetMethod("ReadTaxonomyAsync")!,
+        typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("ReadAsync")!,
+        typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadRoleAsync")!,
+        typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadMembershipAsync")!,
     ];
 
     private interface IIdOnlyWriteProbe { Task DeleteAsync(CourseId id); }

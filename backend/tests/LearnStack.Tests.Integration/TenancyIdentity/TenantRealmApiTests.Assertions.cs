@@ -82,7 +82,7 @@ public sealed partial class TenantRealmApiTests
         string assertedKey, Guid asserted)
     {
         var correlation = TenantAuthenticationReconciliationTests.Correlation(response);
-        var rows = await AccountHttpAudit.Read(database, defended, correlation);
+        var rows = await AccountHttpAudit.Read(_database, defended, correlation);
         var row = rows.Should().ContainSingle().Subject;
         row.Tenant.Should().Be(defended.TenantId.Value);
         row.Organization.Should().BeNull("rejected scope does not narrow security-audit visibility");
@@ -97,16 +97,16 @@ public sealed partial class TenantRealmApiTests
             metadata.RootElement.GetProperty("trustedOrganizationId").GetGuid().Should().Be(trusted);
         else metadata.RootElement.GetProperty("trustedOrganizationId").ValueKind.Should().Be(JsonValueKind.Null);
         var foreign = defended == SeedData.English ? SeedData.Yoga : SeedData.English;
-        (await AccountHttpAudit.Read(database, foreign, correlation)).Should().BeEmpty(
+        (await AccountHttpAudit.Read(_database, foreign, correlation)).Should().BeEmpty(
             "the event is visible only under the defended tenant, never token-selected scope");
     }
 
-    private async Task<long[]> AuditCountsAsync()
+    private async Task<long[]> AuditCountsAsync(PublicReadFixture? sourceDatabase = null)
     {
         var counts = new List<long>();
         foreach (var tenant in SeedData.All)
         {
-            await using var connection = await PostgresFixture.OpenAsync(database.AppConnectionString);
+            await using var connection = await PostgresFixture.OpenAsync((sourceDatabase ?? _database).AppConnectionString);
             await using var transaction = await connection.BeginTransactionAsync();
             await SchemaQueries.SetTenantAsync(connection, transaction, tenant.TenantId.Value);
             await SchemaQueries.AssertApplicationRoleAsync(connection, transaction);

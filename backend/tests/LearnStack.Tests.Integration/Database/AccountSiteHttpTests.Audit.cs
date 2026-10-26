@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Tenancy;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.Tools.Seeder;
 using Npgsql;
 using Xunit;
@@ -19,8 +20,10 @@ public sealed partial class AccountSiteHttpTests
     public async Task Actual_account_route_preserves_claim_and_membership_codes_and_durable_host_attribution(int row)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         var tenant = row is 7 or 8 ? SeedData.English : SeedData.Yoga;
-        using var client = Client(issuer, tenant.Host);
+        using var client = Client(fixture, issuer, tenant.Host);
         var token = row switch
         {
             8 => Token(issuer, tenant, claimedTenant: SeedData.Yoga.TenantId.Value),
@@ -67,7 +70,9 @@ public sealed partial class AccountSiteHttpTests
     public async Task Actual_authenticated_header_rejection_preserves_actor_correlation_and_trusted_organization(bool claimless)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        using var client = Client(issuer, SeedData.Yoga.Host);
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
+        using var client = Client(fixture, issuer, SeedData.Yoga.Host);
         var token = claimless ? issuer.Token(issuer.Without("tenant_id", "organization_id"))
             : Token(issuer, SeedData.Yoga, organization: true);
         var reads = fixture.Observation.Reads;
@@ -91,7 +96,9 @@ public sealed partial class AccountSiteHttpTests
     public async Task Anonymous_header_mismatch_and_malformed_assertions_keep_their_distinct_errors_without_query_reads(string path)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        using var client = Client(issuer, SeedData.English.Host);
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
+        using var client = Client(fixture, issuer, SeedData.English.Host);
         var reads = fixture.Observation.Reads;
         using var anonymous = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
             TenantAuthenticationHttpRequest.PublicPath, tenantAssertion: SeedData.Yoga.TenantId.Value.ToString("D"));

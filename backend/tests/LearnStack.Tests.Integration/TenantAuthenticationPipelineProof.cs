@@ -14,6 +14,7 @@ internal static class TenantAuthenticationPipelineProof
         "UseLearnStackCorrelationHeader", "UseRateLimiter", "UseLearnStackVisitorAdmission",
         "UseLearnStackRequestBodyLimit", "UseLearnStackHostClassification", "UseAuthentication",
         "UseLearnStackTenantCredentialAdmission", "UseLearnStackTenantSubjectAdmission",
+        "UseLearnStackTenantIdentityBindingAdmission",
         "UseLearnStackTenantResolution", "UseLearnStackTenantAssertions", "UseAuthorization",
         "UseLearnStackTenantSurfaceAdmission", "MapControllers", "Run"
     ];
@@ -31,6 +32,7 @@ internal static class TenantAuthenticationPipelineProof
         ["UseLearnStackHostClassification"] = ["UseMiddleware<HostClassificationMiddleware>"],
         ["UseLearnStackTenantCredentialAdmission"] = ["UseMiddleware<TenantCredentialAdmissionMiddleware>"],
         ["UseLearnStackTenantSubjectAdmission"] = ["UseMiddleware<TenantSubjectAdmissionMiddleware>"],
+        ["UseLearnStackTenantIdentityBindingAdmission"] = ["UseMiddleware<TenantIdentityBindingAdmissionMiddleware>"],
         ["UseLearnStackTenantResolution"] = ["UseMiddleware<TenantResolverMiddleware>"],
         ["UseLearnStackTenantAssertions"] = ["UseMiddleware<TenantAssertionMiddleware>"],
         ["UseLearnStackTenantSurfaceAdmission"] = ["UseMiddleware<TenantSurfaceAdmissionMiddleware>"]
@@ -58,6 +60,8 @@ internal static class TenantAuthenticationPipelineProof
                      ("UseAuthentication", "UseLearnStackTenantCredentialAdmission"),
                      ("UseLearnStackTenantCredentialAdmission", "UseLearnStackTenantResolution"),
                      ("UseLearnStackTenantSubjectAdmission", "UseLearnStackTenantResolution"),
+                     ("UseLearnStackTenantSubjectAdmission", "UseLearnStackTenantIdentityBindingAdmission"),
+                     ("UseLearnStackTenantIdentityBindingAdmission", "UseLearnStackTenantResolution"),
                      ("UseLearnStackTenantResolution", "UseLearnStackTenantAssertions"),
                      ("UseLearnStackTenantAssertions", "UseAuthorization"),
                      ("UseLearnStackTenantSurfaceAdmission", "MapControllers")

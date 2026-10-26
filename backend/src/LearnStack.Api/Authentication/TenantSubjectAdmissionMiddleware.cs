@@ -12,17 +12,33 @@ internal sealed class TenantSubjectAdmissionMiddleware(RequestDelegate next, Ten
     public async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (context.Features.Get<HostClassification>() is null
-            || context.Features.Get<TenantCredentialFeature>()?.Identity is not { } identity)
+        var feature = context.Features.Get<TenantCredentialFeature>();
+        if (feature is not null) feature.Identity = null;
+        if (context.Features.Get<HostClassification>() is null)
         {
             await next(context);
             return;
         }
 
+        var provenance = context.Features.Get<TenantSubjectAdmissionProvenance>();
         var outcome = context.Features.Get<SubjectAdmissionDecision>();
+        if (feature?.VerifiedSubject is not { } identity)
+        {
+            if (provenance is not null || outcome is not null) TenantIdentityBindingAdmissionMiddleware.Refuse(context);
+            else await next(context);
+            return;
+        }
+        if ((provenance is null) != (outcome is null)
+            || provenance is not null && !provenance.Matches(identity))
+        {
+            TenantIdentityBindingAdmissionMiddleware.Refuse(context);
+            return;
+        }
+
         if (outcome is null)
         {
             outcome = limiter.AttemptAcquire(identity);
+            context.Features.Set(new TenantSubjectAdmissionProvenance(identity));
             context.Features.Set(outcome);
             if (!outcome.IsAcquired)
                 TenantSubjectAdmissionMetrics.RecordRejected(outcome.Outcome);
@@ -51,6 +67,16 @@ internal sealed class TenantSubjectAdmissionMiddleware(RequestDelegate next, Ten
         context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
     }
 
+}
+
+/// <summary>A cached subject decision can be reused only with its original immutable verified evidence.</summary>
+internal sealed class TenantSubjectAdmissionProvenance
+{
+    private readonly VerifiedProviderSubject _subject;
+
+    internal TenantSubjectAdmissionProvenance(VerifiedProviderSubject subject) => _subject = subject;
+
+    internal bool Matches(VerifiedProviderSubject candidate) => ReferenceEquals(_subject, candidate);
 }
 
 /// <summary>Registers the owned additional subject budget used by the closed tenant HTTP boundary.</summary>

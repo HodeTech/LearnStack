@@ -100,7 +100,7 @@ The cost is one more service to operate. That is acceptable: self-hosted infrast
 | BFF access/refresh/ID-token custody | no | native web session owner ([ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)) |
 | Federation with social/SAML/OIDC providers | yes | no |
 | Email verification, password reset emails | yes (or LearnStack via SMTP delegation) | no |
-| Global `User` binding | provider subject/credentials | internal stable authority/subject-key → typed UserId implemented under ADR-0072; API activation remains P03-1 Step 5, no email mirror |
+| Global `User` binding | provider subject/credentials | stable authority/subject-key → typed UserId under ADR-0072; ordinary API uses existing-binding normalization, no email mirror |
 | `Membership` (per-tenant role, permissions) | no | yes |
 | Roles, permissions inside a tenant | no | yes |
 | Invitations | no | yes |
@@ -151,7 +151,8 @@ decision before its first consumer.
 Jointly Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) /
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
 settle the P03-1 binding/storage contract. Internal binding/adoption and contextual
-storage/seed are implemented; the ordinary API sequence below activates in Step 5.
+storage/seed and the ordinary API sequence below are implemented. The
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns qualification.
 `VerifiedProviderSubject` carries verified issuer/sub and optional actor/scope
 evidence. Subject quota precedes binding SQL; an uncached committed binding
 lookup resolves the nonnullable actor in `ValidatedTenantIdentity`. Missing,

@@ -8,7 +8,7 @@ using LearnStack.SharedKernel.Identity;
 using LearnStack.Tools.Seeder;
 using Xunit;
 
-namespace LearnStack.Tests.Integration.Database;
+namespace LearnStack.Tests.Integration;
 
 public sealed class SeedProviderWitnessTests
 {

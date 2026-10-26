@@ -195,8 +195,8 @@ public static class PersistenceCompositionExtensions
             identityAuthority = new IdentityAuthorityRegistration(IdentityAuthorityId.From(authorityId),
                 configuration["Authentication:Tenant:Issuer"] ?? "");
         }
-        // Internal services only. Step 5 qualifies the anchor at startup before
-        // existing-binding admission; Step 3 activates no request or seed writer.
+        // The API-owned startup service qualifies this immutable pair before
+        // ordinary existing-binding admission. Internal consumers qualify explicitly.
         services.AddIdentityGlobalFoundation(identityAuthority);
         services.AddIdentityContextualFoundation();
 

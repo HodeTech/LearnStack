@@ -315,6 +315,21 @@ describe('inactive tenant RP boundary', () => {
     });
   }
 
+  it.each([255, 256])(
+    'enforces the shared opaque subject bound at %i characters',
+    async (length) => {
+      const f = await fixture();
+      const subject = 's'.repeat(length);
+      f.setClaims({ sub: subject });
+      if (length === 255) {
+        const { result } = await f.login();
+        expect(result.identity.subject).toBe(subject);
+      } else {
+        await expect(f.login()).rejects.toMatchObject({ reason: 'identity' });
+      }
+    },
+  );
+
   it('rejects wrong signatures at both code and refresh processing', async () => {
     const f = await fixture();
     const { result } = await f.login();

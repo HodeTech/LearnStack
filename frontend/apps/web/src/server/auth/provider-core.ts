@@ -43,7 +43,7 @@ function identity(claims: oidc.IDToken | undefined, issuer: string): ProviderIde
     claims.iss !== issuer ||
     typeof claims.sub !== 'string' ||
     !claims.sub ||
-    claims.sub.length > 1024 ||
+    claims.sub.length > 255 ||
     /[\r\n]/.test(claims.sub) ||
     typeof claims.user_id !== 'string' ||
     !uuid.test(claims.user_id) ||

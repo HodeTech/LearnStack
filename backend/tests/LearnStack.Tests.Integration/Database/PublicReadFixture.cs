@@ -26,26 +26,46 @@ public sealed class PublicReadTestGroup : ICollectionFixture<PublicReadFixture>
 }
 
 /// <summary>Production API composition, seeded through real writers in an isolated four-role database.</summary>
-public sealed class PublicReadFixture : ConstructionOnlyApiFactory, IAsyncLifetime
+public class PublicReadFixture : ConstructionOnlyApiFactory, IAsyncLifetime
 {
-    private readonly PostgresFixture _postgres = new();
-    public string AppConnectionString => _postgres.AppConnectionString;
-    public string OutboxConnectionString => _postgres.OutboxConnectionString;
+    private readonly PostgresFixture? _postgres;
+    private readonly DisposableSchemaDatabase? _database;
+    private bool _databaseDisposed;
+
+    public PublicReadFixture() => _postgres = new();
+    private protected PublicReadFixture(DisposableSchemaDatabase database) => _database = database;
+    internal PostgresFixture Postgres => _postgres ?? throw new InvalidOperationException("This fixture does not own PostgreSQL.");
+    public string AppConnectionString => _database?.AppConnectionString ?? Postgres.AppConnectionString;
+    public string OutboxConnectionString => _database?.OutboxConnectionString ?? Postgres.OutboxConnectionString;
+    internal string MigrationConnectionString => _database?.MigrationConnectionString ?? Postgres.MigrationConnectionString;
+    private string PlatformConnectionString => _database?.PlatformConnectionString ?? Postgres.PlatformConnectionString;
     public PublicReadObservation Observation { get; } = new();
 
     public async Task InitializeAsync()
     {
-        await _postgres.InitializeAsync();
-        await MigrationChains.ApplyAllAsync(_postgres.MigrationConnectionString);
+        if (_database is null)
+        {
+            await Postgres.InitializeAsync();
+            await MigrationChains.ApplyAllAsync(MigrationConnectionString);
+        }
         await using var source = NpgsqlDataSource.Create(AppConnectionString);
         var runner = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance), NullLogger<SeedRunner>.Instance);
         (await runner.RunAsync(CancellationToken.None)).Should().Be(0);
     }
 
-    async Task IAsyncLifetime.DisposeAsync()
+    async Task IAsyncLifetime.DisposeAsync() => await DisposeAsync();
+
+    public override async ValueTask DisposeAsync()
     {
-        await base.DisposeAsync();
-        await _postgres.DisposeAsync();
+        if (_databaseDisposed) return;
+        _databaseDisposed = true;
+        try { await base.DisposeAsync(); }
+        finally
+        {
+            if (_database is not null) await _database.DisposeAsync();
+            else await Postgres.DisposeAsync();
+        }
+        GC.SuppressFinalize(this);
     }
 
     public HttpClient ClientFor(string host, Action<IServiceCollection>? configure = null,
@@ -79,7 +99,7 @@ public sealed class PublicReadFixture : ConstructionOnlyApiFactory, IAsyncLifeti
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
         builder.UseSetting("ConnectionStrings:Default", AppConnectionString);
-        builder.UseSetting("ConnectionStrings:PlatformAdmin", _postgres.PlatformConnectionString);
+        builder.UseSetting("ConnectionStrings:PlatformAdmin", PlatformConnectionString);
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton(Observation);
@@ -94,7 +114,7 @@ public sealed class PublicReadFixture : ConstructionOnlyApiFactory, IAsyncLifeti
 
     /// <summary>Owner-only corruption setup for immutable satellites; public reads still use the application role.</summary>
     public Task ExecuteOwnerFixtureAsync(SeedTenant tenant, string sql, IReadOnlyDictionary<string, object>? parameters = null, OrganizationId? organization = null) =>
-        ExecuteFixtureAsync(tenant, sql, _postgres.MigrationConnectionString, parameters, organization);
+        ExecuteFixtureAsync(tenant, sql, MigrationConnectionString, parameters, organization);
 
     private static async Task ExecuteFixtureAsync(SeedTenant tenant, string sql, string connectionString, IReadOnlyDictionary<string, object>? parameters, OrganizationId? organization)
     {

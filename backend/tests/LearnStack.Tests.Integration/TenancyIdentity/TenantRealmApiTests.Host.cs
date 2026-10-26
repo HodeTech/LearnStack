@@ -20,20 +20,20 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 public sealed partial class TenantRealmApiTests
 {
     private HttpClient Client(SeedTenant tenant, out TenantRealmApiObservation observation,
-        X509Certificate2? authority = null, string? issuer = null)
+        X509Certificate2? authority = null, string? issuer = null, PublicReadFixture? sourceDatabase = null)
     {
         var observed = new TenantRealmApiObservation();
         observation = observed;
-        return database.ClientFor(tenant.Host, services =>
+        return (sourceDatabase ?? _database).ClientFor(tenant.Host, services =>
         {
             // No alternate retriever, configuration manager, JWT handler or claims source.
-            services.Replace(ServiceDescriptor.Singleton(_ => Backchannel(authority ?? provider.RootCertificate)));
+            services.Replace(ServiceDescriptor.Singleton(_ => Backchannel(authority ?? _provider.RootCertificate)));
             // Retain the fixture's physical ReadOnly/app-role observer inside this outer context observer.
             services.AddScoped<ObservedPublicConfigurationReader>();
             services.AddScoped<IPublicTenantConfigurationReader>(serviceProvider => new TenantRealmContextReader(
                 serviceProvider.GetRequiredService<ObservedPublicConfigurationReader>(),
                 serviceProvider.GetRequiredService<ITenantContext>(), serviceProvider.GetRequiredService<IUnitOfWork>(), observed));
-        }, builder => builder.UseSetting(TenantAuthenticationOptions.IssuerConfigurationKey, issuer ?? provider.Issuer));
+        }, builder => builder.UseSetting(TenantAuthenticationOptions.IssuerConfigurationKey, issuer ?? _provider.Issuer));
     }
 
     private static TenantAuthenticationBackchannel Backchannel(X509Certificate2 authority)
@@ -59,7 +59,7 @@ public sealed partial class TenantRealmApiTests
     private async Task<KeycloakTokenExchange> ExchangeAsync(string username, string callback,
         string realm = "learnstack", string clientId = "learnstack-web", string? secret = KeycloakFixture.WebClientSecret)
     {
-        using var browser = provider.Browser(realm);
+        using var browser = _provider.Browser(realm);
         var authorization = await browser.AuthorizeAsync(username, KeycloakFixture.DemoPassword, callback,
             KeycloakPkce.S256, clientId);
         authorization.Authorized.Should().BeTrue("the actual provider must complete the code/S256 flow");
