@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,524 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,540 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -73,7 +73,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 acceptance and Step 1 (2026-10-27)](#adr-0075-acceptance-and-step-1-2026-10-27) — 28 lines
   - [ADR-0075 Step 1 review round 1 (2026-10-27)](#adr-0075-step-1-review-round-1-2026-10-27) — 14 lines
   - [ADR-0075 Step 1 review round 2 and closeout (2026-10-27)](#adr-0075-step-1-review-round-2-and-closeout-2026-10-27) — 13 lines
-  - [ADR-0075 Step 2 closed budget implementation (2026-10-27)](#adr-0075-step-2-closed-budget-implementation-2026-10-27) — 43 lines
+  - [ADR-0075 Step 2 closed budget implementation (2026-10-27)](#adr-0075-step-2-closed-budget-implementation-2026-10-27) — 44 lines
+  - [ADR-0075 Step 2 review round 1 (2026-10-27)](#adr-0075-step-2-review-round-1-2026-10-27) — 15 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2683,3 +2684,19 @@ These are offline source/policy controls using disposable seams, not systemd,
 Docker lifecycle or hosted-fit evidence. No .NET/application test source or
 runtime is changed; fresh full hosted A/B remains Step 3's required witness.
 Step 2's two independent review rounds remain before that qualification starts.
+
+
+### ADR-0075 Step 2 review round 1 (2026-10-27)
+
+Fresh independent reviewers `adr75_step2_r1_source` (GPT-6 Astra, xhigh) and
+`adr75_step2_r1_tests` (GPT-6.1 Sol, high) inspect `1d609d30..c2695f2d`.
+Both approve with no actionable finding. The source reviewer traces exact
+mode/job/index authority, full preparation source/runner identity before Docker,
+owner/leaf clock/reserve, expected-owner observation bounds and one-hop
+artifact/CLI/failure paths. The tests reviewer confirms preserved controls,
+coherent long ordinary positives and meaningful forged-identity/threshold/
+nonfinite counterexamples; it independently reruns all 81 combined controls in
+5.010 seconds and all 89 native-owner controls in 23.371 seconds, both passing.
+The plan, application/population source and nonordinary limits stay unchanged.
+These are read-only source/offline reviews; no services, .NET or hosted
+qualification occur. A fresh second round remains before Step 3.
