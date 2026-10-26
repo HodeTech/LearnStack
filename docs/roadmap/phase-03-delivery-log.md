@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,564 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,617 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -75,7 +75,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 1 review round 2 and closeout (2026-10-27)](#adr-0075-step-1-review-round-2-and-closeout-2026-10-27) — 13 lines
   - [ADR-0075 Step 2 closed budget implementation (2026-10-27)](#adr-0075-step-2-closed-budget-implementation-2026-10-27) — 44 lines
   - [ADR-0075 Step 2 review round 1 (2026-10-27)](#adr-0075-step-2-review-round-1-2026-10-27) — 16 lines
-  - [ADR-0075 Step 2 review round 2 and qualification handoff (2026-10-27)](#adr-0075-step-2-review-round-2-and-qualification-handoff-2026-10-27) — 23 lines
+  - [ADR-0075 Step 2 review round 2 and qualification handoff (2026-10-27)](#adr-0075-step-2-review-round-2-and-qualification-handoff-2026-10-27) — 24 lines
+  - [ADR-0075 Step 3 fresh hosted A/B evidence (2026-10-27)](#adr-0075-step-3-fresh-hosted-ab-evidence-2026-10-27) — 52 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2725,3 +2726,56 @@ with every job successful, exact disjoint unions and twenty natural owners.
 Only then can independent two-round evidence review close Step 3. No current
 hosted-fit claim follows from this handoff; all earlier source receipts remain
 historical.
+
+
+### ADR-0075 Step 3 fresh hosted A/B evidence (2026-10-27)
+
+**Qualified implementation source.**
+[Run 40412041726](https://github.com/HodeTech/LearnStack/actions/runs/40412041726)
+executes head `ea114d25266d7db7729d276c07d0011a7ba180fd` and actual merge checkout
+`c633763c0a8fb086c1f8fd09231075e8149da1c4`. Their common tree is
+`53daaf89c9527ccf370f108ef8dfb0f7bca8edfe`. These hashes identify different
+commits with equal trees. The same source, plan, manifest, toolchain and image
+identities qualify both attempts; no code, weight or assignment change occurs
+between them. A is attempt 1; B is a full rerun, attempt 2.
+
+| Actual evidence | A | B |
+|---|---:|---:|
+| Successful jobs | 27 / 27 | 27 / 27 |
+| Passing .NET cases; zero skips | 6,490 | 6,490 |
+| Exact backend / Docker union | 3,664 / 2,826 | 3,664 / 2,826 |
+| Ordinary / native cases | 2,795 / 31 | 2,795 / 31 |
+| Original immutable archives retained | 25 | 25 |
+| Natural complete execution owners | 20 | 20 |
+| Public JSON/HTML report pairs | 27 | 27 |
+| Maximum execution-producer API wall | 938 seconds (ordinary-2) | 1,058 seconds (ordinary-11) |
+
+A's original API metadata and packages are retained and production-validated
+before requesting B with Re-run all jobs. GitHub's latest artifact listing after
+B contains only B's packages; the retained original A snapshots and ZIPs are
+therefore necessary, not reconstructed from B or job logs. Private originals,
+producer files and verification receipts live under
+`artifacts/p031-step6/hosted/40412041726/{1,2}/`. Short-lived download URL files
+are removed after acquisition. No runner environment or execution is simulated.
+
+The production validators independently recompute each attempt's exact selected
+and completed/TRX unions from actual immutable packages and API jobs. Root also
+checks all fifty ZIP sizes, SHA-256 digests and CRCs, producer-file equality,
+source/attempt/toolchain/images, natural completion and all public report
+JSON/HTML digest pairs. The six IDs missing from the preceding twenty-minute B
+all complete Passed in the new B; historical failed evidence remains unchanged.
+
+Actual A/B co-membership differs in both directions: Architecture has 6,203
+A-only and 6,915 B-only method pairs; ordinary has 62,463 / 65,656; SharedSchema
+methods have 62,165 / 65,388. This is a materially different complete assignment,
+not bin renumbering. The plan remains
+`115e474202360d0d7d99e1a8c69a0b40f7eb84669364b23ce90c94341969113b` and manifest
+`8d017042f7e439273a7164326d9a1ae7ef3ea4ea3dea9a1bfa4c315a133bef21`.
+
+This establishes observed fit for the exact implementation source and two
+assignments, not a measured minimum, a future fit guarantee or a five-minute
+whole-workflow delay bound. Every other ceiling, reserve, operation cap, VM
+count and natural-cleanup requirement remains unchanged. The documentation
+closeout has its own later commit identity and must pass normal current-head
+protected checks; these execution receipts are never relabelled as that commit.
+Step 3's two fresh independent evidence-review rounds remain before closeout.

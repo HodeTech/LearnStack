@@ -6,12 +6,13 @@
 > qualification ([Step 6 closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26)).
 > [PR review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26)
 > are committed with both independent review rounds complete. Correction source
-> `7aabc6d8` passes full A; full B reaches two ordinary job deadlines and is not
-> qualified. [ADR-0075](../decisions/0075-ordinary-ci-job-window.md) is Accepted;
-> its [three-step correction](phase-03-delivery-log.md#adr-0075-acceptance-and-step-1-2026-10-27)
-> is in progress. Budget implementation and local controls are delivered;
-> both implementation review rounds are complete; fresh full A/B qualification
-> remains required.
+> `7aabc6d8` passed A but left B incomplete. After accepted
+> [ADR-0075](../decisions/0075-ordinary-ci-job-window.md), implementation source
+> `ea114d25` passes fresh full A/B; the
+> [three-step correction](phase-03-delivery-log.md#adr-0075-acceptance-and-step-1-2026-10-27)
+> is in evidence review. Budget implementation, local controls and both
+> implementation review rounds are complete; two independent hosted-evidence
+> review rounds remain before closeout.
 > Merge review remains required. The
 > [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md)
 > is Accepted; existing-binding API admission is implemented. This is the current
@@ -25,7 +26,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | Implemented; PR review/merge pending — [six-step closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26) and [review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26); correction source A passes, B incomplete; [ADR-0075](../decisions/0075-ordinary-ci-job-window.md) Accepted and implemented with local controls, both budget review rounds complete; fresh A/B pending; HTTP/new-user BFF activation belongs to P03-3 |
+> | P03-1 | Identity authority and membership foundation | Implemented; PR review/merge pending — [six-step closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26) and [review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26); [ADR-0075](../decisions/0075-ordinary-ci-job-window.md) Accepted and implemented with both code review rounds complete; source `ea114d25` passes fresh full A/B, evidence review rounds pending; HTTP/new-user BFF activation belongs to P03-3 |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |

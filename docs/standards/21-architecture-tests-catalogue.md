@@ -41,7 +41,7 @@ owns review, packet and exact PR-head CI/job-budget status),
 final-source hosted qualification),
 [ADR-0075 Ordinary CI Job Window](../decisions/0075-ordinary-ci-job-window.md)
 (Accepted 2026-10-27; the ordinary-budget extension below is implemented with
-offline controls; fresh full hosted qualification remains required),
+offline controls and source-bound hosted A/B; the phase owns evidence review),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
 (Accepted 2026-10-19; P02b-5 obligations implemented and merged through PR #33;
 the [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
