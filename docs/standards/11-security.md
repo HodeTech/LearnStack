@@ -48,9 +48,9 @@ The bound grants no throughput entitlement.
 Identity admission/owner contracts additionally derive from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
-[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md);
-global internal storage/common audit is implemented; contextual and live
-execution remain their owning steps.
+[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
+The [phase Status block](../roadmap/phase-03-identity-admin.md) owns current
+implementation and qualification state; live membership execution remains P03-2.
 Bounded authenticated assertion recording derives from
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
 implementation and local proofs are delivered in the

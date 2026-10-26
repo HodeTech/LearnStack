@@ -10,9 +10,11 @@ public static class ContextualIdentityStorageDdl
     public static void Install(MigrationBuilder migration)
     {
         ArgumentNullException.ThrowIfNull(migration);
-        // Keep the original migration's SQL unchanged; the forward correction
-        // replaces only the mutation guard on both existing and fresh databases.
-        migration.Sql(Guards + "\n\nCREATE " + MutationGuardSql(correctParentMirror: false)
+        // Keep the original migration's SQL unchanged; each forward correction
+        // replaces only its function on both existing and fresh databases.
+        migration.Sql(Guards.Replace("__MEMBERSHIP_ADMISSION_GUARD__",
+                "CREATE " + MembershipAdmissionGuardSql(correctParentMirror: false), StringComparison.Ordinal)
+            + "\n\nCREATE " + MutationGuardSql(correctParentMirror: false)
             + "\n" + MutationGuardRevocation);
         migration.Sql(CompleteGraphGuard());
         foreach (var table in new[] { "memberships", "membership_profiles", "membership_role_assignments" })
@@ -97,6 +99,22 @@ public static class ContextualIdentityStorageDdl
         ArgumentNullException.ThrowIfNull(migration);
         migration.Sql("CREATE OR REPLACE " + MutationGuardSql(correctParentMirror: false));
     }
+
+    internal static void CorrectAdmissionParentMirrorSqlState(MigrationBuilder migration)
+    {
+        ArgumentNullException.ThrowIfNull(migration);
+        migration.Sql("CREATE OR REPLACE " + MembershipAdmissionGuardSql(correctParentMirror: true));
+    }
+
+    internal static void RestoreLegacyAdmissionParentMirrorSqlState(MigrationBuilder migration)
+    {
+        ArgumentNullException.ThrowIfNull(migration);
+        migration.Sql("CREATE OR REPLACE " + MembershipAdmissionGuardSql(correctParentMirror: false));
+    }
+
+    private static string MembershipAdmissionGuardSql(bool correctParentMirror) => MembershipAdmissionGuardDefinition
+        .Replace("__MISSING_MEMBERSHIP_REFUSAL__",
+            correctParentMirror ? MembershipParentRefusal : LegacyMembershipParentRefusal, StringComparison.Ordinal);
 
     private static string MutationGuardSql(bool correctParentMirror) => MutationGuardDefinition
         .Replace("__PARENT_MIRROR_CHECK__", correctParentMirror ? ParentMirrorCheck : LegacyParentMirrorCheck,
@@ -216,40 +234,7 @@ public static class ContextualIdentityStorageDdl
         REVOKE ALL ON FUNCTION public.fn_identity_assert_tenant_fence(uuid, boolean) FROM PUBLIC;
         GRANT EXECUTE ON FUNCTION public.fn_identity_assert_tenant_fence(uuid, boolean) TO learnstack_app;
 
-        CREATE FUNCTION public.fn_identity_membership_admission_guard() RETURNS trigger
-            LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog
-        AS $$
-        DECLARE target_user uuid; target_tenant uuid; eligible boolean;
-        BEGIN
-            IF TG_TABLE_SCHEMA <> 'public' THEN
-                RAISE EXCEPTION 'identity mutation plan is unavailable' USING ERRCODE = 'P0301';
-            END IF;
-            IF TG_TABLE_NAME = 'memberships' AND TG_OP IN ('INSERT','UPDATE') THEN
-                IF TG_OP = 'UPDATE' AND NOT (OLD.status = 'Suspended' AND NEW.status = 'Active') THEN RETURN NEW; END IF;
-                target_user := NEW.user_id;
-                target_tenant := NEW.tenant_id;
-            ELSIF TG_TABLE_NAME = 'membership_role_assignments' AND TG_OP = 'INSERT' THEN
-                SELECT member.user_id, member.tenant_id INTO target_user, target_tenant
-                FROM public.memberships AS member
-                WHERE member.tenant_id = NEW.tenant_id AND member.id = NEW.membership_id;
-                IF NOT FOUND THEN
-                    RAISE EXCEPTION 'identity membership target is unavailable' USING ERRCODE = 'P0302';
-                END IF;
-            ELSE
-                RAISE EXCEPTION 'identity mutation plan is unavailable' USING ERRCODE = 'P0301';
-            END IF;
-            PERFORM public.fn_identity_assert_tenant_fence(target_tenant, false);
-            IF public.fn_identity_lock_held('user',target_user,true) IS NOT TRUE THEN
-                RAISE EXCEPTION 'identity mutation plan is unavailable' USING ERRCODE = 'P0301', CONSTRAINT = 'identity_user_fence';
-            END IF;
-            SELECT person.status = 'Active' AND person.deleted_at IS NULL AND person.deleted_by IS NULL
-                INTO eligible FROM public.users AS person WHERE person.id = target_user;
-            IF eligible IS NOT TRUE THEN
-                RAISE EXCEPTION 'identity membership target is unavailable' USING ERRCODE = 'P0302';
-            END IF;
-            RETURN NEW;
-        END;
-        $$;
+        __MEMBERSHIP_ADMISSION_GUARD__
         ALTER FUNCTION public.fn_identity_membership_admission_guard() OWNER TO learnstack_migration;
         REVOKE ALL ON FUNCTION public.fn_identity_membership_admission_guard() FROM PUBLIC, learnstack_app, learnstack_platform, learnstack_outbox_admin;
 
@@ -278,6 +263,49 @@ public static class ContextualIdentityStorageDdl
         REVOKE ALL ON FUNCTION public.fn_identity_admin_admission_state(uuid, uuid) FROM PUBLIC, learnstack_platform, learnstack_outbox_admin;
         GRANT EXECUTE ON FUNCTION public.fn_identity_admin_admission_state(uuid, uuid) TO learnstack_app;
         """;
+
+    private const string MembershipAdmissionGuardDefinition = """
+        FUNCTION public.fn_identity_membership_admission_guard() RETURNS trigger
+            LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog
+        AS $$
+        DECLARE target_user uuid; target_tenant uuid; eligible boolean;
+        BEGIN
+            IF TG_TABLE_SCHEMA <> 'public' THEN
+                RAISE EXCEPTION 'identity mutation plan is unavailable' USING ERRCODE = 'P0301';
+            END IF;
+            IF TG_TABLE_NAME = 'memberships' AND TG_OP IN ('INSERT','UPDATE') THEN
+                IF TG_OP = 'UPDATE' AND NOT (OLD.status = 'Suspended' AND NEW.status = 'Active') THEN RETURN NEW; END IF;
+                target_user := NEW.user_id;
+                target_tenant := NEW.tenant_id;
+            ELSIF TG_TABLE_NAME = 'membership_role_assignments' AND TG_OP = 'INSERT' THEN
+                SELECT member.user_id, member.tenant_id INTO target_user, target_tenant
+                FROM public.memberships AS member
+                WHERE member.tenant_id = NEW.tenant_id AND member.id = NEW.membership_id;
+                IF NOT FOUND THEN
+        __MISSING_MEMBERSHIP_REFUSAL__
+                END IF;
+            ELSE
+                RAISE EXCEPTION 'identity mutation plan is unavailable' USING ERRCODE = 'P0301';
+            END IF;
+            PERFORM public.fn_identity_assert_tenant_fence(target_tenant, false);
+            IF public.fn_identity_lock_held('user',target_user,true) IS NOT TRUE THEN
+                RAISE EXCEPTION 'identity mutation plan is unavailable' USING ERRCODE = 'P0301', CONSTRAINT = 'identity_user_fence';
+            END IF;
+            SELECT person.status = 'Active' AND person.deleted_at IS NULL AND person.deleted_by IS NULL
+                INTO eligible FROM public.users AS person WHERE person.id = target_user;
+            IF eligible IS NOT TRUE THEN
+                RAISE EXCEPTION 'identity membership target is unavailable' USING ERRCODE = 'P0302';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
+        """;
+
+    private const string LegacyMembershipParentRefusal =
+        "            RAISE EXCEPTION 'identity membership target is unavailable' USING ERRCODE = 'P0302';";
+
+    private const string MembershipParentRefusal =
+        "            RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = '23514', CONSTRAINT = 'membership_parent_scope';";
 
     private const string MutationGuardDefinition = """
         FUNCTION public.fn_identity_contextual_mutation_guard() RETURNS trigger

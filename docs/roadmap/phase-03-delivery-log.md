@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,605 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,646 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -54,6 +54,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 6 — Complete qualification inventories (2026-10-26)](#p03-1-step-6--complete-qualification-inventories-2026-10-26) — 46 lines
   - [P03-1 Step 6 review round 1 and carrier correction (2026-10-26)](#p03-1-step-6-review-round-1-and-carrier-correction-2026-10-26) — 36 lines
   - [P03-1 Step 6 full ordinary failures and bounded corrections (2026-10-26)](#p03-1-step-6-full-ordinary-failures-and-bounded-corrections-2026-10-26) — 78 lines
+  - [P03-1 Step 6 review round 2 and complete parent-stack correction (2026-10-26)](#p03-1-step-6-review-round-2-and-complete-parent-stack-correction-2026-10-26) — 41 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1744,3 +1745,44 @@ prerequisite and the managed local launcher.
 
 Committed-source requalification, the fresh second Step 6 review round and
 complete source-bound hosted A/B execution remain required before closeout.
+
+### P03-1 Step 6 review round 2 and complete parent-stack correction (2026-10-26)
+
+Two fresh independent read-only reviewers inspect `4fc7e1a7`: the SQL/privacy
+slice (GPT-6 Astra, xhigh) and accounting/corpus/reversal slice (GPT-6.1 Sol,
+xhigh). Both find the same remaining parent classification defect. The
+admission trigger runs before the mutation guard for assignment INSERTs, so
+missing or RLS-hidden Membership parents still return `P0302`. The prior
+visible-parent mismatch witness did not exercise that branch. A real app-role
+six-case control first reproduces the defect: four pass, two fail. The retained
+committed-source selection also reports **409 Passed, five Failed, zero skipped,
+414 total**; all five failures are the schema inspector expecting the original
+function body because it reads only the first two migrations.
+
+A second forward migration replaces only
+`fn_identity_membership_admission_guard`. Missing/hidden Membership parents now
+use the same fixed `23514` / `membership_parent_scope` refusal as the mutation
+guard. Actual unknown or nonadmitting User targets retain `P0302`. No function,
+table, trigger, data, owner or grant is added. Original migration SQL remains
+byte-identical. Each correction's real round-trip control pins its own exact
+migration version, preserves function OID/owner/ACL/security mode/volatility/
+search path and sibling definitions, then converges with the fresh latest chain.
+
+The inspector now derives effective function definitions from every compiled
+Identity migration in actual EF order. It recognizes replacements by normalized
+signature and retains the final body; duplicate creates, undeclared replacements
+and unsupported declarations fail. Exact body/privilege/caller checks and the
+twelve-function/five-definer/eighteen-caller census remain. Nine independent
+parser controls exercise replacement order and rejected forms. The stale
+Security introduction now points to the canonical phase Status block while
+retaining P03-2 ownership of live membership execution.
+
+The corrected parent-stack, function-schema, reversal and parent-structure
+selection passes **159/159**, zero skips. Both child tables have missing,
+RLS-hidden and visible NULL-organization-mismatch controls, each with an actual
+app-role positive write before refusal. These focused results do not replace
+complete source-bound qualification or imply packet closeout.
+
+An additional **77/77 Integration** startup/worker/binding/diagnostic cases and
+**28/28 Architecture** cases pass, zero skips. These selections remain separate
+receipts; overlapping earlier populations are not added into a new suite total.

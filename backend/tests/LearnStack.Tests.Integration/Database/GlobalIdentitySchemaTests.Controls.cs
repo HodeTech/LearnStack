@@ -1,7 +1,11 @@
 using System.Text.RegularExpressions;
 using FluentAssertions;
-using LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations;
+using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Tenancy;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Npgsql;
 using Xunit;
@@ -255,15 +259,23 @@ public sealed partial class GlobalIdentitySchemaTests
 
     private static CanonicalFunction[] CompiledFunctions()
     {
-        // This is the executed compiled Up operation, including the one central installer.
-        // No copied witness DDL or checked-in expected-body snapshot can silently drift.
-        var sql = string.Join("\n", new create_identity_schema().UpOperations
-            .Concat(new add_contextual_identity().UpOperations).OfType<SqlOperation>().Select(operation => operation.Sql));
-        var functions = FunctionDeclaration().Matches(sql).Select(match =>
+        // Read every compiled Up operation in the same order as the EF migrator,
+        // including central installers and later body-only replacements.
+        using var context = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only").Options,
+            StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
+        var assembly = context.GetService<IMigrationsAssembly>();
+        var migrationSql = assembly.Migrations.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => string.Join("\n", assembly.CreateMigration(pair.Value, context.Database.ProviderName!).UpOperations
+                .OfType<SqlOperation>().Select(operation => operation.Sql))).ToArray();
+        migrationSql.Should().NotBeEmpty("the actual Identity migration assembly is the function census source");
+        var sql = string.Join("\n", migrationSql);
+        var functions = EffectiveFunctionDeclarations(sql).Select(match =>
         {
-            var name = match.Groups["name"].Value;
-            var parameters = match.Groups["parameters"].Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var name = match.Groups["name"].Value.ToLowerInvariant();
+            var parameters = FunctionParameters(match);
             var types = parameters.Select(parameter => parameter[(parameter.IndexOf(' ') + 1)..]).ToArray();
+            var attributes = Regex.Replace(match.Groups["attributes"].Value, @"\s+", " ").ToUpperInvariant();
             var triggers = TriggerDeclaration().Matches(sql).Where(trigger => trigger.Groups["function"].Value == name)
                 .Select(trigger => new TriggerContract(trigger.Groups["name"].Value, "public." + trigger.Groups["table"].Value,
                     (trigger.Groups["attributes"].Value.Contains("FOR EACH ROW", StringComparison.Ordinal) ? 1 : 0)
@@ -273,21 +285,21 @@ public sealed partial class GlobalIdentitySchemaTests
                     trigger.Groups["attributes"].Value.Contains("INITIALLY DEFERRED", StringComparison.Ordinal), "O"))
                 .OrderBy(trigger => trigger.Name, StringComparer.Ordinal).ToArray();
             return new CanonicalFunction(name, "public." + name + "(" + string.Join(',', types) + ")",
-                string.Join(", ", parameters).Replace("timestamptz", "timestamp with time zone", StringComparison.Ordinal),
-                match.Groups["returns"].Value, match.Groups["attributes"].Value.Contains("SECURITY DEFINER", StringComparison.Ordinal),
+                string.Join(", ", parameters),
+                match.Groups["returns"].Value.ToLowerInvariant(), attributes.Contains("SECURITY DEFINER", StringComparison.Ordinal),
                 sql.Contains("GRANT EXECUTE ON FUNCTION public." + name + "(", StringComparison.Ordinal),
                 match.Groups["body"].Value, match.Value, triggers,
-                FunctionLanguage().Match(match.Groups["attributes"].Value).Groups[1].Value,
-                match.Groups["attributes"].Value.Contains("IMMUTABLE", StringComparison.Ordinal) ? "i"
-                    : match.Groups["attributes"].Value.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
-                match.Groups["attributes"].Value.Contains("STRICT", StringComparison.Ordinal));
+                FunctionLanguage().Match(attributes).Groups[1].Value.ToLowerInvariant(),
+                attributes.Contains("IMMUTABLE", StringComparison.Ordinal) ? "i"
+                    : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
+                attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(12, "the two applied Identity migrations install the complete global/contextual function set");
+        functions.Should().HaveCount(12, "all applied Identity migrations retain the complete global/contextual function set");
         functions.Count(function => function.Definer).Should().Be(5);
         functions.SelectMany(function => function.Triggers).Should().HaveCount(18);
-        var globalNames = FunctionDeclaration().Matches(string.Join("\n", new create_identity_schema().UpOperations
-                .OfType<SqlOperation>().Select(operation => operation.Sql)))
-            .Select(match => match.Groups["name"].Value).ToHashSet(StringComparer.Ordinal);
+        var globalNames = EffectiveFunctionDeclarations(migrationSql[0])
+            .Select(match => match.Groups["name"].Value.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
+        globalNames.Should().NotBeEmpty("the first Identity migration installs its confined global functions");
         foreach (var function in functions)
         {
             var forbidden = globalNames.Contains(function.Name) ? ForbiddenFunctionBody() : ContextualForbiddenFunctionBody();
@@ -328,7 +340,7 @@ public sealed partial class GlobalIdentitySchemaTests
         bool Definer, bool AppCallable, string Body, string Definition, TriggerContract[] Triggers, string Language, string Volatility, bool Strict);
     private sealed record TriggerContract(string Name, string Table, int Type, bool Deferrable, bool InitiallyDeferred, string Enabled);
 
-    [GeneratedRegex(@"CREATE FUNCTION public\.(?<name>[a-z0-9_]+)\((?<parameters>[^)]*)\)\s+RETURNS\s+(?<returns>[a-z]+)\s+(?<attributes>.*?)\bAS\s+(?<delimiter>\$[a-z0-9_]*\$)(?<body>.*?)\k<delimiter>;", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    [GeneratedRegex(@"\bCREATE\s+(?<replace>OR\s+REPLACE\s+)?FUNCTION\s+public\.(?<name>[a-z0-9_]+)\s*\((?<parameters>[^)]*)\)\s+RETURNS\s+(?<returns>[a-z]+)\s+(?<attributes>.*?)\bAS\s+(?<delimiter>\$[a-z0-9_]*\$)(?<body>.*?)\k<delimiter>\s*;", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex FunctionDeclaration();
     [GeneratedRegex(@"LANGUAGE\s+(\w+)", RegexOptions.IgnoreCase)]
     private static partial Regex FunctionLanguage();
