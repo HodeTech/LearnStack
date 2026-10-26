@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,277 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,380 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -66,7 +66,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 PR 38 independent mutation collections (2026-10-26)](#p03-1-pr-38-independent-mutation-collections-2026-10-26) — 77 lines
   - [P03-1 PR #38 current-source A/B and ordinary window proposal (2026-10-26)](#p03-1-pr-38-current-source-ab-and-ordinary-window-proposal-2026-10-26) — 98 lines
   - [ADR-0075 proposal review round 1 (2026-10-26)](#adr-0075-proposal-review-round-1-2026-10-26) — 29 lines
-  - [ADR-0075 proposal review round 2 (2026-10-26)](#adr-0075-proposal-review-round-2-2026-10-26) — 26 lines
+  - [ADR-0075 proposal review round 2 (2026-10-26)](#adr-0075-proposal-review-round-2-2026-10-26) — 27 lines
+  - [ADR-0075 maintainer review and revised package (2026-10-27)](#adr-0075-maintainer-review-and-revised-package-2026-10-27) — 102 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2429,3 +2430,106 @@ ADR lifecycle parsing and whitespace checks pass. ADR-0075 remains Proposed;
 maintainer approval is the next policy gate. After approval, the three-step plan
 above still requires actual implementation reviews and fresh complete hosted
 A/B. These document reviews do not establish twenty-five-minute fit.
+
+
+### ADR-0075 maintainer review and revised package (2026-10-27)
+
+**Authority.** The maintainer supplies two review reports against proposal head
+`b048412d`; the response requests pre-acceptance clarification rather than
+accepting the decision. ADR-0075 remains Proposed. This entry replaces only the
+acceptance carrier list and interval clarification in the
+[original three-step proposal](#p03-1-pr-38-current-source-ab-and-ordinary-window-proposal-2026-10-26).
+Its historical draft and review receipts stay intact. No Accepted ADR, workflow
+or executable budget policy changes before approval.
+
+**Verified disposition against current source:**
+
+| Finding | Disposition |
+|---|---|
+| ADR-0062 Amendment 1 still says all execution jobs keep twenty minutes | Valid. Acceptance now owes its own dated ordinary-only amendment in ADR-0062 as well as ADR-0063. Native remains twenty minutes. Both append-ready texts follow. |
+| Five minutes could be read as a whole-workflow feedback bound | Valid. ADR-0075 now limits the statement to additional running time per ordinary job; queueing/concurrency determine total feedback delay. |
+| B1: twenty-five minutes is a judgement choice | Already disclosed; strengthened to name maintainer acceptance of headroom, with no proved minimum or safe margin. Fresh final-source A/B remains mandatory. |
+| B2: A passes, so “failure of both assignments” is not observed | Valid clarification. Reopening follows ADR-0063's separate envelope-exhaustion clause and requirement to qualify both layouts; the proposal claims neither that both fail nor that a change is pre-authorized. |
+| B3: continuity with ADR-0063's rejected ceiling option | Valid clarification. The ordinary-only part of its previously valid, unselected alternative is now explicitly named. |
+| M1: globally changing `finite_seconds` to 1,500 would weaken other producers | Valid. Observational bounds are supplied only from independently verified expected-owner identity, across receipt and measurement validation. Nonordinary remains 1,200. |
+| M1: retain every ordinary measurement at 1,200 | Not adopted. `shard_workload` records its whole worker interval and assembly invocation walls; these are observations under the enclosing job deadline, not separate operation limits. A 1,250-second workload with short pre-owner work can fit 1,500 minus the unchanged 203-second reserve. A separate measurement cap would add a workload policy. Actual test/fixture operation deadlines remain unchanged. |
+| M2: fixture preparation shares the launcher's duration source | Valid; explicit single-policy ownership is added. Its total 110 seconds, per-image 55 seconds and two-minute step remain fixed. |
+| M3: `verify_jobs` must use expected owner in either aggregate scope | Valid; explicitly stated, including base/native inside integration. A prefix or receipt partition cannot grant the longer window. |
+| Owner setup arithmetic provenance | Valid clarification. The ADR names the observed `result.json.setupSeconds` values 0.191/0.198 rather than an unexplained approximate constant. |
+| Option 5 and the no-unapproved-increase clause | Clarified together with B1/B2. Neither twenty-two/twenty-three nor twenty-five has measured fit yet; accepting this bounded exception leaves all other expansion unapproved. |
+
+The M1 distinction is checked against `ci-native-tests.py`'s actual
+`shard_workload`, `leaf` and `deadlines`, and `ci-test-shard-results.py`'s
+`verify_receipt`/`finite_seconds`. Nested measurement observations are not summed
+as extra disjoint time. Only the four disjoint receipt intervals sum below the
+verified owner's ceiling. No runtime changes or new deadline semantics are
+implemented by documenting this distinction.
+
+**Revised acceptance text for ADR-0062 — not appended while Proposed:**
+
+> Amendment 2 — Ordinary Docker execution window (acceptance date)
+>
+> Accepted ADR-0075 supplies an ordinary-only exception to Amendment 1's
+> statement, “All execution jobs keep twenty-minute ceilings”. Verified
+> ordinary Docker producers have a twenty-five-minute whole-job ceiling;
+> native, base and Architecture execution retain twenty minutes. ADR-0063
+> receives its own dated amendment for the same bounded change.
+>
+> Native collector authority, excluded-host rules, process/Docker ownership,
+> unchanged cleanup/export/upload reserve, complete result requirements and
+> the other decisions above remain intact. Expected verified producer identity
+> controls the longer observation/whole-job window; no receipt chooses it.
+> Acceptance is not implementation or actual hosted fit. ADR-0075 and the
+> Phase 03 delivery log own the dependent implementation and fresh two-layout
+> qualification receipts. The historical text, metadata and Amendment 1 are
+> retained without rewriting. This is a bounded decision change, not an
+> ADR-0041 factual correction.
+
+**Revised acceptance text for ADR-0063 — not appended while Proposed:**
+
+> Amendment 1 — Ordinary Docker whole-job window (acceptance date)
+>
+> Accepted ADR-0075 supplies an ordinary-only exception to the Decision's
+> “Each execution keeps its twenty-minute whole-job ceiling” and the rule,
+> “Keep each twenty-minute ceiling and a finite cleanup/upload reserve.”
+> Verified ordinary Docker producers instead have a twenty-five-minute
+> whole-job ceiling. This also qualifies the inherited ordinary requirement
+> in the Exact relationship to ADR-0062 section; ADR-0062 receives its own
+> dated amendment. Native, base and Architecture retain twenty minutes.
+> The plan's prohibition on unapproved ceiling increases keeps only this
+> explicitly approved ordinary exception.
+>
+> All other decisions remain in force: producer count ranges and the
+> twenty-VM cap, selector ownership and two-layout qualification,
+> algorithm/salt/weights/filters, resource ownership/accounting, the
+> unchanged cleanup/export/upload reserve, other job ceilings and the
+> seven required names. Expected verified producer identity controls the
+> longer enclosing interval; a receipt cannot choose it. Actual operation
+> deadlines remain unchanged. Acceptance authorizes dependent work, not
+> actual hosted fit; the Phase 03 delivery log owns its implementation and
+> qualification receipts. Historical text and metadata remain intact.
+
+Both amendment numbers are checked again at acceptance. Actual acceptance dates
+replace the placeholders; they are not backdated to proposal or review dates.
+
+**Revised three-step plan, pending maintainer acceptance:**
+
+1. Accept ADR-0075, append the two own-record amendments above and reconcile
+   Testing 06, Infrastructure Stack 20, the existing CI catalogue Source/Asserts,
+   decision index and Phase 03 Status. The existing catalogue implementation
+   does not imply the not-yet-delivered extension.
+2. Implement the one closed expected-owner budget policy across launcher/leaf,
+   fixture preparation, workflow and API/receipt/observation validation. Include
+   positive ordinary observations above 1,200 within the longer enclosing job,
+   negative nonordinary/forged-owner controls, unchanged operation caps and
+   finite/threshold checks. The population, plan, reserve and other boundaries
+   stay fixed; run the relevant Python suites and documentation guards.
+3. Qualify complete fresh same-final-source A and B, retain original packages
+   before rerunning all jobs, independently cross-audit exact full unions and
+   natural completion, then update actual closeout and PR evidence. Historical
+   A or failed B cannot stand in for these new proofs.
+
+Each step retains commits and two fresh independent review rounds before
+advancing. The revised proposal also receives two fresh review rounds before
+being returned for approval. Acceptance and executable implementation remain
+pending; this package is not new hosted qualification.

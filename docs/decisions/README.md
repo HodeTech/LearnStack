@@ -123,7 +123,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0075 | [Ordinary CI Job Window](0075-ordinary-ci-job-window.md) | Proposed bounded ADR-0063 supersession: ordinary Docker jobs only gain a 25-minute whole-job window; counts, assignment, reserves, resource policy and other ceilings stay fixed | Maintainer approval before any budget implementation; fresh final-source A/B qualification before PR #38 closeout |
+| 0075 | [Ordinary CI Job Window](0075-ordinary-ci-job-window.md) | Proposed ordinary-only exception to ADR-0063 and ADR-0062 Amendment 1: 25-minute whole-job window with expected-owner observation bounds; counts, assignment, reserves, resource policy and other ceilings stay fixed | Maintainer approval before any budget implementation; fresh final-source A/B qualification before PR #38 closeout |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

@@ -6,13 +6,15 @@ Proposed
 
 **Date:** 2026-10-26
 **Deciders:** Maintainer — pending approval.
-**Supersedes:** Only ADR-0063's twenty-minute ordinary Docker execution clauses.
+**Bounded supersession:** Only the twenty-minute ordinary Docker execution
+clauses in ADR-0063 and the inherited requirement in ADR-0062 Amendment 1.
 
 This proposal requires maintainer acceptance before implementation. It authorizes
-no present ceiling change. ADR-0063 remains Accepted; its other decisions remain
-in force. On acceptance, a dated amendment there records this bounded
-supersession and links here. This is a changed policy, not an erratum; this
-proposal does not edit the Accepted record.
+no present ceiling change. ADR-0062 and ADR-0063 remain Accepted; their other
+decisions remain in force. On acceptance, each receives its own dated amendment
+recording the ordinary-only exception and linking here; native execution keeps
+twenty minutes. This is a changed policy, not an erratum; this proposal does
+not edit either Accepted record.
 
 ## Decision Drivers
 
@@ -34,6 +36,9 @@ proposal does not edit the Accepted record.
 1. **Twenty-five minutes for ordinary producers only** (chosen). Add bounded
    wall-time headroom without adding VMs or changing assignment. Hosted fit
    remains a required proof, not a consequence of accepting the ceiling.
+   Acceptance selects five minutes of maintainer-judged headroom, not a
+   measured minimum. This selects the ordinary-only part of ADR-0063's
+   previously considered “Increase job ceilings” alternative.
 2. **Keep twenty minutes and optimize fixtures/tests further** (valid, not
    selected). This retains the policy but needs further test-only lifecycle
    work and proof that sharing, startup or disposal changes preserve isolation
@@ -48,7 +53,8 @@ proposal does not edit the Accepted record.
    cannot supply that missing measurement.
 5. **Choose twenty-two or twenty-three minutes** (not selected). Censored tails
    do not establish a measured minimum or prove either shorter window fits.
-   Twenty-five is a bounded headroom choice, not the minimum derived from data.
+   Twenty-five shares that uncertainty but gives more bounded headroom; the
+   maintainer's acceptance chooses that trade-off, not a proved safe margin.
 6. **Drop/skip cases, ignore failed producers or combine attempts** (rejected).
    These remove proof of the complete population and cannot qualify a release.
 
@@ -114,7 +120,8 @@ revisions did not qualify complete B, and further partition luck is not proof.
 The current nominal owner window before pre-owner/discovery work is
 `1,200 − 203 = 997` seconds. The proposal makes it
 `1,500 − 203 = 1,297` seconds. With the two observed B pre-owner and discovery
-intervals plus approximately 0.2 seconds of owner setup, nominal remaining
+intervals plus measured owner setup of 0.191/0.198 seconds
+(`result.json.setupSeconds`), nominal remaining
 test-process time changes from approximately 699/696 to 999/996 seconds.
 This ledger excludes other overhead; it is not a prediction that the six
 censored cases finish, a fixture profile or a future fit guarantee.
@@ -124,6 +131,14 @@ ceiling. Twenty-five minutes adds five bounded minutes to an already measured
 path while preserving topology. Actual final-source A/B execution decides
 whether that choice suffices. Further exhaustion reopens the decision rather
 than silently extending the window again.
+
+ADR-0063's “failure of both assignments” example is not the observed outcome:
+A passes and B fails. Reopening here follows its separate finite-envelope
+exhaustion clause and the requirement to qualify both layouts. It is an
+explicit request to change that envelope, not a claim that both layouts fail.
+Its prohibition on unapproved ceiling increases retains only this named
+ordinary exception on acceptance. The dated amendments in both ADR-0063 and
+ADR-0062 qualify the inherited twenty-minute requirement without rewriting it.
 
 ### Boundaries retained
 
@@ -158,8 +173,9 @@ than silently extending the window again.
 
 ### Negative
 
-- A slow or hung ordinary producer can delay feedback by up to five additional
-  minutes and consume more running-job time.
+- Each slow or hung ordinary producer can consume up to five additional running
+  minutes. Total workflow feedback delay depends on concurrency, queueing and
+  scheduling; five minutes is not an overall workflow-delay upper bound.
 - The larger window guarantees neither runner availability nor hosted fit. It
   repairs no assertion failure and changes no CPU/memory policy or runner tier.
 
@@ -175,10 +191,13 @@ than silently extending the window again.
 Implementation starts only after maintainer acceptance and proceeds in three
 reviewable steps. Each step is committed and receives two fresh independent
 review rounds; verified findings are fixed, committed and revalidated before
-the next step starts.
+the next step starts. The [revised Phase 03 package][revised-package] holds the
+append-ready amendment texts and verified maintainer-review dispositions.
 
 1. **Acceptance carriers.** Mark this ADR Accepted with the maintainer receipt;
-   append the dated bounded-supersession amendment to ADR-0063. Update
+   append a dated ordinary-only amendment to each of ADR-0063 and ADR-0062.
+   ADR-0062's amendment qualifies Amendment 1's inherited twenty-minute
+   statement and expressly keeps native execution at twenty minutes. Update
    [Testing Standards § Complete bounded CI
    assignments](../standards/06-testing.md#complete-bounded-ci-assignments)
    and its derivation reference. Reconcile the corresponding twenty-minute
@@ -188,7 +207,7 @@ the next step starts.
    with this source and the closed ordinary-budget assertion; its existing
    Implemented status does not assert the extension is delivered. Move the
    decision index row to Active and update Phase 03 status and the delivery
-   record. Do not rewrite ADR-0063's historical rationale or unrelated rules.
+   record. Do not rewrite either ADR's historical rationale, text or metadata.
 2. **Closed budget implementation.** Change only ordinary whole-job policy in
    the carriers below, preserve all retained boundaries, run the relevant
    offline controls and obtain two fresh independent review rounds before
@@ -208,7 +227,9 @@ The source budget carriers are:
   clocks before checkout, uploads, other jobs and required names stay unchanged.
 - [`scripts/ci-native-tests.py`](../../scripts/ci-native-tests.py): replace the
   uniform `JOB_SECONDS` use at `deadlines()` for the execution owner and leaf
-  with one closed mode-to-window policy. Validate the exact supported mode,
+  with one closed mode-to-window policy shared with fixture preparation and
+  result validation; do not maintain a second independent duration constant
+  in `ci-test-shard-results.py`. Validate the exact supported mode,
   expected job and shard index before granting 1,500 seconds. Unknown modes,
   prefix lookalikes and forged mode/job pairs refuse. Preserve every reserve
   component and its failure-tail authority; no environment budget knob exists.
@@ -217,10 +238,26 @@ The source budget carriers are:
   `verify_receipt` with the same expected-producer policy. Choose the receipt
   interval ceiling from the independently expected/verified owner, never the
   payload's self-declared `partition`. Bind the receipt to that owner before
-  applying any longer budget. Bind `prepare_fixture_images` to verified
+  applying any longer budget. `verify_jobs` chooses the API running-wall limit
+  from its expected owner in either aggregate scope; base/native/Architecture
+  stay at 1,200 seconds even inside the integration aggregate. Bind
+  `prepare_fixture_images` to verified
   ordinary workflow identity and the same window; retain its 110-second total,
   55-second per-image limits and two-minute workflow step ceiling. Aggregate
   acquisition/download/validation/upload allocations remain five-minute work.
+
+`finite_seconds` validates observations, not test-operation deadlines. Supply
+the verified expected owner's ceiling explicitly for its receipt and
+`measurements.json` workload/phase/project observations; never change the
+helper's bound globally to 1,500. Only expected ordinary owners receive the
+longer observational bound. `workloadSeconds` encloses the entire worker and
+`testProcessSeconds` encloses an assembly invocation, so either can exceed
+1,200 when pre-owner work is short while still fitting the 1,500-second job
+and unchanged reserve. Keeping a separate 1,200-second ordinary measurement
+cap would add another workload policy; this decision does not add it. The
+four disjoint receipt intervals sum strictly below the owner's ceiling;
+nested measurement intervals are not additional disjoint time. Existing
+test/fixture operation limits retain their own unchanged constants.
 
 ## Architecture Tests
 
@@ -233,6 +270,10 @@ second application-test catalogue name for a CI policy.
   identity/evidence. Individual receipt intervals remain finite and at most
   1,500; their sum stays strictly below 1,500. Above 1,500 refuses. Other
   producer kinds retain the corresponding 1,200-second limits.
+  Include otherwise valid ordinary workload/assembly observations above 1,200
+  inside the longer enclosing window, with nonordinary counterexamples that
+  refuse them. NaN, infinity, negative values and identity forgery still refuse;
+  unchanged test-operation caps cannot inherit the observation limit.
 - **Identity controls:** unknown modes, out-of-range indices, prefix lookalikes,
   forged receipt partitions and mode/job mismatches cannot acquire the longer
   window. Launcher, image preparation and validator agree on the closed set.
@@ -255,3 +296,4 @@ second application-test catalogue name for a CI policy.
 [mutation-collections]: ../roadmap/phase-03-delivery-log.md#p03-1-pr-38-independent-mutation-collections-2026-10-26
 [native-ci]: 0062-native-crash-proof-ci-provisioning.md
 [ci-rule]: ../standards/21-architecture-tests-catalogue.md#ci_test_shards_are_complete_and_bounded
+[revised-package]: ../roadmap/phase-03-delivery-log.md#adr-0075-maintainer-review-and-revised-package-2026-10-27
