@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,694 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,733 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -56,6 +56,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 6 full ordinary failures and bounded corrections (2026-10-26)](#p03-1-step-6-full-ordinary-failures-and-bounded-corrections-2026-10-26) — 78 lines
   - [P03-1 Step 6 review round 2 and complete parent-stack correction (2026-10-26)](#p03-1-step-6-review-round-2-and-complete-parent-stack-correction-2026-10-26) — 41 lines
   - [P03-1 Step 6 correction approvals and first hosted assignment (2026-10-26)](#p03-1-step-6-correction-approvals-and-first-hosted-assignment-2026-10-26) — 48 lines
+  - [P03-1 Step 6 measured timing revision (2026-10-26)](#p03-1-step-6-measured-timing-revision-2026-10-26) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1835,3 +1836,42 @@ first hosted browser failure. Existing focused frontend controls pass **89/89**;
 the actual local browser positive/history-counter case passes **1/1**, zero
 skips. Actual Ubuntu browser and complete complementary A/B execution remain
 required before closeout.
+
+### P03-1 Step 6 measured timing revision (2026-10-26)
+
+[ADR-0063's reviewed-plan mechanism](../decisions/0063-complete-bounded-ci-test-shards.md#versioned-plan-and-independence)
+owns this timing-only revision. All 24 first-attempt archives are retained with
+API digests and exact source/run/attempt identity. Selected discovery IDs bind
+every completed row; complete passing owners also have exact TRX/prefix equality.
+Of 1,577 observed selector groups, 1,563 are fully Passed and fourteen are
+censored. An interrupted owner is never treated as a complete successful owner.
+
+Weights use ceiling milliseconds of the complete selector's case-duration sum,
+minimum one. Complete passing ordinary owners supply their current observations.
+For interrupted ordinary owners, fully observed passing groups may add missing
+measurements or increase existing measured weights; they never reduce an existing
+measurement. Failed/partially observed groups retain their old weight or unknown
+default. Historical slower Architecture observations remain floors. Each used
+source names the run, source SHA, owner, artifact ID, entry digest, unit and scope;
+the two interrupted JSONL prefixes are explicitly distinguished from complete
+passing TRX receipts.
+
+The revision measures 189 previously unknown selectors; five remain unknown.
+Only `weights` and `sources` change. Literal JSON values for counts, algorithm,
+salt, default, argument bounds, fixed-cost observations and the 130 fixture
+classes are byte-identical. The same twenty execution owners, twenty-minute
+whole-job ceilings and seven required names remain. No selector, trait or case
+is removed. Both assignments retain all 6,437 unique cases exactly once, with
+independent Architecture/ordinary/shared-fixture co-membership witnesses.
+
+The reviewed plan digest is
+`7e3357bf961f6ed215a306a72d8b616c7bf7462b098205c1094885d422062804`;
+manifest digest remains
+`29ded01d790e2f1ecdcc4dc73c349d67e52206afa4034c4e1240c751278be2b5`.
+The full assignment diff moves 2,961 cases in A and 2,947 in B. Mixed advisory
+ordinary maxima become 649.438s and 719.914s, respectively; these sums are not
+execution-wall bounds. Actual first-attempt pre-owner/setup/discovery intervals,
+test-process versus case-body differences and unobserved fixture costs remain
+separate. The failed browser observation is not reduced into a cheaper positive
+weight. Both full variants on the new final source remain required; neither
+these estimates nor the preceding-head successes establish fit or close Step 6.
