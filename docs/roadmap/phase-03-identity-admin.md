@@ -5,8 +5,8 @@
 > complete; its implementation source has passed complementary full A/B
 > qualification ([Step 6 closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26)).
 > [PR review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26)
-> are committed with both independent review rounds complete. Current correction
-> source passes full A; full B reaches two ordinary job deadlines and is not
+> are committed with both independent review rounds complete. Correction source
+> `7aabc6d8` passes full A; full B reaches two ordinary job deadlines and is not
 > qualified. [ADR-0075](../decisions/0075-ordinary-ci-job-window.md) is Proposed;
 > its ordinary-only CI window change awaits maintainer approval before
 > implementation and fresh full A/B qualification. Merge review remains required. The

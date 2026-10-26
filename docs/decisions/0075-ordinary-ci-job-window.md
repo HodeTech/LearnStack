@@ -26,7 +26,8 @@ proposal does not edit the Accepted record.
   summed case weights do not represent. Further lucky weight tuning does not
   establish complete execution under both materially different assignments.
 - Preserve complete case ownership, zero skips, natural disposal, resource
-  quotas, seven required check names and strict current-attempt evidence.
+  ownership/accounting, seven required check names and strict current-attempt
+  evidence.
 
 ## Considered Options
 
@@ -38,7 +39,8 @@ proposal does not edit the Accepted record.
    work and proof that sharing, startup or disposal changes preserve isolation
    and assertions. No sufficient measured improvement is established here.
 3. **Increase ordinary producers to fourteen or sixteen** (valid, not selected).
-   This exceeds the accepted eight–twelve range and twenty-VM cap, duplicates
+   With the current six Architecture producers, this exceeds the accepted
+   eight–twelve ordinary range and twenty-VM cap, duplicates
    build/discovery/fixture work and increases organization queue pressure.
 4. **Adopt fixture-aware assignment** (valid, not selected). A new algorithm
    needs instrumentation, versioning and independent A/B qualification.
@@ -54,8 +56,8 @@ proposal does not edit the Accepted record.
 
 LearnStack gives only the verified ordinary Docker producers a twenty-five-minute
 (1,500-second) whole-job ceiling in place of twenty minutes (1,200 seconds).
-Every other job ceiling, the 203-second cleanup/export/upload reserve, resource
-quota, assignment rule and complete two-layout qualification requirement remains
+The other job ceilings, 203-second cleanup/export/upload reserve, resource
+ownership/accounting, assignment rule and complete two-layout qualification remain
 unchanged. The longer window follows the verified expected producer identity
 through a closed mode allowlist; no receipt, environment override or arbitrary
 producer chooses it.
@@ -130,8 +132,10 @@ than silently extending the window again.
   twenty backend/test execution VMs.
 - Algorithm/version, B salt, advisory weights, tie-breakers, filters, argument
   bounds and the complete discovered case population stay unchanged.
-- The owned child keeps its 3 GB memory and four-CPU quotas. Native collector
-  authority, Docker/process ownership and the 203-second reserve stay unchanged.
+- Existing child resource ownership and CPU/memory accounting stay unchanged;
+  these observations are not enforced numeric CPU or memory quotas. Native
+  collector authority, Docker/process ownership and the 203-second reserve stay
+  unchanged.
   Every test-specific startup, operation, transport, cancellation and cleanup
   deadline keeps its existing bound; this is only a whole-job policy change.
 - Base, Architecture and native execution jobs retain twenty minutes. Both
@@ -157,7 +161,7 @@ than silently extending the window again.
 - A slow or hung ordinary producer can delay feedback by up to five additional
   minutes and consume more running-job time.
 - The larger window guarantees neither runner availability nor hosted fit. It
-  repairs no assertion failure and grants no additional CPU/memory quota.
+  repairs no assertion failure and changes no CPU/memory policy or runner tier.
 
 ### Neutral
 
@@ -177,7 +181,9 @@ the next step starts.
    append the dated bounded-supersession amendment to ADR-0063. Update
    [Testing Standards § Complete bounded CI
    assignments](../standards/06-testing.md#complete-bounded-ci-assignments)
-   and its derivation reference. Extend the existing
+   and its derivation reference. Reconcile the corresponding twenty-minute
+   statement in [Infrastructure Stack Standards](../standards/20-infrastructure-stack.md)
+   through the same ordinary-only exception and reference. Extend the existing
    [`CI_Test_Shards_Are_Complete_And_Bounded` catalogue entry][ci-rule]
    with this source and the closed ordinary-budget assertion; its existing
    Implemented status does not assert the extension is delivered. Move the
@@ -231,7 +237,7 @@ second application-test catalogue name for a CI policy.
   forged receipt partitions and mode/job mismatches cannot acquire the longer
   window. Launcher, image preparation and validator agree on the closed set.
 - **Workflow controls:** reject any ordinary ceiling other than 25, any increase
-  elsewhere, changed counts/quotas/reserve, bypassed identity or weakened
+  elsewhere, changed counts/resource policy/reserve, bypassed identity or weakened
   aggregate/meta allocations. Existing completeness and tamper controls remain.
 - **Proof levels:** synthetic counterfactuals establish policy enforcement;
   unit/offline controls establish bounded behavior; workflow checks establish

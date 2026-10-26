@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,220 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,250 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -64,7 +64,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 PR 38 correction fixture census (2026-10-26)](#p03-1-pr-38-correction-fixture-census-2026-10-26) — 15 lines
   - [P03-1 PR 38 measured timing correction (2026-10-26)](#p03-1-pr-38-measured-timing-correction-2026-10-26) — 42 lines
   - [P03-1 PR 38 independent mutation collections (2026-10-26)](#p03-1-pr-38-independent-mutation-collections-2026-10-26) — 77 lines
-  - [P03-1 PR #38 current-source A/B and ordinary window proposal (2026-10-26)](#p03-1-pr-38-current-source-ab-and-ordinary-window-proposal-2026-10-26) — 96 lines
+  - [P03-1 PR #38 current-source A/B and ordinary window proposal (2026-10-26)](#p03-1-pr-38-current-source-ab-and-ordinary-window-proposal-2026-10-26) — 98 lines
+  - [ADR-0075 proposal review round 1 (2026-10-26)](#adr-0075-proposal-review-round-1-2026-10-26) — 28 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2334,8 +2335,8 @@ maintainer requested review before implementing each new ADR.
 >
 > All other ADR-0063 decisions remain in force: the existing producer count
 > ranges and twenty-VM cap, complete selector ownership and two-layout
-> qualification, algorithm/salt/weights/filters, resource quotas, cleanup and
-> upload reserves, all other job ceilings and the seven required names.
+> qualification, algorithm/salt/weights/filters, resource ownership/accounting,
+> cleanup and upload reserves, all other job ceilings and the seven required names.
 > Expected verified producer identity controls the longer interval; a receipt
 > cannot choose it. Acceptance authorizes dependent work, not actual hosted
 > fit. ADR-0075 and the Phase 03 delivery log own the new decision and its
@@ -2348,7 +2349,8 @@ backdating this proposal. This is a policy change, not an ADR-0041 correction.
 
 **Three-step implementation plan, pending approval:**
 
-1. Accept ADR-0075 and append ADR-0063's dated amendment; reconcile Testing 06,
+1. Accept ADR-0075 and append ADR-0063's dated amendment; reconcile Testing 06
+   and Infrastructure Stack 20's corresponding ordinary-ceiling statement,
    the existing `CI_Test_Shards_Are_Complete_And_Bounded` catalogue Source/Asserts,
    the decision index and Phase 03 Status block. Keep the catalogue's prior
    implementation distinct from the not-yet-delivered extension.
@@ -2357,7 +2359,7 @@ backdating this proposal. This is a policy change, not an ADR-0041 correction.
    ADR-0075. Add positive and counterfactual controls for exact thresholds,
    unknown modes, forged partitions, invalid indices and mismatched job identity.
    Run the relevant existing Python suites and documentation guards; no test
-   population, quota, assignment or reserve change is included.
+   population, resource policy, assignment or reserve change is included.
 3. Qualify two complete fresh same-final-source A/B attempts. Require every
    job, exact full discovered unions, zero skips, complete original packages and
    natural lifecycle evidence, followed by independent cross-attempt audit.
@@ -2370,3 +2372,32 @@ verified findings are fixed, committed and revalidated before advancing. The
 proposal itself receives two fresh document-review rounds before the maintainer
 question. No new catalogue rule or Implemented extension is claimed by authoring
 this decision package. PR #38 remains open for review and is not merge-qualified.
+
+
+### ADR-0075 proposal review round 1 (2026-10-26)
+
+Two fresh independent read-only reviewers inspect proposal commit `2d2a6f94`:
+`pr38_adr75_r1_source` (GPT-6 Astra, xhigh) checks actual budget authorities and
+preserved source contracts; `pr38_adr75_r1_evidence` (GPT-6.1 Sol, high) checks
+retained original artifacts, source/assignment identity, arithmetic and decision
+instruments. Neither executes .NET, starts services or changes the worktree.
+
+The source review finds two valid documentation issues: Infrastructure Stack 20
+also carries the twenty-minute statement and must be reconciled at acceptance;
+the draft's claimed 3 GB/four-CPU child quotas are absent from the launcher,
+which owns processes and accounts CPU/memory without those numeric limits.
+Both are corrected: the acceptance list names Standard 20; ADR and package
+preserve resource ownership/accounting without adding or claiming quotas. The
+reviewer narrowly rechecks and closes both. Its remaining index wording is also
+changed from quotas to resource policy. Phase Status explicitly names measured
+source `7aabc6d8`, and the count alternative states that it keeps six Architecture
+producers. No runtime policy changes result.
+
+The evidence reviewer independently verifies all 49 original ZIP sizes, SHA-256
+digests and CRCs, producer-file equality, both selected unions and the exact
+6,490/6,484 completed outcomes. It recomputes source/tree/plan/manifest identity,
+twenty natural A owners and the 997-to-1,297-second arithmetic, with no finding.
+The historical 617-second advisory class envelope is outside that reviewer's
+reconstruction; it supplies no qualification claim. Root separately rechecks
+all archive digests/sizes/CRCs and unique case totals. These are offline evidence
+checks, not another hosted run. Fresh second-round review remains required.
