@@ -3,6 +3,9 @@ using LearnStack.Tools.Seeder;
 using Microsoft.Extensions.Logging;
 using LearnStack.Infrastructure.Persistence;
 using System.Text.Json;
+using System.Runtime.InteropServices;
+using LearnStack.Modules.Identity.Infrastructure.Bindings;
+using LearnStack.SharedKernel.Identifiers;
 
 // Read-only tooling projection: no data source, seeding side effect or credentials.
 if (args is ["--demo-identities"])
@@ -28,7 +31,8 @@ if (args is ["--identity-manifest"])
         return 2;
     }
 }
-if (args.Length != 0)
+var identityFoundation = args is ["--identity-foundation-stdin"];
+if (args.Length != 0 && !identityFoundation)
 {
     Console.Error.WriteLine("seed: unsupported arguments.");
     return 2;
@@ -59,17 +63,42 @@ if (string.IsNullOrWhiteSpace(connectionString))
 // One data source for the whole run, shared by every per-act provider: a seeder that
 // opened a pool per command would leave an idle connection behind for each one.
 using var loggerFactory = LoggerFactory.Create(logging => logging.AddSimpleConsole());
+using var cancellation = new CancellationTokenSource();
+Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
+using var terminate = OperatingSystem.IsWindows() ? null : PosixSignalRegistration.Create(PosixSignal.SIGTERM,
+    signal => { signal.Cancel = true; cancellation.Cancel(); });
+using var hangup = OperatingSystem.IsWindows() ? null : PosixSignalRegistration.Create(PosixSignal.SIGHUP,
+    signal => { signal.Cancel = true; cancellation.Cancel(); });
 
 try
 {
     await using var dataSource = ApplicationDataSource.Build(connectionString);
+    if (identityFoundation)
+    {
+        if (!Guid.TryParseExact(Environment.GetEnvironmentVariable("Identity__AuthorityId"), "D", out var authorityId))
+            throw new InvalidOperationException("Identity authority configuration is invalid.");
+        var registration = new IdentityAuthorityRegistration(IdentityAuthorityId.From(authorityId),
+            Environment.GetEnvironmentVariable("Authentication__Tenant__Issuer") ?? "");
+        var witness = await SeedProviderWitness.ReadAsync(Console.OpenStandardInput(), registration, cancellation.Token);
+        var admission = new FixedSeedIdentityFoundationAdmission(witness);
+        var identityRunner = new SeedIdentityFoundationRunner(
+            context => SeedComposition.Build(dataSource, context, loggerFactory,
+                identityAuthority: registration, seedAdmission: admission), admission);
+        await identityRunner.RunAsync(cancellation.Token);
+        return 0;
+    }
     var runner = new SeedRunner(
         context => SeedComposition.Build(dataSource, context, loggerFactory),
         loggerFactory.CreateLogger<SeedRunner>());
-    return await runner.RunAsync(CancellationToken.None);
+    return await runner.RunAsync(cancellation.Token);
 }
 catch (Exception failure)
 {
+    if (identityFoundation)
+    {
+        Console.Error.WriteLine("seed: development identity foundation was refused.");
+        return 1;
+    }
     // Non-zero, and nothing else: `make seed` is a gate, and a seeder that reported
     // success after failing would hand the next step a database it cannot use. The
     // message reaches the operator through the logger, which is already on the console.

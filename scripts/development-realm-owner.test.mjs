@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { RealmError, realmFailure } from './development-realm-errors.mjs';
 import {
-  acquireRealmLock, readRealmEnvironmentFile, realmEnvironment, validateLocalDockerContext, validateRealmTarget,
+  acquireRealmLock, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext, validateRealmTarget,
 } from './development-realm-owner.mjs';
 
 const keys = ['KEYCLOAK_ADMIN', 'KEYCLOAK_ADMIN_PASSWORD', 'KEYCLOAK_WEB_CLIENT_SECRET'];
@@ -20,6 +20,29 @@ const values = {
   KEYCLOAK_WEB_CLIENT_SECRET: 'synthetic-private-web-secret-82b1',
 };
 const source = keys.map((key) => `${key}=${values[key]}`).join('\n');
+const authoritySource = 'Identity__AuthorityId=01930000-0000-7000-8000-000000009001\nAuthentication__Tenant__Issuer=http://localhost:8080/realms/learnstack\n';
+
+test('seed authority is an explicit exact selected pair and never a generated fallback', () => {
+  assert.deepEqual(seedAuthorityEnvironment(authoritySource, {}), {
+    Identity__AuthorityId: '01930000-0000-7000-8000-000000009001',
+    Authentication__Tenant__Issuer: 'http://localhost:8080/realms/learnstack',
+  });
+  assert.throws(() => seedAuthorityEnvironment('', {}), refusal());
+  assert.throws(() => seedAuthorityEnvironment(authoritySource, { Identity__AuthorityId: values.KEYCLOAK_ADMIN_PASSWORD }), refusal());
+});
+
+for (const change of [
+  value => value.replace(/^Identity__AuthorityId=.*\n/, ''),
+  value => value.replace(/Authentication__Tenant__Issuer=.*\n/, ''),
+  value => value.replace('01930000-0000-7000-8000-000000009001', '00000000-0000-0000-0000-000000000000'),
+  value => value.replace('localhost', '127.0.0.1'),
+  value => value + 'Identity__AuthorityId=01930000-0000-7000-8000-000000009001\n',
+  value => value + 'export Authentication__Tenant__Issuer=http://localhost:8080/realms/learnstack\n',
+]) {
+  test(`seed authority refuses missing, conflicting, alias or duplicate configuration ${change.toString()}`, () => {
+    assert.throws(() => seedAuthorityEnvironment(change(authoritySource), {}), refusal());
+  });
+}
 
 function refusal(stage = 'preflight', reason = 'configuration') {
   return (error) => {

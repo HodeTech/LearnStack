@@ -1,16 +1,16 @@
 # Identity — Module Specification
 
 **Status: Global storage/common audit implemented in Step 3; contextual
-foundation, seed handoff and live admission remain their owning steps.** Derived from
+foundation and seed handoff implemented under Step 4 review.** Derived from
 jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
 and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md),
 2026-10-25. The global User/authority model, internal binding/adoption consumers
 and central creation owner exist. Contextual tables/commands/manifests below
-remain planned for Step 4; API existing-binding activation remains Step 5. New
+are implemented; API existing-binding activation remains Step 5. New
 HTTP/native-user activation remains P03-3.
 The ordered admission timing/observation contract additionally derives from
 [ADR-0074](../../decisions/0074-membership-admission-under-ordered-locks.md),
-Accepted 2026-10-26; contextual implementation/proofs remain Step 4.
+Accepted 2026-10-26; Step 4 owns contextual qualification and review closure.
 
 ## Overview
 
@@ -24,7 +24,7 @@ navigation or database join. Branch-specific Role configuration is not selected.
 
 P03-1 Step 3 implements one global User/authority model and migration chain,
 the common prepared creation owner and eight central audit seams. API composition
-denies seed adoption; the ordinary seed/demo handoff arrives in Step 4. Existing
+denies seed adoption; the ordinary seed/demo handoff is implemented in Step 4. Existing
 API binding activation remains Step 5. No creation route is exposed here.
 
 Set both `Identity__AuthorityId` and `Authentication__Tenant__Issuer` in the
@@ -42,7 +42,7 @@ The internal binding service uses explicit startup qualification and fresh,
 physically read-only existing-binding transactions; it never creates a missing
 binding. Fixed seed adoption separately requires its confined admission port.
 Real provider/app-role, schema/body/ACL/caller and physical outcome controls are
-implemented; step review remains in progress. Closure, directory access,
+implemented; Step 3 completed both review rounds. Closure, directory access,
 production first-admin and issuer rebind remain their named later owners.
 
 ### Aggregate and storage contract
@@ -51,12 +51,12 @@ User's authority is [ADR-0072](../../decisions/0072-application-owned-identity-b
 the [canonical accepted database annex](../../standards/05-database.md#proposed-p03-1-identity-storage-annex)
 owns its exact global SQL, grants and guards.
 
-| Planned table | Class / owner | Keys, scope and lifecycle |
+| Table | Class / owner | Keys, scope and lifecycle |
 |---|---|---|
 | `memberships` | Tenant-owned, org-scoped; Membership root | UUIDv7 `MembershipId`; referenceable `(tenant_id,id)`; current unique `(tenant_id,user_id,organization_id) NULLS NOT DISTINCT WHERE deleted_at IS NULL` |
 | `membership_profiles` | Tenant-owned, org-scoped; contained Membership child | PK `(tenant_id,membership_id)`; one profile created with Membership; exact parent organization mirror/lifecycle |
 | `membership_role_assignments` | Tenant-owned, org-scoped; contained Membership child | PK `(tenant_id,membership_id,role_id)`; exact Membership organization mirror; Role capability compatibility guard |
-| `roles` | Tenant-owned, tenant-wide; Role root | UUIDv7 `RoleId`; referenceable `(tenant_id,id)`; current unique `(tenant_id,permission_scope,builtin_key) WHERE deleted_at IS NULL`; no `organization_id` |
+| `roles` | Tenant-owned, tenant-wide; Role root | UUIDv7 `RoleId`; referenceable `(tenant_id,id)`; current unique `(tenant_id,permission_scope,built_in_key) WHERE deleted_at IS NULL`; no `organization_id` |
 | `role_permission_grants` | Tenant-owned, tenant-wide; contained Role child | PK `(tenant_id,role_id,permission_scope,permission_key)`; exact Role capability-scope mirror; no `organization_id` |
 
 Use each [Standard 05 table class](../../standards/05-database.md#table-classes),
@@ -105,8 +105,9 @@ Revoked is terminal. Rejoin creates a new ID and fresh assignments after retirin
 the predecessor. Profile has no independent delete/status lifecycle; historical
 child facts cannot restore a revoked Membership's authority.
 
-Profile initially carries optional bounded contextual display/contact fields and
-locale preference. Missing values use explicit safe UI fallback, without copying
+Profile carries optional contextual `DisplayName` (128 characters) and
+`PreferredLocale` (35-character well-formed locale tag), both marked sensitive.
+No unused contact field is collected. Missing values use explicit safe UI fallback, without copying
 global fields on reads. NULL-org profiles contain no branch-private notes;
 organization profiles are independent. Self/admin changes allow those fields
 only, never canonical email/verification, global identity, Role bindings,
@@ -159,7 +160,7 @@ those later live checks or archive races.
 
 ### First-admin and seed sequence
 
-P03-1 admits only the fixed development-seed capability. Planned
+P03-1 admits only the fixed development-seed capability.
 `ISeedIdentityFoundationAdmission` is `DenyAllSeedIdentityFoundationAdmission`
 in API composition. The external seed/demo owner supplies bounded canonical
 manifest facts and actual provider-adoption witnesses to the confined Seeder
@@ -240,7 +241,7 @@ erDiagram
     Role {
         uuid tenant_id
         text permission_scope "capability; no organization column"
-        text builtin_key
+        text built_in_key
     }
 ```
 

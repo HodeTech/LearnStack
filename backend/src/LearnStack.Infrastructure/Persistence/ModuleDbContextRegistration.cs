@@ -28,12 +28,16 @@ namespace LearnStack.Infrastructure.Persistence;
 /// which is what the rule asserts against.
 /// </para>
 /// <para>
-/// <b>EF issues its own savepoints, and that is left on.</b> A context enlisted in
+/// <b>EF automatic savepoints remain the default.</b> A context enlisted in
 /// an externally supplied transaction wraps every <c>SaveChangesAsync</c> in a
 /// real <c>SAVEPOINT</c> / <c>RELEASE SAVEPOINT</c>, so a failed save rolls back
 /// to its own savepoint and leaves the ambient transaction usable. ADR-0040's
 /// "frames, not savepoints" describes the unit of work's in-process depth counter,
 /// not the connection — the two mechanisms are independent and both are wanted.
+/// The closed Identity contextual graph adapter suspends this flag only during
+/// its atomic save, restores it in finally and poisons the whole unit on any
+/// save failure; it admits no partial repair. The canonical Identity contract
+/// in Database Standards owns that bounded adapter behavior.
 /// </para>
 /// </remarks>
 public static class ModuleDbContextRegistration

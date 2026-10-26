@@ -23,7 +23,7 @@ import { apiCompletionObserver } from './demo-observation.mjs';
 import { publicSeederEnvironment, validateDemoDatabaseConfiguration } from './demo-database.mjs';
 import { demoSource } from './demo-source.mjs';
 import { RealmError, realmFailureNotice } from './development-realm-errors.mjs';
-import { readRealmEnvironmentFile, realmEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
+import { readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
@@ -354,6 +354,7 @@ export async function startDemo(mode) {
     }
     const privateSource = await readRealmEnvironmentFile(rootEnv);
     realmEnvironment(privateSource);
+    const identityEnvironment = seedAuthorityEnvironment(privateSource);
     const rawValues = parseLocalEnvironment(privateSource);
     for (const [key, value] of Object.entries(rawValues))
       if (process.env[key] !== undefined && process.env[key] !== value)
@@ -434,6 +435,7 @@ export async function startDemo(mode) {
         LEARNSTACK_COMPOSE_ENV_FILE: selected.file,
         LEARNSTACK_COMPOSE_MODE: selected.mode,
         ConnectionStrings__Migration: rawValues.ConnectionStrings__Migration,
+        ...identityEnvironment,
       },
       timeout: 300000,
     });
@@ -443,7 +445,7 @@ export async function startDemo(mode) {
       env: publicSeederEnvironment(rawValues.ConnectionStrings__Default),
       timeout: 180000,
     });
-    await reconcileDevelopmentRealm({ selected, signal: controller.signal });
+    await reconcileDevelopmentRealm({ selected, signal: controller.signal, seedIdentityFoundation: true });
     if (mode === 'ci') {
       await compose(['stop', 'keycloak'], { timeout: 20000 });
       const rows = await compose(['ps', '--status', 'running', '--format', '{{.Service}}'], {

@@ -10,6 +10,9 @@ using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Xunit;
 
 namespace LearnStack.Tests.Architecture;
@@ -342,7 +345,16 @@ public sealed class TenantScopingTests
 
         files.Should().NotBeEmpty("the migration scan has nothing to read");
 
-        return string.Join("\n", files.Select(File.ReadAllText));
+        // Resolve the actual compiled Identity migration operations too: its
+        // finite installer emits one policy per table without duplicating the
+        // template into five source literals. Removing the installer call removes
+        // these operations, so the scan cannot vouch for an uninvoked helper.
+        using var identity = Modules.ModelOnly<LearnStack.Modules.Identity.Infrastructure.Persistence.IdentityDbContext>();
+        var assembly = identity.GetService<IMigrationsAssembly>();
+        var installed = assembly.Migrations.SelectMany(pair =>
+            assembly.CreateMigration(pair.Value, identity.Database.ProviderName!).UpOperations)
+            .OfType<SqlOperation>().Select(operation => operation.Sql.Replace("public.", "", StringComparison.Ordinal));
+        return string.Join("\n", files.Select(File.ReadAllText).Concat(installed));
     }
 
     private static void AssertRowSecurity(string migrations, string table, string keyColumn)

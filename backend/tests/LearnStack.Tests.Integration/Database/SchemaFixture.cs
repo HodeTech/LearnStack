@@ -58,7 +58,7 @@ public sealed class SchemaFixture : IAsyncLifetime
     public const string HostB = "beta.example.com";
 
     /// <summary>
-    /// The forty-two data tables the five chains create, used only to prove that a
+    /// The data tables the six chains create, used only to prove that a
     /// catalogue sweep read something.
     /// </summary>
     /// <remarks>
@@ -142,10 +142,15 @@ public sealed class SchemaFixture : IAsyncLifetime
     {
         RowsVisibleToTenantA["users"] = 0;
         RowsVisibleToTenantB["users"] = 0;
-        // The schema fixture does not install a deployment authority. Independent
-        // global tests install its fixed authority and verify the read policy.
-        RowsVisibleToTenantA["identity_authority"] = 0;
-        RowsVisibleToTenantB["identity_authority"] = 0;
+        // Contextual subjects need an admitted immutable global authority; this
+        // platform read exposes no User row without its exact self announcement.
+        RowsVisibleToTenantA["identity_authority"] = 1;
+        RowsVisibleToTenantB["identity_authority"] = 1;
+        foreach (var table in SchemaTableClasses.IdentityContextual)
+        {
+            RowsVisibleToTenantA[table] = table == "roles" ? 8 : table == "role_permission_grants" ? 7 : 2;
+            RowsVisibleToTenantB[table] = table == "roles" ? 8 : table == "role_permission_grants" ? 7 : 1;
+        }
         foreach (var table in SchemaTableClasses.JobTenant)
         {
             RowsVisibleToTenantA[table] = table == "background_job_reservations" ? 3 : 1;
@@ -171,6 +176,7 @@ public sealed class SchemaFixture : IAsyncLifetime
         await EducationSchemaSeed.SeedAsync(Postgres.AppConnectionString);
         await BackgroundJobSchemaSeed.SeedAsync(Postgres.AppConnectionString, Postgres.OutboxConnectionString);
         await HangfireSchemaSeed.SeedAsync(Postgres.OutboxConnectionString);
+        await IdentityMembershipFixture.SeedSchemaAsync(Postgres.MigrationConnectionString, Postgres.AppConnectionString);
     }
 
     public async Task DisposeAsync() => await Postgres.DisposeAsync();

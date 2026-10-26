@@ -100,12 +100,12 @@ The cost is one more service to operate. That is acceptable: self-hosted infrast
 | BFF access/refresh/ID-token custody | no | native web session owner ([ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)) |
 | Federation with social/SAML/OIDC providers | yes | no |
 | Email verification, password reset emails | yes (or LearnStack via SMTP delegation) | no |
-| Global `User` binding | provider subject/credentials | stable authority/subject-key → typed UserId under Accepted ADR-0072; implementation pending P03-1, no email mirror |
+| Global `User` binding | provider subject/credentials | internal stable authority/subject-key → typed UserId implemented under ADR-0072; API activation remains P03-1 Step 5, no email mirror |
 | `Membership` (per-tenant role, permissions) | no | yes |
 | Roles, permissions inside a tenant | no | yes |
 | Invitations | no | yes |
 | Audit log of identity events | yes (own) | yes (mirrored for cross-events) |
-| Contextual profile | provider-owned account fields | MembershipProfile under Accepted ADR-0073; implementation pending P03-1, dynamic values P03-5 |
+| Contextual profile | provider-owned account fields | MembershipProfile/storage/seed implemented under ADR-0073; live administration remains P03-2/3, dynamic values P03-5 |
 
 The split keeps Keycloak focused on authentication (knowing who you are) and LearnStack focused on authorisation and domain context (what you can do in which tenant).
 
@@ -113,7 +113,7 @@ The split keeps Keycloak focused on authentication (knowing who you are) and Lea
 
 A User binding is **global**. One provider subject can have Memberships in
 multiple tenants and organizations; email never identifies or merges bindings.
-The following is the Accepted target model, pending P03-1 implementation:
+The following foundation model is implemented; live authorization remains P03-2:
 
 ```mermaid
 flowchart LR
@@ -150,7 +150,8 @@ decision before its first consumer.
 
 Jointly Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) /
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
-settle the P03-1 binding/storage contract; implementation remains pending.
+settle the P03-1 binding/storage contract. Internal binding/adoption and contextual
+storage/seed are implemented; the ordinary API sequence below activates in Step 5.
 `VerifiedProviderSubject` carries verified issuer/sub and optional actor/scope
 evidence. Subject quota precedes binding SQL; an uncached committed binding
 lookup resolves the nonnullable actor in `ValidatedTenantIdentity`. Missing,

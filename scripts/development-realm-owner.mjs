@@ -47,6 +47,23 @@ export function realmEnvironment(source, ambient = process.env) {
   return Object.freeze(Object.fromEntries(privateKeys.map((key) => [key, values[key]])));
 }
 
+/** Require the selected deployment's explicit immutable pair before migrations. */
+export function seedAuthorityEnvironment(source, ambient = process.env) {
+  const values = parseEnv(source);
+  const keys = ['Identity__AuthorityId', 'Authentication__Tenant__Issuer'];
+  for (const key of keys) {
+    if ([...source.matchAll(new RegExp(`^${key}=`, 'gm'))].length !== 1
+        || [...source.matchAll(new RegExp(`^[ \\t]*(?:export[ \\t]+)?${key}[ \\t]*=`, 'gm'))].length !== 1
+        || !values[key] || (ambient[key] !== undefined && ambient[key] !== values[key]))
+      refuse('preflight', 'configuration');
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(values.Identity__AuthorityId)
+      || values.Identity__AuthorityId === '00000000-0000-0000-0000-000000000000'
+      || values.Authentication__Tenant__Issuer !== 'http://localhost:8080/realms/learnstack')
+    refuse('preflight', 'configuration');
+  return Object.freeze(Object.fromEntries(keys.map(key => [key, values[key]])));
+}
+
 /** One exclusive local owner, never reclaimed from age or a guessed process state. */
 export async function acquireRealmLock(identity, directory = join(tmpdir(), `learnstack-realm-${process.getuid()}`)) {
   if (typeof identity !== 'string' || !identity || Buffer.byteLength(identity) > 4096)

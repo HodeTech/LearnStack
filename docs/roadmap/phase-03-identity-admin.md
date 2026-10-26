@@ -3,7 +3,7 @@
 > **Status (2026-10-26).** Entry preparation and P03-1's joint ADR approval
 > are complete. Steps 1–3 are locally complete with both review rounds. The
 > [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md)
-> is Accepted; contextual foundation remains Step 4, existing-binding API
+> is Accepted; contextual foundation is implemented under Step 4 review, existing-binding API
 > activation Step 5, and final qualification Step 6. This is the current
 > critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md).
@@ -15,7 +15,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Steps 1–3 locally complete with both review rounds ([Step 3 closeout](phase-03-delivery-log.md#p03-1-step-3-review-round-2-and-local-closeout-2026-10-26)); [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md) timing delta Accepted, Step 4 contextual implementation/proofs pending; existing-binding API activation pending Step 5; HTTP/new-user BFF activation belongs to P03-3 |
+> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Steps 1–3 locally complete with both review rounds ([Step 3 closeout](phase-03-delivery-log.md#p03-1-step-3-review-round-2-and-local-closeout-2026-10-26)); [Step 4 implementation](phase-03-delivery-log.md#p03-1-step-4--contextual-foundation-and-owned-seed-2026-10-26) under independent review; existing-binding API activation pending Step 5; HTTP/new-user BFF activation belongs to P03-3 |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |

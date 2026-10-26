@@ -99,6 +99,8 @@ export async function ${method}() { appendFileSync(${JSON.stringify(join(root, '
     'ConnectionStrings__Migration=Username=learnstack_migration',
     'ConnectionStrings__Default=Username=learnstack_app',
     'ConnectionStrings__OutboxDispatcher=Username=learnstack_outbox_admin',
+    'Identity__AuthorityId=01930000-0000-7000-8000-000000009001',
+    'Authentication__Tenant__Issuer=http://localhost:8080/realms/learnstack',
     'KEYCLOAK_ADMIN=fixture-admin',
     `KEYCLOAK_ADMIN_PASSWORD=${randomBytes(16).toString('hex')}`,
     `KEYCLOAK_WEB_CLIENT_SECRET=${randomBytes(16).toString('hex')}`,

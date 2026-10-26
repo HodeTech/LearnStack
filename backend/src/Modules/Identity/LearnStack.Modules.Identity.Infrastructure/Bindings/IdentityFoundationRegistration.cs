@@ -16,6 +16,18 @@ namespace LearnStack.Modules.Identity.Infrastructure.Bindings;
 
 public static class IdentityFoundationRegistration
 {
+    public static IServiceCollection AddIdentityContextualFoundation(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddScoped<IIdentityMutationLocks, IdentityMutationLocks>();
+        services.TryAddScoped<ContextualIdentityStorageControl>();
+        services.TryAddScoped<IRoleWriteStore, RoleWriteStore>();
+        services.TryAddScoped<IRoleReadStore, RoleReadStore>();
+        services.TryAddScoped<IMembershipWriteStore, MembershipWriteStore>();
+        services.TryAddScoped<ISeedStateReader, SeedStateReader>();
+        return services;
+    }
+
     /// <summary>Registers internal consumers only; qualification is an explicit startup act before admission activation.</summary>
     public static IServiceCollection AddIdentityGlobalFoundation(this IServiceCollection services,
         IdentityAuthorityRegistration? registration = null)

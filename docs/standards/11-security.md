@@ -1242,11 +1242,13 @@ plans, representative before/after local latency, bounded pool checkout and
 cancellation/connection cleanup under contention and outage. A lock timeout alone
 does not establish pool capacity or a complete request deadline. No measured
 production p95 or extension of ADR-0047's qualified capacity follows; Phase 11
-retains production sizing. Step 4 separately qualifies the actual Membership
+retains production sizing. Step 4 qualifies the actual Membership
 trigger's `pg_locks` observation under
 [Standard 15's p95 budgets](15-performance.md#initial-budgets), as specified by
-the lock signal contract. These pending controls do not qualify contextual
-runtime or later live admission; implemented global proofs retain their scope.
+the lock signal contract. Its real mutation/race/cleanup and local command-path
+measurement controls qualify their recorded contextual scope. Pending Step 5
+binding-load and P03-2 live-admission controls remain separate; none establishes
+production capacity.
 
 ## Incident Response
 

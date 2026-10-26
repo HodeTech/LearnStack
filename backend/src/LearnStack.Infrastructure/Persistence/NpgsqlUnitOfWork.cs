@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
 using LearnStack.SharedKernel.Identifiers;
@@ -308,8 +309,18 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
         if (_mode != TransactionMode.ReadWrite || _globalIdentityLocked || _globalIdentitySealed)
             throw new InvalidOperationException("The global identity subject lock belongs only to its fresh creation owner.");
         await ExecuteAsync("SET LOCAL lock_timeout = '2s'", cancellationToken);
-        await ExecuteAsync("SELECT pg_catalog.pg_advisory_xact_lock(@key)", cancellationToken,
-            ("key", IdentityAdvisoryLockKey.ForSubject(descriptor.Subject)));
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            await ExecuteAsync("SELECT pg_catalog.pg_advisory_xact_lock(@key)", cancellationToken,
+                ("key", IdentityAdvisoryLockKey.ForSubject(descriptor.Subject)));
+            IdentityLockObservation.Complete(IdentityLockKind.Subject, started);
+        }
+        catch (Exception failure) when (failure is not OutOfMemoryException and not StackOverflowException)
+        {
+            IdentityLockObservation.Complete(IdentityLockKind.Subject, started, failure);
+            throw;
+        }
         _globalIdentityLocked = true;
     }
 

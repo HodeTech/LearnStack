@@ -55,17 +55,17 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
     }
 
     [Fact]
-    public async Task Applied_census_has_fifty_tables_and_exactly_three_global_definers()
+    public async Task Applied_census_has_fifty_five_tables_and_exactly_five_Identity_definers()
     {
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.MigrationConnectionString);
         await SchemaTableClasses.AssertCompleteAsync(owner);
-        (await SchemaTableClasses.ReadAsync(owner)).Should().HaveCount(50);
+        (await SchemaTableClasses.ReadAsync(owner)).Should().HaveCount(55);
         var names = await SchemaQueries.ReadStringsAsync(owner, """
             SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
             WHERE n.nspname='public' AND p.prosecdef ORDER BY p.proname
             """, null);
-        names.Should().Equal("fn_identity_audit_creation_guard", "fn_identity_audit_evidence",
-            "fn_identity_user_creation_audit_guard");
+        names.Should().Equal("fn_identity_admin_admission_state", "fn_identity_audit_creation_guard", "fn_identity_audit_evidence",
+            "fn_identity_membership_admission_guard", "fn_identity_user_creation_audit_guard");
         (await ScalarAsync<long>(owner, null, """
             SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
             JOIN pg_roles r ON r.oid=p.proowner
@@ -73,7 +73,7 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
               AND r.rolname='learnstack_migration' AND NOT r.rolbypassrls
               AND 'search_path=pg_catalog'=ANY(p.proconfig)
               AND NOT EXISTS (SELECT 1 FROM aclexplode(p.proacl) acl WHERE acl.grantee=0)
-            """)).Should().Be(3);
+            """)).Should().Be(5);
         (await ScalarAsync<long>(owner, null, """
             SELECT count(*) FROM pg_class WHERE oid IN ('public.users'::regclass,'public.identity_authority'::regclass)
               AND relrowsecurity AND relforcerowsecurity
@@ -160,7 +160,7 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
 
     [Theory]
     [InlineData("DELETE FROM public.users")]
-    [InlineData("TRUNCATE public.users")]
+    [InlineData("TRUNCATE public.users, public.memberships, public.membership_profiles, public.membership_role_assignments")]
     [InlineData("UPDATE public.users SET status='Closing'")]
     public async Task Owner_execution_cannot_remove_or_mutate_the_permanent_binding(string sql)
     {

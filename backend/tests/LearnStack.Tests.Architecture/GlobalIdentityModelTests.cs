@@ -23,7 +23,8 @@ public sealed class GlobalIdentityModelTests
     {
         using var context = Modules.ModelOnly<IdentityDbContext>();
         context.Model.GetEntityTypes().Select(entity => entity.GetTableName())
-            .Should().BeEquivalentTo(["users", "identity_authority"]);
+            .Should().BeEquivalentTo(["users", "identity_authority", "memberships", "membership_profiles",
+                "membership_role_assignments", "roles", "role_permission_grants"]);
         var user = context.Model.FindEntityType(typeof(User))!;
         user.GetProperties().Should().HaveCount(14);
         user.FindProperty("TenantId").Should().BeNull();
@@ -33,8 +34,8 @@ public sealed class GlobalIdentityModelTests
         user.GetDeclaredQueryFilters().Should().ContainSingle();
         context.Model.FindEntityType(typeof(IdentityAuthority))!.GetDeclaredQueryFilters().Should().BeEmpty();
         Modules.Mapped.Count(module => module.Domain == typeof(User).Assembly).Should().Be(1);
-        Modules.Scoped.Should().NotContain(module => module.Domain == typeof(User).Assembly,
-            "global-only Identity cannot satisfy the tenant-scoped nonempty subject check yet");
+        Modules.Scoped.Should().Contain(module => module.Domain == typeof(User).Assembly,
+            "Identity's contextual roots and contained children require the same tenant/org sweep");
     }
 
     [Fact]

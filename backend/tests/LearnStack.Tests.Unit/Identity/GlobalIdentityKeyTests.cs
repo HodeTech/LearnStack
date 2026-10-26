@@ -10,6 +10,34 @@ public sealed class GlobalIdentityKeyTests
     private static readonly IdentityAuthorityId Authority =
         IdentityAuthorityId.From(Guid.Parse("019a1929-5450-7bbb-8df1-516e8e002501"));
 
+    [Theory]
+    [InlineData("019a1929-5450-7bbb-8df1-516e8e002501", 6536232317004839961L, 8764202873088396187L)]
+    [InlineData("01930000-0000-7000-8000-00000000a001", 7247098387317121321L, -9009402356915246337L)]
+    [InlineData("ffffffff-ffff-7fff-bfff-ffffffffffff", -2062124468225165546L, 7755294501392127735L)]
+    public void User_and_tenant_keys_have_independent_signed_network_order_vectors(
+        string identifier, long userKey, long tenantKey)
+    {
+        var id = Guid.Parse(identifier);
+        IdentityAdvisoryLockKey.ForUser(UserId.From(id)).Should().Be(userKey);
+        IdentityAdvisoryLockKey.ForTenant(TenantId.From(id)).Should().Be(tenantKey);
+        userKey.Should().NotBe(tenantKey);
+    }
+
+    [Fact]
+    public void A_contextual_lock_plan_copies_deduplicates_and_orders_actual_users_and_keeps_mode()
+    {
+        var users = new[] { UserId.From(Authority.Value), UserId.From(Guid.Parse("ffffffff-ffff-7fff-bfff-ffffffffffff")) };
+        var expected = users.OrderBy(IdentityAdvisoryLockKey.ForUser).ToArray();
+        var plan = new IdentityMutationLockPlan(users.Concat(users), TenantId.From(Authority.Value), IdentityTenantLockMode.Shared);
+        users[0] = UserId.SystemActor;
+        plan.UserIds.Should().Equal(expected);
+        plan.TenantMode.Should().Be(IdentityTenantLockMode.Shared);
+        var system = () => new IdentityMutationLockPlan([UserId.SystemActor], plan.TenantId, IdentityTenantLockMode.Shared);
+        system.Should().Throw<ArgumentException>();
+        var sentinel = () => new IdentityMutationLockPlan([], TenantId.PlatformSentinel, IdentityTenantLockMode.Shared);
+        sentinel.Should().Throw<ArgumentException>();
+    }
+
     // Independently calculated from length-prefixed UTF-8/RFC UUID bytes, not from the C# helper.
     [Theory]
     [InlineData("opaque-subject", "e766989ed59e5e7cc8dcaed58d7d9ca36a53d3d6320cbd4b11da510075b9b61e", -6382331710714775529L)]

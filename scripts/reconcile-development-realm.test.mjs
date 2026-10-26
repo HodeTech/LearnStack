@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { realmFailure } from './development-realm-errors.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
 import { repositoryRoot } from './compose.mjs';
+import { DemoProcesses } from './demo-process.mjs';
 
 const canary = 'synthetic-private-cli-canary-73f2';
 const entry = fileURLToPath(new URL('./reconcile-development-realm.mjs', import.meta.url));
@@ -122,7 +123,10 @@ async function ownedEntryFixture(t, scenario) {
   await copyFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), join(root, 'infra/keycloak/realms/learnstack.json'));
   await writeFile(join(root, 'package.json'), '{"type":"module"}\n');
   const { secret } = await import('./development-realm-test-fixture.mjs');
-  const values = { KEYCLOAK_ADMIN: 'synthetic-admin', KEYCLOAK_ADMIN_PASSWORD: canary, KEYCLOAK_WEB_CLIENT_SECRET: secret };
+  const values = { KEYCLOAK_ADMIN: 'synthetic-admin', KEYCLOAK_ADMIN_PASSWORD: canary, KEYCLOAK_WEB_CLIENT_SECRET: secret,
+    ...(scenario.startsWith('foundation-') ? { ConnectionStrings__Default: canary,
+      Identity__AuthorityId: '01930000-0000-7000-8000-000000009001',
+      Authentication__Tenant__Issuer: 'http://localhost:8080/realms/learnstack' } : {}) };
   const id = randomBytes(32).toString('hex');
   const lock = join(root, 'tmp', `learnstack-realm-${process.getuid()}`,
     createHash('sha256').update(id + '/realms/learnstack').digest('hex') + '.lock');
@@ -178,7 +182,7 @@ export async function realmRequest(url, options) {
 `);
   for (const command of ['docker', 'dotnet']) {
     await writeFile(join(root, 'bin', command), `#!${process.execPath}
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 import { manifest } from '../scripts/development-realm-test-fixture.mjs';
 const args = process.argv.slice(2);
 appendFileSync(${JSON.stringify(events)}, JSON.stringify({ command: ${JSON.stringify(command)}, args,
@@ -186,6 +190,34 @@ appendFileSync(${JSON.stringify(events)}, JSON.stringify({ command: ${JSON.strin
 const values = ${JSON.stringify(values)};
 let result;
 if (${JSON.stringify(command)} === 'dotnet') {
+  if (args.length === 2 && args[1] === '--identity-foundation-stdin') {
+    if (!existsSync(${JSON.stringify(lock)})) process.exit(20);
+    const chunks = [];
+    for await (const chunk of process.stdin) chunks.push(chunk);
+    const input = Buffer.concat(chunks);
+    const witness = JSON.parse(input);
+    if (input.length > 8192 || witness.version !== 1 || witness.issuer !== values.Authentication__Tenant__Issuer
+        || witness.users.length !== 4 || witness.users.some((entry, index) => entry.actorId !== manifest.users[index].userId
+          || typeof entry.opaqueSub !== 'string' || !entry.opaqueSub.startsWith('provider-'))
+        || Object.keys(process.env).some(key => /keycloak|password|_pw$/i.test(key))
+        || process.env.ConnectionStrings__Default !== values.ConnectionStrings__Default
+        || process.env.Identity__AuthorityId !== values.Identity__AuthorityId
+        || process.env.Authentication__Tenant__Issuer !== values.Authentication__Tenant__Issuer) process.exit(21);
+    appendFileSync(${JSON.stringify(events)}, JSON.stringify({ foundation: true, inputBytes: input.length, lockHeld: true }) + '\\n');
+    process.stdout.write(witness.users[0].opaqueSub + ${JSON.stringify(canary)});
+    process.stderr.write(${JSON.stringify(canary)});
+    if (${JSON.stringify(scenario)} === 'foundation-cancel') {
+      writeFileSync(${JSON.stringify(ready)}, 'ready');
+      process.on('SIGTERM', () => {
+        if (!existsSync(${JSON.stringify(lock)})) process.exit(22);
+        appendFileSync(${JSON.stringify(events)}, JSON.stringify({ foundationStopped: true, lockHeld: true }) + '\\n');
+        process.exit(0);
+      });
+      setInterval(() => {}, 100);
+      await new Promise(() => {});
+    }
+    process.exit(${JSON.stringify(scenario)} === 'foundation-failure' ? 23 : 0);
+  }
   if (args.length !== 2 || args[1] !== '--identity-manifest') process.exit(19);
   result = manifest;
 } else if (args[0] === 'context') result = [{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }];
@@ -245,6 +277,77 @@ for (const scenario of ['success', 'failure', 'cancel']) {
       assert.ok(events.filter(value => value.command).every(value => !JSON.stringify(value.args).includes(privateValue)));
   });
 }
+
+for (const scenario of ['foundation-success', 'foundation-failure', 'foundation-cancel']) {
+  test(`the combined owner ${scenario} joins its private stdin child before releasing the realm lock`, async t => {
+    const f = await ownedEntryFixture(t, scenario);
+    const probe = join(f.root, 'combined.mjs');
+    await writeFile(probe, `
+import { composeSelection } from './scripts/compose.mjs';
+import { reconcileDevelopmentRealm } from './scripts/reconcile-development-realm.mjs';
+import { realmFailure } from './scripts/development-realm-errors.mjs';
+const cancellation = new AbortController();
+process.on('SIGTERM', () => cancellation.abort());
+try {
+  const result = await reconcileDevelopmentRealm({ selected: composeSelection('dev'), signal: cancellation.signal, seedIdentityFoundation: true });
+  console.log(JSON.stringify(result));
+} catch (error) { console.error(realmFailure(error)); process.exitCode = 1; }
+`);
+    const child = spawn(process.execPath, [probe], { cwd: f.root,
+      env: { PATH: join(f.root, 'bin'), HOME: f.root, TMPDIR: join(f.root, 'tmp') }, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '', stderr = '';
+    child.stdout.on('data', value => { stdout += value; });
+    child.stderr.on('data', value => { stderr += value; });
+    const status = new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('close', (code, signal) => resolve({ code, signal }));
+    });
+    const timer = setTimeout(() => child.kill('SIGKILL'), 10000);
+    try {
+      if (scenario === 'foundation-cancel') {
+        const deadline = Date.now() + 5000;
+        while (!await access(f.ready).then(() => true, () => false)) {
+          if (Date.now() >= deadline) throw new Error('Identity child did not start');
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        assert.equal(await access(f.lock).then(() => true, () => false), true);
+        child.kill('SIGTERM');
+      }
+      assert.deepEqual(await status, { code: scenario === 'foundation-success' ? 0 : 1, signal: null }, stderr);
+    } finally {
+      clearTimeout(timer);
+      if (child.exitCode === null && child.signalCode === null) { child.kill('SIGKILL'); await status; }
+    }
+    assert.equal(stdout, scenario === 'foundation-success' ? '{"mutations":0}\n' : '');
+    assert.equal(stderr, scenario === 'foundation-success' ? ''
+      : `realm: readback/${scenario === 'foundation-cancel' ? 'cancelled' : 'response'}\n`);
+    assert.ok(!(stdout + stderr).includes(canary));
+    assert.ok(!(stdout + stderr).includes('provider-'));
+    assert.equal(await access(f.lock).then(() => true, () => false), false);
+    const events = (await readFile(f.events, 'utf8')).trim().split('\n').map(value => JSON.parse(value));
+    const foundationIndex = events.findIndex(event => event.foundation);
+    assert.ok(foundationIndex > 0);
+    assert.ok(events.slice(0, foundationIndex).filter(event => event.provider && event.stage === 'readback').length > 10);
+    assert.equal(events.slice(foundationIndex).some(event => event.provider), false);
+    assert.deepEqual(events.filter(event => event.foundationStopped), scenario === 'foundation-cancel'
+      ? [{ foundationStopped: true, lockHeld: true }] : []);
+    const commands = events.filter(event => event.command === 'dotnet');
+    assert.deepEqual(commands.map(event => event.args[1]), ['--identity-manifest', '--identity-foundation-stdin']);
+    assert.equal(commands[0].privateEnvironment, false);
+    assert.ok(commands.every(event => !JSON.stringify(event.args).includes(canary)));
+  });
+}
+
+test('private stdin rejects oversized input before spawn and cancellation owns the same child cleanup', async () => {
+  const cancellation = new AbortController();
+  const processes = new DemoProcesses(cancellation.signal);
+  try {
+    await assert.rejects(processes.runPrivateInput('missing-command', [], 'x'.repeat(8193)), error => error.reason === 'output');
+    await assert.rejects(processes.runPrivateInput('missing-command', [], 'x\0y'), error => error.reason === 'output');
+    cancellation.abort();
+    await assert.rejects(processes.runPrivateInput('missing-command', [], '{}'), error => error.reason === 'cancelled');
+  } finally { await processes.dispose(); }
+});
 
 test('a symlink CLI invocation executes the same closed argument guard', async t => {
   const root = await mkdtemp(join(tmpdir(), 'learnstack-realm-symlink-'));

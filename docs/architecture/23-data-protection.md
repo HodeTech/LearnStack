@@ -27,12 +27,14 @@ implemented mapped-property census requires explicit semantics; it does not infe
 ### Identity foundation and classification ownership
 
 **Classification implemented in P03-1 Step 2; global Identity storage/common
-audit implemented in Step 3; contextual storage and fulfillment remain pending.** Jointly Accepted
+audit implemented in Step 3; contextual storage implemented under Step 4 review;
+fulfillment remains with its named owners.** Jointly Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
 require these controls before the first identity writer. Step 3 adds 17 reviewed
-global scalars, bringing the census to six contexts, 21 entities and 218 scalar
-properties. Neither classification nor storage fulfills an erasure request.
+global scalars; Step 4 adds 36 contextual scalars. The complete census covers six
+contexts, 26 entities and 254 scalar properties. Neither classification nor
+storage fulfills an erasure request.
 
 P03-1 Step 2 implements reviewed declarations in each module's EF mappings and
 `PersonalDataModelCensus` in common Infrastructure. Each module owns declarations

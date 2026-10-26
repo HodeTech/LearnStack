@@ -249,9 +249,26 @@ hosted assignments and their evidence limits; merge remains separate.
 Current identity-visibility guards remain active. Do not remove them, wipe the
 database or silently normalize customized scopes by name.
 
-Direct .NET Seeder remains an application-data tool; its identity manifest is a
-read-only declaration. Both combined entries build its fresh Release DLL and
-keep private realm credentials out of that child.
+The argument-free .NET Seeder remains an application-data tool; its identity
+manifest is a read-only declaration. Both combined entries build its fresh
+Release DLL and keep private realm credentials out of that child.
+
+The [Identity foundation](../../docs/modules/identity/README.md#first-admin-and-seed-sequence)
+adds a second owned child after final authenticated realm verification, while
+the realm lock remains held. A private bounded stdin envelope carries only the
+exact issuer and four declared actor/provider-subject pairs. The child separately
+adopts bindings and applies finite Role/Membership/profile acts through their
+ordinary app-role/audit owners. It must actually finish and dispose before the
+lock is released. No Admin credential enters that child; the public reconciliation
+result still reports mutation counts only. A completed rerun writes nothing;
+conflicting or upgraded authority refuses without repair.
+
+Before either combined entry, set both `Identity__AuthorityId` and
+`Authentication__Tenant__Issuer` in the selected private environment. The
+[environment example](../../.env.example) gives an explicit local pair. Retain
+the same stable ID and exact issuer across reruns; an installed conflicting
+registration is never overwritten. Direct `make migrate` can still apply schema
+only when both values are absent; combined identity seeding requires them.
 
 An older private environment must add `KEYCLOAK_WEB_CLIENT_SECRET` explicitly
 before either combined entry starts stack or database work. Do not wipe the

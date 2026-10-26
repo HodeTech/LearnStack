@@ -70,7 +70,7 @@ internal static class Modules
         (typeof(TenantContentType).Assembly, ModelOnly<CustomizationDbContext>, true),
         (typeof(AuditEntry).Assembly, ModelOnly<AuditDbContext>, true),
         (typeof(Course).Assembly, ModelOnly<EducationDbContext>, true),
-        (typeof(User).Assembly, ModelOnly<IdentityDbContext>, false),
+        (typeof(User).Assembly, ModelOnly<IdentityDbContext>, true),
     ];
 
     // Declared class populations, never inferred from whether a marker happened

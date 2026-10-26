@@ -1,20 +1,20 @@
 # Identity — Permission Matrix
 
-**Status: Accepted contract — runtime implementation pending.** Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
+**Status: Finite foundation definitions and seed commands implemented; live enforcement remains P03-2.** Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
 and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md).
-No permission, route or runtime admission is implemented. The [module spec](README.md)
+No Identity HTTP route or live permission admission is implemented. The [module spec](README.md)
 owns storage/lifecycle; [Standard 19's accepted foundation contract](../../standards/19-permissions.md#proposed-identity-foundation-contract)
 owns the exact registry, grant manifests and kernel without a second copy here.
 
 ## Foundation operation bindings
 
-These planned **production** commands compile in P03-1 Step 4 and are called
+These **production** commands compile in P03-1 Step 4 and are called
 only through the closed seed composition, not test placeholder types. Permission
 metadata supplies actual registry subjects. P03-1 separately checks finite seed
 authority before dispatch; normal API composition denies it. P03-2 owns live
 permission admission. An attribute, realm role or SystemActor value grants no route.
 
-| Planned command | Capability metadata | Independent P03-1 admission |
+| Command | Capability metadata | Independent P03-1 admission |
 |---|---|---|
 | `CreateFirstSeedAdminMembership` | Tenant `identity.membership.admin` | Exact declared admin, existing v1 Tenant Admin template, trusted adopted actor; User/tenant guards |
 | `CreateSeedMembership` | Tenant or Organization `identity.membership.admin` | Exact declared learner tuple/target scope; no arbitrary actor/tenant/org/Role |

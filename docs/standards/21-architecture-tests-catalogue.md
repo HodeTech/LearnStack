@@ -153,7 +153,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**297 test methods run in
+**302 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -194,7 +194,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**241 rules in this catalogue are Implemented, and 137 of them are in that assembly.**
+**244 rules in this catalogue are Implemented, and 140 of them are in that assembly.**
 The other 104 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -2623,9 +2623,10 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   [Database lock contract](05-database.md#lock-snapshot-and-adoption-conditions).
 - **Type:** real app-role PostgreSQL mutation/concurrency controls and closed
   transaction-only acquisition/caller census. **Kind:** structural and behavioural.
-- **Test owners:** `IdentityMembershipTests`, `IdentityFoundationConventionTests`
-  (planned).
-- **Status:** **Registered** — implementation pending.
+- **Test owners:** `IdentityMembershipTests`, `IdentityFoundationConventionTests`.
+- **Status:** **Implemented** (`IdentityFoundationConventionTests`; `IdentityMembershipTests`, integration assembly) — real app-role races, immediate/deferred guards,
+  transaction-only caller/receipt controls, fixture restoration and local
+  command-path measurement; Step 4 independent review remains separate.
 - **Phase:** P03-1 Step 4.
 
 #### `Identity_Seed_Uses_Finite_Adopted_Manifests`
@@ -2640,8 +2641,10 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   [Identity seed sequence](../modules/identity/README.md#first-admin-and-seed-sequence).
 - **Type:** actual manifest/command census, generated-artifact equality and seed/rerun
   controls. **Kind:** structural and behavioural.
-- **Test owners:** `IdentityFoundationConventionTests`, `SeederTests` (planned).
-- **Status:** **Registered** — implementation pending.
+- **Test owners:** `IdentityFoundationConventionTests`, `IdentitySeederTests`.
+- **Status:** **Implemented** (`IdentityFoundationConventionTests`; `IdentitySeederTests`, integration assembly) — actual owned private-witness handoff, finite
+  production commands, no-write/interrupted/conflict reruns and central MUST
+  rollback/contained capture controls.
 - **Phase:** P03-1 Step 4.
 
 #### `Permission_Definitions_DeclareScope`
@@ -2654,8 +2657,9 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
   [Permissions Standards](19-permissions.md#identity-foundation-contract).
 - **Type:** compiled definitions/consumers with planted controls. **Kind:** structural.
-- **Test owner:** `IdentityFoundationConventionTests` (planned).
-- **Status:** **Registered** — moved from Awaiting backfill; implementation pending.
+- **Test owner:** `IdentityFoundationConventionTests`.
+- **Status:** **Implemented** (`IdentityFoundationConventionTests`) — the actual five-pair registry, command metadata,
+  generated artifacts and planted definition controls are exercised.
 - **Phase:** P03-1 Step 4.
 
 ### Pending Identity extensions to Implemented rules

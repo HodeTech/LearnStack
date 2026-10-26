@@ -4221,13 +4221,13 @@ production capacity and PgBouncer.
 ## Identity storage contract
 
 **Status: Global storage/common audit implemented in Step 3; contextual storage
-pending Step 4.** Derived from
+implemented under Step 4 review.** Derived from
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
 The active clauses above adopt the bounded exceptions below. Current applied
 global tables, grants and three global owner functions are locally qualified;
-the two contextual functions and five contextual tables remain Step 4. The four
+Step 4 adds the two contextual functions and five contextual tables. The four
 login roles are unchanged. The [Identity specification](../modules/identity/README.md) owns the adopted
 Membership, profile, Role and assignment shapes; this annex owns their database
 authority boundary and the global exceptions.
@@ -4429,12 +4429,13 @@ permitted redaction remain separate from insertion-time witness validation.
 ### Confined owner functions
 
 The first three functions are installed in Step 3; the two Membership functions
-remain Step 4 contracts. All execute as
+are installed in Step 4. All execute as
 `learnstack_migration`, NOBYPASSRLS, under FORCE RLS, on the caller's existing
 physical transaction. No migration credential enters runtime configuration.
 SECURITY DEFINER adds the explicitly accepted runtime owner-execution exception;
 it is not ordinary app isolation. Acceptance alone installed no function; the
-Step 3 migration installs only its qualified global subset.
+Step 3 migration installs only its qualified global subset; Step 4's forward
+migration installs the contextual pair.
 
 | Function contract | Bound input / permitted result |
 |---|---|
@@ -4569,6 +4570,18 @@ Timeout/cancellation refuses without partial grants or allocation retry. Lost
 commit responses remain uncertain; cleanup and central reconciliation retain
 their independent bounded ownership after caller cancellation.
 
+The closed `ContextualIdentityStorageControl` saves one complete Role or Membership
+graph on that owner. During only that tracked save it suspends EF's automatic
+savepoints, restoring the previous flag in `finally`; every save failure poisons
+the whole unit. No partial repair or save retry is admitted. This lets the finite
+initial-Role guard verify its tuple's `xmin` against the current top transaction
+both during mutation and after `SaveChanges`, without a released-subtransaction
+lock or snapshot heuristic. Ordinary module contexts and global binding saves
+retain automatic savepoints. The exact adapter/caller census and real success,
+constraint-failure and cancellation controls prove restoration, full rollback
+and the unchanged sibling-context default. The common coordinator still owns
+physical commit and central MUST durability.
+
 #### Membership fence checks
 
 The trigger observes `pg_catalog.pg_locks` using all of these predicates:
@@ -4626,16 +4639,15 @@ grant follows; eligibility is otherwise immutable in this foundation.
 
 ### Applied census and pending qualification
 
-The applied Step 3 census is **seven table classes, 44 data tables plus six
+The Step 3 census was **seven table classes, 44 data tables plus six
 history tables, six migration chains, eight central audit write seams and three
-Identity SECURITY DEFINER functions**: 50 tables total. The projected completed
-P03-1 census is **seven classes, 49 data tables plus six history tables, six
+Identity SECURITY DEFINER functions**: 50 tables total. The applied Step 4
+census is **seven classes, 49 data tables plus six history tables, six
 chains, eight central audit write seams and exactly five Identity SECURITY DEFINER
-functions**: 55 tables total. The five remaining data tables and two remaining
-owner functions arrive in Step 4.
+functions**: 55 tables total. Step 4 adds the five contextual tables and two
+contextual owner functions to the existing Identity chain.
 The global pair and sixth history table/chain are applied in Step 3. The two
-global seams extend the earlier six without a new INSERT owner. The final
-55-table/five-function target is not the current applied population.
+global seams extend the earlier six without a new INSERT owner.
 
 Steps 3/4 must qualify actual app-role positive/negative paths, owner DELETE/
 TRUNCATE refusal, exact definer bodies/ownership/grants/projections/call sites,

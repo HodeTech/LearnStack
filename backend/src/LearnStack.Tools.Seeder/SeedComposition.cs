@@ -1,4 +1,6 @@
 using LearnStack.Infrastructure.Jobs;
+using LearnStack.Modules.Identity.Application.Contracts.Seeding;
+using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
@@ -74,7 +76,9 @@ public static class SeedComposition
         NpgsqlDataSource dataSource,
         ITenantContext? context,
         ILoggerFactory loggerFactory,
-        IReservedHostRegistry? reservedHosts = null)
+        IReservedHostRegistry? reservedHosts = null,
+        IdentityAuthorityRegistration? identityAuthority = null,
+        ISeedIdentityFoundationAdmission? seedAdmission = null)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentNullException.ThrowIfNull(loggerFactory);
@@ -106,6 +110,8 @@ public static class SeedComposition
         services.AddScoped<ITenantSettingWriteStore, TenantSettingWriteStore>();
         services.AddScoped<ITenantExistenceReader, TenantExistenceReader>();
         services.AddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
+        services.AddScoped<LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle.IIdentityScopeLifecycleReader,
+            IdentityScopeLifecycleReader>();
         services.AddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
 
         // The Customization module, for act three. Its context goes through the same
@@ -239,6 +245,9 @@ public static class SeedComposition
         // answer, and it must not be able to see uncommitted state from that write.
         services.AddSingleton(new Lazy<NpgsqlDataSource>(() => dataSource));
         services.AddSingleton<IOrganizationScopeValidator, OrganizationScopeValidator>();
+        if (seedAdmission is not null) services.AddSingleton(seedAdmission);
+        services.AddIdentityGlobalFoundation(identityAuthority);
+        services.AddIdentityContextualFoundation();
 
         // Fronts no cache: a one-shot process has nothing in memory to go stale, and the
         // default answers truthfully for that host rather than approximating the API's.
@@ -248,7 +257,8 @@ public static class SeedComposition
         services.AddLearnStackMediatRPipeline(
             typeof(ITenantWriteStore).Assembly,
             typeof(ITenantContentTypeStore).Assembly,
-            typeof(LearnStack.Modules.Education.Application.AssemblyMarker).Assembly);
+            typeof(LearnStack.Modules.Education.Application.AssemblyMarker).Assembly,
+            typeof(LearnStack.Modules.Identity.Application.AssemblyMarker).Assembly);
 
         return services.BuildServiceProvider();
     }

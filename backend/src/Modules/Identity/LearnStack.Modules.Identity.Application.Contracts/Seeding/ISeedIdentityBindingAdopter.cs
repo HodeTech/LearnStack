@@ -14,6 +14,9 @@ public interface ISeedIdentityBindingAdopter
 /// <summary>The confined external seed owner supplies verified provider facts and exact declared actors.</summary>
 public interface ISeedIdentityFoundationAdmission
 {
+    ValueTask<bool> AllowsFoundationAsync(SeedIdentityFoundationAct act,
+        CancellationToken cancellationToken = default) => ValueTask.FromResult(false);
+
     ValueTask<bool> AllowsAsync(GlobalIdentitySubject subject, UserId declaredActor,
         CancellationToken cancellationToken = default);
 }

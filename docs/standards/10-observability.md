@@ -444,8 +444,8 @@ backend treat business rejections as system failures.
 | `learnstack_cache_factory_duration_seconds` | histogram | `cache.name`, `outcome` |
 | `learnstack_audit_standalone_write_failures_total` | counter | `operation` |
 | `learnstack_audit_standalone_duplicates_total` | counter | `operation` |
-| `learnstack_identity_lock_wait_seconds` | histogram; adopted, pending P03-1 | `lock_kind`, `outcome` |
-| `learnstack_identity_lock_refusals_total` | counter; adopted, pending P03-1 | `lock_kind`, `reason` |
+| `learnstack_identity_lock_wait_seconds` | histogram | `lock_kind`, `outcome` |
+| `learnstack_identity_lock_refusals_total` | counter | `lock_kind`, `reason` |
 | `learnstack_entitlement_source_total` | counter | `source` |
 | `learnstack_entitlement_unresolved_total` | counter | — |
 

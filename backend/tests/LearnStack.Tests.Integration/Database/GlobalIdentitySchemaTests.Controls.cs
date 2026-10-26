@@ -214,7 +214,8 @@ public sealed partial class GlobalIdentitySchemaTests
                     ARRAY(SELECT (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee)::text END)
                         || CASE WHEN a.is_grantable THEN ':grant-option' ELSE '' END
                         FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
-                        WHERE a.grantee<>p.proowner AND a.privilege_type='EXECUTE' ORDER BY a.grantee)
+                        WHERE a.grantee<>p.proowner AND a.privilege_type='EXECUTE' ORDER BY a.grantee),
+                    p.proisstrict,p.proparallel::text,p.proleakproof
                 FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner JOIN pg_language l ON l.oid=p.prolang
                 WHERE p.oid=to_regprocedure(@signature)
                 """, owner);
@@ -224,15 +225,17 @@ public sealed partial class GlobalIdentitySchemaTests
                 if (!await reader.ReadAsync()) { issues.Add(function.Name + ":missing-signature"); continue; }
                 if (reader.GetString(0).Trim() != function.Body.Trim()) issues.Add(function.Name + ":body");
                 if (reader.GetString(1) != function.ReturnType || reader.GetBoolean(3)) issues.Add(function.Name + ":return-type");
-                if (reader.GetBoolean(2) != function.Definer || reader.GetString(4) != "plpgsql"
+                if (reader.GetBoolean(2) != function.Definer || reader.GetString(4) != function.Language
                     || reader.GetString(5) != "learnstack_migration" || reader.GetBoolean(6)) issues.Add(function.Name + ":execution-owner");
-                if (reader.GetString(7) != "v" || !reader.GetFieldValue<string[]>(8).SequenceEqual(["search_path=pg_catalog"]))
+                if (reader.GetString(7) != function.Volatility || !reader.GetFieldValue<string[]>(8).SequenceEqual(["search_path=pg_catalog"]))
                     issues.Add(function.Name + ":execution-settings");
                 if (reader.GetString(9) != function.IdentityArguments || reader.GetInt16(10) != 0) issues.Add(function.Name + ":arguments");
                 if (reader.GetBoolean(11) != function.AppCallable) issues.Add(function.Name + ":app-execute");
                 if (reader.GetBoolean(12)) issues.Add(function.Name + ":public-execute");
                 var permittedGrantees = function.AppCallable ? new[] { "learnstack_app" } : [];
                 if (!reader.GetFieldValue<string[]>(13).SequenceEqual(permittedGrantees)) issues.Add(function.Name + ":execution-grantees");
+                if (reader.GetBoolean(14) != function.Strict || reader.GetString(15) != "u" || reader.GetBoolean(16))
+                    issues.Add(function.Name + ":execution-properties");
             }
             var actualCallers = new List<TriggerContract>();
             await using var triggers = new NpgsqlCommand("""
@@ -254,7 +257,8 @@ public sealed partial class GlobalIdentitySchemaTests
     {
         // This is the executed compiled Up operation, including the one central installer.
         // No copied witness DDL or checked-in expected-body snapshot can silently drift.
-        var sql = string.Join("\n", new create_identity_schema().UpOperations.OfType<SqlOperation>().Select(operation => operation.Sql));
+        var sql = string.Join("\n", new create_identity_schema().UpOperations
+            .Concat(new add_contextual_identity().UpOperations).OfType<SqlOperation>().Select(operation => operation.Sql));
         var functions = FunctionDeclaration().Matches(sql).Select(match =>
         {
             var name = match.Groups["name"].Value;
@@ -264,7 +268,7 @@ public sealed partial class GlobalIdentitySchemaTests
                 .Select(trigger => new TriggerContract(trigger.Groups["name"].Value, "public." + trigger.Groups["table"].Value,
                     (trigger.Groups["attributes"].Value.Contains("FOR EACH ROW", StringComparison.Ordinal) ? 1 : 0)
                     | (trigger.Groups["timing"].Value == "BEFORE" ? 2 : 0)
-                    | (trigger.Groups["event"].Value switch { "INSERT" => 4, "DELETE" => 8, "UPDATE" => 16, "TRUNCATE" => 32, _ => 0 }),
+                    | (trigger.Groups["events"].Value.Split(" OR ", StringSplitOptions.TrimEntries).Aggregate(0, (mask, command) => mask | (command switch { "INSERT" => 4, "DELETE" => 8, "UPDATE" => 16, "TRUNCATE" => 32, _ => 0 }))),
                     trigger.Groups["attributes"].Value.Contains("DEFERRABLE", StringComparison.Ordinal),
                     trigger.Groups["attributes"].Value.Contains("INITIALLY DEFERRED", StringComparison.Ordinal), "O"))
                 .OrderBy(trigger => trigger.Name, StringComparer.Ordinal).ToArray();
@@ -272,14 +276,24 @@ public sealed partial class GlobalIdentitySchemaTests
                 string.Join(", ", parameters).Replace("timestamptz", "timestamp with time zone", StringComparison.Ordinal),
                 match.Groups["returns"].Value, match.Groups["attributes"].Value.Contains("SECURITY DEFINER", StringComparison.Ordinal),
                 sql.Contains("GRANT EXECUTE ON FUNCTION public." + name + "(", StringComparison.Ordinal),
-                match.Groups["body"].Value, match.Value, triggers);
+                match.Groups["body"].Value, match.Value, triggers,
+                FunctionLanguage().Match(match.Groups["attributes"].Value).Groups[1].Value,
+                match.Groups["attributes"].Value.Contains("IMMUTABLE", StringComparison.Ordinal) ? "i"
+                    : match.Groups["attributes"].Value.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
+                match.Groups["attributes"].Value.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(5, "Step 3 installs three global definers and two invoker guards");
-        functions.Count(function => function.Definer).Should().Be(3);
-        functions.SelectMany(function => function.Triggers).Should().HaveCount(6);
+        functions.Should().HaveCount(12, "the two applied Identity migrations install the complete global/contextual function set");
+        functions.Count(function => function.Definer).Should().Be(5);
+        functions.SelectMany(function => function.Triggers).Should().HaveCount(18);
+        var globalNames = FunctionDeclaration().Matches(string.Join("\n", new create_identity_schema().UpOperations
+                .OfType<SqlOperation>().Select(operation => operation.Sql)))
+            .Select(match => match.Groups["name"].Value).ToHashSet(StringComparer.Ordinal);
         foreach (var function in functions)
-            ForbiddenFunctionBody().IsMatch(function.Body).Should().BeFalse(
-                "the canonical body admits no dynamic SQL, authority setters, or row projection");
+        {
+            var forbidden = globalNames.Contains(function.Name) ? ForbiddenFunctionBody() : ContextualForbiddenFunctionBody();
+            forbidden.IsMatch(function.Body).Should().BeFalse(
+                "the canonical body admits no dynamic SQL, authority setters, or row-returning reader");
+        }
         return functions;
     }
 
@@ -311,13 +325,17 @@ public sealed partial class GlobalIdentitySchemaTests
     }
 
     private sealed record CanonicalFunction(string Name, string Signature, string IdentityArguments, string ReturnType,
-        bool Definer, bool AppCallable, string Body, string Definition, TriggerContract[] Triggers);
+        bool Definer, bool AppCallable, string Body, string Definition, TriggerContract[] Triggers, string Language, string Volatility, bool Strict);
     private sealed record TriggerContract(string Name, string Table, int Type, bool Deferrable, bool InitiallyDeferred, string Enabled);
 
-    [GeneratedRegex(@"CREATE FUNCTION public\.(?<name>[a-z0-9_]+)\((?<parameters>[^)]*)\)\s+RETURNS\s+(?<returns>[a-z]+)\s+(?<attributes>.*?)\bAS\s+\$\$(?<body>.*?)\$\$;", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    [GeneratedRegex(@"CREATE FUNCTION public\.(?<name>[a-z0-9_]+)\((?<parameters>[^)]*)\)\s+RETURNS\s+(?<returns>[a-z]+)\s+(?<attributes>.*?)\bAS\s+(?<delimiter>\$[a-z0-9_]*\$)(?<body>.*?)\k<delimiter>;", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex FunctionDeclaration();
-    [GeneratedRegex(@"CREATE (?<constraint>CONSTRAINT )?TRIGGER (?<name>\w+)\s+(?<timing>BEFORE|AFTER)\s+(?<event>INSERT|UPDATE|DELETE|TRUNCATE) ON public\.(?<table>\w+)(?<attributes>.*?)EXECUTE FUNCTION public\.(?<function>\w+)\(\);", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    [GeneratedRegex(@"LANGUAGE\s+(\w+)", RegexOptions.IgnoreCase)]
+    private static partial Regex FunctionLanguage();
+    [GeneratedRegex(@"CREATE (?<constraint>CONSTRAINT )?TRIGGER (?<name>\w+)\s+(?<timing>BEFORE|AFTER)\s+(?<events>(?:INSERT|UPDATE|DELETE|TRUNCATE)(?:\s+OR\s+(?:INSERT|UPDATE|DELETE|TRUNCATE))*) ON public\.(?<table>\w+)(?<attributes>.*?)EXECUTE FUNCTION public\.(?<function>\w+)\(\);", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex TriggerDeclaration();
     [GeneratedRegex(@"\bEXECUTE\b|\bset_config\s*\(|\bRETURN\s+QUERY\b|\bSELECT\s+(?!1\b)", RegexOptions.IgnoreCase)]
     private static partial Regex ForbiddenFunctionBody();
+    [GeneratedRegex(@"\bEXECUTE\b|\bset_config\s*\(|\bRETURN\s+QUERY\b|\bpg_(?:try_)?advisory_(?:xact_)?lock(?:_shared)?\s*\(", RegexOptions.IgnoreCase)]
+    private static partial Regex ContextualForbiddenFunctionBody();
 }

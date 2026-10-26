@@ -65,12 +65,12 @@ items, rules, custom fields and notification templates; their delivery is tracke
 
 ## Where it is today
 
-**Phase 01, Phase 02a, Phase 02d and Phase 02b are complete; Phase 03 is next.**
+**Phase 01, Phase 02a, Phase 02d and Phase 02b are complete; Phase 03 is in progress.**
 [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) owns the two-tenant walking
 skeleton. [Phase 02b](docs/roadmap/phase-02b-events-auth.md) owns the delivered
 events, jobs, authentication and session baseline. The
-[Phase 03](docs/roadmap/phase-03-identity-admin.md) Status block owns entry state
-for the next identity, membership and authorization work; the
+[Phase 03](docs/roadmap/phase-03-identity-admin.md) Status block owns current state
+for identity, membership and authorization work; the
 [roadmap](docs/roadmap/README.md) lists every phase.
 
 | Area | Delivered now | Next milestone |
@@ -84,8 +84,8 @@ for the next identity, membership and authorization work; the
 
 **Five modules contain domain implementations:** Tenancy, Customization, Audit,
 Education and Identity. Identity's [module specification](docs/modules/identity/README.md)
-distinguishes implemented global bindings/common audit from contextual and live
-admission work. Content and Media remain scaffolded.
+distinguishes implemented global/contextual foundations and seed admission from
+remaining API activation and live authorization. Content and Media remain scaffolded.
 
 The subsequent product milestones are CMS and media ([04](docs/roadmap/phase-04-cms-media-pages.md)),
 the full course catalog ([05](docs/roadmap/phase-05-education-learning-content.md)),
@@ -120,7 +120,8 @@ make hooks     # optional: install the repository Git hooks
 Continue with the manual HTTPS prerequisites below, then run `make demo`. It
 creates missing private configuration and restores dependencies without changing
 Git hooks. `make seed` converges application data and the development identity
-realm without starting the API or web. Direct .NET Seeder remains data-only.
+realm and its application-owned identity foundation without starting the API or
+web. The argument-free direct .NET Seeder remains data-only.
 
 The seed provisions `demo-english` and `demo-yoga`, their organizations and host
 mappings, enabled locales, distinct branding, built-in and tenant-authored definitions,
@@ -128,7 +129,8 @@ and eight scoped courses, ten lessons and twenty-seven translations. It uses the
 ordinary authoring pipeline and verifies completed acts before skipping them on rerun.
 [SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
 Both combined entries then await the same bounded development-realm reconciler.
-Older private files must explicitly add `KEYCLOAK_WEB_CLIENT_SECRET`; existing
+Older private files must explicitly add `KEYCLOAK_WEB_CLIENT_SECRET` and the
+stable authority/issuer pair described in the realm guide; existing
 passwords/MFA and provider IDs are preserved. Prepare this secret before the
 first `make dev` import, and retain it across reruns. Older files also need
 explicit private permissions after verifying their ownership/type; Makefile

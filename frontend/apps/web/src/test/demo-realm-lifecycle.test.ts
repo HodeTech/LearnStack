@@ -83,8 +83,9 @@ export async function waitCompose(selected, processes, signal, postgresOnly = fa
   writeFileSync(
     join(root, 'scripts/reconcile-development-realm.mjs'),
     `import { RealmError } from './development-realm-errors.mjs';
-export async function reconcileDevelopmentRealm({ selected, signal }) {
+export async function reconcileDevelopmentRealm({ selected, signal, seedIdentityFoundation }) {
   const f = globalThis.lifecycle;
+  f.identityFoundationRequested = seedIdentityFoundation === true;
   f.events.push('realm-start');
   f.selectionIdentity &&= selected === f.selected;
   f.signalIdentity &&= signal === f.signal && signal instanceof AbortSignal;
@@ -126,6 +127,8 @@ export function publicServerConfiguration(values) {
     KEYCLOAK_ADMIN: 'fixture-admin',
     KEYCLOAK_ADMIN_PASSWORD: canaries[0]!,
     KEYCLOAK_WEB_CLIENT_SECRET: canaries[1]!,
+    Identity__AuthorityId: '01930000-0000-7000-8000-000000009001',
+    Authentication__Tenant__Issuer: 'http://localhost:8080/realms/learnstack',
     LEARNSTACK_PUBLIC_API_ORIGIN: 'http://127.0.0.1:5080',
     LEARNSTACK_PUBLIC_HOP_SECRET: 'fixture-hop',
   };
@@ -185,6 +188,7 @@ type Result = {
     timeout?: number;
   }>;
   migrationSelection: boolean;
+  identityFoundationRequested: boolean;
 };
 
 function execute(
@@ -254,7 +258,7 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     'NPM_CONFIG_CACHE', 'npm_config_cache', 'NPM_CONFIG_STORE_DIR', 'npm_config_store_dir',
     ...(startup || migration || command === 'docker' ? ['USERPROFILE', 'XDG_CONFIG_HOME', 'XDG_RUNTIME_DIR', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_HOST', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH', 'DOCKER_DEFAULT_PLATFORM', 'DOCKER_API_VERSION'] : []),
     ...(startup || migration ? ['LEARNSTACK_COMPOSE_PROJECT', 'LEARNSTACK_COMPOSE_ENV_FILE', 'LEARNSTACK_COMPOSE_MODE'] : []),
-    ...(migration ? ['ConnectionStrings__Migration'] : []),
+    ...(migration ? ['ConnectionStrings__Migration', 'Identity__AuthorityId', 'Authentication__Tenant__Issuer'] : []),
     ...(options.label === 'Contextual seed convergence' || options.label === 'Application seed convergence' ? ['ConnectionStrings__Default'] : [])]);
   // The app seed is recognised by its real, argument-free Release DLL call too.
   if (command === 'dotnet' && args.length === 1 && args[0].endsWith('/LearnStack.Tools.Seeder.dll')) allowed.add('ConnectionStrings__Default');
@@ -295,7 +299,8 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
 let failure = '', notice = '', preparationDispatched = false;
 const report = () => ({ events: f.events, commands: f.commands, failure, notice, preparationDispatched,
   selectionIdentity: f.selectionIdentity, signalIdentity: f.signalIdentity,
-  selectedDescription: f.selectedDescription, migrationSelection: f.migrationSelection });
+  selectedDescription: f.selectedDescription, migrationSelection: f.migrationSelection,
+  identityFoundationRequested: f.identityFoundationRequested });
 if (${JSON.stringify(entryCli)}) {
   process.on('exit', () => writeFileSync(${JSON.stringify(join(f.root, 'entry-report'))}, JSON.stringify(report())));
 } else {
@@ -470,9 +475,15 @@ if (JSON.stringify(args) === JSON.stringify(['compose', 'version'])) {
     `#!${process.execPath}
 import { record, values } from '../scripts/boundary-observer.mjs';
 const args = process.argv.slice(2);
+if (args.length === 1 && args[0].endsWith('/LearnStack.Tools.IdentityAuthorityInstaller.dll')) {
+  record('authority-install', 'Migration', process.env.Identity__AuthorityId === values.Identity__AuthorityId
+    && process.env.Authentication__Tenant__Issuer === values.Authentication__Tenant__Issuer);
+  process.exit(0);
+}
 if (process.cwd() !== ${JSON.stringify(join(f.root, 'backend'))}) process.exit(19);
 if (JSON.stringify(args) === JSON.stringify(['tool', 'restore'])) record('migration-tools');
 else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo'])) record('migration-build');
+else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.IdentityAuthorityInstaller', '--configuration', 'Release', '--nologo'])) record('authority-build');
 else if (args[0] === 'ef' && args[1] === 'database' && args[2] === 'update') record('migration-ef', 'Migration', !args.includes('--connection') && !args.some(arg => arg.includes('Password=')));
 else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'])) record('seeder-build');
 else if (args.length === 1 && args[0] === ${JSON.stringify(join(f.root, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'))}) record('appseed', 'Default');
@@ -484,11 +495,11 @@ else process.exit(19);
     join(f.root, 'scripts/reconcile-development-realm.mjs'),
     `import { appendFileSync, readFileSync } from 'node:fs';
 import { realmEnvironment } from './development-realm-owner.mjs';
-export async function reconcileDevelopmentRealm({ selected, signal }) {
+export async function reconcileDevelopmentRealm({ selected, signal, seedIdentityFoundation }) {
   const values = realmEnvironment(readFileSync(selected.file, 'utf8'));
   const parentPrivate = Object.entries(values).every(([key, value]) => process.env[key] === value);
   const selectedSource = selected.file === ${JSON.stringify(selectedFile)} && selected.project === ${JSON.stringify(project)}
-    && selected.mode === 'e2e' && signal instanceof AbortSignal;
+    && selected.mode === 'e2e' && signal instanceof AbortSignal && seedIdentityFoundation === true;
   appendFileSync(${JSON.stringify(events)}, JSON.stringify({ stage: 'realm', confined: true,
     selected: selectedSource, parentPrivate }) + '\\n');
   return { mutations: 0 };
@@ -954,7 +965,9 @@ DemoProcesses.prototype.dispose = async function() {
       'readiness-status',
       'migration-tools',
       'migration-build',
+      'authority-build',
       'migration-ef',
+      'authority-install',
       'readiness-config',
       'readiness-status',
       'seeder-build',
@@ -1011,6 +1024,7 @@ DemoProcesses.prototype.dispose = async function() {
     ]);
     expect(result.selectionIdentity).toBe(true);
     expect(result.signalIdentity).toBe(true);
+    expect(result.identityFoundationRequested).toBe(true);
     expect(result.selectedDescription).toEqual({
       project: 'owned-seed',
       file: join(f.root, 'selected.env'),
@@ -1104,6 +1118,7 @@ DemoProcesses.prototype.dispose = async function() {
       prerequisitesPreserved: true,
     });
     expect(result.migrationSelection).toBe(true);
+    expect(result.identityFoundationRequested).toBe(true);
     expect(existsSync(join(f.root, '.env'))).toBe(false);
   });
 

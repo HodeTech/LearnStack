@@ -172,6 +172,8 @@ public static class PersistenceCompositionExtensions
         // which never sees SET LOCAL and reads zero rows from every tenant-owned
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
+        services.TryAddScoped<LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle.IIdentityScopeLifecycleReader,
+            IdentityScopeLifecycleReader>();
         services.AddTenantSettingsReads();
         services.AddTenantSiteReads();
         services.AddModuleDbContext<CustomizationDbContext>();
@@ -196,6 +198,7 @@ public static class PersistenceCompositionExtensions
         // Internal services only. Step 5 qualifies the anchor at startup before
         // existing-binding admission; Step 3 activates no request or seed writer.
         services.AddIdentityGlobalFoundation(identityAuthority);
+        services.AddIdentityContextualFoundation();
 
         // ── The audit write path ─────────────────────────────────────────────
         //

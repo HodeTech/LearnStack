@@ -13,10 +13,11 @@ Identity foundation definitions, manifests and role ownership derive from Accept
 
 LearnStack uses permission-based RBAC layered on top of tenant membership. This standard pins the **naming convention**, **closed action set**, **registration pattern**, **enforcement points**, and the **per-module matrix template** that every module must produce.
 
-**Implementation boundary.** No permission registry/grants are shipped yet.
+**Implementation boundary.** The finite Identity definitions, template grants
+and confined seed commands are implemented in P03-1 Step 4.
 Accepted ADR-0073 settles scoped definition identity, tenant-wide templates and
 the finite initial seed manifests in the [Identity foundation contract](#identity-foundation-contract).
-P03-1 Step 4 implements them; P03-2 owns live enforcement/delegation/adoption and
+P03-2 owns live enforcement/delegation/adoption and
 P03-9/G13 owns operator admission. Adoption of this standard grants no runtime
 authority. The closed key/action/scope rules remain binding.
 

@@ -1,23 +1,22 @@
 # Identity — Audit Coverage Matrix
 
-**Status: Global creation/adoption implementation under review; contextual writers pending.**
-The User off-path catalogue and global persistence exist; planned markers below
-identify the remaining contextual operations. Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md),
+**Status: Global and contextual seed writers implemented; Step 4 review pending.**
+The User off-path catalogue, contextual requests and persistence exist.
+Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md)
 and [Standard 18](../../standards/18-audit-coverage.md). Part of the [module spec](README.md).
 
-The baseline MUST floor applies. Planned `IdentityAuditCatalogSource` declares
-actual operations: catalogue-to-matrix coverage is total; planned markers must
-disappear when their requests/off-path writers ship. Audit slugs are not
+The baseline MUST floor applies. `IdentityAuditCatalogSource` declares
+actual operations: catalogue-to-matrix coverage is total. Audit slugs are not
 additional permission keys.
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
 | User/global immutable subject | `identity.user.create` `(off-path)` | **MUST** (`security-event`) | ADR-0072's confined creation/adoption owner and central non-success reconciliation; success shares the User transaction. Exact global witness, source and retention contract stays there. |
-| Role including grants | `identity.role.initialize` `(planned)` | **MUST** (`security-event`) | `InitializeSeedRole`; one Role transaction, with contained grants. |
-| Membership including Profile/Assignments | `identity.membership.create_first_seed_admin` `(planned)` | **MUST** (`security-event`) | `CreateFirstSeedAdminMembership`; one Membership transaction. |
-| Membership including Profile/Assignments | `identity.membership.create_seed` `(planned)` | **MUST** (`security-event`) | `CreateSeedMembership`; one Membership transaction. |
-| MembershipProfile, captured under Membership | `identity.membership_profile.set_seed_profile` `(planned)` | **MUST** (`update`) | `SetSeedMembershipProfile`; same Membership transaction. The slug matches the gated sub-resource while the row's subject remains its owning aggregate. |
+| Role including grants | `identity.role.initialize` | **MUST** (`security-event`) | `InitializeSeedRole`; one Role transaction, with contained grants. |
+| Membership including Profile/Assignments | `identity.membership.create_first_seed_admin` | **MUST** (`security-event`) | `CreateFirstSeedAdminMembership`; one Membership transaction. |
+| Membership including Profile/Assignments | `identity.membership.create_seed` | **MUST** (`security-event`) | `CreateSeedMembership`; one Membership transaction. |
+| MembershipProfile, captured under Membership | `identity.membership_profile.set_seed_profile` | **MUST** (`update`) | `SetSeedMembershipProfile`; same Membership transaction. The slug matches the gated sub-resource while the row's subject remains its owning aggregate. |
 
 **Explicit Off reads.** Contextual seed verification request types are registered
 Off before use; they inspect only the exact bounded declared seed facts, with no
@@ -26,7 +25,7 @@ intent under ADR-0072. Off request registration is separate from MUST operation
 rows; no Off value is presented as an `OperationClass` or a MUST audit slug.
 
 No seed command mutates a second root. Role grants travel in Role diffs;
-assignments/Profile travel in Membership diffs. Planned instance-qualified paths
+assignments/Profile travel in Membership diffs. Instance-qualified paths
 include `/Membership/{id}/Profile`, `/Membership/{id}/RoleAssignments/{roleId}`
 and `/Role/{id}/Grants/{scope}:{key}`. Collection snapshots appear only when
 actually complete; partial loads cannot claim a complete collection. Stable
@@ -40,11 +39,11 @@ None/purpose for **every** mapped property, including inherited actor references
 and owned children. This table assigns semantic review; it is not a completed
 census or a reflection/name heuristic.
 
-| Planned subject | Personal/reference paths to classify | Snapshot/diagnostic rule |
+| Subject | Personal/reference paths to classify | Snapshot/diagnostic rule |
 |---|---|---|
 | User | AuthorityId, raw `provider_subject`, subject key, actor and immutable audit linkage; no email/verification mirror | Raw subject explicitly `[PiiSensitive]`; keys/actor are classified retained linkage, not diagnostic labels; canonical grants/encoding in Standard 05 |
 | Membership | `UserId`, lifecycle/audit actor references and person-to-tenant/org relationship | Explicit reference classifications; no diagnostic value capture |
-| MembershipProfile | Display/contact fields and locale preference | Personal scalars/whole JSON marked for snapshot redaction; fixed diagnostics |
+| MembershipProfile | Display name and locale preference | Both personal scalars marked for snapshot redaction; fixed diagnostics |
 | Assignment | Membership/person linkage and assignment history | Exact paths under Membership row; never log raw DTOs |
 | Role/Grant | Built-in key, capability scope, scoped keys, tenant and inherited actor references | None only for reviewed nonpersonal metadata; actor/linkage paths stay classified |
 

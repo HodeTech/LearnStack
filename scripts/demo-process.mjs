@@ -67,6 +67,9 @@ export class DemoProcesses {
     if (this.#failed) throw this.#failed;
   }
   start(command, args, { cwd, env, label, observe = () => {}, capture = false } = {}) {
+    return this.#start(command, args, { cwd, env, label, observe, capture });
+  }
+  #start(command, args, { cwd, env, label, observe = () => {}, capture = false } = {}, privateInput) {
     this.assertActive();
     let child;
     try {
@@ -74,7 +77,7 @@ export class DemoProcesses {
         cwd,
         env,
         detached: process.platform !== 'win32',
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: [privateInput === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
       });
     } catch (cause) {
       throw new DemoCommandError(label ?? command, cause, undefined, { reason: 'spawn' });
@@ -95,6 +98,12 @@ export class DemoProcesses {
       // dispose still owns a failed stop; do not create an unhandled rejection.
       void stopTestChild(child).catch(() => {});
     };
+    if (privateInput !== undefined) {
+      // One bounded write and EOF. Never inherit a terminal or retain the value
+      // in the child handle/result; an early pipe refusal fails the owned act.
+      child.stdin.once('error', refuseOutput);
+      child.stdin.end(privateInput);
+    }
     for (const stream of [child.stdout, child.stderr]) {
       stream.once('error', refuseOutput);
       stream.on('data', (chunk) => {
@@ -170,7 +179,16 @@ export class DemoProcesses {
     return running;
   }
   async run(command, args, options = {}) {
-    const running = this.start(command, args, options);
+    return this.#run(this.start(command, args, options), command, options);
+  }
+  /** Private one-shot handoff; bounded before spawn and never part of argv/results. */
+  async runPrivateInput(command, args, privateInput, options = {}) {
+    if (typeof privateInput !== 'string' || Buffer.byteLength(privateInput) > 8192
+        || privateInput.includes('\0'))
+      throw new DemoCommandError(options.label ?? command, undefined, undefined, { reason: 'output' });
+    return this.#run(this.#start(command, args, options, privateInput), command, options);
+  }
+  async #run(running, command, options) {
     const timeout = AbortSignal.timeout(options.timeout ?? 180000);
     const signal = AbortSignal.any([this.#signal, timeout]);
     let cancelled;

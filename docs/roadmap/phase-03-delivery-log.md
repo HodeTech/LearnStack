@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,066 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,156 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -43,6 +43,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 3 review round 2 and local closeout (2026-10-26)](#p03-1-step-3-review-round-2-and-local-closeout-2026-10-26) — 40 lines
   - [ADR-0074 proposal review round 2 and readiness (2026-10-26)](#adr-0074-proposal-review-round-2-and-readiness-2026-10-26) — 16 lines
   - [ADR-0074 maintainer review correction and acceptance (2026-10-26)](#adr-0074-maintainer-review-correction-and-acceptance-2026-10-26) — 52 lines
+  - [P03-1 Step 4 — Contextual foundation and owned seed (2026-10-26)](#p03-1-step-4--contextual-foundation-and-owned-seed-2026-10-26) — 90 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1194,3 +1195,93 @@ document/index/fragment checks resolve 2,556 links, the seven ADR-status parser
 tests pass, and whitespace, added relative targets and private-reference scans
 are clean. No prior proposal/readiness/review record is rewritten and no
 contextual control is promoted on the strength of this document or probe.
+
+### P03-1 Step 4 — Contextual foundation and owned seed (2026-10-26)
+
+**Authority:** jointly Accepted ADR-0072/0073 and ADR-0074's accepted timing
+correction. This implements the contextual portion of the approved six-step
+package; independent review rounds follow the implementation commit. No HTTP,
+new-user BFF activation, live permission enforcement or closure writer is added.
+
+Five contextual tables join the existing Identity migration chain: Membership,
+its Profile/Assignments, Role and grants. The applied census is 55 tables, six
+chains, seven classes, eight central audit seams and exactly five Identity
+SECURITY DEFINER functions. Exact applied bodies/owner/ACL/triggers and planted
+widening controls include the new pair. The model census covers six contexts,
+26 entities and 254 scalar properties, all explicitly classified. Compiled v1
+owns definitions, templates, kernel, fingerprints and generated SQL values.
+Module-local identifiers cross Contracts as Guid; shared User/Tenant/Organization
+identifiers remain typed.
+
+The complete plan derives from actual Role/parent facts, acquires ordered User
+then strongest tenant fences, rechecks fresh state, and mutates only afterward.
+Actual admission triggers observe their target fence and User eligibility;
+last-admin, lifecycle, mirror, capability and complete-graph guards validate
+before the common owner commits. The closed graph-save adapter temporarily
+suspends automatic EF savepoints only for that save and restores the original
+flag in finally. Any save failure poisons the whole unit. This preserves strict
+same-top-transaction initial-Role evidence through graph preflight without a
+released-subtransaction-lock heuristic. Ordinary/global saves retain their default;
+success, real constraint refusal and cancellation prove restoration and rollback.
+No general savepoint switch or partial repair path is admitted.
+
+The argument-free data Seeder remains the first application convergence pass.
+The shared realm owner then reconciles/verifies, reads its final authenticated
+provider facts, and awaits a second owned child while retaining the realm lock.
+Only a versioned, bounded private stdin envelope carries the exact issuer and
+four actor/opaque-subject pairs; no Admin credential, argv subject or public
+result projection is added. The child qualifies the explicit selected authority,
+adopts four bindings, then separately commits sixteen Role acts, two first-admin
+and two learner Membership acts, and four profile acts. There are 28 additional
+successful identity audit rows. Predispatch exact postconditions skip complete
+acts; interrupted reruns create missing acts only. Edited, revoked, suspended or
+upgraded authority refuses without repair. Yoga admin remains NULL-org in the
+application while its provider branch claim remains untouched; Yoga learner is
+in the default studio. The environment example supplies an explicit local
+stable authority/issuer pair; existing private files must add the pair and must
+match any installed registration.
+
+Qualification before implementation review:
+
+- Release solution builds with zero warnings/errors; all 2,748 Unit cases pass.
+- All 51 affected Architecture cases pass, including compiled command/caller,
+  exact registry, classification, audit matrix and corpus controls. Three
+  Registered obligations now have actual owners and implementation; the catalogue
+  records 244 Implemented rules, 140 in the Architecture assembly, and 302
+  method declarations. Final complete-source qualification remains Step 6.
+- All 157 selected Integration cases pass with zero skips. These include actual
+  app-role scoped reads/writes and independent RLS dirty twins, unknown/Closing/
+  Closed target refusals, first/last-admin and shared/exclusive races, real
+  competing commits, complete fixture guard/policy restoration, timeout/cancel
+  rollback and same-backend pool reuse, finite metrics, no-write/interrupted/
+  conflict seed reruns, central MUST failure rollback and actual child snapshots/
+  redacted profile diffs. Existing-root child changes remain in qualified diffs;
+  no unknown collection is newly represented as a complete snapshot.
+- Eight realm Node files execute 409 cases; 228 native launcher/orchestration
+  controls pass. Provider-witness and C# execution controls retain their actual
+  scopes; final combined provider/browser/source-bound qualification remains
+  Step 6 rather than being inferred from these cases.
+
+A separate actual command-path experiment passes on two disposable databases.
+Each executes the production pipeline's 24 contextual commits and observes a
+real first-admin User wait before the competing COMMIT. The current-code
+observation-cost counterfactual disables only the heldness function's observation
+in its isolated database; it is not a historical or security-qualified baseline.
+Both helpers still acquire their real locks. Exact function state is restored
+and databases dropped. Four first-per-type and twenty subsequent-per-type samples
+are reported separately; neither population means process-cold or pool-cold.
+Measured warm p95 is 8 ms for the counterfactual and 11 ms with production guards,
+against the 500 ms local budget. Production client-SQL-span p95 is 9.158 ms;
+client command counts match, including internal trigger time rather than internal
+statement enumeration. Each pool peaks at two used connections of four and
+returns to zero. Observed acquired User waits are about 52/53 ms. The small local
+sample establishes neither a speed ratio nor production capacity or throughput.
+No identity, connection tag, SQL or function body is emitted by this experiment.
+
+Qualification corrected real issues rather than relabelling failures: explicit
+CASE grouping in trigger SQL; actual EF savepoint versus strict initial-Role
+freshness; test counts under organization RLS; old 50/three-function census and
+User TRUNCATE proof preempted by new FKs; and per-flow test metric observation.
+The initial 153-case run was 150/153, followed by those verified expectation
+corrections and the final expanded green population above. Full-step reviews
+have not yet run; no local-complete or packet-complete claim follows here.
