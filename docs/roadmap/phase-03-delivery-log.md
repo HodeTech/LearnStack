@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,647 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,676 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -76,8 +76,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 2 closed budget implementation (2026-10-27)](#adr-0075-step-2-closed-budget-implementation-2026-10-27) — 44 lines
   - [ADR-0075 Step 2 review round 1 (2026-10-27)](#adr-0075-step-2-review-round-1-2026-10-27) — 16 lines
   - [ADR-0075 Step 2 review round 2 and qualification handoff (2026-10-27)](#adr-0075-step-2-review-round-2-and-qualification-handoff-2026-10-27) — 24 lines
-  - [ADR-0075 Step 3 fresh hosted A/B evidence (2026-10-27)](#adr-0075-step-3-fresh-hosted-ab-evidence-2026-10-27) — 53 lines
-  - [ADR-0075 Step 3 review round 1 (2026-10-27)](#adr-0075-step-3-review-round-1-2026-10-27) — 29 lines
+  - [ADR-0075 Step 3 fresh hosted A/B evidence (2026-10-27)](#adr-0075-step-3-fresh-hosted-ab-evidence-2026-10-27) — 54 lines
+  - [ADR-0075 Step 3 review round 1 (2026-10-27)](#adr-0075-step-3-review-round-1-2026-10-27) — 30 lines
+  - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2768,8 +2769,9 @@ all complete Passed in the new B; historical failed evidence remains unchanged.
 
 Actual A/B co-membership differs in both directions: Architecture has 6,203
 A-only and 6,915 B-only method pairs; ordinary has 62,463 / 65,656; SharedSchema
-methods have 62,165 / 65,388. This is a materially different complete assignment,
-not bin renumbering. The plan remains
+methods within its actual 85-class collection have 40,173 / 42,648. The wider
+131-class fixture-bearing plan census has 62,165 / 65,388. These are materially
+different complete assignments, not bin renumbering. The plan remains
 `115e474202360d0d7d99e1a8c69a0b40f7eb84669364b23ce90c94341969113b` and manifest
 `8d017042f7e439273a7164326d9a1ae7ef3ea4ea3dea9a1bfa4c315a133bef21`.
 
@@ -2810,3 +2812,31 @@ birth times (last A archive 22:49:25 UTC; verification 22:49:28; B starts
 not independently signed chronology. Neither reviewer reruns hosted work,
 starts services or changes repository files. This qualifies observed evidence,
 not a minimum ceiling or future fit. Fresh second-round review remains.
+
+
+### ADR-0075 Step 3 review round 2 correction (2026-10-27)
+
+Fresh independent reviewers `adr75_step3_r2_union` (GPT-6 Astra, high) and
+`adr75_step3_r2_public` (GPT-6.1 Sol, high) inspect record `146f743b` and the raw
+A/B packages for qualified source `ea114d25`. Both verify the hosted
+qualification; the union reviewer finds one minor documentation error before
+this closeout is shipped. The earlier draft labels the plan's wider 131-class
+fixture-bearing pair count as SharedSchema. Root independently reproduces both
+populations: fixture-bearing pairs are 62,165 / 65,388, while the actual
+85-class SharedSchema collection has 40,173 / 42,648. The unshipped Step 3 record
+is corrected to report both; prior reviewed revisions remain in git history.
+No source, plan, package, execution or qualification result changes. A narrow
+post-fix check remains before final closeout.
+
+Both reviewers independently check all fifty original ZIP sizes/SHA-256/CRCs,
+fresh producer files and API/attempt/source bindings; exact complete A/B
+selected/completed/TRX unions and natural lifecycle evidence pass. The public
+reviewer additionally verifies all 54 JSON/HTML pairs, embedded LHR identity,
+complete configured audit inventories/category weights, accessibility score 1,
+JS payload below 200,000 bytes, CLS 0, TLS/timeout refusals and cleanup. It
+recomputes meta/backend/integration aggregate walls: A 113/22/29 seconds;
+B 88/18/38, all below 300. The six historical missing IDs pass in both new
+attempts. Proof limits remain explicit: actual source qualification is not
+later documentation-head qualification, signed acquisition chronology or a
+future fit guarantee. No reviewer edits the repository, executes .NET, starts
+services or reruns hosted work.
