@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,453 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,467 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -70,7 +70,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 maintainer review and revised package (2026-10-27)](#adr-0075-maintainer-review-and-revised-package-2026-10-27) — 103 lines
   - [ADR-0075 revised proposal review round 1 (2026-10-27)](#adr-0075-revised-proposal-review-round-1-2026-10-27) — 20 lines
   - [ADR-0075 revised proposal review round 2 (2026-10-27)](#adr-0075-revised-proposal-review-round-2-2026-10-27) — 25 lines
-  - [ADR-0075 acceptance and Step 1 (2026-10-27)](#adr-0075-acceptance-and-step-1-2026-10-27) — 27 lines
+  - [ADR-0075 acceptance and Step 1 (2026-10-27)](#adr-0075-acceptance-and-step-1-2026-10-27) — 28 lines
+  - [ADR-0075 Step 1 review round 1 (2026-10-27)](#adr-0075-step-1-review-round-1-2026-10-27) — 13 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2609,3 +2610,17 @@ closed expected-owner policy; Step 3 requires fresh complete same-final-source
 A/B and independent original-evidence cross-audit. Earlier A and failed B remain
 historical evidence and do not qualify the changed source. Acceptance is neither
 implementation nor actual twenty-five-minute hosted fit.
+
+
+### ADR-0075 Step 1 review round 1 (2026-10-27)
+
+Fresh independent reviewers `adr75_step1_r1_records` (GPT-6.1 Sol, high) and
+`adr75_step1_r1_contract` (GPT-6 Astra, high) inspect `c274fa6e..2a1917cf`.
+Both approve with no actionable finding. The records reviewer reconstructs the
+predecessor bytes by removing only new amendment blocks and compares both
+amendments to the accepted package. Historical delivery text is preserved
+outside the generated index. Both confirm the nine-file documentation-only
+scope, accepted index/status, pending catalogue extension and separation of
+acceptance from implementation/hosted fit. Document, lifecycle and whitespace
+checks pass. Neither reviewer mutates files, starts services, executes .NET or
+revalidates original hosted evidence. Fresh second-round review remains.
