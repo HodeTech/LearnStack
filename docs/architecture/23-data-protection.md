@@ -27,7 +27,8 @@ implemented mapped-property census requires explicit semantics; it does not infe
 ### Identity foundation and classification ownership
 
 **Classification implemented in P03-1 Step 2; global Identity storage/common
-audit implemented in Step 3; contextual storage implemented under Step 4 review;
+audit implemented in Step 3; contextual storage and diagnostic controls
+implemented and independently reviewed in Step 4;
 fulfillment remains with its named owners.** Jointly Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)

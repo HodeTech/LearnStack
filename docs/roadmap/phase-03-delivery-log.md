@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,262 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,287 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -46,7 +46,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 4 — Contextual foundation and owned seed (2026-10-26)](#p03-1-step-4--contextual-foundation-and-owned-seed-2026-10-26) — 90 lines
   - [P03-1 Step 4 review round 1 (2026-10-26)](#p03-1-step-4-review-round-1-2026-10-26) — 25 lines
   - [P03-1 Step 4 review round 2 and diagnostic correction (2026-10-26)](#p03-1-step-4-review-round-2-and-diagnostic-correction-2026-10-26) — 47 lines
-  - [P03-1 Step 4 exported trace correction (2026-10-26)](#p03-1-step-4-exported-trace-correction-2026-10-26) — 34 lines
+  - [P03-1 Step 4 exported trace correction (2026-10-26)](#p03-1-step-4-exported-trace-correction-2026-10-26) — 37 lines
+  - [P03-1 Step 4 local closeout (2026-10-26)](#p03-1-step-4-local-closeout-2026-10-26) — 22 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1397,3 +1398,25 @@ existing serialized log/local/Sentry/response controls remain green.
 All 51 affected Architecture controls and 194 affected Unit controls pass with
 zero skips; the latter selection also includes the existing tenant span
 processor's three controls. No remote OTLP or Sentry delivery is claimed.
+
+### P03-1 Step 4 local closeout (2026-10-26)
+
+The same two independent diagnostic reviewers recheck `67d75e62` read-only.
+Both approve the trace correction with no remaining verified runtime finding.
+They confirm source-owned marker confinement, processor ordering, serialization
+at Export, nonempty immediate/global and deferred L1 controls, sibling evidence
+and Activity restoration. Their one Minor receipt correction is closed by a
+rebuilt CI/Release run against the exact committed source: 8/8 Integration,
+zero skips. The normal commit formatter reordered test imports after the earlier
+hash; the earlier receipt remains intact and the committed-source hashes/result
+are appended separately. Prior qualification is not silently relabelled.
+
+Step 4 is locally complete after both full-step independent review rounds,
+verified corrections, the actual diagnostic negative/positive controls and the
+additional scoped verification above. Its original 157-case contextual selection
+and later eight-case diagnostic/regression selection retain their separate
+source/scope; their overlapping cases are not summed into a new total. Final
+complete-suite, source-bound shard and combined provider/native qualification
+remain Step 6. No HTTP/bootstrap, live authorization or closure delivery is
+claimed. Implementation proceeds automatically to Step 5's approved existing
+binding admission, with new-user transport still owned by P03-3.
