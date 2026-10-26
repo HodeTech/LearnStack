@@ -1245,9 +1245,9 @@ retains production sizing. Step 4 qualifies the actual Membership
 trigger's `pg_locks` observation under
 [Standard 15's p95 budgets](15-performance.md#initial-budgets), as specified by
 the lock signal contract. Its real mutation/race/cleanup and local command-path
-measurement controls qualify their recorded contextual scope. Pending Step 5
-binding-load and P03-2 live-admission controls remain separate; none establishes
-production capacity.
+measurement controls qualify their recorded contextual scope. Existing-binding
+load observations retain their distinct control and scope; live-admission
+qualification remains P03-2. None establishes production capacity.
 
 ## Incident Response
 

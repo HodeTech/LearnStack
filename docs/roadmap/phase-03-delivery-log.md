@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,372 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,415 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -49,6 +49,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 4 exported trace correction (2026-10-26)](#p03-1-step-4-exported-trace-correction-2026-10-26) — 37 lines
   - [P03-1 Step 4 local closeout (2026-10-26)](#p03-1-step-4-local-closeout-2026-10-26) — 22 lines
   - [P03-1 Step 5 — Existing-binding API admission (2026-10-26)](#p03-1-step-5--existing-binding-api-admission-2026-10-26) — 85 lines
+  - [P03-1 Step 5 review round 1 and read-diagnostic correction (2026-10-26)](#p03-1-step-5-review-round-1-and-read-diagnostic-correction-2026-10-26) — 43 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1506,3 +1507,46 @@ capacity, throughput or speed-ratio guarantee follows.
 
 Both fresh implementation review rounds remain required before Step 5 closes.
 Complete source/shard/discovery and complementary A/B CI evidence remain Step 6.
+
+### P03-1 Step 5 review round 1 and read-diagnostic correction (2026-10-26)
+
+**Reviewed source:** `5f7a0625`. Three fresh independent read-only reviewers
+inspect API authentication/quota/reentry (GPT-6 Astra, xhigh), binding storage/
+cleanup/measurement (GPT-6.1 Sol, xhigh), and native/frontend/fixture/corpus
+handoff (GPT-6.1 Sol, xhigh). None edits files or executes builds/tests. The API
+slice approves. The storage slice requests one Major correction; the native
+slice approves runtime and identifies Minor stale implementation-status text.
+
+The verified Major is EF `QueryIterationFailed` (10100), emitted before the
+binding adapter translates the provider exception. The earlier permission-fault
+receipt proves raw exception logging but contains none of its selected personal
+canaries. A new actual HTTP case independently reproduces value disclosure:
+a restrictive fixture-only RLS function raises a PostgreSQL error containing
+the retained subject's neutral/nested/sensitive values. HTTP still returns 401,
+but pre-fix serialized Serilog contains those values. The negative receipt is
+retained separately; trace/response exclusion alone is not log safety.
+
+Identity now replaces only its EF query-failure event, alongside the existing
+save-event replacement. Its command interceptor emits fixed event 3192
+(`IdentityStorageReadFailed`) for LINQ/FromSql read failures without the provider
+exception or payload. Sync/async paths retain an operational signal; the adapter
+still owns the original failure, cancellation and uniform HTTP refusal. No
+binding-store query, authentication mapping or global/sibling logging changes.
+
+Fresh post-format CI/Release qualification passes 26 Integration, 51 Architecture
+and 216 Unit cases, with zero skips. The actual HTTP canary reaches the provider
+fault, returns 401 and exports a nonempty fixed Identity Error span, with no raw
+provider type, SQLSTATE or canary in serialized logs, exported traces or response.
+The RLS policy/function inventory is restored exactly and a fresh HTTP positive
+passes. Separate sibling iteration-event/span and sync/async FromSql controls
+remain positive. Existing save-failure, cancellation, connector reuse and cleanup
+regressions are included; overlapping populations are not summed with earlier
+receipts.
+
+Current glossary, Data Protection, Security 11 and Identity module descriptions
+now match implemented storage/proof ownership, preserving historical records.
+The Contract factory's exact identity startup-worker removal was tested in the
+working tree but accidentally omitted from the initial implementation commit.
+It is included in this correction; an exact committed-source Contract rerun
+follows before the second fresh full-step review. No production startup bypass
+is added. Final complete-source/shard/provider qualification remains Step 6.

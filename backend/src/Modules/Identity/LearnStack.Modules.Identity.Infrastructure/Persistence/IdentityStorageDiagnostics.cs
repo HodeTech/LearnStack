@@ -45,9 +45,19 @@ internal sealed class IdentityStorageTraceInterceptor : DbCommandInterceptor
         if (eventData.Context is IdentityDbContext) IdentityStorageTraceBoundary.MarkCurrentCommand();
         return result;
     }
+
+    public override void CommandFailed(DbCommand command, CommandErrorEventData eventData) =>
+        IdentityStorageDiagnostics.ReportReadFailure(eventData);
+
+    public override Task CommandFailedAsync(DbCommand command, CommandErrorEventData eventData,
+        CancellationToken cancellationToken = default)
+    {
+        IdentityStorageDiagnostics.ReportReadFailure(eventData);
+        return Task.CompletedTask;
+    }
 }
 
-/// <summary>Replaces Identity's pre-adapter EF save-failure message under ADR-0073 G19.</summary>
+/// <summary>Replaces Identity's pre-adapter EF failure messages under ADR-0073 G19.</summary>
 internal sealed class IdentityStorageDiagnostics : SaveChangesInterceptor
 {
     internal static readonly IdentityStorageDiagnostics Instance = new();
@@ -67,6 +77,20 @@ internal sealed class IdentityStorageDiagnostics : SaveChangesInterceptor
             LogSaveFailed(context.GetService<ILoggerFactory>().CreateLogger<IdentityStorageDiagnostics>(), null);
     }
 
+    internal static void ReportReadFailure(CommandErrorEventData eventData)
+    {
+        // Classify the EF source, not SQL text. All Identity query adapters keep
+        // an operational signal; existing provider/refusal/cancellation handling
+        // receives the original exception unchanged and remains its sole owner.
+        if (eventData.Context is IdentityDbContext context
+            && eventData.CommandSource is CommandSource.LinqQuery or CommandSource.FromSqlQuery
+            && eventData.Exception is not OperationCanceledException)
+            LogReadFailed(context.GetService<ILoggerFactory>().CreateLogger<IdentityStorageDiagnostics>(), null);
+    }
+
     private static readonly Action<ILogger, Exception?> LogSaveFailed = LoggerMessage.Define(
         LogLevel.Error, new EventId(3191, "IdentityStorageSaveFailed"), "Identity storage save failed.");
+
+    private static readonly Action<ILogger, Exception?> LogReadFailed = LoggerMessage.Define(
+        LogLevel.Error, new EventId(3192, "IdentityStorageReadFailed"), "Identity storage read failed.");
 }

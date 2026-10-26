@@ -38,9 +38,9 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     {
         base.OnConfiguring(optionsBuilder);
         // EF reports the original provider payload before the Identity adapter
-        // can translate it. Replace only this context's save-failure event;
+        // can translate it. Replace only this context's save/query-failure events;
         // ordinary command diagnostics and other module contexts stay enabled.
-        optionsBuilder.ConfigureWarnings(warnings => warnings.Ignore(CoreEventId.SaveChangesFailed));
+        optionsBuilder.ConfigureWarnings(warnings => warnings.Ignore(CoreEventId.SaveChangesFailed, CoreEventId.QueryIterationFailed));
         optionsBuilder.AddInterceptors(IdentityStorageDiagnostics.Instance, IdentityStorageTraceInterceptor.Instance);
     }
 

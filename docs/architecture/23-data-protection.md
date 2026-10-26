@@ -93,9 +93,14 @@ nested and sensitive canaries reach PostgreSQL before exclusion is checked in
 serialized Serilog, the local error archive, the real Sentry SDK envelope,
 exported OpenTelemetry spans and L1 response bytes. Nonempty positive controls
 qualify each output. Immediate and deferred profile failures, the global binding
-boundary, real validator
-attempted values and sibling-module event confinement are separate controls.
-Identity replaces only its EF save-failure event with a fixed diagnostic;
+boundary, real validator attempted values and sibling-module event confinement
+are separate controls. `TenantExistingBindingAdmissionTests` additionally reaches
+a value-bearing binding SELECT failure through actual HTTP: serialized Serilog,
+exported traces and response bytes exclude the neutral/nested/sensitive values
+while retaining fixed failure signals and a 401. This ordinary refusal does not
+execute the L1 exception, local archive or Sentry path; those sinks retain their
+separate writer-failure controls above.
+Identity replaces only its EF save/query-failure events with fixed diagnostics;
 unexpected contextual provider failures retain no original exception payload.
 Its actual EF command spans receive a nonexported source-owned marker; a named
 processor fixes only those Error descriptions before export, preserving error
@@ -311,7 +316,8 @@ The inventory also covers these distinct copies and custody boundaries:
 <!-- async-store-custody:end -->
 
 ADR-0072/0073 add identity linkage to the existing `audit_log` boundary above,
-not another physical store or custody owner. Implementation remains P03-1 Step 3:
+not another physical store or custody owner. The implemented global branch uses
+these linkages:
 `metadata.identity_subject_key` carries the stable binding key, including failed
 attempts without a User; proposed target and action references remain personal
 data. Existing SecurityEvent retention applies, and metadata stays outside the

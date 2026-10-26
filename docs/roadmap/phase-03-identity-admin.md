@@ -3,7 +3,7 @@
 > **Status (2026-10-26).** Entry preparation and P03-1's joint ADR approval
 > are complete. Steps 1–4 are locally complete with both review rounds. The
 > [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md)
-> is Accepted; existing-binding API activation is Step 5, and final qualification
+> is Accepted; existing-binding API activation is implemented under Step 5 review, and final qualification
 > Step 6. This is the current
 > critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md).
@@ -15,7 +15,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Steps 1–4 locally complete with both review rounds ([Step 4 closeout](phase-03-delivery-log.md#p03-1-step-4-local-closeout-2026-10-26)); existing-binding API activation in Step 5; HTTP/new-user BFF activation belongs to P03-3 |
+> | P03-1 | Identity authority and membership foundation | In progress — [joint acceptance / Step 1](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25); Steps 1–4 locally complete with both review rounds ([Step 4 closeout](phase-03-delivery-log.md#p03-1-step-4-local-closeout-2026-10-26)); [Step 5 existing-binding admission](phase-03-delivery-log.md#p03-1-step-5--existing-binding-api-admission-2026-10-26) implemented under review; HTTP/new-user BFF activation belongs to P03-3 |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |

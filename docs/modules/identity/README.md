@@ -336,7 +336,9 @@ The canonical [initial performance budgets](../../standards/15-performance.md#in
 apply: API p95 below 200 ms reads / 500 ms writes, excluding separately reported
 provider calls. The [Step 4 record](../../roadmap/phase-03-delivery-log.md#p03-1-step-4--contextual-foundation-and-owned-seed-2026-10-26)
 owns the small local command-path measurement and its limits; it establishes
-neither production capacity nor the pending Step 5 API binding-load result.
+no production capacity. The distinct
+[Step 5 binding-load observation](../../roadmap/phase-03-delivery-log.md#p03-1-step-5--existing-binding-api-admission-2026-10-26)
+retains its own control and scope.
 Standard 05 owns bounded lock waits,
 cancellation and metrics. Timeout yields a fixed retryable failure without
 partial grants. P03-2 measures candidate-reader/authorization costs before
@@ -351,13 +353,13 @@ closure/locators. These are named later writers, not implicit foundation authori
 
 | Subject/control | Current state | Owner / scope |
 |---|---|---|
-| Models, commands and registry | Global and contextual foundation implemented; Step 4 review remains separate | P03-1 Steps 3/4; live authorization P03-2 |
+| Models, commands and registry | Global and contextual foundation implemented | P03-1 Steps 3/4; live authorization P03-2 |
 | Canonical marker/filter/RLS/FK/unique/aggregate/audit controls | Identity extensions implemented with populated positive/dirty controls | P03-1 Step 4; [catalogue](../../standards/21-architecture-tests-catalogue.md#pending-identity-extensions-to-implemented-rules) owns the individual obligations |
 | `Permission_Definitions_DeclareScope` | Implemented for the finite foundation | `IdentityFoundationConventionTests` and actual command metadata; broader enforcement P03-2 |
 | `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Implemented for all current models, including contextual Identity | `DataProtectionConventionTests`; complete census and neutral-name omission controls |
 | `Identity_Seed_Uses_Finite_Adopted_Manifests` | Implemented; no-write/interrupted/conflict actual seed controls | `IdentityFoundationConventionTests` / `IdentitySeederTests`; combined final provider/browser qualification Step 6 |
 | `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Implemented actual app-role races and closed helper/caller controls | `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`; live transition/archive ownership remains P03-3/10 |
-| Per-sink PII canaries/child audit/MUST rollback | Implemented actual child snapshots/redacted diffs, MUST rollback and value-bearing diagnostic controls | `IdentitySeederTests`, `IdentityDiagnosticSinkTests` and canonical [data-protection proof ownership](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership); classification alone does not establish sink safety |
+| Per-sink PII canaries/child audit/MUST rollback | Implemented actual child snapshots/redacted diffs, MUST rollback and value-bearing diagnostic controls | `IdentitySeederTests`, `IdentityDiagnosticSinkTests`, `TenantExistingBindingAdmissionTests` and canonical [data-protection proof ownership](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership); classification alone does not establish sink safety |
 | `Global_Identity_Storage_Is_Subject_Confined` / `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Implemented global proofs; Step 3 completed both review rounds | `GlobalIdentitySchemaTests`, `IdentityAuditConventionTests` / `GlobalIdentityBootstrapTests`; P03-3 owns HTTP/new-user BFF activation |
 
 Registered means an actual catalogue entry exists. Until then a new control is
