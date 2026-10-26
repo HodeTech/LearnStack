@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,415 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,445 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -50,6 +50,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 4 local closeout (2026-10-26)](#p03-1-step-4-local-closeout-2026-10-26) — 22 lines
   - [P03-1 Step 5 — Existing-binding API admission (2026-10-26)](#p03-1-step-5--existing-binding-api-admission-2026-10-26) — 85 lines
   - [P03-1 Step 5 review round 1 and read-diagnostic correction (2026-10-26)](#p03-1-step-5-review-round-1-and-read-diagnostic-correction-2026-10-26) — 43 lines
+  - [P03-1 Step 5 review round 2 and local closeout (2026-10-26)](#p03-1-step-5-review-round-2-and-local-closeout-2026-10-26) — 30 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1550,3 +1551,33 @@ working tree but accidentally omitted from the initial implementation commit.
 It is included in this correction; an exact committed-source Contract rerun
 follows before the second fresh full-step review. No production startup bypass
 is added. Final complete-source/shard/provider qualification remains Step 6.
+
+### P03-1 Step 5 review round 2 and local closeout (2026-10-26)
+
+**Reviewed source:** `cb5937a8`, full Step 5 range from `7d29843a`. Two new
+independent read-only reviewers inspect API/storage/quota/reentry and the
+diagnostic correction (GPT-6 Astra, xhigh), and native/frontend/fixture/privacy/
+corpus boundaries (GPT-6.1 Sol, xhigh). Both approve their assigned slices with
+no verified actionable finding. Neither edits source or executes tests. Both
+independently match committed-source/receipt hashes; the exact committed
+Contract rerun passes 5/5 and the binding/diagnostic/cleanup selection 26/26,
+with zero skips. Normal commit formatting reordered test imports, so these
+receipts are appended separately rather than relabeling earlier source hashes.
+
+The parent also runs the complete guarded frontend population. Its first result
+is 2,272/2,277 in the first package: five migration-build controls still expect
+alphabetic module order after Tenancy/Platform. The approved Makefile correctly
+places Audit then Identity before the remaining discovered modules because of
+the central creation witness. Only the independent test expectation gains those
+two named priorities. The native/privacy reviewer separately approves this
+test-only correction; discovery, added-chain, exact argv, credential confinement,
+fresh build and failure propagation controls remain intact. All ten focused
+cases and the complete guarded frontend rerun pass: 2,380 cases in two packages,
+zero skips/todos. The failed full run remains a separate failed receipt.
+
+Step 5 is locally complete after both fresh full-step review rounds, verified
+corrections and committed-source requalification. Step 6 now owns the complete
+source-bound suite/shard/discovery and PostgreSQL/Keycloak/native/browser/A–B
+qualification, final current-corpus sweep and reviewable PR. Inherited Standard
+05/06 current-state wording is included in that sweep. No packet-complete or
+later onboarding/permission/closure delivery claim follows from local Step 5.

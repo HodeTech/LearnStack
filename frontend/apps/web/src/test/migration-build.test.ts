@@ -34,9 +34,11 @@ function migrationProjects(directory = join(repository, 'backend/src')): string[
 const projects = migrationProjects().sort();
 const tenancy = 'backend/src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure';
 const platform = 'backend/src/LearnStack.Infrastructure';
+const audit = 'backend/src/Modules/Audit/LearnStack.Modules.Audit.Infrastructure';
+const identity = 'backend/src/Modules/Identity/LearnStack.Modules.Identity.Infrastructure';
 const extra = 'backend/src/Modules/Zeta/LearnStack.Modules.Zeta.Infrastructure';
 const ordered = (chains: string[]) =>
-  [...new Set([tenancy, platform, ...chains.slice().sort()])].filter((path) =>
+  [...new Set([tenancy, platform, audit, identity, ...chains.slice().sort()])].filter((path) =>
     chains.includes(path),
   );
 
