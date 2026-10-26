@@ -1,3 +1,5 @@
+using System.Data.Common;
+using System.Diagnostics;
 using LearnStack.SharedKernel.Errors;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -8,6 +10,42 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 /// <summary>Unexpected database failures retain a fixed operational signal, never a provider payload.</summary>
 public sealed class IdentityStorageProviderException()
     : ProviderException("identity-storage", "Identity storage operation failed.", isClientError: false);
+
+/// <summary>Source-owned, nonexported classification of Identity's actual EF command span.</summary>
+public static class IdentityStorageTraceBoundary
+{
+    private const string MarkerKey = "LearnStack.Identity.StorageCommand";
+    private static readonly object Marker = new();
+    private const string EfSource = "OpenTelemetry.Instrumentation.EntityFrameworkCore";
+
+    internal static void MarkCurrentCommand()
+    {
+        if (Activity.Current is { } activity && activity.Source.Name == EfSource)
+            activity.SetCustomProperty(MarkerKey, Marker);
+    }
+
+    /// <summary>The pinned EF instrumentation ends a failed span before the adapter can translate its exception.</summary>
+    public static void ApplyBeforeExport(Activity activity)
+    {
+        ArgumentNullException.ThrowIfNull(activity);
+        if (activity.Source.Name == EfSource && ReferenceEquals(activity.GetCustomProperty(MarkerKey), Marker)
+            && activity.Status == ActivityStatusCode.Error)
+            activity.SetStatus(ActivityStatusCode.Error, "Identity storage command failed.");
+    }
+}
+
+internal sealed class IdentityStorageTraceInterceptor : DbCommandInterceptor
+{
+    internal static readonly IdentityStorageTraceInterceptor Instance = new();
+
+    public override DbCommand CommandInitialized(CommandEndEventData eventData, DbCommand result)
+    {
+        // EF's CommandCreated diagnostic has started this command's Activity.
+        // Mark that object, not an ambient parent or a SQL-text classification.
+        if (eventData.Context is IdentityDbContext) IdentityStorageTraceBoundary.MarkCurrentCommand();
+        return result;
+    }
+}
 
 /// <summary>Replaces Identity's pre-adapter EF save-failure message under ADR-0073 G19.</summary>
 internal sealed class IdentityStorageDiagnostics : SaveChangesInterceptor

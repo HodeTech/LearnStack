@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
@@ -82,6 +83,9 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
             """);
         try
         {
+            using var parentSource = new ActivitySource("learnstack.identity.storage-qualification");
+            using var parent = parentSource.StartActivity("identity-storage-parent");
+            parent.Should().NotBeNull();
             await using var source = ApplicationDataSource.Build(fixture.Postgres.AppConnectionString, sinks.Loggers);
             await using var unit = new NpgsqlUnitOfWork(source, sinks.Loggers.CreateLogger<NpgsqlUnitOfWork>());
             await using var frame = await unit.BeginTransactionAsync();
@@ -117,6 +121,11 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
             (await ScalarAsync<bool>(observer, null, "SELECT is_called FROM public.identity_sink_source")).Should().BeTrue(
                 "the provider itself confirms all three exact values reached its failing trigger, including the deferred path");
 
+            Activity.Current.Should().BeSameAs(parent, "stopping the actual EF span restores its existing caller context");
+            foreach (var trace in sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"))
+                trace.Json.Should().Contain(parent!.Id!, "the actual EF span keeps its caller's trace parent");
+            parent!.Stop();
+            parent.Status.Should().Be(ActivityStatusCode.Unset);
             await sinks.CaptureThroughL1Async(failure!);
             var captured = await sinks.ReadAsync();
             output.WriteLine(JsonSerializer.Serialize(new
@@ -128,10 +137,20 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
                 LocalContainsCanary = Canaries.Any(captured.Local.Contains),
                 SentryContainsCanary = Canaries.Any(captured.Sentry.Contains),
                 ResponseContainsCanary = Canaries.Any(captured.Response.Contains),
+                TraceContainsCanary = Canaries.Any(captured.Trace.Contains),
+                ExportedSpans = sinks.Traces.Count,
+                ErrorSpans = sinks.Traces.Count(trace => trace.Status == System.Diagnostics.ActivityStatusCode.Error),
             }));
             captured.AssertPositiveControls();
             failure.Should().BeOfType<IdentityStorageProviderException>();
             if (!deferred) captured.Log.Should().Contain("IdentityStorageSaveFailed").And.Contain("3191");
+            var efErrors = sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"
+                && trace.Status == System.Diagnostics.ActivityStatusCode.Error).ToArray();
+            efErrors.Should().HaveCount(deferred ? 0 : 1);
+            if (!deferred) efErrors.Should().OnlyContain(trace => trace.Description == "Identity storage command failed.");
+            sinks.Traces.Where(trace => trace.Source == "learnstack.identity.sink-qualification")
+                .Should().HaveCount(2).And.OnlyContain(trace => trace.Status == System.Diagnostics.ActivityStatusCode.Error
+                    && trace.Description == nameof(IdentityStorageProviderException));
             captured.AssertExcludes(Canaries);
             failure.InnerException.Should().BeNull("the adapter must not retain an original provider payload");
         }
@@ -159,6 +178,9 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
             """);
         try
         {
+            using var parentSource = new ActivitySource("learnstack.identity.storage-qualification");
+            using var parent = parentSource.StartActivity("identity-storage-parent");
+            parent.Should().NotBeNull();
             await using var source = ApplicationDataSource.Build(fixture.Postgres.AppConnectionString, sinks.Loggers);
             await using var unit = new NpgsqlUnitOfWork(source, sinks.Loggers.CreateLogger<NpgsqlUnitOfWork>());
             var subject = new GlobalIdentitySubject(Authority.AuthorityId, Authority.Issuer, Payload);
@@ -179,10 +201,18 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
             ((PostgresException)witness.Failure!).SqlState.Should().Be("P0399");
             witness.Failure!.Message.Should().Contain(Payload);
             await frame.FailAsync();
+            Activity.Current.Should().BeSameAs(parent, "stopping the actual EF span restores its existing caller context");
+            foreach (var trace in sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"))
+                trace.Json.Should().Contain(parent!.Id!, "the actual EF span keeps its caller's trace parent");
+            parent!.Stop();
+            parent.Status.Should().Be(ActivityStatusCode.Unset);
             await sinks.CaptureThroughL1Async(failure!);
             var captured = await sinks.ReadAsync();
             captured.AssertPositiveControls();
             captured.Log.Should().Contain("IdentityStorageSaveFailed").And.Contain("3191");
+            sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"
+                && trace.Status == System.Diagnostics.ActivityStatusCode.Error)
+                .Should().ContainSingle().Which.Description.Should().Be("Identity storage command failed.");
             captured.AssertExcludes(Canaries);
             failure!.InnerException.Should().BeNull();
         }
@@ -213,7 +243,12 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
         db.Tenants.Add(Tenant.Create(TenantId.From(Guid.CreateVersion7()), "sink-control", "Sink control",
             new SystemClock(), UserId.SystemActor));
         var save = () => db.SaveChangesAsync();
-        await save.Should().ThrowAsync<DbUpdateException>();
+        var failure = (await save.Should().ThrowAsync<DbUpdateException>()).Which;
+        failure.InnerException.Should().BeOfType<PostgresException>();
+        sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"
+            && trace.Status == System.Diagnostics.ActivityStatusCode.Error)
+            .Should().ContainSingle().Which.Description.Should().Be(failure.InnerException!.Message,
+                "the Identity boundary must leave the sibling module's actual error status description intact");
         sinks.LogText.Should().Contain("Microsoft.EntityFrameworkCore.Update.SaveChangesFailed")
             .And.NotContain("IdentityStorageSaveFailed");
         await frame.FailAsync();

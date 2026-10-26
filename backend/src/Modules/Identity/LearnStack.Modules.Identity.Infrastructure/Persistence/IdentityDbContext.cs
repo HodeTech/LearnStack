@@ -41,7 +41,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
         // can translate it. Replace only this context's save-failure event;
         // ordinary command diagnostics and other module contexts stay enabled.
         optionsBuilder.ConfigureWarnings(warnings => warnings.Ignore(CoreEventId.SaveChangesFailed));
-        optionsBuilder.AddInterceptors(IdentityStorageDiagnostics.Instance);
+        optionsBuilder.AddInterceptors(IdentityStorageDiagnostics.Instance, IdentityStorageTraceInterceptor.Instance);
     }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

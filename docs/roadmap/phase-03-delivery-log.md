@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,225 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,262 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -45,7 +45,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0074 maintainer review correction and acceptance (2026-10-26)](#adr-0074-maintainer-review-correction-and-acceptance-2026-10-26) — 52 lines
   - [P03-1 Step 4 — Contextual foundation and owned seed (2026-10-26)](#p03-1-step-4--contextual-foundation-and-owned-seed-2026-10-26) — 90 lines
   - [P03-1 Step 4 review round 1 (2026-10-26)](#p03-1-step-4-review-round-1-2026-10-26) — 25 lines
-  - [P03-1 Step 4 review round 2 and diagnostic correction (2026-10-26)](#p03-1-step-4-review-round-2-and-diagnostic-correction-2026-10-26) — 44 lines
+  - [P03-1 Step 4 review round 2 and diagnostic correction (2026-10-26)](#p03-1-step-4-review-round-2-and-diagnostic-correction-2026-10-26) — 47 lines
+  - [P03-1 Step 4 exported trace correction (2026-10-26)](#p03-1-step-4-exported-trace-correction-2026-10-26) — 34 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1356,6 +1357,43 @@ SDK envelope and L1 response execution before every canary exclusion assertion.
 Sentry delivery uses an in-memory transport; the actual SDK serializes its
 envelope, and the existing L1 handler writes response bytes directly. No remote
 Sentry delivery or production HTTP endpoint is claimed. All 51 affected
-Architecture and 191 affected Unit controls pass, with zero skips. Fresh scoped independent verification
-of this correction remains required before local Step 4 closeout; complete
+Architecture and 191 affected Unit controls pass, with zero skips. Fresh scoped
+independent verification of this correction remains required before local Step 4 closeout; complete
 source/shard/provider qualification remains Step 6.
+
+### P03-1 Step 4 exported trace correction (2026-10-26)
+
+**Reviewed source:** `f814d97e`. Two fresh scoped read-only reviewers inspect the
+diagnostic correction: privacy/source-reaching sinks (GPT-6 Astra, xhigh) and
+storage/integration/corpus behavior (GPT-6.1 Sol, xhigh). The privacy slice
+approves the four named sink controls. The integration slice identifies a
+separate exported-trace path in the pinned EF instrumentation: its CommandError
+handler copies the original provider message into span StatusDescription before
+the adapter can translate it. This is a verified review finding only after a
+new actual exporter reproduces it; the initial four-sink result alone does not
+establish trace safety.
+
+The actual API tracing composition now drives a synchronous test exporter that
+serializes at Export time. The pre-fix immediate profile case exports an EF
+Error span containing every planted synthetic value; the negative log/TRX is
+retained separately. The deferred preflight uses direct Npgsql, which the current
+tracing composition does not subscribe to; it still reaches real L1 exception
+spans. Neither absence of that driver span nor later mutation is a proof of
+exclusion from an already exported span.
+
+The bounded correction marks only the actual Identity EF command Activity from
+its DbContext interceptor, using a private object custom property with no values,
+exported tags or inheritance. An API processor registered before exporters
+replaces only marked EF Error descriptions with fixed text. Error status,
+ordinary command evidence, trace parents and unmarked sibling descriptions stay
+intact. It adds no SQL-text classifier, global scrub or new authority.
+
+All eight focused Integration cases pass with the expanded trace assertions.
+Immediate profile and global binding errors export fixed EF descriptions;
+deferred failure exports two nonempty L1 Error spans with the fixed translated
+type. A sibling-module Error description still equals its actual provider
+message. Caller Activity restoration and EF trace parent checks pass. The
+existing serialized log/local/Sentry/response controls remain green.
+All 51 affected Architecture controls and 194 affected Unit controls pass with
+zero skips; the latter selection also includes the existing tenant span
+processor's three controls. No remote OTLP or Sentry delivery is claimed.
