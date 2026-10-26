@@ -7,6 +7,7 @@ import importlib.util
 import json
 import io
 from pathlib import Path
+import subprocess
 import tempfile
 import time
 import types
@@ -67,6 +68,21 @@ class ShardControls(unittest.TestCase):
         with self.assertRaises(OWNER.Refusal) as caught:
             function(*args)
         self.assertEqual(reason, caught.exception.reason)
+
+    def test_fixture_preparation_cli_requires_exact_mode_argument_and_other_commands_refuse_extras(self):
+        for args, reason in ((['prepare-fixtures'], 'mode_refused'),
+                             (['prepare-fixtures', 'ordinary-0', 'extra'], 'mode_refused'),
+                             (['topology', 'ordinary-0'], 'mode_refused'),
+                             (['aggregate-backend', 'ordinary-0'], 'mode_refused'),
+                             (['aggregate-integration', 'ordinary-0'], 'mode_refused'),
+                             (['prepare-fixtures', 'ordinary-0'], 'fixture_setup_context_invalid'),
+                             (['prepare-fixtures', 'ordinary-00'], 'fixture_setup_context_invalid')):
+            with self.subTest(args=args):
+                result = subprocess.run([LAUNCHER.sys.executable, str(ROOT / 'scripts/ci-test-shards.py'), *args],
+                    env={}, capture_output=True, text=True, timeout=5)
+                self.assertEqual(1, result.returncode)
+                self.assertEqual({'protocol': 1, 'error': reason}, json.loads(result.stdout))
+                self.assertEqual('', result.stderr)
 
     def test_current_plan_and_both_complete_assignments_have_exact_owners(self):
         manifest = self.manifest()
@@ -584,7 +600,7 @@ public sealed class AliasedCollectionTests { }
                     LAUNCHER.write_json(private / 'workload.json', {'success': True})
                     LAUNCHER.write_json(output / 'discovery.json', {'identity': context, 'population': manifest})
                 for name, replacement in {'identity': lambda _: context,
-                    'deadlines': lambda: (time.monotonic() + 5, time.monotonic() + 10),
+                    'deadlines': lambda _: (time.monotonic() + 5, time.monotonic() + 10),
                     'lower_core': lambda: None, 'locations': lambda *_: ('owned.service', private, output),
                     'CGROUP': str(fake_cgroup), 'DOTNET': '/usr/bin/true', 'SHARDS': OWNER,
                     'qualify_shard_vm': lambda *_: {'cpus': 4}, 'launch_unit': launch,
@@ -755,7 +771,7 @@ public sealed class AliasedCollectionTests { }
             (group / 'cgroup.controllers').write_text('pids\n')
             fork = mock.Mock(side_effect=AssertionError('No workload may start'))
             for name, value in {'identity': lambda _: {}, 'lower_core': lambda: None,
-                'deadlines': lambda: (time.monotonic() + 60, time.monotonic() + 90),
+                'deadlines': lambda _: (time.monotonic() + 60, time.monotonic() + 90),
                 'locations': lambda *_: ('owned.service', private, root / 'output'),
                 'cgroup_path': lambda _: '/system.slice/owned.service/supervisor',
                 'CGROUP': str(root / 'cgroup')}.items():

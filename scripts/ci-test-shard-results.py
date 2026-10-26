@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ADR-0063 attempt-specific API evidence, source topology and result validation.
+"""ADR-0063/0075 attempt-specific API evidence, topology and result validation.
 
 Only the two aggregate jobs receive a read-only Actions token. ZIPs are fetched
 by API artifact ID, hash-checked before bounded extraction into separate private
@@ -62,16 +62,30 @@ OWNER = module('ci_result_execution', 'ci-native-tests.py')
 Refusal, require = PLAN.Refusal, PLAN.require
 
 
-def prepare_fixture_images():
+def producer_seconds(owner, plan):
+    expected = {'native' if mode == 'native-shard' else mode for mode in OWNER.SHARD_JOBS}
+    require(isinstance(owner, str) and owner in expected, 'producer_identity_invalid')
+    mode = 'native-shard' if owner == 'native' else owner
+    try:
+        return OWNER.job_seconds(mode, JOB_IDS[owner.split('-')[0]], plan['counts'])
+    except OWNER.Refusal as failure:
+        raise Refusal(failure.reason) from None
+
+
+def prepare_fixture_images(mode):
     # Pull outside fixture startup, while charging every second to the same
-    # twenty-minute job. Never consume the execution owner's cleanup reserve.
+    # verified ordinary job. Never consume the owner's cleanup reserve.
     require(sys.platform == 'linux' and os.environ.get('GITHUB_ACTIONS') == 'true'
             and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted'
-            and os.environ.get('GITHUB_JOB') == 'backend-integration-tests', 'fixture_setup_context_invalid')
+            and os.environ.get('GITHUB_JOB') == 'backend-integration-tests'
+            and isinstance(mode, str)
+            and OWNER.job_name(mode) == 'backend-integration-tests', 'fixture_setup_context_invalid')
+    OWNER.identity(mode)  # Verify source/workflow/job/index before any image I/O.
+    seconds = producer_seconds(mode, PLAN.load_plan())
     started = os.environ.get('LEARNSTACK_CI_STARTED_AT', '')
     require(re.fullmatch(r'[1-9][0-9]*', started), 'fixture_setup_clock_missing')
     elapsed = time.time() - int(started)
-    available = OWNER.JOB_SECONDS - OWNER.RESERVE_SECONDS - elapsed
+    available = seconds - OWNER.RESERVE_SECONDS - elapsed
     require(elapsed >= 0 and available > 0, 'fixture_setup_deadline_exhausted')
     beginning = time.monotonic()
     deadline = beginning + min(110, available)
@@ -172,7 +186,9 @@ def workflow_topology(documents, plan):
     realm_node_gates(jobs['meta'])
     for scope, job_id in JOB_IDS.items():
         job = jobs[job_id]
-        require(job.get('runs-on') == 'ubuntu-24.04' and job.get('timeout-minutes') == 20
+        owner = scope + '-0' if scope in ('architecture', 'ordinary') else scope
+        require(job.get('runs-on') == 'ubuntu-24.04'
+                and job.get('timeout-minutes') == producer_seconds(owner, plan) // 60
                 and not any(key in job for key in ('if', 'permissions', 'continue-on-error', 'container', 'services')),
                 'execution_topology_invalid')
         if scope in ('architecture', 'ordinary'):
@@ -198,8 +214,11 @@ def workflow_topology(documents, plan):
                     and names.index(compile_name) < names.index(EXECUTE_STEP), 'fixture_compile_gate_invalid')
             prepare_name = 'Prepare pinned provider fixture images within the whole-job budget'
             prepare = [step for step in steps if step.get('name') == prepare_name]
-            require(len(prepare) == 1 and prepare[0].get('run') == 'python3 scripts/ci-test-shards.py prepare-fixtures'
+            require(len(prepare) == 1 and prepare[0].get('run') ==
+                    'python3 scripts/ci-test-shards.py prepare-fixtures ordinary-${{ matrix.index }}'
                     and prepare[0].get('timeout-minutes') == 2 and 'if' not in prepare[0]
+                    and isinstance(prepare[0].get('env'), dict) and prepare[0]['env']
+                    and prepare[0]['env'] == steps[names.index(EXECUTE_STEP)].get('env')
                     and names.index(prepare_name) < names.index(EXECUTE_STEP), 'fixture_image_gate_invalid')
         build, execute, upload = (steps[names.index(name)] for name in (BUILD_STEP, EXECUTE_STEP, UPLOAD_STEP))
         mode = 'native-shard' if scope == 'native' else scope
@@ -374,6 +393,7 @@ def verify_jobs(jobs, context, plan, scope, *, allow_pending=False):
     result, pending = {}, None
     for owner in owners:
         job = by_name[producer_name(owner)]
+        seconds = producer_seconds(owner, plan)
         completed = job.get('status') == 'completed' and job.get('conclusion') == 'success'
         waiting = allow_pending and pending_state(job)
         if not completed and not waiting:
@@ -388,7 +408,7 @@ def verify_jobs(jobs, context, plan, scope, *, allow_pending=False):
         if completed:
             start, end = timestamp(job.get('started_at')), timestamp(job.get('completed_at'))
             require(created <= start, 'api_timestamp_invalid')
-            require(0 < end - start <= 20 * 60, 'producer_ceiling_exceeded')
+            require(0 < end - start <= seconds, 'producer_ceiling_exceeded')
         else:
             require('completed_at' in job and job['completed_at'] is None
                     and 'started_at' in job, 'api_timestamp_invalid')
@@ -499,8 +519,8 @@ def unpack_archive(raw, artifact, output):
         raise Refusal('artifact_zip_invalid') from None
 
 
-def finite_seconds(value):
-    return type(value) in (int, float) and math.isfinite(value) and 0 <= value <= 1200
+def finite_seconds(value, ceiling):
+    return type(value) in (int, float) and math.isfinite(value) and 0 <= value <= ceiling
 
 
 def binary_identity(value, keys):
@@ -520,12 +540,13 @@ def verify_receipt(output, context, owner, plan, assignment):
             and result.get('partition') == mode and result.get('job') == job_id
             and all(result.get(key) is True for key in ('success', 'complete', 'ownershipComplete', 'cleanupOwnershipComplete'))
             and result.get('error') is None and result.get('forcedCleanup') is False, 'execution_receipt_incomplete')
+    seconds = producer_seconds(owner, plan)
     docker = scope in ('ordinary', 'native')
     require(result.get('dockerAbsent') is (True if docker else None)
             and result.get('authority') == {'process': 'owned_systemd_cgroup', 'docker': docker, 'collector': owner == 'native'},
             'execution_authority_mismatch')
-    require(all(finite_seconds(result.get(key)) for key in ('preOwnerSeconds', 'setupSeconds', 'executionSeconds', 'cleanupSeconds'))
-            and sum(result[key] for key in ('preOwnerSeconds', 'setupSeconds', 'executionSeconds', 'cleanupSeconds')) < 1200,
+    require(all(finite_seconds(result.get(key), seconds) for key in ('preOwnerSeconds', 'setupSeconds', 'executionSeconds', 'cleanupSeconds'))
+            and sum(result[key] for key in ('preOwnerSeconds', 'setupSeconds', 'executionSeconds', 'cleanupSeconds')) < seconds,
             'execution_intervals_invalid')
     require(positive(result.get('observedVmMemoryPeakBytes')) and positive(result.get('vmMemorySamples')),
             'vm_resource_evidence_missing')
@@ -581,7 +602,7 @@ def verify_receipt(output, context, owner, plan, assignment):
     binary_identity(measured.get('toolchain'), ('sdk', 'console', 'consoleSha256', 'consoleDepsSha256'))
     for key in ('toolchainObservationSeconds', 'nonTestGateSeconds', 'discoveryAndSelectionSeconds',
                 'resultExportAndValidationSeconds', 'workloadSeconds'):
-        require(finite_seconds(measured.get(key)), 'measurement_intervals_invalid')
+        require(finite_seconds(measured.get(key), seconds), 'measurement_intervals_invalid')
     require(measured.get('fixturesStarted') is None and measured.get('fixtureStartupSeconds') is None,
             'fixture_observation_invalid')
     projects = measured.get('projects')
@@ -591,8 +612,8 @@ def verify_receipt(output, context, owner, plan, assignment):
     for item in projects:
         assembly = item.get('assembly')
         require(item.get('cases') == len([case for case in selected if case['assembly'] == assembly])
-                and positive(item['cases']) and finite_seconds(item.get('firstResultSeconds'))
-                and finite_seconds(item.get('testProcessSeconds'))
+                and positive(item['cases']) and finite_seconds(item.get('firstResultSeconds'), seconds)
+                and finite_seconds(item.get('testProcessSeconds'), seconds)
                 and item['firstResultSeconds'] <= item['testProcessSeconds']
                 and item.get('failureLocations') == [], 'project_measurement_invalid')
         binary_identity(item.get('adapter'), ('assemblyVersion', 'sha256'))

@@ -40,8 +40,8 @@ owns review, packet and exact PR-head CI/job-budget status),
 (Accepted 2026-10-18; general CI obligation implemented; the phase record owns
 final-source hosted qualification),
 [ADR-0075 Ordinary CI Job Window](../decisions/0075-ordinary-ci-job-window.md)
-(Accepted 2026-10-27; the ordinary-budget extension below awaits implementation
-and fresh full hosted qualification),
+(Accepted 2026-10-27; the ordinary-budget extension below is implemented with
+offline controls; fresh full hosted qualification remains required),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
 (Accepted 2026-10-19; P02b-5 obligations implemented and merged through PR #33;
 the [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
@@ -6291,9 +6291,11 @@ and fixture definitions make the implemented controls non-vacuous.
   gates/toolchain/resource fields, partial-rerun refusals and canonical-name
   collisions. The phase's Step 3 record separately owns actual final-source
   two-assignment hosted qualification; source enforcement is not a fit claim.
-  **ADR-0075 extension accepted; implementation pending** in Phase 03's
-  three-step CI correction. The existing Implemented status does not establish
-  the extension or its hosted fit.
+  **ADR-0075 extension implemented** by the same owners and offline suites:
+  exact mode/job/index policy, ordinary-only workflow/API/receipt/measurement
+  windows, fixture-preparation identity, unchanged operation caps and forged
+  identity/nonfinite/threshold counterexamples. Phase 03 owns its implementation
+  reviews and fresh complete hosted A/B; local controls do not establish fit.
 - **Phase:** 02b (P02b-4 CI follow-up).
 
 ## References

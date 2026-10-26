@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,480 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,524 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -72,7 +72,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 revised proposal review round 2 (2026-10-27)](#adr-0075-revised-proposal-review-round-2-2026-10-27) — 25 lines
   - [ADR-0075 acceptance and Step 1 (2026-10-27)](#adr-0075-acceptance-and-step-1-2026-10-27) — 28 lines
   - [ADR-0075 Step 1 review round 1 (2026-10-27)](#adr-0075-step-1-review-round-1-2026-10-27) — 14 lines
-  - [ADR-0075 Step 1 review round 2 and closeout (2026-10-27)](#adr-0075-step-1-review-round-2-and-closeout-2026-10-27) — 12 lines
+  - [ADR-0075 Step 1 review round 2 and closeout (2026-10-27)](#adr-0075-step-1-review-round-2-and-closeout-2026-10-27) — 13 lines
+  - [ADR-0075 Step 2 closed budget implementation (2026-10-27)](#adr-0075-step-2-closed-budget-implementation-2026-10-27) — 43 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2638,3 +2639,47 @@ preserved outside its generated index. Lifecycle, fragments, roadmap/index and
 whitespace checks pass. Neither executes runtime tests, starts services or
 requalifies archives. Step 1 is complete; Step 2 may now implement the approved
 closed policy. This closeout supplies no executable or hosted-fit evidence.
+
+
+### ADR-0075 Step 2 closed budget implementation (2026-10-27)
+
+One `job_seconds(mode, job, counts)` policy in `ci-native-tests.py` owns the
+1,500-second ordinary and 1,200-second other execution windows. It refuses
+unknown/prefix/alias modes, wrong job identity and out-of-plan indices. Both
+owner and leaf deadlines charge the same pre-checkout clock and retain every
+component of the 203-second reserve. No environment budget override is added.
+
+The result owner uses this same policy for expected-owner API running walls,
+workflow topology, four disjoint receipt intervals and enclosing measurement
+observations. Receipt identity is bound before selecting its limit. The finite
+observation helper requires an explicit verified ceiling; no global widening
+or self-declared partition selects ordinary authority. Nonordinary remains
+1,200 even inside integration; nested measurement observations are not summed
+as additional disjoint work.
+
+Only the ordinary job ceiling changes to twenty-five minutes. Fixture
+preparation now receives the exact matrix mode and the same source/workflow
+metadata as execution, validates the real existing identity path before image
+I/O, and uses the common budget. Its 110-second total, 55-second per-image and
+two-minute step caps stay unchanged. Topology requires the two metadata maps to
+agree; real runtime identity still independently rejects corrupted metadata.
+The CLI accepts exactly one mode argument for preparation and retains exact
+arity elsewhere. Counts, plan, salt, algorithm, population, other job ceilings,
+resource policy, protection names and application code remain unchanged.
+
+**Local validation.** The combined plan/result suite passes 81 controls
+(including 38 aggregate controls) in approximately 5.2 seconds under a local
+27-second guard, within meta's existing 30-second allocation. The complete real
+launcher offline suite passes 89 controls in approximately 22.2 seconds. After
+self-review makes the long-observation positive fixture's nested intervals
+coherent, the complete combined suite passes again. Counterexamples cover
+expected identity, exact thresholds/strict sums, nonfinite/boolean/negative
+fields, longer ordinary worker/assembly observations, nonordinary refusals,
+preparation context/pull caps and workflow/CLI drift. Topology, Python compile,
+document guards and whitespace checks pass. Private logs are under
+`artifacts/pr38-review/adr75-step2/`.
+
+These are offline source/policy controls using disposable seams, not systemd,
+Docker lifecycle or hosted-fit evidence. No .NET/application test source or
+runtime is changed; fresh full hosted A/B remains Step 3's required witness.
+Step 2's two independent review rounds remain before that qualification starts.

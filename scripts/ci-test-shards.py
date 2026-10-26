@@ -400,7 +400,9 @@ def assignment_diff(manifest, before, after):
 
 
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in ('topology', 'prepare-fixtures', 'aggregate-backend', 'aggregate-integration'):
+    action = sys.argv[1] if len(sys.argv) > 1 else None
+    if (action not in ('topology', 'prepare-fixtures', 'aggregate-backend', 'aggregate-integration')
+            or len(sys.argv) != (3 if action == 'prepare-fixtures' else 2)):
         print('{"protocol":1,"error":"mode_refused"}')
         return 1
     result = None
@@ -413,7 +415,7 @@ def main():
             print('{"protocol":1,"topology":"complete"}')
             return 0
         if sys.argv[1] == 'prepare-fixtures':
-            return result.prepare_fixture_images()
+            return result.prepare_fixture_images(sys.argv[2])
         return result.aggregate(sys.argv[1].removeprefix('aggregate-'))
     except Exception as failure:
         # Known owners expose only closed refusals. An unexpected import/parser
