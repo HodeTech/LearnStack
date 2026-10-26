@@ -194,6 +194,31 @@ const environmentText = (values: Record<string, string>) =>
     .map(([key, value]) => `${key}='${value}'`)
     .join('\n') + '\n';
 
+it.each([
+  'Username=learnstack_app',
+  'UID=learnstack_app',
+  'User ID=learnstack_app',
+  'Username=learnstack_migration',
+])('refuses an ambiguous migration role before children (%s)', (duplicate) => {
+  const files = fixture();
+  const connection = migrationConnection + ';' + duplicate;
+  const { result, calls } = files.run({ ConnectionStrings__Migration: connection, ...authority });
+  expect(result.status).not.toBe(0);
+  expect(calls).toEqual([]);
+  expect(result.stdout + result.stderr).not.toContain(connection);
+  expect(result.stdout + result.stderr).not.toContain('private-test-credential');
+});
+
+it('does not confuse a quoted password segment with a second role assignment', () => {
+  const files = fixture();
+  const connection =
+    'Host=deployment.example;Username=learnstack_migration;Password="fixture;UID=learnstack_app"'; // leakwatch:ignore -- synthetic input; dotnet is a local stub
+  const { result, calls } = files.run({ ConnectionStrings__Migration: connection, ...authority });
+  expect(result.status, result.stderr).toBe(0);
+  expect(calls.at(-1)!.connection).toBe(connection);
+  expect(result.stdout + result.stderr).not.toContain(connection);
+});
+
 it.each(['ambient', 'file'] as const)(
   'installs one complete %s selection with confined child environments',
   (source) => {

@@ -18,7 +18,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | Implemented and qualified — [six-step closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26); PR review/merge pending, with normal current-head checks required; HTTP/new-user BFF activation belongs to P03-3 |
+> | P03-1 | Identity authority and membership foundation | Implemented; PR corrections under qualification — [six-step closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26); PR review/merge pending, with normal current-head checks required; HTTP/new-user BFF activation belongs to P03-3 |
 > | P03-2 | Live membership and authorization | Not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |

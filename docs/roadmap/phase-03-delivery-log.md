@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,959 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,990 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -60,6 +60,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 6 qualification closeout and PR handoff (2026-10-26)](#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26) — 73 lines
   - [P03-1 PR 38 review corrections (2026-10-26)](#p03-1-pr-38-review-corrections-2026-10-26) — 98 lines
   - [P03-1 PR 38 correction review round 1 (2026-10-26)](#p03-1-pr-38-correction-review-round-1-2026-10-26) — 55 lines
+  - [P03-1 PR 38 correction review round 2 (2026-10-26)](#p03-1-pr-38-correction-review-round-2-2026-10-26) — 31 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2104,3 +2105,34 @@ parent-scope/provider/diagnostic cases, 45 related architecture cases and the
 complete guarded frontend population of 2,408 cases in two packages. Frontend
 lint/typecheck and documentation checks pass. These are local results with zero
 skips/todos, not a replacement for current-source hosted qualification.
+
+### P03-1 PR 38 correction review round 2 (2026-10-26)
+
+Two new independent reviewers inspect `d32f3101` → `26923143`: Astra/xhigh
+reviews all changed backend production/test files and surrounding ownership;
+Sol/high reviews tooling, frontend and mutable documentation. Neither executes
+.NET or provider/browser qualification. The backend reviewer approves with no
+concrete residual finding, explicitly limiting that verdict to source review.
+
+The tooling reviewer finds that the shared migration-role parser accepts the
+first recognized username assignment even when another alias follows. That
+ambiguity now refuses without printing credentials, before any .NET child.
+Four actual-recipe negative controls cover duplicate/synonymous assignments,
+including equal duplicate values; a quoted password containing a role-like
+segment remains valid. The focused migration/demo selection passes 227/227.
+This establishes refusal before child execution, without making an unmeasured
+claim about Npgsql's duplicate-alias precedence.
+
+The same reviewer narrowly rechecks the parser, refusal-before-child path,
+controls and Status edit, confirms both findings closed, and reports no residual
+issue in that scope. This recheck does not claim a new full review or suite run.
+
+The reviewer also identifies the Status row's unqualified completion wording.
+It now distinguishes implemented work from pending correction qualification;
+the earlier six-step closeout and its source-bound A/B receipts remain history.
+Both fresh correction review rounds are complete. Current-source hosted
+qualification remains required and is not inferred from reviewer approval or
+the focused local checks.
+
+The final guarded frontend run passes 2,413 cases in two packages with zero
+skips/todos; canonical frontend lint/typecheck and the documentation gates pass.
