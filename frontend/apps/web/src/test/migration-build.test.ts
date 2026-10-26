@@ -244,6 +244,22 @@ it.each(['ambient', 'file'] as const)(
 
 it.each<{ name: string; ambient: Record<string, string>; file: Record<string, string> }>([
   { name: 'ambient connection with file pair', ambient: {}, file: authority },
+  { name: 'explicitly empty ambient authority', ambient: { Identity__AuthorityId: '' }, file: {} },
+  {
+    name: 'explicitly empty ambient issuer',
+    ambient: { Authentication__Tenant__Issuer: '' },
+    file: {},
+  },
+  {
+    name: 'explicitly empty ambient pair',
+    ambient: { Identity__AuthorityId: '', Authentication__Tenant__Issuer: '' },
+    file: {},
+  },
+  {
+    name: 'empty ambient authority with complete file selection',
+    ambient: { ConnectionStrings__Migration: '', Identity__AuthorityId: '' },
+    file: { ConnectionStrings__Migration: migrationConnection, ...authority },
+  },
   {
     name: 'ambient authority with file issuer',
     ambient: { Identity__AuthorityId: authority.Identity__AuthorityId },

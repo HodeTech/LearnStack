@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,904 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,959 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -59,6 +59,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 6 measured timing revision (2026-10-26)](#p03-1-step-6-measured-timing-revision-2026-10-26) — 39 lines
   - [P03-1 Step 6 qualification closeout and PR handoff (2026-10-26)](#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26) — 73 lines
   - [P03-1 PR 38 review corrections (2026-10-26)](#p03-1-pr-38-review-corrections-2026-10-26) — 98 lines
+  - [P03-1 PR 38 correction review round 1 (2026-10-26)](#p03-1-pr-38-correction-review-round-1-2026-10-26) — 55 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2037,7 +2038,7 @@ snapshot remains byte-identical. The global storage boundary translates only
 Npgsql's exact transient wrapper shapes, preserving unrelated invalid operations
 and cancellation. An
 initial Debug architecture run is interrupted after repeated compiled-boundary
-failures; the canonical Release controls pass, and the full Release suite is
+failures; the canonical Release controls pass, and the full Release suite
 passes 571/571 separately. An initial guarded frontend run overlaps the architecture
 mutation census and fails two cold-development RSC proofs. Focused clean and
 trace-mutant controls, then the entire serial guarded run pass without timeout
@@ -2048,3 +2049,58 @@ configuration and serial heavy qualification.
 The correction commit still requires two fresh independent review rounds and
 current-source hosted checks. These local results do not relabel the earlier
 `193d61cc` A/B receipts or claim a new hosted execution.
+
+### P03-1 PR 38 correction review round 1 (2026-10-26)
+
+Two fresh independent reviewers inspect committed `413c9bde` against `d32f3101`:
+Astra/xhigh covers every backend diff and surrounding ownership/proofs;
+Sol/high covers tooling, frontend and mutable documentation. Neither reviewer
+edits source or executes .NET suites. Both request changes, rather than treating
+the preceding local passes as exhaustive proof.
+
+The tooling reviewer reproduces an explicitly empty process authority key being
+discarded into schema-only mode. Presence now differs from absence; empty identity
+keys refuse before any .NET child, while the existing empty migration-connection
+sentinel can still select a complete private file. Four additional actual-recipe
+controls pass in the 28-case selection. The reviewer also finds the remaining
+triple-key/organization-owned-role wording in Risks and one grammatical error;
+both mutable sentences are corrected without changing historical ADR text.
+
+The backend reviewer identifies non-owned transient EF wrappers that bypass the
+contextual save translation. A real 55000 provider canary gives three passes/one
+failure on `413c9bde`, then four/four passes with the exact wrapper sanitized to
+`IdentityStorageProviderException`. Owned mutation conflicts, cancellation,
+programming failures and physical COMMIT classification retain their meanings.
+The same G19 contract already covers seven production seed read methods; one
+confined provider-only read boundary and real source/sink controls complete that
+population. No public read endpoint or current HTTP disclosure is inferred.
+
+A separately retained synthetic 53300 observation breaks the Npgsql connector
+and makes direct rollback produce a secondary exception containing its original
+provider cause. The common owner still preserves the primary failure. Its
+secondary rollback diagnostic now drops the exception for declared Identity
+operations or the fixed Identity storage provider descriptor, including read
+queries; an ordinary-operation control retains the preceding diagnostic behavior.
+This is diagnostic confinement, not new transaction authority or a changed
+rollback/COMMIT outcome.
+
+Hosted run [40311209276](https://github.com/HodeTech/LearnStack/actions/runs/40311209276)
+tests head `413c9bde` through merge source `4b8dbe33`. Twenty jobs pass, including
+all architecture producers, backend aggregate, frontend/native ingress, public
+demo, OpenAPI and metadata gates. Six ordinary producers and their integration
+aggregate fail: the independent whole-body parent-guard expectation still names
+`FOR KEY SHARE` after the new forward correction. The workload reports
+`tests_failed`; failed ownership/forced-cleanup receipts are not accepted as
+complete qualification. The expectation now independently requires the stronger
+Membership-parent lock, and a planted downgrade back to KEY SHARE must fail.
+The full 96-case parent/read/sink selection passes locally after this correction;
+its output remains separate from the failed hosted attempt.
+
+Full current-source qualification and a second fresh review round follow the
+correction commit. The earlier A/B receipts remain bound to their recorded source.
+
+The round-1 follow-up passes 2,782 unit cases, 281 selected real Identity/
+parent-scope/provider/diagnostic cases, 45 related architecture cases and the
+complete guarded frontend population of 2,408 cases in two packages. Frontend
+lint/typecheck and documentation checks pass. These are local results with zero
+skips/todos, not a replacement for current-source hosted qualification.

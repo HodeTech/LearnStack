@@ -173,10 +173,13 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Actual_profile_provider_failure_reaches_source_and_never_reaches_serialized_diagnostic_sinks(bool deferred)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Actual_profile_provider_failure_reaches_source_and_never_reaches_serialized_diagnostic_sinks(bool deferred, bool transient)
     {
+        var sqlState = transient ? PostgresErrorCodes.ObjectNotInPrerequisiteState : "P0399";
         using var sinks = new IdentityDiagnosticSinks();
         var witness = new ProviderFailureWitness();
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.MigrationConnectionString);
@@ -192,7 +195,7 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
                  AND NEW.display_name::jsonb->'items'->0->>'token'='{Sensitive}' THEN
                 PERFORM nextval('public.identity_sink_source');
               END IF;
-              RAISE EXCEPTION USING ERRCODE='P0399', MESSAGE=NEW.display_name;
+              RAISE EXCEPTION USING ERRCODE='{sqlState}', MESSAGE=NEW.display_name;
             END $$;
             """);
         await ExecuteAsync(owner, null, deferred ? """
@@ -232,7 +235,7 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
             if (!deferred)
             {
                 witness.Failure.Should().BeOfType<PostgresException>();
-                ((PostgresException)witness.Failure!).SqlState.Should().Be("P0399");
+                ((PostgresException)witness.Failure!).SqlState.Should().Be(sqlState);
                 witness.Failure!.Message.Should().Contain(Payload, "the real provider must receive and return the planted values");
             }
             unit.IsRollbackOnly.Should().BeTrue();

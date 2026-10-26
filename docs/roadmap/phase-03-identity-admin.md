@@ -872,8 +872,9 @@ WCAG conformance or external exactly-once effect is inferred from local fixtures
   definition ends up `None`, the classification is decorative and the export is wrong.
   The Studio editor asks the question in the field's own words, and the seed data sets
   a non-trivial category so the shape is exercised.
-- **Designing the identity model around the first tenant.** Triple-key membership and
-  organization-scoped roles must serve every tenant shape, not only the language-school
+- **Designing the identity model around the first tenant.** Stable Membership roots,
+  null-safe natural uniqueness and tenant-wide Role templates with scoped capabilities
+  must serve every tenant shape, not only the language-school
   showcase in [Phase 10](phase-10-english-learning-mvp.md). Both
   [Phase 02a Packet 7](phase-02a-kernel-tenancy.md) seed tenants get memberships in
   this phase.

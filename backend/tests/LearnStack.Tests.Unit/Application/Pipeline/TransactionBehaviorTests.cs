@@ -9,14 +9,17 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Infrastructure;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
@@ -45,6 +48,43 @@ namespace LearnStack.Tests.Unit.Application.Pipeline;
 public sealed class TransactionBehaviorTests
 {
     public sealed record DummyCommand : IRequest<Result<string>>;
+
+    public sealed record IdentityCommand : IRequest<Result<string>>, IIdentityPermissionRequest
+    {
+        public PermissionDefinition RequiredPermission => new(PermissionScope.Tenant, "identity.membership_profile.write");
+    }
+
+    [Theory]
+    [InlineData("ordinary")]
+    [InlineData("identity")]
+    [InlineData("fixed-provider")]
+    public async Task Identity_rollback_diagnostics_drop_secondary_provider_payload_without_replacing_the_primary(string kind)
+    {
+        var secondary = new ObjectDisposedException("NpgsqlTransaction", new DbTestException("private-rollback-canary"));
+        var unit = new RecordingUnitOfWork { RollbackFailure = secondary };
+        var producer = new ProducerExecution(unit);
+        var logger = Substitute.For<ILogger<TransactionExecutionCoordinator>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        var coordinator = new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance,
+            new RecordingAuditStore(), new AuditStateCapture(), producer,
+            new DomainEventCollector(producer, Substitute.For<IPublisher>()), logger);
+        Exception primary = kind == "fixed-provider"
+            ? new ProviderException("identity-storage", "Fixed primary failure.", isClientError: false)
+            : new DbTestException("Fixed primary failure.");
+        Func<Task> run = kind == "identity"
+            ? () => new TransactionBehavior<IdentityCommand, Result<string>>(coordinator,
+                BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]))
+                .Handle(new IdentityCommand(), () => throw primary, default)
+            : () => new TransactionBehavior<DummyCommand, Result<string>>(coordinator,
+                BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]))
+                .Handle(new DummyCommand(), () => throw primary, default);
+        (await Record.ExceptionAsync(run)).Should().BeSameAs(primary);
+        var exception = logger.ReceivedCalls().Where(call => call.GetMethodInfo().Name == "Log")
+            .Select(call => call.GetArguments()[3]).Should().ContainSingle().Which;
+        exception.Should().BeSameAs(kind == "ordinary" ? secondary : null);
+        unit.HasActiveTransaction.Should().BeFalse();
+        unit.IsRollbackOnly.Should().BeTrue();
+    }
 
     [PublicSurface]
     public sealed record PublicQuery : IRequest<Result<string>>;

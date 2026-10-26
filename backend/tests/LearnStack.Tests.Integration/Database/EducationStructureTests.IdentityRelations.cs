@@ -97,6 +97,7 @@ public sealed partial class EducationStructureTests
     [InlineData("stable")]
     [InlineData("unqualified-parent")]
     [InlineData("no-lock")]
+    [InlineData("lifecycle-key-share")]
     [InlineData("wrong-tenant")]
     [InlineData("wrong-parent")]
     [InlineData("nullable-compare")]
@@ -118,7 +119,10 @@ public sealed partial class EducationStructureTests
         var mutated = defect switch
         {
             "unqualified-parent" => body.Replace("public.memberships AS member", "memberships AS member", StringComparison.Ordinal),
-            "no-lock" => body.Replace("FOR KEY SHARE", "", StringComparison.Ordinal),
+            "no-lock" => body.Replace("FOR NO KEY UPDATE", "", StringComparison.Ordinal)
+                .Replace("FOR KEY SHARE", "", StringComparison.Ordinal),
+            "lifecycle-key-share" => body.Replace("target_member FOR NO KEY UPDATE;",
+                "target_member FOR KEY SHARE;", StringComparison.Ordinal),
             "wrong-tenant" => body.Replace("member.tenant_id = target_tenant", "member.tenant_id = member.tenant_id", StringComparison.Ordinal),
             "wrong-parent" => body.Replace("member.id = target_member", "member.id = member.id", StringComparison.Ordinal),
             "nullable-compare" => body.Replace("parent_org IS DISTINCT FROM", "parent_org <>", StringComparison.Ordinal),

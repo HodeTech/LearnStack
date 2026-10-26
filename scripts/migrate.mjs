@@ -29,15 +29,17 @@ function fileConfiguration(path) {
 
 /** A migration credential and its optional immutable registration are one deployment selection. */
 export function migrationConfiguration(environment = process.env, root = process.cwd()) {
-  const ambient = Object.fromEntries(keys.filter(key => environment[key] !== undefined && environment[key] !== '')
+  const ambient = Object.fromEntries(keys.filter(key => environment[key] !== undefined
+      && (key !== connectionKey || environment[key] !== ''))
     .map(key => [key, environment[key]]));
   let selected;
   if (Object.keys(ambient).length !== 0) {
-    if (!ambient[connectionKey] || (identityKeys.some(key => ambient[key]) && !identityKeys.every(key => ambient[key])))
+    const hasIdentity = identityKeys.some(key => ambient[key] !== undefined);
+    if (!ambient[connectionKey] || (hasIdentity && !identityKeys.every(key => ambient[key])))
       throw configurationFailure();
     // Complete ambient deployment input needs no file. Schema-only ambient input
     // must not silently inherit (or silently discard) a file's authority pair.
-    if (!identityKeys.some(key => ambient[key])) {
+    if (!hasIdentity) {
       const file = fileConfiguration(resolve(root, environment.LEARNSTACK_COMPOSE_ENV_FILE ?? '.env'));
       if (identityKeys.some(key => file[key] !== undefined)) throw configurationFailure();
     }

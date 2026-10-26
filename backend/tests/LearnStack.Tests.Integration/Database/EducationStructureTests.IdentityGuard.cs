@@ -39,7 +39,7 @@ public sealed partial class EducationStructureTests
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
                 END IF;
                 SELECT member.organization_id, member.status INTO parent_org, parent_status
-                    FROM public.memberships AS member WHERE member.tenant_id = target_tenant AND member.id = target_member FOR KEY SHARE;
+                    FROM public.memberships AS member WHERE member.tenant_id = target_tenant AND member.id = target_member FOR NO KEY UPDATE;
                 IF NOT FOUND OR parent_org IS DISTINCT FROM (CASE WHEN TG_OP = 'DELETE' THEN OLD.organization_id ELSE NEW.organization_id END) THEN
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = '23514', CONSTRAINT = 'membership_parent_scope';
                 END IF;

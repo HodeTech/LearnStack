@@ -2,9 +2,11 @@ using LearnStack.Application.Jobs;
 using System.Data.Common;
 using LearnStack.Application.Messaging;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Logging;
@@ -297,7 +299,7 @@ public sealed partial class TransactionExecutionCoordinator(
             }
             return response;
         }
-        catch when (!committing)
+        catch (Exception dispatchFailure) when (!committing)
         {
             failed = true;
             unitOfWork.MarkRollbackOnly();
@@ -315,7 +317,9 @@ public sealed partial class TransactionExecutionCoordinator(
             catch (Exception rollbackFailure)
             {
                 LogRollbackFailure(logger, operationName,
-                    globalOwner is not null || AsyncExecutionDiagnostics.IsTrusted(tenantContext) ? null : rollbackFailure);
+                    globalOwner is not null || typeof(IIdentityPermissionRequest).IsAssignableFrom(operationType)
+                        || dispatchFailure is ProviderException { ProviderName: "identity-storage" }
+                        || AsyncExecutionDiagnostics.IsTrusted(tenantContext) ? null : rollbackFailure);
             }
 
             if (scope.IsOwner && capture.State != AuditIntentState.Indeterminate)

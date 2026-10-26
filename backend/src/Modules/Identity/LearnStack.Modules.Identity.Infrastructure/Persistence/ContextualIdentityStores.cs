@@ -26,6 +26,22 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
         db.ChangeTracker.Clear();
     }
 
+    internal static async Task<T> ReadAsync<T>(Func<Task<T>> read)
+    {
+        // Only provider failures cross this boundary. Cancellation and source
+        // invariants keep their original meaning; reads never classify a COMMIT.
+        try { return await read(); }
+        catch (InvalidOperationException failure) when (
+            failure.InnerException is NpgsqlException { IsTransient: true } or TimeoutException)
+        {
+            throw new IdentityStorageProviderException();
+        }
+        catch (Exception failure) when (failure is DbException or TimeoutException)
+        {
+            throw new IdentityStorageProviderException();
+        }
+    }
+
     public async Task SaveAsync(CancellationToken cancellationToken)
     {
         if (_validated) throw new InvalidOperationException("An Identity graph cannot change after validation.");
@@ -48,6 +64,13 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
             // failures. Translate only the same exact owned provider states.
             unit.MarkRollbackOnly();
             throw Translate((PostgresException)failure.InnerException.InnerException!);
+        }
+        catch (InvalidOperationException failure) when (failure.InnerException is
+            DbUpdateException { InnerException: NpgsqlException { IsTransient: true } or TimeoutException }
+            or NpgsqlException { IsTransient: true } or TimeoutException)
+        {
+            unit.MarkRollbackOnly();
+            throw new IdentityStorageProviderException();
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -127,10 +150,12 @@ public sealed class RoleWriteStore(IdentityDbContext db, ContextualIdentityStora
     public async Task<Role?> FindAsync(RoleId roleId, CancellationToken cancellationToken = default)
     {
         control.PrepareFreshRead();
-        return await db.Roles.Include(role => role.Grants).SingleOrDefaultAsync(role => role.Id == roleId, cancellationToken);
+        return await ContextualIdentityStorageControl.ReadAsync(() => db.Roles.Include(role => role.Grants)
+            .SingleOrDefaultAsync(role => role.Id == roleId, cancellationToken));
     }
 
-    public Task<bool> HasMembershipHistoryAsync(CancellationToken cancellationToken = default) => db.Memberships.AnyAsync(cancellationToken);
+    public Task<bool> HasMembershipHistoryAsync(CancellationToken cancellationToken = default) =>
+        ContextualIdentityStorageControl.ReadAsync(() => db.Memberships.AnyAsync(cancellationToken));
     public Task ValidateGraphAsync(CancellationToken cancellationToken = default) => control.ValidateGraphAsync(cancellationToken);
     public Task AddAsync(Role aggregate, CancellationToken cancellationToken = default)
     {
@@ -149,11 +174,12 @@ public sealed class MembershipWriteStore(IdentityDbContext db, ContextualIdentit
     public async Task<Membership?> FindAsync(MembershipId membershipId, CancellationToken cancellationToken = default)
     {
         control.PrepareFreshRead();
-        return await db.Memberships.Include(member => member.Profile).Include(member => member.RoleAssignments)
-            .SingleOrDefaultAsync(member => member.Id == membershipId, cancellationToken);
+        return await ContextualIdentityStorageControl.ReadAsync(() => db.Memberships.Include(member => member.Profile)
+            .Include(member => member.RoleAssignments).SingleOrDefaultAsync(member => member.Id == membershipId, cancellationToken));
     }
 
-    public Task<bool> HasMembershipHistoryAsync(CancellationToken cancellationToken = default) => db.Memberships.AnyAsync(cancellationToken);
+    public Task<bool> HasMembershipHistoryAsync(CancellationToken cancellationToken = default) =>
+        ContextualIdentityStorageControl.ReadAsync(() => db.Memberships.AnyAsync(cancellationToken));
     public Task ValidateGraphAsync(CancellationToken cancellationToken = default) => control.ValidateGraphAsync(cancellationToken);
     public Task AddAsync(Membership aggregate, CancellationToken cancellationToken = default)
     {
@@ -171,8 +197,8 @@ public sealed class SeedStateReader(IdentityDbContext db) : ISeedStateReader
 {
     public async Task<RoleSeedDto?> ReadRoleAsync(RoleId roleId, CancellationToken cancellationToken = default)
     {
-        var role = await db.Roles.AsNoTracking().Include(role => role.Grants)
-            .SingleOrDefaultAsync(role => role.Id == roleId, cancellationToken);
+        var role = await ContextualIdentityStorageControl.ReadAsync(() => db.Roles.AsNoTracking().Include(role => role.Grants)
+            .SingleOrDefaultAsync(role => role.Id == roleId, cancellationToken));
         return role is null ? null : new(role.Id.Value, role.TenantId, role.BuiltInKey, role.PermissionScope,
             role.Version, role.DeletedAt, role.DeletedBy,
             role.Grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey)).ToImmutableArray());
@@ -180,8 +206,9 @@ public sealed class SeedStateReader(IdentityDbContext db) : ISeedStateReader
 
     public async Task<MembershipSeedDto?> ReadMembershipAsync(MembershipId membershipId, CancellationToken cancellationToken = default)
     {
-        var member = await db.Memberships.AsNoTracking().Include(member => member.Profile).Include(member => member.RoleAssignments)
-            .SingleOrDefaultAsync(member => member.Id == membershipId, cancellationToken);
+        var member = await ContextualIdentityStorageControl.ReadAsync(() => db.Memberships.AsNoTracking()
+            .Include(member => member.Profile).Include(member => member.RoleAssignments)
+            .SingleOrDefaultAsync(member => member.Id == membershipId, cancellationToken));
         return member is null ? null : new(member.Id.Value, member.TenantId, member.OrganizationId, member.UserId,
             member.Status.ToString(), member.Version, member.DeletedAt, member.DeletedBy,
             member.Profile.DisplayName, member.Profile.PreferredLocale,
@@ -192,5 +219,6 @@ public sealed class SeedStateReader(IdentityDbContext db) : ISeedStateReader
 public sealed class RoleReadStore(IdentityDbContext db) : IRoleReadStore
 {
     public Task<Role?> ReadAsync(RoleId roleId, CancellationToken cancellationToken = default) =>
-        db.Roles.AsNoTracking().Include(role => role.Grants).SingleOrDefaultAsync(role => role.Id == roleId, cancellationToken);
+        ContextualIdentityStorageControl.ReadAsync(() => db.Roles.AsNoTracking().Include(role => role.Grants)
+            .SingleOrDefaultAsync(role => role.Id == roleId, cancellationToken));
 }
