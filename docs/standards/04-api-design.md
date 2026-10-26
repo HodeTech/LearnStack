@@ -15,8 +15,7 @@ Accepted — 2026-10-20. Implementation has local runtime/exported proofs; the
 [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns independent reviews and final-source CI qualification.
 Existing-binding admission additionally derives from Accepted
-[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md); its P03-1
-implementation and qualification remain pending.
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -147,7 +146,7 @@ before JWT validation; credential-free public reads retain anonymous behavior.
 Production authentication and authorization services/middleware activate together
 with the complete Step 4 boundary.
 
-**Accepted P03-1 handoff — implementation pending.** The [Security contract](11-security.md#identity-admission-contract)
+**Existing-binding handoff.** The [Security contract](11-security.md#identity-admission-contract)
 separates verified provider subject from normalized application identity. An
 optional wire actor is consistency evidence; quota precedes the uncached existing-
 binding read, which alone supplies a stored actor. Unknown/conflicting/Closed or

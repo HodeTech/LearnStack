@@ -15,11 +15,10 @@
 (supersedes ADR-0011 Vertical Extension Points).
 Background-job authority additionally derives from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
-(Accepted; P02b-4 implementation in progress).
+(Accepted; implemented runtime and enforcement).
 Identity foundation boundaries additionally derive from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
-[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
-their P03-1 implementation remains pending.
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 
 These rules turn the architecture docs into enforceable code conventions. They are checked by architecture tests where possible.
 

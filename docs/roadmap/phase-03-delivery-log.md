@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,491 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,527 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -52,6 +52,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 5 review round 1 and read-diagnostic correction (2026-10-26)](#p03-1-step-5-review-round-1-and-read-diagnostic-correction-2026-10-26) — 43 lines
   - [P03-1 Step 5 review round 2 and local closeout (2026-10-26)](#p03-1-step-5-review-round-2-and-local-closeout-2026-10-26) — 30 lines
   - [P03-1 Step 6 — Complete qualification inventories (2026-10-26)](#p03-1-step-6--complete-qualification-inventories-2026-10-26) — 46 lines
+  - [P03-1 Step 6 review round 1 and carrier correction (2026-10-26)](#p03-1-step-6-review-round-1-and-carrier-correction-2026-10-26) — 36 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1628,3 +1629,39 @@ HTTP/new-user, operator and closure owners remain P03-2/3/9/10.
 Both fresh Step 6 review rounds, actual reversal qualification, complete
 Architecture/ordinary/native/provider/browser results and source-bound complete
 hosted A/B qualification remain required. This entry does not close the packet.
+
+### P03-1 Step 6 review round 1 and carrier correction (2026-10-26)
+
+**Reviewed source:** `124ff4a`, whose tree equals `6c379f12`. Two fresh independent
+read-only reviewers inspect CI/source/discovery accounting (GPT-6 Astra, xhigh)
+and current corpus/reversal/authority boundaries (GPT-6.1 Sol, xhigh). Neither
+edits files or executes tests. The CI slice approves: raw discovery messages
+match every retained manifest part, both assignments are exact and genuinely
+different, and the fixture-only edit cannot select, omit or move cases. The
+reversal slice confirms the independent 55-table/twelve-function expectations
+and unchanged removal/reapply controls, with actual execution still required.
+
+One grouped Major corpus finding is verified: active standard introductions,
+the standards index, catalogue introduction and conceptual hierarchy still say
+Identity implementation/registry/Role or migration work is absent. These
+contradict the real foundation and the corrected detailed sections. The stale
+tails now yield to actual implementation facts and canonical current-state
+pointers. The Permissions standard remains **Adopted** consistently in header
+and index: the finite foundation exists, while live enforcement remains P03-2.
+The conceptual relationship diagram exposes only the User key and links actual
+columns to their owner, rather than implying unused email/raw-issuer storage.
+Mutable decision-index pending tails also become owner pointers. No Accepted
+ADR body, dated history or later-phase authority changes.
+
+Before this round, the merged PR #37 ancestry is reconciled on `development`
+without changing a file. `origin/main` at `7cad8402` and already incorporated
+ancestor `b1f19f5b` have the identical tree
+`9eb11ced9d70f66dc84ad629f409801f1aeebbcf`. The ancestry-only merge preserves the
+complete current tree and makes the PR comparison contain only subsequent work;
+no rebase, force push or branch switch is used.
+
+Documentation/corpus checks qualify the verified carrier correction before a
+second fresh source-review round. Running local ordinary work and final-source
+hosted A/B/full-suite qualification retain their separate source and result
+boundaries. This source review does not establish successful execution or close
+Step 6.

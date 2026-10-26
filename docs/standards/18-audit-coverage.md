@@ -23,8 +23,7 @@ Job additions derive from
 [phase status](../roadmap/phase-02b-events-auth.md) owns hosted qualification).
 Global identity creation and contextual foundation authority derive from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
-[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
-their P03-1 implementation remains pending.
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its

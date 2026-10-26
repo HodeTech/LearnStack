@@ -167,9 +167,6 @@ erDiagram
     }
     User {
         uuid id PK
-        string issuer
-        string provider_subject
-        string email
     }
     Membership {
         uuid id PK
@@ -182,10 +179,11 @@ erDiagram
 Text fallback: a global user has memberships in tenant/optional-organization
 contexts and may hold multiple scoped role grants. Organization remains Tenancy's
 aggregate; Membership holds its ID by value, with no cross-module FK or join.
-This is a conceptual diagram, not the pending identity migration.
-[Phase 03 G1/G3/G5](../roadmap/phase-03-identity-admin.md#the-decision-register)
-decide provider mapping, nullable-key/profile/role-binding shape and scope
-composition before those tables are written.
+This is a conceptual relationship diagram. The implemented binding, nullable
+keys, profile and Role shapes follow the [Identity contract](../modules/identity/README.md);
+[Database Standards](../standards/05-database.md#identity-storage-contract) owns
+actual columns and policies. The [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+owns current qualification state.
 
 ## 4. What customers can do — what LearnStack core does for them
 

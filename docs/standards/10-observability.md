@@ -28,8 +28,7 @@ owns independent reviews and final-source CI qualification.
 Identity lock/admission observation derives from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
-[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md);
-P03-1 instrumentation and qualification remain pending.
+[ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 

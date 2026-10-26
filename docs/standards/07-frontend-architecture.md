@@ -18,8 +18,7 @@ single-bootstrap ownership derives from
 page composition follows the
 [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
 The existing-session Identity foundation boundary derives from Accepted
-[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md); implementation
-of its P03-1 additions remains pending.
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
 tenant-facing `apps/web` application in *this* repository. See

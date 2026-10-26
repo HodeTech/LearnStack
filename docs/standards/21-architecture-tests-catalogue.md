@@ -59,8 +59,9 @@ Identity foundation registration additionally derives from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
-Step 1 registers obligations; Steps 2–5 own implementation and qualification.
-Existing Implemented statuses do not qualify their pending Identity extensions.
+The implemented Identity obligations and extensions name their actual proof
+owners below; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
+current qualification and review state.
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
