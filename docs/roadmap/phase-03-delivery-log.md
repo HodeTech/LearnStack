@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,617 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,647 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -76,7 +76,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 2 closed budget implementation (2026-10-27)](#adr-0075-step-2-closed-budget-implementation-2026-10-27) — 44 lines
   - [ADR-0075 Step 2 review round 1 (2026-10-27)](#adr-0075-step-2-review-round-1-2026-10-27) — 16 lines
   - [ADR-0075 Step 2 review round 2 and qualification handoff (2026-10-27)](#adr-0075-step-2-review-round-2-and-qualification-handoff-2026-10-27) — 24 lines
-  - [ADR-0075 Step 3 fresh hosted A/B evidence (2026-10-27)](#adr-0075-step-3-fresh-hosted-ab-evidence-2026-10-27) — 52 lines
+  - [ADR-0075 Step 3 fresh hosted A/B evidence (2026-10-27)](#adr-0075-step-3-fresh-hosted-ab-evidence-2026-10-27) — 53 lines
+  - [ADR-0075 Step 3 review round 1 (2026-10-27)](#adr-0075-step-3-review-round-1-2026-10-27) — 29 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2779,3 +2780,33 @@ count and natural-cleanup requirement remains unchanged. The documentation
 closeout has its own later commit identity and must pass normal current-head
 protected checks; these execution receipts are never relabelled as that commit.
 Step 3's two fresh independent evidence-review rounds remain before closeout.
+
+
+### ADR-0075 Step 3 review round 1 (2026-10-27)
+
+Fresh independent reviewers `adr75_step3_r1_archives` (GPT-6.1 Sol, high) and
+`adr75_step3_r1_lifecycle` (GPT-6 Astra, high) inspect evidence record `0db4b42f`
+and original run 40412041726 attempts 1/2 for implementation source `ea114d25`.
+Both approve with no actionable finding. They do not trust prepared summary
+JSON as authority: original API metadata, ZIPs, producer files and public report
+contents supply their checks.
+
+The archive reviewer freshly extracts all forty producer archives through the
+production safe unpacker, verifies 147 byte-identical producer files per
+attempt, recomputes both production aggregate scopes and checks API job/artifact
+bindings. Both reviewers verify all fifty archive sizes/SHA-256/CRCs, exact
+6,490-case selected/completed/TRX unions, twenty natural owners per attempt,
+all thirteen Docker-owner absence flags, native confinement/core/crash evidence,
+source/merge parents/tree, toolchain/images, plan/manifest and actual different
+co-membership. Both confirm the six previously missing exact IDs now pass.
+
+The lifecycle reviewer additionally checks all 54 public JSON/HTML pairs across
+A/B against digest, URL/run/source/build identity, full configured inventory,
+category weights, accessibility/JS/CLS gates and successful cleanup. Expected
+producer budgets hold, maxima are 938/1,058 seconds, and meta/aggregates remain
+below 300 seconds. Original acquisition ordering is corroborated by filesystem
+birth times (last A archive 22:49:25 UTC; verification 22:49:28; B starts
+22:50:09) and the contemporaneous tool-call sequence; those local timestamps are
+not independently signed chronology. Neither reviewer reruns hosted work,
+starts services or changes repository files. This qualifies observed evidence,
+not a minimum ceiling or future fit. Fresh second-round review remains.
