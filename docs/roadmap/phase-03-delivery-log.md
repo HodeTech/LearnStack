@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,445 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,491 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -51,6 +51,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 5 — Existing-binding API admission (2026-10-26)](#p03-1-step-5--existing-binding-api-admission-2026-10-26) — 85 lines
   - [P03-1 Step 5 review round 1 and read-diagnostic correction (2026-10-26)](#p03-1-step-5-review-round-1-and-read-diagnostic-correction-2026-10-26) — 43 lines
   - [P03-1 Step 5 review round 2 and local closeout (2026-10-26)](#p03-1-step-5-review-round-2-and-local-closeout-2026-10-26) — 30 lines
+  - [P03-1 Step 6 — Complete qualification inventories (2026-10-26)](#p03-1-step-6--complete-qualification-inventories-2026-10-26) — 46 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1581,3 +1582,49 @@ source-bound suite/shard/discovery and PostgreSQL/Keycloak/native/browser/A–B
 qualification, final current-corpus sweep and reviewable PR. Inherited Standard
 05/06 current-state wording is included in that sweep. No packet-complete or
 later onboarding/permission/closure delivery claim follows from local Step 5.
+
+### P03-1 Step 6 — Complete qualification inventories (2026-10-26)
+
+The final step reconciles the source-bound CI inventory and current carriers
+before freezing the hosted qualification source. The actual fixture census grows
+from 119 to 130 classes: eleven new Identity fixture consumers are added, with
+none removed. Architecture/ordinary shard counts remain 6/12; algorithms, salt,
+weights, filters, required contexts and all time/cleanup ceilings are unchanged.
+This witness-only edit moves no case in either layout on the same manifest.
+
+Actual local Release VSTest discovery supplies 6,394 cases: 3,651 non-Docker and
+2,743 Docker, with the latter split into 2,712 ordinary and 31 native cases.
+Production discovery parsing, manifest/union/selector predicates and both
+assignment algorithms validate every case exactly once. A and B have genuinely
+different co-membership, including shared-fixture selectors. This is local
+discovery/assignment proof, not hosted execution, cleanup or wall-fit evidence.
+Unmeasured method weights keep their existing advisory default.
+
+The fresh local CI/Release solution build passes with zero warnings/errors;
+all 2,770 Unit, 306 Docker-free Integration and five Contract cases pass with
+zero skips. Frontend typecheck/lint and the Step 5 complete guarded 2,380-case
+population pass. The eight-file development realm census passes all 409 cases.
+Plan/result controls pass 72/30; native owner/provisioning controls pass 87/18;
+the existing supply-chain, realm-gate, native-environment, ADR, fragment, roadmap
+and log-index controls pass. OpenAPI and generated SDK snapshots are byte-equal
+to current `main`.
+
+The complete local ordinary run is still executing at this entry. It identifies
+an obsolete reversal preflight: the test expects Step 3's 50 tables/five total
+Identity functions, while Step 4 installs 55/twelve. That first failure occurs
+before reversal, so it establishes no Down failure. Only the independent expected
+counts and explanations change; real reversal, empty-policy/function checks,
+reapplication and app-role positive evidence remain required before closeout.
+No migration or production behavior changes in this correction.
+
+A read-only current-corpus sweep verifies stale preimplementation claims against
+the actual source and Step 3/4/5 records. Database/Testing/Permissions standards,
+the test catalogue, isolation/audit/cross-cutting architecture and Identity's
+audit matrix now describe implemented foundation subjects. Canonical discovery
+and the phase Status block replace duplicated obsolete population/review state.
+Accepted bodies and dated history remain intact; later live permission,
+HTTP/new-user, operator and closure owners remain P03-2/3/9/10.
+
+Both fresh Step 6 review rounds, actual reversal qualification, complete
+Architecture/ordinary/native/provider/browser results and source-bound complete
+hosted A/B qualification remain required. This entry does not close the packet.

@@ -435,9 +435,10 @@ Use the shipped examples:
 
 Fixtures apply every chain through
 [MigrationChains](../../backend/tests/LearnStack.Tests.Integration/Database/MigrationChains.cs),
-which owns current chain/history discovery. The current schema has five chains,
-21 data tables and five history tables; tests must not copy a fixed partial chain
-list. Follow [add-integration-test](../../.claude/skills/add-integration-test/SKILL.md)
+which owns current chain/history discovery.
+[`SchemaTableClasses`](../../backend/tests/LearnStack.Tests.Integration/Database/SchemaTableClasses.cs)
+independently checks the complete applied-table census; tests must not copy a
+fixed partial chain list. Follow [add-integration-test](../../.claude/skills/add-integration-test/SKILL.md)
 for fixture selection and transaction-scoped context.
 
 Rules:

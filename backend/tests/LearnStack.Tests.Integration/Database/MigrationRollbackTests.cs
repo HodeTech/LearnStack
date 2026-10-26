@@ -50,9 +50,9 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
-        (await CountAsync(connection, TablesQuery)).Should().Be(50L,
+        (await CountAsync(connection, TablesQuery)).Should().Be(55L,
             "eight tenancy tables, twenty-four platform tables, four customization tables, "
-            + "two audit tables, four Education tables, two Identity tables and six history tables");
+            + "two audit tables, four Education tables, seven Identity tables and six history tables");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L,
@@ -62,8 +62,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
             "each Education parent relation has its own invoker scope check");
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L,
             "fn_inbox_messages_immutable backs the shared inbox append-only trigger");
-        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(5L,
-            "Identity installs its immutable binding guard and four central creation/evidence functions");
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(12L,
+            "Identity installs five global binding/creation/evidence functions and seven contextual functions");
 
         (await CountAsync(connection, JobFunctionQuery)).Should().BeGreaterThan(0,
             "the new job guards must be installed before their reversal is tested");
@@ -91,12 +91,12 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // A successful Down must also leave a state that can be installed again.
         await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
-        (await CountAsync(connection, TablesQuery)).Should().Be(50L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(55L);
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L);
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
-        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(5L);
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(12L);
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
         await using var transaction = await app.BeginTransactionAsync();

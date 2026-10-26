@@ -1231,7 +1231,7 @@ CREATE INDEX ix_audit_log_module_operation_timestamp
 
 -- Row security is NOT written here. Database Standards owns the ordinary
 -- tenant-owned, ORG-SCOPED template and ADR-0072's accepted exact global-identity
--- insertion/evidence departure, pending P03-1 implementation. Do not copy either
+-- insertion/evidence departure. Do not copy either
 -- policy here. Ordinary cross-tenant reads retain the audited platform path;
 -- the global branch adds only its exact confined owner evidence functions.
 ```
@@ -1268,7 +1268,7 @@ Accepted records fix in the same way.
 
 The ordinary tenant policy shape is [Database Standards § Table classes](../standards/05-database.md)'s.
 Its [accepted global audit extension](../standards/05-database.md#proposed-global-central-audit-branch)
-names the additional exact insertion/evidence arms, pending P03-1 implementation;
+names the implemented additional exact insertion/evidence arms;
 the standard also owns `audit_log`'s grants and class. Two
 departures from the surrounding tables are stated there and repeated here because a
 reader of this section will look for them: `audit_log` carries **no foreign key** to

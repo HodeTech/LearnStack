@@ -53,13 +53,13 @@ PostgreSQL schema, EF Core, and migration conventions.
 - One `DbContext` per module (not one global).
 - Schema migrations live with the owning module.
 
-Five migration chains currently exist: Tenancy, Platform, Customization, Audit and
-Education. The complete applied-table census, including job and pinned vendor
-storage, is checked independently from `pg_catalog` by
+Six migration chains currently exist: Tenancy, Platform, Audit, Identity,
+Customization and Education. The complete applied-table census, including job
+and pinned vendor storage, is checked independently from `pg_catalog` by
 [`SchemaTableClasses`](../../backend/tests/LearnStack.Tests.Integration/Database/SchemaTableClasses.cs).
-Its reviewed classes cover every data table and the five migration-history tables.
-The [adopted Identity contract](#identity-storage-contract) adds a sixth chain in
-P03-1 Step 3; acceptance applies no migration or additional grant.
+Its reviewed classes cover every data and migration-history table.
+The [Identity contract](#identity-storage-contract) owns the implemented sixth
+chain and its bounded database authority.
 
 ## Naming
 
@@ -288,7 +288,7 @@ ADR-0072/0073, same-module `memberships.user_id` references global `users.id`,
 indexed with `ON DELETE RESTRICT`, without a tenant composite: User has no tenant
 key. The [Identity storage contract](#identity-storage-contract) owns its exact
 admission guard, which refuses unknown/nonadmitting targets before FK diagnostics.
-Audit actor columns gain no User FK. This accepted shape awaits implementation;
+Audit actor columns gain no User FK. This shape is implemented;
 every other tenant-owned parent retains the composite or self-keyed shape above.
 
 **`ON DELETE RESTRICT` on every foreign key whose parent is an aggregate root,
@@ -392,7 +392,7 @@ Rules:
   Only the [enumerated global owners](#global-owners-and-privileges) set the last
   two, transaction-locally from verified facts. Missing/reset/malformed identity
   values fail closed; identity announcements add no tenant-context setter. Their
-  implementation remains P03-1 Step 3.
+  implementation follows the global owner contract below.
 - The application sets `app.tenant_id` and `app.organization_id` with `SET LOCAL`
   **inside the ambient transaction**, after it opens. These settings are
   transaction-local: set before the transaction begins — in a MediatR behavior that
@@ -957,7 +957,8 @@ Migration **credentials** remain deploy-only. The five [enumerated Identity
 SECURITY DEFINER contracts](#confined-owner-functions) deliberately add runtime
 execution as the migration owner on an app transaction under FORCE RLS. Exact
 owner-policy, guard, body, privilege and caller confinement replaces any claim
-that owner execution is absent. Installation and qualification await Step 3.
+that owner execution is absent. The applied Identity chain installs these
+functions; its actual body/privilege/caller controls qualify their confinement.
 
 **Passwords arrive from the environment, through `\getenv`.** The four
 `:'name'` placeholders below are **psql client variables**, and the
@@ -4226,15 +4227,14 @@ production capacity and PgBouncer.
 
 ## Identity storage contract
 
-**Status: Global storage/common audit implemented in Step 3; contextual storage
-implemented under Step 4 review.** Derived from
+**Status: Global/contextual storage and common audit implemented.** Derived from
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
 The active clauses above adopt the bounded exceptions below. Current applied
-global tables, grants and three global owner functions are locally qualified;
-Step 4 adds the two contextual functions and five contextual tables. The four
-login roles are unchanged. The [Identity specification](../modules/identity/README.md) owns the adopted
+global tables, grants, three global owner functions, two contextual functions and
+five contextual tables are implemented. The four login roles are unchanged.
+The [Identity specification](../modules/identity/README.md) owns the adopted
 Membership, profile, Role and assignment shapes; this annex owns their database
 authority boundary and the global exceptions.
 P03-1 delivers the internal creation core, seed adoption and ordinary
@@ -4643,7 +4643,7 @@ grant follows; eligibility is otherwise immutable in this foundation.
 
 <a id="proposed-adoption-text-and-qualification"></a>
 
-### Applied census and pending qualification
+### Applied census and qualification
 
 The Step 3 census was **seven table classes, 44 data tables plus six
 history tables, six migration chains, eight central audit write seams and three
@@ -4664,9 +4664,11 @@ commit**, followed by the waiting transaction's fresh read; mocks or two reads
 without contention do not qualify. Include shared/exclusive blocking, forbidden
 upgrade and final-admin/closure races. Step 5 qualifies ordinary existing-binding
 lookup before/after latency, pool occupancy and cancellation/cleanup under load;
-P03-3 separately qualifies the new-user HTTP/BFF transport. Update architecture
-obligations as pending extensions; implementation applies forward migrations under
-the Accepted contract. Documentation checks establish none of these runtime proofs.
+P03-3 separately qualifies the new-user HTTP/BFF transport. The
+[catalogue](21-architecture-tests-catalogue.md#pending-identity-extensions-to-implemented-rules)
+owns the implemented foundation obligations; the
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns current
+qualification state. Documentation checks establish none of these runtime proofs.
 
 Step 4 includes exact backend/database/bigint-key and mode observations, both
 signed User/Tenant C#/SQL vectors, wrong/shared/foreign/missing ownership and

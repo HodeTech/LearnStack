@@ -38,7 +38,7 @@ verified authority/subject key, not a tenant context or a guessed UserId. The
 platform-scoped authority anchor is deployment-installed and app-read-only.
 The [Database standard](../standards/05-database.md#proposed-p03-1-identity-storage-annex)
 alone owns exact policies, privileges and confined owner functions. These
-contracts are Accepted; schema/guards remain pending P03-1 implementation.
+contracts, schema and guards are implemented by the Identity foundation.
 
 Global and tenant owners cannot join or retarget one another. Identity-only
 announcements never announce PlatformSentinel as a tenant. The sentinel has two

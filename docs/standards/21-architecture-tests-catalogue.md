@@ -1422,7 +1422,7 @@ otherwise).
   **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 4,
   `LearnStack.Tests.Architecture`, `TenancyConventionTests`), and whole: it reads every
-  module `Domain` assembly, including the three — Content, Identity, Media —
+  module `Domain` assembly, including the two — Content and Media —
   that declare no domain type yet, only an `AssemblyMarker`, so the first `Organization` or `OrganizationBranding` to land
   in one of them fails it. `OrganizationBranding` itself arrives with
   [Phase 06](../roadmap/phase-06-renderer-admin-studio.md)'s branding; until then "exactly
@@ -2560,8 +2560,8 @@ Implemented requires nonempty production subjects and dirty/clean controls.
 - **Status:** **Implemented** (`DataProtectionConventionTests`) — P03-1 Step 2;
   current nonempty production models,
   the deliberately empty migration-only Platform context, real neutral-property
-  negative/positive controls and annotation/schema neutrality. Identity models
-  must join the complete census when Steps 3/4 introduce them.
+  negative/positive controls and annotation/schema neutrality. Global and
+  contextual Identity models participate in the complete census.
 - **Phase:** P03-1 Step 2, before the first Identity personal-data writer.
 
 #### `Global_Identity_Storage_Is_Subject_Confined`
@@ -2570,8 +2570,8 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   missing/reset/malformed/foreign authority refuses. EF filters, applied
   policies/grants/functions, owner DELETE/TRUNCATE refusal and pooled cleanup
   match the sole [Database contract](05-database.md#identity-storage-contract),
-  with positive and planted-widening controls. The applied Step 3 schema has 50 tables, six chains and three
-  Identity definer functions; Step 4 owns the final 55-table/five-function target.
+  with positive and planted-widening controls. The current applied schema has
+  55 tables, six chains and five Identity definer functions.
 - **Source:** [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md);
   [Database Standards](05-database.md#identity-storage-contract).
 - **Type:** PostgreSQL catalogue, app-role isolation and owner controls.
@@ -2623,10 +2623,11 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   [Database lock contract](05-database.md#lock-snapshot-and-adoption-conditions).
 - **Type:** real app-role PostgreSQL mutation/concurrency controls and closed
   transaction-only acquisition/caller census. **Kind:** structural and behavioural.
-- **Test owners:** `IdentityMembershipTests`, `IdentityFoundationConventionTests`.
+- **Test owners:** `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`.
 - **Status:** **Implemented** (`IdentityFoundationConventionTests`; `IdentityMembershipTests`, integration assembly) — real app-role races, immediate/deferred guards,
   transaction-only caller/receipt controls, fixture restoration and local
-  command-path measurement; Step 4 independent review remains separate.
+  command-path measurement. Current qualification/review state lives in the
+  [phase Status block](../roadmap/phase-03-identity-admin.md).
 - **Phase:** P03-1 Step 4.
 
 #### `Identity_Seed_Uses_Finite_Adopted_Manifests`

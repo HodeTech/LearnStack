@@ -1,6 +1,7 @@
 # Identity — Audit Coverage Matrix
 
-**Status: Global and contextual seed writers implemented; Step 4 review pending.**
+**Status: Global and contextual seed writers implemented.** Current qualification
+and review state lives in the [phase Status block](../../roadmap/phase-03-identity-admin.md).
 The User off-path catalogue, contextual requests and persistence exist.
 Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md)

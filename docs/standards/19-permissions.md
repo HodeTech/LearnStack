@@ -245,18 +245,18 @@ Permission grants and revocations are MUST-audit security-events ([18-audit-cove
 
 ## Identity foundation contract
 
-**Status: Adopted — Accepted 2026-10-25; implementation pending.** Derived from
+**Status: Foundation registry, models and seed commands implemented.** Derived from
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
-Current source has no registry, Role/Membership model or commands below. No route,
-operator admission, grant or live permission is activated.
+API composition denies the seed capability. No route, operator admission or live
+HTTP permission is activated by the foundation.
 
 <a id="adoption-replacements"></a>
 
 ### Adopted scope and grant boundary
 
 The active Scope, Module-Driven Registration and Built-in Roles sections above
-adopt this contract. Implementation and the grants it guards remain pending.
+adopt this implemented foundation contract. Live enforcement remains P03-2.
 
 P03-1's five pairs and version-1 grants below are the complete foundation set.
 P03-2 owns the separately admitted finite live-authorization/grant-adoption
@@ -291,7 +291,7 @@ cannot clear an authenticated branch scope implicitly.
 
 Version 1 contains **exactly five pairs**:
 
-| Scope | Key | Planned production consumer, compiled in P03-1 Step 4 |
+| Scope | Key | Production foundation consumer |
 |---|---|---|
 | Tenant | `identity.membership.admin` | `CreateFirstSeedAdminMembership`; Tenant variant of `CreateSeedMembership` |
 | Organization | `identity.membership.admin` | Organization variant of `CreateSeedMembership` |
@@ -299,7 +299,7 @@ Version 1 contains **exactly five pairs**:
 | Tenant | `identity.membership_profile.write` | Tenant variant of `SetSeedMembershipProfile` |
 | Organization | `identity.membership_profile.write` | Organization variant of `SetSeedMembershipProfile` |
 
-These are planned compiled production commands, not existing types/test fixtures.
+These are actual compiled production commands, distinct from test fixtures.
 Finite scope metadata derives from immutable target/validated declarations.
 Closed seed authority is checked independently before dispatch, default-denied
 in API composition. P03-2 qualifies live permission admission before protected
@@ -366,8 +366,8 @@ BFF activation, protected UI and explicit scope transitions;
 P03-9/G13 owns production first-admin/recovery before its production provisioner.
 The development seed capability is not that future authority.
 
-Canonical tests keep current status with explicit pending Identity extensions.
-The [catalogue](21-architecture-tests-catalogue.md) registers the semantic property
-census for Step 2 and foundation/manifests/scope controls for Step 4. Registered
-controls remain unimplemented until actual clean/dirty subjects ship. Empty
-censuses, stored Roles and diagrams are not implementation proof.
+The [catalogue](21-architecture-tests-catalogue.md) records the implemented
+semantic property census and foundation/manifests/scope controls with actual
+clean/dirty subjects. Empty censuses, stored Roles and diagrams alone are not
+implementation proof. Current qualification state lives in the
+[phase Status block](../roadmap/phase-03-identity-admin.md).

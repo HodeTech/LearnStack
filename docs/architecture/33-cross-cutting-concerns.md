@@ -135,7 +135,7 @@ and contract proof remain Steps 3–4. The eight-stage order, normal writer
 ownership and independent rejected-assertion audits are unchanged.
 
 Accepted ADR-0072/0073 add a common prepared global-identity owner in P03-1
-Step 3; implementation remains pending. It uses distinct authority-kind
+Step 3. It uses distinct authority-kind
 enrollment, serializes the subject before a typed creation intent and consumes
 one prepared physical owner through the common transaction/capture coordinator.
 Global and tenant owners cannot join or retarget one another. The central audit
