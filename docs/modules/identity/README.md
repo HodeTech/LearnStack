@@ -317,14 +317,14 @@ framework domain-event dispatch does not imply a published contract.
 
 ## Permission matrix
 
-[Identity permissions](permissions.md) binds planned production seed commands to
+[Identity permissions](permissions.md) binds production seed commands to
 the exact [accepted Standard 19 manifest](../../standards/19-permissions.md#proposed-identity-foundation-contract).
-They compile in Step 4; current source has none. Capability metadata activates
+They are implemented in Step 4. Capability metadata activates
 neither live permission behavior nor HTTP routes.
 
 ## Audit coverage matrix
 
-[Identity audit](audit.md) declares planned root/child classifications and
+[Identity audit](audit.md) declares implemented root/child classifications and
 personal/reference paths. The central writer owns durability; Identity has no
 audit table/direct audit SQL. Global mutation audit follows ADR-0072 alone.
 
@@ -332,7 +332,10 @@ audit table/direct audit SQL. Global mutation audit follows ADR-0072 alone.
 
 The canonical [initial performance budgets](../../standards/15-performance.md#initial-budgets)
 apply: API p95 below 200 ms reads / 500 ms writes, excluding separately reported
-provider calls; no Identity measurement is claimed. Standard 05 owns bounded lock waits,
+provider calls. The [Step 4 record](../../roadmap/phase-03-delivery-log.md#p03-1-step-4--contextual-foundation-and-owned-seed-2026-10-26)
+owns the small local command-path measurement and its limits; it establishes
+neither production capacity nor the pending Step 5 API binding-load result.
+Standard 05 owns bounded lock waits,
 cancellation and metrics. Timeout yields a fixed retryable failure without
 partial grants. P03-2 measures candidate-reader/authorization costs before
 activation; a global permission cache/session grant cannot replace a fresh check.
@@ -344,16 +347,16 @@ default deny/revocation and reader handoff; P03-3 scope transitions/DTOs; P03-4
 invitations; P03-5 dynamic values; P03-9 production first-admin/recovery; P03-10
 closure/locators. These are named later writers, not implicit foundation authority.
 
-| Subject/control | Current state | Planned owner / timing |
+| Subject/control | Current state | Owner / scope |
 |---|---|---|
-| Models, commands and registry | Global User/authority implemented; contextual models/commands/registry pending | P03-1 Steps 3/4, actual models/production commands and five-pair registry |
-| Canonical marker/filter/RLS/FK/unique/aggregate/audit controls | Existing implemented controls unchanged; Identity extensions Awaiting backfill | P03-1 Step 4, real app-role positive/dirty controls |
-| `Permission_Definitions_DeclareScope` | Registered; Identity implementation pending | P03-1 Step 4, `IdentityFoundationConventionTests` and actual commands; broader enforcement P03-2 |
-| `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Implemented for all current models, including global Identity; contextual backfill pending | P03-1 Step 2, `DataProtectionConventionTests`; complete census and neutral-name omission; Steps 3/4 add their actual Identity mappings |
-| `Identity_Seed_Uses_Finite_Adopted_Manifests` | Registered; no runtime artifact | P03-1 Step 4, `IdentityFoundationConventionTests` / `SeederTests`; exact manifests, kernel equivalence and no-write reruns |
-| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Registered; implementation pending | P03-1 Step 4, `IdentityMembershipTests`; separate real app-role connections and independent guard removals |
-| Per-sink PII canaries/child audit/MUST rollback | Planned behavioral proof | P03-1 Steps 2/4, positive sink events and actual snapshots |
-| `Global_Identity_Storage_Is_Subject_Confined` / `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Implemented global proofs; step review in progress | P03-1 Step 3, `GlobalIdentitySchemaTests`, `IdentityAuditConventionTests` / `GlobalIdentityBootstrapTests`; P03-3 owns HTTP/new-user BFF activation |
+| Models, commands and registry | Global and contextual foundation implemented; Step 4 review remains separate | P03-1 Steps 3/4; live authorization P03-2 |
+| Canonical marker/filter/RLS/FK/unique/aggregate/audit controls | Identity extensions implemented with populated positive/dirty controls | P03-1 Step 4; [catalogue](../../standards/21-architecture-tests-catalogue.md#pending-identity-extensions-to-implemented-rules) owns the individual obligations |
+| `Permission_Definitions_DeclareScope` | Implemented for the finite foundation | `IdentityFoundationConventionTests` and actual command metadata; broader enforcement P03-2 |
+| `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Implemented for all current models, including contextual Identity | `DataProtectionConventionTests`; complete census and neutral-name omission controls |
+| `Identity_Seed_Uses_Finite_Adopted_Manifests` | Implemented; no-write/interrupted/conflict actual seed controls | `IdentityFoundationConventionTests` / `IdentitySeederTests`; combined final provider/browser qualification Step 6 |
+| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Implemented actual app-role races and closed helper/caller controls | `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`; live transition/archive ownership remains P03-3/10 |
+| Per-sink PII canaries/child audit/MUST rollback | Step 2 sink controls and Step 4 actual child snapshots/redacted diffs and MUST rollback implemented | `IdentitySeederTests` plus canonical [data-protection proof ownership](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership) |
+| `Global_Identity_Storage_Is_Subject_Confined` / `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Implemented global proofs; Step 3 completed both review rounds | `GlobalIdentitySchemaTests`, `IdentityAuditConventionTests` / `GlobalIdentityBootstrapTests`; P03-3 owns HTTP/new-user BFF activation |
 
 Registered means an actual catalogue entry exists. Until then a new control is
 planned/unregistered; later Registered is not Implemented. No empty census,

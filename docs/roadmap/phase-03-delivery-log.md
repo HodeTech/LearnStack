@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,156 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,181 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -44,6 +44,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0074 proposal review round 2 and readiness (2026-10-26)](#adr-0074-proposal-review-round-2-and-readiness-2026-10-26) — 16 lines
   - [ADR-0074 maintainer review correction and acceptance (2026-10-26)](#adr-0074-maintainer-review-correction-and-acceptance-2026-10-26) — 52 lines
   - [P03-1 Step 4 — Contextual foundation and owned seed (2026-10-26)](#p03-1-step-4--contextual-foundation-and-owned-seed-2026-10-26) — 90 lines
+  - [P03-1 Step 4 review round 1 (2026-10-26)](#p03-1-step-4-review-round-1-2026-10-26) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1285,3 +1286,28 @@ User TRUNCATE proof preempted by new FKs; and per-flow test metric observation.
 The initial 153-case run was 150/153, followed by those verified expectation
 corrections and the final expanded green population above. Full-step reviews
 have not yet run; no local-complete or packet-complete claim follows here.
+
+### P03-1 Step 4 review round 1 (2026-10-26)
+
+**Reviewed source:** `0495f2b2`, full Step 4 diff from `dce6cad2`. Three new
+independent read-only reviewers inspect SQL/storage/ordered-lock correctness
+(GPT-6 Astra, xhigh), Domain/Application/privacy/corpus boundaries (GPT-6.1 Sol,
+xhigh), and owned tooling/Seeder/native handoff (GPT-6.1 Sol, xhigh). They read
+actual source, contracts and scoped receipts; none executes builds/tests or edits
+files. All approve assigned runtime scopes with no verified blocking/major issue.
+
+Two independently identify the same Minor current-spec drift: Identity's bottom
+permission/audit/evidence inventory still calls contextual commands absent and
+implemented seed/lock/classification controls pending. The current descriptions
+now name actual owners and point to canonical catalogue/measurement records,
+while preserving pending independent review and later live/HTTP/closure owners.
+No Accepted body or historical delivery record changes.
+
+Candidates are not promoted into findings without supporting current behavior:
+per-act Tenancy lifecycle transition races remain the explicitly named P03-3
+contract; no current value-bearing database-diagnostic leak is established; and
+concurrent owner editing of the selected private file is an unreproduced
+configuration-continuity caveat rather than a demonstrated authority bypass.
+No speculative runtime change follows from those candidates. Full source/shard/
+integrated provider qualification remains Step 6. Document/corpus checks qualify
+the verified correction before a second fresh full-step review round.
