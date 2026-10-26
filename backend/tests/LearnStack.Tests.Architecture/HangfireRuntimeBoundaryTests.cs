@@ -204,7 +204,7 @@ public sealed partial class OutboxDispatchConventionTests
             callers.Select(caller => caller + ":" + target));
     }
 
-    public sealed partial class JobLifecycleMutationTests
+    public sealed class HangfireRuntimeMutationTests
     {
 
         /// <summary>ADR-0060: planted controls exercise the same production capability/sink census.</summary>

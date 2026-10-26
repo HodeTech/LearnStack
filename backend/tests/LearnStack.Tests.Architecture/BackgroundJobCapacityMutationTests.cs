@@ -8,7 +8,7 @@ namespace LearnStack.Tests.Architecture;
 public sealed partial class OutboxDispatchConventionTests
 {
 
-    public sealed partial class JobLifecycleMutationTests
+    public sealed class JobCapacityMutationTests
     {
         /// <summary>ADR-0047 capacity boundaries: planted escapes must fail the same production capability detector.</summary>
         [Fact]

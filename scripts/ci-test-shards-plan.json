@@ -399,6 +399,286 @@
       "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
       "runId": "40318359878",
       "note": "Attempt 2, ordinary-8, artifact ID 12649532186, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
+    },
+    "pr38-df-1-architecture-1": {
+      "kind": "hosted_trx",
+      "artifactSha256": "810581e38845581eb1b96afd5551b3da6a3d136af5443cfa7f6582ee50096e69",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, architecture-1, artifact ID 12653685003, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-architecture-2": {
+      "kind": "hosted_trx",
+      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, architecture-2, artifact ID 12652606232, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-architecture-3": {
+      "kind": "hosted_trx",
+      "artifactSha256": "113518ba341dcd597c26a6ed8ba6c8215a58b5107981a8869f582681f15532b6",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, architecture-3, artifact ID 12652816720, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-architecture-4": {
+      "kind": "hosted_trx",
+      "artifactSha256": "77251e81bee71b3c63337be660df235e93de35421616b083ebf11fd35ba732b4",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, architecture-4, artifact ID 12653460765, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-architecture-5": {
+      "kind": "hosted_trx",
+      "artifactSha256": "d5e63d905231142da8b8e614bfb8ed285508a81235e0924d957f72840c604a1e",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, architecture-5, artifact ID 12653630018, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-ordinary-0": {
+      "kind": "hosted_trx",
+      "artifactSha256": "93ee7a30c7c4cdd8ff3922b1b3ea5ef6a27afc50385275078824df64ec55fcf8",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, ordinary-0, artifact ID 12652825643, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-ordinary-10": {
+      "kind": "hosted_trx",
+      "artifactSha256": "94008ecc6d8565a79f4ad6023e1b2de981772eddb301af2ff1a5ecab7d46dca4",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, ordinary-10, artifact ID 12655025643, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-ordinary-11": {
+      "kind": "hosted_trx",
+      "artifactSha256": "1afdc9d7a0e97ba5a0ca132d3100e045503994b132ed57d8ecae9bfcb5640475",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, ordinary-11, artifact ID 12653396243, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-ordinary-4": {
+      "kind": "hosted_trx",
+      "artifactSha256": "1a6c40876afc25eca903fade8ac1958f06884c8dda0f435bbb2712c9effa69f3",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, ordinary-4, artifact ID 12655210098, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-ordinary-6": {
+      "kind": "hosted_trx",
+      "artifactSha256": "a110991fc8936203d2eab59eb96933d02cba71ef5b99a433400efbb08ef7a29d",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, ordinary-6, artifact ID 12652851829, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-ordinary-7": {
+      "kind": "hosted_trx",
+      "artifactSha256": "8d4622f7be166644fcd1e381b9039c935eb8f4ae045dbfc8c523107ed636665c",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, ordinary-7, artifact ID 12653571034, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-1-ordinary-8": {
+      "kind": "hosted_trx",
+      "artifactSha256": "c9329ff6e95ca27b7420446545b982f4d122de22310d579cb8970ad9c8aeb2f8",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 1, ordinary-8, artifact ID 12652516461, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-2-architecture-1": {
+      "kind": "hosted_trx",
+      "artifactSha256": "d0f7f75b02851e9ad2375a575053925d9601ccbe11aef33d919d3996989c8457",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 2, architecture-1, artifact ID 12653084289, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-2-architecture-3": {
+      "kind": "hosted_trx",
+      "artifactSha256": "46d6ade56095884f79b05d6371224332c54be1c3db92825149553cc025c1cc8e",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 2, architecture-3, artifact ID 12655345633, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-2-architecture-5": {
+      "kind": "hosted_trx",
+      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 2, architecture-5, artifact ID 12653768947, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-2-ordinary-0": {
+      "kind": "hosted_console",
+      "artifactSha256": "818a8a5a8a659fb698896be2bdf03bff3413045eb433e2337cde35a266712a11",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 2, ordinary-0, artifact ID 12654553778, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; original interrupted JSONL prefix, full all-Passed groups only; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-2-ordinary-1": {
+      "kind": "hosted_trx",
+      "artifactSha256": "a5ddf6ae4cdf577399e7f294db3046ef511eeebf742ab950d0a11f76ee2215ec",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 2, ordinary-1, artifact ID 12654288868, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-2-ordinary-10": {
+      "kind": "hosted_trx",
+      "artifactSha256": "7e8d78925b5ced3ea3446b3da9b69e11e6426fcf4ee9d778f0772d38df9c9ec8",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 2, ordinary-10, artifact ID 12654873440, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-2-ordinary-5": {
+      "kind": "hosted_trx",
+      "artifactSha256": "2d131fcb0125e26e6df3382230ed586980dcc8f7375a6f40523cfebeb0e295ad",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 2, ordinary-5, artifact ID 12654363345, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-2-ordinary-8": {
+      "kind": "hosted_trx",
+      "artifactSha256": "c7fbd6f616af4674de0cf0ce3e1a694d2d60b5791fbf56191200aeb785beb176",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 2, ordinary-8, artifact ID 12655268010, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-df-2-ordinary-9": {
+      "kind": "hosted_trx",
+      "artifactSha256": "8e0e6870ca10e4c3e0f8408261ae68d74be5a9d769c7706fec3fe184a089a2cf",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Attempt 2, ordinary-9, artifact ID 12653204628, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
+    },
+    "pr38-class-alias-job-owner": {
+      "kind": "hosted_trx",
+      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
+      "runId": "39417319998",
+      "note": "Alias JobExecutionMutationTests->JobOwnerMutationTests, method Background_job_owner_census_detects_actual_removals_extra_subtypes_async_calls_and_delegates; unchanged Fact body SHA256 a18d18ee4893a501c4745978df1b24952e01bf24d6e443364c5c096132f10e37; inherits hosted-architecture-39417319998-2-1. Advisory scalar; new name not executed."
+    },
+    "pr38-class-alias-job-orchestration": {
+      "kind": "hosted_trx",
+      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Alias JobExecutionMutationTests->JobOrchestrationMutationTests, method External_job_orchestration_rejects_missing_seams_helpers_delegates_signatures_and_resource_carriers; unchanged Fact body SHA256 1f8352511ad2141801da6a1c4f8d0885550b70b703d42df8e28f176bf0d1f8d1; inherits pr38-df-2-architecture-5. Advisory scalar; new name not executed."
+    },
+    "pr38-class-alias-job-capacity": {
+      "kind": "hosted_trx",
+      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Alias JobLifecycleMutationTests->JobCapacityMutationTests, method Background_job_capacity_census_rejects_forged_cleanup_recovery_and_checkpoint_owners; unchanged Fact body SHA256 0b07c37090e62af54d3b06ebc04473e74726b42da30b7dad16b00f45c4570527; inherits pr38-df-1-architecture-2. Advisory scalar; new name not executed."
+    },
+    "pr38-class-alias-job-recipient": {
+      "kind": "hosted_trx",
+      "artifactSha256": "dd1213a26dbb87999c5545f71061f76dccc124e5950f44eec6dd237a240ffc02",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "runId": "40270967586",
+      "note": "Alias JobLifecycleMutationTests->JobRecipientMutationTests, method Background_job_recipient_census_detects_extra_authority_and_missing_real_fences; unchanged Fact body SHA256 3f0a97d5d175979b66f2361d96b9223260c4402afeea8809c32ed6826d1ff5f6; inherits p031-hosted-architecture-3. Advisory scalar; new name not executed."
+    },
+    "pr38-class-alias-hangfire-runtime": {
+      "kind": "hosted_trx",
+      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
+      "runId": "39417319998",
+      "note": "Alias JobLifecycleMutationTests->HangfireRuntimeMutationTests, method Hangfire_runtime_census_rejects_fatal_and_constructor_escapes; unchanged Fact body SHA256 748270afbda097f752e5c5dd32387bc4581eea0a74d544ddfc61d298297fa642; inherits hosted-architecture-39417319998-2-1. Advisory scalar; new name not executed."
+    },
+    "pr38-class-alias-job-recurrence": {
+      "kind": "hosted_trx",
+      "artifactSha256": "6733ccbeb3fddcfeca2c4d4283a94a39e32b91d9cecaed18cc64a9ee77d01363",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "runId": "40270967586",
+      "note": "Alias OutboxDispatchConventionTests->JobRecurrenceMutationTests, method Background_job_recurrence_runtime_controls_reject_changed_authority_and_cleanup; unchanged dedented Theory body SHA256 975ccdf103cc9626c2aeb68d8e064aa91cc6d26c1613104e953dafc3c7fe246c; inherits p031-hosted-architecture-5. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-resolution": {
+      "kind": "hosted_trx",
+      "artifactSha256": "113518ba341dcd597c26a6ed8ba6c8215a58b5107981a8869f582681f15532b6",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Alias OutboxDispatchConventionTests->ResolutionMutationTests, method Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers; unchanged dedented Fact body SHA256 16a75e50ea90608d73b2b640588e06c5b8c9f8b40d5a5ab6058acd4da3949bc5; inherits pr38-df-1-architecture-3. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-cleanup-owner-1067e9c3": {
+      "kind": "hosted_trx",
+      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Alias OutboxDispatchConventionTests->CleanupOwnerMutationTests, method Cleanup_owner_census_rejects_extra_acquisition_disposal_capture_and_observation_paths; unchanged dedented Fact body SHA256 74043e6354b36489a5f5e16686d445660ca4cbf1bf725b7711a03a9603518e23; inherits pr38-df-2-architecture-5. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-delivery-lifecycle-4abc441d": {
+      "kind": "hosted_trx",
+      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Alias OutboxDispatchConventionTests->DeliveryLifecycleMutationTests, method Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths; unchanged dedented Fact body SHA256 aadc5f058bab1e61d4c0b8c32ba7e42fe170d6dd3191ac472d34b5ec9596e772; inherits pr38-df-2-architecture-5. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-bridge-credential-8d40b87a": {
+      "kind": "hosted_trx",
+      "artifactSha256": "26837faa8779817aab5f299d42c19b0d8cae668f6bdf2143ff3c4d3b303457dc",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "runId": "40270967586",
+      "note": "Alias OutboxDispatchConventionTests->BridgeCredentialMutationTests, method Bridge_credential_census_rejects_extra_acquisition_forwarding_and_store_consumers; unchanged dedented Fact body SHA256 38cfb6cc97de0f4e724ee623df6e9a6ec9092bea5fc2e6a890280dee733d6c9c; inherits p031-hosted-architecture-1. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-bridge-credential-c6cb9e31": {
+      "kind": "hosted_trx",
+      "artifactSha256": "59d80797f359ad0aec494654e77cac2e6187ad1e744ab3e8abde3695345cfe90",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
+      "runId": "39417319998",
+      "note": "Alias OutboxDispatchConventionTests->BridgeCredentialMutationTests, method Bridge_credential_census_rejects_changed_signatures_captures_and_missing_subjects; unchanged dedented Fact body SHA256 c42eef5db89c31e571ab1d1a7a666b752f4410d9f08f4bf005afcd485900bc25; inherits hosted-architecture-39417319998-2-0. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-credential-binding-f900f146": {
+      "kind": "hosted_trx",
+      "artifactSha256": "6c923d6eb54664b3f0d7d889e6ea9eaa29f1b582f6173fefa9318524d3be3b0f",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "runId": "40270967586",
+      "note": "Alias OutboxDispatchConventionTests->CredentialBindingMutationTests, method Credential_census_rejects_crossed_keys_changed_closures_and_missing_subjects; unchanged dedented Fact body SHA256 815c4e74ec047c3a7b2baaf9133e788fcd65a4a27a2e152724030d9a1d1b8d6c; inherits p031-hosted-architecture-0. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-credential-binding-1805dd42": {
+      "kind": "hosted_trx",
+      "artifactSha256": "26837faa8779817aab5f299d42c19b0d8cae668f6bdf2143ff3c4d3b303457dc",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "runId": "40270967586",
+      "note": "Alias OutboxDispatchConventionTests->CredentialBindingMutationTests, method Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys; unchanged dedented Fact body SHA256 a7f0dab0b9ccf9cebf71449fb480bd5249270e95c262c3019ebb12d2740482c8; inherits p031-hosted-architecture-1. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-integration-invocation-572fda26": {
+      "kind": "hosted_trx",
+      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Alias OutboxDispatchConventionTests->IntegrationInvocationMutationTests, method Integration_invocation_census_rejects_all_layer_direct_interface_helper_async_and_delegate_bypasses; unchanged dedented Fact body SHA256 def20fa944e25cf4b1a8a4fab0f9297a663f5b042fb4a6b017ed646ec6aa391f; inherits pr38-df-1-architecture-2. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-delivery-credential-0fe0826f": {
+      "kind": "hosted_trx",
+      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Alias OutboxDispatchConventionTests->DeliveryCredentialMutationTests, method Delivery_credentials_reject_extra_store_locators_forwarding_overloads_and_wrong_keys; unchanged dedented Fact body SHA256 1a15c08a9e002ce9810a63319a1ba4c7e91d13e8fc2575102c8961bbed7d1185; inherits pr38-df-1-architecture-2. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-job-orchestration-declaration-42dae548": {
+      "kind": "hosted_trx",
+      "artifactSha256": "6c923d6eb54664b3f0d7d889e6ea9eaa29f1b582f6173fefa9318524d3be3b0f",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "runId": "40270967586",
+      "note": "Alias OutboxDispatchConventionTests->JobOrchestrationDeclarationMutationTests, method Background_job_orchestration_has_closed_finite_owners_and_rejects_extra_callers_and_lost_retention; unchanged dedented Fact body SHA256 126d54402544743466ff3d0557a71f050e721072a768e7fef6b79dd6e6bde90a; inherits p031-hosted-architecture-0. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-job-metric-bf372ff9": {
+      "kind": "hosted_trx",
+      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
+      "runId": "39417319998",
+      "note": "Alias OutboxDispatchConventionTests->JobMetricMutationTests, method Background_job_metric_callbacks_follow_the_actual_transitive_memory_graph_and_refuse_persistence_helpers; unchanged dedented Fact body SHA256 3f82b6de1b87ff1059613e5a3bdaccab051f292f7c24d83dc520cf3282aa0243; inherits hosted-architecture-39417319998-2-1. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-job-metric-a826fef6": {
+      "kind": "hosted_trx",
+      "artifactSha256": "dd1213a26dbb87999c5545f71061f76dccc124e5950f44eec6dd237a240ffc02",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "runId": "40270967586",
+      "note": "Alias OutboxDispatchConventionTests->JobMetricMutationTests, method Background_job_metric_census_rejects_bait_callbacks_hidden_registration_and_skipped_binding; unchanged dedented Fact body SHA256 50ff6e956474be146837e346675629737c6d309c2cc9eedd1914af86ba373681; inherits p031-hosted-architecture-3. Advisory scalar; new selector not executed hosted."
+    },
+    "pr38-class-alias-job-authority-census-ef981129": {
+      "kind": "hosted_trx",
+      "artifactSha256": "810581e38845581eb1b96afd5551b3da6a3d136af5443cfa7f6582ee50096e69",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
+      "runId": "40326601181",
+      "note": "Alias OutboxDispatchConventionTests+JobAuthorityMutationTests->JobAuthorityCensusMutationTests, method Background_job_authority_census_detects_extra_activation_and_removed_live_guards; unchanged dedented Fact body SHA256 7665f56665cd4acbc8ae85f135e0e41bd19c7e4499d17cb2a0cb6b8a1c8fd499; inherits pr38-df-1-architecture-1. Advisory scalar; new selector not executed hosted."
     }
   },
   "weights": [
@@ -735,20 +1015,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticatedHttpSurfaceTests.Authenticated_http_census_follows_production_helpers_and_nested_dispatch",
-      "milliseconds": 42406,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 53305,
+      "source": "pr38-df-1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticationAuthorityTests.Authority_census_closes_shape_and_approved_owner_exports",
-      "milliseconds": 43420,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 53887,
+      "source": "pr38-df-1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticationAuthorityTests.Authority_census_detects_missing_subjects_mutability_and_extra_trust_writes",
-      "milliseconds": 18140,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 35084,
+      "source": "pr38-df-1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -765,8 +1045,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticationAuthorityTests.Authority_census_rejects_compiled_claim_role_and_projection_bypasses",
-      "milliseconds": 48741,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 80749,
+      "source": "pr38-df-2-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1130,6 +1410,12 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.GlobalIdentityModelTests.Historical_Identity_migrations_retain_their_ordered_SQL_operations",
+      "milliseconds": 37,
+      "source": "pr38-df-1-architecture-3"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.GlobalIdentityModelTests.User_Aggregate_Has_No_TenantScoped_Columns",
       "milliseconds": 515,
       "source": "p031-hosted-architecture-4"
@@ -1286,15 +1572,69 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityMutationTests.Background_job_application_source_ownership_has_exact_nonempty_callers_and_rejects_escapes",
-      "milliseconds": 76301,
-      "source": "p031-hosted-architecture-3"
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+BridgeCredentialMutationTests.Bridge_credential_census_rejects_changed_signatures_captures_and_missing_subjects",
+      "milliseconds": 157058,
+      "source": "pr38-class-alias-bridge-credential-c6cb9e31"
     },
     {
       "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityMutationTests.Background_job_authority_census_detects_extra_activation_and_removed_live_guards",
-      "milliseconds": 428850,
-      "source": "p031-hosted-architecture-2"
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+BridgeCredentialMutationTests.Bridge_credential_census_rejects_extra_acquisition_forwarding_and_store_consumers",
+      "milliseconds": 169833,
+      "source": "pr38-class-alias-bridge-credential-8d40b87a"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+CleanupOwnerMutationTests.Cleanup_owner_census_rejects_extra_acquisition_disposal_capture_and_observation_paths",
+      "milliseconds": 246241,
+      "source": "pr38-class-alias-cleanup-owner-1067e9c3"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+CredentialBindingMutationTests.Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys",
+      "milliseconds": 42130,
+      "source": "pr38-class-alias-credential-binding-1805dd42"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+CredentialBindingMutationTests.Credential_census_rejects_crossed_keys_changed_closures_and_missing_subjects",
+      "milliseconds": 154403,
+      "source": "pr38-class-alias-credential-binding-f900f146"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+DeliveryCredentialMutationTests.Delivery_credentials_reject_extra_store_locators_forwarding_overloads_and_wrong_keys",
+      "milliseconds": 122232,
+      "source": "pr38-class-alias-delivery-credential-0fe0826f"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+DeliveryLifecycleMutationTests.Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths",
+      "milliseconds": 172694,
+      "source": "pr38-class-alias-delivery-lifecycle-4abc441d"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+HangfireRuntimeMutationTests.Hangfire_runtime_census_rejects_fatal_and_constructor_escapes",
+      "milliseconds": 236768,
+      "source": "pr38-class-alias-hangfire-runtime"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+IntegrationInvocationMutationTests.Integration_invocation_census_rejects_all_layer_direct_interface_helper_async_and_delegate_bypasses",
+      "milliseconds": 132079,
+      "source": "pr38-class-alias-integration-invocation-572fda26"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_authority_census_detects_extra_activation_and_removed_live_guards",
+      "milliseconds": 603500,
+      "source": "pr38-class-alias-job-authority-census-ef981129"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityMutationTests.Background_job_application_source_ownership_has_exact_nonempty_callers_and_rejects_escapes",
+      "milliseconds": 101387,
+      "source": "pr38-df-2-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1304,33 +1644,57 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobExecutionMutationTests.Background_job_owner_census_detects_actual_removals_extra_subtypes_async_calls_and_delegates",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobCapacityMutationTests.Background_job_capacity_census_rejects_forged_cleanup_recovery_and_checkpoint_owners",
+      "milliseconds": 486888,
+      "source": "pr38-class-alias-job-capacity"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobMetricMutationTests.Background_job_metric_callbacks_follow_the_actual_transitive_memory_graph_and_refuse_persistence_helpers",
+      "milliseconds": 70110,
+      "source": "pr38-class-alias-job-metric-bf372ff9"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobMetricMutationTests.Background_job_metric_census_rejects_bait_callbacks_hidden_registration_and_skipped_binding",
+      "milliseconds": 34392,
+      "source": "pr38-class-alias-job-metric-a826fef6"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobOrchestrationDeclarationMutationTests.Background_job_orchestration_has_closed_finite_owners_and_rejects_extra_callers_and_lost_retention",
+      "milliseconds": 95987,
+      "source": "pr38-class-alias-job-orchestration-declaration-42dae548"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobOrchestrationMutationTests.External_job_orchestration_rejects_missing_seams_helpers_delegates_signatures_and_resource_carriers",
+      "milliseconds": 422593,
+      "source": "pr38-class-alias-job-orchestration"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobOwnerMutationTests.Background_job_owner_census_detects_actual_removals_extra_subtypes_async_calls_and_delegates",
       "milliseconds": 391105,
-      "source": "hosted-architecture-39417319998-2-1"
+      "source": "pr38-class-alias-job-owner"
     },
     {
       "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobExecutionMutationTests.External_job_orchestration_rejects_missing_seams_helpers_delegates_signatures_and_resource_carriers",
-      "milliseconds": 385879,
-      "source": "p031-hosted-architecture-4"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobLifecycleMutationTests.Background_job_capacity_census_rejects_forged_cleanup_recovery_and_checkpoint_owners",
-      "milliseconds": 413145,
-      "source": "p031-hosted-architecture-1"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobLifecycleMutationTests.Background_job_recipient_census_detects_extra_authority_and_missing_real_fences",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobRecipientMutationTests.Background_job_recipient_census_detects_extra_authority_and_missing_real_fences",
       "milliseconds": 206098,
-      "source": "p031-hosted-architecture-3"
+      "source": "pr38-class-alias-job-recipient"
     },
     {
       "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobLifecycleMutationTests.Hangfire_runtime_census_rejects_fatal_and_constructor_escapes",
-      "milliseconds": 236768,
-      "source": "hosted-architecture-39417319998-2-1"
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobRecurrenceMutationTests.Background_job_recurrence_runtime_controls_reject_changed_authority_and_cleanup",
+      "milliseconds": 290934,
+      "source": "pr38-class-alias-job-recurrence"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+ResolutionMutationTests.Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers",
+      "milliseconds": 277724,
+      "source": "pr38-class-alias-resolution"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1371,8 +1735,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Storage_And_Credentials_Are_Confined",
-      "milliseconds": 47779,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 68217,
+      "source": "pr38-df-1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1388,27 +1752,9 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_metric_callbacks_follow_the_actual_transitive_memory_graph_and_refuse_persistence_helpers",
-      "milliseconds": 70110,
-      "source": "hosted-architecture-39417319998-2-1"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_metric_census_rejects_bait_callbacks_hidden_registration_and_skipped_binding",
-      "milliseconds": 34392,
-      "source": "p031-hosted-architecture-3"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_metric_registration_requires_the_actual_singleton_descriptor_and_rejects_substitutions",
       "milliseconds": 16,
       "source": "hosted-architecture-39417319998-2-2"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_orchestration_has_closed_finite_owners_and_rejects_extra_callers_and_lost_retention",
-      "milliseconds": 95987,
-      "source": "p031-hosted-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1430,12 +1776,6 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_recurrence_runtime_controls_reject_changed_authority_and_cleanup",
-      "milliseconds": 290934,
-      "source": "p031-hosted-architecture-5"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_recurrence_runtime_keeps_exact_concrete_capability_owners",
       "milliseconds": 2113,
       "source": "p031-hosted-architecture-0"
@@ -1445,36 +1785,6 @@
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Boundary_censuses_preserve_unkeyed_services_unrelated_publishers_and_both_real_keys",
       "milliseconds": 2802,
       "source": "p031-hosted-architecture-4"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Bridge_credential_census_rejects_changed_signatures_captures_and_missing_subjects",
-      "milliseconds": 157058,
-      "source": "hosted-architecture-39417319998-2-0"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Bridge_credential_census_rejects_extra_acquisition_forwarding_and_store_consumers",
-      "milliseconds": 169833,
-      "source": "p031-hosted-architecture-1"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Cleanup_owner_census_rejects_extra_acquisition_disposal_capture_and_observation_paths",
-      "milliseconds": 197293,
-      "source": "p031-hosted-architecture-1"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys",
-      "milliseconds": 42130,
-      "source": "p031-hosted-architecture-1"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Credential_census_rejects_crossed_keys_changed_closures_and_missing_subjects",
-      "milliseconds": 154403,
-      "source": "p031-hosted-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1505,12 +1815,6 @@
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_Terminal_Audit_Identity_Is_Row_Bound",
       "milliseconds": 586,
       "source": "p031-hosted-architecture-5"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_credentials_reject_extra_store_locators_forwarding_overloads_and_wrong_keys",
-      "milliseconds": 81202,
-      "source": "hosted-architecture-39417319998-2-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1556,12 +1860,6 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths",
-      "milliseconds": 127477,
-      "source": "p031-hosted-architecture-5"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_delivery_lifecycle_stays_with_its_enumerated_owners",
       "milliseconds": 707,
       "source": "p031-hosted-architecture-1"
@@ -1577,12 +1875,6 @@
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_handler_discovery_sees_inherited_generic_and_explicit_contracts",
       "milliseconds": 30,
       "source": "p031-hosted-architecture-0"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_invocation_census_rejects_all_layer_direct_interface_helper_async_and_delegate_bypasses",
-      "milliseconds": 109886,
-      "source": "p031-hosted-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1676,12 +1968,6 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
-      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers",
-      "milliseconds": 135112,
-      "source": "p031-hosted-architecture-0"
-    },
-    {
-      "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Resolution_walk_preserves_declared_type_metadata_and_clean_helpers",
       "milliseconds": 5232,
       "source": "hosted-architecture-39417319998-2-1"
@@ -1743,8 +2029,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Every_Database_Test_Carries_The_Docker_Trait",
-      "milliseconds": 19909,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 31394,
+      "source": "pr38-df-1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2979,8 +3265,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobBridgeTests.Actual_bridge_ACK_classifies_old_hint_before_old_expired_token_and_never_calls_unmarked_first_ever",
-      "milliseconds": 12696,
-      "source": "p031-hosted-ordinary-6"
+      "milliseconds": 23271,
+      "source": "pr38-df-1-ordinary-11"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3099,8 +3385,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobBusinessTests.Business_aggregate_child_job_outbox_and_MUST_audit_share_the_final_completion",
-      "milliseconds": 16698,
-      "source": "p031-hosted-ordinary-7"
+      "milliseconds": 27466,
+      "source": "pr38-df-2-ordinary-8"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3135,8 +3421,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobCapacityAdmissionTests.Admission_intersects_optional_Hard_projection_with_operational_ceiling_before_counting_a_start",
-      "milliseconds": 19464,
-      "source": "p031-hosted-ordinary-11"
+      "milliseconds": 38291,
+      "source": "pr38-df-1-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3225,8 +3511,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobControlTests.Actual_terminal_no_start_selection_seeks_future_audit_backlog_and_detects_volatile_cutoff",
-      "milliseconds": 37940,
-      "source": "p031-hosted-ordinary-7"
+      "milliseconds": 58772,
+      "source": "pr38-df-2-ordinary-9"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3459,8 +3745,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobExternalCheckpointStoreTests.Execute_bridge_requires_the_exact_clean_acknowledged_arm_and_trusted_read_before_scope_construction",
-      "milliseconds": 10604,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 27454,
+      "source": "pr38-df-1-ordinary-6"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3531,8 +3817,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobExternalCheckpointStoreTests.Locked_history_resolves_the_exact_lost_ack_without_reopening_stopped_work_or_rewriting_physical_history",
-      "milliseconds": 42910,
-      "source": "p031-hosted-ordinary-1"
+      "milliseconds": 56020,
+      "source": "pr38-df-1-ordinary-11"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -4065,8 +4351,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.Native_lost_checkpoint_ACK_uses_the_exact_issued_history_and_never_repeats_the_provider",
-      "milliseconds": 17793,
-      "source": "p031-hosted-ordinary-3"
+      "milliseconds": 40537,
+      "source": "pr38-df-1-ordinary-10"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -4089,8 +4375,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.Native_transactional_pool_completes_at_the_app_source_floor_while_actual_external_reconcile_is_held",
-      "milliseconds": 19527,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 32726,
+      "source": "pr38-df-1-ordinary-11"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -4845,8 +5131,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobStorageMigrationTests.Idle_and_partial_quantums_seek_past_future_backlog_and_detect_a_volatile_clock",
-      "milliseconds": 8600,
-      "source": "p031-hosted-ordinary-0"
+      "milliseconds": 26696,
+      "source": "pr38-df-2-ordinary-10"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -5115,8 +5401,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.CustomizationDefaultDeliveryTests.Real_Seeder_and_real_subscriber_serialize_on_each_builtin_concept",
-      "milliseconds": 7046,
-      "source": "p031-hosted-ordinary-0"
+      "milliseconds": 19231,
+      "source": "pr38-df-1-ordinary-0"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -7083,8 +7369,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Actual_User_fence_orders_Membership_against_a_committing_closure_and_freshly_reads_status",
-      "milliseconds": 15260,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 29761,
+      "source": "pr38-df-1-ordinary-6"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -7353,8 +7639,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.IdentitySeederTests.Central_MUST_failure_rolls_back_only_the_failed_graph_and_clean_rerun_resumes",
-      "milliseconds": 14084,
-      "source": "p031-hosted-ordinary-10"
+      "milliseconds": 36695,
+      "source": "pr38-df-2-ordinary-10"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -8247,8 +8533,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.PublicAdmissionRenderingTests.Native_admission_preserves_wire_failures_request_lifetimes_and_browser_fallback",
-      "milliseconds": 48622,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 63199,
+      "source": "pr38-df-1-ordinary-4"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -8421,8 +8707,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.PublicLocalLaunchTests.Public_local_API_launcher_serves_seeded_reads_without_a_PlatformAdmin_credential",
-      "milliseconds": 31047,
-      "source": "p031-hosted-ordinary-0"
+      "milliseconds": 62144,
+      "source": "pr38-df-2-ordinary-10"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -8637,8 +8923,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.SeederTests.Completed_seed_mismatch_fails_without_mutating_any_existing_row_or_audit",
-      "milliseconds": 113025,
-      "source": "p031-hosted-ordinary-7"
+      "milliseconds": 128893,
+      "source": "pr38-df-2-ordinary-0"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9735,8 +10021,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmEventTests.Warm_empty_default_policy_converges_preserves_custom_selection_and_refuses_existing_indefinite_history",
-      "milliseconds": 33666,
-      "source": "p031-hosted-ordinary-0"
+      "milliseconds": 59045,
+      "source": "pr38-df-2-ordinary-5"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9837,8 +10123,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Group_carried_identity_requires_a_no_write_refusal",
-      "milliseconds": 90717,
-      "source": "p031-hosted-ordinary-3"
+      "milliseconds": 103719,
+      "source": "pr38-df-2-ordinary-1"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9849,8 +10135,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Hidden_stored_identity_refuses_before_ordinary_writes_and_preserves_the_conflicting_actor",
-      "milliseconds": 66491,
-      "source": "p031-hosted-ordinary-10"
+      "milliseconds": 88801,
+      "source": "pr38-df-2-ordinary-9"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9867,14 +10153,14 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Identity_mapper_secret_and_duplicate_lookup_conflicts_refuse_before_the_first_write",
-      "milliseconds": 59773,
-      "source": "p031-hosted-ordinary-10"
+      "milliseconds": 110473,
+      "source": "pr38-df-2-ordinary-5"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Interrupted_historical_preparation_counts_the_dispatched_write_and_requires_an_explicit_resume",
-      "milliseconds": 96485,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 123103,
+      "source": "pr38-df-1-ordinary-10"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9891,14 +10177,14 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Missing_protected_definitions_do_not_allow_preparation_for_a_customized_stock_scope_lookalike",
-      "milliseconds": 49816,
-      "source": "pr38-b-ordinary-0"
+      "milliseconds": 63258,
+      "source": "pr38-df-1-ordinary-10"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Partial_admin_view_only_definition_is_preserved_by_preparation_then_normalized_by_a_distinct_ordinary_write",
-      "milliseconds": 59871,
-      "source": "p031-hosted-ordinary-4"
+      "milliseconds": 75591,
+      "source": "pr38-df-2-ordinary-5"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9915,8 +10201,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Retained_cached_organization_groups_do_not_override_strict_user_identity",
-      "milliseconds": 55973,
-      "source": "p031-hosted-ordinary-7"
+      "milliseconds": 67245,
+      "source": "pr38-df-1-ordinary-8"
     },
     {
       "assembly": "learnstack.tests.integration",

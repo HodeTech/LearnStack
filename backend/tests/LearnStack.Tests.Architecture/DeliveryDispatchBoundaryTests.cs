@@ -134,34 +134,37 @@ public sealed partial class OutboxDispatchConventionTests
         finally { observation.Fields.Remove(cleanField); module.Types.Remove(clean); }
     }
 
-    [Fact]
-    public void Delivery_credentials_reject_extra_store_locators_forwarding_overloads_and_wrong_keys()
+    public sealed class DeliveryCredentialMutationTests
     {
-        using var census = ProductionCensus.Read();
-        var module = census.Modules.Single(item => item.Assembly.Name.Name == DeliveryApplication);
-        var store = census.Types[(InfrastructureAssembly, DeliveryStore)];
-        foreach (var capability in store.Methods.Where(method => method.Name is ".ctor" or "TryClaimAsync" or "ReplayAsync"))
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "a subscriber privileged store escape through " + opcode.Name,
-                    () => AddCallProbe(module, "DeliveryStoreEscape", capability, opcode), CredentialOffenders);
-        var locator = typeof(ServiceProviderServiceExtensions).GetMethods().Single(method => method.Name == "GetRequiredService"
-            && method.IsGenericMethodDefinition && method.GetParameters().Length == 1).MakeGenericMethod(typeof(DeliveryDispatchStore));
-        AssertMutation(census, "an unkeyed subscriber store locator", () =>
-            AddAsyncCallProbe(module, "DeliveryStoreLocator", module.ImportReference(locator)), CredentialOffenders);
-        var worker = census.Types[(BoundaryApi, DeliveryWorker)];
-        foreach (var (type, name, field) in new[] { (worker, "StartAsync", "_source"), (worker, "DispatchAsync", "_store"),
-                     (worker, "ClaimNextAsync", "_store"),
-                     (store, "ReplayAsync", "_source"), (store, "AcquireAsync", "_source") })
-            AssertMutation(census, "an extra privileged forwarding overload", () => AddBoundaryFieldGetter(type, name, field), CredentialOffenders);
-        var parameter = worker.Methods.Single(method => method.IsConstructor && !method.IsStatic).Parameters
-            .Single(item => item.CustomAttributes.Any(attribute => attribute.AttributeType.Name == "FromKeyedServicesAttribute"));
-        var attribute = parameter.CustomAttributes.Single(item => item.AttributeType.Name == "FromKeyedServicesAttribute");
-        AssertMutation(census, "subscriber worker crossing to the platform credential", () =>
+        [Fact]
+        public void Delivery_credentials_reject_extra_store_locators_forwarding_overloads_and_wrong_keys()
         {
-            var original = attribute.ConstructorArguments[0];
-            attribute.ConstructorArguments[0] = new CustomAttributeArgument(original.Type, BoundaryPlatform);
-            return () => attribute.ConstructorArguments[0] = original;
-        }, CredentialOffenders);
+            using var census = ProductionCensus.Read();
+            var module = census.Modules.Single(item => item.Assembly.Name.Name == DeliveryApplication);
+            var store = census.Types[(InfrastructureAssembly, DeliveryStore)];
+            foreach (var capability in store.Methods.Where(method => method.Name is ".ctor" or "TryClaimAsync" or "ReplayAsync"))
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "a subscriber privileged store escape through " + opcode.Name,
+                        () => AddCallProbe(module, "DeliveryStoreEscape", capability, opcode), CredentialOffenders);
+            var locator = typeof(ServiceProviderServiceExtensions).GetMethods().Single(method => method.Name == "GetRequiredService"
+                && method.IsGenericMethodDefinition && method.GetParameters().Length == 1).MakeGenericMethod(typeof(DeliveryDispatchStore));
+            AssertMutation(census, "an unkeyed subscriber store locator", () =>
+                AddAsyncCallProbe(module, "DeliveryStoreLocator", module.ImportReference(locator)), CredentialOffenders);
+            var worker = census.Types[(BoundaryApi, DeliveryWorker)];
+            foreach (var (type, name, field) in new[] { (worker, "StartAsync", "_source"), (worker, "DispatchAsync", "_store"),
+                         (worker, "ClaimNextAsync", "_store"),
+                         (store, "ReplayAsync", "_source"), (store, "AcquireAsync", "_source") })
+                AssertMutation(census, "an extra privileged forwarding overload", () => AddBoundaryFieldGetter(type, name, field), CredentialOffenders);
+            var parameter = worker.Methods.Single(method => method.IsConstructor && !method.IsStatic).Parameters
+                .Single(item => item.CustomAttributes.Any(attribute => attribute.AttributeType.Name == "FromKeyedServicesAttribute"));
+            var attribute = parameter.CustomAttributes.Single(item => item.AttributeType.Name == "FromKeyedServicesAttribute");
+            AssertMutation(census, "subscriber worker crossing to the platform credential", () =>
+            {
+                var original = attribute.ConstructorArguments[0];
+                attribute.ConstructorArguments[0] = new CustomAttributeArgument(original.Type, BoundaryPlatform);
+                return () => attribute.ConstructorArguments[0] = original;
+            }, CredentialOffenders);
+        }
     }
 
     [Fact]

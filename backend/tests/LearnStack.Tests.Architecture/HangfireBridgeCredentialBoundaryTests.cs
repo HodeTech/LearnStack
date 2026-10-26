@@ -93,137 +93,140 @@ public sealed partial class OutboxDispatchConventionTests
             .Select(item => item.OwnerId + ":" + item.Instruction.OpCode.Name), expected);
     }
 
-    [Fact]
-    public void Bridge_credential_census_rejects_extra_acquisition_forwarding_and_store_consumers()
+    public sealed class BridgeCredentialMutationTests
     {
-        using var census = ProductionCensus.Read();
-        EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("the actual bridge store and its bridge owner must be nonempty clean subjects");
-        var store = census.Types[(InfrastructureAssembly, JobBridgeStore)];
-        var bridge = census.Types[(InfrastructureAssembly, JobBridge)];
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
-        var reader = store.Methods.Single(method => method.Name == "OpenConnectionAsync");
-        var constructor = store.Methods.Single(method => method.IsConstructor);
-        var claim = store.Methods.Single(method => method.Name == "TryClaimAsync");
-        foreach (var target in new[] { reader, constructor, claim })
+        [Fact]
+        public void Bridge_credential_census_rejects_extra_acquisition_forwarding_and_store_consumers()
         {
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "an extra bridge capability consumer through " + opcode, () =>
-                    AddCallProbe(application, "ExtraBridgeCapability", target, opcode), CredentialOffenders);
-            AssertMutation(census, "an async bridge capability consumer", () =>
-                AddAsyncCallProbe(application, "AsyncBridgeCapability", target), CredentialOffenders);
-        }
-        AssertMutation(census, "an extra bridge-store constructor call", () =>
-            AddCallProbe(application, "ExtraBridgeConstruction", constructor, OpCodes.Newobj), CredentialOffenders);
-        AssertMutation(census, "an extra acquisition helper on the sanctioned bridge store", () =>
-        {
-            var method = AddCall(store, "ExtraBridgeAcquisition", reader, OpCodes.Call);
-            return () => store.Methods.Remove(method);
-        }, CredentialOffenders);
-        AssertMutation(census, "a second acquisition inside an approved bridge caller", () =>
-        {
-            var body = OwnedBodies(census).Single(item => item.Owner == claim && item.Body.Name == "MoveNext").Body;
-            var instruction = Instruction.Create(OpCodes.Call, reader);
-            body.Body.Instructions.Add(instruction);
-            return () => body.Body.Instructions.Remove(instruction);
-        }, CredentialOffenders);
-        foreach (var name in new[] { "ForwardSource", "OpenConnectionAsync", "TryClaimAsync", "UpdateAsync" })
-            AssertMutation(census, "a source-forwarding bridge helper or approved-name overload", () =>
-                AddBoundaryFieldGetter(store, name, JobBridgeSourceField), CredentialOffenders);
-        AssertMutation(census, "a bridge owner forwarding its store capability", () =>
-            AddBoundaryFieldGetter(bridge, "ForwardStore", "<store>P"), CredentialOffenders);
-        foreach (var opcode in new[] { OpCodes.Ldfld, OpCodes.Ldflda, OpCodes.Stfld })
-            AssertMutation(census, "an extra source read, address or write inside the exact reader through " + opcode, () =>
+            using var census = ProductionCensus.Read();
+            EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("the actual bridge store and its bridge owner must be nonempty clean subjects");
+            var store = census.Types[(InfrastructureAssembly, JobBridgeStore)];
+            var bridge = census.Types[(InfrastructureAssembly, JobBridge)];
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            var reader = store.Methods.Single(method => method.Name == "OpenConnectionAsync");
+            var constructor = store.Methods.Single(method => method.IsConstructor);
+            var claim = store.Methods.Single(method => method.Name == "TryClaimAsync");
+            foreach (var target in new[] { reader, constructor, claim })
             {
-                var instruction = Instruction.Create(opcode, store.Fields.Single(field => field.Name == JobBridgeSourceField));
-                reader.Body.Instructions.Add(instruction);
-                return () => reader.Body.Instructions.Remove(instruction);
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "an extra bridge capability consumer through " + opcode, () =>
+                        AddCallProbe(application, "ExtraBridgeCapability", target, opcode), CredentialOffenders);
+                AssertMutation(census, "an async bridge capability consumer", () =>
+                    AddAsyncCallProbe(application, "AsyncBridgeCapability", target), CredentialOffenders);
+            }
+            AssertMutation(census, "an extra bridge-store constructor call", () =>
+                AddCallProbe(application, "ExtraBridgeConstruction", constructor, OpCodes.Newobj), CredentialOffenders);
+            AssertMutation(census, "an extra acquisition helper on the sanctioned bridge store", () =>
+            {
+                var method = AddCall(store, "ExtraBridgeAcquisition", reader, OpCodes.Call);
+                return () => store.Methods.Remove(method);
             }, CredentialOffenders);
-        AssertMutation(census, "an unkeyed locator resolving the public bridge store", () =>
-        {
-            var resolve = typeof(ServiceProviderServiceExtensions).GetMethods().Single(method => method.Name == "GetRequiredService"
-                && method.IsGenericMethodDefinition && method.GetParameters().Length == 1).MakeGenericMethod(typeof(PostgresBackgroundJobBridgeStore));
-            return AddCallProbe(application, "LocatedBridgeStore", application.ImportReference(resolve), OpCodes.Call);
-        }, CredentialOffenders);
-        foreach (var wrapped in new[] { false, true })
-            AssertMutation(census, "an extra direct or wrapped bridge-store holder", () =>
+            AssertMutation(census, "a second acquisition inside an approved bridge caller", () =>
             {
-                var type = AddProbe(application, "ExtraBridgeStoreHolder");
-                TypeReference capability = application.ImportReference(store);
-                if (wrapped)
+                var body = OwnedBodies(census).Single(item => item.Owner == claim && item.Body.Name == "MoveNext").Body;
+                var instruction = Instruction.Create(OpCodes.Call, reader);
+                body.Body.Instructions.Add(instruction);
+                return () => body.Body.Instructions.Remove(instruction);
+            }, CredentialOffenders);
+            foreach (var name in new[] { "ForwardSource", "OpenConnectionAsync", "TryClaimAsync", "UpdateAsync" })
+                AssertMutation(census, "a source-forwarding bridge helper or approved-name overload", () =>
+                    AddBoundaryFieldGetter(store, name, JobBridgeSourceField), CredentialOffenders);
+            AssertMutation(census, "a bridge owner forwarding its store capability", () =>
+                AddBoundaryFieldGetter(bridge, "ForwardStore", "<store>P"), CredentialOffenders);
+            foreach (var opcode in new[] { OpCodes.Ldfld, OpCodes.Ldflda, OpCodes.Stfld })
+                AssertMutation(census, "an extra source read, address or write inside the exact reader through " + opcode, () =>
                 {
-                    var wrapper = new GenericInstanceType(application.ImportReference(typeof(List<>)));
-                    wrapper.GenericArguments.Add(capability);
-                    capability = wrapper;
-                }
-                type.Fields.Add(new FieldDefinition("_store", FieldAttributes.Private, capability));
-                return () => application.Types.Remove(type);
+                    var instruction = Instruction.Create(opcode, store.Fields.Single(field => field.Name == JobBridgeSourceField));
+                    reader.Body.Instructions.Add(instruction);
+                    return () => reader.Body.Instructions.Remove(instruction);
+                }, CredentialOffenders);
+            AssertMutation(census, "an unkeyed locator resolving the public bridge store", () =>
+            {
+                var resolve = typeof(ServiceProviderServiceExtensions).GetMethods().Single(method => method.Name == "GetRequiredService"
+                    && method.IsGenericMethodDefinition && method.GetParameters().Length == 1).MakeGenericMethod(typeof(PostgresBackgroundJobBridgeStore));
+                return AddCallProbe(application, "LocatedBridgeStore", application.ImportReference(resolve), OpCodes.Call);
             }, CredentialOffenders);
-    }
+            foreach (var wrapped in new[] { false, true })
+                AssertMutation(census, "an extra direct or wrapped bridge-store holder", () =>
+                {
+                    var type = AddProbe(application, "ExtraBridgeStoreHolder");
+                    TypeReference capability = application.ImportReference(store);
+                    if (wrapped)
+                    {
+                        var wrapper = new GenericInstanceType(application.ImportReference(typeof(List<>)));
+                        wrapper.GenericArguments.Add(capability);
+                        capability = wrapper;
+                    }
+                    type.Fields.Add(new FieldDefinition("_store", FieldAttributes.Private, capability));
+                    return () => application.Types.Remove(type);
+                }, CredentialOffenders);
+        }
 
-    [Fact]
-    public void Bridge_credential_census_rejects_changed_signatures_captures_and_missing_subjects()
-    {
-        using var census = ProductionCensus.Read();
-        var store = census.Types[(InfrastructureAssembly, JobBridgeStore)];
-        var bridge = census.Types[(InfrastructureAssembly, JobBridge)];
-        foreach (var method in store.Methods.Where(method => method.Name is ".ctor" or "OpenConnectionAsync" or "TryClaimAsync" or "UpdateAsync").ToArray())
+        [Fact]
+        public void Bridge_credential_census_rejects_changed_signatures_captures_and_missing_subjects()
         {
-            AssertMutation(census, "changed visibility on a pinned bridge capability", () =>
-                ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
-                    (method.Attributes & ~MethodAttributes.MemberAccessMask) | (method.IsPublic ? MethodAttributes.Private : MethodAttributes.Public)), CredentialOffenders);
-            AssertMutation(census, "a static pinned bridge capability", () =>
-                ChangeAttributes(() => method.Attributes, value => method.Attributes = value, method.Attributes | MethodAttributes.Static), CredentialOffenders);
-            AssertMutation(census, "a changed pinned bridge return type", () =>
+            using var census = ProductionCensus.Read();
+            var store = census.Types[(InfrastructureAssembly, JobBridgeStore)];
+            var bridge = census.Types[(InfrastructureAssembly, JobBridge)];
+            foreach (var method in store.Methods.Where(method => method.Name is ".ctor" or "OpenConnectionAsync" or "TryClaimAsync" or "UpdateAsync").ToArray())
             {
-                var original = method.ReturnType;
-                method.ReturnType = method.Module.TypeSystem.Object;
-                return () => method.ReturnType = original;
-            }, CredentialOffenders);
-            AssertMutation(census, "a changed pinned bridge parameter type", () =>
+                AssertMutation(census, "changed visibility on a pinned bridge capability", () =>
+                    ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
+                        (method.Attributes & ~MethodAttributes.MemberAccessMask) | (method.IsPublic ? MethodAttributes.Private : MethodAttributes.Public)), CredentialOffenders);
+                AssertMutation(census, "a static pinned bridge capability", () =>
+                    ChangeAttributes(() => method.Attributes, value => method.Attributes = value, method.Attributes | MethodAttributes.Static), CredentialOffenders);
+                AssertMutation(census, "a changed pinned bridge return type", () =>
+                {
+                    var original = method.ReturnType;
+                    method.ReturnType = method.Module.TypeSystem.Object;
+                    return () => method.ReturnType = original;
+                }, CredentialOffenders);
+                AssertMutation(census, "a changed pinned bridge parameter type", () =>
+                {
+                    var parameter = method.Parameters[0];
+                    var original = parameter.ParameterType;
+                    parameter.ParameterType = method.Module.TypeSystem.Int32;
+                    return () => parameter.ParameterType = original;
+                }, CredentialOffenders);
+                AssertMutation(census, "a generic pinned bridge capability", () =>
+                {
+                    var parameter = new GenericParameter("Unexpected", method);
+                    method.GenericParameters.Add(parameter);
+                    return () => method.GenericParameters.Remove(parameter);
+                }, CredentialOffenders);
+            }
+            foreach (var (holder, name) in new[] { (store, JobBridgeSourceField), (bridge, "<store>P") })
             {
-                var parameter = method.Parameters[0];
-                var original = parameter.ParameterType;
-                parameter.ParameterType = method.Module.TypeSystem.Int32;
-                return () => parameter.ParameterType = original;
-            }, CredentialOffenders);
-            AssertMutation(census, "a generic pinned bridge capability", () =>
+                var field = holder.Fields.Single(item => item.Name == name);
+                AssertMutation(census, "a public captured bridge capability", () =>
+                    ChangeAttributes(() => field.Attributes, value => field.Attributes = value,
+                        (field.Attributes & ~FieldAttributes.FieldAccessMask) | FieldAttributes.Public), CredentialOffenders);
+                AssertMutation(census, "a static captured bridge capability", () =>
+                    ChangeAttributes(() => field.Attributes, value => field.Attributes = value, field.Attributes | FieldAttributes.Static), CredentialOffenders);
+                AssertMutation(census, "a changed captured bridge capability type", () =>
+                {
+                    var original = field.FieldType;
+                    field.FieldType = holder.Module.TypeSystem.Object;
+                    return () => field.FieldType = original;
+                }, CredentialOffenders);
+            }
+            AssertMutation(census, "another guarded-source field on the bridge store", () =>
             {
-                var parameter = new GenericParameter("Unexpected", method);
-                method.GenericParameters.Add(parameter);
-                return () => method.GenericParameters.Remove(parameter);
+                var field = new FieldDefinition("_extraSource", FieldAttributes.Private, store.Fields.Single(item => item.Name == JobBridgeSourceField).FieldType);
+                store.Fields.Add(field);
+                return () => store.Fields.Remove(field);
             }, CredentialOffenders);
-        }
-        foreach (var (holder, name) in new[] { (store, JobBridgeSourceField), (bridge, "<store>P") })
-        {
-            var field = holder.Fields.Single(item => item.Name == name);
-            AssertMutation(census, "a public captured bridge capability", () =>
-                ChangeAttributes(() => field.Attributes, value => field.Attributes = value,
-                    (field.Attributes & ~FieldAttributes.FieldAccessMask) | FieldAttributes.Public), CredentialOffenders);
-            AssertMutation(census, "a static captured bridge capability", () =>
-                ChangeAttributes(() => field.Attributes, value => field.Attributes = value, field.Attributes | FieldAttributes.Static), CredentialOffenders);
-            AssertMutation(census, "a changed captured bridge capability type", () =>
+            foreach (var subject in new[] { store, bridge })
             {
-                var original = field.FieldType;
-                field.FieldType = holder.Module.TypeSystem.Object;
-                return () => field.FieldType = original;
-            }, CredentialOffenders);
-        }
-        AssertMutation(census, "another guarded-source field on the bridge store", () =>
-        {
-            var field = new FieldDefinition("_extraSource", FieldAttributes.Private, store.Fields.Single(item => item.Name == JobBridgeSourceField).FieldType);
-            store.Fields.Add(field);
-            return () => store.Fields.Remove(field);
-        }, CredentialOffenders);
-        foreach (var subject in new[] { store, bridge })
-        {
-            AssertMutation(census, "an unsealed bridge capability subject", () =>
-                ChangeAttributes(() => subject.Attributes, value => subject.Attributes = value, subject.Attributes & ~TypeAttributes.Sealed), CredentialOffenders);
-            AssertMutation(census, "a missing real bridge capability subject", () =>
-            {
-                var module = subject.Module;
-                module.Types.Remove(subject);
-                return () => module.Types.Add(subject);
-            }, CredentialOffenders);
+                AssertMutation(census, "an unsealed bridge capability subject", () =>
+                    ChangeAttributes(() => subject.Attributes, value => subject.Attributes = value, subject.Attributes & ~TypeAttributes.Sealed), CredentialOffenders);
+                AssertMutation(census, "a missing real bridge capability subject", () =>
+                {
+                    var module = subject.Module;
+                    module.Types.Remove(subject);
+                    return () => module.Types.Add(subject);
+                }, CredentialOffenders);
+            }
         }
     }
 }

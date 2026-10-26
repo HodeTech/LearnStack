@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,047 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,123 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -63,6 +63,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 PR 38 correction review round 2 (2026-10-26)](#p03-1-pr-38-correction-review-round-2-2026-10-26) — 31 lines
   - [P03-1 PR 38 correction fixture census (2026-10-26)](#p03-1-pr-38-correction-fixture-census-2026-10-26) — 15 lines
   - [P03-1 PR 38 measured timing correction (2026-10-26)](#p03-1-pr-38-measured-timing-correction-2026-10-26) — 42 lines
+  - [P03-1 PR 38 independent mutation collections (2026-10-26)](#p03-1-pr-38-independent-mutation-collections-2026-10-26) — 76 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2195,3 +2196,79 @@ fixture, export and cleanup costs; they do not prove wall-clock fit or establish
 the failure's sole cause. Two complete attempts at the revised source/plan
 remain the required qualification. Historical successful receipts are not
 reused as that qualification.
+
+### P03-1 PR 38 independent mutation collections (2026-10-26)
+
+At head `dfdf9cab`, run
+[40326601181](https://github.com/HodeTech/LearnStack/actions/runs/40326601181)
+passes complete A: 27 jobs and 6,490 cases. Independent original-archive
+validation confirms all 25 ZIPs, 147 producer-package files, twenty natural
+owners and 27 public report pairs. Full B is not qualified: `architecture-4`
+reports `deadline_exhausted` after 76/77 passing cases; `ordinary-0` reports
+`unit_observation_failed` near the owner budget after 350/355 passing cases.
+Their dependent aggregates refuse. All 23 B original archives are retained;
+the six cases without results are not described as failed assertions or skips.
+The observation refusal alone does not identify its lower-level cause.
+
+Further measured-weight alternatives do not establish fit for both layouts.
+With xUnit's class collections, multiple independent long-running mutation
+Facts in one class serialize. The rejected alternatives retain an observed
+771-second class body path before setup/discovery/other work; changing only
+method weights does not remove that class constraint.
+
+Nineteen independent mutation methods are grouped by concern into separate
+class collections. Each method already owns and disposes its own Cecil graph.
+Declaration-only moves preserve exact body bytes; wrapped companions change
+only uniform indentation, with exact dedented bodies and all 48 recurrence
+InlineData attributes preserved. Their clean, dirty and restored predicate
+passes, canonical catalogue rule names and the two-thread cap remain unchanged.
+No detector, resolution-walk algorithm or cache change is included.
+
+| Predecessor nested class | Independent nested class | Existing method concern |
+|---|---|---|
+| `JobExecutionMutationTests` | `JobOwnerMutationTests` | Owner admission and retained scope |
+| `JobExecutionMutationTests` | `JobOrchestrationMutationTests` | External orchestration and resource carriers |
+| `JobLifecycleMutationTests` | `JobCapacityMutationTests` | Capacity and checkpoint authority |
+| `JobLifecycleMutationTests` | `JobRecipientMutationTests` | Recipient admission and fences |
+| `JobLifecycleMutationTests` | `HangfireRuntimeMutationTests` | Runtime fatal/constructor boundaries |
+| `OutboxDispatchConventionTests` | `JobRecurrenceMutationTests` | Recurrence authority and cleanup; 48 cases |
+| `OutboxDispatchConventionTests` | `ResolutionMutationTests` | Resolution graph mutation controls |
+| `JobAuthorityMutationTests` | `JobAuthorityCensusMutationTests` | Authority activation and live guards |
+| `OutboxDispatchConventionTests` | `CleanupOwnerMutationTests` | Privileged cleanup ownership |
+| `OutboxDispatchConventionTests` | `DeliveryLifecycleMutationTests` | Delivery lifecycle graph |
+| `OutboxDispatchConventionTests` | `BridgeCredentialMutationTests` | Two bridge credential controls |
+| `OutboxDispatchConventionTests` | `CredentialBindingMutationTests` | Two credential binding controls |
+| `OutboxDispatchConventionTests` | `IntegrationInvocationMutationTests` | Integration invocation graph |
+| `OutboxDispatchConventionTests` | `DeliveryCredentialMutationTests` | Delivery credential consumers |
+| `OutboxDispatchConventionTests` | `JobOrchestrationDeclarationMutationTests` | Finite orchestration declarations |
+| `OutboxDispatchConventionTests` | `JobMetricMutationTests` | Two metric callback/census controls |
+
+The plan adopts 39 source-bound, complete-group timing observations from the
+last actual A/B evidence and explicitly aliases the nineteen renamed selectors.
+Eight aliases overlap those timing changes: 50 semantic methods are affected.
+Alias source cards retain predecessor measurement identity and disclose that
+the new selector name has not yet executed in hosted CI. The 95 source records
+remain within the existing cap. No incomplete method contributes a duration;
+the earlier large current-source reset is not adopted.
+
+Actual local Release VSTest discovery confirms 6,490 cases, with exactly 66
+old IDs replaced by 66 new IDs and 6,424 byte-equal case records unchanged.
+The manifest digest is
+`8d017042f7e439273a7164326d9a1ae7ef3ea4ea3dea9a1bfa4c315a133bef21`;
+the plan digest is
+`115e474202360d0d7d99e1a8c69a0b40f7eb84669364b23ce90c94341969113b`.
+Both actual discovered assignments cover the exact union and retain distinct
+architecture, ordinary and shared-fixture co-membership. Shard counts, salt,
+assignment algorithm, quotas and all resource/time ceilings remain unchanged.
+Release build passes with zero warnings/errors. The five declaration-only
+mutation Facts pass 5/5 locally, and the two wrapped companions pass 49/49,
+including all recurrence variants. The remaining twelve moved companions pass
+12/12; all 66 cases pass with zero skips. Full runtime and two-layout hosted
+qualification remain required; source/body equality is not that proof.
+
+The full 303-method census, rather than one candidate assignment alone, checks
+remaining class serialization. Its maximum complete-observation class envelope
+is 617 seconds across all methods in each class; every assigned class plus the
+historical fixed-time proxy is below the existing nominal owner window. These
+are advisory scheduling diagnostics, not a future wall-time guarantee. The
+actual complete A/B runs remain the acceptance witness for hosted fit.

@@ -25,151 +25,154 @@ public sealed partial class OutboxDispatchConventionTests
             + string.Join(Environment.NewLine, offenders));
     }
 
-    /// <summary>ADR-0047: nonempty clean/dirty/restored subjects pin actual opcodes and positive joins.</summary>
-    [Theory]
-    [InlineData("constructor_visibility")]
-    [InlineData("callback_signature")]
-    [InlineData("extra_caller")]
-    [InlineData("foreign_target")]
-    [InlineData("foreign_cleanup")]
-    [InlineData("foreign_await")]
-    [InlineData("delegate_escape")]
-    [InlineData("parent_join")]
-    [InlineData("native_stop")]
-    [InlineData("recipient_cancel_join")]
-    [InlineData("thread_exit")]
-    [InlineData("sdk_queue")]
-    [InlineData("sdk_cron")]
-    [InlineData("sdk_tick_type")]
-    [InlineData("sdk_manager")]
-    [InlineData("sdk_payload")]
-    [InlineData("sdk_misfire")]
-    [InlineData("sdk_arity")]
-    [InlineData("sdk_key_slot")]
-    [InlineData("sdk_extra_caller")]
-    [InlineData("sdk_interface_caller")]
-    [InlineData("sdk_swapped_literals")]
-    [InlineData("ownership_extra_holder")]
-    [InlineData("ownership_public_field")]
-    [InlineData("ownership_published_type")]
-    [InlineData("ownership_forwarded_field")]
-    [InlineData("ownership_completion_state")]
-    [InlineData("ownership_foreign_resource")]
-    [InlineData("ownership_foreign_generic")]
-    [InlineData("ownership_forwarded_stop")]
-    [InlineData("ownership_forwarded_manager")]
-    [InlineData("memory_wake")]
-    [InlineData("memory_field")]
-    [InlineData("memory_helper")]
-    [InlineData("memory_indirect")]
-    [InlineData("memory_scheduling")]
-    [InlineData("memory_tick_type")]
-    [InlineData("memory_vendor_identity")]
-    [InlineData("memory_readiness_wait")]
-    [InlineData("memory_extra_caller")]
-    [InlineData("exclusion_sql")]
-    [InlineData("exclusion_typed_array")]
-    [InlineData("exclusion_clone")]
-    [InlineData("exclusion_limit")]
-    [InlineData("exclusion_delegated_binding")]
-    [InlineData("exclusion_foreign_binding")]
-    [InlineData("publication_before_start")]
-    [InlineData("publication_dispose_before_join_ack")]
-    public void Background_job_recurrence_runtime_controls_reject_changed_authority_and_cleanup(string mutation)
+    public sealed class JobRecurrenceMutationTests
     {
-        using var census = ProductionCensus.Read();
-        var types = census.Types;
-        AssertMutation(census, mutation, () =>
+        /// <summary>ADR-0047: nonempty clean/dirty/restored subjects pin actual opcodes and positive joins.</summary>
+        [Theory]
+        [InlineData("constructor_visibility")]
+        [InlineData("callback_signature")]
+        [InlineData("extra_caller")]
+        [InlineData("foreign_target")]
+        [InlineData("foreign_cleanup")]
+        [InlineData("foreign_await")]
+        [InlineData("delegate_escape")]
+        [InlineData("parent_join")]
+        [InlineData("native_stop")]
+        [InlineData("recipient_cancel_join")]
+        [InlineData("thread_exit")]
+        [InlineData("sdk_queue")]
+        [InlineData("sdk_cron")]
+        [InlineData("sdk_tick_type")]
+        [InlineData("sdk_manager")]
+        [InlineData("sdk_payload")]
+        [InlineData("sdk_misfire")]
+        [InlineData("sdk_arity")]
+        [InlineData("sdk_key_slot")]
+        [InlineData("sdk_extra_caller")]
+        [InlineData("sdk_interface_caller")]
+        [InlineData("sdk_swapped_literals")]
+        [InlineData("ownership_extra_holder")]
+        [InlineData("ownership_public_field")]
+        [InlineData("ownership_published_type")]
+        [InlineData("ownership_forwarded_field")]
+        [InlineData("ownership_completion_state")]
+        [InlineData("ownership_foreign_resource")]
+        [InlineData("ownership_foreign_generic")]
+        [InlineData("ownership_forwarded_stop")]
+        [InlineData("ownership_forwarded_manager")]
+        [InlineData("memory_wake")]
+        [InlineData("memory_field")]
+        [InlineData("memory_helper")]
+        [InlineData("memory_indirect")]
+        [InlineData("memory_scheduling")]
+        [InlineData("memory_tick_type")]
+        [InlineData("memory_vendor_identity")]
+        [InlineData("memory_readiness_wait")]
+        [InlineData("memory_extra_caller")]
+        [InlineData("exclusion_sql")]
+        [InlineData("exclusion_typed_array")]
+        [InlineData("exclusion_clone")]
+        [InlineData("exclusion_limit")]
+        [InlineData("exclusion_delegated_binding")]
+        [InlineData("exclusion_foreign_binding")]
+        [InlineData("publication_before_start")]
+        [InlineData("publication_dispose_before_join_ack")]
+        public void Background_job_recurrence_runtime_controls_reject_changed_authority_and_cleanup(string mutation)
         {
-            if (mutation.StartsWith("sdk_", StringComparison.Ordinal)) return MutateRecurrenceSdk(census, mutation);
-            if (mutation.StartsWith("ownership_", StringComparison.Ordinal)) return MutateRecurrenceOwnership(census, mutation);
-            if (mutation.StartsWith("memory_", StringComparison.Ordinal)) return MutateRecurrenceMemory(census, mutation);
-            if (mutation.StartsWith("exclusion_", StringComparison.Ordinal) || mutation.StartsWith("publication_", StringComparison.Ordinal))
-                return MutateRecurrencePublication(census, mutation);
-            var recipient = types[(InfrastructureAssembly, RcRecipient)];
-            if (mutation == "constructor_visibility")
+            using var census = ProductionCensus.Read();
+            var types = census.Types;
+            AssertMutation(census, mutation, () =>
             {
-                var constructor = recipient.Methods.Single(method => method.IsConstructor);
-                return ChangeAttributes(() => constructor.Attributes, value => constructor.Attributes = value,
-                    (constructor.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public);
-            }
-            if (mutation == "callback_signature")
-            {
-                var callback = types[(InfrastructureAssembly, RcNative)].Methods.Single(method => method.Name == "StartThread");
-                var original = callback.ReturnType;
-                callback.ReturnType = callback.Module.TypeSystem.Int32;
-                return () => callback.ReturnType = original;
-            }
-            if (mutation == "extra_caller")
-            {
-                var owner = types[(InfrastructureAssembly, RcControl)];
-                var extra = new MethodDefinition("UnlistedRecurrenceStart", MethodAttributes.Private,
-                    owner.Module.TypeSystem.Void);
-                owner.Methods.Add(extra);
-                extra.Body.Instructions.Add(Instruction.Create(OpCodes.Call,
-                    types[(InfrastructureAssembly, RcNative)].Methods.Single(method => method.Name == "Start")));
-                extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
-                return () => owner.Methods.Remove(extra);
-            }
-            if (mutation == "foreign_await")
-            {
-                var module = types[(DeliveryApplication, RecipientClaim)].Module;
-                var outer = new TypeDefinition("System.Runtime.CompilerServices", "ConfiguredTaskAwaitable",
-                    TypeAttributes.NotPublic | TypeAttributes.Sealed | TypeAttributes.Class, module.TypeSystem.Object);
-                var nested = new TypeDefinition("", "ConfiguredTaskAwaiter",
-                    TypeAttributes.NestedPublic | TypeAttributes.Sealed | TypeAttributes.Class, module.TypeSystem.Object);
-                outer.NestedTypes.Add(nested);
-                module.Types.Add(outer);
-                var method = new MethodDefinition("GetResult", MethodAttributes.Public, module.TypeSystem.Void);
-                nested.Methods.Add(method);
-                method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
-                var calls = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == RcNative
-                        && item.Owner.Name == "ObserveAsync").SelectMany(item => item.Body.Body.Instructions)
-                    .Where(item => item.Operand is MethodReference target
-                        && target.DeclaringType.FullName == "System.Runtime.CompilerServices.ConfiguredTaskAwaitable/ConfiguredTaskAwaiter"
-                        && target.Name == "GetResult").ToArray();
-                calls.Should().HaveCount(2, "both non-generic awaits are real subjects before substituting one");
-                var original = calls[0].Operand;
-                calls[0].Operand = method;
-                return () => { calls[0].Operand = original; module.Types.Remove(outer); };
-            }
-            if (mutation is "foreign_target" or "foreign_cleanup")
-            {
-                var module = types[(DeliveryApplication, RecipientClaim)].Module;
-                var cleanup = mutation == "foreign_cleanup";
-                var foreign = new TypeDefinition(cleanup ? "System.Threading" : "LearnStack.Infrastructure.Jobs",
-                    cleanup ? "Thread" : "BackgroundJobNativeRecurrenceOperation",
-                    TypeAttributes.NotPublic | TypeAttributes.Sealed | TypeAttributes.Class, module.TypeSystem.Object);
-                module.Types.Add(foreign);
-                var method = new MethodDefinition(cleanup ? "get_IsAlive" : "Start", MethodAttributes.Assembly,
-                    cleanup ? module.TypeSystem.Boolean : module.TypeSystem.Void);
-                foreign.Methods.Add(method);
-                method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
-                var call = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == (cleanup ? RcNative : RcControl)
-                        && item.Owner.Name == (cleanup ? "ObserveAsync" : "RegisterAsync")).SelectMany(item => item.Body.Body.Instructions)
+                if (mutation.StartsWith("sdk_", StringComparison.Ordinal)) return MutateRecurrenceSdk(census, mutation);
+                if (mutation.StartsWith("ownership_", StringComparison.Ordinal)) return MutateRecurrenceOwnership(census, mutation);
+                if (mutation.StartsWith("memory_", StringComparison.Ordinal)) return MutateRecurrenceMemory(census, mutation);
+                if (mutation.StartsWith("exclusion_", StringComparison.Ordinal) || mutation.StartsWith("publication_", StringComparison.Ordinal))
+                    return MutateRecurrencePublication(census, mutation);
+                var recipient = types[(InfrastructureAssembly, RcRecipient)];
+                if (mutation == "constructor_visibility")
+                {
+                    var constructor = recipient.Methods.Single(method => method.IsConstructor);
+                    return ChangeAttributes(() => constructor.Attributes, value => constructor.Attributes = value,
+                        (constructor.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public);
+                }
+                if (mutation == "callback_signature")
+                {
+                    var callback = types[(InfrastructureAssembly, RcNative)].Methods.Single(method => method.Name == "StartThread");
+                    var original = callback.ReturnType;
+                    callback.ReturnType = callback.Module.TypeSystem.Int32;
+                    return () => callback.ReturnType = original;
+                }
+                if (mutation == "extra_caller")
+                {
+                    var owner = types[(InfrastructureAssembly, RcControl)];
+                    var extra = new MethodDefinition("UnlistedRecurrenceStart", MethodAttributes.Private,
+                        owner.Module.TypeSystem.Void);
+                    owner.Methods.Add(extra);
+                    extra.Body.Instructions.Add(Instruction.Create(OpCodes.Call,
+                        types[(InfrastructureAssembly, RcNative)].Methods.Single(method => method.Name == "Start")));
+                    extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                    return () => owner.Methods.Remove(extra);
+                }
+                if (mutation == "foreign_await")
+                {
+                    var module = types[(DeliveryApplication, RecipientClaim)].Module;
+                    var outer = new TypeDefinition("System.Runtime.CompilerServices", "ConfiguredTaskAwaitable",
+                        TypeAttributes.NotPublic | TypeAttributes.Sealed | TypeAttributes.Class, module.TypeSystem.Object);
+                    var nested = new TypeDefinition("", "ConfiguredTaskAwaiter",
+                        TypeAttributes.NestedPublic | TypeAttributes.Sealed | TypeAttributes.Class, module.TypeSystem.Object);
+                    outer.NestedTypes.Add(nested);
+                    module.Types.Add(outer);
+                    var method = new MethodDefinition("GetResult", MethodAttributes.Public, module.TypeSystem.Void);
+                    nested.Methods.Add(method);
+                    method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                    var calls = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == RcNative
+                            && item.Owner.Name == "ObserveAsync").SelectMany(item => item.Body.Body.Instructions)
+                        .Where(item => item.Operand is MethodReference target
+                            && target.DeclaringType.FullName == "System.Runtime.CompilerServices.ConfiguredTaskAwaitable/ConfiguredTaskAwaiter"
+                            && target.Name == "GetResult").ToArray();
+                    calls.Should().HaveCount(2, "both non-generic awaits are real subjects before substituting one");
+                    var original = calls[0].Operand;
+                    calls[0].Operand = method;
+                    return () => { calls[0].Operand = original; module.Types.Remove(outer); };
+                }
+                if (mutation is "foreign_target" or "foreign_cleanup")
+                {
+                    var module = types[(DeliveryApplication, RecipientClaim)].Module;
+                    var cleanup = mutation == "foreign_cleanup";
+                    var foreign = new TypeDefinition(cleanup ? "System.Threading" : "LearnStack.Infrastructure.Jobs",
+                        cleanup ? "Thread" : "BackgroundJobNativeRecurrenceOperation",
+                        TypeAttributes.NotPublic | TypeAttributes.Sealed | TypeAttributes.Class, module.TypeSystem.Object);
+                    module.Types.Add(foreign);
+                    var method = new MethodDefinition(cleanup ? "get_IsAlive" : "Start", MethodAttributes.Assembly,
+                        cleanup ? module.TypeSystem.Boolean : module.TypeSystem.Void);
+                    foreign.Methods.Add(method);
+                    method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                    var call = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == (cleanup ? RcNative : RcControl)
+                            && item.Owner.Name == (cleanup ? "ObserveAsync" : "RegisterAsync")).SelectMany(item => item.Body.Body.Instructions)
+                        .Single(item => item.Operand is MethodReference target
+                            && target.DeclaringType.FullName == (cleanup ? "System.Threading.Thread" : RcNative)
+                            && target.Name == (cleanup ? "get_IsAlive" : "Start"));
+                    var original = call.Operand;
+                    call.Operand = method;
+                    return () => { call.Operand = original; module.Types.Remove(foreign); };
+                }
+                var (ownerType, ownerMethod, targetType, targetMethod) = mutation switch
+                {
+                    "delegate_escape" => (RcControl, "RegisterAsync", RcNative, "Start"),
+                    "parent_join" => (OrchestrationControl, "ObserveCompletionAsync", RcControl, "get_Completion"),
+                    "native_stop" => (RcControl, "RequestStop", RcNative, "RequestStop"),
+                    "recipient_cancel_join" => (RcRecipient, "ObserveAsync", "System.Threading.Tasks.Task", "WhenAll"),
+                    "thread_exit" => (RcNative, "ObserveAsync", "System.Threading.Thread", "get_IsAlive"),
+                    _ => throw new ArgumentOutOfRangeException(nameof(mutation)),
+                };
+                var instruction = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == ownerType
+                        && item.Owner.Name == ownerMethod).SelectMany(item => item.Body.Body.Instructions)
                     .Single(item => item.Operand is MethodReference target
-                        && target.DeclaringType.FullName == (cleanup ? "System.Threading.Thread" : RcNative)
-                        && target.Name == (cleanup ? "get_IsAlive" : "Start"));
-                var original = call.Operand;
-                call.Operand = method;
-                return () => { call.Operand = original; module.Types.Remove(foreign); };
-            }
-            var (ownerType, ownerMethod, targetType, targetMethod) = mutation switch
-            {
-                "delegate_escape" => (RcControl, "RegisterAsync", RcNative, "Start"),
-                "parent_join" => (OrchestrationControl, "ObserveCompletionAsync", RcControl, "get_Completion"),
-                "native_stop" => (RcControl, "RequestStop", RcNative, "RequestStop"),
-                "recipient_cancel_join" => (RcRecipient, "ObserveAsync", "System.Threading.Tasks.Task", "WhenAll"),
-                "thread_exit" => (RcNative, "ObserveAsync", "System.Threading.Thread", "get_IsAlive"),
-                _ => throw new ArgumentOutOfRangeException(nameof(mutation)),
-            };
-            var instruction = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == ownerType
-                    && item.Owner.Name == ownerMethod).SelectMany(item => item.Body.Body.Instructions)
-                .Single(item => item.Operand is MethodReference target
-                    && target.DeclaringType.FullName == targetType && target.Name == targetMethod);
-            return mutation == "delegate_escape" ? ReplaceInstruction(instruction, OpCodes.Ldftn, instruction.Operand)
-                : ReplaceInstruction(instruction, OpCodes.Nop, null!);
-        }, RecurrenceRuntimeOffenders);
+                        && target.DeclaringType.FullName == targetType && target.Name == targetMethod);
+                return mutation == "delegate_escape" ? ReplaceInstruction(instruction, OpCodes.Ldftn, instruction.Operand)
+                    : ReplaceInstruction(instruction, OpCodes.Nop, null!);
+            }, RecurrenceRuntimeOffenders);
+        }
     }
 
     private static SortedSet<string> RecurrenceRuntimeOffenders(ProductionCensus census)

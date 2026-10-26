@@ -249,55 +249,58 @@ public sealed partial class OutboxDispatchConventionTests
             + "remove dynamic type loading or Activator construction from the resolver/validator/store helper graph");
     }
 
-    [Fact]
-    public void Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers()
+    public sealed class ResolutionMutationTests
     {
-        using var census = ProductionCensus.Read();
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
-        var root = census.Types[(InfrastructureAssembly, ResolutionRoots[0])];
-        var targets = new[]
+        [Fact]
+        public void Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers()
         {
-            typeof(Type).GetMethod(nameof(Type.GetType), [typeof(string)])!,
-            typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.Load), [typeof(string)])!,
-            typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.LoadFrom), [typeof(string)])!,
-            typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.GetType), [typeof(string)])!,
-            typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.CreateInstance), [typeof(string)])!,
-            typeof(Activator).GetMethod(nameof(Activator.CreateInstance), [typeof(Type)])!,
-        };
-        foreach (var target in targets)
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn })
+            using var census = ProductionCensus.Read();
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
+            var root = census.Types[(InfrastructureAssembly, ResolutionRoots[0])];
+            var targets = new[]
             {
-                AssertResolutionMutation(census, target.DeclaringType!.Name + "." + target.Name + " using " + opcode.Name, () =>
+                typeof(Type).GetMethod(nameof(Type.GetType), [typeof(string)])!,
+                typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.Load), [typeof(string)])!,
+                typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.LoadFrom), [typeof(string)])!,
+                typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.GetType), [typeof(string)])!,
+                typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.CreateInstance), [typeof(string)])!,
+                typeof(Activator).GetMethod(nameof(Activator.CreateInstance), [typeof(Type)])!,
+            };
+            foreach (var target in targets)
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn })
                 {
-                    var helper = AddProbe(application, "DynamicResolutionHelper");
-                    AddCall(helper, "Resolve", application.ImportReference(target), opcode);
-                    var field = new FieldDefinition("ReviewHelper", FieldAttributes.Private, root.Module.ImportReference(helper));
+                    AssertResolutionMutation(census, target.DeclaringType!.Name + "." + target.Name + " using " + opcode.Name, () =>
+                    {
+                        var helper = AddProbe(application, "DynamicResolutionHelper");
+                        AddCall(helper, "Resolve", application.ImportReference(target), opcode);
+                        var field = new FieldDefinition("ReviewHelper", FieldAttributes.Private, root.Module.ImportReference(helper));
+                        root.Fields.Add(field);
+                        return () => { root.Fields.Remove(field); application.Types.Remove(helper); };
+                    });
+                }
+            AssertResolutionMutation(census, "an async cross-assembly resolver helper", () =>
+            {
+                var helper = AddProbe(application, "AsyncResolutionHelper");
+                var undoAsync = AddAsyncCall(helper, "Resolve", application.ImportReference(targets[0]));
+                var field = new FieldDefinition("ReviewHelper", FieldAttributes.Private, root.Module.ImportReference(helper));
+                root.Fields.Add(field);
+                return () => { root.Fields.Remove(field); undoAsync(); application.Types.Remove(helper); };
+            });
+            foreach (var isInterface in new[] { true, false })
+            {
+                AssertResolutionMutation(census, "a " + (isInterface ? "interface" : "virtual") + " resolver helper", () =>
+                {
+                    var contract = AddProbe(application, "ResolutionContract");
+                    if (isInterface) contract.Attributes |= TypeAttributes.Interface | TypeAttributes.Abstract;
+                    var helper = AddProbe(application, "ResolutionImplementation");
+                    if (isInterface) helper.Interfaces.Add(new InterfaceImplementation(contract));
+                    else helper.BaseType = contract;
+                    AddCall(helper, "Resolve", application.ImportReference(targets[0]), OpCodes.Call);
+                    var field = new FieldDefinition("ReviewHelper", FieldAttributes.Private, root.Module.ImportReference(contract));
                     root.Fields.Add(field);
-                    return () => { root.Fields.Remove(field); application.Types.Remove(helper); };
+                    return () => { root.Fields.Remove(field); application.Types.Remove(helper); application.Types.Remove(contract); };
                 });
             }
-        AssertResolutionMutation(census, "an async cross-assembly resolver helper", () =>
-        {
-            var helper = AddProbe(application, "AsyncResolutionHelper");
-            var undoAsync = AddAsyncCall(helper, "Resolve", application.ImportReference(targets[0]));
-            var field = new FieldDefinition("ReviewHelper", FieldAttributes.Private, root.Module.ImportReference(helper));
-            root.Fields.Add(field);
-            return () => { root.Fields.Remove(field); undoAsync(); application.Types.Remove(helper); };
-        });
-        foreach (var isInterface in new[] { true, false })
-        {
-            AssertResolutionMutation(census, "a " + (isInterface ? "interface" : "virtual") + " resolver helper", () =>
-            {
-                var contract = AddProbe(application, "ResolutionContract");
-                if (isInterface) contract.Attributes |= TypeAttributes.Interface | TypeAttributes.Abstract;
-                var helper = AddProbe(application, "ResolutionImplementation");
-                if (isInterface) helper.Interfaces.Add(new InterfaceImplementation(contract));
-                else helper.BaseType = contract;
-                AddCall(helper, "Resolve", application.ImportReference(targets[0]), OpCodes.Call);
-                var field = new FieldDefinition("ReviewHelper", FieldAttributes.Private, root.Module.ImportReference(contract));
-                root.Fields.Add(field);
-                return () => { root.Fields.Remove(field); application.Types.Remove(helper); application.Types.Remove(contract); };
-            });
         }
     }
 

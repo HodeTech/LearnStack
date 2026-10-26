@@ -1988,7 +1988,7 @@ diagnostic above row security, not the boundary, as its own note says.
   real PostgreSQL role/grant/startup refusal proofs. Exact unique literal
   source-reader signatures, visibility and staticness reject named-method overloads;
   those focused controls and both fresh fix reviews passed at `606362b`.
-  [OutboxDispatchConventionTests.Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys](../../backend/tests/LearnStack.Tests.Architecture/OutboxDispatchBoundaryTests.cs)
+  [OutboxDispatchConventionTests.CredentialBindingMutationTests.Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys](../../backend/tests/LearnStack.Tests.Architecture/OutboxDispatchBoundaryTests.cs)
   plants actual compiled concatenation, interpolation, formatting and configuration
   indexer calls, with clean configuration/dictionary/diagnostic controls.
   [OutboxDispatcherRoleGuardTests.App_membership_in_the_dispatcher_is_refused_directly_and_transitively_then_restoration_connects](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatcherRoleGuardTests.cs)

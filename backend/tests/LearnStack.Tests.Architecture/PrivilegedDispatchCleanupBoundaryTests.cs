@@ -102,69 +102,72 @@ public sealed partial class OutboxDispatchConventionTests
                 .Select(site => site.Owner), expected);
     }
 
-    [Fact]
-    public void Cleanup_owner_census_rejects_extra_acquisition_disposal_capture_and_observation_paths()
+    public sealed class CleanupOwnerMutationTests
     {
-        using var census = ProductionCensus.Read();
-        EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("the three actual cleanup owners are nonempty clean subjects");
-        foreach (var name in new[] { Store, DeliveryStore, JobBridgeStore })
+        [Fact]
+        public void Cleanup_owner_census_rejects_extra_acquisition_disposal_capture_and_observation_paths()
         {
-            var store = census.Types[(InfrastructureAssembly, name)];
-            var owner = census.Types[(InfrastructureAssembly, name + "/OwnedConnection")];
-            var reader = store.Methods.Single(method => method.Name == "OpenConnectionAsync");
-            var getter = store.Methods.Single(method => method.Name == "get_HasUnconfirmedCleanup");
-            var retain = store.Methods.Single(method => method.Name == "RetainConnection");
-            var capture = owner.Fields.Single(field => field.Name == "<owner>P");
-            var seal = store.Fields.Single(field => field.Name == "_cleanupUnconfirmed");
-            AssertMutation(census, "a public cleanup holder", () =>
-                ChangeAttributes(() => owner.Attributes, value => owner.Attributes = value,
-                    (owner.Attributes & ~TypeAttributes.VisibilityMask) | TypeAttributes.NestedPublic), CredentialOffenders);
-            AssertMutation(census, "an unsealed cleanup holder", () =>
-                ChangeAttributes(() => owner.Attributes, value => owner.Attributes = value, owner.Attributes & ~TypeAttributes.Sealed), CredentialOffenders);
-            AssertMutation(census, "a missing actual cleanup holder", () =>
+            using var census = ProductionCensus.Read();
+            EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("the three actual cleanup owners are nonempty clean subjects");
+            foreach (var name in new[] { Store, DeliveryStore, JobBridgeStore })
             {
-                store.NestedTypes.Remove(owner);
-                return () => store.NestedTypes.Add(owner);
-            }, CredentialOffenders);
-            AssertMutation(census, "an extra acquisition helper inside the cleanup holder", () =>
-            {
-                var method = AddCall(owner, "AdditionalAcquisition", reader, OpCodes.Call);
-                return () => owner.Methods.Remove(method);
-            }, CredentialOffenders);
-            AssertMutation(census, "an extra concrete disposal helper on an approved owner", () =>
-            {
-                var target = owner.Module.ImportReference(typeof(NpgsqlConnection).GetMethod(nameof(NpgsqlConnection.DisposeAsync), Type.EmptyTypes)!);
-                var method = AddCall(owner, "AdditionalDisposal", target, OpCodes.Callvirt);
-                return () => owner.Methods.Remove(method);
-            }, CredentialOffenders);
-            foreach (var opcode in new[] { OpCodes.Ldfld, OpCodes.Ldflda, OpCodes.Stfld })
-                AssertMutation(census, "an extra cleanup-owner capability capture access through " + opcode, () =>
+                var store = census.Types[(InfrastructureAssembly, name)];
+                var owner = census.Types[(InfrastructureAssembly, name + "/OwnedConnection")];
+                var reader = store.Methods.Single(method => method.Name == "OpenConnectionAsync");
+                var getter = store.Methods.Single(method => method.Name == "get_HasUnconfirmedCleanup");
+                var retain = store.Methods.Single(method => method.Name == "RetainConnection");
+                var capture = owner.Fields.Single(field => field.Name == "<owner>P");
+                var seal = store.Fields.Single(field => field.Name == "_cleanupUnconfirmed");
+                AssertMutation(census, "a public cleanup holder", () =>
+                    ChangeAttributes(() => owner.Attributes, value => owner.Attributes = value,
+                        (owner.Attributes & ~TypeAttributes.VisibilityMask) | TypeAttributes.NestedPublic), CredentialOffenders);
+                AssertMutation(census, "an unsealed cleanup holder", () =>
+                    ChangeAttributes(() => owner.Attributes, value => owner.Attributes = value, owner.Attributes & ~TypeAttributes.Sealed), CredentialOffenders);
+                AssertMutation(census, "a missing actual cleanup holder", () =>
                 {
-                    var method = owner.Methods.Single(item => item.Name == ".ctor");
-                    var instruction = Instruction.Create(opcode, capture);
-                    method.Body.Instructions.Add(instruction);
-                    return () => method.Body.Instructions.Remove(instruction);
+                    store.NestedTypes.Remove(owner);
+                    return () => store.NestedTypes.Add(owner);
                 }, CredentialOffenders);
-            var write = retain.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
-                && instruction.Operand is FieldReference field && field.Name == seal.Name);
-            AssertMutation(census, "a cleanup seal reset instead of monotonic failure", () =>
-                ReplaceInstruction(write.Previous!, OpCodes.Ldc_I4_0, null!), CredentialOffenders);
-            AssertMutation(census, "a cleanup observer that acquires physical SQL", () =>
-            {
-                var instruction = Instruction.Create(OpCodes.Call, reader);
-                getter.Body.Instructions.Add(instruction);
-                return () => getter.Body.Instructions.Remove(instruction);
-            }, CredentialOffenders);
-            AssertMutation(census, "a writable cleanup observer", () =>
-            {
-                var property = store.Properties.Single(item => item.Name == "HasUnconfirmedCleanup");
-                var setter = new MethodDefinition("set_HasUnconfirmedCleanup", MethodAttributes.Public, store.Module.TypeSystem.Void);
-                property.SetMethod = setter;
-                return () => property.SetMethod = null;
-            }, CredentialOffenders);
-            var clean = AddCall(owner, "ReadDeclaredRuntimeType", owner.Module.ImportReference(typeof(object).GetMethod(nameof(GetType))!), OpCodes.Callvirt);
-            try { EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("a memory-only helper grants no acquisition, disposal or store capability"); }
-            finally { owner.Methods.Remove(clean); }
+                AssertMutation(census, "an extra acquisition helper inside the cleanup holder", () =>
+                {
+                    var method = AddCall(owner, "AdditionalAcquisition", reader, OpCodes.Call);
+                    return () => owner.Methods.Remove(method);
+                }, CredentialOffenders);
+                AssertMutation(census, "an extra concrete disposal helper on an approved owner", () =>
+                {
+                    var target = owner.Module.ImportReference(typeof(NpgsqlConnection).GetMethod(nameof(NpgsqlConnection.DisposeAsync), Type.EmptyTypes)!);
+                    var method = AddCall(owner, "AdditionalDisposal", target, OpCodes.Callvirt);
+                    return () => owner.Methods.Remove(method);
+                }, CredentialOffenders);
+                foreach (var opcode in new[] { OpCodes.Ldfld, OpCodes.Ldflda, OpCodes.Stfld })
+                    AssertMutation(census, "an extra cleanup-owner capability capture access through " + opcode, () =>
+                    {
+                        var method = owner.Methods.Single(item => item.Name == ".ctor");
+                        var instruction = Instruction.Create(opcode, capture);
+                        method.Body.Instructions.Add(instruction);
+                        return () => method.Body.Instructions.Remove(instruction);
+                    }, CredentialOffenders);
+                var write = retain.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
+                    && instruction.Operand is FieldReference field && field.Name == seal.Name);
+                AssertMutation(census, "a cleanup seal reset instead of monotonic failure", () =>
+                    ReplaceInstruction(write.Previous!, OpCodes.Ldc_I4_0, null!), CredentialOffenders);
+                AssertMutation(census, "a cleanup observer that acquires physical SQL", () =>
+                {
+                    var instruction = Instruction.Create(OpCodes.Call, reader);
+                    getter.Body.Instructions.Add(instruction);
+                    return () => getter.Body.Instructions.Remove(instruction);
+                }, CredentialOffenders);
+                AssertMutation(census, "a writable cleanup observer", () =>
+                {
+                    var property = store.Properties.Single(item => item.Name == "HasUnconfirmedCleanup");
+                    var setter = new MethodDefinition("set_HasUnconfirmedCleanup", MethodAttributes.Public, store.Module.TypeSystem.Void);
+                    property.SetMethod = setter;
+                    return () => property.SetMethod = null;
+                }, CredentialOffenders);
+                var clean = AddCall(owner, "ReadDeclaredRuntimeType", owner.Module.ImportReference(typeof(object).GetMethod(nameof(GetType))!), OpCodes.Callvirt);
+                try { EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("a memory-only helper grants no acquisition, disposal or store capability"); }
+                finally { owner.Methods.Remove(clean); }
+            }
         }
     }
 }

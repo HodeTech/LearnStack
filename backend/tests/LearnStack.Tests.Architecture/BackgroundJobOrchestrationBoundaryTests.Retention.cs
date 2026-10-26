@@ -135,7 +135,7 @@ public sealed partial class OutboxDispatchConventionTests
             && census.Types.TryGetValue(Key(state), out var owner) ? owner : null;
     }
 
-    public sealed partial class JobExecutionMutationTests
+    public sealed class JobOrchestrationMutationTests
     {
 
         [Fact]

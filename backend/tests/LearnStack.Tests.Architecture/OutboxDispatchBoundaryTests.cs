@@ -172,100 +172,103 @@ public sealed partial class OutboxDispatchConventionTests
 
     }
 
-    [Fact]
-    public void Credential_census_rejects_crossed_keys_changed_closures_and_missing_subjects()
+    public sealed class CredentialBindingMutationTests
     {
-        using var census = ProductionCensus.Read();
-        foreach (var subject in new[] { (BoundaryApi, BoundaryWorker), (InfrastructureAssembly, BoundaryPlatform) })
+        [Fact]
+        public void Credential_census_rejects_crossed_keys_changed_closures_and_missing_subjects()
         {
-            var parameter = census.Types[subject].Methods.Single(method => method.IsConstructor && !method.IsStatic)
-                .Parameters.Single(parameter => parameter.CustomAttributes.Any(attribute =>
-                    attribute.AttributeType.Name == "FromKeyedServicesAttribute"));
-            var attribute = parameter.CustomAttributes.Single(item => item.AttributeType.Name == "FromKeyedServicesAttribute");
-            AssertMutation(census, "a consumer resolving the other privileged key", () =>
+            using var census = ProductionCensus.Read();
+            foreach (var subject in new[] { (BoundaryApi, BoundaryWorker), (InfrastructureAssembly, BoundaryPlatform) })
             {
-                var original = attribute.ConstructorArguments[0];
-                attribute.ConstructorArguments[0] = new CustomAttributeArgument(original.Type,
-                    subject.Item2 == BoundaryWorker ? PlatformAdminScope.PlatformDataSourceKey : OutboxDispatcherDataSource.Key);
-                return () => attribute.ConstructorArguments[0] = original;
-            }, CredentialOffenders);
-            AssertMutation(census, "a raw source replacing the required lazy binding", () =>
-            {
-                var original = parameter.ParameterType;
-                parameter.ParameterType = census.Types[subject].Module.ImportReference(typeof(NpgsqlDataSource));
-                return () => parameter.ParameterType = original;
-            }, CredentialOffenders);
-        }
-
-        foreach (var key in new[] { OutboxDispatcherDataSource.Key, PlatformAdminScope.PlatformDataSourceKey })
-        {
-            var descriptor = BoundaryRegistrations().Single(item => item.IsKeyedService && Equals(item.ServiceKey, key)
-                && item.ServiceType == typeof(PrivilegedDataSource));
-            var factory = FindRuntimeMethod(census, descriptor.KeyedImplementationFactory!.Method)!;
-            var leafReference = DelegateTargets(factory).Single();
-            var leaf = census.Types[Key(leafReference.DeclaringType)].Methods.Single(method => MethodId(method) == MethodId(leafReference));
-            var call = leaf.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
-                && method.ReturnType.FullName == "Npgsql.NpgsqlDataSource");
-            var wrong = key == OutboxDispatcherDataSource.Key
-                ? census.Types[(BoundaryApi, BoundaryPersistence)].Methods.Single(method => method.Name == "BuildPlatformDataSource")
-                : census.Types[(InfrastructureAssembly, BoundarySource)].Methods.Single(method => method.Name == "Build");
-            AssertMutation(census, "a facade callback constructing the other privileged pool", () =>
-                ReplaceInstruction(call, OpCodes.Call, wrong), CredentialOffenders);
-            var captured = (FieldReference)call.Previous!.Operand;
-            var credentialOwner = census.Types[(BoundaryApi, key == OutboxDispatcherDataSource.Key ? BoundaryComposition : BoundaryPersistence)]
-                .Methods.Single(method => method.Name == (key == OutboxDispatcherDataSource.Key ? "AddLearnStackOutboxDispatcher" : "AddLearnStackPersistence"));
-            var assignment = credentialOwner.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
-                && instruction.Operand is FieldReference field && field.FullName == captured.FullName);
-            AssertMutation(census, "a facade capturing a different credential instead of its declared read", () =>
-                ReplaceInstruction(assignment.Previous!, OpCodes.Ldstr, "synthetic-unrelated-credential"), CredentialOffenders);
-            foreach (var method in new[] { leaf, factory })
-            {
-                AssertMutation(census, "the actual facade callback overwriting its captured credential", () =>
-                    InsertCaptureMutation(method, captured, address: false), CredentialOffenders);
-                AssertMutation(census, "the actual facade callback exposing its captured credential address", () =>
-                    InsertCaptureMutation(method, captured, address: true), CredentialOffenders);
+                var parameter = census.Types[subject].Methods.Single(method => method.IsConstructor && !method.IsStatic)
+                    .Parameters.Single(parameter => parameter.CustomAttributes.Any(attribute =>
+                        attribute.AttributeType.Name == "FromKeyedServicesAttribute"));
+                var attribute = parameter.CustomAttributes.Single(item => item.AttributeType.Name == "FromKeyedServicesAttribute");
+                AssertMutation(census, "a consumer resolving the other privileged key", () =>
+                {
+                    var original = attribute.ConstructorArguments[0];
+                    attribute.ConstructorArguments[0] = new CustomAttributeArgument(original.Type,
+                        subject.Item2 == BoundaryWorker ? PlatformAdminScope.PlatformDataSourceKey : OutboxDispatcherDataSource.Key);
+                    return () => attribute.ConstructorArguments[0] = original;
+                }, CredentialOffenders);
+                AssertMutation(census, "a raw source replacing the required lazy binding", () =>
+                {
+                    var original = parameter.ParameterType;
+                    parameter.ParameterType = census.Types[subject].Module.ImportReference(typeof(NpgsqlDataSource));
+                    return () => parameter.ParameterType = original;
+                }, CredentialOffenders);
             }
-            AssertMutation(census, "a closure helper overwriting the captured credential", () =>
+
+            foreach (var key in new[] { OutboxDispatcherDataSource.Key, PlatformAdminScope.PlatformDataSourceKey })
             {
-                var helper = new MethodDefinition("RewriteCapturedCredential", MethodAttributes.Private, leaf.Module.TypeSystem.Void);
-                helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
-                leaf.DeclaringType.Methods.Add(helper);
-                var undo = InsertCaptureMutation(helper, captured, address: false);
-                return () => { undo(); leaf.DeclaringType.Methods.Remove(helper); };
+                var descriptor = BoundaryRegistrations().Single(item => item.IsKeyedService && Equals(item.ServiceKey, key)
+                    && item.ServiceType == typeof(PrivilegedDataSource));
+                var factory = FindRuntimeMethod(census, descriptor.KeyedImplementationFactory!.Method)!;
+                var leafReference = DelegateTargets(factory).Single();
+                var leaf = census.Types[Key(leafReference.DeclaringType)].Methods.Single(method => MethodId(method) == MethodId(leafReference));
+                var call = leaf.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                    && method.ReturnType.FullName == "Npgsql.NpgsqlDataSource");
+                var wrong = key == OutboxDispatcherDataSource.Key
+                    ? census.Types[(BoundaryApi, BoundaryPersistence)].Methods.Single(method => method.Name == "BuildPlatformDataSource")
+                    : census.Types[(InfrastructureAssembly, BoundarySource)].Methods.Single(method => method.Name == "Build");
+                AssertMutation(census, "a facade callback constructing the other privileged pool", () =>
+                    ReplaceInstruction(call, OpCodes.Call, wrong), CredentialOffenders);
+                var captured = (FieldReference)call.Previous!.Operand;
+                var credentialOwner = census.Types[(BoundaryApi, key == OutboxDispatcherDataSource.Key ? BoundaryComposition : BoundaryPersistence)]
+                    .Methods.Single(method => method.Name == (key == OutboxDispatcherDataSource.Key ? "AddLearnStackOutboxDispatcher" : "AddLearnStackPersistence"));
+                var assignment = credentialOwner.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
+                    && instruction.Operand is FieldReference field && field.FullName == captured.FullName);
+                AssertMutation(census, "a facade capturing a different credential instead of its declared read", () =>
+                    ReplaceInstruction(assignment.Previous!, OpCodes.Ldstr, "synthetic-unrelated-credential"), CredentialOffenders);
+                foreach (var method in new[] { leaf, factory })
+                {
+                    AssertMutation(census, "the actual facade callback overwriting its captured credential", () =>
+                        InsertCaptureMutation(method, captured, address: false), CredentialOffenders);
+                    AssertMutation(census, "the actual facade callback exposing its captured credential address", () =>
+                        InsertCaptureMutation(method, captured, address: true), CredentialOffenders);
+                }
+                AssertMutation(census, "a closure helper overwriting the captured credential", () =>
+                {
+                    var helper = new MethodDefinition("RewriteCapturedCredential", MethodAttributes.Private, leaf.Module.TypeSystem.Void);
+                    helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                    leaf.DeclaringType.Methods.Add(helper);
+                    var undo = InsertCaptureMutation(helper, captured, address: false);
+                    return () => { undo(); leaf.DeclaringType.Methods.Remove(helper); };
+                }, CredentialOffenders);
+                AssertMutation(census, "the original credential owner overwriting its captured value after assignment", () =>
+                    InsertCaptureMutation(credentialOwner, captured, address: false, afterCapture: true), CredentialOffenders);
+            }
+
+            var root = census.Types[(BoundaryApi, BoundaryComposition)].Methods.Single(method => method.Name == "AddLearnStackOutboxDispatcher");
+            var registrationKey = root.Body.Instructions.First(instruction => Equals(instruction.Operand, OutboxDispatcherDataSource.Key));
+            AssertMutation(census, "a changed actual registration key", () =>
+                ReplaceInstruction(registrationKey, OpCodes.Ldstr, PlatformAdminScope.PlatformDataSourceKey), CredentialOffenders);
+            var configurationKey = root.Body.Instructions.Single(instruction => Equals(instruction.Operand, "OutboxDispatcher"));
+            AssertMutation(census, "the dispatcher reading the platform configuration", () =>
+                ReplaceInstruction(configurationKey, OpCodes.Ldstr, "PlatformAdmin"), CredentialOffenders);
+            var source = census.Types[(InfrastructureAssembly, BoundarySource)];
+            AssertMutation(census, "a missing production data-source subject", () =>
+            {
+                var module = source.Module;
+                module.Types.Remove(source);
+                return () => module.Types.Add(source);
             }, CredentialOffenders);
-            AssertMutation(census, "the original credential owner overwriting its captured value after assignment", () =>
-                InsertCaptureMutation(credentialOwner, captured, address: false, afterCapture: true), CredentialOffenders);
         }
 
-        var root = census.Types[(BoundaryApi, BoundaryComposition)].Methods.Single(method => method.Name == "AddLearnStackOutboxDispatcher");
-        var registrationKey = root.Body.Instructions.First(instruction => Equals(instruction.Operand, OutboxDispatcherDataSource.Key));
-        AssertMutation(census, "a changed actual registration key", () =>
-            ReplaceInstruction(registrationKey, OpCodes.Ldstr, PlatformAdminScope.PlatformDataSourceKey), CredentialOffenders);
-        var configurationKey = root.Body.Instructions.Single(instruction => Equals(instruction.Operand, "OutboxDispatcher"));
-        AssertMutation(census, "the dispatcher reading the platform configuration", () =>
-            ReplaceInstruction(configurationKey, OpCodes.Ldstr, "PlatformAdmin"), CredentialOffenders);
-        var source = census.Types[(InfrastructureAssembly, BoundarySource)];
-        AssertMutation(census, "a missing production data-source subject", () =>
+        [Fact]
+        public void Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys()
         {
-            var module = source.Module;
-            module.Types.Remove(source);
-            return () => module.Types.Add(source);
-        }, CredentialOffenders);
-    }
-
-    [Fact]
-    public void Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys()
-    {
-        using var census = ProductionCensus.Read();
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
-        foreach (var name in new[] { "Concatenated", "ReadonlyName", "Interpolated", "Formatted", "Manager", "Root", "Section" })
-            AssertMutation(census, "a compiled configuration credential indexer: " + name, () =>
-                AddCompiledCredentialProbe(application, name), CredentialOffenders);
-        foreach (var name in new[] { "UnrelatedLiteral", "UnrelatedDynamic", "Dictionary", "CredentialDiagnostic" })
-        {
-            var undo = AddCompiledCredentialProbe(application, name);
-            try { EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("Fix: unrelated configuration, dictionary indexers and diagnostics remain valid"); }
-            finally { undo(); }
+            using var census = ProductionCensus.Read();
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
+            foreach (var name in new[] { "Concatenated", "ReadonlyName", "Interpolated", "Formatted", "Manager", "Root", "Section" })
+                AssertMutation(census, "a compiled configuration credential indexer: " + name, () =>
+                    AddCompiledCredentialProbe(application, name), CredentialOffenders);
+            foreach (var name in new[] { "UnrelatedLiteral", "UnrelatedDynamic", "Dictionary", "CredentialDiagnostic" })
+            {
+                var undo = AddCompiledCredentialProbe(application, name);
+                try { EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("Fix: unrelated configuration, dictionary indexers and diagnostics remain valid"); }
+                finally { undo(); }
+            }
         }
     }
 

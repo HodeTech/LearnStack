@@ -25,7 +25,7 @@ public sealed partial class OutboxDispatchConventionTests
         CheckJobFrameworkMetadata();
     }
 
-    public sealed partial class JobAuthorityMutationTests
+    public sealed class JobAuthorityCensusMutationTests
     {
 
         /// <summary>ADR-0047: prove the same production predicate detects removal and additional activation.</summary>
