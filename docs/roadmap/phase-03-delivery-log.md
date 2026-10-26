@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,005 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,047 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -62,6 +62,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 PR 38 correction review round 1 (2026-10-26)](#p03-1-pr-38-correction-review-round-1-2026-10-26) — 55 lines
   - [P03-1 PR 38 correction review round 2 (2026-10-26)](#p03-1-pr-38-correction-review-round-2-2026-10-26) — 31 lines
   - [P03-1 PR 38 correction fixture census (2026-10-26)](#p03-1-pr-38-correction-fixture-census-2026-10-26) — 15 lines
+  - [P03-1 PR 38 measured timing correction (2026-10-26)](#p03-1-pr-38-measured-timing-correction-2026-10-26) — 42 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2152,3 +2153,45 @@ changes the plan digest, final qualification requires both complete A/B layouts
 at the same correction source; the original `193d61cc` A/B evidence is not
 relabeled. The phase Status block records committed implementation and review
 state without predicting the current-head checks' result.
+
+### P03-1 PR 38 measured timing correction (2026-10-26)
+
+Run [40318359878](https://github.com/HodeTech/LearnStack/actions/runs/40318359878)
+tests head `c14ec6a7` through tree-equivalent merge source `5e02e3cc`. Complete
+A passes all 27 jobs and 6,490 distinct .NET cases: 2,782 unit, 571 architecture,
+3,132 integration and five contract cases. Twenty owners finish naturally;
+all 25 original archives, package bytes and 27 Lighthouse JSON/HTML report pairs
+are retained and independently checked with the production aggregate validators.
+
+Full B is not qualified. Twenty-five jobs pass; `ordinary-7` reaches the existing
+deadline and its integration aggregate refuses. Its 194/231 completed cases all
+pass; 37 have no result. Across B, 6,453 cases pass. The failed receipt reports
+forced cleanup, incomplete ownership and `dockerAbsent=false`;
+`cleanupOwnershipComplete=true` does not turn this into natural cleanup.
+All 24 B archives and raw metadata are retained and independently audited.
+The failure is not labeled an assertion failure or a proven transient flake.
+
+The timing-only correction uses the maximum measured duration from complete
+A/B selector groups. It measures 17 previously unweighted selectors and raises
+23 existing ordinary weights whose measured sum exceeds their prior value by
+at least ten seconds. No prior measured weight decreases. B's partial Seeder
+method (11/20 cases) and 21 methods without completed cases contribute no B
+estimate; A's complete observations remain available. Every changed weight names its original
+TRX or exact completed-case prefix digest, run/attempt, artifact and source.
+The 72 planner and 30 aggregate controls pass. Architecture weights, all shard
+counts, salt, assignment algorithm, default weight and resource/time limits
+remain unchanged.
+
+The plan digest changes from
+`c9437dbd00f644fd1b13c2ff21c038abd1f359595283d5c5a6d0f4d0db0c84fb`
+to `b61cda34c8c8a762cef07baaa22862da1299bd56fbbdc895577ded8e76b90719`.
+The same 6,490-case manifest remains
+`e113e14c162b7691f80e2e4afae75b0fca0435335920a727db7f97fba17b00e3`.
+On that unchanged manifest, the planner moves 2,527 cases in A and 2,426 in B;
+architecture, ordinary and shared-fixture co-membership remain genuinely distinct. The
+observed maximum case-body envelope for B falls from 901 to 681 seconds in the
+read-only comparison. These sums can overlap and exclude setup, discovery,
+fixture, export and cleanup costs; they do not prove wall-clock fit or establish
+the failure's sole cause. Two complete attempts at the revised source/plan
+remain the required qualification. Historical successful receipts are not
+reused as that qualification.

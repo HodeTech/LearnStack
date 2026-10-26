@@ -294,6 +294,111 @@
       "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
       "runId": "40270967586",
       "note": "Attempt 1; ordinary-9; artifact ID 12628692608. Interrupted owner exact JSONL prefix; complete all-Passed selector groups only. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
+    },
+    "pr38-a-ordinary-0": {
+      "kind": "hosted_trx",
+      "artifactSha256": "0b7776e02beaa6a740bde18ef1e2a1beac6d231d0f5b45fc7cfd5b4288afe0e6",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Complete passing A TRX, attempt 1, ordinary-0, artifact ID 12648163006, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
+    },
+    "pr38-a-ordinary-1": {
+      "kind": "hosted_trx",
+      "artifactSha256": "dfa89757d8eeab01619c8538a8db0fe95cc70661c2d93d5b842c1c08bbbcc8c5",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Complete passing A TRX, attempt 1, ordinary-1, artifact ID 12648317031, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
+    },
+    "pr38-a-ordinary-10": {
+      "kind": "hosted_trx",
+      "artifactSha256": "d6108a68815c7bec8f6f642998753673146fbce91cf13150725be77978cf4815",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Complete passing A TRX, attempt 1, ordinary-10, artifact ID 12648073211, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
+    },
+    "pr38-a-ordinary-11": {
+      "kind": "hosted_trx",
+      "artifactSha256": "713976c7d837820e0812b0e1852cb22447dc62b724d297f3aafb3882a8c3c762",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Complete passing A TRX, attempt 1, ordinary-11, artifact ID 12648422552, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
+    },
+    "pr38-a-ordinary-3": {
+      "kind": "hosted_trx",
+      "artifactSha256": "e26d9587beaab36041a1734d6a6992871c33dae8877dc4d3d2704c3be9331602",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Complete passing A TRX, attempt 1, ordinary-3, artifact ID 12648717944, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
+    },
+    "pr38-a-ordinary-4": {
+      "kind": "hosted_trx",
+      "artifactSha256": "0f4e8bfa19e34a1a5254739365daf95f50e7efca1f5822ee6395bebd3083f32e",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Complete passing A TRX, attempt 1, ordinary-4, artifact ID 12648627438, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
+    },
+    "pr38-a-ordinary-7": {
+      "kind": "hosted_trx",
+      "artifactSha256": "848ed3fcd2469cfa2ded4199afe0898f1c78cea68f91f1f566d63978dd35fff1",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Complete passing A TRX, attempt 1, ordinary-7, artifact ID 12648149044, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
+    },
+    "pr38-a-ordinary-8": {
+      "kind": "hosted_trx",
+      "artifactSha256": "06360b250cc4468d4432f0435e88c7381a81126cd939faa86a95836209585769",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Complete passing A TRX, attempt 1, ordinary-8, artifact ID 12648961775, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
+    },
+    "pr38-b-ordinary-0": {
+      "kind": "hosted_trx",
+      "artifactSha256": "23aeeab46cb657de67cac128a4287fc1279ee70896f4359bc4f8b3694804444e",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Attempt 2, ordinary-0, artifact ID 12648909903, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
+    },
+    "pr38-b-ordinary-1": {
+      "kind": "hosted_trx",
+      "artifactSha256": "fec5fa78065ffdc395abeb2a36d27f8efd8023006650e380a9472a9c7694c86f",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Attempt 2, ordinary-1, artifact ID 12649710644, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
+    },
+    "pr38-b-ordinary-10": {
+      "kind": "hosted_trx",
+      "artifactSha256": "150a193f0437c11be1b92e28d9d5c105283168f84ebd4ec31568d042066bcfc2",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Attempt 2, ordinary-10, artifact ID 12649402118, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
+    },
+    "pr38-b-ordinary-2": {
+      "kind": "hosted_trx",
+      "artifactSha256": "17e9c12e832faab0bdd55dcf84dd4ef76759c7756353db93c642500d18fd615f",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Attempt 2, ordinary-2, artifact ID 12650566478, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
+    },
+    "pr38-b-ordinary-5": {
+      "kind": "hosted_trx",
+      "artifactSha256": "6342d74f1ffaa5c5e1c5a88e6f36ababa3133d288c4fe2f8c1f142954274d52c",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Attempt 2, ordinary-5, artifact ID 12649254130, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
+    },
+    "pr38-b-ordinary-7": {
+      "kind": "hosted_console",
+      "artifactSha256": "de7a7a5ca42db46ad7c1fae567c64d98cd2f6c6fc11d140560491408ac944202",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Attempt 2, ordinary-7, artifact ID 12648684971, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Interrupted original JSONL prefix, only complete all-Passed selector groups; ceil summed case ms/minimum 1; advisory, not a wall bound."
+    },
+    "pr38-b-ordinary-8": {
+      "kind": "hosted_trx",
+      "artifactSha256": "ca989b6ee3f7f0c24a6e7067ecc0ae934581b70380188fe0bb3581ff5e5f4ae9",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
+      "runId": "40318359878",
+      "note": "Attempt 2, ordinary-8, artifact ID 12649532186, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
     }
   },
   "weights": [
@@ -2189,6 +2294,12 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AccountSiteHttpTests.Application_body_limit_refusals_keep_no_store_before_credential_admission",
+      "milliseconds": 10215,
+      "source": "pr38-b-ordinary-1"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.AccountSiteHttpTests.Claimless_signed_profiles_keep_the_public_ceiling_and_emit_one_fixed_Debug_event_per_admitted_request",
       "milliseconds": 7668,
       "source": "p031-hosted-ordinary-11"
@@ -2252,6 +2363,12 @@
       "method": "LearnStack.Tests.Integration.Database.AccountSiteQueryTests.Real_configuration_reader_refuses_missing_or_foreign_EF_transaction_with_same_role_controls",
       "milliseconds": 122,
       "source": "p031-hosted-ordinary-10"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AccountSiteQueryTests.Real_configuration_reader_refuses_unannounced_transaction_then_reads_after_announcement",
+      "milliseconds": 69,
+      "source": "pr38-b-ordinary-0"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3078,14 +3195,14 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobControlTests.Actual_control_queries_seek_future_backlog_for_idle_and_partial_quanta_and_detect_volatile_cutoff",
-      "milliseconds": 137140,
-      "source": "p031-hosted-ordinary-9"
+      "milliseconds": 147596,
+      "source": "pr38-b-ordinary-0"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobControlTests.Actual_fenced_job_witness_refuses_every_draft_or_pair_substitution_and_rolls_back_state",
-      "milliseconds": 20127,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 72175,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3162,14 +3279,14 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobControlTests.Invalid_never_started_org_job_terminalizes_with_one_actual_row_bound_MUST_and_no_causal_payload_access",
-      "milliseconds": 2765,
-      "source": "p031-hosted-ordinary-4"
+      "milliseconds": 12839,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobControlTests.Locked_admission_history_distinguishes_absence_from_original_or_peer_occupancy",
-      "milliseconds": 7791,
-      "source": "p031-hosted-ordinary-7"
+      "milliseconds": 18033,
+      "source": "pr38-a-ordinary-10"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3228,8 +3345,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobControlTests.Terminal_lock_wait_crossing_expiry_refuses_both_terminal_state_and_audit",
-      "milliseconds": 1941,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 22670,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3558,8 +3675,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobExternalCheckpointStoreTests.Read_driver_retains_actual_scope_cleanup_and_never_publishes_a_handle_from_failed_cleanup",
-      "milliseconds": 7771,
-      "source": "p031-hosted-ordinary-10"
+      "milliseconds": 39679,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3570,8 +3687,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobExternalCheckpointStoreTests.Reconcile_bridge_uses_actual_recovery_read_and_never_constructs_provider_for_already_decidable_history",
-      "milliseconds": 6553,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 38069,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3660,8 +3777,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobExternalCheckpointStoreTests.Terminal_no_start_release_refusal_rolls_back_the_preceding_marker",
-      "milliseconds": 1949,
-      "source": "p031-hosted-ordinary-1"
+      "milliseconds": 16643,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3726,8 +3843,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobExternalCheckpointStoreTests.Unresolved_status_paces_or_quarantines_without_outcome_release_or_another_admission",
-      "milliseconds": 17867,
-      "source": "p031-hosted-ordinary-6"
+      "milliseconds": 37505,
+      "source": "pr38-b-ordinary-5"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3852,8 +3969,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.Actual_stored_recovery_selection_repairs_the_early_finalize_hint_only_after_its_real_cleanup",
-      "milliseconds": 23200,
-      "source": "p031-hosted-ordinary-11"
+      "milliseconds": 33241,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3942,8 +4059,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.Native_known_repeatable_outcome_retries_a_distinct_attempt_with_the_same_operation",
-      "milliseconds": 71904,
-      "source": "p031-hosted-ordinary-5"
+      "milliseconds": 84764,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3978,8 +4095,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests.Owned_external_retry_counts_only_its_acknowledged_or_exact_locked_original_disposition",
-      "milliseconds": 4410,
-      "source": "p031-hosted-ordinary-3"
+      "milliseconds": 15484,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -5538,8 +5655,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.DeliveryProcessorTests.Four_retained_scopes_saturate_capacity_and_release_unblocks_only_available_partitions",
-      "milliseconds": 10116,
-      "source": "p031-hosted-ordinary-4"
+      "milliseconds": 22231,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -6450,8 +6567,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.GlobalIdentityBootstrapTests.Signed_provider_and_authenticated_readback_facts_bind_the_preserved_actor_without_password_reuse",
-      "milliseconds": 37850,
-      "source": "p031-hosted-ordinary-11"
+      "milliseconds": 59736,
+      "source": "pr38-a-ordinary-0"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -6524,6 +6641,24 @@
       "method": "LearnStack.Tests.Integration.Database.GlobalIdentitySchemaTests.Global_User_INSERT_refuses_wrong_or_absent_subject_scope",
       "milliseconds": 3434,
       "source": "p031-hosted-ordinary-11"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.GlobalIdentitySchemaTests.Global_audit_INSERT_refuses_malformed_attribution_and_a_valid_app_twin_commits",
+      "milliseconds": 382,
+      "source": "pr38-a-ordinary-8"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.GlobalIdentitySchemaTests.Global_audit_WITH_CHECK_independently_refuses_missing_subject_and_detects_a_widened_policy",
+      "milliseconds": 2896,
+      "source": "pr38-a-ordinary-7"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.GlobalIdentitySchemaTests.Global_creation_audit_cannot_be_inserted_through_owner_or_platform_credentials",
+      "milliseconds": 142,
+      "source": "pr38-b-ordinary-7"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -6917,6 +7052,12 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityDiagnosticSinkTests.Actual_global_binding_save_keeps_its_fixed_boundary_and_replaces_pre_adapter_EF_failure_output",
+      "milliseconds": 373,
+      "source": "pr38-b-ordinary-5"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.IdentityDiagnosticSinkTests.Actual_profile_provider_failure_reaches_source_and_never_reaches_serialized_diagnostic_sinks",
       "milliseconds": 389,
       "source": "p031-hosted-ordinary-5"
@@ -6959,6 +7100,18 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Assignment_addition_serializes_with_Membership_Revoke_and_the_predecessor_exposes_the_race",
+      "milliseconds": 9197,
+      "source": "pr38-b-ordinary-0"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Competing_actual_first_admin_commands_recheck_history_after_the_tenant_wait_and_commit_exactly_one_graph",
+      "milliseconds": 4073,
+      "source": "pr38-a-ordinary-4"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Competing_administrator_retirements_wait_for_commit_then_preserve_the_last_admin",
       "milliseconds": 4275,
       "source": "p031-hosted-ordinary-11"
@@ -6995,6 +7148,12 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Direct_admission_function_returns_the_same_false_for_known_and_unknown_users",
+      "milliseconds": 15,
+      "source": "pr38-a-ordinary-3"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Every_assignment_addition_including_empty_role_requires_User_but_profile_and_removal_do_not",
       "milliseconds": 38,
       "source": "p031-hosted-ordinary-2"
@@ -7010,6 +7169,12 @@
       "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Initial_Role_exception_admits_only_exact_fresh_graph_and_refuses_committed_repairs",
       "milliseconds": 21,
       "source": "p031-hosted-ordinary-0"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Last_administrator_guard_requires_global_eligibility_not_only_an_active_membership",
+      "milliseconds": 5853,
+      "source": "pr38-a-ordinary-11"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -7031,6 +7196,12 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Post_acquisition_row_timeout_is_a_fixed_conflict_and_the_seed_handler_refuses_without_partial_profile",
+      "milliseconds": 12197,
+      "source": "pr38-b-ordinary-8"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Reactivation_requires_User_fence_and_revoked_history_remains_in_the_EF_model",
       "milliseconds": 706,
       "source": "p031-hosted-ordinary-11"
@@ -7040,6 +7211,12 @@
       "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Real_lock_timeout_or_cancellation_releases_transaction_without_partial_graph",
       "milliseconds": 413,
       "source": "p031-hosted-ordinary-4"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityMembershipTests.Restrictive_org_write_policy_filters_rows_before_independent_guards_and_its_dirty_twin_reaches_them",
+      "milliseconds": 8629,
+      "source": "pr38-a-ordinary-1"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -7118,6 +7295,18 @@
       "method": "LearnStack.Tests.Integration.Database.IdentityMutationLockTests.Waiting_helper_timeout_or_cancellation_rolls_back_releases_and_reuses_the_physical_pool_connection",
       "milliseconds": 2125,
       "source": "p031-hosted-ordinary-7"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityReadDiagnosticSinkTests.Actual_contextual_read_ports_drop_provider_payloads_before_the_existing_diagnostic_sinks",
+      "milliseconds": 8729,
+      "source": "pr38-b-ordinary-1"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityReadDiagnosticSinkTests.Current_read_ports_preserve_cancellation_and_programming_failures",
+      "milliseconds": 46,
+      "source": "pr38-b-ordinary-10"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -8891,6 +9080,18 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.TenantExistingBindingAdmissionTests.Committed_nonadmitting_or_collision_state_is_rechecked_without_an_identity_cache",
+      "milliseconds": 18485,
+      "source": "pr38-a-ordinary-7"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.TenantExistingBindingAdmissionTests.Completed_binding_returns_the_connector_before_its_HTTP_scope_dispatches_tenant_work",
+      "milliseconds": 7996,
+      "source": "pr38-b-ordinary-0"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.TenantExistingBindingAdmissionTests.Identity_FromSql_failures_keep_a_fixed_read_signal_for_sync_and_async_commands",
       "milliseconds": 109,
       "source": "p031-hosted-ordinary-11"
@@ -8912,6 +9113,12 @@
       "method": "LearnStack.Tests.Integration.Database.TenantExistingBindingAdmissionTests.Small_real_HTTP_sample_reports_lookup_plan_statement_cost_and_bounded_concurrent_pool_occupancy",
       "milliseconds": 9262,
       "source": "p031-hosted-ordinary-3"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.TenantExistingBindingAdmissionTests.Unknown_and_conflicting_bindings_refuse_even_public_reads_without_allocation_or_adoption",
+      "milliseconds": 7631,
+      "source": "pr38-a-ordinary-10"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9438,8 +9645,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control",
-      "milliseconds": 32915,
-      "source": "local-bff-lifecycle-r2-20261024"
+      "milliseconds": 51066,
+      "source": "pr38-a-ordinary-11"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9456,8 +9663,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.Reconciled_warm_realm_serves_both_native_hosts_with_real_refresh_logout_and_persisted_events",
-      "milliseconds": 79261,
-      "source": "local-bff-lifecycle-r2-20261024"
+      "milliseconds": 134938,
+      "source": "pr38-a-ordinary-10"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9654,8 +9861,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Historical_stock_upgrade_prepares_once_and_counts_the_named_event_policy_write",
-      "milliseconds": 49439,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 93442,
+      "source": "pr38-b-ordinary-5"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9672,8 +9879,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Legacy_upgrade_resumes_durable_partial_writes_and_preserves_accounts_and_unrelated_state",
-      "milliseconds": 43513,
-      "source": "p031-hosted-ordinary-0"
+      "milliseconds": 68827,
+      "source": "pr38-a-ordinary-0"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9684,8 +9891,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Missing_protected_definitions_do_not_allow_preparation_for_a_customized_stock_scope_lookalike",
-      "milliseconds": 39082,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 49816,
+      "source": "pr38-b-ordinary-0"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9696,8 +9903,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Projected_identity_profile_configuration_refuses_before_any_pending_write",
-      "milliseconds": 65518,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 83193,
+      "source": "pr38-b-ordinary-2"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9714,8 +9921,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests.Uninterrupted_legacy_upgrade_preserves_nonmanifest_actor_and_account_state",
-      "milliseconds": 38801,
-      "source": "p031-hosted-ordinary-10"
+      "milliseconds": 57569,
+      "source": "pr38-a-ordinary-11"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9750,14 +9957,14 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmStockBaselineTests.Historical_24705a7a_bootstrap_matches_the_fixed_26_6_2_scope_role_and_mapper_baseline",
-      "milliseconds": 59560,
-      "source": "p031-hosted-ordinary-11"
+      "milliseconds": 84034,
+      "source": "pr38-a-ordinary-11"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmStockBaselineTests.Historical_stock_ordinary_reconciliation_detaches_only_three_console_edges_and_then_writes_zero",
-      "milliseconds": 104449,
-      "source": "p031-hosted-ordinary-9"
+      "milliseconds": 146023,
+      "source": "pr38-b-ordinary-5"
     }
   ],
   "sharedFixtureClasses": [
