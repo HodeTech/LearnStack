@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,527 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 1,605 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -53,6 +53,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-1 Step 5 review round 2 and local closeout (2026-10-26)](#p03-1-step-5-review-round-2-and-local-closeout-2026-10-26) — 30 lines
   - [P03-1 Step 6 — Complete qualification inventories (2026-10-26)](#p03-1-step-6--complete-qualification-inventories-2026-10-26) — 46 lines
   - [P03-1 Step 6 review round 1 and carrier correction (2026-10-26)](#p03-1-step-6-review-round-1-and-carrier-correction-2026-10-26) — 36 lines
+  - [P03-1 Step 6 full ordinary failures and bounded corrections (2026-10-26)](#p03-1-step-6-full-ordinary-failures-and-bounded-corrections-2026-10-26) — 78 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -1665,3 +1666,81 @@ second fresh source-review round. Running local ordinary work and final-source
 hosted A/B/full-suite qualification retain their separate source and result
 boundaries. This source review does not establish successful execution or close
 Step 6.
+
+### P03-1 Step 6 full ordinary failures and bounded corrections (2026-10-26)
+
+The initial complete local ordinary run finishes in 47m08s: **2,630 Passed,
+82 Failed, zero skipped, 2,712 total**. It uses the already built pre-correction
+source from `83f701df`; intervening source edits do not requalify that binary.
+The original log/TRX and per-case failure classification remain intact. This is
+not a successful complete-suite receipt, and corrected subsets are not relabeled
+as one.
+
+Verified failures form these groups:
+
+- Two migration-census cases retain Step 3 table/function expectations. The
+  independent full reversal expectation and Platform-only surviving-table union
+  now include the contextual subjects. Actual reversal, six-history-only empty
+  schema, zero functions/policies and reapplication/app-role positives pass.
+- Forty-six worker/default-delivery cases reach the new mandatory Identity
+  startup service without owning an authority configuration. Three dedicated
+  messaging factories exclude only that named unrelated hosted service. Actual
+  producer/delivery workers, credentials, guards, health, deadlines and cleanup
+  assertions remain intact. Production startup and real identity fixtures retain
+  mandatory qualification.
+- Twenty-six parent-scope structural cases find the two undeclared Membership
+  children. The detector now joins both actual Identity EF relations and the
+  independent applied schema, retaining all earlier Education/job predicates.
+  Twenty-two added clean/dirty/restoration cases cover missing/wrong FKs, model/
+  declaration omissions, trigger metadata, exact invoker body, timing, locks,
+  tenant/parent/null comparison, SQLSTATE and classification metadata.
+- Eight diagnostic cases expose additional actual EF spans. Distinct tracing
+  compositions create nested spans for one command; marking only the innermost
+  leaves outer provider messages unprotected. The full receipt's additional
+  subscribers are not attributed to a guessed lifetime fault. A deliberate
+  two-composition control establishes the defect independently.
+
+The parent census also verifies an implementation mismatch with the existing
+canonical `23514` parent-scope contract. A narrow forward migration replaces
+only `fn_identity_contextual_mutation_guard`: missing/mismatched Membership
+parents use `23514` with fixed `membership_parent_scope` constraint metadata;
+revoked-parent and other existing `P0304` classifications stay. That metadata
+preserves the adapter's existing fixed Graph descriptor rather than producing
+a provider outage. Original migration output is byte-identical; no table,
+trigger, grant, owner or data changes. A real fresh/predecessor/head/down/head
+control proves exact function identity/OID, ACL, owner, invoker/volatility/search
+path and unchanged siblings, with app-role error witnesses at every version.
+
+Fresh qualification passes **363 Integration and 28 Architecture cases**, zero
+skips, including all seven affected structural/worker/membership/rollback classes.
+The added migration case and parent-census rows require refreshed final discovery.
+The first CA1859 build error is retained separately from the corrected build.
+
+For diagnostics, four sync/async × standalone/real nested-Tenancy controls first
+fail on unchanged trace-boundary source. Both actual production tracing
+compositions serialize two distinct Identity Error spans for one independently
+witnessed provider command: the outer span contains neutral/nested/token
+canaries. Independent started/stopped IDs, exporter coverage and ancestry
+checks run before the failing exclusion assertion. No remote telemetry delivery
+is claimed.
+
+The correction uses a per-IdentityDbContext interceptor. It captures command ID
+and the exact caller before synchronous command creation, consumes only the
+matching post-broadcast creation event, validates the complete EF-only interval
+and marks only its newly created spans. The existing caller is never marked,
+including a real EF command from another module. The before-export processor
+is unchanged. No SQL classifier, global scrub/registry, SDK reset or discarded/
+deduplicated span supplies the proof.
+
+All **23 diagnostic plus seven cleanup controls**, **216 Unit** and **51
+Architecture** cases pass, zero skips. Both exporters cover every independently
+observed EF ID; all Identity Error spans are fixed and canary-free. The actual
+nested Tenancy command keeps its original provider message, and caller status,
+ancestry and Activity restoration remain intact. These focused populations
+retain their scopes rather than replacing the failed full run. A further 81
+corpus/inventory/FK Architecture cases pass after the current-carrier updates.
+Backend setup guidance now names the installed authority/runtime configuration
+prerequisite and the managed local launcher.
+
+Committed-source requalification, the fresh second Step 6 review round and
+complete source-bound hosted A/B execution remain required before closeout.

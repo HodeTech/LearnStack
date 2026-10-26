@@ -52,6 +52,127 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
     private static readonly string[] Canaries = [Neutral, Nested, Sensitive];
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Overlapping_compositions_protect_every_Identity_span_without_changing_actual_callers(
+        bool asynchronous, bool nestedInSiblingCommand)
+    {
+        const string siblingValue = "ordinary-sibling-provider-control-938c";
+        const string callerDescription = "ordinary-caller-diagnostic-281d";
+        using var sinks = new IdentityDiagnosticSinks();
+        using var otherTracing = new IdentityDiagnosticSinks.TraceComposition();
+        using var observed = new IdentityDiagnosticSinks.EfActivityObserver();
+        using var callers = new ActivitySource("learnstack.identity.storage-qualification");
+        using var caller = callers.StartActivity("overlapping-compositions-caller");
+        caller.Should().NotBeNull();
+        caller!.SetStatus(ActivityStatusCode.Error, callerDescription);
+        await using var identityConnection = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(identityConnection);
+        await using var identityTransaction = await identityConnection.BeginTransactionAsync();
+        await SchemaQueries.SetTenantAsync(identityConnection, identityTransaction, SchemaFixture.TenantA);
+        var tenant = new StaticTenantContextAccessor(new SeedTenantContext(TenantId.From(SchemaFixture.TenantA), null));
+        var witness = new ProviderFailureWitness();
+        await using var identity = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseNpgsql(identityConnection).UseLoggerFactory(sinks.Loggers).AddInterceptors(witness).Options,
+            tenant, EmptyIdentityScope.Instance);
+        await identity.Database.UseTransactionAsync(identityTransaction);
+        var identityQuery = identity.Database.SqlQuery<int>($"SELECT CAST({Payload} AS integer) AS \"Value\"");
+        PostgresException? identityFailure = null;
+        IdentityDiagnosticSinks.ExportedTrace[][] identityCompleted = [];
+
+        void CaptureIdentityCompletion()
+        {
+            identityFailure.Should().NotBeNull();
+            identityFailure!.SqlState.Should().Be("22P02");
+            foreach (var canary in Canaries) identityFailure.MessageText.Should().Contain(canary);
+            witness.Failure.Should().BeSameAs(identityFailure);
+            witness.Commands.Should().Be(1, "one actual provider command generated all the nested spans");
+            identityCompleted = [sinks.Traces.ToArray(), otherTracing.Traces.ToArray()];
+        }
+
+        void ReadIdentity()
+        {
+            identityFailure = Record.Exception(() => identityQuery.Single()) as PostgresException;
+            CaptureIdentityCompletion();
+        }
+
+        async Task ReadIdentityAsync()
+        {
+            identityFailure = await Record.ExceptionAsync(() => identityQuery.SingleAsync()) as PostgresException;
+            CaptureIdentityCompletion();
+        }
+
+        PostgresException? siblingFailure = null;
+        if (nestedInSiblingCommand)
+        {
+            // The actual sibling EF command remains current while the separate
+            // Identity connection fails. Completion snapshots distinguish the
+            // operations without using the runtime marker or its ancestry walk.
+            var nested = new NestedIdentityRead(ReadIdentity, ReadIdentityAsync);
+            await using var siblingConnection = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.AppConnectionString);
+            await SchemaQueries.AssertApplicationRoleAsync(siblingConnection);
+            await using var siblingTransaction = await siblingConnection.BeginTransactionAsync();
+            await SchemaQueries.SetTenantAsync(siblingConnection, siblingTransaction, SchemaFixture.TenantA);
+            await using var sibling = new TenancyDbContext(new DbContextOptionsBuilder<TenancyDbContext>()
+                .UseNpgsql(siblingConnection).UseLoggerFactory(sinks.Loggers).AddInterceptors(nested).Options, tenant);
+            await sibling.Database.UseTransactionAsync(siblingTransaction);
+            var query = sibling.Database.SqlQuery<int>($"SELECT CAST({siblingValue} AS integer) AS \"Value\"");
+            siblingFailure = (asynchronous
+                ? await Record.ExceptionAsync(() => query.SingleAsync())
+                : Record.Exception(() => query.Single())) as PostgresException;
+            siblingFailure.Should().NotBeNull();
+            siblingFailure!.MessageText.Should().Contain(siblingValue);
+            nested.Calls.Should().Be(1);
+            nested.Caller.Should().NotBeNull();
+            nested.Caller!.Source.Name.Should().Be(IdentityDiagnosticSinks.EfSource);
+            nested.Caller.StatusDescription.Should().Be(siblingFailure.Message);
+        }
+        else if (asynchronous) await ReadIdentityAsync();
+        else ReadIdentity();
+
+        Activity.Current.Should().BeSameAs(caller);
+        caller.Stop();
+        caller.Status.Should().Be(ActivityStatusCode.Error);
+        caller.StatusDescription.Should().Be(callerDescription);
+        var completed = new[] { sinks.Traces, otherTracing.Traces };
+        output.WriteLine(JsonSerializer.Serialize(new
+        {
+            asynchronous,
+            nestedInSiblingCommand,
+            ProviderCommandFailures = witness.Commands,
+            Compositions = completed.Select(traces => new
+            {
+                ErrorSpans = traces.Where(trace => trace.Source == IdentityDiagnosticSinks.EfSource
+                    && trace.Status == ActivityStatusCode.Error).Select(trace => new { trace.Id, trace.ParentId, trace.Description }),
+                ContainsIdentityCanary = Canaries.Any(canary => traces.Any(trace => trace.Json.Contains(canary, StringComparison.Ordinal))),
+            }),
+        }));
+        for (var index = 0; index < completed.Length; index++)
+        {
+            observed.AssertCompleteCoverage(completed[index]);
+            IdentityDiagnosticSinks.AssertEfCallerAncestry(completed[index], caller);
+            var identityErrors = identityCompleted[index].Where(trace => trace.Source == IdentityDiagnosticSinks.EfSource
+                && trace.Status == ActivityStatusCode.Error).ToArray();
+            identityErrors.Length.Should().BeGreaterThanOrEqualTo(2, "both actual compositions create a command span");
+            identityErrors.Should().OnlyContain(trace => trace.Description == "Identity storage command failed.");
+            foreach (var canary in Canaries)
+                string.Join('\n', completed[index].Select(trace => trace.Json)).Should().NotContain(canary);
+            completed[index].Single(trace => trace.Id == caller.Id).Description.Should().Be(callerDescription);
+            if (nestedInSiblingCommand)
+            {
+                var siblingErrors = completed[index].Skip(identityCompleted[index].Length)
+                    .Where(trace => trace.Source == IdentityDiagnosticSinks.EfSource && trace.Status == ActivityStatusCode.Error).ToArray();
+                siblingErrors.Length.Should().BeGreaterThanOrEqualTo(2);
+                siblingErrors.Should().OnlyContain(trace => trace.Description == siblingFailure!.Message);
+            }
+        }
+        sinks.LogText.Should().Contain("IdentityStorageReadFailed");
+        foreach (var canary in Canaries) sinks.LogText.Should().NotContain(canary);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Actual_profile_provider_failure_reaches_source_and_never_reaches_serialized_diagnostic_sinks(bool deferred)
@@ -122,8 +243,8 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
                 "the provider itself confirms all three exact values reached its failing trigger, including the deferred path");
 
             Activity.Current.Should().BeSameAs(parent, "stopping the actual EF span restores its existing caller context");
-            foreach (var trace in sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"))
-                trace.Json.Should().Contain(parent!.Id!, "the actual EF span keeps its caller's trace parent");
+            sinks.AssertCompleteEfTraceCoverage();
+            IdentityDiagnosticSinks.AssertEfCallerAncestry(sinks.Traces, parent!);
             parent!.Stop();
             parent.Status.Should().Be(ActivityStatusCode.Unset);
             await sinks.CaptureThroughL1Async(failure!);
@@ -146,8 +267,12 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
             if (!deferred) captured.Log.Should().Contain("IdentityStorageSaveFailed").And.Contain("3191");
             var efErrors = sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"
                 && trace.Status == System.Diagnostics.ActivityStatusCode.Error).ToArray();
-            efErrors.Should().HaveCount(deferred ? 0 : 1);
-            if (!deferred) efErrors.Should().OnlyContain(trace => trace.Description == "Identity storage command failed.");
+            if (deferred) efErrors.Should().BeEmpty();
+            else
+            {
+                witness.Commands.Should().Be(1);
+                efErrors.Should().NotBeEmpty().And.OnlyContain(trace => trace.Description == "Identity storage command failed.");
+            }
             sinks.Traces.Where(trace => trace.Source == "learnstack.identity.sink-qualification")
                 .Should().HaveCount(2).And.OnlyContain(trace => trace.Status == System.Diagnostics.ActivityStatusCode.Error
                     && trace.Description == nameof(IdentityStorageProviderException));
@@ -202,17 +327,18 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
             witness.Failure!.Message.Should().Contain(Payload);
             await frame.FailAsync();
             Activity.Current.Should().BeSameAs(parent, "stopping the actual EF span restores its existing caller context");
-            foreach (var trace in sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"))
-                trace.Json.Should().Contain(parent!.Id!, "the actual EF span keeps its caller's trace parent");
+            sinks.AssertCompleteEfTraceCoverage();
+            IdentityDiagnosticSinks.AssertEfCallerAncestry(sinks.Traces, parent!);
             parent!.Stop();
             parent.Status.Should().Be(ActivityStatusCode.Unset);
             await sinks.CaptureThroughL1Async(failure!);
             var captured = await sinks.ReadAsync();
             captured.AssertPositiveControls();
             captured.Log.Should().Contain("IdentityStorageSaveFailed").And.Contain("3191");
+            witness.Commands.Should().Be(1);
             sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"
                 && trace.Status == System.Diagnostics.ActivityStatusCode.Error)
-                .Should().ContainSingle().Which.Description.Should().Be("Identity storage command failed.");
+                .Should().NotBeEmpty().And.OnlyContain(trace => trace.Description == "Identity storage command failed.");
             captured.AssertExcludes(Canaries);
             failure!.InnerException.Should().BeNull();
         }
@@ -245,9 +371,10 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
         var save = () => db.SaveChangesAsync();
         var failure = (await save.Should().ThrowAsync<DbUpdateException>()).Which;
         failure.InnerException.Should().BeOfType<PostgresException>();
+        sinks.AssertCompleteEfTraceCoverage();
         sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"
             && trace.Status == System.Diagnostics.ActivityStatusCode.Error)
-            .Should().ContainSingle().Which.Description.Should().Be(failure.InnerException!.Message,
+            .Should().NotBeEmpty().And.OnlyContain(trace => trace.Description == failure.InnerException!.Message,
                 "the Identity boundary must leave the sibling module's actual error status description intact");
         sinks.LogText.Should().Contain("Microsoft.EntityFrameworkCore.Update.SaveChangesFailed")
             .And.NotContain("IdentityStorageSaveFailed");
@@ -296,11 +423,42 @@ public sealed class IdentityDiagnosticSinkTests(IdentityMembershipFixture fixtur
     private sealed class ProviderFailureWitness : DbCommandInterceptor
     {
         public Exception? Failure { get; private set; }
+        public int Commands { get; private set; }
+        public override void CommandFailed(DbCommand command, CommandErrorEventData eventData)
+        {
+            Failure = eventData.Exception;
+            Commands++;
+        }
         public override Task CommandFailedAsync(DbCommand command, CommandErrorEventData eventData,
             CancellationToken cancellationToken = default)
         {
-            Failure = eventData.Exception;
+            CommandFailed(command, eventData);
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class NestedIdentityRead(Action read, Func<Task> readAsync) : DbCommandInterceptor
+    {
+        public int Calls { get; private set; }
+        public Activity? Caller { get; private set; }
+        public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData,
+            InterceptionResult<DbDataReader> result)
+        {
+            Calls++;
+            Caller = Activity.Current;
+            read();
+            Activity.Current.Should().BeSameAs(Caller);
+            return result;
+        }
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            Caller = Activity.Current;
+            await readAsync();
+            Activity.Current.Should().BeSameAs(Caller);
+            return result;
         }
     }
 }

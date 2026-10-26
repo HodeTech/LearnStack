@@ -485,6 +485,9 @@ P02d-1 Step 2 implements this control on `lessons`, `course_translations` and
 exercises insertion through separately authenticated `learnstack_app` connections;
 [EducationParentScopeTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationParentScopeTests.cs)
 exercises reparenting and the parent lock before the FK executes.
+Identity's Membership profile/assignment children participate in the same
+model/applied-schema census under the
+[Identity storage contract](#identity-storage-contract).
 
 The lookup carries **both** tenant and parent identity, runs under the caller's RLS,
 and uses `IS DISTINCT FROM` so tenant-wide `NULL` is compared as a value. A missing,

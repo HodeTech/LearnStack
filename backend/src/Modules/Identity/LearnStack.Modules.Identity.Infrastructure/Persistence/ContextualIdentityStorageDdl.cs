@@ -10,7 +10,10 @@ public static class ContextualIdentityStorageDdl
     public static void Install(MigrationBuilder migration)
     {
         ArgumentNullException.ThrowIfNull(migration);
-        migration.Sql(Guards.Replace("__ROLE_ADMIN_KEY__", IdentityFoundationManifest.RoleAdmin, StringComparison.Ordinal));
+        // Keep the original migration's SQL unchanged; the forward correction
+        // replaces only the mutation guard on both existing and fresh databases.
+        migration.Sql(Guards + "\n\nCREATE " + MutationGuardSql(correctParentMirror: false)
+            + "\n" + MutationGuardRevocation);
         migration.Sql(CompleteGraphGuard());
         foreach (var table in new[] { "memberships", "membership_profiles", "membership_role_assignments" })
         {
@@ -82,6 +85,23 @@ public static class ContextualIdentityStorageDdl
             DROP FUNCTION public.fn_identity_contextual_lock_key(text, uuid);
             """);
     }
+
+    internal static void CorrectParentMirrorSqlState(MigrationBuilder migration)
+    {
+        ArgumentNullException.ThrowIfNull(migration);
+        migration.Sql("CREATE OR REPLACE " + MutationGuardSql(correctParentMirror: true));
+    }
+
+    internal static void RestoreLegacyParentMirrorSqlState(MigrationBuilder migration)
+    {
+        ArgumentNullException.ThrowIfNull(migration);
+        migration.Sql("CREATE OR REPLACE " + MutationGuardSql(correctParentMirror: false));
+    }
+
+    private static string MutationGuardSql(bool correctParentMirror) => MutationGuardDefinition
+        .Replace("__PARENT_MIRROR_CHECK__", correctParentMirror ? ParentMirrorCheck : LegacyParentMirrorCheck,
+            StringComparison.Ordinal)
+        .Replace("__ROLE_ADMIN_KEY__", IdentityFoundationManifest.RoleAdmin, StringComparison.Ordinal);
 
     private static string CompleteGraphGuard()
     {
@@ -257,8 +277,10 @@ public static class ContextualIdentityStorageDdl
         ALTER FUNCTION public.fn_identity_admin_admission_state(uuid, uuid) OWNER TO learnstack_migration;
         REVOKE ALL ON FUNCTION public.fn_identity_admin_admission_state(uuid, uuid) FROM PUBLIC, learnstack_platform, learnstack_outbox_admin;
         GRANT EXECUTE ON FUNCTION public.fn_identity_admin_admission_state(uuid, uuid) TO learnstack_app;
+        """;
 
-        CREATE FUNCTION public.fn_identity_contextual_mutation_guard() RETURNS trigger
+    private const string MutationGuardDefinition = """
+        FUNCTION public.fn_identity_contextual_mutation_guard() RETURNS trigger
             LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
         AS $$
         DECLARE target_tenant uuid; target_member uuid; target_role uuid; parent_org uuid;
@@ -292,10 +314,7 @@ public static class ContextualIdentityStorageDdl
                 END IF;
                 SELECT member.organization_id, member.status INTO parent_org, parent_status
                     FROM public.memberships AS member WHERE member.tenant_id = target_tenant AND member.id = target_member FOR KEY SHARE;
-                IF NOT FOUND OR parent_org IS DISTINCT FROM (CASE WHEN TG_OP = 'DELETE' THEN OLD.organization_id ELSE NEW.organization_id END)
-                    OR (TG_OP <> 'DELETE' AND parent_status = 'Revoked') THEN
-                    RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
-                END IF;
+        __PARENT_MIRROR_CHECK__
                 IF TG_TABLE_NAME = 'membership_profiles' AND TG_OP = 'DELETE' THEN
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
                 ELSIF TG_TABLE_NAME = 'membership_role_assignments' THEN
@@ -343,6 +362,24 @@ public static class ContextualIdentityStorageDdl
             RETURN NEW;
         END;
         $$;
-        REVOKE ALL ON FUNCTION public.fn_identity_contextual_mutation_guard() FROM PUBLIC, learnstack_app, learnstack_platform, learnstack_outbox_admin;
+        """;
+
+    private const string MutationGuardRevocation =
+        "REVOKE ALL ON FUNCTION public.fn_identity_contextual_mutation_guard() FROM PUBLIC, learnstack_app, learnstack_platform, learnstack_outbox_admin;";
+
+    private const string LegacyParentMirrorCheck = """
+                IF NOT FOUND OR parent_org IS DISTINCT FROM (CASE WHEN TG_OP = 'DELETE' THEN OLD.organization_id ELSE NEW.organization_id END)
+                    OR (TG_OP <> 'DELETE' AND parent_status = 'Revoked') THEN
+                    RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
+                END IF;
+        """;
+
+    private const string ParentMirrorCheck = """
+                IF NOT FOUND OR parent_org IS DISTINCT FROM (CASE WHEN TG_OP = 'DELETE' THEN OLD.organization_id ELSE NEW.organization_id END) THEN
+                    RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = '23514', CONSTRAINT = 'membership_parent_scope';
+                END IF;
+                IF TG_OP <> 'DELETE' AND parent_status = 'Revoked' THEN
+                    RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
+                END IF;
         """;
 }

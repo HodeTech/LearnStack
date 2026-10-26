@@ -102,9 +102,14 @@ execute the L1 exception, local archive or Sentry path; those sinks retain their
 separate writer-failure controls above.
 Identity replaces only its EF save/query-failure events with fixed diagnostics;
 unexpected contextual provider failures retain no original exception payload.
-Its actual EF command spans receive a nonexported source-owned marker; a named
-processor fixes only those Error descriptions before export, preserving error
-status, span metadata and trace parents. Ordinary command diagnostics, other
+Its per-context interceptor records the exact caller before command creation
+and marks only the validated EF spans created for that command. Multiple tracing
+compositions can produce several such spans; the preexisting caller is excluded,
+even when it is another real EF command. A named processor fixes only marked
+Error descriptions before export, preserving error status, span metadata and
+trace ancestry. Independent started/stopped activity IDs and two actual tracing
+compositions qualify complete exporter coverage; a nested Tenancy command keeps
+its original provider error. Ordinary command diagnostics, other
 modules' EF failure events and unmarked span descriptions remain active.
 These cases qualify the named Identity boundaries, not arbitrary exception text
 throughout the application.

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LearnStack.Api.Authentication;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
@@ -10,6 +11,7 @@ using LearnStack.Tools.Seeder;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -420,6 +422,14 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
                 builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
                 builder.UseSetting("ConnectionStrings:PlatformAdmin", database.PlatformConnectionString);
                 builder.UseSetting("ConnectionStrings:OutboxDispatcher", database.OutboxConnectionString);
+                builder.ConfigureTestServices(services =>
+                {
+                    // This fixture owns real default delivery and provisioning, but no Identity authority.
+                    foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
+                                 && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType)
+                                 == typeof(TenantIdentityAuthorityStartupService)).ToArray())
+                        services.Remove(descriptor);
+                });
             }
         }
     }

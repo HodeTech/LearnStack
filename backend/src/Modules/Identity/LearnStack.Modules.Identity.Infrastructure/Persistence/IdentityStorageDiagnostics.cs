@@ -11,17 +11,23 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 public sealed class IdentityStorageProviderException()
     : ProviderException("identity-storage", "Identity storage operation failed.", isClientError: false);
 
-/// <summary>Source-owned, nonexported classification of Identity's actual EF command span.</summary>
+/// <summary>Source-owned, nonexported classification of Identity's actual EF command spans.</summary>
 public static class IdentityStorageTraceBoundary
 {
     private const string MarkerKey = "LearnStack.Identity.StorageCommand";
     private static readonly object Marker = new();
     private const string EfSource = "OpenTelemetry.Instrumentation.EntityFrameworkCore";
 
-    internal static void MarkCurrentCommand()
+    internal static void MarkCreatedCommand(Activity? current, Activity? caller)
     {
-        if (Activity.Current is { } activity && activity.Source.Name == EfSource)
-            activity.SetCustomProperty(MarkerKey, Marker);
+        // Multiple tracing compositions create nested EF spans for one command.
+        // First validate the entire creation interval against its exact caller;
+        // an existing EF caller belongs to another command and must stay untouched.
+        for (var activity = current; !ReferenceEquals(activity, caller); activity = activity.Parent)
+            if (activity is null || activity.Source.Name != EfSource) return;
+
+        for (var activity = current; !ReferenceEquals(activity, caller); activity = activity!.Parent)
+            activity!.SetCustomProperty(MarkerKey, Marker);
     }
 
     /// <summary>The pinned EF instrumentation ends a failed span before the adapter can translate its exception.</summary>
@@ -36,13 +42,25 @@ public static class IdentityStorageTraceBoundary
 
 internal sealed class IdentityStorageTraceInterceptor : DbCommandInterceptor
 {
-    internal static readonly IdentityStorageTraceInterceptor Instance = new();
+    private (Guid CommandId, Activity? Caller)? _creation;
 
-    public override DbCommand CommandInitialized(CommandEndEventData eventData, DbCommand result)
+    public override InterceptionResult<DbCommand> CommandCreating(CommandCorrelatedEventData eventData,
+        InterceptionResult<DbCommand> result)
     {
-        // EF's CommandCreated diagnostic has started this command's Activity.
-        // Mark that object, not an ambient parent or a SQL-text classification.
-        if (eventData.Context is IdentityDbContext) IdentityStorageTraceBoundary.MarkCurrentCommand();
+        _creation = eventData.Context is IdentityDbContext ? (eventData.CommandId, Activity.Current) : null;
+        return result;
+    }
+
+    public override DbCommand CommandCreated(CommandEndEventData eventData, DbCommand result)
+    {
+        var creation = _creation;
+        _creation = null;
+        // EF 10 creates commands synchronously in both execution modes. Its
+        // CommandCreated broadcast starts all instrumentation spans before this
+        // hook; the per-context state brackets only this matching command.
+        if (eventData.Context is IdentityDbContext && creation is { } started
+            && started.CommandId == eventData.CommandId)
+            IdentityStorageTraceBoundary.MarkCreatedCommand(Activity.Current, started.Caller);
         return result;
     }
 

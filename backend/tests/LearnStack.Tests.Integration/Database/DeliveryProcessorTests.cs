@@ -2,6 +2,7 @@ using LearnStack.Infrastructure.Persistence;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using FluentAssertions;
+using LearnStack.Api.Authentication;
 using LearnStack.Api.Jobs;
 using LearnStack.Api.Messaging;
 using LearnStack.Application.Messaging;
@@ -861,9 +862,11 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
                 builder.UseSetting("ConnectionStrings:OutboxDispatcher", fixture._database.OutboxConnectionString);
                 builder.ConfigureTestServices(services =>
                 {
+                    // This fixture owns the real delivery worker and its storage, but no Identity authority.
                     foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
                                  && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType) is { } implementation
                                  && (implementation == typeof(OutboxProcessor) || implementation == typeof(BackgroundJobHostedService)
+                                     || implementation == typeof(TenantIdentityAuthorityStartupService)
                                      || removeWorker && implementation == typeof(DeliveryProcessor))).ToArray())
                         services.Remove(descriptor);
                     services.RemoveAll<DeliveryDispatchOptions>();

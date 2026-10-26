@@ -66,6 +66,7 @@ public sealed partial class TenantExistingBindingAdmissionTests
                 "the restoration comparison must detect the deliberately dirty fixture before cleanup");
             logs.Entries.Clear();
             spans.Items.Clear();
+            using var efActivities = new IdentityDiagnosticSinks.EfActivityObserver();
             using var refused = await SendAsync(client, token, TenantAuthenticationHttpRequest.PublicPath);
             await FixedUnauthorizedAsync(refused);
             var response = await refused.Content.ReadAsStringAsync();
@@ -78,7 +79,9 @@ public sealed partial class TenantExistingBindingAdmissionTests
             var exportedSpans = string.Join('\n', spans.Items.Select(span => span.Json));
             var efErrors = spans.Items.Where(span => span.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"
                 && span.Status == ActivityStatusCode.Error).ToArray();
-            efErrors.Should().ContainSingle().Which.Description.Should().Be("Identity storage command failed.");
+            efActivities.AssertCompleteCoverage(spans.Items.Where(span => span.Source == IdentityDiagnosticSinks.EfSource)
+                .Select(span => span.Id));
+            efErrors.Should().NotBeEmpty().And.OnlyContain(span => span.Description == "Identity storage command failed.");
             serializedLogs.Should().Contain("binding_store_unavailable").And.Contain("IdentityStorageReadFailed")
                 .And.NotContain("QueryIterationFailed").And.NotContain("P0399").And.NotContain("Npgsql.PostgresException");
             logs.Entries.Where(entry => entry.MessageTemplate.Text == "Identity storage read failed.")
@@ -135,8 +138,10 @@ public sealed partial class TenantExistingBindingAdmissionTests
         var query = () => db.Database.SqlQueryRaw<int>("SELECT CAST('sibling-query-control' AS integer) AS \"Value\"").SingleAsync();
         var failure = (await query.Should().ThrowAsync<PostgresException>()).Which;
         sinks.LogText.Should().Contain("QueryIterationFailed").And.NotContain("IdentityStorageReadFailed");
+        sinks.AssertCompleteEfTraceCoverage();
         sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"
-            && trace.Status == ActivityStatusCode.Error).Should().ContainSingle().Which.Description.Should().Be(failure.Message);
+            && trace.Status == ActivityStatusCode.Error).Should().NotBeEmpty()
+            .And.OnlyContain(trace => trace.Description == failure.Message);
     }
 
     [Theory]
@@ -169,10 +174,11 @@ public sealed partial class TenantExistingBindingAdmissionTests
         failure.MessageText.Should().Contain(value, "the actual provider received the parameter in both execution modes");
         sinks.LogText.Should().Contain("IdentityStorageReadFailed").And.Contain("3192")
             .And.NotContain("QueryIterationFailed").And.NotContain(value);
-        var error = sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"
-            && trace.Status == ActivityStatusCode.Error).Should().ContainSingle().Which;
-        error.Description.Should().Be("Identity storage command failed.");
-        error.Json.Should().NotContain(value);
+        sinks.AssertCompleteEfTraceCoverage();
+        sinks.Traces.Where(trace => trace.Source == "OpenTelemetry.Instrumentation.EntityFrameworkCore"
+            && trace.Status == ActivityStatusCode.Error).Should().NotBeEmpty()
+            .And.OnlyContain(trace => trace.Description == "Identity storage command failed.");
+        foreach (var trace in sinks.Traces) trace.Json.Should().NotContain(value);
     }
 
     private static async Task<string?> ReadStoredSubjectAsync(IdentityPublicReadFixture database, GlobalIdentitySubject subject)
@@ -214,14 +220,14 @@ public sealed partial class TenantExistingBindingAdmissionTests
         }
     }
 
-    private sealed record ReadSpan(string Source, ActivityStatusCode Status, string? Description, string Json);
+    private sealed record ReadSpan(string Id, string Source, ActivityStatusCode Status, string? Description, string Json);
     private sealed class ReadDiagnosticExporter : BaseExporter<Activity>
     {
         internal ConcurrentQueue<ReadSpan> Items { get; } = new();
         public override ExportResult Export(in Batch<Activity> batch)
         {
             foreach (var activity in batch)
-                Items.Enqueue(new(activity.Source.Name, activity.Status, activity.StatusDescription, JsonSerializer.Serialize(new
+                Items.Enqueue(new(activity.Id!, activity.Source.Name, activity.Status, activity.StatusDescription, JsonSerializer.Serialize(new
                 {
                     activity.DisplayName,
                     activity.Id,

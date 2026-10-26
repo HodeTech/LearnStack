@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using FluentAssertions;
+using LearnStack.Api.Authentication;
 using LearnStack.Api.Jobs;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
@@ -844,10 +845,11 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
             builder.UseSetting("ConnectionStrings:OutboxDispatcher", credential);
             builder.ConfigureTestServices(services =>
             {
-                // This fixture proves producer acceptance independently of business delivery.
+                // This fixture owns real producer acceptance, but no business delivery or Identity authority.
                 foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
                              && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType) is { } implementation
-                             && (implementation == typeof(DeliveryProcessor) || implementation == typeof(BackgroundJobHostedService))).ToArray())
+                             && (implementation == typeof(DeliveryProcessor) || implementation == typeof(BackgroundJobHostedService)
+                                 || implementation == typeof(TenantIdentityAuthorityStartupService))).ToArray())
                     services.Remove(descriptor);
                 services.RemoveAll<OutboxDispatchOptions>();
                 services.AddSingleton(bounds ?? Bounds);

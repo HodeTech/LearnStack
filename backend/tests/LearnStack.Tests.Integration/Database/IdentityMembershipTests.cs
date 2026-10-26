@@ -235,7 +235,9 @@ public sealed partial class IdentityMembershipTests(IdentityMembershipFixture fi
         await ExecuteAsync(app, transaction, "SAVEPOINT clean");
         var mirror = () => ExecuteAsync(app, transaction, "INSERT INTO public.membership_role_assignments(tenant_id,membership_id,organization_id,role_id) VALUES(@tenant,@member,@organization,@role)",
             ("tenant", SchemaFixture.TenantA), ("member", LearnerMembershipA), ("organization", SchemaFixture.OrgA1), ("role", RoleId(SchemaFixture.TenantA, BuiltInRoleKey.Learner, PermissionScope.Organization)));
-        (await mirror.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("P0304");
+        var mirrorFailure = (await mirror.Should().ThrowAsync<PostgresException>()).Which;
+        mirrorFailure.SqlState.Should().Be("23514");
+        mirrorFailure.ConstraintName.Should().Be("membership_parent_scope");
         await ExecuteAsync(app, transaction, "ROLLBACK TO SAVEPOINT clean");
         var capability = () => ExecuteAsync(app, transaction, "INSERT INTO public.membership_role_assignments(tenant_id,membership_id,organization_id,role_id) VALUES(@tenant,@member,@organization,@role)",
             ("tenant", SchemaFixture.TenantA), ("member", BranchMembershipA1), ("organization", SchemaFixture.OrgA1), ("role", RoleId(SchemaFixture.TenantA, BuiltInRoleKey.Instructor, PermissionScope.Tenant)));

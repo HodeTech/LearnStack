@@ -2147,9 +2147,12 @@ diagnostic above row security, not the boundary, as its own note says.
   schema-qualified parent lookup, both tenant and parent-id predicates, and
   `FOR KEY SHARE`. Its nullable organization comparison and uniform `23514` refusal
   cover missing, hidden and mismatched parents. Initial subjects are Lesson → Course,
-  CourseTranslation → Course and LessonTranslation → Lesson; subject discovery and
-  declaration coverage must make an omitted relation fail.
+  CourseTranslation → Course and LessonTranslation → Lesson. Identity adds
+  MembershipProfile → Membership and MembershipRoleAssignment → Membership;
+  its combined invoker trigger retains the same parent-scope contract.
+  Subject discovery and declaration coverage must make an omitted relation fail.
 - **Source:** [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14);
+  [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
   [05-database.md § Parent organization mirrors](05-database.md#parent-organization-mirrors);
   [Education data model](../modules/education/README.md#data-model-and-invariants).
 - **Type:** xUnit + EF model and applied PostgreSQL schema inspection. **Kind:** structural.
@@ -2159,7 +2162,7 @@ diagnostic above row security, not the boundary, as its own note says.
   Separate `learnstack_app` proofs exercise insertion, reparenting, the lock before the
   FK runs and temporary-table shadowing. A well-shaped trigger alone is not an
   isolation proof.
-- **Phase:** 02d (P02d-1).
+- **Phase:** 02d (P02d-1); P03-1 contextual foundation.
 
 #### `Pattern_A_Content_Uses_Translation_Satellites`
 
@@ -2678,6 +2681,7 @@ own current qualification and review state.
 | [`ModuleInfrastructure_References_Only_Its_Own_Layers_And_Core_Infrastructure`](#moduleinfrastructure_references_only_its_own_layers_and_core_infrastructure), [`CoreInfrastructure_DoesNotDependOn_AnyModule`](#coreinfrastructure_doesnotdependon_anymodule), [`Modules_Do_Not_Write_AuditLog_Directly`](#modules_do_not_write_auditlog_directly) | Step 3: exact migration-only installer/body/caller exception; no copied audit SQL, core module/entity reference or new SQL writer. |
 | [`Migrate_Target_Covers_Every_Migration_Chain`](#migrate_target_covers_every_migration_chain), [`Every_Module_With_A_Schema_Is_Swept`](#every_module_with_a_schema_is_swept), [`Every_TenantOwned_Entity_HasFilterAndRlsPolicy`](#every_tenantowned_entity_hasfilterandrlspolicy) | Steps 3/4: sixth Identity chain/Audit prerequisite and complete seven-class population, retaining tenant predicates. |
 | [`Every_TenantOwned_Foreign_Key_Includes_TenantId`](#every_tenantowned_foreign_key_includes_tenantid), [`Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`](#unique_indexes_on_soft_deletable_tables_exclude_deleted_rows) | Steps 3/4: exact Membership-to-global-User FK and permanent binding index. Other tenant references retain composite/self-keyed shape. |
+| [`Every_Organization_Mirroring_Child_Has_A_Parent_Scope_Guard`](#every_organization_mirroring_child_has_a_parent_scope_guard) | Contextual Identity: both contained Membership children join the independent EF/applied relation census and real guard/FK mutation controls; the invoker guard preserves canonical parent-scope refusal and the same fixed adapter descriptor. |
 | [`AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands`](#allowsunresolvedtenantcontext_only_on_provisioning_commands), [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](#tenant_context_guard_fires_only_on_an_unmarked_transaction) | Step 3: closed global authority mode and crossover refusal; provisioning marker/current four context writers do not grow. P03-2 separately implements the accepted ninth candidate setter. |
 | [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly), [`MustClass_Audit_Writes_Share_The_Business_Transaction`](#mustclass_audit_writes_share_the_business_transaction) | Step 3: ordinary pending sentinel/global-owner refusal, typed global composition and two new central seams with independent failure/uncertainty/duplicate proof. Six ordinary seams and two confined global seams are implemented. |
 | [`Tenant_Authentication_Profile_Is_Closed`](#tenant_authentication_profile_is_closed), [`Keycloak_Roles_Are_Not_Application_Authority`](#keycloak_roles_are_not_application_authority), [`Authenticated_Rate_Limits_Use_Validated_Subject`](#authenticated_rate_limits_use_validated_subject), [`Authentication_Middleware_Order_Is_Enforced`](#authentication_middleware_order_is_enforced) | Step 5: verified subject before quota/binding SQL, optional actor evidence, normalized existing binding, uniform 401 and immutable feature/caller census. Numeric quota/fault/once-per-request semantics remain. |

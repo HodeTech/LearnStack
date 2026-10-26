@@ -46,24 +46,14 @@ internal sealed class IdentityDiagnosticSinks : IDisposable
     private readonly List<string> _responses = [];
     private readonly List<string> _correlations = [];
     private readonly ActivitySource _activities = new("learnstack.identity.sink-qualification");
-    private readonly TraceExporter _traces = new();
-    private readonly IHost _traceHost;
-    private readonly TracerProvider _tracer;
+    private readonly EfActivityObserver _efActivities = new();
+    private readonly TraceComposition _tracing;
 
     public IdentityDiagnosticSinks()
     {
         // Build the actual API tracing composition, then append a synchronous
         // exporter. Serialize at Export time so a later mutation cannot hide a leak.
-        var builder = WebApplication.CreateBuilder([]);
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Telemetry:OtlpEndpoint"] = null,
-        });
-        builder.AddLearnStackCrossCuttingFoundation(DeploymentMode.Development);
-        builder.Services.AddOpenTelemetry().WithTracing(tracing =>
-            tracing.AddProcessor(new SimpleActivityExportProcessor(_traces)));
-        _traceHost = builder.Build();
-        _tracer = _traceHost.Services.GetRequiredService<TracerProvider>();
+        _tracing = new TraceComposition();
         _logger = new LoggerConfiguration().MinimumLevel.Debug()
             .Enrich.With<RedactSensitiveFieldsEnricher>().WriteTo.Sink(_log).CreateLogger();
         Loggers = new SerilogLoggerFactory(_logger);
@@ -89,8 +79,9 @@ internal sealed class IdentityDiagnosticSinks : IDisposable
     }
 
     public ILoggerFactory Loggers { get; }
-    public IReadOnlyList<ExportedTrace> Traces => _traces.Items.ToArray();
+    public IReadOnlyList<ExportedTrace> Traces => _tracing.Traces;
     public string LogText => string.Join('\n', _log.Payloads);
+    public void AssertCompleteEfTraceCoverage() => _efActivities.AssertCompleteCoverage(Traces);
 
     public async Task CaptureThroughL1Async(Exception failure, int expectedStatus = 503)
     {
@@ -118,18 +109,19 @@ internal sealed class IdentityDiagnosticSinks : IDisposable
         var files = Directory.GetFiles(_directory, "*.json");
         files.Should().ContainSingle("the real air-gapped provider must persist its capture");
         _transport.Payloads.Should().ContainSingle("the real Sentry SDK must serialize and send its event");
-        _tracer.ForceFlush();
-        _traces.Items.Should().Contain(trace => trace.Source.StartsWith("OpenTelemetry.Instrumentation.EntityFrameworkCore", StringComparison.Ordinal),
+        _tracing.Flush();
+        Traces.Should().Contain(trace => trace.Source.StartsWith("OpenTelemetry.Instrumentation.EntityFrameworkCore", StringComparison.Ordinal),
             "the actual production EF instrumentation must reach an actual OpenTelemetry exporter");
         return new(string.Join('\n', _log.Payloads), await File.ReadAllTextAsync(files.Single()),
-            _transport.Payloads.Single(), string.Join('\n', _responses), string.Join('\n', _traces.Items.Select(trace => trace.Json)),
+            _transport.Payloads.Single(), string.Join('\n', _responses), string.Join('\n', Traces.Select(trace => trace.Json)),
             _correlations.ToArray());
     }
 
     public void Dispose()
     {
         _activities.Dispose();
-        _traceHost.Dispose();
+        _tracing.Dispose();
+        _efActivities.Dispose();
         _sdk.Dispose();
         _sentry.Dispose();
         _local.Dispose();
@@ -165,7 +157,89 @@ internal sealed class IdentityDiagnosticSinks : IDisposable
         }
     }
 
-    internal sealed record ExportedTrace(string Source, ActivityStatusCode Status, string? Description, string Json);
+    internal const string EfSource = "OpenTelemetry.Instrumentation.EntityFrameworkCore";
+
+    internal sealed record ExportedTrace(string Id, string? ParentId, string Source,
+        ActivityStatusCode Status, string? Description, string Json);
+
+    /// <summary>A second real tracing composition without another global Sentry SDK.</summary>
+    internal sealed class TraceComposition : IDisposable
+    {
+        private readonly TraceExporter _exporter = new();
+        private readonly IHost _host;
+        private readonly TracerProvider _provider;
+
+        public TraceComposition()
+        {
+            var builder = WebApplication.CreateBuilder([]);
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Telemetry:OtlpEndpoint"] = null,
+            });
+            builder.AddLearnStackCrossCuttingFoundation(DeploymentMode.Development);
+            builder.Services.AddOpenTelemetry().WithTracing(tracing =>
+                tracing.AddProcessor(new SimpleActivityExportProcessor(_exporter)));
+            _host = builder.Build();
+            _provider = _host.Services.GetRequiredService<TracerProvider>();
+        }
+
+        public IReadOnlyList<ExportedTrace> Traces => _exporter.Items.ToArray();
+        public void Flush() => _provider.ForceFlush();
+        public void Dispose() => _host.Dispose();
+    }
+
+    /// <summary>Observes actual span identities without creating another EF diagnostic subscriber.</summary>
+    internal sealed class EfActivityObserver : IDisposable
+    {
+        private readonly ConcurrentQueue<string> _started = new();
+        private readonly ConcurrentQueue<string> _stopped = new();
+        private readonly ActivityListener _listener;
+
+        public EfActivityObserver()
+        {
+            _listener = new ActivityListener
+            {
+                ShouldListenTo = source => source.Name == EfSource,
+                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+                SampleUsingParentId = (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded,
+                ActivityStarted = activity => _started.Enqueue(activity.Id!),
+                ActivityStopped = activity => _stopped.Enqueue(activity.Id!),
+            };
+            ActivitySource.AddActivityListener(_listener);
+        }
+
+        public void AssertCompleteCoverage(IEnumerable<ExportedTrace> traces) =>
+            AssertCompleteCoverage(traces.Where(trace => trace.Source == EfSource).Select(trace => trace.Id));
+
+        public void AssertCompleteCoverage(IEnumerable<string> exportedIds)
+        {
+            var started = _started.ToArray();
+            started.Should().NotBeEmpty().And.OnlyHaveUniqueItems();
+            _stopped.ToArray().Should().BeEquivalentTo(started,
+                "every actual EF span must stop, including spans from overlapping compositions");
+            exportedIds.Should().BeEquivalentTo(started,
+                    "the exporter must serialize every actual EF span exactly once");
+        }
+
+        public void Dispose() => _listener.Dispose();
+    }
+
+    public static void AssertEfCallerAncestry(IReadOnlyList<ExportedTrace> traces, Activity caller)
+    {
+        var byId = traces.ToDictionary(trace => trace.Id);
+        foreach (var trace in traces.Where(trace => trace.Source == EfSource))
+        {
+            var parentId = trace.ParentId;
+            var visited = new HashSet<string>(StringComparer.Ordinal);
+            while (parentId != caller.Id)
+            {
+                parentId.Should().NotBeNull("every actual EF span must descend from its caller");
+                visited.Add(parentId!).Should().BeTrue("the exported parent chain must be acyclic");
+                byId.Should().ContainKey(parentId!, "every intermediate parent must also be exported");
+                parentId = byId[parentId!].ParentId;
+            }
+        }
+    }
 
     private sealed class TraceExporter : BaseExporter<Activity>
     {
@@ -186,7 +260,7 @@ internal sealed class IdentityDiagnosticSinks : IDisposable
                     Events = activity.Events.Select(item => new { item.Name, Tags = item.Tags.ToArray() }).ToArray(),
                     Links = activity.Links.Select(item => item.Tags?.ToArray()).ToArray(),
                 });
-                Items.Enqueue(new(activity.Source.Name, activity.Status, activity.StatusDescription, json));
+                Items.Enqueue(new(activity.Id!, activity.ParentId, activity.Source.Name, activity.Status, activity.StatusDescription, json));
             }
             return ExportResult.Success;
         }
