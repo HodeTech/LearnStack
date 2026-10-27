@@ -203,9 +203,9 @@ public static class TenancyCompositionExtensions
         // reader that were permissive in Development would reproduce exactly the
         // appsettings inversion this file argues against at the top: the mechanism
         // would be off in the environment nobody configures and on in the one that
-        // does, and the demo would pass while production 404'd. Phase 03 replaces
-        // DenyAllTenantMembershipReader with one that reads Membership; until then
-        // "nobody is a member of anything" is the true answer, not a placeholder.
+        // does, and the demo would pass while production 404'd. The joint live
+        // authorization composition replaces this closed edge default in every
+        // mode before the actual host starts; partial edge-only graphs stay denied.
         services.AddSingleton<ITenantMembershipReader, DenyAllTenantMembershipReader>();
         services.AddSingleton<IOrganizationScopeValidator, OrganizationScopeValidator>();
 

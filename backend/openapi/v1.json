@@ -31,6 +31,58 @@
         ],
         "type": "object"
       },
+      "DirectoryMembershipStatus": {
+        "enum": [
+          "Active",
+          "Suspended"
+        ],
+        "type": "string"
+      },
+      "MembershipDirectoryItem": {
+        "properties": {
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "membershipId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationId": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OrganizationId"
+              }
+            ]
+          },
+          "preferredLocale": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/DirectoryMembershipStatus"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/UserId"
+          }
+        },
+        "required": [
+          "membershipId",
+          "userId",
+          "organizationId",
+          "status",
+          "displayName",
+          "preferredLocale"
+        ],
+        "type": "object"
+      },
       "OrganizationId": {
         "format": "uuid",
         "type": "string"
@@ -61,6 +113,24 @@
           "previousCursor",
           "hasNext",
           "hasPrevious"
+        ],
+        "type": "object"
+      },
+      "PageOfMembershipDirectoryItem": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MembershipDirectoryItem"
+            },
+            "type": "array"
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "pageInfo"
         ],
         "type": "object"
       },
@@ -759,7 +829,7 @@
                 }
               }
             },
-            "description": "dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault.",
+            "description": "dependency_unavailable from live authorization storage, invalid public configuration or sticky subject-registry cleanup fault; refused audit writes preserve the original refusal.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -788,6 +858,290 @@
         ],
         "tags": [
           "Account"
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/memberships": {
+      "get": {
+        "description": "Tenant administrative membership directory requiring current Tenant identity.membership.admin. Rechecks live membership, lifecycle and capability for every page; accepts HostAndClaim or confirmed ClaimAndMembership, including a platform host. Returns only membership/user/organization identifiers, status, contextual displayName and preferredLocale. Active/Suspended undeleted memberships only, ordered by membership UUID. No search, sorting, editing, provider data, grants or global profile. No-store; the MUST ReadSensitive audit row commits before any result is disclosed. This operation is not admitted by the native BFF caller.",
+        "operationId": "ListMemberships",
+        "parameters": [
+          {
+            "description": "Opaque canonical continuation bound to the actor, tenant, organization and operation; obtain it from pageInfo.nextCursor. Every page reauthorizes.",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "maxLength": 1024,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Positive page size, default 20; values above 100 are clamped to 100. Repeated, empty or unknown query parameters are refused.",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageOfMembershipDirectoryItem"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "validation_failed for noncanonical/replayed/oversized cursors, invalid limit or unknown/repeated/empty query parameters; malformed assertion headers are also refused.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "unauthorized for present invalid or undecidable credentials on known hosts, including existing-binding failure; bare Bearer challenge without provider details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "forbidden for confirmed coverage without the current Tenant administrative capability; no directory lookup or disclosure.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "not_found for absent credentials, noncoverage or untrusted scope; tenant_mismatch for host/claim or header disagreement. Assertions do not select authority.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "method_not_allowed from routing after earlier credential, resolution and surface gates; GET only.",
+            "headers": {
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "GET"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "payload_too_large from the existing decoded body bound; outer Kestrel framing refusals may omit application policy.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "rate_limited from visitor/subject admission or subject-registry capacity.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "internal_error for unexpected failures, without exception/query details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "dependency_unavailable for live membership/lifecycle storage, auxiliary admission or sticky subject-registry cleanup fault; audit_unavailable when the mandatory sensitive-read row cannot commit. No membership payload is disclosed.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested dependency retry delay in seconds; not a recovery guarantee.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
+        "tags": [
+          "Memberships"
         ],
         "x-version-introduced": "v1"
       }
@@ -2641,6 +2995,9 @@
     },
     {
       "name": "PublicSite"
+    },
+    {
+      "name": "Memberships"
     },
     {
       "name": "Account"

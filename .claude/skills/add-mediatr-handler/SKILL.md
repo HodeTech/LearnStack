@@ -263,13 +263,21 @@ the existing scoped `PermissionDefinition` and the admitted `OperationPolicy`.
 grants. Registration grants nothing and seed reruns never adopt new permissions.
 There is no `registry.Tenant`, generated `Roles` facade or implicit default grant.
 
-The API already authenticates its closed tenant surface. P03-2 stages the actual
-scoped coordinator and exact HTTP metadata before their joint activation with
-trusted denial evidence; the [phase Status block](../../../docs/roadmap/phase-03-identity-admin.md)
-owns that boundary. Verify current composition before claiming enforcement from
-an attribute. Public, AccountSite and finite seed/event/job classifications have
-different ceilings; none grants an implicit general exception. Application
-step 5 repeats the current permission check before handler construction.
+The canonical `AuthorizationBehavior` delegates to the scoped operation
+coordinator at step 5, with its mandatory denial-evidence barrier. The unchanged
+eight-step pipeline registers that owner and its frozen catalogue directly;
+there is no staged replacement behavior. Unknown application requests default
+deny before handler construction. Public, AccountSite and finite seed/event/job
+classifications have different ceilings; none grants an implicit general
+exception, and a SystemActor UUID supplies no bypass. Protected application
+dispatch performs a fresh permission check independently of any earlier HTTP or
+resolver result. The [phase Status block](../../../docs/roadmap/phase-03-identity-admin.md)
+owns qualification and review state; registration or an attribute alone proves
+no HTTP coverage.
+
+Tests of authorization must use the canonical registered behavior and actual
+source owner for their subject. Do not replace its DI descriptor, restore a
+pass-through adapter or treat a test-only policy as a production permission.
 
 When an HTTP operation is admitted, bind its exact application request metadata
 and the named ASP.NET requirement generated from that canonical policy. Preserve

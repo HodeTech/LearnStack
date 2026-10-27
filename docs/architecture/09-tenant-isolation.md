@@ -178,8 +178,8 @@ neither tenant boundaries nor organization write guards widen.
 owns exact announcement, nesting and cleanup rules, under
 [Security's sequencing rule](../standards/11-security.md#the-rule). The existing
 ordinary runtime explicitly clears read scope unless it consumes a valid bound
-witness. The carrier is implemented and qualified in proof composition; launch
-cannot mint it until P03-2's joint policy/evidence activation.
+witness. The API and canonical application policy mint and consume this same
+carrier; no HTTP-selected scope or filter bypass is admitted.
 
 P02b-1 Step 1 centralizes this existing general announcement path in
 [`TransactionExecutionCoordinator`](../../backend/src/LearnStack.Application/Persistence/TransactionExecutionCoordinator.cs).

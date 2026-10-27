@@ -11,6 +11,28 @@ namespace LearnStack.Tests.Architecture;
 
 public sealed partial class AuthenticatedHttpSurfaceTests
 {
+    private static void AssertProtectedPolicyControls(Dictionary<string, TypeDefinition> map)
+    {
+        foreach (var controller in map.Values.Where(type => type.FullName is Account or Directory))
+        {
+            var action = controller.Methods.Single(IsAction);
+            var authorization = controller.CustomAttributes.Single(attribute => attribute.AttributeType.FullName == typeof(AuthorizeAttribute).FullName);
+            var policy = authorization.Properties.Single(property => property.Name == nameof(AuthorizeAttribute.Policy));
+            AuthorizationOffenders(controller, action, map).Should().BeEmpty();
+            authorization.Properties.Remove(policy);
+            try
+            {
+                AuthorizationOffenders(controller, action, map).Should().ContainSingle("the named live policy is required, not optional metadata");
+                authorization.Properties.Add(new CustomAttributeNamedArgument(nameof(AuthorizeAttribute.Policy),
+                    new CustomAttributeArgument(controller.Module.TypeSystem.String, "LearnStackOperation:unregistered.read")));
+                try { AuthorizationOffenders(controller, action, map).Should().ContainSingle("another named policy cannot substitute for the exact operation"); }
+                finally { authorization.Properties.RemoveAt(authorization.Properties.Count - 1); }
+            }
+            finally { authorization.Properties.Add(policy); }
+            AuthorizationOffenders(controller, action, map).Should().BeEmpty("restoring the exact policy restores the approved action");
+        }
+    }
+
     private static void AssertPublicAuthorizationControls(Dictionary<string, TypeDefinition> map)
     {
         foreach (var controller in map.Values.Where(type => type.FullName is PublicSite or PublicEducation).ToArray())
@@ -45,7 +67,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
 
     private static void AssertAnonymousMetadataControls(Dictionary<string, TypeDefinition> map)
     {
-        foreach (var controller in map.Values.Where(type => type.FullName is Account or PublicSite or PublicEducation).ToArray())
+        foreach (var controller in map.Values.Where(type => type.FullName is Account or Directory or PublicSite or PublicEducation).ToArray())
         {
             var action = controller.Methods.First(IsAction);
             AuthorizationOffenders(controller, action, map, null).Should().BeEmpty();
@@ -60,7 +82,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                         AuthenticationMetadata.IsAnonymous(metadata.AttributeType, map).Should().BeTrue(
                             "direct and inherited custom anonymous contracts must be recognized");
                         AssertRejected();
-                        if (controller.FullName != Account)
+                        if (controller.FullName is not (Account or Directory))
                         {
                             var standard = controller.CustomAttributes.Single(attribute =>
                                 attribute.AttributeType.FullName == typeof(AllowAnonymousAttribute).FullName);

@@ -20,10 +20,11 @@ public sealed class ConstructionOnlyApiFactoryTests
         services.AddHostedService<DeliveryProcessor>();
         services.AddHostedService<OtherWorker>();
         services.AddHostedService<TenantIdentityAuthorityStartupService>();
-        services.Count(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().Be(4);
+        services.AddHostedService<TenantAuthorizationSourcesStartupService>();
+        services.Count(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().Be(5);
 
         ConstructionOnlyApiFactory.RemoveDispatcher(services);
-        services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().HaveCount(2);
+        services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().HaveCount(3);
         ConstructionOnlyApiFactory.RemoveIdentityQualification(services);
 
         services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService))
@@ -38,6 +39,7 @@ public sealed class ConstructionOnlyApiFactoryTests
 
         host.Services.GetServices<IHostedService>().Should().NotContain(service => service is OutboxProcessor || service is DeliveryProcessor);
         host.Services.GetServices<IHostedService>().Should().NotContain(service => service is TenantIdentityAuthorityStartupService);
+        host.Services.GetServices<IHostedService>().Should().NotContain(service => service is TenantAuthorizationSourcesStartupService);
         host.Services.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key)
             .IsValueCreated.Should().BeFalse();
         (await client.GetAsync("/healthz")).IsSuccessStatusCode.Should().BeTrue();

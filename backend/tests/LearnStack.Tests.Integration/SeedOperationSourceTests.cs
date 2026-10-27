@@ -4,7 +4,9 @@ using LearnStack.Application.Authorization;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
-using LearnStack.SharedKernel.Time;
+using LearnStack.SharedKernel.Localization;
+using LearnStack.Application.Pipeline;
+using MediatR;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
@@ -23,6 +25,62 @@ namespace LearnStack.Tests.Integration;
 /// <summary>Actual per-act SeedComposition ownership, without opening a database connection.</summary>
 public sealed class SeedOperationSourceTests
 {
+    [Fact]
+    public async Task Canonical_slot_five_refuses_an_unclassified_request_before_its_handler_without_human_reader_registration()
+    {
+        await using var data = Source();
+        await using var provider = SeedComposition.Build(data,
+            new SeedTenantContext(TenantId.From(Guid.CreateVersion7()), null), NullLoggerFactory.Instance);
+        await using var scope = provider.CreateAsyncScope();
+        var behavior = scope.ServiceProvider.GetServices<IPipelineBehavior<Unclassified, Result<None>>>()
+            .OfType<AuthorizationBehavior<Unclassified, Result<None>>>().Single();
+        var entered = false;
+        var result = await behavior.Handle(new Unclassified(), () =>
+        {
+            entered = true;
+            return Task.FromResult(Result.Ok(None.Value));
+        }, CancellationToken.None);
+        result.Error!.Code.Should().Be("forbidden");
+        entered.Should().BeFalse();
+        scope.ServiceProvider.GetRequiredService<IUnitOfWork>().HasActiveTransaction.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task An_attributable_finite_seed_refusal_cannot_claim_durability_without_a_shared_evidence_factory()
+    {
+        await using var data = Source();
+        await using var provider = SeedComposition.Build(data,
+            new SeedTenantContext(TenantId.From(Guid.CreateVersion7()), null), NullLoggerFactory.Instance);
+        await using var scope = provider.CreateAsyncScope();
+        var behavior = scope.ServiceProvider.GetServices<IPipelineBehavior<GetTenantSeedStateQuery, Result<SeedLookup<TenantSeedDto>>>>()
+            .OfType<AuthorizationBehavior<GetTenantSeedStateQuery, Result<SeedLookup<TenantSeedDto>>>>().Single();
+        var result = await behavior.Handle(new GetTenantSeedStateQuery(),
+            () => Task.FromResult(Result.Fail<SeedLookup<TenantSeedDto>>(new Error(new LocalizedMessage("lockey_forbidden")))),
+            CancellationToken.None);
+        result.Error!.Code.Should().Be("forbidden", "an already-decided refusal retains its primary result");
+        var health = scope.ServiceProvider.GetRequiredService<IAuditHealth>();
+        health.IsHealthy.Should().BeFalse("the missing source cannot acknowledge its MUST event");
+        health.FailingOperation.Should().Be("identity.authorization.deny");
+        scope.ServiceProvider.GetRequiredService<IUnitOfWork>().HasActiveTransaction.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Per_act_providers_borrow_the_same_caller_owned_evidence_factory_and_cannot_dispose_it()
+    {
+        await using var data = Source();
+        await using var factory = new CallerOwnedEvidence();
+        foreach (var tenant in new[] { TenantId.From(Guid.CreateVersion7()), TenantId.From(Guid.CreateVersion7()) })
+        {
+            await using var provider = SeedComposition.Build(data, new SeedTenantContext(tenant, null),
+                NullLoggerFactory.Instance, authorizationEvidence: factory);
+            await using var scope = provider.CreateAsyncScope();
+            scope.ServiceProvider.GetRequiredService<IAuthorizationEvidenceSessionFactory>().Should().BeSameAs(factory);
+            scope.ServiceProvider.GetRequiredService<OperationAuthorizationCoordinator>().Should().NotBeNull();
+        }
+        factory.Disposed.Should().BeFalse();
+        factory.Opened.Should().BeFalse("constructing the finite/public graph must not borrow an authority or evidence connector");
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -39,12 +97,13 @@ public sealed class SeedOperationSourceTests
         capture.OpenFrame();
         capture.DeclareIntent(new AuditIntent(AuditEntryId.From(Guid.CreateVersion7()), tenant, null, null, null,
             "tenancy", "tenancy.seed.provenance_probe", OperationType.SecurityEvent, OperationClass.Must, null, DateTimeOffset.UtcNow));
-        OperationAuthorizationCoordinator? owner = null;
-        using var evidence = new AuthorizationEvidenceCoordinator(services.GetRequiredService<IAuditStore>(), capture,
-            services.GetRequiredService<IUnitOfWork>(), new SystemClock(), new SystemGuidFactory(), () => owner!, [],
-            NullLogger<AuthorizationEvidenceCoordinator>.Instance);
-        using var coordinator = owner = new OperationAuthorizationCoordinator(new OperationPolicyCatalog(ModuleSources()),
-            new NoHumanReads(), context, [], services.GetServices<ITrustedOperationSource>(), evidence);
+        var coordinator = services.GetRequiredService<OperationAuthorizationCoordinator>();
+        services.GetRequiredService<IOperationInvocationContext>().Should().BeSameAs(coordinator);
+        services.GetRequiredService<IAuthorizationRefusalReporter>()
+            .Should().BeSameAs(services.GetRequiredService<AuthorizationEvidenceCoordinator>());
+        services.GetServices<IPipelineBehavior<GetTenantSeedStateQuery, Result<SeedLookup<TenantSeedDto>>>>()
+            .Select(behavior => behavior.GetType().GetGenericTypeDefinition())
+            .Should().Equal(MediatRPipelineRegistration.CanonicalBehaviorOrder);
         // This isolates source/provenance. It neither dispatches a business handler
         // nor claims the manually declared fixture intent became durable.
         if (provisioning)
@@ -122,11 +181,19 @@ public sealed class SeedOperationSourceTests
         Username = "learnstack_app"
     }.ConnectionString);
 
-    private sealed class NoHumanReads : IProtectedOperationAuthorizer
+    private sealed record Unclassified;
+
+    private sealed class CallerOwnedEvidence : IAuthorizationEvidenceSessionFactory, IAsyncDisposable
     {
-        public Task<ProtectedOperationDecision> AuthorizeAsync(OperationInvocation invocation, OperationPolicy policy,
-            AuthorizationCandidate candidate, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Finite seed provenance cannot invoke human authorization.");
+        internal bool Opened { get; private set; }
+        internal bool Disposed { get; private set; }
+        public Task<IAuthorizationEvidenceSession?> OpenAsync(AuthorizationEvidenceOccurrence occurrence,
+            CancellationToken cancellationToken = default)
+        {
+            Opened = true;
+            return Task.FromResult<IAuthorizationEvidenceSession?>(null);
+        }
+        public ValueTask DisposeAsync() { Disposed = true; return ValueTask.CompletedTask; }
     }
 
     private static IEnumerable<IOperationPolicySource> ModuleSources() => new[]

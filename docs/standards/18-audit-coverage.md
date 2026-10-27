@@ -26,8 +26,8 @@ Global identity creation and contextual foundation authority derive from Accepte
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 Live authorization evidence derives from jointly Accepted
 [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
-[ADR-0077](../decisions/0077-trusted-authorization-evidence.md); their runtime
-implementation and proofs remain pending in P03-2.
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md). The
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns qualification.
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its
@@ -197,7 +197,7 @@ will raise them — which this standard requires it to do.
   own the population, including platform entry/terminal operations, assertion
   events, global identity creation and privileged Audit maintenance. P03-2 Step 4
   registers authorization-denial and claim-context assertion events beside their
-  staged central writers; launch activation remains Step 5.
+  central writers; API/application composition supplies their trusted sources.
 - **One operation, one row.** A slug is classified in exactly one row across every
   matrix. A copy is a second answer that passes every comparison the moment it agrees, so
   the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
@@ -230,7 +230,7 @@ not prove implementation or production fit.
 
 | Domain | MUST-audit operation |
 |--------|----------------------|
-| Identity | Membership created / removed (per `(user_id, tenant_id, organization_id)`); role assigned / revoked; permission set changed; protected-act authorization denied under trusted resolved tenant (`identity.authorization.deny`, accepted P03-2 contract, runtime pending); invitation created / accepted / revoked; platform-admin tenant access; Hub operator access to a tenant resource. |
+| Identity | Membership created / removed (per `(user_id, tenant_id, organization_id)`); role assigned / revoked; permission set changed; protected-act authorization denied under trusted resolved tenant (`identity.authorization.deny`, ADR-0077); invitation created / accepted / revoked; platform-admin tenant access; Hub operator access to a tenant resource. |
 | Tenancy | Tenant created / suspended / deleted; organization created / archived; tenant setting changed; custom domain added / verified / removed; feature flag toggled; entitlement projection refresh (`tenancy.entitlement.refresh`); killswitch toggled (`tenancy.killswitch.toggle`). |
 | Customization | `TenantContentType` / `TenantPageBlock` / `TenantLessonItemType` / `TenantLevelTaxonomy` / `TenantScoringRule` / `TenantCompletionRule` / `TenantCustomFieldDef` / `TenantTemplateLibrary` created / updated / deleted (schema changes are MUST; both `before` and `after` snapshots required). |
 | Content / Pages | Page published / unpublished; content type schema changed; redirect created / changed. |
@@ -244,7 +244,7 @@ not prove implementation or production fit.
 | Hub contract | Inbound Hub command received (`tenancy.tenant.create_from_hub`, and the entitlement push, which is the Tenancy row's `tenancy.entitlement.refresh` — one operation, one slug); outbound usage report (`platform.usage.report`); license verification result. |
 | Notifications | Template changed; outbound delivery to a recipient (SHOULD for non-PII channels; MUST for password reset / invitation / billing). |
 | Integrations | External provider credential created / rotated / revoked; webhook secret rotated. |
-| Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard; mTLS / signed-JWT / HMAC verification failure on `/api/internal/*`; admitted cross-tenant assertion mismatch carrying a validated principal (`tenancy.tenant_assertion.reject`, bounded admission under ADR-0065); anonymous assertion-mismatch burst beyond threshold (`tenancy.tenant_assertion.anonymous_burst`); a header conflicting with successfully confirmed ClaimAndMembership context (`tenancy.assertion.reject_claim_context`, accepted P03-2 contract, runtime pending; no host allowance). |
+| Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard; mTLS / signed-JWT / HMAC verification failure on `/api/internal/*`; admitted cross-tenant assertion mismatch carrying a validated principal (`tenancy.tenant_assertion.reject`, bounded admission under ADR-0065); anonymous assertion-mismatch burst beyond threshold (`tenancy.tenant_assertion.anonymous_burst`); a header conflicting with successfully confirmed ClaimAndMembership context (`tenancy.assertion.reject_claim_context`, ADR-0077; no host allowance). |
 
 There are **no vertical modules**. Tenant-specific extensions land as data via the
 Customization aggregates and inherit the MUST-audit rules above for schema changes.
@@ -336,13 +336,13 @@ Rules:
   `occurredAt` as `timestamp`, `resource` / `resourceId` as `entity_type` / `entity_id`,
   `sourceIp` as `ip_address`, and `operation.key` as `operation`. Membership/Role
   references, privileged flags and route identity have no column of their own.
-  The composer keeps email null. Its staged P03-2 owner attaches bounded trusted
+  The composer keeps email null. Its central owner attaches bounded trusted
   provenance under `metadata.authorization`, with IP/user agent in their
   existing columns. An exact invocation binds its own resource frame; a direct
   inner act without a new frame cannot replace its parent's context, while a
-  fresh post-lock recheck of that same act can update it. Joint launch wiring
-  remains Step 5; [the canonical evidence rules below](#trusted-authorization-evidence)
-  define its sources and limits. Runtime implementation remains pending.
+  fresh post-lock recheck of that same act can update it.
+  [The canonical evidence rules below](#trusted-authorization-evidence)
+  define its sources and limits.
 
 ## Storage
 
@@ -628,7 +628,7 @@ and applicable domain policy, not a blanket retention for all MUST rows.
 
 ## Trusted authorization evidence
 
-**Accepted contract; staged runtime implementation in P03-2 Step 4.** Jointly Accepted
+**Central evidence ownership and pre-success barriers are implemented.** Accepted
 [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md) add central evidence
 ownership without changing ordinary resource classifications or the pipeline order.

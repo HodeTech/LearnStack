@@ -70,30 +70,55 @@ using var terminate = OperatingSystem.IsWindows() ? null : PosixSignalRegistrati
 using var hangup = OperatingSystem.IsWindows() ? null : PosixSignalRegistration.Create(PosixSignal.SIGHUP,
     signal => { signal.Cancel = true; cancellation.Cancel(); });
 
+var sourceStartupQualified = false;
 try
 {
+    if (!Guid.TryParseExact(Environment.GetEnvironmentVariable("Identity__AuthorityId"), "D", out var authorityId))
+        throw new InvalidOperationException("Identity authority configuration is invalid.");
+    var registration = new IdentityAuthorityRegistration(IdentityAuthorityId.From(authorityId),
+        Environment.GetEnvironmentVariable("Authentication__Tenant__Issuer") ?? "");
+    var auxiliary = AuthorizationSourceConfiguration.Resolve(connectionString,
+        Environment.GetEnvironmentVariable("ConnectionStrings__IdentityAuthorization"),
+        Environment.GetEnvironmentVariable("ConnectionStrings__AuthorizationEvidence"),
+        allowDevelopmentDerivation: string.Equals(Environment.GetEnvironmentVariable("Deployment__Mode"),
+            "Development", StringComparison.Ordinal));
     await using var dataSource = ApplicationDataSource.Build(connectionString);
+    // The process owns one bounded evidence lane across every per-act provider.
+    // Qualification only reads the installed anchor; schema-only migration must
+    // install it before running this application writer.
+    var qualification = new IdentityAuthorityQualification(new Lazy<Npgsql.NpgsqlDataSource>(() => dataSource), registration);
+    await qualification.QualifyAsync(cancellation.Token);
+    await using var evidence = new AuthorizationEvidenceSource(auxiliary.AuthorizationEvidence);
+    await evidence.QualifyAsync(registration.AuthorityId, registration.Issuer, cancellation.Token);
+    if (!string.Equals(qualification.QualifiedDatabaseName, evidence.QualifiedDatabaseName, StringComparison.Ordinal))
+        throw new InvalidOperationException("Authorization evidence must use the qualified application database.");
+    sourceStartupQualified = true;
     if (identityFoundation)
     {
-        if (!Guid.TryParseExact(Environment.GetEnvironmentVariable("Identity__AuthorityId"), "D", out var authorityId))
-            throw new InvalidOperationException("Identity authority configuration is invalid.");
-        var registration = new IdentityAuthorityRegistration(IdentityAuthorityId.From(authorityId),
-            Environment.GetEnvironmentVariable("Authentication__Tenant__Issuer") ?? "");
         var witness = await SeedProviderWitness.ReadAsync(Console.OpenStandardInput(), registration, cancellation.Token);
         var admission = new FixedSeedIdentityFoundationAdmission(witness);
         var identityRunner = new SeedIdentityFoundationRunner(
             context => SeedComposition.Build(dataSource, context, loggerFactory,
-                identityAuthority: registration, seedAdmission: admission), admission);
+                identityAuthority: registration, seedAdmission: admission, authorizationEvidence: evidence), admission);
         await identityRunner.RunAsync(cancellation.Token);
         return 0;
     }
     var runner = new SeedRunner(
-        context => SeedComposition.Build(dataSource, context, loggerFactory),
+        context => SeedComposition.Build(dataSource, context, loggerFactory,
+            identityAuthority: registration, authorizationEvidence: evidence),
         loggerFactory.CreateLogger<SeedRunner>());
     return await runner.RunAsync(cancellation.Token);
 }
 catch (Exception failure)
 {
+    if (!sourceStartupQualified)
+    {
+        // Provider/authentication failures can contain endpoint or role details.
+        // The new startup gate owns a fixed diagnostic, including its cleanup;
+        // it never passes the provider exception into ordinary command logging.
+        Console.Error.WriteLine("seed: authorization source configuration or startup qualification was refused.");
+        return 1;
+    }
     if (identityFoundation)
     {
         Console.Error.WriteLine("seed: development identity foundation was refused.");

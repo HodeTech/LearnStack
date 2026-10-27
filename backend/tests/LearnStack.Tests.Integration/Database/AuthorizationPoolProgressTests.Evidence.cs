@@ -227,7 +227,7 @@ public sealed partial class AuthorizationPoolProgressTests
             OperationAuthorizationCoordinator? current = null;
             Evidence = new AuthorizationEvidenceCoordinator(store, capture, unit, new FixedClock(DateTimeOffset.UtcNow), new SystemGuidFactory(),
                 () => current ?? throw new InvalidOperationException("The real policy owner is not attached."), [], NullLogger<AuthorizationEvidenceCoordinator>.Instance);
-            Operations = current = new OperationAuthorizationCoordinator(catalog, new IdentityOperationAuthorizer(reader, catalog), context, [trusted], [], Evidence);
+            Operations = current = new OperationAuthorizationCoordinator(catalog, new IdentityOperationAuthorizer(() => reader, catalog), context, [trusted], [], Evidence);
         }
 
         public void Dispose() { Operations.Dispose(); Evidence.Dispose(); _metrics.Dispose(); }

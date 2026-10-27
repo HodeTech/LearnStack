@@ -18,8 +18,9 @@ Existing-binding admission additionally derives from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
 Live policy and sensitive-directory contracts derive from Accepted
 [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
-[ADR-0077](../decisions/0077-trusted-authorization-evidence.md), not yet runtime
-implemented; their acceptance does not activate the new operation.
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md). The API composition
+activates live policy and the administrative directory; the
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns qualification.
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -304,7 +305,7 @@ credential-free; P02b-7 owns authenticated session transport.
 
 ### Administrative membership directory
 
-**Accepted contract; not runtime implemented.** ADR-0076 narrowly extends the
+ADR-0076 extends the
 AccountSite-only authenticated API with `GET /api/v1/identity/memberships`.
 It is a declared tenant-wide administrative read requiring the existing Tenant
 `identity.membership.admin` capability, including an eligible NULL-org Tenant
@@ -327,15 +328,15 @@ PublicSurface and AccountSite keep their separate real-HostScope ceilings.
   `identity.membership.list` ReadSensitive row commits on the ordinary ReadWrite
   owner. This GET is not added to the physical READ ONLY catalogue. Audit failure
   returns `503 audit_unavailable` without a result payload.
-- Add the exact contract to served OpenAPI/generated SDK when implemented.
+- Served OpenAPI and the generated SDK carry the exact directory contract.
   The native authenticated transport allowlist still contains only AccountSite;
   its extension, editing routes and UI remain P03-3.
 
 [Security's live policy boundary](11-security.md#live-authorization-contract)
 owns early-gate precedence, runtime default deny, independent application checks
 and 403/404/503 outcomes. [Database read authority](05-database.md#operation-bound-read-authority)
-owns the invocation witness shared by EF and SQL. Accepted endpoint/schema text
-is not proof that the route, SDK, grants or audit path are implemented.
+owns the invocation witness shared by EF and SQL. Runtime and source-bound
+controls separately verify routing, schema, grants and pre-disclosure audit.
 
 ## Pagination
 

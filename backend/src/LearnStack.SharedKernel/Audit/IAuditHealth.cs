@@ -43,9 +43,9 @@ public interface IAuditHealth
     /// Records that a MUST-class standalone write landed.
     /// </summary>
     /// <remarks>
-    /// A duplicate-key refusal counts as one: it is positive evidence that the business
-    /// <c>COMMIT</c> landed and that the in-transaction row under this id is already
-    /// durable, which is the opposite of the state this check exists to report.
+    /// Verified durable duplicates count as success. ADR-0077's confined authorization
+    /// duplicate proves only that exact event is durable; it establishes no business
+    /// <c>COMMIT</c> outcome. This health signal never marks business capture committed.
     /// </remarks>
     void ReportStandaloneWriteSucceeded();
 }

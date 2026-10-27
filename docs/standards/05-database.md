@@ -2070,13 +2070,13 @@ requires a fresh scope. No fifth role or independent public-read connection is a
 
 ### Authorization and evidence source ledger
 
-**Accepted contract; staged implementation.** ADR-0076/0077 extend the
+ADR-0076/0077 extend the
 Connection Management and job-source inventories below with these confined
 sources. This section is the sole detailed standards owner for their physical
 capacity, configuration and lifetime; acceptance supplies no runtime proof.
 The four login roles, grants and canonical RLS templates remain unchanged.
 P03-2 Steps 2/4 implement both confined sources and the coupled configuration
-selector. Joint production composition and HTTP activation remain Step 5;
+selector. API and Seeder composition qualify their actual deployment sources;
 the [phase Status block](../roadmap/phase-03-identity-admin.md)
 owns current review and qualification state.
 
@@ -2161,7 +2161,7 @@ the resource contract and required progress proof.
 
 ### Operation-bound read authority
 
-**Implemented carrier; launch activation remains gated.** ADR-0076 supplies the
+**Operation-bound read authority.** ADR-0076 supplies the
 `app.scope` carrier. Only a declared tenant-wide read with an eligible
 Tenant capability mints an immutable witness binding actor, tenant/org, exact
 request policy and invocation. Branch grants cannot mint it. Step 6 binds the
@@ -2185,6 +2185,13 @@ always sends `app.scope` as `tenant` or empty, including narrow setup on pooled
 connections. The common module-context registration attaches only that unit's
 read-only view; the filter reads a context-instance parameter and retains its
 tenant predicate. Unattached contexts remain narrow.
+
+A scoped Identity context can first serve an existing-binding global owner and
+then a separate ordinary tenant owner on the same physical connection. The
+contextual adapter re-enrolls only that already-announced live tenant transaction,
+matching its dynamic tenant/organization filters and refusing pending tracked
+mutations, foreign connections or a global owner. It neither carries global
+authority forward nor changes the operation read witness, GUCs or setter census.
 
 The directory's ordinary ReadWrite owner commits its MUST read evidence before
 disclosure. Denial occurrences instead use the confined central store seams and

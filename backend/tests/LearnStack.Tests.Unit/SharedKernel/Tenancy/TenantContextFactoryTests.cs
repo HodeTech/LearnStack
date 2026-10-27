@@ -18,9 +18,9 @@ namespace LearnStack.Tests.Unit.SharedKernel.Tenancy;
 /// </para>
 /// <para>
 /// <b>These pure cases complement actual signed-token HTTP tests.</b> P02b-5
-/// authentication reaches matching host/claim rows. The deny-all membership
-/// reader still refuses rows 7, 10 and 14 until Phase 03; the positive cases here
-/// supply explicit membership answers to prove the factory's future contract.
+/// authentication reaches matching host/claim rows. P03-2 HTTP tests use real
+/// Memberships for rows 7, 10 and 14; these pure cases supply explicit answers
+/// to isolate the factory matrix from its persistence adapters.
 /// </para>
 /// </remarks>
 public sealed class TenantContextFactoryTests

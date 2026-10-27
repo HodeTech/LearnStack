@@ -6,7 +6,10 @@ import type {
   AccountSiteSuccess,
   AuthenticatedGetOperation,
   GetContractOwnership,
+  MembershipDirectoryItem,
+  MembershipDirectoryPage,
 } from './authenticated-contract';
+import type { AuthenticatedServerSdk } from './authenticated-server';
 import type { components, operations, paths } from './generated/schema';
 import { AUTHENTICATED_GET_CONTRACTS as RootContracts } from './index';
 import type {
@@ -49,8 +52,11 @@ function ownershipErrors(
 }
 
 describe('generated GET contract ownership', () => {
-  it('keeps AccountSite in the separate authenticated contract and public methods credential-free', () => {
-    expect(AUTHENTICATED_GET_CONTRACTS).toEqual({ '/api/v1/account/site': 'GetAccountSite' });
+  it('keeps AccountSite and the directory contracts authenticated without adding native directory transport', () => {
+    expect(AUTHENTICATED_GET_CONTRACTS).toEqual({
+      '/api/v1/account/site': 'GetAccountSite',
+      '/api/v1/identity/memberships': 'ListMemberships',
+    });
     expect(PUBLIC_GET_CONTRACTS).toEqual({
       '/api/v1/public/site': 'GetPublicSite',
       '/api/v1/public/courses': 'GetPublicCourses',
@@ -60,7 +66,7 @@ describe('generated GET contract ownership', () => {
     expect(GET_CONTRACT_OWNERSHIP).toBe(true);
     expect(ownershipErrors(PUBLIC_GET_CONTRACTS, AUTHENTICATED_GET_CONTRACTS)).toEqual([]);
     expectTypeOf<Ownership>().toEqualTypeOf<true>();
-    expectTypeOf<AuthenticatedGetOperation>().toEqualTypeOf<'GetAccountSite'>();
+    expectTypeOf<AuthenticatedGetOperation>().toEqualTypeOf<'GetAccountSite' | 'ListMemberships'>();
     expect(RootContracts).toBe(AUTHENTICATED_GET_CONTRACTS);
     expectTypeOf<RootAccountSite>().toEqualTypeOf<AccountSite>();
     expectTypeOf<RootAccountSiteSuccess>().toEqualTypeOf<AccountSiteSuccess>();
@@ -89,6 +95,32 @@ describe('generated GET contract ownership', () => {
       Extract<keyof typeof PUBLIC_GET_WRAPPERS, '/api/v1/account/site'>
     >().toEqualTypeOf<never>();
     expectTypeOf<Extract<keyof ServerSdk, 'getAccountSite'>>().toEqualTypeOf<never>();
+    expectTypeOf<keyof AuthenticatedServerSdk>().toEqualTypeOf<'getAccountSite'>();
+    expectTypeOf<
+      Extract<keyof typeof PUBLIC_GET_WRAPPERS, '/api/v1/identity/memberships'>
+    >().toEqualTypeOf<never>();
+    expectTypeOf<paths['/api/v1/identity/memberships']['get']>().toEqualTypeOf<
+      operations['ListMemberships']
+    >();
+    expectTypeOf<operations['ListMemberships']['parameters']['query']>().toEqualTypeOf<
+      { cursor?: string; limit?: number } | undefined
+    >();
+    expectTypeOf<MembershipDirectoryPage['items']>().toEqualTypeOf<MembershipDirectoryItem[]>();
+    expectTypeOf<keyof MembershipDirectoryItem>().toEqualTypeOf<
+      'membershipId' | 'userId' | 'organizationId' | 'status' | 'displayName' | 'preferredLocale'
+    >();
+    expectTypeOf<MembershipDirectoryItem['membershipId']>().toEqualTypeOf<string>();
+    expectTypeOf<MembershipDirectoryItem['userId']>().toEqualTypeOf<string>();
+    expectTypeOf<MembershipDirectoryItem['organizationId']>().toEqualTypeOf<string | null>();
+    expectTypeOf<MembershipDirectoryItem['status']>().toEqualTypeOf<'Active' | 'Suspended'>();
+    expectTypeOf<MembershipDirectoryItem['displayName']>().toEqualTypeOf<string | null>();
+    expectTypeOf<MembershipDirectoryItem['preferredLocale']>().toEqualTypeOf<string | null>();
+    expectTypeOf<
+      operations['ListMemberships']['responses'][403]['content']['application/problem+json']
+    >().toEqualTypeOf<components['schemas']['ProblemDetails']>();
+    expectTypeOf<
+      operations['ListMemberships']['responses'][200]['headers']['Cache-Control']
+    >().toEqualTypeOf<'no-store'>();
   });
 
   it('freezes contract and wrapper ownership at runtime', () => {

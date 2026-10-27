@@ -65,15 +65,21 @@ docker compose --env-file .env -f infra/compose/dev.yml exec -T postgres   sh -c
 It is idempotent, so re-running it against a cluster that already has the roles
 is a no-op rather than an error.
 
-The accepted P03-2 source contract adds two backend-only configuration keys,
+The P03-2 source contract uses two backend-only configuration keys,
 `ConnectionStrings:IdentityAuthorization` and
 `ConnectionStrings:AuthorizationEvidence`, as a guarded pair alongside Default.
 [Infrastructure Standards § Authorization and evidence topology](../../docs/standards/12-infrastructure.md#authorization-and-evidence-topology)
 owns the Development-only direct-PostgreSQL derivation, fixed 4/2 lane bounds
-and explicit non-Development/PgBouncer setup. This acceptance slice adds no
-Compose service, environment example or source wiring. P03-2 must prove progress
-against its pinned PgBouncer fixture before live activation; production aliases,
-downstream reserves and admitted instance count require Phase 11 qualification.
+and explicit non-Development/PgBouncer setup. The owned seed/demo runtime helper
+passes the selected pair and installed authority to Seeder children, with the
+existing `Deployment__Mode=Development` selection for this direct local stack.
+The Seeder qualifies one process-owned evidence source against the business
+source's actual database and installed authority, then shares it across all
+per-act providers. Restore/build and projection children receive no runtime
+authority or database credentials. Neither matching authority nor these client
+pools proves reserved backend capacity. The phase Status block owns current
+implementation/review state; production aliases, downstream reserves and admitted
+instance count require Phase 11 qualification.
 
 Fresh imports do not upgrade an existing realm. P02b-6's bounded warm-realm
 reconciler is shared by `make seed` and `make demo` after application seed. Both

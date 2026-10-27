@@ -10,12 +10,13 @@ namespace LearnStack.Modules.Tenancy.Application.Authorization;
 
 public sealed class TenancyOperationPolicySource : IOperationPolicySource
 {
+    public const string AccountSiteOperation = "tenancy.account_site.read";
     public static PermissionDefinition PublicSite { get; } = new(PermissionScope.Tenant, "tenancy.public_site.read");
     public IEnumerable<PermissionRegistration> Definitions => [new(PublicSite, Assignable: false)];
     public IEnumerable<OperationPolicy> Policies =>
     [
         OperationPolicy.ForPublic<GetPublicSiteQuery>("tenancy.public_site.read", PublicSite),
-        OperationPolicy.ForAccount<GetAccountSiteQuery>("tenancy.account_site.read"),
+        OperationPolicy.ForAccount<GetAccountSiteQuery>(AccountSiteOperation),
         OperationPolicy.ForTrusted<GetTenantSeedStateQuery>("tenancy.seed.read_tenant", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<GetOrganizationSeedStateQuery>("tenancy.seed.read_organization", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<GetHostMappingSeedStateQuery>("tenancy.seed.read_host", AuthorizationSourceKind.Seed),

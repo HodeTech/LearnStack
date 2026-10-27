@@ -13,6 +13,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Tenancy;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Routing;
@@ -22,7 +23,7 @@ using Xunit;
 
 namespace LearnStack.Tests.Unit.Api.Authentication;
 
-/// <summary>Staged source-unit proof; these adapters are not HTTP-matrix activation.</summary>
+/// <summary>Source-unit proof; actual committed HTTP authorization is covered by the integration fixture.</summary>
 public sealed class AuthorizationEvidenceApiSourceTests
 {
     private static readonly UserId Actor = UserId.From(Guid.Parse("01930000-0000-7000-8000-00000000ee01"));
@@ -329,6 +330,7 @@ public sealed class AuthorizationEvidenceApiSourceTests
             new EndpointNameMetadata(changed == "name" ? "UnadmittedName" : "GetAccountSite"),
             new HttpMethodMetadata(changed == "method" ? ["POST"] : ["GET"]),
         };
+        metadata.AddRange(typeof(AccountController).GetCustomAttributes(inherit: true).OfType<IAuthorizeData>());
         if (changed != "descriptor") metadata.Add(new ControllerActionDescriptor
         {
             ControllerTypeInfo = typeof(AccountController).GetTypeInfo(),

@@ -199,7 +199,7 @@ public sealed class IdentityOperationAuthorizerTests
                 call[2] = new PermissionRegistration(definition, true);
                 return registerPermission;
             });
-            Authorizer = new IdentityOperationAuthorizer(Reader, catalog);
+            Authorizer = new IdentityOperationAuthorizer(() => Reader, catalog);
         }
         public CandidateSource Source { get; } = new();
         public IIdentityAuthorizationReader Reader { get; } = Substitute.For<IIdentityAuthorizationReader>();

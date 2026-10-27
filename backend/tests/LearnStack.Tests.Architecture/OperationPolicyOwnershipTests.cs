@@ -7,7 +7,7 @@ using Census = LearnStack.Tests.Architecture.TrustedOperationSourceConventionTes
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>Operation authority is constructed only by the exact policy/evaluator/physical owner chain.</summary>
-public sealed class OperationPolicyOwnershipTests
+public sealed partial class OperationPolicyOwnershipTests
 {
     private const string Permissions = "LearnStack.SharedKernel.Permissions.";
     private const string Invocation = Permissions + "OperationInvocation";
@@ -20,11 +20,12 @@ public sealed class OperationPolicyOwnershipTests
     private const string RoleEvaluator = "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization";
     private const string HttpSource = "LearnStack.Api.Authentication.TenantAuthorizationCandidateSource";
     private const string Unit = "LearnStack.Infrastructure.Persistence.NpgsqlUnitOfWork";
-    private const string ScopedBehavior = "LearnStack.Application.Pipeline.ScopedAuthorizationBehavior`2";
+    private const string AuthorizationBehavior = "LearnStack.Application.Pipeline.AuthorizationBehavior`2";
 
     [Fact]
     public void Operation_invocations_decisions_and_read_witnesses_have_closed_owned_minting_and_one_time_physical_binding()
     {
+        AssertLiveComposition();
         using var census = Census.Read();
         Offenders(census).Should().BeEmpty("Fix: preserve the exact invocation/evaluator/read-owner authority chain and lifetime (ADR-0076)");
         foreach (var typeName in new[] { Invocation, Decision, Witness })
@@ -81,6 +82,9 @@ public sealed class OperationPolicyOwnershipTests
             (Frame, "Close", "System.Threading.Interlocked", "Exchange"),
             (Evaluator, "AuthorizeAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync"),
             (RoleEvaluator, "RecheckAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync"),
+            ("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", Coordinator, "CheckHttpAsync"),
+            ("LearnStack.Api.Authentication.OperationClassificationMiddleware", "InvokeAsync", Coordinator, "CheckHttpAsync"),
+            ("LearnStack.Api.Authentication.LiveTenantMembershipReader", "CoversAsync", HttpSource, "ForValidatedScope"),
         }) Dirty(census, () => RemoveCall(census.Body(type, method), target, name));
         var bind = census.Body(Invocation, "TryBindRead");
         Dirty(census, () => RemoveInstruction(bind.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
@@ -118,6 +122,7 @@ public sealed class OperationPolicyOwnershipTests
         Derivers(Candidate + "/MintingSource", [HttpSource]);
         Implementations(Permissions + "IProtectedOperationAuthorizer", [Evaluator]);
         Implementations(Permissions + "IAuthorizationCandidateSource", [HttpSource]);
+        Implementations("Microsoft.AspNetCore.Authorization.IAuthorizationHandler", ["LearnStack.Api.Authentication.OperationAuthorizationHandler"]);
         Exact(Invocation, ".ctor", [(Invocation + "/MintingSource", "ForInvocation", 1)]);
         Exact(Decision, ".ctor", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Witness, ".ctor", [(Witness + "/MintingSource", "ForTenantRead", 1)]);
@@ -126,9 +131,12 @@ public sealed class OperationPolicyOwnershipTests
         Exact(Witness + "/MintingSource", "ForTenantRead", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync", [(Coordinator, "ExecuteAsync", 1)]);
         Exact(Permissions + "IAuthorizationCandidateSource", "ForValidatedScope", [(Coordinator, "ExecuteAsync", 1)]);
-        Exact(Coordinator, "ExecuteRequestAsync", [(ScopedBehavior, "Handle", 1)]);
+        Exact(Coordinator, "ExecuteRequestAsync", [(AuthorizationBehavior, "Handle", 1)]);
         Exact(HttpSource, "ForValidatedScope", [(HttpSource, Permissions + "IAuthorizationCandidateSource.ForValidatedScope", 1),
-            ("LearnStack.Api.Authentication.ConfirmedClaimAssertionSource", "Capture", 1)]);
+            ("LearnStack.Api.Authentication.ConfirmedClaimAssertionSource", "Capture", 1),
+            ("LearnStack.Api.Authentication.LiveTenantMembershipReader", "CoversAsync", 1)]);
+        Exact(Coordinator, "CheckHttpAsync", [("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", 1),
+            ("LearnStack.Api.Authentication.OperationClassificationMiddleware", "InvokeAsync", 1)]);
         Exact(Witness, "TryBindTo", [(Unit, "SetTenantContextCoreAsync", 2)]);
         Exact(Witness, "IsBoundTo", [(Unit, "SetTenantContextCoreAsync", 1), (Unit, "ValidateOperationReadScope", 1)]);
         Exact(Invocation, "TryBindRead", [(Witness, "TryBindTo", 1)]);

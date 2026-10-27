@@ -4,6 +4,7 @@ using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Memberships;
+using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
@@ -137,6 +138,45 @@ public sealed class MembershipDirectoryIntegrationTests(IdentityAuthorizationRea
         Assert.True(refused.Error.Details!.ContainsKey("cursor"));
     }
 
+    [Fact]
+    public async Task Tenant_reenrollment_refuses_a_foreign_physical_connection_without_retargeting_either_owner()
+    {
+        await using var harness = await DirectoryHarness.CreateAsync(fixture, new ListMembershipsQuery());
+        await harness.EnterAsync();
+        Assert.NotEmpty(await harness.DirectoryReader.ReadAsync(null, 21));
+        var transaction = harness.Unit.Transaction;
+        await using var foreign = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(foreign);
+        await using var db = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseNpgsql(foreign).Options, new StaticTenantContextAccessor(harness.Context),
+            new GlobalIdentityScopeAccessor(harness.Unit));
+        await Assert.ThrowsAsync<TenantContextMissingException>(() =>
+            new MembershipDirectoryReader(db, harness.Unit, harness.Context).ReadAsync(null, 21));
+        Assert.Throws<TenantContextMissingException>(() => new ContextualIdentityStorageControl(db, harness.Unit).PrepareFreshRead());
+        Assert.Null(db.Database.CurrentTransaction);
+        Assert.Same(transaction, harness.Unit.Transaction);
+        Assert.Same(foreign, db.Database.GetDbConnection());
+        Assert.NotEmpty(await harness.DirectoryReader.ReadAsync(null, 21));
+    }
+
+    [Fact]
+    public async Task Tenant_reenrollment_refuses_pending_tracked_mutation_without_clearing_or_saving_it()
+    {
+        await using var harness = await DirectoryHarness.CreateAsync(fixture, new ListMembershipsQuery());
+        await harness.EnterAsync();
+        Assert.NotEmpty(await harness.DirectoryReader.ReadAsync(null, 21));
+        var member = await harness.Db.Memberships.SingleAsync(value => value.Id == MembershipId.From(LearnerMembershipA));
+        Assert.True(member.Suspend(DateTimeOffset.UtcNow, UserId.From(AdminA)).IsSuccess);
+        Assert.True(harness.Db.ChangeTracker.HasChanges());
+        await Assert.ThrowsAsync<TenantContextMissingException>(() => harness.DirectoryReader.ReadAsync(null, 21));
+        Assert.Throws<InvalidOperationException>(() => new ContextualIdentityStorageControl(harness.Db, harness.Unit).PrepareFreshRead());
+        Assert.Equal(EntityState.Modified, harness.Db.Entry(member).State);
+        Assert.Equal(MembershipStatus.Suspended, member.Status);
+        Assert.Equal("Active", await ScalarAsync<string>((NpgsqlConnection)harness.Unit.Connection,
+            (NpgsqlTransaction)harness.Unit.Transaction!, "SELECT status FROM memberships WHERE id=@member",
+            ("member", LearnerMembershipA)));
+    }
+
     private async Task ChangeStatusAsync(Guid actor, Guid member, Guid organization, string status)
     {
         await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.AppConnectionString);
@@ -198,7 +238,7 @@ public sealed class MembershipDirectoryIntegrationTests(IdentityAuthorizationRea
             Assert.True(catalog.TryGet(typeof(ListMembershipsQuery), out var policy));
             var invocations = new InvocationSource();
             var invocation = invocations.Mint(query, policy, context, candidate);
-            var decision = await new IdentityOperationAuthorizer(authorization.Reader, catalog).AuthorizeAsync(invocation, policy, candidate);
+            var decision = await new IdentityOperationAuthorizer(() => authorization.Reader, catalog).AuthorizeAsync(invocation, policy, candidate);
             return new(authorization, data, unit, source, invocations, context, decision);
         }
 

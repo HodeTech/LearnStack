@@ -1820,12 +1820,13 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
   its own connection. Under `backend/src`, the configuration/construction scan
-  admits exactly **eleven** files: six design-time factories, one per migration
+  admits exactly **thirteen** files: six design-time factories, one per migration
   chain; `ModuleDbContextRegistration`, which passes a *connection*;
   `PersistenceCompositionExtensions`, with the guarded platform-role builder;
   `ApplicationDataSource`, shared by the API and one-shot Seeder;
   ADR-0046's confined `OutboxDispatcherDataSource`; and ADR-0072's deployment-only
-  `LearnStack.Tools.IdentityAuthorityInstaller/Program.cs`. Another construction
+  `LearnStack.Tools.IdentityAuthorityInstaller/Program.cs`; and ADR-0076/0077's
+  private authorization and evidence source builders. Another construction
   site requires its owning decision and an explicit allow-list change.
   A context on its own connection never saw the announcement, so every read through
   it returns zero rows under the corrected policy — silently.
@@ -1835,13 +1836,20 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   scan covers `UseNpgsql`, `AddDbContext`, data-source builders/factories and raw
   connection constructors. Connection acquisition from an already configured
   source remains governed by its named owner contract.
+  The complete compiled EF transaction-enrollment set contains the common
+  module factory, the existing global binding store and the exact contextual
+  Identity reenrollment helper. That helper requires a clean tracker, the same
+  physical connection and a current matching tenant announcement outside global
+  mode; it sets no scope and creates no connection. Missing/extra enrollment,
+  executable-alias and removed-guard controls fail.
 - **Source:** ADR-0040; ADR-0046's confined dispatcher; ADR-0072's deployment
   authority installer; [05-database.md § Forbidden](05-database.md).
-- **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
+- **Type:** xUnit + DI registration inspection, compiled caller census and source guards. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6; the allow-list widened to five and
   keyed by directory in Packet 7 step 10, to six in Packet 8 step 3 and to seven in
   Packet 9 step 3, eight in P02d-1 step 2 and eleven with the ADR-0046/0072
-  construction sites, `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  construction sites, and thirteen with the independent authorization/evidence
+  sources; `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
 - **Phase:** 02a (Packet 6).
 
 #### `The_registration_marker_does_not_vouch_across_containers`
@@ -2715,17 +2723,24 @@ noted below; acceptance never promotes an unrun proof.
   `AuthorizationReadSourceTests`, `AuthorizationPoolProgressTests`,
   `IdentityAuthorizationConventionTests`, `TrustedOperationSourceConventionTests`,
   `OperationPolicyOwnershipTests`, `IdentityAuditConventionTests`.
-- **Status:** **Registered** — P03-2 Steps 2/3, before activation.
+- **Status:** **Registered** — whole-obligation qualification remains P03-2 Step 6.
 - **Partial implementation:** the confined reader/source, actual PostgreSQL/
   PgBouncer policy progress, typed HTTP candidates and finite source ownership
-  have actual controls. Joint production activation remains pending;
-  those partial subjects do not promote the whole obligation.
+  have actual controls. The live membership adapter, HTTP candidate source and
+  private deferred evidence factory join the exact production caller/DI census;
+  these bounded subjects do not qualify the whole obligation.
 - **Phase:** 03 (P03-2).
 
 #### `Protected_Operations_Require_Explicit_Live_Policies`
 
 - **Asserts:** complete real HTTP/request/source composition explicitly classifies
   public, AccountSite, permission-bound and confined seed/system operations.
+  The unchanged canonical eight-step pipeline admits application requests through
+  `AuthorizationBehavior`. The HTTP census contains exactly eight public GET/HEAD
+  actions, AccountSite GET and `GET /api/v1/identity/memberships`; exact named
+  policies and the default/fallback refusal guard own the two authenticated reads.
+  Live reader/evaluator/current-context/evidence aliases and qualification startup
+  remain explicit, with no alternate pass-through behavior.
   Unclassified or underprivileged requests cannot dispatch at HTTP or direct
   application entry. Fresh live Membership/capability, denial/resource ordering,
   committed revocation, same-key scoped delegation, finite manifest adoption and
@@ -2738,8 +2753,9 @@ noted below; acceptance never promotes an unrun proof.
 - **Test owners:** `IdentityAuthorizationConventionTests`, `OperationPermissionConventionTests`,
   `OperationPolicyOwnershipTests`, `OperationHttpClassificationTests`,
   `OperationAuthorizationCoordinatorTests`, `IdentityOperationAuthorizerTests`,
-  `IdentityAuthorizationTests`, `IdentityMembershipDirectoryHttpTests`.
-- **Status:** **Registered** — P03-2 Steps 3–5.
+  `RoleGrantCommandTests`, `RoleGrantCommandIntegrationTests`,
+  `IdentityAuthorizationHttpTests`, `UndeclaredHttpOperationTests`.
+- **Status:** **Registered** — activation subjects are explicit; whole-obligation qualification remains P03-2 Step 6.
 - **Phase:** 03 (P03-2).
 
 #### `Authorization_Denials_Have_PreSuccess_Durability_And_Stable_Identity`
@@ -2761,7 +2777,7 @@ noted below; acceptance never promotes an unrun proof.
 - **Test owners:** `AuthorizationEvidenceCoordinatorTests`, `AuthorizationEvidenceStoreTests`,
   `AuthorizationEvidenceSourceTests`, `AuthorizationEvidenceBarrierTests`,
   `AuthorizationPoolProgressTests`, `IdentityAuditConventionTests`.
-- **Status:** **Registered** — P03-2 Step 4; activation waits for these proofs.
+- **Status:** **Registered** — common-owner and activation subjects retain P03-2 Step 6 qualification.
 - **Phase:** 03 (P03-2).
 
 #### `Authorization_Evidence_Uses_Trusted_Bounded_Provenance`
@@ -2779,7 +2795,7 @@ noted below; acceptance never promotes an unrun proof.
   **Kind:** behavioural and structural.
 - **Test owners:** `AuthorizationEvidenceCoordinatorTests`, `IdentityDiagnosticsTests`,
   `TenantAuthenticationRejectionAuditTests`, `IdentityAuditConventionTests`.
-- **Status:** **Registered** — P03-2 Steps 4/5.
+- **Status:** **Registered** — source/claim-recorder activation subjects retain P03-2 Step 6 qualification.
 - **Phase:** 03 (P03-2).
 
 #### `Permission_Scope_Matches_Resource_Scope`
@@ -2903,23 +2919,20 @@ which decides identity, multiplicity, capture and classification;
   carrying the `denied` outcome and zero business rows, and keeps its own `403` — the 503
   is for a write that would otherwise have **succeeded**
   ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)).
-- **Accepted P03-2 extension (implementation pending).** ADR-0077 adds one
+- **Accepted P03-2 extension (Registered until Step 6 qualification).** ADR-0077 adds one
   central denial occurrence beside the separately classified resource intents.
   The real step-5 denial control must count both populations exactly. Absorbed
   denials obey the ReadWrite/ReadOnly/ownerless pre-success barrier, fixed-key
   reconciliation and fault/crash controls of
   [Audit Coverage](18-audit-coverage.md#trusted-authorization-evidence).
   A handler-returned forbidden result alone still does not prove authorization.
-- **The `denied` clause lands with Phase 03, and the rest lands in Packet 9.** Nothing in
-  the Packet 9 pipeline can produce a `403`: `AuthorizationBehavior` is still the Packet 3
-  pass-through, because the permission registry arrives with Identity in
-  [Phase 03](../roadmap/phase-03-identity-admin.md). A case written now could only reach
-  the `denied` outcome by returning `Result.Fail(forbidden)` from a **handler** — which
-  produces the right row and the right standalone path, and proves nothing about the
-  authorization step the clause is about. Splitting the rule's implementation is the
-  honest answer: Packet 9 implements the first two clauses against the real pipeline, and
-  the `denied` clause is written the day step 5 can refuse. Recording it here is what
-  stops a later reader taking the whole rule as satisfied.
+- **Denial qualification remains separate from the Packet 9 baseline.** Packet 9
+  qualifies the success/rollback clauses against its actual pipeline. The canonical
+  `AuthorizationBehavior` now reaches the live policy owner and central refusal
+  evidence path. Its real policy refusal must count both the declared resource intent
+  and the separate denial occurrence under ADR-0077. A handler-returned
+  `Result.Fail(forbidden)` alone proves neither policy admission nor that event's
+  pre-success barrier; those extensions retain P03-2 Step 6 qualification.
 - **One row per intent, not one per request.** `IAuditStateCapture` holds an ordered list
   of intents, one per audited `(resource, operation)`, and only the **owning**
   unit-of-work frame (`IUnitOfWorkScope.IsOwner`) flushes it — draining every intent in
@@ -5152,14 +5165,18 @@ structural test proves — and what it does not.
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
 - **Asserts:** the nonempty complete production route/method/transitive-request
-  census contains only the eight existing public GET/HEAD actions and exact
-  AccountSite GET, with enumerated infrastructure exclusions. Extra controller,
+  census contains only the eight existing public GET/HEAD actions, exact
+  AccountSite GET and `GET /api/v1/identity/memberships`, with enumerated
+  infrastructure exclusions. Extra controller,
   minimal-route, mutation and unregistered/nested dispatch controls fail.
   `GetAccountSiteQuery` independently requires valid HostAndClaim actor and
   matching real host provenance before any reader, rejecting future
   ClaimAndMembership too. It reads actual host-scoped public data as
   `learnstack_app`, is explicitly Off with zero normal query audit rows, and uses
   the existing exact-type physical ReadOnly owner: a planted SQL write is refused.
+  Both authenticated actions require their exact named canonical policies. The
+  administrative directory remains an ordinary ReadWrite operation with a MUST
+  ReadSensitive Membership intent; its result requires the audit commit.
   No-store covers early errors; served OpenAPI and disjoint exhaustive
   public/authenticated SDK GET ownership agree without a public AccountSite wrapper.
   The real per-action MVC filter descriptors preserve the exact framework,
@@ -5179,8 +5196,9 @@ structural test proves — and what it does not.
   `backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.cs`
   and `backend/tests/LearnStack.Tests.Integration/Database/AccountSiteHttpTests.cs`;
   SDK/OpenAPI contract controls remain with their actual contract owners.
-  The architecture owner now checks the nine real production actions, exact
-  request construction, Off classification, controller/helper persistence and
+  The architecture owner checks the ten real production actions, exact
+  request construction, existing Off declarations and the directory's exact MUST
+  declaration, controller/helper persistence and
   handler/helper nested dispatch across every production assembly, including
   direct interface/concrete handler construction, fields, constructor parameters,
   locals and `Handle` calls, custom-interface implementations and generic service
@@ -5198,14 +5216,14 @@ structural test proves — and what it does not.
   cross-contract local proof ships in Step 4; Step 5 owns full hosted qualification.
 - **Status:** **Implemented** (`AuthenticatedHttpSurfaceTests`, `AccountSiteHttpTests`,
   `AccountSiteQueryTests`, `OpenApiContractTests`).
-- **Accepted P03-2 extension (implementation pending):** ADR-0076 adds only
+- **Accepted P03-2 extension (Registered until Step 6 qualification):** ADR-0076 adds only
   the administrative directory GET and explicit policy metadata/classes, while
   AccountSite/public reads retain their exact physical READ ONLY contracts. The
   directory uses an ordinary ReadWrite owner for MUST sensitive-read evidence;
   the canonical rule name no longer implies every authenticated GET is physically
-  READ ONLY. Existing runtime/source controls remain until Step 5 updates them
-  together with live wiring. New real classified/unclassified/underprivileged
-  controls complement the separate application gate.
+  READ ONLY. The exact route/policy/DI census and live adapters accompany the
+  canonical application gate; real classified/unclassified/underprivileged
+  controls qualify those subjects without promoting the complete live obligation.
 - **Phase:** P02b-5 Step 2 query/database boundary; Step 4 route/contract
   activation; Step 5 complete transitive enforcement.
 
@@ -5236,6 +5254,11 @@ structural test proves — and what it does not.
   role/claim, header-reparse, derived-attribute, formatting, deconstruction and
   forged/clone probes use the same detectors; weakened predicates, missing real
   subjects and same-owner additional writes fail independently.
+  The HTTP classifier's single `IAuthorizeData.Roles` read is confined to an
+  immediate null/empty check that refuses nonempty metadata. Removed/reversed
+  rejection controls preserve the raw-role ban. The two HTTP policy adapters may
+  forward only the actual same-request endpoint; extra identity formatting still
+  fails inside those approved callers.
 - **Status:** **Implemented** (`AuthenticationAuthorityTests`).
 - **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.
 
@@ -5491,9 +5514,10 @@ structural test proves — and what it does not.
   elsewhere for a demo. The ordering, gate before the credential is touched, is
   behavioural and asserted in `PlatformAdminGateTests`; a structural rule cannot see it.
 
-  *Subject, vacuous:* there is no permission to hold. `AuthorizationBehavior.Handle` is
-  `return next()`. API authentication is delivered under ADR-0064; the
-  Platform-scope permission remains Identity work in
+  *Subject, vacuous:* there is no Platform permission to hold. The canonical
+  `AuthorizationBehavior` uses explicit live policies, while the retained
+  assignable manifest contains only Tenant/Organization pairs. API authentication
+  is delivered under ADR-0064; the Platform-scope permission remains Identity work in
   [Phase 03](../roadmap/phase-03-identity-admin.md). So
   nothing exercises a *permitted* entry, and the gate refusing everyone blocks nothing
   this packet ships. Packet 9 gives the scope its first real work and inherits the gate:

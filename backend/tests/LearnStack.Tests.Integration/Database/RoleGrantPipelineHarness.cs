@@ -111,13 +111,9 @@ internal sealed class RoleGrantPipelineHarness : IAsyncDisposable
         services.AddLearnStackBackgroundJobContracts();
         services.AddLearnStackMediatRPipeline(typeof(IdentityOperationPolicySource).Assembly);
         services.AddLearnStackOperationAuthorization();
-        var slot = services.Select((descriptor, index) => (descriptor, index)).Single(pair =>
-            pair.descriptor.ServiceType == typeof(IPipelineBehavior<,>)
-            && pair.descriptor.ImplementationType == typeof(AuthorizationBehavior<,>));
-        services[slot.index] = ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ScopedAuthorizationBehavior<,>));
-        Assert.Equal(MediatRPipelineRegistration.CanonicalBehaviorOrder.Select(type =>
-            type == typeof(AuthorizationBehavior<,>) ? typeof(ScopedAuthorizationBehavior<,>) : type),
-            services.Where(descriptor => descriptor.ServiceType == typeof(IPipelineBehavior<,>)).Select(descriptor => descriptor.ImplementationType));
+        Assert.Equal(MediatRPipelineRegistration.CanonicalBehaviorOrder,
+            services.Where(descriptor => descriptor.ServiceType == typeof(IPipelineBehavior<,>))
+                .Select(descriptor => descriptor.ImplementationType));
         return new(authorization, evidence, business, candidate, services.BuildServiceProvider(), application);
     }
 

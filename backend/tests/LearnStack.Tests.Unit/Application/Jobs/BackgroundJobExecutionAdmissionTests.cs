@@ -486,7 +486,6 @@ public sealed class BackgroundJobExecutionAdmissionTests
             {
                 configuration.RegisterServicesFromAssembly(typeof(ITenantContext).Assembly);
                 configuration.AddOpenBehavior(typeof(TenantContextBehavior<,>));
-                configuration.AddOpenBehavior(typeof(AuthorizationBehavior<,>));
             });
             services.AddTransient<IRequestHandler<Root, Result<string>>, RootHandler>();
             foreach (var type in Catalog.Types.Append(typeof(Unlisted)))

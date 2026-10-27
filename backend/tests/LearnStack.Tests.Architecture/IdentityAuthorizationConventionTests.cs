@@ -211,7 +211,8 @@ public sealed class IdentityAuthorizationConventionTests
         var errors = new List<string>();
         Callers(census, errors, Source, "OpenAsync", [Reader + ".OpenAsync"]);
         Callers(census, errors, ReaderPort, "ReadAsync", ["LearnStack.Modules.Identity.Application.Authorization.IdentityOperationAuthorizer.AuthorizeAsync",
-            "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization.RecheckAsync"]);
+            "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization.RecheckAsync",
+            "LearnStack.Api.Authentication.LiveTenantMembershipReader.CoversAsync"]);
         Callers(census, errors, LifecyclePort, "ReadAuthorizationAsync", [Orchestrator + ".ReadAsync"]);
         Callers(census, errors, SessionFactoryPort, "OpenAsync", [Orchestrator + ".ReadAsync"]);
         Callers(census, errors, SessionPort, "ReadMembershipsAsync", [Orchestrator + ".ReadAsync"]);

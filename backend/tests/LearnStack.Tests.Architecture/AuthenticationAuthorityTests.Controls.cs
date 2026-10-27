@@ -114,6 +114,48 @@ public sealed partial class AuthenticationAuthorityTests
         headerRead.OpCode = OpCodes.Callvirt;
         headerRead.Operand = headerGetter;
         Offenders(modules).Should().BeEmpty("restoring actual header acquisition and formatting restores the clean graph");
+        var classifier = api.GetType(Authentication + "OperationHttpClassifier").Methods.Single(method => method.Name == "Classify");
+        var rolesRead = classifier.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+            && target.FullName == "System.String Microsoft.AspNetCore.Authorization.IAuthorizeData::get_Roles()");
+        var emptyCheck = rolesRead.Next;
+        var predicate = emptyCheck.Operand;
+        emptyCheck.OpCode = OpCodes.Nop;
+        emptyCheck.Operand = null;
+        Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
+            "a role read is allowed only to refuse nonempty metadata immediately");
+        emptyCheck.OpCode = OpCodes.Call;
+        emptyCheck.Operand = predicate;
+        var emptyBranch = emptyCheck.Next;
+        var admittedWhenEmpty = emptyBranch.OpCode;
+        emptyBranch.OpCode = OpCodes.Brfalse_S;
+        Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
+            "nonempty role metadata cannot enter the admitted branch");
+        emptyBranch.OpCode = admittedWhenEmpty;
+        foreach (var type in new[] { Authentication + "OperationAuthorizationHandler", Authentication + "OperationClassificationMiddleware" })
+        {
+            var operation = Methods([api.GetType(type)]).Single(method => method.Definition.Body.Instructions.Any(instruction =>
+                instruction.Operand is MethodReference target && target.Name == "CheckHttpAsync"));
+            var check = operation.Definition.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target && target.Name == "CheckHttpAsync");
+            var endpoint = check.Previous.Previous.Previous.Previous;
+            var acquisition = endpoint.Operand;
+            endpoint.OpCode = OpCodes.Ldnull;
+            endpoint.Operand = null;
+            Offenders(modules).Should().Contain("Opaque typed identity/feature export: " + operation.Site,
+                "the opaque operation argument must be the actual same-request endpoint");
+            endpoint.OpCode = OpCodes.Call;
+            endpoint.Operand = acquisition;
+            var identityRead = operation.Definition.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && Is(target.DeclaringType, Feature) && target.Name == "get_Identity");
+            var format = new[] { Instruction.Create(OpCodes.Dup), Instruction.Create(OpCodes.Callvirt,
+                api.ImportReference(typeof(object).GetMethod(nameof(ToString), Type.EmptyTypes)!)), Instruction.Create(OpCodes.Pop) };
+            var processor = operation.Definition.Body.GetILProcessor();
+            var previous = identityRead;
+            foreach (var instruction in format) { processor.InsertAfter(previous, instruction); previous = instruction; }
+            Offenders(modules).Should().Contain("Opaque typed identity/feature export: " + operation.Site,
+                "an approved endpoint forwarding site must still reject extra formatting of its actual identity");
+            foreach (var instruction in format) processor.Remove(instruction);
+            Offenders(modules).Should().BeEmpty("restoring endpoint acquisition and removing identity formatting restores the exact owner");
+        }
         var actor = identity.Properties.Single(property => property.Name == "ActorUserId").SetMethod;
         var init = actor.ReturnType;
         actor.ReturnType = api.TypeSystem.Void;

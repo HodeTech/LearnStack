@@ -11,8 +11,8 @@ owns current qualification and review state. Jointly Accepted
 [ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
 [ADR-0077](../../decisions/0077-trusted-authorization-evidence.md) define P03-2 live
 authorization and one administrative directory GET. Its confined reader,
-staged policy/evaluator and internal directory are implemented; trusted denial
-evidence and joint HTTP/launch activation remain gated. New-user/native editing
+canonical policy/evaluator, central denial evidence and HTTP directory are wired
+in the API composition. New-user/native editing
 activation remains P03-3.
 The ordered admission timing/observation contract additionally derives from
 [ADR-0074](../../decisions/0074-membership-admission-under-ordered-locks.md),
@@ -62,7 +62,7 @@ The internal binding service uses explicit startup qualification and fresh,
 physically read-only existing-binding transactions; it never creates a missing
 binding. Fixed seed adoption separately requires its confined admission port.
 Real provider/app-role, schema/body/ACL/caller and physical outcome controls are
-implemented. The Accepted directory contract belongs to P03-2 below; closure,
+implemented. The directory contract appears below; closure,
 production first-admin and issuer rebind retain their named later owners.
 
 ### Aggregate and storage contract
@@ -245,11 +245,11 @@ writes; no extra branch-admin Membership or provider-claim rewrite is required.
 
 ### Accepted live authorization and directory contract
 
-**Reader, staged policy and internal directory implemented; joint activation pending.**
+**Live policy, central evidence and the administrative directory are implemented.**
 The policy/evaluator consumes the confined reader/source through the shared
 decision port; common Application gains no Identity module dependency. The
-internal directory uses the real EF read adapter and common MUST write path.
-Trusted denial evidence and human-facing activation remain gated below.
+directory uses the real EF read adapter and common MUST write path. API and
+application checks each read fresh committed authority before dispatch.
 `CommittedIdentityAuthorizationReader` coordinates the module statements from
 Application; its Infrastructure session factory retains the exact Identity SQL
 and physical child owner. The reader consumes an
@@ -391,13 +391,13 @@ framework domain-event dispatch does not imply a published contract.
 [Identity permissions](permissions.md) binds production seed commands to
 the exact [accepted Standard 19 manifest](../../standards/19-permissions.md#proposed-identity-foundation-contract).
 The seed commands are implemented in P03-1 Step 4; the separately marked P03-2
-bindings remain planned. Capability metadata activates neither live permission
-behavior nor HTTP routes.
+bindings are implemented. Capability metadata alone grants neither permission
+nor a route; canonical admission and exact endpoint declarations enforce both.
 
 ## Audit coverage matrix
 
 [Identity audit](audit.md) declares implemented root/child classifications and
-personal/reference paths, plus explicitly planned P03-2 event/read/grant rows.
+personal/reference paths and the implemented authorization event/read/grant rows.
 The central writer owns durability; Identity has no
 audit table/direct audit SQL. Global mutation audit follows ADR-0072 alone.
 

@@ -13,6 +13,8 @@ public static class PublicResponsePolicy
         {
             if (!TenantSurfaceAdmissionMiddleware.IsAccountSitePath(context.Request.Path)
                 && !TenantSurfaceAdmissionMiddleware.IsAccountSiteEndpoint(context)
+                && !TenantSurfaceAdmissionMiddleware.IsMembershipsPath(context.Request.Path)
+                && !TenantSurfaceAdmissionMiddleware.IsMembershipsEndpoint(context)
                 && !ApiVersioningExtensions.LiveMajors.Any(major =>
                     context.Request.Path.StartsWithSegments($"/api/v{major}/public", StringComparison.OrdinalIgnoreCase)))
             {

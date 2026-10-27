@@ -12,7 +12,7 @@ and jointly Accepted [ADR-0076](../../decisions/0076-live-scoped-authorization.m
 The baseline MUST floor applies. `IdentityAuditCatalogSource` declares
 actual operations: catalogue-to-matrix coverage is total. Audit slugs are not
 additional permission keys. The internal `ListMembershipsQuery` has a real MUST
-catalogue entry and ordinary ReadWrite adapter; HTTP admission remains staged.
+catalogue entry, ordinary ReadWrite adapter and declared HTTP admission.
 The two grant commands have real MUST catalogue entries and contained Role diffs.
 `(off-path)` marks a central event without a MediatR request.
 Catalogue → matrix remains total; the reverse request join applies only when

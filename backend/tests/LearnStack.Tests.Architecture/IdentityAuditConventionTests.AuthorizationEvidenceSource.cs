@@ -15,6 +15,7 @@ public sealed partial class IdentityAuditConventionTests
     private const string EvidenceSessionPort = "LearnStack.SharedKernel.Audit.IAuthorizationEvidenceSession";
     private const string EvidenceStore = "LearnStack.Infrastructure.Audit.PostgresAuditStore";
     private const string EvidenceRoleGuard = "LearnStack.Infrastructure.Persistence.ApplicationDataSource";
+    private const string DeferredEvidence = "LearnStack.Api.Authentication.LiveAuthorizationRegistration/DeferredEvidenceSessions";
 
     [Fact]
     public void Live_Authorization_Uses_Bounded_Independent_Owners()
@@ -30,7 +31,7 @@ public sealed partial class IdentityAuditConventionTests
             module.Types.Add(extra);
             return () => module.Types.Remove(extra);
         });
-        foreach (var (type, method) in new[] { (EvidenceFactoryPort, "OpenAsync"), (EvidenceSessionPort, "BeginVerificationAsync"),
+        foreach (var (type, method) in new[] { (EvidenceFactoryPort, "OpenAsync"), (EvidenceSource, "OpenAsync"), (EvidenceSessionPort, "BeginVerificationAsync"),
                      (EvidenceSessionPort, "CompleteAsync"), (EvidenceSessionPort, "get_Unit"), (EvidenceSessionPort, "MarkCleanupFailed") })
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn }) EvidenceDirty(census, EvidenceLaneOffenders, () =>
                 EvidenceExtraCall(census, census.Method(type, method), opcode));
@@ -45,6 +46,7 @@ public sealed partial class IdentityAuditConventionTests
             (EvidenceSession, "CleanupAsync", "System.Threading.Tasks.TaskCompletionSource", "TrySetResult"),
             (EvidenceSession, "MarkCleanupFailed", "LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources", "MarkCleanupFailed"),
             (EvidenceSource, "DisposeCoreAsync", "System.Threading.Tasks.Task", "WhenAll"),
+            (DeferredEvidence, "OpenAsync", EvidenceSource, "OpenAsync"),
         }) EvidenceDirty(census, EvidenceLaneOffenders, () => EvidenceRemoveCall(census.Body(type, method), target, name));
         var verification = census.Body(EvidenceSession, "BeginVerificationAsync");
         var dispose = EvidenceCalls(verification, EvidenceSession, "DisposeTransactionAsync").Single();
@@ -79,14 +81,21 @@ public sealed partial class IdentityAuditConventionTests
         var constructor = census.Type(EvidenceSource).Methods.Single(method => method.IsConstructor && method.IsPublic);
         var capacity = constructor.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Ldc_I4_2);
         EvidenceDirty(census, EvidenceLaneOffenders, () => EvidenceReplace(capacity, OpCodes.Ldc_I4_3, null));
+        EvidenceDirty(census, EvidenceLaneOffenders, () =>
+        {
+            var holder = census.Type(DeferredEvidence).Fields.Single();
+            holder.IsInitOnly = false;
+            return () => holder.IsInitOnly = true;
+        });
     }
 
     private static List<string> EvidenceLaneOffenders(EvidenceCensus census)
     {
         var errors = new List<string>();
-        EvidenceImplementers(census, errors, EvidenceFactoryPort, [EvidenceSource]);
+        EvidenceImplementers(census, errors, EvidenceFactoryPort, [EvidenceSource, DeferredEvidence]);
         EvidenceImplementers(census, errors, EvidenceSessionPort, [EvidenceSession]);
         EvidenceCallers(census, errors, EvidenceFactoryPort, "OpenAsync", [(EvidenceStore, "WriteAuthorizationStandaloneAsync", 1)]);
+        EvidenceCallers(census, errors, EvidenceSource, "OpenAsync", [(DeferredEvidence, "OpenAsync", 1)]);
         EvidenceCallers(census, errors, EvidenceSessionPort, "BeginVerificationAsync", [(EvidenceStore, "WriteAuthorizationStandaloneAsync", 1)]);
         EvidenceCallers(census, errors, EvidenceSessionPort, "CompleteAsync", [(EvidenceStore, "WriteAuthorizationStandaloneAsync", 2)]);
         EvidenceCallers(census, errors, EvidenceSessionPort, "get_Unit", [(EvidenceStore, "InsertAuthorizationEvidenceAsync", 2), (EvidenceStore, "HasAuthorizationEvidenceAsync", 2)]);
@@ -161,6 +170,27 @@ public sealed partial class IdentityAuditConventionTests
         var statement = EvidenceCalls(announcement, EvidenceSession, "ExecuteSetupAsync").ToArray();
         if (publish is null || statement.Length != 1 || !EvidenceAwaited(announcement, statement[0], publish))
             errors.Add("Only the actual acknowledged evidence announcement publishes generation-bound scope");
+        var deferred = census.Type(DeferredEvidence);
+        var forward = census.Body(DeferredEvidence, "OpenAsync");
+        var holderType = "System.Func`1<" + EvidenceSource + ">";
+        if (!deferred.IsNestedPrivate || !deferred.IsSealed || deferred.BaseType.FullName != "System.Object"
+            || deferred.Fields.Count != 1 || deferred.Fields[0] is not { IsPrivate: true, IsInitOnly: true, IsStatic: false }
+            || deferred.Fields[0].FieldType.FullName != holderType || deferred.HasProperties || deferred.HasEvents || deferred.HasNestedTypes
+            || deferred.HasGenericParameters || deferred.Methods.Count != 2
+            || deferred.Methods.SingleOrDefault(method => method.IsConstructor) is not { IsAssembly: true, Parameters.Count: 1 } factory
+            || factory.Parameters[0].ParameterType.FullName != holderType
+            || !forward.Body.Instructions.Select(instruction => instruction.OpCode.Code)
+                .SequenceEqual([Code.Ldarg_0, Code.Ldfld, Code.Callvirt, Code.Ldarg_1, Code.Ldarg_2, Code.Callvirt, Code.Ret])
+            || forward.Body.Instructions[1].Operand is not FieldReference held || held.FullName != deferred.Fields[0].FullName
+            || !EvidenceIsCall(forward.Body.Instructions[2], holderType, "Invoke")
+            || !EvidenceIsCall(forward.Body.Instructions[5], EvidenceSource, "OpenAsync"))
+            errors.Add("The private deferred factory retains one immutable typed source accessor and forwards only the actual occurrence and cancellation token");
+        var constructions = census.Methods.SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
+            && target.DeclaringType.FullName == DeferredEvidence && target.Name == ".ctor").Select(instruction => (Method: method, Instruction: instruction))).ToArray();
+        if (constructions.Length != 1 || constructions[0].Instruction.OpCode != OpCodes.Newobj
+            || constructions[0].Method.DeclaringType.FullName != "LearnStack.Api.Authentication.LiveAuthorizationRegistration/<>c"
+            || !constructions[0].Method.Name.StartsWith("<AddLearnStackLiveAuthorization>b__", StringComparison.Ordinal))
+            errors.Add("Only the actual API registration may construct its private deferred evidence accessor");
         return errors;
     }
 

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import { composeSelection, repositoryRoot } from './compose.mjs';
 import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
-import { publicSeederEnvironment } from './demo-database.mjs';
+import { publicSeederEnvironment, developmentSeederRuntimeEnvironment } from './demo-database.mjs';
 import { reconcileRealm, realmPassMilliseconds } from './development-realm-core.mjs';
 import { acquireRealmLock, isLocalDockerEndpoint, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateRealmTarget } from './development-realm-owner.mjs';
 import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
@@ -53,7 +53,7 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
           await processes.runPrivateInput('dotnet', [join(repositoryRoot,
             'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'), '--identity-foundation-stdin'],
           JSON.stringify(witness), { cwd: join(repositoryRoot, 'backend'),
-            env: { ...publicSeederEnvironment(applicationConnection), ...identityEnvironment },
+            env: developmentSeederRuntimeEnvironment({ ...parseEnv(source), ...identityEnvironment }),
             // The enclosing active signal retains the remaining shared pass budget.
             label: 'Verified identity foundation', timeout: realmPassMilliseconds });
         } catch (error) {

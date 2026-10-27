@@ -31,7 +31,7 @@ Identity lock/admission observation derives from Accepted
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
 Accepted [ADR-0076](../decisions/0076-live-scoped-authorization.md) /
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md) add live
-authorization/evidence obligations; P03-2 runtime implementation remains pending.
+authorization/evidence obligations implemented by the live boundary below.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -297,7 +297,7 @@ complete active path. Acceptance alone claims none of these mechanisms delivered
 
 ### Trusted authorization diagnostics
 
-**Accepted contract; runtime pending in P03-2.** The canonical
+The canonical
 [Standard 18 evidence contract](18-audit-coverage.md#trusted-authorization-evidence)
 owns denial/assertion populations, immutable provenance, exact reconciliation
 and pre-success durability. Diagnostic records do not substitute for those rows.

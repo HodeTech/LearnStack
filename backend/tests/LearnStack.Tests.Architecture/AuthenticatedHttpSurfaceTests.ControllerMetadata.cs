@@ -11,7 +11,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     private const string OperationTriple = "System.ValueTuple`3<System.Type,System.String,System.String>";
     private const string OptionalOperationTriple = "System.Nullable`1<" + OperationTriple + ">";
 
-    // Only the nine literal controller operands in the fixed data table are
+    // Only the literal controller operands in the fixed data table are
     // descriptive. Controller fields, constructor arguments, locals, method
     // targets and every other typeof occurrence retain their ordinary edges.
     private static bool IsControllerTypeMetadata(TypeDefinition owner, MethodDefinition method, Instruction instruction) =>
@@ -34,12 +34,12 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         if (!tokens.Select(Key).SequenceEqual(expectedTokens, StringComparer.Ordinal)) return false;
         var actual = method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference)
             .Select(instruction => instruction.OpCode.Name + ":" + ((MethodReference)instruction.Operand).FullName).Order(StringComparer.Ordinal);
-        var expected = Enumerable.Repeat("call:System.Type System.Type::GetTypeFromHandle(System.RuntimeTypeHandle)", 18)
-            .Concat(Enumerable.Repeat("call:System.Boolean System.Type::op_Equality(System.Type,System.Type)", 9))
-            .Concat(Enumerable.Repeat("call:System.Boolean System.String::op_Equality(System.String,System.String)", 9))
+        var expected = Enumerable.Repeat("call:System.Type System.Type::GetTypeFromHandle(System.RuntimeTypeHandle)", Endpoints.Length * 2)
+            .Concat(Enumerable.Repeat("call:System.Boolean System.Type::op_Equality(System.Type,System.Type)", Endpoints.Length))
+            .Concat(Enumerable.Repeat("call:System.Boolean System.String::op_Equality(System.String,System.String)", Endpoints.Length))
             .Append("call:System.Void " + ControllerPair + "::.ctor(!0,!1)")
-            .Concat(Enumerable.Repeat("newobj:System.Void " + OperationTriple + "::.ctor(!0,!1,!2)", 9))
-            .Concat(Enumerable.Repeat("newobj:System.Void " + OptionalOperationTriple + "::.ctor(!0)", 9)).Order(StringComparer.Ordinal);
+            .Concat(Enumerable.Repeat("newobj:System.Void " + OperationTriple + "::.ctor(!0,!1,!2)", Endpoints.Length))
+            .Concat(Enumerable.Repeat("newobj:System.Void " + OptionalOperationTriple + "::.ctor(!0)", Endpoints.Length)).Order(StringComparer.Ordinal);
         return actual.SequenceEqual(expected, StringComparer.Ordinal)
             && method.Body.Instructions.Where(instruction => instruction.Operand is FieldReference)
                 .All(instruction => instruction.OpCode == OpCodes.Ldfld && instruction.Operand is FieldReference field

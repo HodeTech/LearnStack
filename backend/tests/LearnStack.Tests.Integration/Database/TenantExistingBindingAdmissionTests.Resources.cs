@@ -153,7 +153,7 @@ public sealed partial class TenantExistingBindingAdmissionTests
 
         output.WriteLine("Local observational sample. The authenticated current-code counterfactual returns one previously witnessed Existing binding for the exact verified input; it is neither a historical nor a security-qualified baseline. No production percentile guarantee.");
         output.WriteLine("Bindings={0}; same authenticated public GET samples per lane={1}, interleaved after warmup; counterfactual median/range ms={2:F2}/{3:F2}-{4:F2}; production binding median/range ms={5:F2}/{6:F2}-{7:F2}; median difference ms={8:F2}.",
-            population, samples, Median(control), control.Min(), control.Max(), Median(bound), bound.Min(), bound.Max(), Median(bound) - Median(control));
+            population + SeedData.IdentityUsers.Length, samples, Median(control), control.Min(), control.Max(), Median(bound), bound.Min(), bound.Max(), Median(bound) - Median(control));
         output.WriteLine("Anonymous contextual comparison median/range ms={0:F2}/{1:F2}-{2:F2}; driver SQL statements anonymous/counterfactual/production={3}/{4}/{5}; actual production binding SELECTs={6}; counterfactual binding SELECTs=0; observer adds one role/GUC proof SELECT per production lookup.",
             Median(anonymous), anonymous.Min(), anonymous.Max(), anonymousStatements, counterfactualStatements, boundStatements, samples);
         output.WriteLine("Default planner nodes={0}; actual rows={1}; planning/execution ms={2:F3}/{3:F3}; concurrent HTTP=8; pool maximum/observed occupied=4/{4}; remaining active/transaction owners=0.",

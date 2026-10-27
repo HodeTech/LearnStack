@@ -333,8 +333,7 @@ same inventory boundary.
 
 Jointly Accepted [ADR-0076](../decisions/0076-live-scoped-authorization.md) /
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md) add trusted bounded
-provenance to the existing `audit_log` custody boundary; runtime remains pending
-in P03-2. Membership/Role IDs in `metadata.authorization` remain personal linkage,
+provenance to the existing `audit_log` custody boundary. Membership/Role IDs in `metadata.authorization` remain personal linkage,
 not anonymous facts or a new durable store. The [Standard 18 contract](../standards/18-audit-coverage.md#trusted-authorization-evidence)
 owns exact source/field bounds, fixed occurrence identity, reconciliation and
 redactable transport columns. No profile/email mirror or additional metadata

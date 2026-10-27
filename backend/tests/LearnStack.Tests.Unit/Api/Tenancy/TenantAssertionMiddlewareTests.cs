@@ -39,7 +39,8 @@ public sealed class TenantAssertionMiddlewareTests
         var middleware = new TenantAssertionMiddleware(_ => { calls++; return Task.CompletedTask; });
         var classified = HostClassificationMiddleware.ClassifiesPath(context.Request.Path);
 
-        await middleware.InvokeAsync(context, UnresolvedTenantContext.Instance, recorder);
+        await middleware.InvokeAsync(context, UnresolvedTenantContext.Instance, recorder,
+            NSubstitute.Substitute.For<IClaimContextAssertionRecorder>());
 
         context.Response.StatusCode.Should().Be(classified ? StatusCodes.Status400BadRequest : StatusCodes.Status200OK);
         calls.Should().Be(classified ? 0 : 1, "only the classified surface may reject an assertion before dispatch");

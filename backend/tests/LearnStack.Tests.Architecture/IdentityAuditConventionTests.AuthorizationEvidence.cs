@@ -20,7 +20,6 @@ public sealed partial class IdentityAuditConventionTests
     private const string PolicyOwner = "LearnStack.Application.Authorization.OperationAuthorizationCoordinator";
     private const string RoleAuthorization = "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization";
     private const string RoleHandler = "LearnStack.Modules.Identity.Application.Roles.RoleGrantCommandHandlerBase";
-    private const string Unadmitted = "LearnStack.Application.Authorization.UnadmittedOperationContext";
     private const string StateCapture = "LearnStack.Infrastructure.Audit.AuditStateCapture";
     private const string FrameBindings = "System.Collections.Generic.Dictionary`2<System.Int32,LearnStack.SharedKernel.Permissions.OperationInvocation>";
     private const string OrdinaryAuditOwner = "LearnStack.Application.Audit.AuditExecutionCoordinator";
@@ -63,6 +62,7 @@ public sealed partial class IdentityAuditConventionTests
                      ("LearnStack.SharedKernel.Audit.IAuditStateCapture", "AttachAuthorization"),
                      (CentralEvidence, "BeginExecution"), (CentralEvidence, "Observe"),
                      (CentralEvidence, "RecordPolicyRefusal"), (CentralEvidence, "CaptureRefusalObservation"), (CentralEvidence, "RecordRefusalResult"),
+                     ("LearnStack.Api.Tenancy.IClaimContextAssertionRecorder", "RecordAsync"),
                      (CentralEvidence, "BeforeSuccessAsync") })
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn }) EvidenceDirty(census, EvidenceProvenanceOffenders,
                 () => EvidenceExtraCall(census, census.Method(type, method), opcode));
@@ -102,20 +102,16 @@ public sealed partial class IdentityAuditConventionTests
         var standalone = census.Body(EvidenceStore, "WriteAuthorizationStandaloneAsync");
         var key = standalone.Body.Instructions.Single(instruction => instruction.Operand as string == "audit_log_pkey");
         EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(key, OpCodes.Ldstr, "unrelated_unique_key"));
-        EvidenceDirty(census, EvidenceProvenanceOffenders, () =>
+        foreach (var contract in new[] { InvocationContext, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter",
+                     "LearnStack.Api.Tenancy.IClaimContextAssertionRecorder" })
+            EvidenceDirty(census, EvidenceProvenanceOffenders, () =>
         {
             var type = census.Type(PolicyOwner);
             var extra = new TypeDefinition("EvidenceControl", "UnownedInvocationContext", TypeAttributes.NotPublic, type.Module.TypeSystem.Object);
-            extra.Interfaces.Add(new InterfaceImplementation(type.Module.ImportReference(census.Type(InvocationContext))));
+            extra.Interfaces.Add(new InterfaceImplementation(type.Module.ImportReference(census.Type(contract))));
             type.Module.Types.Add(extra);
             return () => type.Module.Types.Remove(extra);
         });
-        foreach (var name in new[] { "get_CurrentInvocation", "get_CurrentDecision" }) EvidenceDirty(census, EvidenceProvenanceOffenders,
-            () => EvidenceReplace(census.Body(Unadmitted, name).Body.Instructions[0], OpCodes.Ldc_I4_1, null));
-        foreach (var name in new[] { "ReportRecheck", "ReportResourceRefusal" }) EvidenceDirty(census, EvidenceProvenanceOffenders,
-            () => EvidenceReplace(census.Body(Unadmitted, name).Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Throw), OpCodes.Ret, null));
-        foreach (var name in new[] { "ReportRecheck", "ReportResourceRefusal" }) EvidenceDirty(census, EvidenceProvenanceOffenders,
-            () => EvidenceReplace(census.Body(Unadmitted, name).Body.Instructions[1], OpCodes.Ldarg_1, null));
         var auditOwner = census.Body(OrdinaryAuditOwner, "ExecuteDeclaredAsync");
         var reconcile = EvidenceCalls(auditOwner, CentralEvidence, "ReconcileBeforeCaptureClearAsync").Single();
         var clear = EvidenceCalls(auditOwner, "LearnStack.SharedKernel.Audit.IAuditStateCapture", "Clear").Single();
@@ -157,27 +153,18 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceDerivers(Transport + "/MintingSource", [HttpTransport]);
         EvidenceDerivers(Assertion + "/MintingSource", [AssertionSource]);
         EvidenceImplementers(census, errors, TransportPort, [HttpTransport]);
-        EvidenceImplementers(census, errors, InvocationContext, [PolicyOwner, Unadmitted]);
-        EvidenceImplementers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", [CentralEvidence, Unadmitted]);
-        foreach (var name in new[] { "get_CurrentInvocation", "get_CurrentDecision" })
-            if (!census.Body(Unadmitted, name).Body.Instructions.Select(instruction => instruction.OpCode.Code).SequenceEqual([Code.Ldnull, Code.Ret]))
-                errors.Add("The unadmitted fallback cannot return an invocation or decision: " + name);
-        foreach (var name in new[] { "ReportRecheck", "ReportResourceRefusal" })
-        {
-            var body = census.Body(Unadmitted, name).Body.Instructions;
-            if (body.Count != 4 || body[0].OpCode != OpCodes.Ldstr || body[0].Operand as string != "Authorization evidence has no admitted operation owner."
-                || body[1].OpCode != OpCodes.Ldnull || body[2].OpCode != OpCodes.Newobj || body[2].Operand is not MethodReference constructor
-                || constructor.FullName != "System.Void LearnStack.SharedKernel.Audit.AuditWriteFailedException::.ctor(System.String,System.Exception)"
-                || body[3].OpCode != OpCodes.Throw)
-                errors.Add("The unadmitted fallback cannot acknowledge an authorization refusal: " + name);
-        }
+        EvidenceImplementers(census, errors, InvocationContext, [PolicyOwner]);
+        EvidenceImplementers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", [CentralEvidence]);
         EvidenceCallers(census, errors, Occurrence, ".ctor", [(Occurrence + "/MintingSource", "ForOccurrence", 1)]);
         EvidenceCallers(census, errors, AuditContext, ".ctor", [(AuditContext + "/MintingSource", "ForAuditContext", 1)]);
         EvidenceCallers(census, errors, Transport, ".ctor", [(Transport + "/MintingSource", "ForTransport", 1)]);
         EvidenceCallers(census, errors, Assertion, ".ctor", [(Assertion + "/MintingSource", "ForAssertion", 1)]);
         EvidenceCallers(census, errors, Assertion + "/MintingSource", "ForAssertion", [(AssertionSource, "Capture", 1)]);
-        EvidenceCallers(census, errors, AssertionSource, "Capture", []);
-        EvidenceCallers(census, errors, CentralEvidence, "RecordConfirmedAssertionAsync", []);
+        EvidenceCallers(census, errors, AssertionSource, "Capture", [("LearnStack.Api.Authentication.ClaimContextAssertionRecorder", "RecordAsync", 1)]);
+        EvidenceCallers(census, errors, CentralEvidence, "RecordConfirmedAssertionAsync", [("LearnStack.Api.Authentication.ClaimContextAssertionRecorder", "RecordAsync", 1)]);
+        EvidenceImplementers(census, errors, "LearnStack.Api.Tenancy.IClaimContextAssertionRecorder", ["LearnStack.Api.Authentication.ClaimContextAssertionRecorder"]);
+        EvidenceCallers(census, errors, "LearnStack.Api.Tenancy.IClaimContextAssertionRecorder", "RecordAsync",
+            [("LearnStack.Api.Tenancy.TenantAssertionMiddleware", "InvokeAsync", 1)]);
         EvidenceCallers(census, errors, Occurrence + "/MintingSource", "ForOccurrence", [(CentralEvidence, "RecordObservedDenial", 1),
             (CentralEvidence, "RecordConfirmedAssertionAsync", 1)]);
         EvidenceCallers(census, errors, AuditContext + "/MintingSource", "ForAuditContext", [(CentralEvidence, "Snapshot", 1)]);

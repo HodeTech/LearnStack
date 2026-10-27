@@ -7,7 +7,6 @@ using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 
@@ -42,8 +41,8 @@ public sealed class MembershipDirectoryReader(IdentityDbContext db, IUnitOfWork 
             || unit.Mode != TransactionMode.ReadWrite || !unit.HasActiveTransaction || unit.IsRollbackOnly
             || !unit.IsTenantContextIssuedOn(unit.Transaction)
             || unit.GetTenantContextAnnouncement(unit.Transaction) is not { Generation: > 0 } announcement
-            || announcement.TenantId != context.TenantId || announcement.OrganizationId != context.OrganizationId
-            || db.Database.CurrentTransaction is not { } transaction || !ReferenceEquals(transaction.GetDbTransaction(), unit.Transaction))
+            || announcement.TenantId != context.TenantId || announcement.OrganizationId != context.OrganizationId)
             throw new TenantContextMissingException("The membership directory requires its announced ordinary tenant-read owner.");
+        ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);
     }
 }

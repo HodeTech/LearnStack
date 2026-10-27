@@ -132,24 +132,31 @@ installed deployment authority, following
 [Identity deployment](../../../docs/modules/identity/README.md#global-implementation-and-deployment).
 Authority qualification is mandatory before the API accepts requests.
 The dispatcher credential belongs only to the API; every Seeder invocation uses
-an explicit application-only environment, and the web launcher receives neither
+an explicit application-role runtime environment, and the web launcher receives no
 database credential. Both empty hop lists remain
 valid in every mode; a network-only or secret-only configuration is refused.
 The application connection must name `learnstack_app`; the data-source guard also
 refuses direct or transitive BYPASSRLS/superuser access. Migration credentials
 never enter either application launch recipe.
 
-**Accepted P03-2 setup delta; runtime pending.** The confined authorization/
+**P03-2 source configuration.** The confined authorization/
 evidence sources use the same application role, not new credentials or roles.
 [Standard 05's source ledger](../../../docs/standards/05-database.md#authorization-and-evidence-source-ledger)
 owns the coupled backend configuration pair, Development-only direct-PostgreSQL
 derivation and explicit non-Development requirement;
 [Standard 12](../../../docs/standards/12-infrastructure.md#authorization-and-evidence-topology)
-owns operational topology. Apply those keys and the API/Seeder environment
-projections together with qualified source wiring. Do not expose them to the
-web, silently accept a partial pair, or mistake extra client pools for PgBouncer
-backend reservation. The current recipes above describe the baseline until that
-implementation lands.
+owns operational topology. Startup qualifies the installed authority and actual
+database identity before admitting source use. Owned seed/demo runtime children
+receive the selected authority and connection pair, with the existing
+`Deployment__Mode=Development` for their direct local stack; their restore/build
+and manifest children receive no runtime authority or database credentials.
+The Seeder shares one process-owned evidence source across per-act providers.
+Direct CLI use must supply the authority pair and explicit auxiliary pair unless
+explicit Development permits supported direct-PostgreSQL derivation; the tool
+does not load `.env`. Follow [seed-tenant](../seed-tenant/SKILL.md) for its exact
+startup contract. Do not expose these values to the web, silently accept a
+partial pair, or mistake extra client pools for PgBouncer backend reservation.
+The phase Status block owns current qualification and review state.
 
 **`make migrate` runs as `learnstack_migration`, not as the API's role.** From
 Phase 02a Packet 6 the stack provisions four database roles on the first boot of

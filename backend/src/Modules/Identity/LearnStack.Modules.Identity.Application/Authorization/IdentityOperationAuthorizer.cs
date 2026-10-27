@@ -5,7 +5,7 @@ using LearnStack.SharedKernel.Permissions;
 namespace LearnStack.Modules.Identity.Application.Authorization;
 
 /// <summary>One fresh committed-state evaluation per act; no fact or permission decision cache.</summary>
-public sealed class IdentityOperationAuthorizer(IIdentityAuthorizationReader reader, IOperationPolicyCatalog catalog)
+public sealed class IdentityOperationAuthorizer(Func<IIdentityAuthorizationReader> reader, IOperationPolicyCatalog catalog)
     : ProtectedOperationDecision.MintingSource, IProtectedOperationAuthorizer
 {
     public async Task<ProtectedOperationDecision> AuthorizeAsync(OperationInvocation invocation, OperationPolicy policy,
@@ -23,7 +23,7 @@ public sealed class IdentityOperationAuthorizer(IIdentityAuthorizationReader rea
             return ForDecision(invocation, candidate, ProtectedOperationOutcome.Unavailable);
         if (!Matches(invocation, policy, candidate))
             return ForDecision(invocation, candidate, ProtectedOperationOutcome.NotCovered);
-        var facts = await reader.ReadAsync(candidate, cancellationToken);
+        var facts = await reader().ReadAsync(candidate, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (!invocation.IsActive || !candidate.IsActive)
             return ForDecision(invocation, candidate, ProtectedOperationOutcome.Unavailable);

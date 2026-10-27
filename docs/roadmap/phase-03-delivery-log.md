@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,234 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,316 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -103,6 +103,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 4 review corrections (2026-10-27)](#p03-2-step-4-review-corrections-2026-10-27) — 52 lines
   - [P03-2 Step 4 review round 2 (2026-10-27)](#p03-2-step-4-review-round-2-2026-10-27) — 36 lines
   - [P03-2 Step 4 correction verification and closeout (2026-10-27)](#p03-2-step-4-correction-verification-and-closeout-2026-10-27) — 57 lines
+  - [P03-2 Step 5 — Live HTTP and application activation (2026-10-27)](#p03-2-step-5--live-http-and-application-activation-2026-10-27) — 82 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4190,3 +4191,85 @@ Registered. Step 5 proceeds with the directory/controller, named/runtime policy,
 live resolver/AccountSite admission, distinct claim-assertion source, OpenAPI/SDK
 and real HTTP compatibility matrix. Step 6 owns complete final-source suites,
 source-bound inventories, hosted A/B qualification and the reviewable PR.
+
+### P03-2 Step 5 — Live HTTP and application activation (2026-10-27)
+
+**Implementation.** Starting from Step 4 closeout `56f95547`, the API and Seeder
+register the common frozen policy catalogue and actual canonical
+`AuthorizationBehavior` at slot 5 of the unchanged eight-stage pipeline. The
+staged replacement and pass-through invocation adapter are removed. Exact finite
+seed, delivery and retained-job sources remain independent of SystemActor values.
+Identity's human evaluator defers its reader until an actual protected act.
+
+The API replaces the deny-all membership port with the real committed reader and
+qualifies its independent four-owner authorization and two-owner evidence lanes
+against the installed authority and actual business database name. Both auxiliary
+configuration keys remain coupled; Development-only direct-PostgreSQL derivation
+preserves independent sources. Startup rejects missing anchors, owner credentials,
+partial configuration and a second database carrying the same authority. Source
+failure diagnostics contain no provider inner exception. The Seeder owns one
+qualified evidence source across its per-act providers. Selected runtime children
+receive authority/mode/auxiliary keys without exporting credentials to restore,
+build, web or manifest projection.
+
+Runtime endpoint classification precedes dispatch, including AllowAnonymous
+endpoints. Default/fallback authorization supplies no authenticated catch-all;
+the two protected named requirements must match exact module policy metadata.
+The sole added route is `GET /api/v1/identity/memberships`, with existing Tenant
+administrative capability, six contextual fields, scope-bound UUID continuation,
+strict query names and the common MUST ReadSensitive commit before disclosure.
+AccountSite keeps its independent real HostScope and physical ReadOnly ceiling.
+The routing-owned method-rejection endpoint preserves earlier 404/405 semantics;
+lookalike application endpoints do not inherit that exception.
+
+A confirmed ClaimAndMembership assertion mismatch reaches its distinct central
+MUST event through a confined API port, without host allowance or asserted UUID
+metadata. Earlier host-backed assertion admission and resolver refusal populations
+retain their separate boundaries. Fresh HTTP and application decisions do not
+reuse resolver membership as a grant.
+
+**Actual integration correction.** The first real HTTP run passes 50 of 60 cases
+and exposes nine directory failures caused by one shared integration defect:
+binding lookup creates the scoped Identity context on a global transaction; the
+later ordinary tenant owner must explicitly re-enroll that same context. The
+contextual adapter now requires its clean, live, already-announced tenant owner,
+matching dynamic tenant/org filters and the same physical connection before
+attaching the current transaction. No GUC, setter, read-scope or filter authority
+changes. The actual five-row directory matrix passes after this repair. Separate
+PostgreSQL controls reject a foreign connection and pending tracked mutation
+without retargeting, saving or clearing it. The remaining initial failure is an
+incorrect test expectation that an unrelated routing miss carries directory
+response policy; only that fixture assertion changes.
+
+**Validation before review.** The rebuilt strict Release integration group passes
+**67/67**, zero skips: actual HTTP rows 6/7/9/10/14, capability/noncoverage/store
+refusals, matching-host revocation, public zero-identity lookup, strict pagination,
+claim-assertion budget independence, MUST insert/COMMIT failure and held-COMMIT
+non-disclosure, AccountSite/binding/seed compatibility, and the seven directory
+adapter controls. The additional actual-host startup test passes **1/1** across
+both auxiliary lanes' wrong role, missing anchor, same-authority/different-database
+and partial-pair variants, followed by healthy recovery with no repair/allocation.
+
+Served OpenAPI supplies the exact ten-operation union and normalized string
+membership status. The snapshot refresh is an explicit local opt-in; CI refuses
+that opt-in and leaves the snapshot unchanged. Normal Contract passes **5/5**;
+SDK tests pass **103/103**, with typecheck, lint and native build. The SDK owns the
+new generated contract without adding a native BFF method: AccountSite remains
+the sole authenticated native operation. The six selected-runtime environment
+controls pass. Current standards, module matrices, architecture and tooling skills
+now describe this wiring; historical records and Accepted ADR bodies stay intact.
+
+The 49 unique targeted Architecture cases pass on the same strict Release
+source: 29 closed-authority controls and 20 endpoint/policy/source/evidence/EF
+ownership cases. The 62-case Docker-free HTTP regression group passes, including
+a matched test-only undeclared controller under the actual Program: anonymous
+404, normalized signed 403, zero handler dispatch and no business source creation.
+The exact middleware-order census includes classification between assertions and
+authorization; endpoint and role-metadata dirty controls remain executable.
+Workspace typecheck also passes for SDK, UI and web.
+The full rebuilt Unit project passes **2,994/2,994**, zero skips.
+
+The phase Status block owns packet state. Whole activation-dependent catalogue
+obligations remain Registered until Step 6 completes final-source qualification.
+Full backend/provider/native suites, source/image/shard inventories and fresh
+hosted A/B qualification are not inferred from these focused receipts.

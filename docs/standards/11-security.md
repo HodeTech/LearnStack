@@ -52,8 +52,7 @@ Identity admission/owner contracts additionally derive from Accepted
 The [phase Status block](../roadmap/phase-03-identity-admin.md) owns current
 implementation and qualification state. Live membership and trusted evidence
 derive from Accepted [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
-[ADR-0077](../decisions/0077-trusted-authorization-evidence.md); their runtime
-implementation remains P03-2.
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md).
 Bounded authenticated assertion recording derives from
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
 implementation and local proofs are delivered in the
@@ -369,8 +368,7 @@ tenant-facing endpoints. Per [ADR-0019](../decisions/0019-learnstack-hub.md) and
 
 ## Authorization
 
-Every protected tenant act checks, in order (the live P03-2 contract below is
-Accepted, not yet runtime implemented):
+Every protected tenant act checks, in order:
 
 1. **Authentication** (valid token).
 2. **Tenant membership** (user has a Membership in the resolved tenant).
@@ -549,8 +547,7 @@ context writer, factory privilege or tenant retargeting authority.
 `TransactionBehavior` delegates the general announcement path to
 `TransactionExecutionCoordinator`. The baseline eight logical setter paths are
 enumerated below. The Accepted [candidate-reader extension](#owner-and-setter-census)
-adds the ninth; its confined owner is implemented in P03-2 Step 2 while production
-membership registration remains deny-all until activation. ADR-0077's confined
+adds the ninth; the API registers its confined live membership reader. ADR-0077's confined
 evidence methods extend central audit ownership, not the logical setter count. The current set is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
 with its Amendments 3 and 7, is the authority; it is reproduced here because this section
@@ -1058,13 +1055,12 @@ Security-relevant durability rules:
 ## Identity admission contract
 
 **Status: Global/contextual storage, common audit, seed and existing-binding API
-admission are implemented; live membership execution remains P03-2.** Derived from
+admission and live membership execution are implemented.** Derived from
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
-The bounded global owner below is implemented; this does not activate HTTP
-creation or live membership. The current authentication surface, eight tenant
-setters and deny-all membership reader remain until their owning steps. The
+The bounded global owner does not activate new-user HTTP creation. The API
+uses the live membership adapter and the nine-setter census below. The
 [adopted database contract](05-database.md#identity-storage-contract)
 owns the global class, authority anchor, subject-key encoding, exact policies,
 owner functions and lock/snapshot rules; they are not duplicated here.
@@ -1200,9 +1196,8 @@ controls before admission. No general SQL executor, global User directory or
 direct self audit read follows from them.
 
 `PreContextIdentityAuthorizationReader` is the Accepted ninth logical tenant
-setter under ADR-0076. P03-2 Step 2 implements its confined reader/source and
-normalized HTTP candidate minter; production membership registration remains
-deny-all until the later activation step. A verified normalized actor
+setter under ADR-0076. Its confined reader/source and normalized HTTP candidate
+minter supply the API membership adapter. A verified normalized actor
 or separately enumerated trusted execution descriptor supplies the exact candidate
 actor/tenant/org; UserId alone supplies no authority. Its isolated child uses the
 [confined source ledger](05-database.md#authorization-and-evidence-source-ledger),
@@ -1213,8 +1208,7 @@ Tenancy's lifecycle reader uses this same physical child owner/generation.
 
 Nine is the Accepted logical setter set. The pre-existing eight-path census
 above remains the baseline; its durable idempotency path is still unimplemented.
-The ninth's reader/owner has source and database controls; its complete trusted
-source classifications and production adapter activation remain gated.
+The ninth's reader/owner has source, database and exact trusted-source controls.
 Global subject owners and the
 confined central denial-event methods add no tenant-context writer or logical
 setter. Standard 05 owns the source/configuration/retained-cleanup ledger.
@@ -1262,7 +1256,7 @@ qualification remains P03-2. None establishes production capacity.
 
 ## Live authorization contract
 
-**Policy core and source/read lifetimes implemented; joint activation remains gated.**
+**Live HTTP and application policy share the canonical admission boundary.**
 ADR-0076/0077 replace only the
 live-policy, ninth-setter and evidence deferrals identified here. The existing
 credential/quota/binding, context writers, public ceilings and BFF contracts
@@ -1270,11 +1264,11 @@ remain; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
 implementation and qualification state.
 
 The frozen `OperationPolicyCatalog`, scoped coordinator and Identity evaluator
-are exercised through an explicit proof composition. Exact seed, validated
+are registered in the API and seed composition roots. Exact seed, validated
 delivery and retained job descriptors supply finite authority independently of
 SystemActor values. HTTP controller/infrastructure metadata and named requirements
-are declared, while launch retains its previous membership/authorization adapters
-until trusted denial evidence is ready. Staged implementation grants no new route.
+are enforced before dispatch. The canonical `AuthorizationBehavior` occupies
+pipeline slot 5; the administrative directory is the sole added HTTP route.
 
 - Freeze exact HTTP endpoint and application-request policies at composition:
   public reads, special AccountSite, scoped protected capabilities and finite
@@ -1312,8 +1306,8 @@ until trusted denial evidence is ready. Staged implementation grants no new rout
   credential-free public reads perform no identity/grant lookup.
 - Seed, event and job owners keep exact validated source/request contracts.
   SystemActor UUID, provider role or unknown/direct-untrusted source supplies no
-  bypass. Platform admission remains P03-9. Unrouted production requests require
-  exact classification before the pass-through behavior is removed.
+  bypass. Platform admission remains P03-9. Unrouted production requests also
+  require exact classification; no pass-through authorization behavior remains.
 
 [Standard 19](19-permissions.md#live-permission-enforcement-contract) owns the
 finite public definitions and grant/delegation rules;

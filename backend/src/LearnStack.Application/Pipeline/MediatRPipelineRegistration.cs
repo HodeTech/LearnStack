@@ -57,12 +57,7 @@ public static class MediatRPipelineRegistration
         // One scoped lifecycle for every entry and both API/Seeder compositions.
         // Behaviors adapt requests; direct owners reuse these same coordinators.
         services.TryAddScoped<AuditExecutionCoordinator>();
-        services.TryAddScoped<AuthorizationEvidenceCoordinator>();
-        services.TryAddScoped<UnadmittedOperationContext>();
-        services.TryAddScoped<IOperationInvocationContext>(provider => provider.GetRequiredService<UnadmittedOperationContext>());
-        services.TryAddScoped<IAuthorizationRefusalReporter>(provider => provider.GetRequiredService<UnadmittedOperationContext>());
-        services.TryAddScoped<Func<IOperationInvocationContext>>(provider =>
-            () => provider.GetRequiredService<IOperationInvocationContext>());
+        services.AddLearnStackOperationAuthorization();
         // A pre-context binding reader must not construct creation-only owners
         // and pin their transient tenant context before ordinary resolution.
         services.TryAddScoped<Func<AuditExecutionCoordinator>>(provider =>

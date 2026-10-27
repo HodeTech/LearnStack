@@ -248,7 +248,7 @@ public sealed class RefusedResultCleanupEvidenceTests
         private readonly AuthorizationEvidenceCoordinator _evidence;
         private readonly DomainEventCollector _collector;
         private readonly AuditLogBehavior<Command, Result<None>> _audit;
-        private readonly ScopedAuthorizationBehavior<Command, Result<None>> _policy;
+        private readonly AuthorizationBehavior<Command, Result<None>> _policy;
         private readonly TransactionExecutionCoordinator _transactions;
         private readonly IUnitOfWork _unit;
         private bool _active;
@@ -320,7 +320,7 @@ public sealed class RefusedResultCleanupEvidenceTests
             _audit = new AuditLogBehavior<Command, Result<None>>(new AuditExecutionCoordinator(new AuditCatalog([new Catalog()]),
                 Substitute.For<IAuditConfigService>(), capture, store, context, Clock, new SystemGuidFactory(),
                 NullLogger<AuditExecutionCoordinator>.Instance, _unit, _evidence));
-            _policy = new ScopedAuthorizationBehavior<Command, Result<None>>(_authorization);
+            _policy = new AuthorizationBehavior<Command, Result<None>>(_authorization);
         }
 
         internal CancellationTokenSource Cancellation { get; } = new();

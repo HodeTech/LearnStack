@@ -5,4 +5,6 @@ export type {
   AccountSite,
   AccountSiteSuccess,
   AuthenticatedGetOperation,
+  MembershipDirectoryItem,
+  MembershipDirectoryPage,
 } from './authenticated-contract';

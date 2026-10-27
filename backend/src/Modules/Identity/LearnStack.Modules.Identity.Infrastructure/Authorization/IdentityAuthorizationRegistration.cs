@@ -17,6 +17,7 @@ public static class IdentityAuthorizationRegistration
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddScoped<IIdentityAuthorizationSessionFactory, PreContextIdentityAuthorizationSessionFactory>();
         services.TryAddScoped<IIdentityAuthorizationReader, CommittedIdentityAuthorizationReader>();
+        services.TryAddScoped<Func<IIdentityAuthorizationReader>>(provider => () => provider.GetRequiredService<IIdentityAuthorizationReader>());
         return services;
     }
 
@@ -25,7 +26,8 @@ public static class IdentityAuthorizationRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IOperationPolicySource, IdentityOperationPolicySource>());
-        services.TryAddScoped<IProtectedOperationAuthorizer, IdentityOperationAuthorizer>();
+        services.TryAddScoped<IProtectedOperationAuthorizer>(provider => new IdentityOperationAuthorizer(
+            () => provider.GetRequiredService<IIdentityAuthorizationReader>(), provider.GetRequiredService<IOperationPolicyCatalog>()));
         services.TryAddScoped<RoleGrantAuthorization>();
         services.TryAddScoped<Func<RoleGrantAuthorization>>(provider => () => provider.GetRequiredService<RoleGrantAuthorization>());
         services.TryAddScoped<IMembershipDirectoryReader, MembershipDirectoryReader>();

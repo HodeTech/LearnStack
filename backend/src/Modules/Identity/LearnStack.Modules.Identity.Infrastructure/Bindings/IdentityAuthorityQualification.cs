@@ -13,6 +13,8 @@ public sealed class IdentityAuthorityQualification(
 
     public IdentityAuthorityRegistration? Current => Volatile.Read(ref _current);
 
+    public string? QualifiedDatabaseName { get; private set; }
+
     public Task QualifyAsync(CancellationToken cancellationToken = default)
     {
         lock (_gate) return _qualification ??= QualifyCoreAsync(cancellationToken);
@@ -27,8 +29,9 @@ public sealed class IdentityAuthorityQualification(
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             await using (var readOnly = new NpgsqlCommand("SET TRANSACTION READ ONLY", connection, transaction))
                 await readOnly.ExecuteNonQueryAsync(cancellationToken);
+            string database;
             await using (var command = new NpgsqlCommand(
-                "SELECT current_user, authority_id, issuer FROM public.identity_authority WHERE id = 1", connection, transaction))
+                "SELECT current_user, authority_id, issuer, current_database() FROM public.identity_authority WHERE id = 1", connection, transaction))
             await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             {
                 if (!await reader.ReadAsync(cancellationToken)
@@ -36,8 +39,10 @@ public sealed class IdentityAuthorityQualification(
                     || reader.GetGuid(1) != registration.AuthorityId.Value
                     || !string.Equals(reader.GetString(2), registration.Issuer, StringComparison.Ordinal))
                     throw Unavailable();
+                database = reader.GetString(3);
             }
             await transaction.CommitAsync(cancellationToken);
+            QualifiedDatabaseName = database;
             Volatile.Write(ref _current, registration);
         }
         catch (NpgsqlException)

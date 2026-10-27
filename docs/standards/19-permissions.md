@@ -20,8 +20,8 @@ LearnStack uses permission-based RBAC layered on top of tenant membership. This 
 and confined seed commands are implemented in P03-1 Step 4.
 Accepted ADR-0073 settles scoped definition identity, tenant-wide templates and
 the finite initial seed manifests in the [Identity foundation contract](#identity-foundation-contract).
-The [live contract](#live-permission-enforcement-contract) is Accepted, not
-runtime implemented. P03-2 owns its enforcement/delegation/adoption and
+The [live contract](#live-permission-enforcement-contract) supplies canonical
+HTTP/application enforcement, delegation and explicit adoption;
 P03-9/G13 owns operator admission. Adoption of this standard grants no runtime
 authority. The closed key/action/scope rules remain binding.
 
@@ -136,7 +136,7 @@ Named ASP.NET requirements agree with application metadata; infrastructure
 endpoints are explicitly classified. The runtime missing-classification guard
 supplements the endpoint census; authentication alone is no fallback permission.
 Application step 5 independently repeats authorization on direct/nested dispatch.
-The live contract is not runtime implemented yet.
+The API and canonical application behavior enforce this contract.
 
 ### Background jobs and event handlers
 
@@ -209,8 +209,8 @@ The historical proposed operator key used `operator` as its action, outside the
 closed set. It is not a registration exception; G5/G13 choose a conforming key.
 `Portal Public` is the virtual anonymous capability model, not a stored
 Membership. Its Accepted exact definitions are in the
-[live contract](#live-permission-enforcement-contract); integration is not yet
-implemented and grants no protected authority.
+[live contract](#live-permission-enforcement-contract). Its API/application
+integration grants no protected authority.
 
 ## Testing Requirements
 
@@ -268,7 +268,7 @@ HTTP permission is activated by the foundation.
 ### Adopted scope and grant boundary
 
 The active Scope, Module-Driven Registration and Built-in Roles sections above
-adopt this implemented foundation contract. Live enforcement remains P03-2.
+adopt this foundation contract. The live boundary below enforces each act.
 
 P03-1's five pairs and version-1 grants below are the complete foundation set.
 P03-2 owns the separately admitted finite live-authorization/grant-adoption
@@ -317,8 +317,8 @@ Finite scope metadata derives from immutable target/validated declarations.
 The seed profile declaration binds its expected User and single Role assignment;
 the handler verifies both before and after its tenant-lock wait.
 Closed seed authority is checked independently before dispatch, default-denied
-in API composition. P03-2 qualifies live permission admission before protected
-activation; registration/attributes/seed success grant no HTTP route.
+in API composition. Live protected admission separately rechecks current
+capabilities; registration/attributes/seed success grant no HTTP route.
 
 ### Version-1 built-in grant manifest
 
@@ -390,7 +390,7 @@ implementation proof. Current qualification state lives in the
 
 ## Live permission enforcement contract
 
-**Frozen definitions and policy evaluation implemented; activation remains gated.**
+**Frozen definitions, live evaluation and explicit grant adoption are implemented.**
 ADR-0076 replaces the live
 admission/delegation deferrals above while retaining P03-1's exact five assignable
 pairs, eight templates, two-pair admin kernel and fixed v1 seed manifest.

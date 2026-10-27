@@ -113,3 +113,25 @@ export function publicSeederEnvironment(applicationConnectionString, base = proc
     environment.ConnectionStrings__Default = applicationConnectionString;
   return environment;
 }
+
+/** The owned local runtime receives its selected app-role lanes and installed authority. */
+export function developmentSeederRuntimeEnvironment(values, base = process.env) {
+  const environment = publicSeederEnvironment(undefined, base);
+  for (const key of ['ConnectionStrings__Default', 'Identity__AuthorityId', 'Authentication__Tenant__Issuer']) {
+    if (typeof values?.[key] !== 'string' || !values[key].trim() || /[\r\n\0]/.test(values[key]))
+      throw invalidConfiguration();
+    environment[key] = values[key];
+  }
+  const pair = ['ConnectionStrings__IdentityAuthorization', 'ConnectionStrings__AuthorizationEvidence'];
+  const present = pair.map(key => values[key] !== undefined && values[key] !== '');
+  if (present[0] !== present[1]) throw invalidConfiguration();
+  if (present[0]) for (const key of pair) {
+    if (typeof values[key] !== 'string' || !values[key].trim() || /[\r\n\0]/.test(values[key]))
+      throw invalidConfiguration();
+    environment[key] = values[key];
+  }
+  // These callers own the documented direct-PostgreSQL Development stack.
+  // PgBouncer still requires its explicit pair and independent backend reserves.
+  environment.Deployment__Mode = 'Development';
+  return environment;
+}

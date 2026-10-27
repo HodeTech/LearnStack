@@ -232,6 +232,7 @@ public sealed partial class PersistenceConventionTests
             "Messaging/OutboxDispatcherDataSource.cs",
         ]);
         AssertOperationReadScopeAttachment();
+        AssertExactEfEnrollment();
     }
 
     /// <summary>

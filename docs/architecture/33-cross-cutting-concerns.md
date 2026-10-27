@@ -147,11 +147,11 @@ User/audit reciprocity and exact non-success evidence use the canonical
 This extension adds no MediatR stage or HTTP/new-user BFF route. P03-3 owns that
 activation; the current complete native profile and ordinary pipeline remain.
 
-Jointly Accepted ADR-0076/0077 define P03-2's pending extension: independent
+Jointly Accepted ADR-0076/0077 define the live extension: independent
 HTTP/application live policy checks and one administrative membership directory
 GET, without changing the eight-stage order or native BFF allowlist. AccountSite
 retains Off/physical ReadOnly and its real HostScope ceiling. The current
-pass-through behavior shown below remains until qualified activation. Immutable
+`AuthorizationBehavior` shown below enforces the canonical policy. Immutable
 operation read authority is bound by the actual step-6 owner; [Standard 05](../standards/05-database.md#operation-bound-read-authority)
 owns EF/RLS agreement and scope lifetime, including mixed-scope join refusal.
 
@@ -164,8 +164,8 @@ inner denial. Fixed occurrence identity and exact full-row reconciliation prove
 only event durability, never unknown business COMMIT success. [Standard 18](../standards/18-audit-coverage.md#trusted-authorization-evidence)
 owns these rules, typed provenance and retention targets; the source/capacity
 ledger remains [Standard 05](../standards/05-database.md#authorization-and-evidence-source-ledger).
-Runtime, fault/crash and pool-progress proofs remain pending; acceptance alone
-claims none of them implemented.
+Runtime, fault/crash and pool-progress controls separately exercise these
+boundaries; the phase Status block owns current source-bound qualification.
 
 [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
 binds the ordinary pipeline order. Reading bottom-most as innermost:
@@ -189,8 +189,8 @@ Request
 [4] TenantContextBehavior    ←  assert ITenantContext.IsResolved;
                                 preserve context; public requests require host ceiling
   ▼
-[5] AuthorizationBehavior    ←  current pass-through shell;
-                                accepted P03-2 live checks await implementation
+[5] AuthorizationBehavior    ←  exact classification, fresh committed capability;
+                                trusted denial and invocation-bound read authority
   ▼
 [6] TransactionBehavior      ←  IUnitOfWork.BeginTransactionAsync(); announce
                                 mode setup, then tenant announcement before data;
@@ -278,9 +278,9 @@ Why this order:
   [Security Standards § Tenant Context](../standards/11-security.md), the single
   authority for this placement.
 - **Authorization after tenant.** Phase 03's permission decision needs ambient
-  `(tenant_id, user_id, resource)`. The staged scoped coordinator and Identity
-  evaluator implement the accepted policy core; launch retains the pass-through
-  adapter until joint trusted-evidence activation.
+  `(tenant_id, user_id, resource)`. The canonical coordinator and Identity
+  evaluator independently authorize each application invocation; resolver and
+  HTTP admission do not substitute for this check.
 - **Transaction after authorization.** This position lets Phase 03 refuse a
   permission-sensitive request before opening a business transaction; its
   independent denial event uses the standalone path when no business owner exists;
@@ -621,7 +621,7 @@ Two integration points
 | Sensitive exception-message analyzer | P02b-8 | `LS0002` covers bounded sensitive-name expressions across production C#; ADR-0032 Amendment 6 |
 | MUST-class audit write path (`IAuditStore`, `IAuditStateCapture`) | Phase 02a Packet 9 | Shape fixed by ADR-0033 + ADR-0044; `audit_log` ships plain, unpartitioned |
 | Public read-only transaction mode and host ceiling | P02d-4 | ADR-0052 Accepted; P02d-4 Step 1 delivers host admission, transaction modes and app-role write-refusal proofs; Step 2 adds site endpoints and structural dispatch/Off/persistence guards; Steps 3–4 deliver Education reads and contract/SDK/CI proofs |
-| Live authorization and trusted denial evidence | P03-2 | Reader, staged policy/read authority and internal directory implemented; trusted denial evidence and joint launch activation remain gated. Canonical rules in Standards 05/18. |
+| Live authorization and trusted denial evidence | P03-2 | Live reader, canonical policy/read authority, trusted denial evidence and HTTP directory implemented; source-bound qualification remains in Phase 03. Canonical rules in Standards 05/18. |
 | Outbox / background-job correlation propagation | Phase 02b | Trusted outbox/job rows and delivery/`JobExecutor` restoration; Hangfire hints remain opaque |
 | Hub HTTPS correlation middleware | Phase 02b / 02c | Cross-repo |
 | OTel Collector + Tempo + Loki + Prometheus deployment | Phase 11 | Production-side backends |

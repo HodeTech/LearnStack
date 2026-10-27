@@ -6,7 +6,6 @@ using FluentAssertions;
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Common;
 using LearnStack.SharedKernel.Identifiers;
-using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,7 +24,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
     public async Task Actual_account_HTTP_reads_English_and_Yoga_row_9_under_ReadOnly_without_query_audits()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+        await using var fixture = await IdentityPublicReadFixture.CreateWithMembershipsAsync(parent, issuer.Issuer,
             new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         using var client = Client(fixture, issuer, SeedData.English.Host);
         var englishAudits = await fixture.AuditCountAsync(SeedData.English);
@@ -52,7 +51,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
     public async Task Anonymous_public_site_survives_an_unavailable_issuer_and_failed_credentials_never_fall_back()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+        await using var fixture = await IdentityPublicReadFixture.CreateWithMembershipsAsync(parent, issuer.Issuer,
             new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         issuer.DiscoveryStatusCode = 503;
         using var client = Client(fixture, issuer, SeedData.English.Host);
@@ -82,7 +81,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
     public async Task Claimless_signed_profiles_keep_the_public_ceiling_and_emit_one_fixed_Debug_event_per_admitted_request()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+        await using var fixture = await IdentityPublicReadFixture.CreateWithMembershipsAsync(parent, issuer.Issuer,
             new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         var logs = new AccountHttpLogObservation();
         using var client = Client(fixture, issuer, SeedData.Yoga.Host, services => services.AddSingleton<ILogEventSink>(logs));
@@ -106,13 +105,12 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
     public async Task Actual_account_HTTP_rechecks_a_suspended_mapped_organization_after_host_cache_warmup()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+        await using var fixture = await IdentityPublicReadFixture.CreateWithMembershipsAsync(parent, issuer.Issuer,
             new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         using var client = Client(fixture, issuer, SeedData.Yoga.Host);
         var token = Token(issuer, SeedData.Yoga, organization: true);
         using var warm = await Send(client, SeedData.Yoga, token);
         await Account(warm, SeedData.Yoga, organization: true);
-        var audits = await fixture.AuditCountAsync(SeedData.Yoga);
         await fixture.ExecuteAsync(SeedData.Yoga,
             "UPDATE organizations SET status='Suspended' WHERE tenant_id=@tenant AND id=@organization");
         try
@@ -120,7 +118,10 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
             using var refused = await Send(client, SeedData.Yoga, token);
             await TenantAuthenticationHttpTests.Problem(refused, HttpStatusCode.NotFound, "not_found");
             TenantAuthenticationHttpTests.NoStore(refused);
-            (await fixture.AuditCountAsync(SeedData.Yoga)).Should().Be(audits);
+            (await AccountHttpAudit.Read(fixture, SeedData.Yoga,
+                TenantAuthenticationReconciliationTests.Correlation(refused), SeedData.Yoga.DefaultOrganization.OrganizationId))
+                .Should().ContainSingle("live lifecycle refusal has one MUST event under the resolved branch scope")
+                .Which.Operation.Should().Be("identity.authorization.deny");
         }
         finally
         {
@@ -132,13 +133,12 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
     }
 
     [Fact]
-    public async Task Future_platform_membership_success_still_masks_AccountSite_before_configuration_access()
+    public async Task Real_platform_membership_success_still_masks_AccountSite_before_configuration_access()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+        await using var fixture = await IdentityPublicReadFixture.CreateWithMembershipsAsync(parent, issuer.Issuer,
             new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
-        var membership = new ConfirmedAccountMembership();
-        using var client = Client(fixture, issuer, "localhost", services => services.AddSingleton<ITenantMembershipReader>(membership));
+        using var client = Client(fixture, issuer, "localhost");
         var reads = fixture.Observation.Reads;
         var audits = await fixture.AuditCountAsync(SeedData.Yoga);
         using var response = await TenantAuthenticationHttpRequest.Send(client, "localhost",
@@ -146,7 +146,6 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
 
         await TenantAuthenticationHttpTests.Problem(response, HttpStatusCode.NotFound, "not_found");
         TenantAuthenticationHttpTests.NoStore(response);
-        membership.Calls.Should().Be(1, "this is row 14 with a future affirmative membership answer");
         fixture.Observation.Reads.Should().Be(reads, "ClaimAndMembership supplies no independently classified institution host");
         (await fixture.AuditCountAsync(SeedData.Yoga)).Should().Be(audits);
     }
@@ -161,7 +160,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
     public async Task Actual_account_HTTP_admits_only_the_enumerated_GET(string method)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+        await using var fixture = await IdentityPublicReadFixture.CreateWithMembershipsAsync(parent, issuer.Issuer,
             new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         using var client = Client(fixture, issuer, SeedData.English.Host);
         var reads = fixture.Observation.Reads;
@@ -191,7 +190,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
     public async Task Application_body_limit_refusals_keep_no_store_before_credential_admission(string path)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+        await using var fixture = await IdentityPublicReadFixture.CreateWithMembershipsAsync(parent, issuer.Issuer,
             new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         using var client = Client(fixture, issuer, SeedData.English.Host);
         var reads = fixture.Observation.Reads;
@@ -209,7 +208,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
     public async Task Account_query_parameters_are_rejected_before_configuration_and_stay_no_store()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+        await using var fixture = await IdentityPublicReadFixture.CreateWithMembershipsAsync(parent, issuer.Issuer,
             new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         using var client = Client(fixture, issuer, SeedData.English.Host);
         var reads = fixture.Observation.Reads;
@@ -272,17 +271,6 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
         site.GetProperty("theme").GetProperty("primary").GetString().Should().Be(theme.RootElement.GetProperty("primary").GetString());
         site.GetProperty("showPlatformAttribution").GetBoolean().Should().BeFalse();
         return account;
-    }
-
-    private sealed class ConfirmedAccountMembership : ITenantMembershipReader
-    {
-        internal int Calls { get; private set; }
-        public Task<bool> CoversAsync(UserId userId, TenantId tenantId, OrganizationId? organizationId,
-            CancellationToken cancellationToken = default)
-        {
-            Calls++;
-            return Task.FromResult(true);
-        }
     }
 
     private sealed class AccountHttpLogObservation : ILogEventSink

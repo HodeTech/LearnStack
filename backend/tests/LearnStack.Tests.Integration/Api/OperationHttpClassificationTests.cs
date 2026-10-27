@@ -8,6 +8,7 @@ using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.SharedKernel.Permissions;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
@@ -28,7 +29,7 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var catalog = Catalog();
         var classifier = new OperationHttpClassifier(catalog);
-        Assert.Equal(9, endpoints.Count(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null));
+        Assert.Equal(10, endpoints.Count(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null));
         foreach (var endpoint in endpoints)
         {
             var classification = classifier.Classify(endpoint, out var policy);
@@ -41,6 +42,22 @@ public sealed class OperationHttpClassificationTests
                 var requirement = new OperationPolicyRequirement(policy);
                 Assert.Equal(OperationPolicyRequirement.Prefix + policy.Id, requirement.Name);
                 Assert.Same(policy, requirement.Policy);
+                var stripped = endpoint.Metadata.Where(value => value is not IAuthorizeData and not IAllowAnonymous).ToList();
+                Assert.Equal(HttpOperationClassification.Refused, classifier.Classify(new Endpoint(endpoint.RequestDelegate,
+                    new EndpointMetadataCollection(stripped), endpoint.DisplayName), out _));
+                if (endpoint.Metadata.GetMetadata<IAuthorizeData>() is { } authorization)
+                {
+                    foreach (var changed in new[]
+                    {
+                        new AuthorizeAttribute { AuthenticationSchemes = authorization.AuthenticationSchemes, Policy = "LearnStackOperation:unregistered.read" },
+                        new AuthorizeAttribute { AuthenticationSchemes = authorization.AuthenticationSchemes, Policy = authorization.Policy, Roles = "tenant-admin" },
+                    })
+                    {
+                        var altered = endpoint.Metadata.Where(value => value is not IAuthorizeData).Append(changed);
+                        Assert.Equal(HttpOperationClassification.Refused, classifier.Classify(new Endpoint(endpoint.RequestDelegate,
+                            new EndpointMetadataCollection(altered), endpoint.DisplayName), out _));
+                    }
+                }
             }
             else
             {
@@ -84,12 +101,24 @@ public sealed class OperationHttpClassificationTests
     }
 
     [Fact]
-    public void Matched_undeclared_endpoint_refuses_while_no_match_keeps_routing_ownership()
+    public async Task Matched_undeclared_endpoint_refuses_while_no_match_keeps_routing_ownership()
     {
         var classifier = new OperationHttpClassifier(Catalog());
         Assert.Equal(HttpOperationClassification.Unmatched, classifier.Classify(null, out _));
         var undeclared = new Endpoint(_ => Task.CompletedTask, EndpointMetadataCollection.Empty, "Undeclared endpoint");
         Assert.Equal(HttpOperationClassification.Refused, classifier.Classify(undeclared, out _));
+        Endpoint? selected = null;
+        await using var app = await CreateAsync(context => selected = context.GetEndpoint());
+        using var client = app.GetTestClient();
+        using var rejected = await client.PostAsync("/api/v1/public/site", content: null);
+        Assert.Equal(System.Net.HttpStatusCode.MethodNotAllowed, rejected.StatusCode);
+        Assert.NotNull(selected);
+        Assert.Equal(HttpOperationClassification.Unmatched, classifier.Classify(selected, out _));
+        var lookalike = new Endpoint(_ => Task.CompletedTask, EndpointMetadataCollection.Empty, selected.DisplayName);
+        Assert.Equal(HttpOperationClassification.Refused, classifier.Classify(lookalike, out _));
+        using var unmatched = await client.GetAsync("/api/v1/unmatched-route-control");
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, unmatched.StatusCode);
+        Assert.Null(selected);
     }
 
     private static OperationPolicyCatalog Catalog() => new([
@@ -99,7 +128,7 @@ public sealed class OperationHttpClassificationTests
     private static Endpoint[] Endpoints(WebApplication app) =>
         [.. ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)];
 
-    private static async Task<WebApplication> CreateAsync()
+    private static async Task<WebApplication> CreateAsync(Action<HttpContext>? observe = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -114,6 +143,8 @@ public sealed class OperationHttpClassificationTests
             manager.ApplicationParts.Add(new AssemblyPart(typeof(AccountController).Assembly));
         });
         var app = builder.Build();
+        if (observe is not null)
+            app.Use((context, next) => { observe(context); return next(context); });
         app.MapLearnStackOpenApi();
         app.MapGet("/healthz", () => Results.Ok()).WithName("HealthCheck").WithMetadata(InfrastructureOperationMetadata.Health);
         app.MapControllers();

@@ -39,7 +39,8 @@ public class ConstructionOnlyApiFactory : WebApplicationFactory<Program>
     {
         foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
                      && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType)
-                     == typeof(TenantIdentityAuthorityStartupService)).ToArray())
+                     is { } implementation && (implementation == typeof(TenantIdentityAuthorityStartupService)
+                         || implementation == typeof(TenantAuthorizationSourcesStartupService))).ToArray())
             services.Remove(descriptor);
     }
 

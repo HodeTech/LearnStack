@@ -113,7 +113,7 @@ The split keeps Keycloak focused on authentication (knowing who you are) and Lea
 
 A User binding is **global**. One provider subject can have Memberships in
 multiple tenants and organizations; email never identifies or merges bindings.
-The following foundation model is implemented; live authorization remains P03-2:
+The foundation model below supports live per-act authorization:
 
 ```mermaid
 flowchart LR
@@ -311,7 +311,8 @@ intents, including when an outer operation absorbs a refusal. The
 owns occurrence identity, provenance, pre-success durability and its crash/loss
 boundary. Authorization/evidence use separate bounded app-role sources under the
 [database source ledger](../standards/05-database.md#authorization-and-evidence-source-ledger);
-acceptance does not activate those sources or change realm grants.
+API startup qualifies those sources against the installed authority and actual
+business database. Application grants remain independent of realm grants.
 
 ## Invitations
 

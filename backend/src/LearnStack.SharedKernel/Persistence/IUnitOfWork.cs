@@ -173,7 +173,9 @@ public interface IUnitOfWork : IAsyncDisposable
     /// <para>
     /// <b>It does not widen the setter set.</b>
     /// <see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040
-    /// Amendment 7</see> closes that set at eight. The common
+    /// Amendment 7</see> closes the baseline at eight; ADR-0076 adds only the
+    /// confined authorization reader as the ninth. Provisioning remains part of
+    /// the existing general announcement path. The common
     /// <c>TransactionExecutionCoordinator</c> calls both methods;
     /// <c>TransactionBehavior</c> is its request adapter. This is the same logical
     /// setter announcing a different value for provisioning, not a ninth path.

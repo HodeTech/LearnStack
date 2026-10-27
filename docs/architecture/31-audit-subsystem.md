@@ -159,7 +159,7 @@ remain separate from source inspection.
 
 ### Accepted trusted authorization evidence extension
 
-**Contract Accepted; runtime staged in P03-2 Step 4.** ADR-0077 adds one
+**Central evidence and completion barriers are implemented.** ADR-0077 adds one
 central denial owner beside ordinary plural resource intents. Off and best-effort
 operation classifications cannot remove this separate MUST event. HTTP rejection,
 application/resource refusal and absorbed nested denial retain the exact distinct
@@ -843,9 +843,8 @@ mirror. [Phase 03 G10](../roadmap/phase-03-identity-admin.md#the-decision-regist
 or an earlier proven consumer, must decide its first source/freshness contract;
 `actor_user_id` carries no foreign key. `ip_address` and `user_agent` need HTTP-layer
 enrichment `LearnStack.Application` cannot see — that project references no
-`Microsoft.AspNetCore.*` package, and must not begin to — so they stay `NULL` until
-P03-2 implements the accepted trusted provenance port that
-carries them — as `System.Net.IPAddress`, not `string`: the column is `inet`, Npgsql maps
+`Microsoft.AspNetCore.*` package, and must not begin to. The trusted provenance
+port carries them from the admitted HTTP transport — as `System.Net.IPAddress`, not `string`: the column is `inet`, Npgsql maps
 that type onto it with no configuration, and a `string` maps onto `text`, which
 PostgreSQL will not assign to `inet`. The accepted [Standard 18 contract](../standards/18-audit-coverage.md#trusted-authorization-evidence)
 owns their bounded source/field rules. That port's population sites are enumerated the
@@ -1765,7 +1764,7 @@ update it constrains.
      marker from becoming an escape.
    - *Off the request path.* Non-MediatR operations carry `(off-path)` and
      register by slug when their writer ships. Module matrices own the current
-     population, including P03-2's staged denial/assertion events. See
+     population, including P03-2's denial/assertion events. See
      [Standard 18's join rules](../standards/18-audit-coverage.md#the-join);
      no absent writer is made registered by its acceptance.
    - *An `Off` registration carries no slug*, so it raises no matrix row and is outside

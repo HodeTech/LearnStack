@@ -1,15 +1,18 @@
 using LearnStack.Api.Account;
+using LearnStack.Api.Identity;
 using LearnStack.Api.PublicReads;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
+using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.SharedKernel.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Routing.Matching;
 
 namespace LearnStack.Api.Authentication;
 
-/// <summary>Exact application classification; runtime enforcement is activated with trusted evidence.</summary>
+/// <summary>Exact application classification shared with the live runtime guard.</summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
 internal sealed class OperationPolicyAttribute(Type requestType) : Attribute
 {
@@ -44,7 +47,7 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
     internal HttpOperationClassification Classify(Endpoint? endpoint, out OperationPolicy? policy)
     {
         policy = null;
-        if (endpoint is null) return HttpOperationClassification.Unmatched;
+        if (endpoint is null || IsFrameworkMethodRejection(endpoint)) return HttpOperationClassification.Unmatched;
         var declarations = endpoint.Metadata.GetOrderedMetadata<OperationPolicyAttribute>();
         var infrastructure = endpoint.Metadata.GetOrderedMetadata<InfrastructureOperationMetadata>();
         if (infrastructure.Count != 0)
@@ -66,9 +69,30 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
             || name.EndpointName != expected.Value.Name || methods.HttpMethods.Count != 1
             || methods.HttpMethods[0] != expected.Value.Method || !catalog.TryGet(expected.Value.Request, out var found))
             return HttpOperationClassification.Refused;
+        var authorization = endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>();
+        var anonymous = endpoint.Metadata.GetOrderedMetadata<IAllowAnonymous>();
+        if (found.Kind == OperationPolicyKind.PublicRead)
+        {
+            if (anonymous.Count != 1 || authorization.Count != 0) return HttpOperationClassification.Refused;
+        }
+        else if (found.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.Protected)
+        {
+            if (anonymous.Count != 0 || authorization.Count != 1
+                || authorization[0].AuthenticationSchemes != TenantAuthenticationRegistration.Scheme
+                || authorization[0].Policy != OperationPolicyRequirement.Prefix + found.Id
+                || !string.IsNullOrEmpty(authorization[0].Roles)) return HttpOperationClassification.Refused;
+        }
+        else return HttpOperationClassification.Refused;
         policy = found;
         return HttpOperationClassification.Application;
     }
+
+    // ASP.NET's method matcher creates a non-route Endpoint with an empty metadata
+    // collection and a private closure owned by this exact framework policy. Names
+    // and lookalike application endpoints supply no such ownership proof.
+    private static bool IsFrameworkMethodRejection(Endpoint endpoint) => endpoint.GetType() == typeof(Endpoint)
+        && endpoint.Metadata.Count == 0
+        && endpoint.RequestDelegate?.Method.DeclaringType?.DeclaringType == typeof(HttpMethodMatcherPolicy);
 
     private static (Type Request, string Name, string Method)? Expected(Type controller, string method) => (controller, method) switch
     {
@@ -81,6 +105,7 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
         var pair when pair == (typeof(PublicEducationController), nameof(PublicEducationController.Lesson)) => (typeof(GetPublicLessonQuery), "GetPublicLesson", "GET"),
         var pair when pair == (typeof(PublicEducationController), nameof(PublicEducationController.HeadLesson)) => (typeof(GetPublicLessonQuery), "HeadPublicLesson", "HEAD"),
         var pair when pair == (typeof(AccountController), nameof(AccountController.GetSite)) => (typeof(GetAccountSiteQuery), "GetAccountSite", "GET"),
+        var pair when pair == (typeof(MembershipsController), nameof(MembershipsController.List)) => (typeof(ListMembershipsQuery), "ListMemberships", "GET"),
         _ => null,
     };
 }
