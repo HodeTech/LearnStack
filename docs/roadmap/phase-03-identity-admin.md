@@ -1,6 +1,6 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-10-27).** P03-0 and P03-1 are complete. P03-1 is merged through
+> **Status (2026-10-28).** P03-0 and P03-1 are complete. P03-1 is merged through
 > [PR #38](https://github.com/HodeTech/LearnStack/pull/38); its six implementation
 > steps, review corrections and ADR-0075 correction are closed. The
 > [merge closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27)
@@ -18,7 +18,7 @@
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
-> | P03-2 | Live membership and authorization | In progress — [Step 6 implementation and qualification](phase-03-delivery-log.md#p03-2-step-6--complete-populations-and-qualification-2026-10-27); five whole authority proofs preserve all controls; focused tests, measured plan and both fresh reviews pass; final-source hosted A/B remains open |
+> | P03-2 | Live membership and authorization | In progress — [Step 6 final-source qualification](phase-03-delivery-log.md#p03-2-final-source-a-exhaustion-and-resolution-profiling-2026-10-28); latest A exhausts Architecture-5; focused resolution correction passes locally; fresh reviews and complete final-source hosted A/B remain required |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |

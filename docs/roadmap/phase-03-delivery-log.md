@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,000 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,059 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -119,6 +119,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 authority proof decomposition and preservation (2026-10-28)](#p03-2-authority-proof-decomposition-and-preservation-2026-10-28) — 40 lines
   - [P03-2 decomposed authority review round 1 and measured plan (2026-10-28)](#p03-2-decomposed-authority-review-round-1-and-measured-plan-2026-10-28) — 40 lines
   - [P03-2 authority decomposition review round 2 and final source freeze (2026-10-28)](#p03-2-authority-decomposition-review-round-2-and-final-source-freeze-2026-10-28) — 27 lines
+  - [P03-2 final-source A exhaustion and resolution profiling (2026-10-28)](#p03-2-final-source-a-exhaustion-and-resolution-profiling-2026-10-28) — 59 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4972,3 +4973,62 @@ complete hosted A/B using this same source, toolchain, plan and population.
 Catalogue implementation promotions, phase gate/packet closeout and PR handoff
 remain open until actual successful qualification; historical failed attempts
 remain preserved.
+
+### P03-2 final-source A exhaustion and resolution profiling (2026-10-28)
+
+Full A [40600994059/1](https://github.com/HodeTech/LearnStack/actions/runs/40600994059)
+at `05a546348eac7f6d7104780fbd3cef875d219231`, tree
+`fe4918f05f942c001a9d36be3af6402885f162d5`, completes **25/27** jobs.
+Architecture-5 and its dependent backend aggregate fail; all other Architecture,
+ordinary/native producers and the integration aggregate pass. The **20** original
+producer archives reconcile **6,927** selected, **6,926** Passed and exactly
+**one** missing result, with no recorded failed/skipped outcome. All **24**
+actual archives retain original API metadata, size, SHA-256 and CRC verification.
+Plan/manifest remain `f5161ae9` / `1fa6c70c`; no B starts and this is not
+qualification.
+
+Architecture-5 selects **107**, completes **106**, and reports
+`deadline_exhausted`. The missing Fact is
+`Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers`,
+case ID `a3347c4a-fea0-ac0a-ce6d-983c34ba3096`; the five decomposed authority
+Facts complete. Pre-owner/discovery take **243.380 / 42.636 seconds** and owned
+cgroup CPU consumption is **1,383.118 seconds**. Empty `measurements.projects`
+provides no case start, complete test-process wall duration or remaining tail;
+CPU consumption alone neither excludes blocking nor attributes that work.
+
+An independent evidence assessment reconciles this and the three preceding
+Architecture failures directly from all twenty producer ZIPs per attempt.
+The missing Fact has prior complete observations of **321.649 / 330.988 /
+364.338 / 348.666 seconds**; one belongs to an otherwise incomplete producer.
+Those unchanged-body observations do not establish the latest start time or
+future fit. A separate carrier assessment identifies the exact bounded policy
+change that a longer Architecture window would require, including own-record
+Amendments in ADR-0062/0063/0075. No such policy is accepted or implemented.
+
+The evidence assessment instead identifies a concrete source candidate:
+`ResolutionOffenders` repeats its complete subtype/`Derives` scan for every
+reference to the same nonsealed helper. Before changing a time ceiling, measure
+one evaluation-local expansion set, separate from dequeue visitation. Preserve
+the direct helper walk, transitive subtype semantics, all **15** mutations and
+**45** clean/dirty/restored evaluations. The existing three whole resolution
+controls, source/assembly bindings and unchanged control bodies are the focused
+verification boundary; local timings cannot establish hosted fit.
+
+Both clean Release builds pass with zero warnings/errors on local SDK
+**10.0.302**. The same **three** whole resolution controls pass before and after,
+with identical case IDs, zero failures/skips and stable source/all four test
+assembly hashes within each run. The mutation Fact changes from **122.297** to
+**6.486 seconds** (approximately **94.7%** lower local case duration); focused
+run wall changes **123.007 -> 7.179 seconds**. These are local advisory timings,
+not hosted qualification or replacement plan weights. Raw TRX SHA-256 values are
+`610f9162935249cb5a1138dd52062d939db9e6b83440e253757181d4cb771baf`
+and `2051af1501b855c524ea72fcd7fd882d7169813932fc5d39c378998112ee9849`.
+
+The tracked source differs only by one method-local expansion set and its
+repeated-expansion guard. A byte-for-byte reconstruction verifies every other
+byte of the file is unchanged, including all control bodies, callbacks/undo,
+`Derives`, dynamic-loading checks and direct helper enqueues. The expansion set
+is separate from dequeue visitation and is recreated for every clean, dirty and
+restored detector call. No production code, plan weight, selector, population,
+concurrency, deadline or reserve changes. Fresh independent review rounds and
+new complete hosted A/B remain open; no Architecture-window ADR is introduced.

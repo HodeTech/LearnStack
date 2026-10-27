@@ -413,6 +413,7 @@ public sealed partial class OutboxDispatchConventionTests
 
         var pending = new Queue<TypeDefinition>(ResolutionRoots.Select(name => types[(InfrastructureAssembly, name)]));
         var visited = new HashSet<(string Assembly, string Type)>();
+        var expanded = new HashSet<(string Assembly, string Type)>();
         while (pending.TryDequeue(out var type))
         {
             if (!visited.Add(Key(type))) continue;
@@ -426,7 +427,7 @@ public sealed partial class OutboxDispatchConventionTests
             {
                 if (!types.TryGetValue(Key(reference), out var helper)) continue;
                 pending.Enqueue(helper);
-                if (helper.IsSealed) continue;
+                if (helper.IsSealed || !expanded.Add(Key(helper))) continue;
                 foreach (var implementation in types.Values.Where(candidate => !candidate.IsInterface
                              && Derives(candidate, helper, types)))
                     pending.Enqueue(implementation);
