@@ -326,17 +326,14 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var subject in JobOwnerSubjects())
             if (!types.ContainsKey(subject)) offenders.Add("Missing business owner subject: " + subject.Type);
         if (offenders.Count != 0) return offenders;
-        var sites = CallSites(census).ToArray();
+        var sites = OwnedCallSites(census).ToArray();
         RecordDetachedTargets(offenders, sites);
         if (offenders.Count != 0) return offenders;
         var sitesByTargetName = sites.ToLookup(site => site.Target.Name, StringComparer.Ordinal);
         var bodies = OwnedBodies(census).ToArray();
-        // Build once from this evaluation's live graph; each seam keeps its
-        // exact declaring-type and opcode checks inside the named bucket.
-        var instructionsByTargetName = bodies.SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference)
-            .Select(instruction => (Instruction: instruction, Target: (MethodReference)instruction.Operand))
-            .ToLookup(site => site.Target.Name, StringComparer.Ordinal);
+        // Format only selected owners, within this read-only detector evaluation.
+        // The next mutation or restoration receives fresh identities and indexes.
+        var identities = new Dictionary<MethodDefinition, string>(ReferenceEqualityComparer.Instance);
         var participant = types[(DeliveryApplication, JobParticipant)];
         var postgres = types[(InfrastructureAssembly, JobPostgresParticipant)];
         if (!participant.IsAbstract || !postgres.IsSealed) offenders.Add("Job completion has one closed abstract/implementation pair");
@@ -344,7 +341,7 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "closed job participant registration", sites.Where(site => site.Target is GenericInstanceMethod generic
                 && generic.Name == "TryAddScoped" && generic.GenericArguments.Count == 2
                 && generic.GenericArguments[0].FullName == JobParticipant && generic.GenericArguments[1].FullName == JobPostgresParticipant)
-            .Select(site => site.Owner), [JobOwner(offenders, types, InfrastructureAssembly,
+            .Select(site => Identity(site.Owner)), [JobOwner(offenders, types, InfrastructureAssembly,
                 "LearnStack.Infrastructure.Jobs.BackgroundJobContractsRegistration", "AddLearnStackBackgroundJobContracts")]);
         foreach (var type in new[] { types[(DeliveryApplication, JobCommitGate)], types[(DeliveryApplication, JobPublication)], types[(KernelAssembly, JobTrustedContext)] })
             if (!type.IsSealed) offenders.Add(type.FullName + " must remain sealed");
@@ -512,6 +509,14 @@ public sealed partial class OutboxDispatchConventionTests
         CheckCommitBudget();
         return offenders;
 
+        string Identity(MethodDefinition method)
+        {
+            if (identities.TryGetValue(method, out var identity)) return identity;
+            identity = MethodId(method);
+            identities.Add(method, identity);
+            return identity;
+        }
+
         void Cap(string assembly, string typeName, string name, string returnType, string[] parameters,
             (string Assembly, string Type, string Method)[] owners, string[]? exactOwners = null)
         {
@@ -520,9 +525,9 @@ public sealed partial class OutboxDispatchConventionTests
             if (methods.Length != 1 || methods[0].ReturnType.FullName != returnType || !ParametersMatch(methods[0], parameters))
                 offenders.Add(typeName + "." + name + " requires its exact closed signature");
             CheckSet(offenders, typeName + "." + name + " authority callers",
-                sitesByTargetName[name].Where(site => SameType(site.Target.DeclaringType, type)).Select(site => site.Owner),
+                sitesByTargetName[name].Where(site => SameType(site.Target.DeclaringType, type)).Select(site => Identity(site.Owner)),
                 owners.Select(owner => JobOwner(offenders, types, owner.Assembly, owner.Type, owner.Method)).Concat(exactOwners ?? []));
-            foreach (var site in instructionsByTargetName[name].Where(site => SameType(site.Target.DeclaringType, type)))
+            foreach (var site in census.MethodInstructions(name).Where(site => SameType(site.Target.DeclaringType, type)))
                 if (site.Instruction.OpCode != OpCodes.Call && site.Instruction.OpCode != OpCodes.Callvirt
                     && !(name == ".ctor" && site.Instruction.OpCode == OpCodes.Newobj))
                     offenders.Add(typeName + "." + name + " cannot escape as a delegate or constructor");

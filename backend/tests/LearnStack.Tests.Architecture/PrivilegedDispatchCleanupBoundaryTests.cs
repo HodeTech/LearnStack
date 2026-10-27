@@ -37,8 +37,8 @@ public sealed partial class OutboxDispatchConventionTests
 
         var sites = CallSites(census).ToArray();
         RecordDetachedTargets(offenders, sites);
-        CheckSet(offenders, name + " gated acquisition callers", sites.Where(site => TargetsDeclaredType(site.Target, store)
-            && site.Target.Name == "OpenConnectionAsync").Select(site => site.Owner), callers);
+        CheckSet(offenders, name + " gated acquisition callers", census.MethodInstructions("OpenConnectionAsync")
+            .Where(site => TargetsDeclaredType(site.Target, store)).Select(site => site.OwnerId), callers);
         CheckCallers(store, "ReleaseConnection", [reader, cleanup]);
         CheckCallers(store, "RetainConnection", [cleanup]);
         CheckCallers(owner, ".ctor", [reader]);
@@ -73,10 +73,9 @@ public sealed partial class OutboxDispatchConventionTests
         var fields = store.Fields.Where(field => field.Name == "_cleanupUnconfirmed").ToArray();
         if (fields.Length != 1 || !fields[0].IsPrivate || fields[0].IsStatic || fields[0].FieldType.FullName != "System.Boolean")
             offenders.Add(store.FullName + ": cleanup seal must remain one private instance Boolean");
-        var accesses = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions
-            .Where(instruction => instruction.Operand is FieldReference field && TargetsDeclaredType(field, store)
-                && field.Name == "_cleanupUnconfirmed")
-            .Select(instruction => (Owner: MethodId(item.Owner), Instruction: instruction))).ToArray();
+        var accesses = census.FieldInstructions("_cleanupUnconfirmed")
+            .Where(item => TargetsDeclaredType(item.Target, store))
+            .Select(item => (Owner: item.OwnerId, item.Instruction)).ToArray();
         CheckSet(offenders, store.FullName + " monotonic cleanup seal access",
             accesses.Select(item => item.Owner + ":" + item.Instruction.OpCode.Name),
             [observation + ":ldfld", reader + ":ldfld", retain + ":stfld"]);
@@ -97,9 +96,9 @@ public sealed partial class OutboxDispatchConventionTests
         }
 
         void CheckCallers(TypeDefinition type, string method, IEnumerable<string> expected) =>
-            CheckSet(offenders, name + " " + type.Name + "." + method + " callers", sites
-                .Where(site => TargetsDeclaredType(site.Target, type) && site.Target.Name == method)
-                .Select(site => site.Owner), expected);
+            CheckSet(offenders, name + " " + type.Name + "." + method + " callers", census.MethodInstructions(method)
+                .Where(site => TargetsDeclaredType(site.Target, type))
+                .Select(site => site.OwnerId), expected);
     }
 
     public sealed class CleanupOwnerMutationTests

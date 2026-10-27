@@ -748,10 +748,9 @@ public sealed partial class OutboxDispatchConventionTests
         { offenders.Add(TypeId(type) + ": requires its private readonly lazy source"); return; }
         // Close forwarding of an already injected capability as well as fresh keyed
         // resolution. Exact access counts also catch another use in an allowed method.
-        var actual = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions
-            .Where(instruction => instruction.Operand is FieldReference field && SameType(field.DeclaringType, type)
-                && field.Name == fields[0].Name)
-            .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name));
+        var actual = census.FieldInstructions(fields[0].Name)
+            .Where(item => SameType(item.Target.DeclaringType, type))
+            .Select(item => item.OwnerId + ":" + item.Instruction.OpCode.Name);
         var expected = new[] { constructor + ":stfld" }.Concat(readers.Select(reader => reader + ":ldfld"));
         CheckSet(offenders, TypeId(type) + " privileged source field access", actual, expected);
     }

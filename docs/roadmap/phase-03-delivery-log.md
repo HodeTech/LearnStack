@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,810 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,850 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -113,6 +113,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 6 measured-plan review and qualification freeze (2026-10-27)](#p03-2-step-6-measured-plan-review-and-qualification-freeze-2026-10-27) — 48 lines
   - [P03-2 Step 6 failed qualification and owned cleanup correction (2026-10-28)](#p03-2-step-6-failed-qualification-and-owned-cleanup-correction-2026-10-28) — 50 lines
   - [P03-2 Step 6 Architecture timing correction (2026-10-28)](#p03-2-step-6-architecture-timing-correction-2026-10-28) — 58 lines
+  - [P03-2 Step 6 scoped census performance correction (2026-10-28)](#p03-2-step-6-scoped-census-performance-correction-2026-10-28) — 40 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4776,3 +4777,43 @@ stable across discovery. Native-owner controls pass **94/94**, planner **83/83**
 and result/fixture controls **40/40**. The second independent review recomputes
 raw provenance, rounding, historical floors and candidate differences before the
 new commit. New hosted A/B remains the qualification gate.
+
+### P03-2 Step 6 scoped census performance correction (2026-10-28)
+
+Full A attempt [40587983457/1](https://github.com/HodeTech/LearnStack/actions/runs/40587983457)
+at reviewed plan source `72d76f20` completes **23/27** jobs. All ordinary
+producers and the integration aggregate pass. Architecture 0/2/4 and the backend
+aggregate fail. Exact producer unions contain **6,923** cases: **6,920** Passed,
+zero Failed, and **three** without results. All **24** actual artifacts retain
+API identity, exact bytes, SHA-256 and ZIP CRC checks. B never starts; no
+qualification or catalogue promotion follows from this run.
+
+Each failed Architecture producer lacks one expensive Fact: authority census
+(**79/80** complete), delivery credential mutation (**111/112**) and business-owner
+census (**171/172**). Their execution windows are **720.243 / 727.732 / 730.834**
+seconds. Matched completed-case durations grow **14.5% / 33.8% / 13.4%** against
+the prior complete observations. The cgroup records substantial CPU usage; case
+start times are unavailable, so this does not prove a hang or distinguish exact
+late-starting from slow execution. No production or Architecture source changes
+occur between those hosted attempts. Another weight-only rerun is not selected.
+
+Independent source inspection and local sampled-thread traces identify repeated
+Cecil graph scans and identity formatting in the shared credential detector.
+Sampling is diagnostic thread time, not an isolated CPU percentage or hosted
+fit measurement. A three-file test-only correction uses existing per-detector
+method/field-name instruction buckets, retains full declaring-type checks, and
+formats only selected business-owner identities through an evaluation-local,
+reference-keyed dictionary. It adds no cross-mutation cache. Exact inventories,
+opcodes, duplicate occurrences, attribute-linked owners, detached targets and
+every clean/dirty/restored detector evaluation remain.
+
+Release compilation passes with zero warnings/errors. The isolated authority
+Fact passes before and after with the same actual case ID, zero failures/skips:
+**226.070 -> 190.739** seconds (**15.6%** lower). The baseline is profiled; this
+single local comparison is advisory and cannot prove the final Linux fit.
+Other affected mutation/index controls and two fresh independent review rounds
+remain open at this development commit. Whole-obligation final-source hosted
+A/B remains required. The plan, six/twelve owner counts, two Architecture
+threads, VM and time ceilings, cleanup reserve and all production code remain
+unchanged by this correction.
+
