@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,866 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,893 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -115,6 +115,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 6 Architecture timing correction (2026-10-28)](#p03-2-step-6-architecture-timing-correction-2026-10-28) — 58 lines
   - [P03-2 Step 6 scoped census performance correction (2026-10-28)](#p03-2-step-6-scoped-census-performance-correction-2026-10-28) — 39 lines
   - [P03-2 census performance review round 1 (2026-10-28)](#p03-2-census-performance-review-round-1-2026-10-28) — 17 lines
+  - [P03-2 census performance review round 2 and source freeze (2026-10-28)](#p03-2-census-performance-review-round-2-and-source-freeze-2026-10-28) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4834,3 +4835,30 @@ raw/index/clean-dirty-restored cache control pass **3/3**, zero failures/skips.
 Together with the separately recorded isolated authority pass, this validates
 the focused correction; it is not a complete local or hosted qualification.
 The next fresh review round and final-source full hosted A/B remain open.
+
+### P03-2 census performance review round 2 and source freeze (2026-10-28)
+
+Two new independent reviewers (`gpt-6-astra`, xhigh) inspect the complete scoped
+performance correction through `c3adebe9`. Both approve without verified
+findings. They independently check equivalent caller/field populations, exact
+identity, attribute-linked owners, duplicate/opcode preservation, malformed and
+detached targets, and fresh cache state for every clean/dirty/restored evaluation.
+The proof reviewer recomputes all 24 failed-run archive hashes and exact case
+unions, plus the focused before/after and **3/3** passing control receipts.
+Neither reviewer edits files, builds or runs .NET tests.
+
+Actual discovery at `c3adebe9` repeats all **64** no-build requests against the
+unchanged focused-test binaries. Both **20-owner** assignments rediscover and
+reconcile the complete **6,923-case** population, with zero unknown weights;
+source and all four DLL hashes stay stable across discovery. The manifest remains
+`5abdc7f3f7d46c18ccd78ec856f2e3f1a9bc0b46e371cc7b9026c34b07e6a1ba`
+and the plan remains
+`c043f60588779307372be621e032dbc60e3437f525fab954136e15efb87027a0`.
+The only delta from the freshly built/tested `6d1a43bf` is the first review's
+documentation receipt; this is selection validation, not hosted qualification.
+
+Both fresh performance-review rounds and focused controls are closed. No
+production code, test population, timing weight, owner count, thread setting,
+job ceiling or cleanup reserve changes after the correction. Source work freezes
+for new complete hosted A/B. Catalogue promotions, gate/packet closeout and PR
+handoff still wait for that actual evidence.
