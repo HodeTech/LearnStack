@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 600 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 626 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -91,6 +91,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 revised proposal review round 2 and readiness (2026-10-27)](#p03-2-revised-proposal-review-round-2-and-readiness-2026-10-27) — 42 lines
   - [P03-2 joint acceptance and Step 1 (2026-10-27)](#p03-2-joint-acceptance-and-step-1-2026-10-27) — 117 lines
   - [P03-2 Step 1 review round 1 and setup correction (2026-10-27)](#p03-2-step-1-review-round-1-and-setup-correction-2026-10-27) — 26 lines
+  - [P03-2 Step 1 review round 2 and closeout (2026-10-27)](#p03-2-step-1-review-round-2-and-closeout-2026-10-27) — 26 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3544,3 +3545,29 @@ The authority slice approves its inspected contract scope; the evidence slice
 approves with the setup minor above. The parent verifies/corrects that finding;
 a second fresh independent round reviews the committed correction and complete
 Step 1 delta. Work stays on `development`; no runtime wiring is changed.
+
+### P03-2 Step 1 review round 2 and closeout (2026-10-27)
+
+**Reviewed source:** `c7000844` against approved `725d255a`. Two new independent
+`gpt-6-astra` reviewers at xhigh effort inspect the complete authority/security/
+source-classification and evidence/privacy/durability slices. Neither authored
+Step 1 or performed its first review round. Both approve their read-only scope
+with no verified actionable finding. They independently verify the setup/
+permission-guidance correction, unchanged executable environment assignments,
+46-request/nine-action census, immutable historical prefixes, pending proof
+statuses and the approved barrier/source/scope limits against adjacent code.
+
+**Validation:** both reviewers run the whole-tree docs/structure/index checks
+(2,735 resolved fragment links) and range diff checks successfully. The initial
+Release 20/20 catalogue/audit-matrix controls and seven parser controls remain
+the applicable tests; no new runtime proof is inferred from their review.
+No finding is left unresolved or silently deferred by this closeout.
+
+**Step 1 complete.** Joint acceptance, canonical reconciliation, baseline source
+classification and proof registration have their commit and two fresh review
+rounds. Step 2 proceeds automatically: implement the confined candidate reader,
+trusted input/child-owner seam and independent bounded sources, then qualify
+committed-only facts, physical READ ONLY, lifetime and direct/PgBouncer progress.
+Production deny-all/live HTTP wiring remains held until the approved activation
+step and its complete evidence paths. No further maintainer approval is needed
+for the accepted six-step scope.
